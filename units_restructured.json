@@ -1,0 +1,1824 @@
+{
+  "Horseman": {
+    "costs": {
+      "food": 100,
+      "wood": 20
+    },
+    "trainingTime": 22.5,
+    "population": 1,
+    "speed": 1.875,
+    "tags": [
+      "Cavalry"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 0.38,
+        "attackSpeed": 1.75,
+        "ages": {
+          "2": {
+            "hp": 125,
+            "meleeArmor": 0,
+            "rangedArmor": 2,
+            "attack": 9,
+            "bonus": {
+              "Ranged": 9
+            }
+          },
+          "3": {
+            "hp": 155,
+            "meleeArmor": 0,
+            "rangedArmor": 3,
+            "attack": 11,
+            "bonus": {
+              "Ranged": 11
+            }
+          },
+          "4": {
+            "hp": 180,
+            "meleeArmor": 0,
+            "rangedArmor": 5,
+            "attack": 13,
+            "bonus": {
+              "Ranged": 13
+            }
+          }
+        }
+      }
+    }
+  },
+  "Gilded Horseman": {
+    "costs": {
+      "food": 200,
+      "wood": 40
+    },
+    "trainingTime": 27.0,
+    "population": 2,
+    "speed": 1.875,
+    "tags": [
+      "Cavalry"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 0.38,
+        "attackSpeed": 1.75,
+        "ages": {
+          "2": {
+            "hp": 250,
+            "meleeArmor": 0,
+            "rangedArmor": 2,
+            "attack": 15,
+            "bonus": {
+              "Ranged": 15
+            }
+          },
+          "3": {
+            "hp": 310,
+            "meleeArmor": 0,
+            "rangedArmor": 3,
+            "attack": 18,
+            "bonus": {
+              "Ranged": 18
+            }
+          },
+          "4": {
+            "hp": 360,
+            "meleeArmor": 0,
+            "rangedArmor": 5,
+            "attack": 20,
+            "bonus": {
+              "Ranged": 20
+            }
+          }
+        }
+      }
+    }
+  },
+  "Desert Raider": {
+    "costs": {
+      "food": 80,
+      "wood": 50,
+      "gold": 50
+    },
+    "trainingTime": 30.0,
+    "population": 1,
+    "speed": 1.625,
+    "tags": [
+      "Infantry",
+      "Heavy",
+      "Ranged"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 4.5,
+        "attackSpeed": 1.25,
+        "ages": {
+          "2": {
+            "hp": 120,
+            "meleeArmor": 5,
+            "rangedArmor": 0,
+            "attack": 7,
+            "bonus": {}
+          },
+          "3": {
+            "hp": 145,
+            "meleeArmor": 6,
+            "rangedArmor": 0,
+            "attack": 9,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 175,
+            "meleeArmor": 7,
+            "rangedArmor": 0,
+            "attack": 11,
+            "bonus": {}
+          }
+        }
+      }
+    }
+  },
+  "Hobelar": {
+    "costs": {
+      "food": 70,
+      "gold": 20
+    },
+    "trainingTime": 15.0,
+    "population": 1,
+    "speed": 1.88,
+    "tags": [
+      "Cavalry"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 0.38,
+        "attackSpeed": 1.5,
+        "ages": {
+          "2": {
+            "hp": 100,
+            "meleeArmor": 0,
+            "rangedArmor": 3,
+            "attack": 7,
+            "bonus": {
+              "Ranged": 7
+            }
+          },
+          "3": {
+            "hp": 120,
+            "meleeArmor": 0,
+            "rangedArmor": 4,
+            "attack": 9,
+            "bonus": {
+              "Ranged": 9
+            }
+          },
+          "4": {
+            "hp": 145,
+            "meleeArmor": 0,
+            "rangedArmor": 7,
+            "attack": 12,
+            "bonus": {
+              "Ranged": 12
+            }
+          }
+        }
+      }
+    }
+  },
+  "Sipahi": {
+    "costs": {
+      "food": 120,
+      "wood": 40
+    },
+    "trainingTime": 30.0,
+    "population": 1,
+    "speed": 1.75,
+    "tags": [
+      "Cavalry"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 0.75,
+        "attackSpeed": 1.75,
+        "ages": {
+          "2": {
+            "hp": 155,
+            "meleeArmor": 0,
+            "rangedArmor": 2,
+            "attack": 12,
+            "bonus": {
+              "Ranged": 12
+            }
+          },
+          "3": {
+            "hp": 185,
+            "meleeArmor": 0,
+            "rangedArmor": 3,
+            "attack": 15,
+            "bonus": {
+              "Ranged": 15
+            }
+          },
+          "4": {
+            "hp": 220,
+            "meleeArmor": 0,
+            "rangedArmor": 5,
+            "attack": 18,
+            "bonus": {
+              "Ranged": 18
+            }
+          }
+        }
+      }
+    }
+  },
+  "Ghazi": {
+    "costs": {
+      "food": 110,
+      "wood": 30
+    },
+    "trainingTime": 25.0,
+    "population": 1,
+    "speed": 1.875,
+    "tags": [
+      "Cavalry"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 0.29,
+        "attackSpeed": 2.0,
+        "ages": {
+          "2": {
+            "hp": 135,
+            "meleeArmor": 0,
+            "rangedArmor": 2,
+            "attack": 12,
+            "bonus": {
+              "Ranged": 12
+            }
+          },
+          "3": {
+            "hp": 170,
+            "meleeArmor": 0,
+            "rangedArmor": 3,
+            "attack": 15,
+            "bonus": {
+              "Ranged": 15
+            }
+          },
+          "4": {
+            "hp": 200,
+            "meleeArmor": 0,
+            "rangedArmor": 5,
+            "attack": 18,
+            "bonus": {
+              "Ranged": 18
+            }
+          }
+        }
+      }
+    }
+  },
+  "Knight/Lancer": {
+    "costs": {
+      "food": 140,
+      "gold": 100
+    },
+    "trainingTime": 35.0,
+    "population": 1,
+    "speed": 1.63,
+    "tags": [
+      "Cavalry",
+      "Heavy"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 0.38,
+        "attackSpeed": 1.5,
+        "ages": {
+          "2": {
+            "hp": 190,
+            "meleeArmor": 3,
+            "rangedArmor": 3,
+            "attack": 19,
+            "bonus": {}
+          },
+          "3": {
+            "hp": 230,
+            "meleeArmor": 4,
+            "rangedArmor": 4,
+            "attack": 24,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 270,
+            "meleeArmor": 5,
+            "rangedArmor": 5,
+            "attack": 29,
+            "bonus": {}
+          }
+        }
+      }
+    }
+  },
+  "Royal Knight": {
+    "costs": {
+      "food": 140,
+      "gold": 100
+    },
+    "trainingTime": 35.0,
+    "population": 1,
+    "speed": 1.625,
+    "tags": [
+      "Cavalry",
+      "Heavy"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 0.38,
+        "attackSpeed": 1.5,
+        "ages": {
+          "2": {
+            "hp": 190,
+            "meleeArmor": 3,
+            "rangedArmor": 3,
+            "attack": 19,
+            "bonus": {}
+          },
+          "3": {
+            "hp": 230,
+            "meleeArmor": 4,
+            "rangedArmor": 4,
+            "attack": 24,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 270,
+            "meleeArmor": 5,
+            "rangedArmor": 5,
+            "attack": 29,
+            "bonus": {}
+          }
+        }
+      }
+    }
+  },
+  "Royal Knight Charge": {
+    "costs": {
+      "food": 140,
+      "gold": 100
+    },
+    "trainingTime": 35.0,
+    "population": 1,
+    "speed": 1.625,
+    "tags": [
+      "Cavalry",
+      "Heavy"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 0.38,
+        "attackSpeed": 1.5,
+        "ages": {
+          "2": {
+            "hp": 190,
+            "meleeArmor": 3,
+            "rangedArmor": 3,
+            "attack": 22,
+            "bonus": {}
+          },
+          "3": {
+            "hp": 230,
+            "meleeArmor": 4,
+            "rangedArmor": 4,
+            "attack": 27,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 270,
+            "meleeArmor": 5,
+            "rangedArmor": 5,
+            "attack": 32,
+            "bonus": {}
+          }
+        }
+      }
+    }
+  },
+  "War Elephant": {
+    "costs": {
+      "food": 400,
+      "gold": 350
+    },
+    "trainingTime": 60.0,
+    "population": 3,
+    "speed": 1.0,
+    "tags": [
+      "Cavalry",
+      "Heavy"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 1.25,
+        "attackSpeed": 1.5,
+        "ages": {
+          "2": {
+            "attack": 22,
+            "bonus": {}
+          },
+          "3": {
+            "hp": 850,
+            "meleeArmor": 4,
+            "rangedArmor": 5,
+            "attack": 27,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 850,
+            "meleeArmor": 4,
+            "rangedArmor": 5,
+            "attack": 32,
+            "bonus": {}
+          }
+        }
+      },
+      "secondary": {
+        "type": "melee",
+        "range": 0.38,
+        "ages": {
+          "3": {
+            "attack": 25,
+            "bonus": {
+              "Cavalry": 40
+            }
+          },
+          "4": {
+            "attack": 25,
+            "bonus": {
+              "Cavalry": 40
+            }
+          }
+        }
+      }
+    }
+  },
+  "Sofa": {
+    "costs": {
+      "food": 120,
+      "gold": 60
+    },
+    "trainingTime": 26.0,
+    "population": 1,
+    "speed": 1.725,
+    "tags": [
+      "Cavalry",
+      "Heavy"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 0.38,
+        "attackSpeed": 1.625,
+        "ages": {
+          "2": {
+            "hp": 160,
+            "meleeArmor": 2,
+            "rangedArmor": 2,
+            "attack": 17,
+            "bonus": {}
+          },
+          "3": {
+            "hp": 195,
+            "meleeArmor": 3,
+            "rangedArmor": 3,
+            "attack": 20,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 230,
+            "meleeArmor": 4,
+            "rangedArmor": 4,
+            "attack": 25,
+            "bonus": {}
+          }
+        }
+      }
+    }
+  },
+  "Keshik": {
+    "costs": {
+      "food": 120,
+      "gold": 80
+    },
+    "trainingTime": 30.0,
+    "population": 1,
+    "speed": 1.625,
+    "tags": [
+      "Cavalry",
+      "Heavy"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 0.38,
+        "attackSpeed": 1.375,
+        "ages": {
+          "2": {
+            "hp": 145,
+            "meleeArmor": 3,
+            "rangedArmor": 3,
+            "attack": 15,
+            "bonus": {}
+          },
+          "3": {
+            "hp": 175,
+            "meleeArmor": 4,
+            "rangedArmor": 4,
+            "attack": 19,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 210,
+            "meleeArmor": 5,
+            "rangedArmor": 5,
+            "attack": 23,
+            "bonus": {}
+          }
+        }
+      }
+    }
+  },
+  "Archer": {
+    "costs": {
+      "food": 30,
+      "wood": 50
+    },
+    "trainingTime": 15.0,
+    "population": 1,
+    "speed": 1.25,
+    "tags": [
+      "Infantry",
+      "Ranged"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 5.0,
+        "attackSpeed": 1.625,
+        "ages": {
+          "2": {
+            "hp": 70,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 5,
+            "bonus": {
+              "Light Infantry": 5,
+              "Light Gunpowder": 5
+            }
+          },
+          "3": {
+            "hp": 80,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 7,
+            "bonus": {
+              "Light Infantry": 7,
+              "Light Gunpowder": 7
+            }
+          },
+          "4": {
+            "hp": 95,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 8,
+            "bonus": {
+              "Light Infantry": 8,
+              "Light Gunpowder": 8
+            }
+          }
+        }
+      }
+    }
+  },
+  "Longbow": {
+    "costs": {
+      "food": 40,
+      "wood": 50
+    },
+    "trainingTime": 15.0,
+    "population": 1,
+    "speed": 1.125,
+    "tags": [
+      "Infantry",
+      "Ranged"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 7.0,
+        "attackSpeed": 1.625,
+        "ages": {
+          "2": {
+            "hp": 70,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 6,
+            "bonus": {
+              "Light Infantry": 6,
+              "Light Gunpowder": 6
+            }
+          },
+          "3": {
+            "hp": 80,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 8,
+            "bonus": {
+              "Light Infantry": 8,
+              "Light Gunpowder": 8
+            }
+          },
+          "4": {
+            "hp": 95,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 9,
+            "bonus": {
+              "Light Infantry": 9,
+              "Light Gunpowder": 9
+            }
+          }
+        }
+      }
+    }
+  },
+  "Yoeman": {
+    "costs": {
+      "food": 50,
+      "wood": 45
+    },
+    "trainingTime": 15.0,
+    "population": 1,
+    "speed": 1.31,
+    "tags": [
+      "Infantry",
+      "Ranged"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 6.0,
+        "attackSpeed": 1.625,
+        "ages": {
+          "2": {
+            "hp": 70,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 5,
+            "bonus": {
+              "Light Infantry": 5,
+              "Light Gunpowder": 5
+            }
+          },
+          "3": {
+            "hp": 80,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 7,
+            "bonus": {
+              "Light Infantry": 7,
+              "Light Gunpowder": 7
+            }
+          },
+          "4": {
+            "hp": 95,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 8,
+            "bonus": {
+              "Light Infantry": 8,
+              "Light Gunpowder": 8
+            }
+          }
+        }
+      }
+    }
+  },
+  "Yumi": {
+    "costs": {
+      "food": 25,
+      "wood": 35
+    },
+    "trainingTime": 12.5,
+    "population": 1,
+    "speed": 1.375,
+    "tags": [
+      "Infantry",
+      "Ranged"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 5.0,
+        "attackSpeed": 1.625,
+        "ages": {
+          "2": {
+            "hp": 65,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 4,
+            "bonus": {
+              "Light Infantry": 4,
+              "Light Gunpowder": 4
+            }
+          },
+          "3": {
+            "hp": 70,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 6,
+            "bonus": {
+              "Light Infantry": 6,
+              "Light Gunpowder": 6
+            }
+          },
+          "4": {
+            "hp": 85,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 7,
+            "bonus": {
+              "Light Infantry": 7,
+              "Light Gunpowder": 7
+            }
+          }
+        }
+      }
+    }
+  },
+  "Gilded Archer": {
+    "costs": {
+      "food": 60,
+      "wood": 100
+    },
+    "trainingTime": 18.0,
+    "population": 2,
+    "speed": 1.25,
+    "tags": [
+      "Infantry",
+      "Ranged"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 5.5,
+        "attackSpeed": 1.0,
+        "ages": {
+          "2": {
+            "hp": 125,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 6,
+            "bonus": {
+              "Light Infantry": 6,
+              "Light Gunpowder": 6
+            }
+          },
+          "3": {
+            "hp": 145,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 8,
+            "bonus": {
+              "Light Infantry": 8,
+              "Light Gunpowder": 8
+            }
+          },
+          "4": {
+            "hp": 160,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 10,
+            "bonus": {
+              "Light Infantry": 10,
+              "Light Gunpowder": 10
+            }
+          }
+        }
+      }
+    }
+  },
+  "Spearman": {
+    "costs": {
+      "food": 60,
+      "wood": 20
+    },
+    "trainingTime": 15.0,
+    "population": 1,
+    "speed": 1.25,
+    "tags": [
+      "Infantry",
+      "Light Infantry"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "attackSpeed": 1.875,
+        "ages": {
+          "2": {
+            "hp": 90,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 8,
+            "bonus": {
+              "Cavalry": 20,
+              "Elephant": 3
+            }
+          },
+          "3": {
+            "hp": 110,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 9,
+            "bonus": {
+              "Cavalry": 23,
+              "Elephant": 4
+            }
+          },
+          "4": {
+            "hp": 130,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 11,
+            "bonus": {
+              "Cavalry": 28,
+              "Elephant": 5
+            }
+          }
+        }
+      }
+    }
+  },
+  "Gilded Spearman": {
+    "costs": {
+      "food": 120,
+      "wood": 40
+    },
+    "trainingTime": 18.0,
+    "population": 2,
+    "speed": 1.25,
+    "tags": [
+      "Infantry",
+      "Ranged",
+      "Light Infantry"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "attackSpeed": 1.875,
+        "ages": {
+          "2": {
+            "hp": 160,
+            "meleeArmor": 1,
+            "rangedArmor": 0,
+            "attack": 10,
+            "bonus": {
+              "Cavalry": 34,
+              "Elephant": 6
+            }
+          },
+          "3": {
+            "hp": 220,
+            "meleeArmor": 1,
+            "rangedArmor": 0,
+            "attack": 14,
+            "bonus": {
+              "Cavalry": 40,
+              "Elephant": 8
+            }
+          },
+          "4": {
+            "hp": 260,
+            "meleeArmor": 1,
+            "rangedArmor": 0,
+            "attack": 18,
+            "bonus": {
+              "Cavalry": 46,
+              "Elephant": 10
+            }
+          }
+        }
+      }
+    }
+  },
+  "Donso": {
+    "costs": {
+      "food": 60,
+      "wood": 30
+    },
+    "trainingTime": 15.0,
+    "population": 1,
+    "speed": 1.25,
+    "tags": [
+      "Infantry",
+      "Ranged",
+      "Light Infantry"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "attackSpeed": 1.875,
+        "ages": {
+          "2": {
+            "hp": 100,
+            "meleeArmor": 1,
+            "rangedArmor": 0,
+            "attack": 8,
+            "bonus": {
+              "Cavalry": 20,
+              "Elephant": 4
+            }
+          },
+          "3": {
+            "hp": 120,
+            "meleeArmor": 1,
+            "rangedArmor": 0,
+            "attack": 9,
+            "bonus": {
+              "Cavalry": 23,
+              "Elephant": 5
+            }
+          },
+          "4": {
+            "hp": 140,
+            "meleeArmor": 1,
+            "rangedArmor": 0,
+            "attack": 11,
+            "bonus": {
+              "Cavalry": 28,
+              "Elephant": 6
+            }
+          }
+        }
+      }
+    }
+  },
+  "Limitanei": {
+    "costs": {
+      "food": 80,
+      "wood": 10
+    },
+    "trainingTime": 17.0,
+    "population": 1,
+    "speed": 1.25,
+    "tags": [
+      "Infantry",
+      "Ranged",
+      "Light Infantry"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 0.44,
+        "attackSpeed": 1.875,
+        "ages": {
+          "2": {
+            "hp": 100,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 8,
+            "bonus": {
+              "Cavalry": 20,
+              "Elephant": 4
+            }
+          },
+          "3": {
+            "hp": 120,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 9,
+            "bonus": {
+              "Cavalry": 23,
+              "Elephant": 5
+            }
+          },
+          "4": {
+            "hp": 140,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 11,
+            "bonus": {
+              "Cavalry": 28,
+              "Elephant": 6
+            }
+          }
+        }
+      }
+    }
+  },
+  "MAA": {
+    "costs": {
+      "food": 100,
+      "gold": 20
+    },
+    "trainingTime": 22.5,
+    "population": 1,
+    "speed": 1.125,
+    "tags": [
+      "Infantry",
+      "Heavy"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "attackSpeed": 1.375,
+        "ages": {
+          "2": {
+            "hp": 120,
+            "meleeArmor": 3,
+            "rangedArmor": 3,
+            "attack": 10,
+            "bonus": {}
+          },
+          "3": {
+            "hp": 155,
+            "meleeArmor": 4,
+            "rangedArmor": 4,
+            "attack": 12,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 180,
+            "meleeArmor": 5,
+            "rangedArmor": 6,
+            "attack": 14,
+            "bonus": {}
+          }
+        }
+      }
+    }
+  },
+  "Gilded MAA": {
+    "costs": {
+      "food": 200,
+      "gold": 40
+    },
+    "trainingTime": 27.0,
+    "population": 2,
+    "speed": 1.125,
+    "tags": [
+      "Infantry",
+      "Heavy"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "attackSpeed": 1.125,
+        "ages": {
+          "2": {
+            "hp": 230,
+            "meleeArmor": 3,
+            "rangedArmor": 3,
+            "attack": 14,
+            "bonus": {}
+          },
+          "3": {
+            "hp": 290,
+            "meleeArmor": 4,
+            "rangedArmor": 4,
+            "attack": 17,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 340,
+            "meleeArmor": 5,
+            "rangedArmor": 6,
+            "attack": 21,
+            "bonus": {}
+          }
+        }
+      }
+    }
+  },
+  "Ghulam": {
+    "costs": {
+      "food": 120,
+      "gold": 30
+    },
+    "trainingTime": 26.0,
+    "population": 1,
+    "speed": 1.188,
+    "tags": [
+      "Infantry",
+      "Heavy"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "attackSpeed": 0.813,
+        "ages": {
+          "3": {
+            "hp": 195,
+            "meleeArmor": 4,
+            "attack": 10,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 225,
+            "meleeArmor": 5,
+            "rangedArmor": 6,
+            "attack": 12,
+            "bonus": {}
+          }
+        }
+      }
+    }
+  },
+  "Palace Guard": {
+    "costs": {
+      "food": 100,
+      "gold": 25
+    },
+    "trainingTime": 22.5,
+    "population": 1,
+    "speed": 1.375,
+    "tags": [
+      "Infantry",
+      "Heavy"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "attackSpeed": 1.375,
+        "ages": {
+          "2": {
+            "hp": 130,
+            "meleeArmor": 3,
+            "rangedArmor": 2,
+            "attack": 9,
+            "bonus": {}
+          },
+          "3": {
+            "hp": 155,
+            "meleeArmor": 3,
+            "rangedArmor": 3,
+            "attack": 12,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 180,
+            "meleeArmor": 4,
+            "rangedArmor": 5,
+            "attack": 14,
+            "bonus": {}
+          }
+        }
+      }
+    }
+  },
+  "Varangian Guard": {
+    "costs": {
+      "food": 90,
+      "gold": 40
+    },
+    "trainingTime": 25.0,
+    "population": 1,
+    "speed": 1.125,
+    "tags": [
+      "Infantry",
+      "Heavy"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "attackSpeed": 1.375,
+        "ages": {
+          "3": {
+            "hp": 140,
+            "meleeArmor": 5,
+            "rangedArmor": 4,
+            "attack": 13,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 170,
+            "meleeArmor": 6,
+            "rangedArmor": 6,
+            "attack": 16,
+            "bonus": {}
+          }
+        }
+      }
+    }
+  },
+  "Samurai": {
+    "costs": {
+      "food": 100,
+      "gold": 30
+    },
+    "trainingTime": 20.0,
+    "population": 1,
+    "speed": 1.125,
+    "tags": [
+      "Infantry",
+      "Heavy"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "attackSpeed": 1.125,
+        "ages": {
+          "2": {
+            "hp": 100,
+            "meleeArmor": 3,
+            "rangedArmor": 3,
+            "attack": 10,
+            "bonus": {}
+          },
+          "3": {
+            "hp": 155,
+            "meleeArmor": 4,
+            "rangedArmor": 4,
+            "attack": 12,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 180,
+            "meleeArmor": 5,
+            "rangedArmor": 6,
+            "attack": 14,
+            "bonus": {}
+          }
+        }
+      }
+    }
+  },
+  "Earls Guard": {
+    "costs": {
+      "food": 100,
+      "gold": 20
+    },
+    "trainingTime": 22.5,
+    "population": 1,
+    "speed": 1.25,
+    "tags": [
+      "Infantry",
+      "Heavy"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "attackSpeed": 1.375,
+        "ages": {
+          "3": {
+            "hp": 155,
+            "meleeArmor": 4,
+            "rangedArmor": 4,
+            "attack": 12,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 180,
+            "meleeArmor": 5,
+            "rangedArmor": 5,
+            "attack": 14,
+            "bonus": {}
+          }
+        }
+      }
+    }
+  },
+  "Crossbow": {
+    "costs": {
+      "food": 80,
+      "gold": 40
+    },
+    "trainingTime": 22.5,
+    "population": 1,
+    "speed": 1.125,
+    "tags": [
+      "Infantry",
+      "Heavy",
+      "Ranged"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 5.0,
+        "attackSpeed": 2.125,
+        "ages": {
+          "3": {
+            "hp": 80,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 11,
+            "bonus": {
+              "Heavy": 10
+            }
+          },
+          "4": {
+            "hp": 95,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 14,
+            "bonus": {
+              "Heavy": 12
+            }
+          }
+        }
+      }
+    }
+  },
+  "Onna Musha": {
+    "costs": {
+      "food": 80,
+      "gold": 60
+    },
+    "trainingTime": 24.0,
+    "population": 1,
+    "speed": 1.625,
+    "tags": [
+      "Cavalry",
+      "Infantry",
+      "Heavy",
+      "Ranged"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 5.5,
+        "attackSpeed": 2.125,
+        "ages": {
+          "3": {
+            "hp": 80,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 10,
+            "bonus": {
+              "Heavy": 9
+            }
+          },
+          "4": {
+            "hp": 95,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 13,
+            "bonus": {
+              "Heavy": 12
+            }
+          }
+        }
+      }
+    }
+  },
+  "Arbaletrier": {
+    "costs": {
+      "food": 80,
+      "gold": 40
+    },
+    "trainingTime": 23.0,
+    "population": 1,
+    "speed": 1.12,
+    "tags": [
+      "Infantry",
+      "Heavy",
+      "Ranged"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 5.0,
+        "attackSpeed": 1.875,
+        "ages": {
+          "2": {
+            "attack": 8,
+            "bonus": {}
+          },
+          "3": {
+            "hp": 80,
+            "meleeArmor": 1,
+            "rangedArmor": 0,
+            "attack": 9,
+            "bonus": {
+              "Heavy": 10
+            }
+          },
+          "4": {
+            "hp": 95,
+            "meleeArmor": 2,
+            "rangedArmor": 0,
+            "attack": 11,
+            "bonus": {
+              "Heavy": 12
+            }
+          }
+        }
+      }
+    }
+  },
+  "Gilded Crossbowman": {
+    "costs": {
+      "food": 160,
+      "gold": 80
+    },
+    "trainingTime": 27.0,
+    "population": 2,
+    "speed": 1.125,
+    "tags": [
+      "Infantry",
+      "Heavy",
+      "Ranged"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 6.0,
+        "attackSpeed": 1.75,
+        "ages": {
+          "3": {
+            "hp": 140,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 15,
+            "bonus": {
+              "Heavy": 10
+            }
+          },
+          "4": {
+            "hp": 170,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 18,
+            "bonus": {
+              "Heavy": 12
+            }
+          }
+        }
+      }
+    }
+  },
+  "Mangudai": {
+    "costs": {
+      "food": 90,
+      "gold": 60
+    },
+    "trainingTime": 28.0,
+    "population": 1,
+    "speed": 1.56,
+    "tags": [
+      "Infantry",
+      "Heavy",
+      "Ranged"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 3.5,
+        "attackSpeed": 0.875,
+        "ages": {
+          "2": {
+            "hp": 85,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 5,
+            "bonus": {}
+          },
+          "3": {
+            "hp": 105,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 6,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 120,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 8,
+            "bonus": {}
+          }
+        }
+      }
+    }
+  },
+  "Akinji": {
+    "costs": {
+      "food": 80,
+      "wood": 80
+    },
+    "trainingTime": 24.0,
+    "population": 1,
+    "speed": 1.62,
+    "tags": [
+      "Cavalry",
+      "Infantry",
+      "Heavy",
+      "Ranged"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 4.5,
+        "attackSpeed": 1.3125,
+        "ages": {
+          "2": {
+            "hp": 95,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 7,
+            "bonus": {}
+          },
+          "3": {
+            "hp": 105,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 9,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 140,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 12,
+            "bonus": {}
+          }
+        }
+      }
+    }
+  },
+  "Tower Elephant": {
+    "costs": {
+      "food": 400,
+      "gold": 600
+    },
+    "trainingTime": 60.0,
+    "population": 3,
+    "speed": 0.875,
+    "tags": [
+      "Cavalry",
+      "Ranged",
+      "Elephant"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 5.0,
+        "attackSpeed": 0.6875,
+        "ages": {
+          "3": {
+            "hp": 600,
+            "meleeArmor": 0,
+            "rangedArmor": 7,
+            "attack": 15,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 600,
+            "meleeArmor": 0,
+            "rangedArmor": 7,
+            "attack": 15,
+            "bonus": {}
+          }
+        }
+      }
+    }
+  },
+  "Sultans Tower Elephant": {
+    "costs": {},
+    "trainingTime": 60.0,
+    "population": 3,
+    "speed": 0.875,
+    "tags": [
+      "Cavalry",
+      "Ranged",
+      "Elephant"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 5.0,
+        "attackSpeed": 0.6875,
+        "ages": {
+          "3": {
+            "hp": 600,
+            "meleeArmor": 0,
+            "rangedArmor": 7,
+            "attack": 38,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 600,
+            "meleeArmor": 0,
+            "rangedArmor": 7,
+            "attack": 38,
+            "bonus": {}
+          }
+        }
+      }
+    }
+  },
+  "Camel Archer": {
+    "costs": {
+      "food": 170,
+      "wood": 60
+    },
+    "trainingTime": 35.0,
+    "population": 1,
+    "speed": 1625.0,
+    "tags": [
+      "Infantry",
+      "Heavy",
+      "Ranged"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 3.75,
+        "attackSpeed": 1.375,
+        "ages": {
+          "2": {
+            "hp": 150,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 11,
+            "bonus": {
+              "Light Infantry": 11,
+              "Light Gunpowder": 11
+            }
+          },
+          "3": {
+            "hp": 175,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 13,
+            "bonus": {
+              "Light Infantry": 13,
+              "Light Gunpowder": 13
+            }
+          },
+          "4": {
+            "hp": 200,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 14,
+            "bonus": {
+              "Light Infantry": 14,
+              "Light Gunpowder": 14
+            }
+          }
+        }
+      }
+    }
+  },
+  "Horse Archer": {
+    "costs": {
+      "food": 80,
+      "wood": 40
+    },
+    "trainingTime": 22.0,
+    "population": 1,
+    "speed": 1625.0,
+    "tags": [
+      "Infantry",
+      "Heavy",
+      "Ranged"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 4.5,
+        "attackSpeed": 2.125,
+        "ages": {
+          "3": {
+            "hp": 85,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 12,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 100,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 14,
+            "bonus": {}
+          }
+        }
+      }
+    }
+  },
+  "Handcannoneer": {
+    "costs": {
+      "food": 120,
+      "gold": 120
+    },
+    "trainingTime": 35.0,
+    "population": 1,
+    "speed": 1.125,
+    "tags": [
+      "Infantry",
+      "Ranged"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 4.0,
+        "attackSpeed": 2.125,
+        "ages": {
+          "3": {
+            "hp": 100,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 26,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 130,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 38,
+            "bonus": {}
+          }
+        }
+      }
+    }
+  },
+  "Streltsy": {
+    "costs": {
+      "food": 90,
+      "gold": 90
+    },
+    "trainingTime": 35.0,
+    "population": 1,
+    "speed": 1.12,
+    "tags": [
+      "Infantry",
+      "Ranged"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 4.0,
+        "attackSpeed": 2.125,
+        "ages": {
+          "4": {
+            "hp": 130,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 38,
+            "bonus": {}
+          }
+        }
+      }
+    }
+  },
+  "Jannisary": {
+    "costs": {
+      "food": 60,
+      "gold": 100
+    },
+    "trainingTime": 24.0,
+    "population": 1,
+    "speed": 1.125,
+    "tags": [
+      "Infantry",
+      "Ranged"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 3.5,
+        "attackSpeed": 1.5,
+        "ages": {
+          "3": {
+            "hp": 90,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 16,
+            "bonus": {
+              "Cavalry": 11
+            }
+          },
+          "4": {
+            "hp": 105,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 20,
+            "bonus": {
+              "Cavalry": 13
+            }
+          }
+        }
+      }
+    }
+  }
+}
