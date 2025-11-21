@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AOE4 Battle Simulator</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body {
+      background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .battle-btn {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border: none;
+      color: white;
+      font-size: 2rem;
+      font-weight: bold;
+      padding: 30px 60px;
+      border-radius: 15px;
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+      transition: all 0.3s;
+    }
+    .battle-btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6);
+    }
+    .stat-box {
+      background: #f8f9fa;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 15px;
+    }
+    .buff-box {
+      background: #e3f2fd;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 15px;
+    }
+    .first-hit-box {
+      background: #fff3cd;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 15px;
+    }
+    .results-card {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-radius: 12px;
+      padding: 30px;
+      margin-top: 30px;
+    }
+    .result-stat {
+      background: rgba(255,255,255,0.2);
+      border-radius: 8px;
+      padding: 20px;
+      margin: 10px;
+      text-align: center;
+    }
+    .result-stat-value {
+      font-size: 2.5rem;
+      font-weight: bold;
+    }
+    .result-stat-label {
+      font-size: 0.9rem;
+      opacity: 0.9;
+    }
+    .small-input {
+      font-size: 0.875rem;
+      padding: 0.375rem 0.5rem;
+    }
+    h1 {
+      color: #2d3748;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+    }
+    .auto-balance-toggle {
+      background: white;
+      padding: 15px;
+      border-radius: 10px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      display: inline-block;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1 class="text-center mb-4">⚔️ AOE4 Battle Simulator ⚔️</h1>
+    
+    <div class="text-center">
+      <div class="auto-balance-toggle">
+        <input type="checkbox" id="autoBalance" checked>
+        <label for="autoBalance" class="ms-2 fw-bold">Auto-balance units by cost</label>
+      </div>
+    </div>
+
+    <div class="row g-4">
+      <!-- Unit A Panel -->
+      <div class="col-lg-5">
+        <div class="card">
+          <div class="card-body">
+            <h3 class="card-title text-primary">Unit A</h3>
+            
+            <div class="row g-3 mb-3">
+              <div class="col-8">
+                <label class="form-label fw-bold">Unit</label>
+                <select id="unitASelect" class="form-select"></select>
+              </div>
+              <div class="col-4">
+                <label class="form-label fw-bold">Age</label>
+                <select id="unitAAge" class="form-select"></select>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-bold">Number of Units</label>
+              <input id="countA" type="number" class="form-control" value="10" min="1">
+            </div>
+
+            <div class="stat-box">
+              <h6 class="fw-bold mb-3">📊 Stats</h6>
+              <div class="row g-2">
+                <div class="col-6">
+                  <input id="A_hp" type="number" class="form-control small-input" placeholder="HP">
+                </div>
+                <div class="col-6">
+                  <input id="A_attack" type="number" class="form-control small-input" placeholder="Attack">
+                </div>
+                <div class="col-6">
+                  <input id="A_meleeArmor" type="number" class="form-control small-input" placeholder="Melee Armor">
+                </div>
+                <div class="col-6">
+                  <input id="A_rangedArmor" type="number" class="form-control small-input" placeholder="Ranged Armor">
+                </div>
+                <div class="col-12">
+                  <input id="A_attackSpeed" type="number" step="0.01" class="form-control small-input" placeholder="Attack Speed (s)">
+                </div>
+              </div>
+            </div>
+
+            <div class="buff-box">
+              <h6 class="fw-bold mb-3">⚡ Buffs <small class="text-muted">(duration: 0 = permanent)</small></h6>
+              <div class="row g-2 mb-2">
+                <div class="col-4">
+                  <input id="A_buffAttackAbs" type="number" class="form-control small-input" placeholder="Atk +">
+                </div>
+                <div class="col-4">
+                  <input id="A_buffAttackPct" type="number" class="form-control small-input" placeholder="Atk %">
+                </div>
+                <div class="col-4">
+                  <input id="A_buffAttackDur" type="number" class="form-control small-input" placeholder="Dur" value="0">
+                </div>
+              </div>
+              <div class="row g-2 mb-2">
+                <div class="col-4">
+                  <input id="A_buffHPabs" type="number" class="form-control small-input" placeholder="HP +">
+                </div>
+                <div class="col-4">
+                  <input id="A_buffHPpct" type="number" class="form-control small-input" placeholder="HP %">
+                </div>
+                <div class="col-4">
+                  <input id="A_buffHPDur" type="number" class="form-control small-input" placeholder="Dur" value="0">
+                </div>
+              </div>
+              <div class="row g-2">
+                <div class="col-6">
+                  <input id="A_buffSpeedPct" type="number" class="form-control small-input" placeholder="Speed %">
+                </div>
+                <div class="col-6">
+                  <input id="A_buffSpeedDur" type="number" class="form-control small-input" placeholder="Dur" value="0">
+                </div>
+              </div>
+            </div>
+
+            <div class="first-hit-box">
+              <h6 class="fw-bold mb-2">🎯 First-Hit Advantage</h6>
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" id="A_firstHitEnabled">
+                <label class="form-check-label" for="A_firstHitEnabled">Enable free hits</label>
+              </div>
+              <input id="A_freeHits" type="number" class="form-control small-input" value="0" min="0" placeholder="Free hits">
+            </div>
+
+            <div class="small text-muted">
+              <strong>Tags:</strong> <span id="A_tags"></span><br>
+              <strong>Bonuses:</strong> <span id="A_bonuses"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Battle Button -->
+      <div class="col-lg-2 d-flex align-items-center justify-content-center">
+        <button id="battleBtn" class="battle-btn">⚔️</button>
+      </div>
+
+      <!-- Unit B Panel -->
+      <div class="col-lg-5">
+        <div class="card">
+          <div class="card-body">
+            <h3 class="card-title text-danger">Unit B</h3>
+            
+            <div class="row g-3 mb-3">
+              <div class="col-8">
+                <label class="form-label fw-bold">Unit</label>
+                <select id="unitBSelect" class="form-select"></select>
+              </div>
+              <div class="col-4">
+                <label class="form-label fw-bold">Age</label>
+                <select id="unitBAge" class="form-select"></select>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-bold">Number of Units</label>
+              <input id="countB" type="number" class="form-control" value="10" min="1">
+            </div>
+
+            <div class="stat-box">
+              <h6 class="fw-bold mb-3">📊 Stats</h6>
+              <div class="row g-2">
+                <div class="col-6">
+                  <input id="B_hp" type="number" class="form-control small-input" placeholder="HP">
+                </div>
+                <div class="col-6">
+                  <input id="B_attack" type="number" class="form-control small-input" placeholder="Attack">
+                </div>
+                <div class="col-6">
+                  <input id="B_meleeArmor" type="number" class="form-control small-input" placeholder="Melee Armor">
+                </div>
+                <div class="col-6">
+                  <input id="B_rangedArmor" type="number" class="form-control small-input" placeholder="Ranged Armor">
+                </div>
+                <div class="col-12">
+                  <input id="B_attackSpeed" type="number" step="0.01" class="form-control small-input" placeholder="Attack Speed (s)">
+                </div>
+              </div>
+            </div>
+
+            <div class="buff-box">
+              <h6 class="fw-bold mb-3">⚡ Buffs <small class="text-muted">(duration: 0 = permanent)</small></h6>
+              <div class="row g-2 mb-2">
+                <div class="col-4">
+                  <input id="B_buffAttackAbs" type="number" class="form-control small-input" placeholder="Atk +">
+                </div>
+                <div class="col-4">
+                  <input id="B_buffAttackPct" type="number" class="form-control small-input" placeholder="Atk %">
+                </div>
+                <div class="col-4">
+                  <input id="B_buffAttackDur" type="number" class="form-control small-input" placeholder="Dur" value="0">
+                </div>
+              </div>
+              <div class="row g-2 mb-2">
+                <div class="col-4">
+                  <input id="B_buffHPabs" type="number" class="form-control small-input" placeholder="HP +">
+                </div>
+                <div class="col-4">
+                  <input id="B_buffHPpct" type="number" class="form-control small-input" placeholder="HP %">
+                </div>
+                <div class="col-4">
+                  <input id="B_buffHPDur" type="number" class="form-control small-input" placeholder="Dur" value="0">
+                </div>
+              </div>
+              <div class="row g-2">
+                <div class="col-6">
+                  <input id="B_buffSpeedPct" type="number" class="form-control small-input" placeholder="Speed %">
+                </div>
+                <div class="col-6">
+                  <input id="B_buffSpeedDur" type="number" class="form-control small-input" placeholder="Dur" value="0">
+                </div>
+              </div>
+            </div>
+
+            <div class="first-hit-box">
+              <h6 class="fw-bold mb-2">🎯 First-Hit Advantage</h6>
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" id="B_firstHitEnabled">
+                <label class="form-check-label" for="B_firstHitEnabled">Enable free hits</label>
+              </div>
+              <input id="B_freeHits" type="number" class="form-control small-input" value="0" min="0" placeholder="Free hits">
+            </div>
+
+            <div class="small text-muted">
+              <strong>Tags:</strong> <span id="B_tags"></span><br>
+              <strong>Bonuses:</strong> <span id="B_bonuses"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div id="results" style="display: none;" class="results-card">
+      <h2 class="text-center mb-4" id="winnerText"></h2>
+      <div class="row">
+        <div class="col-md-3">
+          <div class="result-stat">
+            <div class="result-stat-value" id="remainingUnits"></div>
+            <div class="result-stat-label">Units Remaining</div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="result-stat">
+            <div class="result-stat-value" id="remainingHP"></div>
+            <div class="result-stat-label">HP Remaining</div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="result-stat">
+            <div class="result-stat-value" id="resourcesLost"></div>
+            <div class="result-stat-label">Resources Lost</div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="result-stat">
+            <div class="result-stat-value" id="battleDuration"></div>
+            <div class="result-stat-label">Battle Duration</div>
+          </div>
+        </div>
+      </div>
+      <div class="text-center mt-3">
+        <span id="finalCounts"></span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let units = {};
+
+    // Load units from JSON file
+    fetch('units_restructured.json')
+      .then(response => response.json())
+      .then(data => {
+        units = data;
+        populateSelects();
+        updateUnitStats('A');
+        updateUnitStats('B');
+      })
+      .catch(error => console.error('Error loading units:', error));
+
+    // Populate unit dropdowns
+    function populateSelects() {
+      const selectA = document.getElementById('unitASelect');
+      const selectB = document.getElementById('unitBSelect');
+      
+      selectA.innerHTML = '';
+      selectB.innerHTML = '';
+      
+      Object.keys(units).forEach(name => {
+        selectA.innerHTML += `<option value="${name}">${name}</option>`;
+        selectB.innerHTML += `<option value="${name}">${name}</option>`;
+      });
+      
+      // Set default selections
+      selectA.value = 'Horseman';
+      selectB.value = 'Spearman';
+    }
+
+    // Get available ages for a unit
+    function getAvailableAges(unitName) {
+      const unit = units[unitName];
+      if (!unit || !unit.weapons || !unit.weapons.primary || !unit.weapons.primary.ages) return [];
+      return Object.keys(unit.weapons.primary.ages);
+    }
+
+    // Populate age dropdown
+    function populateAgeDropdown(side) {
+      const unitName = document.getElementById(`unit${side}Select`).value;
+      const ageSelect = document.getElementById(`unit${side}Age`);
+      const availableAges = getAvailableAges(unitName);
+      
+      ageSelect.innerHTML = '';
+      availableAges.forEach(age => {
+        ageSelect.innerHTML += `<option value="${age}">Age ${age}</option>`;
+      });
+      
+      // Select age 3 if available, otherwise last available
+      if (availableAges.includes('3')) {
+        ageSelect.value = '3';
+      } else {
+        ageSelect.value = availableAges[availableAges.length - 1];
+      }
+    }
+
+    // Update stats for a unit
+    function updateUnitStats(side) {
+      const unitName = document.getElementById(`unit${side}Select`).value;
+      const unit = units[unitName];
+      
+      if (!unit) return;
+      
+      // Populate age dropdown first
+      populateAgeDropdown(side);
+      
+      const age = document.getElementById(`unit${side}Age`).value;
+      const weaponData = unit.weapons.primary;
+      const stats = weaponData.ages[age] || {};
+      
+      // Update stat inputs
+      document.getElementById(`${side}_hp`).value = stats.hp || '';
+      document.getElementById(`${side}_attack`).value = stats.attack || '';
+      document.getElementById(`${side}_meleeArmor`).value = stats.meleeArmor || 0;
+      document.getElementById(`${side}_rangedArmor`).value = stats.rangedArmor || 0;
+      document.getElementById(`${side}_attackSpeed`).value = weaponData.attackSpeed || 1;
+      
+      // Update tags and bonuses display
+      document.getElementById(`${side}_tags`).textContent = (unit.tags || []).join(', ');
+      const bonuses = Object.entries(stats.bonus || {}).map(([k, v]) => `${k}: +${v}`).join(', ');
+      document.getElementById(`${side}_bonuses`).textContent = bonuses || 'None';
+      
+      // Auto-balance if enabled
+      if (document.getElementById('autoBalance').checked) {
+        balanceCosts();
+      }
+    }
+
+    // Get total cost of a unit
+    function getTotalCost(unitName) {
+      const unit = units[unitName];
+      if (!unit || !unit.costs) return 0;
+      return Object.values(unit.costs).reduce((sum, val) => sum + val, 0);
+    }
+
+    // Balance unit counts by cost
+    function balanceCosts() {
+      const unitAName = document.getElementById('unitASelect').value;
+      const unitBName = document.getElementById('unitBSelect').value;
+      
+      const costA = getTotalCost(unitAName);
+      const costB = getTotalCost(unitBName);
+      
+      if (costA === 0 || costB === 0) return;
+      
+      // Find GCD to get simplest ratio
+      const gcd = (a, b) => b === 0 ? a : gcd(b, a % b);
+      const divisor = gcd(costA, costB);
+      
+      document.getElementById('countA').value = costB / divisor;
+      document.getElementById('countB').value = costA / divisor;
+    }
+
+    // Get unit data from UI
+    function getUnitData(side) {
+      const unitName = document.getElementById(`unit${side}Select`).value;
+      const unit = units[unitName];
+      const age = document.getElementById(`unit${side}Age`).value;
+      const weaponData = unit.weapons.primary;
+      const ageStats = weaponData.ages[age] || {};
+      
+      return {
+        name: unitName,
+        count: parseInt(document.getElementById(`count${side}`).value) || 1,
+        stats: {
+          hp: parseFloat(document.getElementById(`${side}_hp`).value) || 0,
+          attack: parseFloat(document.getElementById(`${side}_attack`).value) || 0,
+          meleeArmor: parseFloat(document.getElementById(`${side}_meleeArmor`).value) || 0,
+          rangedArmor: parseFloat(document.getElementById(`${side}_rangedArmor`).value) || 0,
+          attackSpeed: parseFloat(document.getElementById(`${side}_attackSpeed`).value) || 1,
+          bonus: ageStats.bonus || {}
+        },
+        buffs: {
+          attackAbs: parseFloat(document.getElementById(`${side}_buffAttackAbs`).value) || 0,
+          attackPct: parseFloat(document.getElementById(`${side}_buffAttackPct`).value) || 0,
+          attackDur: parseFloat(document.getElementById(`${side}_buffAttackDur`).value) || 0,
+          hpAbs: parseFloat(document.getElementById(`${side}_buffHPabs`).value) || 0,
+          hpPct: parseFloat(document.getElementById(`${side}_buffHPpct`).value) || 0,
+          hpDur: parseFloat(document.getElementById(`${side}_buffHPDur`).value) || 0,
+          speedPct: parseFloat(document.getElementById(`${side}_buffSpeedPct`).value) || 0,
+          speedDur: parseFloat(document.getElementById(`${side}_buffSpeedDur`).value) || 0
+        },
+        firstHitEnabled: document.getElementById(`${side}_firstHitEnabled`).checked,
+        freeHits: parseInt(document.getElementById(`${side}_freeHits`).value) || 0,
+        tags: unit.tags || [],
+        weaponType: weaponData.type || 'melee'
+      };
+    }
+
+    // Apply buffs at a given time
+    function applyBuffs(unitData, time) {
+      let hp = unitData.stats.hp;
+      let attack = unitData.stats.attack;
+      let attackSpeed = unitData.stats.attackSpeed;
+      let meleeArmor = unitData.stats.meleeArmor;
+      let rangedArmor = unitData.stats.rangedArmor;
+      
+      if (unitData.buffs.hpDur === 0 || time < unitData.buffs.hpDur) {
+        hp += unitData.buffs.hpAbs;
+        hp *= (1 + unitData.buffs.hpPct / 100);
+      }
+      if (unitData.buffs.attackDur === 0 || time < unitData.buffs.attackDur) {
+        attack += unitData.buffs.attackAbs;
+        attack *= (1 + unitData.buffs.attackPct / 100);
+      }
+      if (unitData.buffs.speedDur === 0 || time < unitData.buffs.speedDur) {
+        attackSpeed /= (1 + unitData.buffs.speedPct / 100);
+      }
+      
+      return { hp, attack, attackSpeed, meleeArmor, rangedArmor };
+    }
+
+    // Run battle simulation
+    function runBattle() {
+      const unitA = getUnitData('A');
+      const unitB = getUnitData('B');
+      
+      // Initialize teams
+      let teamA = {
+        units: unitA.count,
+        totalHp: 0,
+        stats: applyBuffs(unitA, 0),
+        originalStats: unitA.stats,
+        nextAttack: unitA.firstHitEnabled ? -unitA.freeHits * unitA.stats.attackSpeed : 0,
+        tags: unitA.tags,
+        buffs: unitA.buffs,
+        weaponType: unitA.weaponType,
+        unitData: unitA
+      };
+      
+      let teamB = {
+        units: unitB.count,
+        totalHp: 0,
+        stats: applyBuffs(unitB, 0),
+        originalStats: unitB.stats,
+        nextAttack: unitB.firstHitEnabled ? -unitB.freeHits * unitB.stats.attackSpeed : 0,
+        tags: unitB.tags,
+        buffs: unitB.buffs,
+        weaponType: unitB.weaponType,
+        unitData: unitB
+      };
+      
+      teamA.totalHp = teamA.stats.hp * teamA.units;
+      teamB.totalHp = teamB.stats.hp * teamB.units;
+      
+      const startingCostA = getTotalCost(unitA.name) * unitA.count;
+      const startingCostB = getTotalCost(unitB.name) * unitB.count;
+      
+      let time = 0;
+      const maxTime = 300; // 5 minute timeout
+      
+      // Battle loop
+      while (teamA.units > 0 && teamB.units > 0 && time < maxTime) {
+        const nextEventTime = Math.min(teamA.nextAttack, teamB.nextAttack);
+        time = nextEventTime;
+        
+        // Reapply buffs
+        teamA.stats = applyBuffs(unitA, time);
+        teamB.stats = applyBuffs(unitB, time);
+        
+        // Team A attacks
+        if (teamA.nextAttack <= time && teamA.units > 0) {
+          let damage = teamA.stats.attack;
+          
+          // Apply bonus damage
+          for (let tag of teamB.tags) {
+            if (teamA.originalStats.bonus[tag]) {
+              damage += teamA.originalStats.bonus[tag];
+            }
+          }
+          
+          // Apply armor
+          const armor = teamA.weaponType === 'ranged' ? teamB.stats.rangedArmor : teamB.stats.meleeArmor;
+          damage = Math.max(1, damage - armor);
+          
+          // Deal damage
+          teamB.totalHp -= damage * teamA.units;
+          
+          // Check for unit deaths
+          const unitsLost = Math.floor((teamB.stats.hp * teamB.units - teamB.totalHp) / teamB.stats.hp);
+          teamB.units = Math.max(0, teamB.units - unitsLost);
+          
+          teamA.nextAttack = time + teamA.stats.attackSpeed;
+        }
+        
+        // Team B attacks
+        if (teamB.nextAttack <= time && teamB.units > 0) {
+          let damage = teamB.stats.attack;
+          
+          // Apply bonus damage
+          for (let tag of teamA.tags) {
+            if (teamB.originalStats.bonus[tag]) {
+              damage += teamB.originalStats.bonus[tag];
+            }
+          }
+          
+          // Apply armor
+          const armor = teamB.weaponType === 'ranged' ? teamA.stats.rangedArmor : teamA.stats.meleeArmor;
+          damage = Math.max(1, damage - armor);
+          
+          // Deal damage
+          teamA.totalHp -= damage * teamB.units;
+          
+          // Check for unit deaths
+          const unitsLost = Math.floor((teamA.stats.hp * teamA.units - teamA.totalHp) / teamA.stats.hp);
+          teamA.units = Math.max(0, teamA.units - unitsLost);
+          
+          teamB.nextAttack = time + teamB.stats.attackSpeed;
+        }
+      }
+      
+      // Calculate and display results
+      const winner = teamA.units > 0 ? 'A' : teamB.units > 0 ? 'B' : 'Draw';
+      const winningTeam = winner === 'A' ? teamA : teamB;
+      const winningUnit = winner === 'A' ? unitA : unitB;
+      const startingCost = winner === 'A' ? startingCostA : startingCostB;
+      
+      const remainingHpPct = winningTeam.units > 0 ? (winningTeam.totalHp / (winningTeam.stats.hp * winningUnit.count)) * 100 : 0;
+      const resourcesLost = startingCost * (1 - remainingHpPct / 100);
+      
+      // Display results
+      document.getElementById('results').style.display = 'block';
+      document.getElementById('winnerText').textContent = winner === 'Draw' ? '🤝 Draw!' : `🎉 Team ${winner} Wins!`;
+      document.getElementById('remainingUnits').textContent = winningTeam.units;
+      document.getElementById('remainingHP').textContent = remainingHpPct.toFixed(1) + '%';
+      document.getElementById('resourcesLost').textContent = resourcesLost.toFixed(0);
+      document.getElementById('battleDuration').textContent = time.toFixed(1) + 's';
+      document.getElementById('finalCounts').textContent = `Team A: ${teamA.units} units | Team B: ${teamB.units} units`;
+      
+      // Scroll to results
+      document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // Event listeners
+    document.getElementById('unitASelect').addEventListener('change', () => updateUnitStats('A'));
+    document.getElementById('unitBSelect').addEventListener('change', () => updateUnitStats('B'));
+    document.getElementById('unitAAge').addEventListener('change', () => updateUnitStats('A'));
+    document.getElementById('unitBAge').addEventListener('change', () => updateUnitStats('B'));
+    document.getElementById('battleBtn').addEventListener('click', runBattle);
+    document.getElementById('autoBalance').addEventListener('change', function() {
+      if (this.checked) balanceCosts();
+    });
+  </script>
+</body>
+</html>

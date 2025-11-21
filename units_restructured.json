@@ -423,7 +423,7 @@
     "speed": 1.0,
     "tags": [
       "Cavalry",
-      "Heavy"
+      "Heavy","Elephant"
     ],
     "weapons": {
       "primary": {
