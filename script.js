@@ -35,8 +35,52 @@ function loadUnits() {
     })
     .catch(error => console.error('Error loading units JSON:', error));
 }
+function populateSelects() {
+  const selectA = document.getElementById('unitASelect');
+  const selectB = document.getElementById('unitBSelect');
 
+  selectA.innerHTML = '';
+  selectB.innerHTML = '';
 
-function updateUnitAStats() {}
-function updateUnitBStats() {}
+  for (const name of Object.keys(units)) {
+    const optionHTML = `<option value="${name}">${name}</option>`;
+    selectA.innerHTML += optionHTML;
+    selectB.innerHTML += optionHTML;
+  }
+
+  if (Object.keys(units).length > 0) {
+    selectA.value = Object.keys(units)[0];
+    selectB.value = Object.keys(units)[0];
+    updateUnitAStats();
+    updateUnitBStats();
+  }
+}
+
+function updateUnitAStats() {
+  const unitName = document.getElementById('unitASelect').value;
+  const age = document.getElementById('unitAAge').value;
+  const unit = units[unitName] || {};
+  const stats = unit.weapons?.primary?.ages?.[age] || {};
+
+  document.getElementById('A_hp').value = stats.hp || '';
+  document.getElementById('A_meleeArmor').value = stats.meleeArmor || '';
+  document.getElementById('A_rangedArmor').value = stats.rangedArmor || '';
+  document.getElementById('A_attack').value = stats.attack || '';
+  document.getElementById('A_attackSpeed').value = unit.weapons?.primary?.attackSpeed || '';
+  document.getElementById('A_bonus').value = JSON.stringify(stats.bonus || {});
+}
+
+function updateUnitBStats() {
+  const unitName = document.getElementById('unitBSelect').value;
+  const age = document.getElementById('unitBAge').value;
+  const unit = units[unitName] || {};
+  const stats = unit.weapons?.primary?.ages?.[age] || {};
+
+  document.getElementById('B_hp').value = stats.hp || '';
+  document.getElementById('B_meleeArmor').value = stats.meleeArmor || '';
+  document.getElementById('B_rangedArmor').value = stats.rangedArmor || '';
+  document.getElementById('B_attack').value = stats.attack || '';
+  document.getElementById('B_attackSpeed').value = unit.weapons?.primary?.attackSpeed || '';
+  document.getElementById('B_bonus').value = JSON.stringify(stats.bonus || {});
+}
 function runBattle() {}
