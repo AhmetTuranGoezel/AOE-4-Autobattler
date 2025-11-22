@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AOE4 Battle Simulator</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    /* --- CUSTOM STYLES --- */
+    body {
+      /* Gradient background for visual appeal */
+      background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    /* The central battle button styling */
+    .battle-btn {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border: none;
+      color: white;
+      font-size: 2rem;
+      font-weight: bold;
+      padding: 30px 60px;
+      border-radius: 15px;
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+      transition: all 0.3s;
+    }
+    .battle-btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6);
+    }
+    /* Section containers */
+    .stat-box { background: #f8f9fa; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
+    .buff-box { background: #e3f2fd; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
+    .first-hit-box { background: #fff3cd; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
+    
+    /* Result section styling */
+    .results-card {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-radius: 12px;
+      padding: 30px;
+      margin-top: 30px;
+    }
+    .result-stat {
+      background: rgba(255,255,255,0.2);
+      border-radius: 8px;
+      padding: 20px;
+      margin: 10px;
+      text-align: center;
+    }
+    .result-stat-value { font-size: 2.5rem; font-weight: bold; }
+    .result-stat-label { font-size: 0.9rem; opacity: 0.9; }
+    
+    /* Utility */
+    .small-input { font-size: 0.875rem; padding: 0.375rem 0.5rem; }
+    .auto-balance-toggle {
+      background: white;
+      padding: 15px;
+      border-radius: 10px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      display: inline-block;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1 class="text-center mb-4">⚔️ AOE4 Battle Simulator ⚔️</h1>
+    
+    <div class="text-center">
+      <div class="auto-balance-toggle">
+        <input type="checkbox" id="autoBalance" checked>
+        <label for="autoBalance" class="ms-2 fw-bold">Auto-balance units by cost</label>
+      </div>
+    </div>
+
+    <div class="row g-4">
+      <div class="col-lg-5">
+        <div class="card">
+          <div class="card-body">
+            <h3 class="card-title text-primary">Unit A</h3>
+            
+            <div class="row g-3 mb-3">
+              <div class="col-8">
+                <label class="form-label fw-bold">Unit</label>
+                <select id="unitASelect" class="form-select"></select>
+              </div>
+              <div class="col-4">
+                <label class="form-label fw-bold">Age</label>
+                <select id="unitAAge" class="form-select"></select>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-bold">Number of Units</label>
+              <input id="countA" type="number" class="form-control" value="10" min="1">
+            </div>
+
+            <div class="stat-box">
+              <h6 class="fw-bold mb-3">📊 Stats</h6>
+              <div class="row g-2">
+                <div class="col-6"><input id="A_hp" type="number" class="form-control small-input" placeholder="HP"></div>
+                <div class="col-6"><input id="A_attack" type="number" class="form-control small-input" placeholder="Attack"></div>
+                <div class="col-6"><input id="A_meleeArmor" type="number" class="form-control small-input" placeholder="Melee Armor"></div>
+                <div class="col-6"><input id="A_rangedArmor" type="number" class="form-control small-input" placeholder="Ranged Armor"></div>
+                <div class="col-12"><input id="A_attackSpeed" type="number" step="0.01" class="form-control small-input" placeholder="Attack Speed (s)"></div>
+              </div>
+            </div>
+
+            <div class="buff-box">
+              <h6 class="fw-bold mb-3">⚡ Buffs <small class="text-muted">(duration: 0 = permanent)</small></h6>
+              <div class="row g-2 mb-2">
+                <div class="col-4"><input id="A_buffAttackAbs" type="number" class="form-control small-input" placeholder="Atk +"></div>
+                <div class="col-4"><input id="A_buffAttackPct" type="number" class="form-control small-input" placeholder="Atk %"></div>
+                <div class="col-4"><input id="A_buffAttackDur" type="number" class="form-control small-input" placeholder="Dur" value="0"></div>
+              </div>
+              <div class="row g-2 mb-2">
+                <div class="col-4"><input id="A_buffHPabs" type="number" class="form-control small-input" placeholder="HP +"></div>
+                <div class="col-4"><input id="A_buffHPpct" type="number" class="form-control small-input" placeholder="HP %"></div>
+                <div class="col-4"><input id="A_buffHPDur" type="number" class="form-control small-input" placeholder="Dur" value="0"></div>
+              </div>
+              <div class="row g-2">
+                <div class="col-6"><input id="A_buffSpeedPct" type="number" class="form-control small-input" placeholder="Speed %"></div>
+                <div class="col-6"><input id="A_buffSpeedDur" type="number" class="form-control small-input" placeholder="Dur" value="0"></div>
+              </div>
+            </div>
+
+            <div class="first-hit-box">
+              <h6 class="fw-bold mb-2">🎯 First-Hit Advantage</h6>
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" id="A_firstHitEnabled">
+                <label class="form-check-label" for="A_firstHitEnabled">Enable free hits</label>
+              </div>
+              <input id="A_freeHits" type="number" class="form-control small-input" value="0" min="0" placeholder="Free hits">
+            </div>
+
+            <div class="small text-muted">
+              <strong>Tags:</strong> <span id="A_tags"></span><br>
+              <strong>Bonuses:</strong> <span id="A_bonuses"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-2 d-flex align-items-center justify-content-center">
+        <button id="battleBtn" class="battle-btn">⚔️</button>
+      </div>
+
+      <div class="col-lg-5">
+        <div class="card">
+          <div class="card-body">
+            <h3 class="card-title text-danger">Unit B</h3>
+            
+            <div class="row g-3 mb-3">
+              <div class="col-8">
+                <label class="form-label fw-bold">Unit</label>
+                <select id="unitBSelect" class="form-select"></select>
+              </div>
+              <div class="col-4">
+                <label class="form-label fw-bold">Age</label>
+                <select id="unitBAge" class="form-select"></select>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-bold">Number of Units</label>
+              <input id="countB" type="number" class="form-control" value="10" min="1">
+            </div>
+
+            <div class="stat-box">
+              <h6 class="fw-bold mb-3">📊 Stats</h6>
+              <div class="row g-2">
+                <div class="col-6"><input id="B_hp" type="number" class="form-control small-input" placeholder="HP"></div>
+                <div class="col-6"><input id="B_attack" type="number" class="form-control small-input" placeholder="Attack"></div>
+                <div class="col-6"><input id="B_meleeArmor" type="number" class="form-control small-input" placeholder="Melee Armor"></div>
+                <div class="col-6"><input id="B_rangedArmor" type="number" class="form-control small-input" placeholder="Ranged Armor"></div>
+                <div class="col-12"><input id="B_attackSpeed" type="number" step="0.01" class="form-control small-input" placeholder="Attack Speed (s)"></div>
+              </div>
+            </div>
+
+            <div class="buff-box">
+              <h6 class="fw-bold mb-3">⚡ Buffs <small class="text-muted">(duration: 0 = permanent)</small></h6>
+              <div class="row g-2 mb-2">
+                <div class="col-4"><input id="B_buffAttackAbs" type="number" class="form-control small-input" placeholder="Atk +"></div>
+                <div class="col-4"><input id="B_buffAttackPct" type="number" class="form-control small-input" placeholder="Atk %"></div>
+                <div class="col-4"><input id="B_buffAttackDur" type="number" class="form-control small-input" placeholder="Dur" value="0"></div>
+              </div>
+              <div class="row g-2 mb-2">
+                <div class="col-4"><input id="B_buffHPabs" type="number" class="form-control small-input" placeholder="HP +"></div>
+                <div class="col-4"><input id="B_buffHPpct" type="number" class="form-control small-input" placeholder="HP %"></div>
+                <div class="col-4"><input id="B_buffHPDur" type="number" class="form-control small-input" placeholder="Dur" value="0"></div>
+              </div>
+              <div class="row g-2">
+                <div class="col-6"><input id="B_buffSpeedPct" type="number" class="form-control small-input" placeholder="Speed %"></div>
+                <div class="col-6"><input id="B_buffSpeedDur" type="number" class="form-control small-input" placeholder="Dur" value="0"></div>
+              </div>
+            </div>
+
+            <div class="first-hit-box">
+              <h6 class="fw-bold mb-2">🎯 First-Hit Advantage</h6>
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" id="B_firstHitEnabled">
+                <label class="form-check-label" for="B_firstHitEnabled">Enable free hits</label>
+              </div>
+              <input id="B_freeHits" type="number" class="form-control small-input" value="0" min="0" placeholder="Free hits">
+            </div>
+
+            <div class="small text-muted">
+              <strong>Tags:</strong> <span id="B_tags"></span><br>
+              <strong>Bonuses:</strong> <span id="B_bonuses"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="results" style="display: none;" class="results-card">
+      <h2 class="text-center mb-4" id="winnerText"></h2>
+      <div class="row">
+        <div class="col-md-3">
+          <div class="result-stat">
+            <div class="result-stat-value" id="remainingUnits"></div>
+            <div class="result-stat-label">Units Remaining</div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="result-stat">
+            <div class="result-stat-value" id="remainingHP"></div>
+            <div class="result-stat-label">HP Remaining</div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="result-stat">
+            <div class="result-stat-value" id="resourcesLost"></div>
+            <div class="result-stat-label">Resources Lost</div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="result-stat">
+            <div class="result-stat-value" id="battleDuration"></div>
+            <div class="result-stat-label">Battle Duration</div>
+          </div>
+        </div>
+      </div>
+      <div class="text-center mt-3">
+        <span id="finalCounts"></span>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
