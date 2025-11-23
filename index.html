@@ -36,7 +36,7 @@
     }
     /* Section containers */
     .stat-box { background: #f8f9fa; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
-    .buff-box { background: #e3f2fd; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
+    .buff-box { background: #e3f2fd; border-radius: 8px; padding: 15px; margin-bottom: 10px; }
     .first-hit-box { background: #fff3cd; border-radius: 8px; padding: 15px; margin-bottom: 15px; }
     
     /* Result section styling */
@@ -67,6 +67,11 @@
       display: inline-block;
       margin-bottom: 20px;
     }
+    /* Weapon mode button group styling */
+    .weapon-mode-group .btn-check:disabled + .btn {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
   </style>
 </head>
 <body>
@@ -81,11 +86,13 @@
     </div>
 
     <div class="row g-4">
+      <!-- ==================== UNIT A PANEL ==================== -->
       <div class="col-lg-5">
         <div class="card">
           <div class="card-body">
             <h3 class="card-title text-primary">Unit A</h3>
             
+            <!-- Unit Selection and Age -->
             <div class="row g-3 mb-3">
               <div class="col-8">
                 <label class="form-label fw-bold">Unit</label>
@@ -97,11 +104,28 @@
               </div>
             </div>
 
+            <!-- NEW: Weapon Mode Selection -->
+            <div class="mb-3">
+              <label class="form-label fw-bold">Weapon Mode</label>
+              <div class="btn-group w-100 weapon-mode-group" role="group">
+                <input type="radio" class="btn-check" name="weaponModeA" id="primaryA" value="primary" checked>
+                <label class="btn btn-outline-primary btn-sm" for="primaryA">Primary</label>
+                
+                <input type="radio" class="btn-check" name="weaponModeA" id="secondaryA" value="secondary">
+                <label class="btn btn-outline-primary btn-sm" for="secondaryA">Secondary</label>
+                
+                <input type="radio" class="btn-check" name="weaponModeA" id="bothA" value="both">
+                <label class="btn btn-outline-primary btn-sm" for="bothA">Both</label>
+              </div>
+            </div>
+
+            <!-- Unit Count -->
             <div class="mb-3">
               <label class="form-label fw-bold">Number of Units</label>
               <input id="countA" type="number" class="form-control" value="10" min="1">
             </div>
 
+            <!-- Base Stats -->
             <div class="stat-box">
               <h6 class="fw-bold mb-3">📊 Stats</h6>
               <div class="row g-2">
@@ -113,24 +137,86 @@
               </div>
             </div>
 
+            <!-- UPDATED: Separated Flat Buffs with Individual Durations -->
             <div class="buff-box">
-              <h6 class="fw-bold mb-3">⚡ Buffs <small class="text-muted">(duration: 0 = permanent)</small></h6>
+              <h6 class="fw-bold mb-3">⚡ Flat Buffs</h6>
+              
+              <!-- Attack Flat Buff -->
               <div class="row g-2 mb-2">
-                <div class="col-4"><input id="A_buffAttackAbs" type="number" class="form-control small-input" placeholder="Atk +"></div>
-                <div class="col-4"><input id="A_buffAttackPct" type="number" class="form-control small-input" placeholder="Atk %"></div>
-                <div class="col-4"><input id="A_buffAttackDur" type="number" class="form-control small-input" placeholder="Dur" value="0"></div>
+                <div class="col-12"><small class="text-muted">Attack Bonus (absolute value)</small></div>
+                <div class="col-6">
+                  <input id="A_buffAttackAbs" type="number" class="form-control small-input" placeholder="+Attack">
+                </div>
+                <div class="col-6">
+                  <input id="A_buffAttackAbsDur" type="number" class="form-control small-input" placeholder="Duration (0=∞)" value="0">
+                </div>
               </div>
+              
+              <!-- HP Flat Buff -->
               <div class="row g-2 mb-2">
-                <div class="col-4"><input id="A_buffHPabs" type="number" class="form-control small-input" placeholder="HP +"></div>
-                <div class="col-4"><input id="A_buffHPpct" type="number" class="form-control small-input" placeholder="HP %"></div>
-                <div class="col-4"><input id="A_buffHPDur" type="number" class="form-control small-input" placeholder="Dur" value="0"></div>
+                <div class="col-12"><small class="text-muted">HP Bonus (absolute value)</small></div>
+                <div class="col-6">
+                  <input id="A_buffHPabs" type="number" class="form-control small-input" placeholder="+HP">
+                </div>
+                <div class="col-6">
+                  <input id="A_buffHPabsDur" type="number" class="form-control small-input" placeholder="Duration (0=∞)" value="0">
+                </div>
               </div>
+              
+              <!-- Armor Flat Buffs -->
               <div class="row g-2">
-                <div class="col-6"><input id="A_buffSpeedPct" type="number" class="form-control small-input" placeholder="Speed %"></div>
-                <div class="col-6"><input id="A_buffSpeedDur" type="number" class="form-control small-input" placeholder="Dur" value="0"></div>
+                <div class="col-12"><small class="text-muted">Armor Bonuses</small></div>
+                <div class="col-6">
+                  <input id="A_buffMeleeArmor" type="number" class="form-control small-input" placeholder="+Melee Armor">
+                </div>
+                <div class="col-6">
+                  <input id="A_buffRangedArmor" type="number" class="form-control small-input" placeholder="+Ranged Armor">
+                </div>
+                <div class="col-12">
+                  <input id="A_buffArmorDur" type="number" class="form-control small-input" placeholder="Duration (0=∞)" value="0">
+                </div>
               </div>
             </div>
 
+            <!-- UPDATED: Percentage Buffs with Individual Durations -->
+            <div class="buff-box">
+              <h6 class="fw-bold mb-3">⚡ Percentage Buffs</h6>
+              
+              <!-- Attack % Buff -->
+              <div class="row g-2 mb-2">
+                <div class="col-12"><small class="text-muted">Attack Multiplier (%)</small></div>
+                <div class="col-6">
+                  <input id="A_buffAttackPct" type="number" class="form-control small-input" placeholder="Attack %">
+                </div>
+                <div class="col-6">
+                  <input id="A_buffAttackPctDur" type="number" class="form-control small-input" placeholder="Duration (0=∞)" value="0">
+                </div>
+              </div>
+              
+              <!-- HP % Buff -->
+              <div class="row g-2 mb-2">
+                <div class="col-12"><small class="text-muted">HP Multiplier (%)</small></div>
+                <div class="col-6">
+                  <input id="A_buffHPpct" type="number" class="form-control small-input" placeholder="HP %">
+                </div>
+                <div class="col-6">
+                  <input id="A_buffHPpctDur" type="number" class="form-control small-input" placeholder="Duration (0=∞)" value="0">
+                </div>
+              </div>
+              
+              <!-- Attack Speed % Buff -->
+              <div class="row g-2">
+                <div class="col-12"><small class="text-muted">Attack Speed Multiplier (%)</small></div>
+                <div class="col-6">
+                  <input id="A_buffSpeedPct" type="number" class="form-control small-input" placeholder="Speed %">
+                </div>
+                <div class="col-6">
+                  <input id="A_buffSpeedPctDur" type="number" class="form-control small-input" placeholder="Duration (0=∞)" value="0">
+                </div>
+              </div>
+            </div>
+
+            <!-- First Hit Advantage -->
             <div class="first-hit-box">
               <h6 class="fw-bold mb-2">🎯 First-Hit Advantage</h6>
               <div class="form-check mb-2">
@@ -140,6 +226,7 @@
               <input id="A_freeHits" type="number" class="form-control small-input" value="0" min="0" placeholder="Free hits">
             </div>
 
+            <!-- Info Display -->
             <div class="small text-muted">
               <strong>Tags:</strong> <span id="A_tags"></span><br>
               <strong>Bonuses:</strong> <span id="A_bonuses"></span>
@@ -148,10 +235,12 @@
         </div>
       </div>
 
+      <!-- ==================== BATTLE BUTTON ==================== -->
       <div class="col-lg-2 d-flex align-items-center justify-content-center">
         <button id="battleBtn" class="battle-btn">⚔️</button>
       </div>
 
+      <!-- ==================== UNIT B PANEL (Mirror of Unit A) ==================== -->
       <div class="col-lg-5">
         <div class="card">
           <div class="card-body">
@@ -165,6 +254,21 @@
               <div class="col-4">
                 <label class="form-label fw-bold">Age</label>
                 <select id="unitBAge" class="form-select"></select>
+              </div>
+            </div>
+
+            <!-- NEW: Weapon Mode Selection for Unit B -->
+            <div class="mb-3">
+              <label class="form-label fw-bold">Weapon Mode</label>
+              <div class="btn-group w-100 weapon-mode-group" role="group">
+                <input type="radio" class="btn-check" name="weaponModeB" id="primaryB" value="primary" checked>
+                <label class="btn btn-outline-primary btn-sm" for="primaryB">Primary</label>
+                
+                <input type="radio" class="btn-check" name="weaponModeB" id="secondaryB" value="secondary">
+                <label class="btn btn-outline-primary btn-sm" for="secondaryB">Secondary</label>
+                
+                <input type="radio" class="btn-check" name="weaponModeB" id="bothB" value="both">
+                <label class="btn btn-outline-primary btn-sm" for="bothB">Both</label>
               </div>
             </div>
 
@@ -184,21 +288,70 @@
               </div>
             </div>
 
+            <!-- Flat Buffs for Unit B -->
             <div class="buff-box">
-              <h6 class="fw-bold mb-3">⚡ Buffs <small class="text-muted">(duration: 0 = permanent)</small></h6>
+              <h6 class="fw-bold mb-3">⚡ Flat Buffs</h6>
               <div class="row g-2 mb-2">
-                <div class="col-4"><input id="B_buffAttackAbs" type="number" class="form-control small-input" placeholder="Atk +"></div>
-                <div class="col-4"><input id="B_buffAttackPct" type="number" class="form-control small-input" placeholder="Atk %"></div>
-                <div class="col-4"><input id="B_buffAttackDur" type="number" class="form-control small-input" placeholder="Dur" value="0"></div>
+                <div class="col-12"><small class="text-muted">Attack Bonus (absolute value)</small></div>
+                <div class="col-6">
+                  <input id="B_buffAttackAbs" type="number" class="form-control small-input" placeholder="+Attack">
+                </div>
+                <div class="col-6">
+                  <input id="B_buffAttackAbsDur" type="number" class="form-control small-input" placeholder="Duration (0=∞)" value="0">
+                </div>
               </div>
               <div class="row g-2 mb-2">
-                <div class="col-4"><input id="B_buffHPabs" type="number" class="form-control small-input" placeholder="HP +"></div>
-                <div class="col-4"><input id="B_buffHPpct" type="number" class="form-control small-input" placeholder="HP %"></div>
-                <div class="col-4"><input id="B_buffHPDur" type="number" class="form-control small-input" placeholder="Dur" value="0"></div>
+                <div class="col-12"><small class="text-muted">HP Bonus (absolute value)</small></div>
+                <div class="col-6">
+                  <input id="B_buffHPabs" type="number" class="form-control small-input" placeholder="+HP">
+                </div>
+                <div class="col-6">
+                  <input id="B_buffHPabsDur" type="number" class="form-control small-input" placeholder="Duration (0=∞)" value="0">
+                </div>
               </div>
               <div class="row g-2">
-                <div class="col-6"><input id="B_buffSpeedPct" type="number" class="form-control small-input" placeholder="Speed %"></div>
-                <div class="col-6"><input id="B_buffSpeedDur" type="number" class="form-control small-input" placeholder="Dur" value="0"></div>
+                <div class="col-12"><small class="text-muted">Armor Bonuses</small></div>
+                <div class="col-6">
+                  <input id="B_buffMeleeArmor" type="number" class="form-control small-input" placeholder="+Melee Armor">
+                </div>
+                <div class="col-6">
+                  <input id="B_buffRangedArmor" type="number" class="form-control small-input" placeholder="+Ranged Armor">
+                </div>
+                <div class="col-12">
+                  <input id="B_buffArmorDur" type="number" class="form-control small-input" placeholder="Duration (0=∞)" value="0">
+                </div>
+              </div>
+            </div>
+
+            <!-- Percentage Buffs for Unit B -->
+            <div class="buff-box">
+              <h6 class="fw-bold mb-3">⚡ Percentage Buffs</h6>
+              <div class="row g-2 mb-2">
+                <div class="col-12"><small class="text-muted">Attack Multiplier (%)</small></div>
+                <div class="col-6">
+                  <input id="B_buffAttackPct" type="number" class="form-control small-input" placeholder="Attack %">
+                </div>
+                <div class="col-6">
+                  <input id="B_buffAttackPctDur" type="number" class="form-control small-input" placeholder="Duration (0=∞)" value="0">
+                </div>
+              </div>
+              <div class="row g-2 mb-2">
+                <div class="col-12"><small class="text-muted">HP Multiplier (%)</small></div>
+                <div class="col-6">
+                  <input id="B_buffHPpct" type="number" class="form-control small-input" placeholder="HP %">
+                </div>
+                <div class="col-6">
+                  <input id="B_buffHPpctDur" type="number" class="form-control small-input" placeholder="Duration (0=∞)" value="0">
+                </div>
+              </div>
+              <div class="row g-2">
+                <div class="col-12"><small class="text-muted">Attack Speed Multiplier (%)</small></div>
+                <div class="col-6">
+                  <input id="B_buffSpeedPct" type="number" class="form-control small-input" placeholder="Speed %">
+                </div>
+                <div class="col-6">
+                  <input id="B_buffSpeedPctDur" type="number" class="form-control small-input" placeholder="Duration (0=∞)" value="0">
+                </div>
               </div>
             </div>
 
@@ -220,7 +373,9 @@
       </div>
     </div>
 
+    <!-- ==================== RESULTS DISPLAY ==================== -->
     <div id="results" style="display: none;" class="results-card">
+      <!-- UPDATED: Now shows unit names in the winner text -->
       <h2 class="text-center mb-4" id="winnerText"></h2>
       <div class="row">
         <div class="col-md-3">
