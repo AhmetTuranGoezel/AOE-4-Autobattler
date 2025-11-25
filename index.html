@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AOE4 Battle Simulator</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
- <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div class="container">
@@ -64,19 +64,43 @@
               <div class="row g-2">
                 <div class="col-6">
                   <small class="text-muted">HP</small>
-                  <input id="A_hp" type="number" class="form-control small-input" placeholder="HP"></div>
-                <div class="col-6"><small class="text-muted">Attack</small><input id="A_attack" type="number" class="form-control small-input" placeholder="Attack"></div>
-                <div class="col-6"><small class="text-muted">Melee Armor</small><input id="A_meleeArmor" type="number" class="form-control small-input" placeholder="Melee Armor"></div>
-                <div class="col-6"><small class="text-muted">Ranged Armor</small><input id="A_rangedArmor" type="number" class="form-control small-input" placeholder="Ranged Armor"></div>
-                <div class="col-12"><small class="text-muted">Attack Speed (s)</small><input id="A_attackSpeed" type="number" step="0.01" class="form-control small-input" placeholder="Attack Speed (s)"></div>
+                  <input id="A_hp" type="number" class="form-control small-input" placeholder="HP">
+                </div>
+                <div class="col-6">
+                  <small class="text-muted">Attack</small>
+                  <input id="A_attack" type="number" class="form-control small-input" placeholder="Attack">
+                </div>
+                <div class="col-6">
+                  <small class="text-muted">Melee Armor</small>
+                  <input id="A_meleeArmor" type="number" class="form-control small-input" placeholder="Melee Armor">
+                </div>
+                <div class="col-6">
+                  <small class="text-muted">Ranged Armor</small>
+                  <input id="A_rangedArmor" type="number" class="form-control small-input" placeholder="Ranged Armor">
+                </div>
+                <div class="col-12">
+                  <small class="text-muted">Attack Speed (s)</small>
+                  <input id="A_attackSpeed" type="number" step="0.01" class="form-control small-input" placeholder="Attack Speed (s)">
+                </div>
               </div>
             </div>
 
-            <!-- UPDATED: Separated Flat Buffs with Individual Durations -->
+            <!-- Tags Section with Checkboxes -->
+            <div class="stat-box">
+              <h6 class="fw-bold mb-2">🏷️ Tags</h6>
+              <div id="A_tagsContainer" class="mb-2"></div>
+            </div>
+
+            <!-- Bonus Damage Section with Editable Inputs -->
+            <div class="stat-box">
+              <h6 class="fw-bold mb-2">⚔️ Bonus Damage</h6>
+              <div id="A_bonusesContainer"></div>
+            </div>
+
+            <!-- Flat Buffs -->
             <div class="buff-box">
               <h6 class="fw-bold mb-3">⚡ Flat Buffs</h6>
               
-              <!-- Attack Flat Buff -->
               <div class="row g-2 mb-2">
                 <div class="col-12"><small class="text-muted">Attack Bonus (absolute value)</small></div>
                 <div class="col-6">
@@ -87,7 +111,6 @@
                 </div>
               </div>
               
-              <!-- HP Flat Buff -->
               <div class="row g-2 mb-2">
                 <div class="col-12"><small class="text-muted">HP Bonus (absolute value)</small></div>
                 <div class="col-6">
@@ -98,7 +121,6 @@
                 </div>
               </div>
               
-              <!-- Armor Flat Buffs -->
               <div class="row g-2">
                 <div class="col-12"><small class="text-muted">Armor Bonuses</small></div>
                 <div class="col-6">
@@ -113,11 +135,10 @@
               </div>
             </div>
 
-            <!-- UPDATED: Percentage Buffs with Individual Durations -->
+            <!-- Percentage Buffs -->
             <div class="buff-box">
               <h6 class="fw-bold mb-3">⚡ Percentage Buffs</h6>
               
-              <!-- Attack % Buff -->
               <div class="row g-2 mb-2">
                 <div class="col-12"><small class="text-muted">Attack Multiplier (%)</small></div>
                 <div class="col-6">
@@ -128,7 +149,6 @@
                 </div>
               </div>
               
-              <!-- HP % Buff -->
               <div class="row g-2 mb-2">
                 <div class="col-12"><small class="text-muted">HP Multiplier (%)</small></div>
                 <div class="col-6">
@@ -139,7 +159,6 @@
                 </div>
               </div>
               
-              <!-- Attack Speed % Buff -->
               <div class="row g-2">
                 <div class="col-12"><small class="text-muted">Attack Speed Multiplier (%)</small></div>
                 <div class="col-6">
@@ -160,12 +179,6 @@
               </div>
               <input id="A_freeHits" type="number" class="form-control small-input" value="0" min="0" placeholder="Free hits">
             </div>
-
-            <!-- Info Display -->
-            <div class="small text-muted">
-              <strong>Tags:</strong> <span id="A_tags"></span><br>
-              <strong>Bonuses:</strong> <span id="A_bonuses"></span>
-            </div>
           </div>
         </div>
       </div>
@@ -175,7 +188,7 @@
         <button id="battleBtn" class="battle-btn">⚔️</button>
       </div>
 
-      <!-- ==================== UNIT B PANEL (Mirror of Unit A) ==================== -->
+      <!-- ==================== UNIT B PANEL ==================== -->
       <div class="col-lg-5">
         <div class="card">
           <div class="card-body">
@@ -192,7 +205,6 @@
               </div>
             </div>
 
-            <!-- NEW: Weapon Mode Selection for Unit B -->
             <div class="mb-3">
               <label class="form-label fw-bold">Weapon Mode</label>
               <div class="btn-group w-100 weapon-mode-group" role="group">
@@ -215,15 +227,41 @@
             <div class="stat-box">
               <h6 class="fw-bold mb-3">📊 Stats</h6>
               <div class="row g-2">
-                <div class="col-6"><small class="text-muted">HP</small><input id="B_hp" type="number" class="form-control small-input" placeholder="HP"></div>
-                <div class="col-6"><small class="text-muted">Attack</small><input id="B_attack" type="number" class="form-control small-input" placeholder="Attack"></div>
-                <div class="col-6"><small class="text-muted">Melee Armor</small><input id="B_meleeArmor" type="number" class="form-control small-input" placeholder="Melee Armor"></div>
-                <div class="col-6"><small class="text-muted">Ranged Armor</small><input id="B_rangedArmor" type="number" class="form-control small-input" placeholder="Ranged Armor"></div>
-                <div class="col-12"><small class="text-muted">Attack Speed (s)</small><input id="B_attackSpeed" type="number" step="0.01" class="form-control small-input" placeholder="Attack Speed (s)"></div>
+                <div class="col-6">
+                  <small class="text-muted">HP</small>
+                  <input id="B_hp" type="number" class="form-control small-input" placeholder="HP">
+                </div>
+                <div class="col-6">
+                  <small class="text-muted">Attack</small>
+                  <input id="B_attack" type="number" class="form-control small-input" placeholder="Attack">
+                </div>
+                <div class="col-6">
+                  <small class="text-muted">Melee Armor</small>
+                  <input id="B_meleeArmor" type="number" class="form-control small-input" placeholder="Melee Armor">
+                </div>
+                <div class="col-6">
+                  <small class="text-muted">Ranged Armor</small>
+                  <input id="B_rangedArmor" type="number" class="form-control small-input" placeholder="Ranged Armor">
+                </div>
+                <div class="col-12">
+                  <small class="text-muted">Attack Speed (s)</small>
+                  <input id="B_attackSpeed" type="number" step="0.01" class="form-control small-input" placeholder="Attack Speed (s)">
+                </div>
               </div>
             </div>
 
-            <!-- Flat Buffs for Unit B -->
+            <!-- Tags Section with Checkboxes -->
+            <div class="stat-box">
+              <h6 class="fw-bold mb-2">🏷️ Tags</h6>
+              <div id="B_tagsContainer" class="mb-2"></div>
+            </div>
+
+            <!-- Bonus Damage Section with Editable Inputs -->
+            <div class="stat-box">
+              <h6 class="fw-bold mb-2">⚔️ Bonus Damage</h6>
+              <div id="B_bonusesContainer"></div>
+            </div>
+
             <div class="buff-box">
               <h6 class="fw-bold mb-3">⚡ Flat Buffs</h6>
               <div class="row g-2 mb-2">
@@ -258,7 +296,6 @@
               </div>
             </div>
 
-            <!-- Percentage Buffs for Unit B -->
             <div class="buff-box">
               <h6 class="fw-bold mb-3">⚡ Percentage Buffs</h6>
               <div class="row g-2 mb-2">
@@ -298,11 +335,6 @@
               </div>
               <input id="B_freeHits" type="number" class="form-control small-input" value="0" min="0" placeholder="Free hits">
             </div>
-
-            <div class="small text-muted">
-              <strong>Tags:</strong> <span id="B_tags"></span><br>
-              <strong>Bonuses:</strong> <span id="B_bonuses"></span>
-            </div>
           </div>
         </div>
       </div>
@@ -310,7 +342,6 @@
 
     <!-- ==================== RESULTS DISPLAY ==================== -->
     <div id="results" style="display: none;" class="results-card">
-      <!-- UPDATED: Now shows unit names in the winner text -->
       <h2 class="text-center mb-4" id="winnerText"></h2>
       <div class="row">
         <div class="col-md-3">
