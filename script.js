@@ -14,15 +14,15 @@ fetch("units_restructured.json")
   .then((response) => response.json())
   .then((data) => {
     units = data;
-    
+
     // Extract all unique tags from all units in the JSON
     // This allows us to show checkboxes for every possible tag
-    Object.values(units).forEach(unit => {
+    Object.values(units).forEach((unit) => {
       if (unit.tags) {
-        unit.tags.forEach(tag => allAvailableTags.add(tag));
+        unit.tags.forEach((tag) => allAvailableTags.add(tag));
       }
     });
-    
+
     populateSelects();
     updateUnitStats("A");
     updateUnitStats("B");
@@ -53,7 +53,13 @@ function populateSelects() {
  */
 function getAvailableAges(unitName) {
   const unit = units[unitName];
-  if (!unit || !unit.weapons || !unit.weapons.primary || !unit.weapons.primary.ages) return [];
+  if (
+    !unit ||
+    !unit.weapons ||
+    !unit.weapons.primary ||
+    !unit.weapons.primary.ages
+  )
+    return [];
   return Object.keys(unit.weapons.primary.ages);
 }
 
@@ -90,9 +96,10 @@ function updateWeaponModeButtons(side) {
   const unit = units[unitName];
   const age = document.getElementById(`unit${side}Age`).value;
 
-  const hasSecondary = unit.weapons.secondary && 
-                       unit.weapons.secondary.ages && 
-                       unit.weapons.secondary.ages[age];
+  const hasSecondary =
+    unit.weapons.secondary &&
+    unit.weapons.secondary.ages &&
+    unit.weapons.secondary.ages[age];
 
   const secondaryRadio = document.getElementById(`secondary${side}`);
   const bothRadio = document.getElementById(`both${side}`);
@@ -101,8 +108,13 @@ function updateWeaponModeButtons(side) {
   secondaryRadio.disabled = !hasSecondary;
   bothRadio.disabled = !hasSecondary;
 
-  const selectedMode = document.querySelector(`input[name="weaponMode${side}"]:checked`).value;
-  if (!hasSecondary && (selectedMode === "secondary" || selectedMode === "both")) {
+  const selectedMode = document.querySelector(
+    `input[name="weaponMode${side}"]:checked`
+  ).value;
+  if (
+    !hasSecondary &&
+    (selectedMode === "secondary" || selectedMode === "both")
+  ) {
     primaryRadio.checked = true;
   }
 }
@@ -113,30 +125,22 @@ function updateWeaponModeButtons(side) {
  */
 function renderTagCheckboxes(side, selectedTags) {
   const container = document.getElementById(`${side}_tagsContainer`);
-  container.innerHTML = '';
-  
+  container.innerHTML = "";
+
   // Sort tags alphabetically for consistent display
   const sortedTags = Array.from(allAvailableTags).sort();
-  
-  sortedTags.forEach(tag => {
+
+  sortedTags.forEach((tag) => {
     const isChecked = selectedTags.includes(tag);
-    const checkboxId = `${side}_tag_${tag.replace(/\s+/g, '_')}`; // Handle tags with spaces
-    
+    const checkboxId = `${side}_tag_${tag.replace(/\s+/g, "_")}`; // Handle tags with spaces
+
     container.innerHTML += `
       <div class="form-check form-check-inline">
         <input class="form-check-input tag-checkbox" type="checkbox" 
-               id="${checkboxId}" value="${tag}" ${isChecked ? 'checked' : ''}>
+               id="${checkboxId}" value="${tag}" ${isChecked ? "checked" : ""}>
         <label class="form-check-label small" for="${checkboxId}">${tag}</label>
       </div>
     `;
-  });
-  
-  // Add event listeners to update bonus inputs when tags change
-  container.querySelectorAll('.tag-checkbox').forEach(checkbox => {
-    checkbox.addEventListener('change', () => {
-      const currentBonuses = collectBonuses(side);
-      renderBonusInputs(side, currentBonuses);
-    });
   });
 }
 
@@ -146,20 +150,15 @@ function renderTagCheckboxes(side, selectedTags) {
  */
 function renderBonusInputs(side, bonuses) {
   const container = document.getElementById(`${side}_bonusesContainer`);
-  container.innerHTML = '';
-  
-  // Get currently checked tags
-  const checkedTags = collectTags(side);
-  
-  if (checkedTags.length === 0) {
-    container.innerHTML = '<small class="text-muted">No tags selected</small>';
-    return;
-  }
-  
-  checkedTags.forEach(tag => {
+  container.innerHTML = "";
+
+  // Show bonus inputs for ALL available tags (sorted)
+  const sortedTags = Array.from(allAvailableTags).sort();
+
+  sortedTags.forEach((tag) => {
     const bonusValue = bonuses[tag] || 0;
-    const inputId = `${side}_bonus_${tag.replace(/\s+/g, '_')}`;
-    
+    const inputId = `${side}_bonus_${tag.replace(/\s+/g, "_")}`;
+
     container.innerHTML += `
       <div class="row g-2 mb-2">
         <div class="col-6">
@@ -179,16 +178,18 @@ function renderBonusInputs(side, bonuses) {
  */
 function collectBonuses(side) {
   const bonuses = {};
-  const inputs = document.querySelectorAll(`#${side}_bonusesContainer .bonus-input`);
-  
-  inputs.forEach(input => {
+  const inputs = document.querySelectorAll(
+    `#${side}_bonusesContainer .bonus-input`
+  );
+
+  inputs.forEach((input) => {
     const tag = input.dataset.tag;
     const value = parseFloat(input.value) || 0;
     if (value > 0) {
       bonuses[tag] = value;
     }
   });
-  
+
   return bonuses;
 }
 
@@ -196,8 +197,10 @@ function collectBonuses(side) {
  * NEW: Collect currently selected tags from checkboxes
  */
 function collectTags(side) {
-  const checkboxes = document.querySelectorAll(`#${side}_tagsContainer .tag-checkbox:checked`);
-  return Array.from(checkboxes).map(cb => cb.value);
+  const checkboxes = document.querySelectorAll(
+    `#${side}_tagsContainer .tag-checkbox:checked`
+  );
+  return Array.from(checkboxes).map((cb) => cb.value);
 }
 
 /**
@@ -215,7 +218,9 @@ function updateUnitStats(side) {
   updateWeaponModeButtons(side);
 
   const age = document.getElementById(`unit${side}Age`).value;
-  const weaponMode = document.querySelector(`input[name="weaponMode${side}"]:checked`).value;
+  const weaponMode = document.querySelector(
+    `input[name="weaponMode${side}"]:checked`
+  ).value;
 
   // Determine which weapon to display stats for
   let weaponData, stats;
@@ -233,7 +238,8 @@ function updateUnitStats(side) {
   document.getElementById(`${side}_attack`).value = stats.attack || "";
   document.getElementById(`${side}_meleeArmor`).value = stats.meleeArmor || 0;
   document.getElementById(`${side}_rangedArmor`).value = stats.rangedArmor || 0;
-  document.getElementById(`${side}_attackSpeed`).value = weaponData.attackSpeed || 1;
+  document.getElementById(`${side}_attackSpeed`).value =
+    weaponData.attackSpeed || 1;
 
   // NEW: Render tag checkboxes and bonus inputs
   renderTagCheckboxes(side, unit.tags || []);
@@ -281,7 +287,9 @@ function getUnitData(side) {
   const unitName = document.getElementById(`unit${side}Select`).value;
   const unit = units[unitName];
   const age = document.getElementById(`unit${side}Age`).value;
-  const weaponMode = document.querySelector(`input[name="weaponMode${side}"]:checked`).value;
+  const weaponMode = document.querySelector(
+    `input[name="weaponMode${side}"]:checked`
+  ).value;
 
   let weaponData, ageStats;
 
@@ -300,35 +308,59 @@ function getUnitData(side) {
     stats: {
       hp: parseFloat(document.getElementById(`${side}_hp`).value) || 0,
       attack: parseFloat(document.getElementById(`${side}_attack`).value) || 0,
-      meleeArmor: parseFloat(document.getElementById(`${side}_meleeArmor`).value) || 0,
-      rangedArmor: parseFloat(document.getElementById(`${side}_rangedArmor`).value) || 0,
-      attackSpeed: parseFloat(document.getElementById(`${side}_attackSpeed`).value) || 1,
-      bonus: collectBonuses(side) // NEW: Custom bonuses from UI
+      meleeArmor:
+        parseFloat(document.getElementById(`${side}_meleeArmor`).value) || 0,
+      rangedArmor:
+        parseFloat(document.getElementById(`${side}_rangedArmor`).value) || 0,
+      attackSpeed:
+        parseFloat(document.getElementById(`${side}_attackSpeed`).value) || 1,
+      bonus: collectBonuses(side), // NEW: Custom bonuses from UI
     },
     buffs: {
-      attackAbs: parseFloat(document.getElementById(`${side}_buffAttackAbs`).value) || 0,
-      attackAbsDur: parseFloat(document.getElementById(`${side}_buffAttackAbsDur`).value) || 0,
-      attackPct: parseFloat(document.getElementById(`${side}_buffAttackPct`).value) || 0,
-      attackPctDur: parseFloat(document.getElementById(`${side}_buffAttackPctDur`).value) || 0,
-      hpAbs: parseFloat(document.getElementById(`${side}_buffHPabs`).value) || 0,
-      hpAbsDur: parseFloat(document.getElementById(`${side}_buffHPabsDur`).value) || 0,
-      hpPct: parseFloat(document.getElementById(`${side}_buffHPpct`).value) || 0,
-      hpPctDur: parseFloat(document.getElementById(`${side}_buffHPpctDur`).value) || 0,
-      speedPct: parseFloat(document.getElementById(`${side}_buffSpeedPct`).value) || 0,
-      speedPctDur: parseFloat(document.getElementById(`${side}_buffSpeedPctDur`).value) || 0,
-      meleeArmor: parseFloat(document.getElementById(`${side}_buffMeleeArmor`).value) || 0,
-      rangedArmor: parseFloat(document.getElementById(`${side}_buffRangedArmor`).value) || 0,
-      armorDur: parseFloat(document.getElementById(`${side}_buffArmorDur`).value) || 0
+      attackAbs:
+        parseFloat(document.getElementById(`${side}_buffAttackAbs`).value) || 0,
+      attackAbsDur:
+        parseFloat(document.getElementById(`${side}_buffAttackAbsDur`).value) ||
+        0,
+      attackPct:
+        parseFloat(document.getElementById(`${side}_buffAttackPct`).value) || 0,
+      attackPctDur:
+        parseFloat(document.getElementById(`${side}_buffAttackPctDur`).value) ||
+        0,
+      hpAbs:
+        parseFloat(document.getElementById(`${side}_buffHPabs`).value) || 0,
+      hpAbsDur:
+        parseFloat(document.getElementById(`${side}_buffHPabsDur`).value) || 0,
+      hpPct:
+        parseFloat(document.getElementById(`${side}_buffHPpct`).value) || 0,
+      hpPctDur:
+        parseFloat(document.getElementById(`${side}_buffHPpctDur`).value) || 0,
+      speedPct:
+        parseFloat(document.getElementById(`${side}_buffSpeedPct`).value) || 0,
+      speedPctDur:
+        parseFloat(document.getElementById(`${side}_buffSpeedPctDur`).value) ||
+        0,
+      meleeArmor:
+        parseFloat(document.getElementById(`${side}_buffMeleeArmor`).value) ||
+        0,
+      rangedArmor:
+        parseFloat(document.getElementById(`${side}_buffRangedArmor`).value) ||
+        0,
+      armorDur:
+        parseFloat(document.getElementById(`${side}_buffArmorDur`).value) || 0,
     },
     firstHitEnabled: document.getElementById(`${side}_firstHitEnabled`).checked,
     freeHits: parseInt(document.getElementById(`${side}_freeHits`).value) || 0,
     tags: collectTags(side), // NEW: Custom tags from checkboxes
     weaponType: weaponData.type || "melee",
-    secondaryWeapon: weaponMode === "both" && unit.weapons.secondary ? {
-      type: unit.weapons.secondary.type || "melee",
-      attackSpeed: unit.weapons.secondary.attackSpeed || 1,
-      stats: unit.weapons.secondary.ages[age] || {}
-    } : null
+    secondaryWeapon:
+      weaponMode === "both" && unit.weapons.secondary
+        ? {
+            type: unit.weapons.secondary.type || "melee",
+            attackSpeed: unit.weapons.secondary.attackSpeed || 1,
+            stats: unit.weapons.secondary.ages[age] || {},
+          }
+        : null,
   };
 }
 
@@ -379,7 +411,7 @@ function applyBuffs(unitData, time) {
 
 /**
  * 7. SIMULATION ENGINE - COMPLETELY FIXED
- * 
+ *
  * CRITICAL FIXES:
  * 1. Both teams calculate damage BEFORE any is applied (simultaneous attacks)
  * 2. Damage is applied at the same time, so identical units result in draws
@@ -390,15 +422,17 @@ function runBattle() {
   const unitB = getUnitData("B");
 
   // --- TEAM INITIALIZATION ---
-  
+
   let teamA = {
     units: unitA.count,
     totalHp: 0,
     stats: applyBuffs(unitA, 0),
     originalStats: unitA.stats,
-    nextAttack: unitA.firstHitEnabled ? -unitA.freeHits * unitA.stats.attackSpeed : 0,
+    nextAttack: unitA.firstHitEnabled
+      ? -unitA.freeHits * unitA.stats.attackSpeed
+      : 0,
     tags: unitA.tags,
-    unitData: unitA
+    unitData: unitA,
   };
 
   let teamB = {
@@ -406,9 +440,11 @@ function runBattle() {
     totalHp: 0,
     stats: applyBuffs(unitB, 0),
     originalStats: unitB.stats,
-    nextAttack: unitB.firstHitEnabled ? -unitB.freeHits * unitB.stats.attackSpeed : 0,
+    nextAttack: unitB.firstHitEnabled
+      ? -unitB.freeHits * unitB.stats.attackSpeed
+      : 0,
     tags: unitB.tags,
-    unitData: unitB
+    unitData: unitB,
   };
 
   teamA.totalHp = teamA.stats.hp * teamA.units;
@@ -439,7 +475,7 @@ function runBattle() {
     // === TEAM A DAMAGE CALCULATION ===
     if (teamA.nextAttack <= time + EPSILON && teamA.units > 0) {
       let totalDamage = 0;
-      
+
       // Primary weapon damage
       let damage = teamA.stats.attack;
 
@@ -451,7 +487,10 @@ function runBattle() {
       }
 
       // Subtract armor
-      const armor = unitA.weaponType === "ranged" ? teamB.stats.rangedArmor : teamB.stats.meleeArmor;
+      const armor =
+        unitA.weaponType === "ranged"
+          ? teamB.stats.rangedArmor
+          : teamB.stats.meleeArmor;
       totalDamage += Math.max(1, damage - armor);
 
       // Secondary weapon (if using "both" mode)
@@ -459,14 +498,18 @@ function runBattle() {
         let secondaryDamage = teamA.unitData.secondaryWeapon.stats.attack || 0;
 
         for (let tag of teamB.tags) {
-          if (teamA.unitData.secondaryWeapon.stats.bonus && 
-              teamA.unitData.secondaryWeapon.stats.bonus[tag]) {
+          if (
+            teamA.unitData.secondaryWeapon.stats.bonus &&
+            teamA.unitData.secondaryWeapon.stats.bonus[tag]
+          ) {
             secondaryDamage += teamA.unitData.secondaryWeapon.stats.bonus[tag];
           }
         }
 
-        const secondaryArmor = teamA.unitData.secondaryWeapon.type === "ranged" ? 
-                               teamB.stats.rangedArmor : teamB.stats.meleeArmor;
+        const secondaryArmor =
+          teamA.unitData.secondaryWeapon.type === "ranged"
+            ? teamB.stats.rangedArmor
+            : teamB.stats.meleeArmor;
         totalDamage += Math.max(1, secondaryDamage - secondaryArmor);
       }
 
@@ -477,7 +520,7 @@ function runBattle() {
     // === TEAM B DAMAGE CALCULATION ===
     if (teamB.nextAttack <= time + EPSILON && teamB.units > 0) {
       let totalDamage = 0;
-      
+
       // Primary weapon damage
       let damage = teamB.stats.attack;
 
@@ -487,7 +530,10 @@ function runBattle() {
         }
       }
 
-      const armor = unitB.weaponType === "ranged" ? teamA.stats.rangedArmor : teamA.stats.meleeArmor;
+      const armor =
+        unitB.weaponType === "ranged"
+          ? teamA.stats.rangedArmor
+          : teamA.stats.meleeArmor;
       totalDamage += Math.max(1, damage - armor);
 
       // Secondary weapon
@@ -495,14 +541,18 @@ function runBattle() {
         let secondaryDamage = teamB.unitData.secondaryWeapon.stats.attack || 0;
 
         for (let tag of teamA.tags) {
-          if (teamB.unitData.secondaryWeapon.stats.bonus && 
-              teamB.unitData.secondaryWeapon.stats.bonus[tag]) {
+          if (
+            teamB.unitData.secondaryWeapon.stats.bonus &&
+            teamB.unitData.secondaryWeapon.stats.bonus[tag]
+          ) {
             secondaryDamage += teamB.unitData.secondaryWeapon.stats.bonus[tag];
           }
         }
 
-        const secondaryArmor = teamB.unitData.secondaryWeapon.type === "ranged" ? 
-                               teamA.stats.rangedArmor : teamA.stats.meleeArmor;
+        const secondaryArmor =
+          teamB.unitData.secondaryWeapon.type === "ranged"
+            ? teamA.stats.rangedArmor
+            : teamA.stats.meleeArmor;
         totalDamage += Math.max(1, secondaryDamage - secondaryArmor);
       }
 
@@ -516,12 +566,16 @@ function runBattle() {
 
     // Update unit counts after both damages are applied
     if (damageToB > 0) {
-      const unitsLost = Math.floor((teamB.stats.hp * teamB.units - teamB.totalHp) / teamB.stats.hp);
+      const unitsLost = Math.floor(
+        (teamB.stats.hp * teamB.units - teamB.totalHp) / teamB.stats.hp
+      );
       teamB.units = Math.max(0, teamB.units - unitsLost);
     }
 
     if (damageToA > 0) {
-      const unitsLost = Math.floor((teamA.stats.hp * teamA.units - teamA.totalHp) / teamA.stats.hp);
+      const unitsLost = Math.floor(
+        (teamA.stats.hp * teamA.units - teamA.totalHp) / teamA.stats.hp
+      );
       teamA.units = Math.max(0, teamA.units - unitsLost);
     }
   }
@@ -531,10 +585,17 @@ function runBattle() {
   const winner = teamA.units > 0 ? "A" : teamB.units > 0 ? "B" : "Draw";
   const winningTeam = winner === "A" ? teamA : winner === "B" ? teamB : teamA;
   const winningUnit = winner === "A" ? unitA : winner === "B" ? unitB : unitA;
-  const startingCost = winner === "A" ? startingCostA : winner === "B" ? startingCostB : startingCostA;
+  const startingCost =
+    winner === "A"
+      ? startingCostA
+      : winner === "B"
+      ? startingCostB
+      : startingCostA;
 
-  const remainingHpPct = winningTeam.units > 0 ? 
-    (winningTeam.totalHp / (winningTeam.stats.hp * winningUnit.count)) * 100 : 0;
+  const remainingHpPct =
+    winningTeam.units > 0
+      ? (winningTeam.totalHp / (winningTeam.stats.hp * winningUnit.count)) * 100
+      : 0;
   const resourcesLost = startingCost * (1 - remainingHpPct / 100);
 
   document.getElementById("results").style.display = "block";
@@ -543,16 +604,21 @@ function runBattle() {
     document.getElementById("winnerText").textContent = "🤝 Perfect Draw!";
   } else {
     const winnerName = winner === "A" ? unitA.name : unitB.name;
-    document.getElementById("winnerText").textContent = `🎉 Team ${winner} Wins! (${winnerName})`;
+    document.getElementById(
+      "winnerText"
+    ).textContent = `🎉 Team ${winner} Wins! (${winnerName})`;
   }
 
   document.getElementById("remainingUnits").textContent = winningTeam.units;
-  document.getElementById("remainingHP").textContent = remainingHpPct.toFixed(1) + "%";
-  document.getElementById("resourcesLost").textContent = resourcesLost.toFixed(0);
+  document.getElementById("remainingHP").textContent =
+    remainingHpPct.toFixed(1) + "%";
+  document.getElementById("resourcesLost").textContent =
+    resourcesLost.toFixed(0);
   document.getElementById("battleDuration").textContent = time.toFixed(1) + "s";
 
-  document.getElementById("finalCounts").textContent = 
-    `Team A (${unitA.name}): ${teamA.units} units | Team B (${unitB.name}): ${teamB.units} units`;
+  document.getElementById(
+    "finalCounts"
+  ).textContent = `Team A (${unitA.name}): ${teamA.units} units | Team B (${unitB.name}): ${teamB.units} units`;
 
   document.getElementById("results").scrollIntoView({ behavior: "smooth" });
 }
@@ -561,10 +627,18 @@ function runBattle() {
 // EVENT LISTENERS
 // ========================================
 
-document.getElementById("unitASelect").addEventListener("change", () => updateUnitStats("A"));
-document.getElementById("unitBSelect").addEventListener("change", () => updateUnitStats("B"));
-document.getElementById("unitAAge").addEventListener("change", () => updateUnitStats("A"));
-document.getElementById("unitBAge").addEventListener("change", () => updateUnitStats("B"));
+document
+  .getElementById("unitASelect")
+  .addEventListener("change", () => updateUnitStats("A"));
+document
+  .getElementById("unitBSelect")
+  .addEventListener("change", () => updateUnitStats("B"));
+document
+  .getElementById("unitAAge")
+  .addEventListener("change", () => updateUnitStats("A"));
+document
+  .getElementById("unitBAge")
+  .addEventListener("change", () => updateUnitStats("B"));
 
 document.querySelectorAll('input[name="weaponModeA"]').forEach((radio) => {
   radio.addEventListener("change", () => updateUnitStats("A"));
