@@ -1200,6 +1200,13 @@
         "type": "melee",
         "attackSpeed": 1.375,
         "ages": {
+           "2": {
+            "hp": 125,
+            "meleeArmor": 4,
+            "rangedArmor": 2,
+            "attack": 12,
+            "bonus": {}
+          },
           "3": {
             "hp": 140,
             "meleeArmor": 5,
