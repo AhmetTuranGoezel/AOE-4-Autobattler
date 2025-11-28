@@ -878,7 +878,6 @@
     "speed": 1.25,
     "tags": [
       "Infantry",
-      "Ranged",
       "Light Infantry"
     ],
     "weapons": {
@@ -890,10 +889,10 @@
             "hp": 160,
             "meleeArmor": 1,
             "rangedArmor": 0,
-            "attack": 10,
+            "attack": 12,
             "bonus": {
-              "Cavalry": 34,
-              "Elephant": 6
+              "Cavalry": 40,
+              "Elephant": 8
             }
           },
           "3": {
@@ -902,8 +901,8 @@
             "rangedArmor": 0,
             "attack": 14,
             "bonus": {
-              "Cavalry": 40,
-              "Elephant": 8
+              "Cavalry": 46,
+              "Elephant": 10
             }
           },
           "4": {
@@ -912,8 +911,8 @@
             "rangedArmor": 0,
             "attack": 18,
             "bonus": {
-              "Cavalry": 46,
-              "Elephant": 10
+              "Cavalry": 56,
+              "Elephant": 12
             }
           }
         }
@@ -930,7 +929,6 @@
     "speed": 1.25,
     "tags": [
       "Infantry",
-      "Ranged",
       "Light Infantry"
     ],
     "weapons": {
@@ -982,7 +980,6 @@
     "speed": 1.25,
     "tags": [
       "Infantry",
-      "Ranged",
       "Light Infantry"
     ],
     "weapons": {
@@ -1129,6 +1126,7 @@
           "3": {
             "hp": 195,
             "meleeArmor": 4,
+            "rangedArmor": 4,
             "attack": 10,
             "bonus": {}
           },
@@ -1399,15 +1397,11 @@
         "range": 5.0,
         "attackSpeed": 1.875,
         "ages": {
-          "2": {
-            "attack": 8,
-            "bonus": {}
-          },
           "3": {
             "hp": 80,
             "meleeArmor": 1,
             "rangedArmor": 0,
-            "attack": 9,
+            "attack": 11,
             "bonus": {
               "Heavy": 10
             }
@@ -1416,7 +1410,7 @@
             "hp": 95,
             "meleeArmor": 2,
             "rangedArmor": 0,
-            "attack": 11,
+            "attack": 14,
             "bonus": {
               "Heavy": 12
             }
@@ -1450,7 +1444,7 @@
             "rangedArmor": 0,
             "attack": 15,
             "bonus": {
-              "Heavy": 10
+              "Heavy": 19
             }
           },
           "4": {
@@ -1459,7 +1453,7 @@
             "rangedArmor": 0,
             "attack": 18,
             "bonus": {
-              "Heavy": 12
+              "Heavy": 21
             }
           }
         }
