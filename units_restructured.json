@@ -1353,8 +1353,7 @@
     "speed": 1.625,
     "tags": [
       "Cavalry",
-      "Infantry",
-      "Heavy",
+       "Heavy",
       "Ranged"
     ],
     "weapons": {
@@ -1636,7 +1635,7 @@
     "population": 1,
     "speed": 1625.0,
     "tags": [
-      "Infantry",
+      "Cavalry",
       "Heavy",
       "Ranged"
     ],
@@ -1689,7 +1688,7 @@
     "population": 1,
     "speed": 1625.0,
     "tags": [
-      "Infantry",
+      "Cavalry",
       "Heavy",
       "Ranged"
     ],
@@ -1792,7 +1791,8 @@
     "speed": 1.125,
     "tags": [
       "Infantry",
-      "Ranged"
+      "Ranged",
+      "Light Gunpowder"
     ],
     "weapons": {
       "primary": {
