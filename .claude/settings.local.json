@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:ageofempires.fandom.com)",
+      "Bash(curl:*)",
+      "Bash(python:*)",
+      "Bash(for unit in \"Hobelar\" \"Donso\" \"Limitanei_\\(Age_of_Empires_IV\\)\" \"Handcannoneer_\\(Age_of_Empires_IV\\)\" \"Streltsy\")",
+      "Bash(do echo \"=== $unit ===\")",
+      "Bash(done)",
+      "Bash(for unit in \"Royal_Knight_\\(Age_of_Empires_IV\\)\" \"Sofa_\\(Age_of_Empires_IV\\)\" \"Keshik_\\(Age_of_Empires_IV\\)\" \"Desert_Raider\")",
+      "Bash(for unit in \"Longbowman_\\(Age_of_Empires_IV\\)\" \"Yeoman_\\(Age_of_Empires_IV\\)\" \"Yumi_Ashigaru\" \"Arbaletrier_\\(Age_of_Empires_IV\\)\" \"Onna-Musha\")",
+      "Bash(for unit in \"Tower_Elephant_\\(Age_of_Empires_IV\\)\" \"War_Elephant_\\(Age_of_Empires_IV\\)\" \"Limitanei\" \"Gilded_Horseman\" \"Gilded_Man-at-Arms\" \"Gilded_Spearman\" \"Gilded_Crossbowman\" \"Gilded_Archer\")",
+      "Bash(python3:*)",
+      "Bash(where:*)",
+      "Bash(\"C:\\\\Users\\\\ahmet\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python313\\\\python.exe\":*)"
+    ]
+  }
+}

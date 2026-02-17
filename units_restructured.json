@@ -109,6 +109,9 @@
       "Heavy",
       "Ranged"
     ],
+    "effects": {
+      "camelUnease": { "name": "Camel Unease", "reduction": 20, "description": "Enemy cavalry deal -20% damage" }
+    },
     "weapons": {
       "primary": {
         "type": "ranged",
@@ -199,6 +202,9 @@
     "tags": [
       "Cavalry"
     ],
+    "effects": {
+      "fortitude": { "name": "Fortitude", "atkSpeedBonus": 50, "dmgTakenIncrease": 50, "duration": 10, "description": "+50% Atk Speed, +50% Melee Dmg Taken for 10s" }
+    },
     "weapons": {
       "primary": {
         "type": "melee",
@@ -259,7 +265,8 @@
             "rangedArmor": 2,
             "attack": 12,
             "bonus": {
-              "Ranged": 12
+              "Ranged": 12,
+              "Heavy": 2
             }
           },
           "3": {
@@ -268,7 +275,8 @@
             "rangedArmor": 3,
             "attack": 15,
             "bonus": {
-              "Ranged": 15
+              "Ranged": 15,
+              "Heavy": 3
             }
           },
           "4": {
@@ -277,7 +285,8 @@
             "rangedArmor": 5,
             "attack": 18,
             "bonus": {
-              "Ranged": 18
+              "Ranged": 18,
+              "Heavy": 4
             }
           }
         }
@@ -307,6 +316,7 @@
             "meleeArmor": 3,
             "rangedArmor": 3,
             "attack": 19,
+            "chargeDamage": 10,
             "bonus": {}
           },
           "3": {
@@ -314,6 +324,7 @@
             "meleeArmor": 4,
             "rangedArmor": 4,
             "attack": 24,
+            "chargeDamage": 12,
             "bonus": {}
           },
           "4": {
@@ -321,6 +332,7 @@
             "meleeArmor": 5,
             "rangedArmor": 5,
             "attack": 29,
+            "chargeDamage": 14,
             "bonus": {}
           }
         }
@@ -339,6 +351,9 @@
       "Cavalry",
       "Heavy"
     ],
+    "effects": {
+      "postChargeAttackBuff": { "name": "Royal Charge", "value": 3, "duration": 5, "description": "+3 Attack for 5s after charge" }
+    },
     "weapons": {
       "primary": {
         "type": "melee",
@@ -350,6 +365,7 @@
             "meleeArmor": 3,
             "rangedArmor": 3,
             "attack": 19,
+            "chargeDamage": 10,
             "bonus": {}
           },
           "3": {
@@ -357,6 +373,7 @@
             "meleeArmor": 4,
             "rangedArmor": 4,
             "attack": 24,
+            "chargeDamage": 12,
             "bonus": {}
           },
           "4": {
@@ -364,49 +381,7 @@
             "meleeArmor": 5,
             "rangedArmor": 5,
             "attack": 29,
-            "bonus": {}
-          }
-        }
-      }
-    }
-  },
-  "Royal Knight Charge": {
-    "costs": {
-      "food": 140,
-      "gold": 100
-    },
-    "trainingTime": 35.0,
-    "population": 1,
-    "speed": 1.625,
-    "tags": [
-      "Cavalry",
-      "Heavy"
-    ],
-    "weapons": {
-      "primary": {
-        "type": "melee",
-        "range": 0.38,
-        "attackSpeed": 1.5,
-        "ages": {
-          "2": {
-            "hp": 190,
-            "meleeArmor": 3,
-            "rangedArmor": 3,
-            "attack": 22,
-            "bonus": {}
-          },
-          "3": {
-            "hp": 230,
-            "meleeArmor": 4,
-            "rangedArmor": 4,
-            "attack": 27,
-            "bonus": {}
-          },
-          "4": {
-            "hp": 270,
-            "meleeArmor": 5,
-            "rangedArmor": 5,
-            "attack": 32,
+            "chargeDamage": 14,
             "bonus": {}
           }
         }
@@ -423,48 +398,64 @@
     "speed": 1.0,
     "tags": [
       "Cavalry",
-      "Heavy","Elephant"
+      "Heavy",
+      "Elephant"
     ],
     "weapons": {
       "primary": {
+        "name": "Tusks",
         "type": "melee",
-        "range": 1.25,
-        "attackSpeed": 1.5,
+        "range": 1.0,
+        "attackSpeed": 2.875,
         "ages": {
-          "2": {
-            "attack": 22,
-            "bonus": {}
-          },
           "3": {
             "hp": 850,
             "meleeArmor": 4,
             "rangedArmor": 5,
-            "attack": 27,
-            "bonus": {}
+            "attack": 50,
+            "chargeDamage": 30,
+            "bonus": {
+              "Building": 45
+            }
           },
           "4": {
             "hp": 850,
             "meleeArmor": 4,
             "rangedArmor": 5,
-            "attack": 32,
-            "bonus": {}
+            "attack": 50,
+            "chargeDamage": 30,
+            "bonus": {
+              "Building": 45
+            }
           }
         }
       },
       "secondary": {
+        "name": "Spear",
         "type": "melee",
-        "range": 0.38,
+        "range": 1.25,
+        "attackSpeed": 1.875,
         "ages": {
           "3": {
+            "hp": 850,
+            "meleeArmor": 4,
+            "rangedArmor": 5,
             "attack": 25,
             "bonus": {
-              "Cavalry": 40
+              "Cavalry": 40,
+              "Elephant": 6,
+              "Worker Elephant": 34
             }
           },
           "4": {
+            "hp": 850,
+            "meleeArmor": 4,
+            "rangedArmor": 5,
             "attack": 25,
             "bonus": {
-              "Cavalry": 40
+              "Cavalry": 40,
+              "Elephant": 6,
+              "Worker Elephant": 34
             }
           }
         }
@@ -526,6 +517,9 @@
       "Cavalry",
       "Heavy"
     ],
+    "effects": {
+      "healPerAttack": { "name": "Battle Veteran", "value": 3, "description": "+3 HP per attack" }
+    },
     "weapons": {
       "primary": {
         "type": "melee",
@@ -537,6 +531,7 @@
             "meleeArmor": 3,
             "rangedArmor": 3,
             "attack": 15,
+            "chargeDamage": 8,
             "bonus": {}
           },
           "3": {
@@ -544,6 +539,7 @@
             "meleeArmor": 4,
             "rangedArmor": 4,
             "attack": 19,
+            "chargeDamage": 10,
             "bonus": {}
           },
           "4": {
@@ -551,6 +547,7 @@
             "meleeArmor": 5,
             "rangedArmor": 5,
             "attack": 23,
+            "chargeDamage": 12,
             "bonus": {}
           }
         }
@@ -621,6 +618,9 @@
       "Infantry",
       "Ranged"
     ],
+    "effects": {
+      "arrowVolley": { "name": "Arrow Volley", "atkSpeedBonus": 70, "duration": 5, "description": "+70% Atk Speed for 5s" }
+    },
     "weapons": {
       "primary": {
         "type": "ranged",
@@ -673,6 +673,9 @@
       "Infantry",
       "Ranged"
     ],
+    "effects": {
+      "arrowVolley": { "name": "Arrow Volley", "atkSpeedBonus": 70, "duration": 5, "description": "+70% Atk Speed for 5s" }
+    },
     "weapons": {
       "primary": {
         "type": "ranged",
@@ -841,7 +844,8 @@
             "attack": 8,
             "bonus": {
               "Cavalry": 20,
-              "Elephant": 3
+              "Elephant": 4,
+              "Worker Elephant": 24
             }
           },
           "3": {
@@ -851,7 +855,8 @@
             "attack": 9,
             "bonus": {
               "Cavalry": 23,
-              "Elephant": 4
+              "Elephant": 5,
+              "Worker Elephant": 28
             }
           },
           "4": {
@@ -861,7 +866,8 @@
             "attack": 11,
             "bonus": {
               "Cavalry": 28,
-              "Elephant": 5
+              "Elephant": 6,
+              "Worker Elephant": 34
             }
           }
         }
@@ -931,6 +937,9 @@
       "Infantry",
       "Light Infantry"
     ],
+    "effects": {
+      "openingAttack": { "name": "Javelin Throw", "damage": 8, "description": "Pre-battle ranged hit (per unit)" }
+    },
     "weapons": {
       "primary": {
         "type": "melee",
@@ -982,6 +991,9 @@
       "Infantry",
       "Light Infantry"
     ],
+    "effects": {
+      "shieldWall": { "name": "Shield Wall", "atkSpeedPenalty": 25, "rangedDmgReduction": 30, "description": "-25% Atk Speed, -30% Ranged Dmg Taken" }
+    },
     "weapons": {
       "primary": {
         "type": "melee",
@@ -1128,6 +1140,7 @@
             "meleeArmor": 4,
             "rangedArmor": 4,
             "attack": 10,
+            "chargeDamage": 5,
             "bonus": {}
           },
           "4": {
@@ -1135,6 +1148,7 @@
             "meleeArmor": 5,
             "rangedArmor": 6,
             "attack": 12,
+            "chargeDamage": 6,
             "bonus": {}
           }
         }
@@ -1195,6 +1209,9 @@
       "Infantry",
       "Heavy"
     ],
+    "effects": {
+      "berserking": { "name": "Berserking", "attackBonus": 6, "armorPenalty": 4, "duration": 30, "description": "+6 Attack, -4 Melee & Ranged Armor for 30s" }
+    },
     "weapons": {
       "primary": {
         "type": "melee",
@@ -1237,6 +1254,9 @@
       "Infantry",
       "Heavy"
     ],
+    "effects": {
+      "deflectiveArmor": { "name": "Deflective Armor", "description": "Blocks the first incoming attack" }
+    },
     "weapons": {
       "primary": {
         "type": "melee",
@@ -1279,6 +1299,9 @@
       "Infantry",
       "Heavy"
     ],
+    "effects": {
+      "openingAttack": { "name": "Dagger Throw", "damage": 16, "description": "Pre-battle ranged hit (per unit)" }
+    },
     "weapons": {
       "primary": {
         "type": "melee",
@@ -1397,6 +1420,9 @@
       "Heavy",
       "Ranged"
     ],
+    "effects": {
+      "deployPavise": { "name": "Deploy Pavise", "armorBonus": 5, "duration": 30, "description": "+5 Ranged Armor for 30s" }
+    },
     "weapons": {
       "primary": {
         "type": "ranged",
@@ -1633,12 +1659,15 @@
     },
     "trainingTime": 35.0,
     "population": 1,
-    "speed": 1625.0,
+    "speed": 1.625,
     "tags": [
       "Cavalry",
       "Heavy",
       "Ranged"
     ],
+    "effects": {
+      "camelUnease": { "name": "Camel Unease", "reduction": 20, "description": "Enemy cavalry deal -20% damage" }
+    },
     "weapons": {
       "primary": {
         "type": "ranged",
@@ -1686,7 +1715,7 @@
     },
     "trainingTime": 22.0,
     "population": 1,
-    "speed": 1625.0,
+    "speed": 1.625,
     "tags": [
       "Cavalry",
       "Heavy",
@@ -1764,8 +1793,12 @@
       "Infantry",
       "Ranged"
     ],
+    "effects": {
+      "staticDeployment": { "name": "Static Deployment", "atkSpeedBonus": 30, "delay": 10, "description": "+30% Atk Speed after 10s stationary" }
+    },
     "weapons": {
       "primary": {
+        "name": "Handcannon",
         "type": "ranged",
         "range": 4.0,
         "attackSpeed": 2.125,
@@ -1775,6 +1808,20 @@
             "meleeArmor": 0,
             "rangedArmor": 0,
             "attack": 38,
+            "bonus": {}
+          }
+        }
+      },
+      "secondary": {
+        "name": "Bardiche",
+        "type": "melee",
+        "attackSpeed": 2.125,
+        "ages": {
+          "4": {
+            "hp": 130,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 60,
             "bonus": {}
           }
         }
@@ -1816,6 +1863,548 @@
             "attack": 20,
             "bonus": {
               "Cavalry": 13
+            }
+          }
+        }
+      }
+    }
+  },
+  "Kipchak Archer": {
+    "costs": {
+      "food": 80,
+      "wood": 70
+    },
+    "trainingTime": 24.0,
+    "population": 1,
+    "speed": 1.625,
+    "tags": [
+      "Cavalry",
+      "Heavy",
+      "Ranged"
+    ],
+    "effects": {
+      "bleed": { "name": "Bleed", "dps": 2, "duration": 6, "description": "Each attack inflicts 2 dmg/s bleed for 6s (ignores armor)" }
+    },
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 4.5,
+        "attackSpeed": 2.125,
+        "ages": {
+          "3": {
+            "hp": 105,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 10,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 140,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 12,
+            "bonus": {}
+          }
+        }
+      }
+    }
+  },
+  "Kharash": {
+    "costs": {
+      "food": 50
+    },
+    "trainingTime": 20.0,
+    "population": 1,
+    "speed": 1.125,
+    "tags": [
+      "Infantry",
+      "Light Infantry"
+    ],
+    "effects": {
+      "armorAura": { "name": "Armor Aura", "armorBonus": 1, "description": "+1 Melee & Ranged Armor aura (does not stack)" }
+    },
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "attackSpeed": 1.375,
+        "ages": {
+          "2": {
+            "hp": 50,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 6,
+            "bonus": {}
+          },
+          "3": {
+            "hp": 50,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 6,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 50,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 6,
+            "bonus": {}
+          }
+        }
+      }
+    }
+  },
+  "Torguud": {
+    "costs": {
+      "food": 75,
+      "stone": 100
+    },
+    "trainingTime": 45.0,
+    "population": 1,
+    "speed": 1.625,
+    "tags": [
+      "Cavalry",
+      "Heavy"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 0.29,
+        "attackSpeed": 1.375,
+        "ages": {
+          "2": {
+            "hp": 220,
+            "meleeArmor": 3,
+            "rangedArmor": 3,
+            "attack": 10,
+            "bonus": {}
+          },
+          "3": {
+            "hp": 260,
+            "meleeArmor": 4,
+            "rangedArmor": 4,
+            "attack": 12,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 300,
+            "meleeArmor": 5,
+            "rangedArmor": 5,
+            "attack": 17,
+            "bonus": {}
+          }
+        }
+      }
+    }
+  },
+  "Atgeirmaðr": {
+    "costs": {
+      "food": 70,
+      "wood": 20
+    },
+    "trainingTime": 17.0,
+    "population": 1,
+    "speed": 1.25,
+    "tags": [
+      "Infantry",
+      "Light Infantry"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 0.44,
+        "attackSpeed": 1.875,
+        "ages": {
+          "2": {
+            "hp": 100,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 8,
+            "bonus": {
+              "Cavalry": 20,
+              "Elephant": 4,
+              "Worker Elephant": 24
+            }
+          },
+          "3": {
+            "hp": 120,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 9,
+            "bonus": {
+              "Cavalry": 23,
+              "Elephant": 5,
+              "Worker Elephant": 28
+            }
+          },
+          "4": {
+            "hp": 140,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 11,
+            "bonus": {
+              "Cavalry": 28,
+              "Elephant": 6,
+              "Worker Elephant": 34
+            }
+          }
+        }
+      }
+    }
+  },
+  "Bogmaðr": {
+    "costs": {
+      "food": 40,
+      "wood": 50
+    },
+    "trainingTime": 15.0,
+    "population": 1,
+    "speed": 1.25,
+    "tags": [
+      "Infantry",
+      "Ranged"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 5.0,
+        "attackSpeed": 1.625,
+        "ages": {
+          "2": {
+            "hp": 80,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 5,
+            "bonus": {
+              "Light Infantry": 5,
+              "Light Gunpowder": 5
+            }
+          },
+          "3": {
+            "hp": 90,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 7,
+            "bonus": {
+              "Light Infantry": 7,
+              "Light Gunpowder": 7
+            }
+          },
+          "4": {
+            "hp": 110,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 8,
+            "bonus": {
+              "Light Infantry": 8,
+              "Light Gunpowder": 8
+            }
+          }
+        }
+      }
+    }
+  },
+  "Riddari": {
+    "costs": {
+      "food": 130,
+      "gold": 110
+    },
+    "trainingTime": 35.0,
+    "population": 1,
+    "speed": 1.7,
+    "tags": [
+      "Cavalry",
+      "Heavy"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 0.29,
+        "attackSpeed": 1.375,
+        "ages": {
+          "3": {
+            "hp": 240,
+            "meleeArmor": 4,
+            "rangedArmor": 4,
+            "attack": 24,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 280,
+            "meleeArmor": 5,
+            "rangedArmor": 5,
+            "attack": 29,
+            "bonus": {}
+          }
+        }
+      }
+    }
+  },
+  "Raider Elephant": {
+    "costs": {
+      "food": 180,
+      "wood": 40
+    },
+    "trainingTime": 25.0,
+    "population": 2,
+    "speed": 1.6,
+    "tags": [
+      "Cavalry",
+      "Elephant"
+    ],
+    "effects": {
+      "trample": { "name": "Trample", "dps": 8, "duration": 6, "cooldown": 30, "unitsHit": 3, "description": "AoE 4 dmg/0.5s for 6s (30s cooldown)" }
+    },
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 0.75,
+        "attackSpeed": 2.375,
+        "ages": {
+          "2": {
+            "hp": 235,
+            "meleeArmor": 0,
+            "rangedArmor": 3,
+            "attack": 18,
+            "bonus": {
+              "Ranged": 18
+            }
+          },
+          "3": {
+            "hp": 285,
+            "meleeArmor": 1,
+            "rangedArmor": 4,
+            "attack": 23,
+            "bonus": {
+              "Ranged": 23
+            }
+          },
+          "4": {
+            "hp": 410,
+            "meleeArmor": 1,
+            "rangedArmor": 5,
+            "attack": 28,
+            "bonus": {
+              "Ranged": 28
+            }
+          }
+        }
+      }
+    }
+  },
+  "Ballista Elephant": {
+    "costs": {
+      "food": 300,
+      "gold": 350
+    },
+    "trainingTime": 45.0,
+    "population": 4,
+    "speed": 1.0,
+    "tags": [
+      "Cavalry",
+      "Ranged",
+      "Elephant"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 7.5,
+        "attackSpeed": 3.125,
+        "ages": {
+          "3": {
+            "hp": 400,
+            "meleeArmor": 2,
+            "rangedArmor": 2,
+            "attack": 17,
+            "bonus": {
+              "Infantry": 14
+            }
+          },
+          "4": {
+            "hp": 475,
+            "meleeArmor": 3,
+            "rangedArmor": 3,
+            "attack": 19,
+            "bonus": {
+              "Infantry": 18
+            }
+          }
+        }
+      }
+    }
+  },
+  "Kanabo Samurai": {
+    "costs": {
+      "food": 130,
+      "gold": 30
+    },
+    "trainingTime": 24.0,
+    "population": 1,
+    "speed": 1.125,
+    "tags": [
+      "Infantry",
+      "Heavy"
+    ],
+    "effects": {
+      "percentDamage": { "name": "% HP Damage", "percent": 6, "description": "Deals 6% of enemy max HP as bonus damage" }
+    },
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 0.29,
+        "attackSpeed": 1.375,
+        "ages": {
+          "2": {
+            "hp": 185,
+            "meleeArmor": 0,
+            "rangedArmor": 1,
+            "attack": 3,
+            "bonus": {}
+          },
+          "3": {
+            "hp": 230,
+            "meleeArmor": 1,
+            "rangedArmor": 2,
+            "attack": 4,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 260,
+            "meleeArmor": 2,
+            "rangedArmor": 3,
+            "attack": 5,
+            "bonus": {}
+          }
+        }
+      }
+    }
+  },
+  "Naginata Samurai": {
+    "costs": {
+      "food": 100,
+      "gold": 20
+    },
+    "trainingTime": 22.5,
+    "population": 1,
+    "speed": 1.125,
+    "tags": [
+      "Infantry",
+      "Heavy"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "attackSpeed": 1.375,
+        "ages": {
+          "2": {
+            "hp": 100,
+            "meleeArmor": 2,
+            "rangedArmor": 3,
+            "attack": 8,
+            "bonus": {}
+          },
+          "3": {
+            "hp": 155,
+            "meleeArmor": 4,
+            "rangedArmor": 4,
+            "attack": 12,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 180,
+            "meleeArmor": 5,
+            "rangedArmor": 6,
+            "attack": 14,
+            "bonus": {}
+          }
+        }
+      }
+    }
+  },
+  "Tanegashima Ashigaru": {
+    "costs": {
+      "food": 70,
+      "gold": 70
+    },
+    "trainingTime": 24.0,
+    "population": 1,
+    "speed": 1.12,
+    "tags": [
+      "Infantry",
+      "Ranged"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 4.0,
+        "attackSpeed": 2.5,
+        "ages": {
+          "3": {
+            "hp": 95,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 15,
+            "bonus": {
+              "Heavy": 10
+            }
+          },
+          "4": {
+            "hp": 115,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 19,
+            "bonus": {
+              "Heavy": 14
+            }
+          }
+        }
+      }
+    }
+  },
+  "Yari Cavalry": {
+    "costs": {
+      "food": 115,
+      "wood": 30
+    },
+    "trainingTime": 22.5,
+    "population": 1,
+    "speed": 1.88,
+    "tags": [
+      "Cavalry"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 0.38,
+        "attackSpeed": 1.75,
+        "ages": {
+          "2": {
+            "hp": 135,
+            "meleeArmor": 0,
+            "rangedArmor": 2,
+            "attack": 9,
+            "bonus": {
+              "Ranged": 9,
+              "Cavalry": 2
+            }
+          },
+          "3": {
+            "hp": 175,
+            "meleeArmor": 0,
+            "rangedArmor": 3,
+            "attack": 11,
+            "bonus": {
+              "Ranged": 11,
+              "Cavalry": 3
+            }
+          },
+          "4": {
+            "hp": 200,
+            "meleeArmor": 0,
+            "rangedArmor": 5,
+            "attack": 13,
+            "bonus": {
+              "Ranged": 13,
+              "Cavalry": 4
             }
           }
         }
