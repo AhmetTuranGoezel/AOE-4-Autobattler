@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AOE4 Battle Simulator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <a href="index.html" style="position:fixed; top:12px; left:16px; z-index:1000; color:#d4a44a; text-decoration:none; font-family:'Inter',sans-serif; font-size:0.85rem; background:rgba(22,33,62,0.9); padding:6px 14px; border-radius:8px; border:1px solid rgba(212,164,74,0.3); backdrop-filter:blur(4px); transition:background 0.2s;">&#8592; Hub</a>
+  <div class="container">
+    <h1 class="text-center mb-4">AOE4 Battle Simulator</h1>
+
+    <div class="text-center">
+      <div class="auto-balance-toggle">
+        <input type="checkbox" id="autoBalance" checked>
+        <label for="autoBalance" class="ms-2 fw-bold">Auto-balance units by cost</label>
+        <span class="mx-3">|</span>
+        <input type="checkbox" id="overkillEnabled">
+        <label for="overkillEnabled" class="ms-2 fw-bold">Overkill waste</label>
+      </div>
+    </div>
+
+    <div class="row g-4">
+      <!-- ==================== UNIT A PANEL ==================== -->
+      <div class="col-lg-5">
+        <div class="card card-team-a">
+          <div class="card-body">
+            <h3 class="card-title card-title-a">Unit A</h3>
+
+            <!-- Unit Selection and Age -->
+            <div class="row g-3 mb-3">
+              <div class="col-8">
+                <label class="form-label fw-bold">Unit</label>
+                <select id="unitASelect" class="form-select"></select>
+              </div>
+              <div class="col-4">
+                <label class="form-label fw-bold">Age</label>
+                <select id="unitAAge" class="form-select"></select>
+              </div>
+            </div>
+
+            <!-- Weapon Mode Selection -->
+            <div class="mb-3">
+              <label class="form-label fw-bold">Weapon Mode</label>
+              <div class="btn-group w-100 weapon-mode-group" role="group">
+                <input type="radio" class="btn-check" name="weaponModeA" id="primaryA" value="primary" checked>
+                <label class="btn btn-outline-primary btn-sm" for="primaryA">Primary</label>
+
+                <input type="radio" class="btn-check" name="weaponModeA" id="secondaryA" value="secondary">
+                <label class="btn btn-outline-primary btn-sm" for="secondaryA">Secondary</label>
+
+                <input type="radio" class="btn-check" name="weaponModeA" id="bothA" value="both">
+                <label class="btn btn-outline-primary btn-sm" for="bothA">Both</label>
+              </div>
+              <div class="weapon-info" id="weaponInfoA"></div>
+            </div>
+
+            <!-- Unit Count -->
+            <div class="mb-3">
+              <label class="form-label fw-bold">Number of Units</label>
+              <input id="countA" type="number" class="form-control" value="10" min="1">
+            </div>
+
+            <!-- Base Stats -->
+            <div class="stat-box">
+              <h6 class="fw-bold mb-3">Stats</h6>
+              <div class="row g-2">
+                <div class="col-6">
+                  <small class="text-muted">HP</small>
+                  <input id="A_hp" type="number" class="form-control small-input" placeholder="HP">
+                </div>
+                <div class="col-6">
+                  <small class="text-muted">Attack</small>
+                  <input id="A_attack" type="number" class="form-control small-input" placeholder="Attack">
+                </div>
+                <div class="col-6">
+                  <small class="text-muted">Melee Armor</small>
+                  <input id="A_meleeArmor" type="number" class="form-control small-input" placeholder="Melee Armor">
+                </div>
+                <div class="col-6">
+                  <small class="text-muted">Ranged Armor</small>
+                  <input id="A_rangedArmor" type="number" class="form-control small-input" placeholder="Ranged Armor">
+                </div>
+                <div class="col-12">
+                  <small class="text-muted">Attack Speed (s)</small>
+                  <input id="A_attackSpeed" type="number" step="0.01" class="form-control small-input" placeholder="Attack Speed (s)">
+                </div>
+              </div>
+              <div id="A_chargeInfo" class="mt-2" style="display:none;">
+                <small class="text-muted">Charge Damage: </small>
+                <small id="A_chargeDamage" style="color:#d4a44a;font-weight:600;"></small>
+              </div>
+            </div>
+
+            <!-- Unique Effects Section -->
+            <div class="stat-box" id="A_effectsBox" style="display:none;">
+              <h6 class="fw-bold mb-2">Unique Effects</h6>
+              <div id="A_effectsContainer"></div>
+            </div>
+
+            <!-- Tags Section with Pill Checkboxes -->
+            <div class="stat-box">
+              <h6 class="fw-bold mb-2">Tags</h6>
+              <div id="A_tagsContainer" class="tag-pill-group mb-2"></div>
+            </div>
+
+            <!-- Bonus Damage Section -->
+            <div class="stat-box">
+              <h6 class="fw-bold mb-2">Bonus Damage</h6>
+              <div id="A_bonusesContainer"></div>
+            </div>
+
+            <!-- Flat Buffs (Collapsible) -->
+            <div class="buff-box">
+              <h6 class="fw-bold mb-0 section-toggle" data-bs-toggle="collapse" data-bs-target="#collapseA_flatBuffs" aria-expanded="false">
+                <span>Flat Buffs</span>
+                <i class="bi bi-chevron-down toggle-arrow" style="transform: rotate(-90deg)"></i>
+              </h6>
+              <div class="collapse" id="collapseA_flatBuffs">
+                <div class="pt-3">
+                  <div class="row g-2 mb-2">
+                    <div class="col-12"><small class="text-muted">Attack Bonus (absolute value)</small></div>
+                    <div class="col-6">
+                      <input id="A_buffAttackAbs" type="number" class="form-control small-input" placeholder="+Attack">
+                    </div>
+                    <div class="col-6">
+                      <input id="A_buffAttackAbsDur" type="number" class="form-control small-input" placeholder="Duration (0=inf)" value="0">
+                    </div>
+                  </div>
+                  <div class="row g-2 mb-2">
+                    <div class="col-12"><small class="text-muted">HP Bonus (absolute value)</small></div>
+                    <div class="col-6">
+                      <input id="A_buffHPabs" type="number" class="form-control small-input" placeholder="+HP">
+                    </div>
+                    <div class="col-6">
+                      <input id="A_buffHPabsDur" type="number" class="form-control small-input" placeholder="Duration (0=inf)" value="0">
+                    </div>
+                  </div>
+                  <div class="row g-2">
+                    <div class="col-12"><small class="text-muted">Armor Bonuses</small></div>
+                    <div class="col-6">
+                      <input id="A_buffMeleeArmor" type="number" class="form-control small-input" placeholder="+Melee Armor">
+                    </div>
+                    <div class="col-6">
+                      <input id="A_buffRangedArmor" type="number" class="form-control small-input" placeholder="+Ranged Armor">
+                    </div>
+                    <div class="col-12">
+                      <input id="A_buffArmorDur" type="number" class="form-control small-input" placeholder="Duration (0=inf)" value="0">
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Percentage Buffs (Collapsible) -->
+            <div class="buff-box">
+              <h6 class="fw-bold mb-0 section-toggle" data-bs-toggle="collapse" data-bs-target="#collapseA_pctBuffs" aria-expanded="false">
+                <span>Percentage Buffs</span>
+                <i class="bi bi-chevron-down toggle-arrow" style="transform: rotate(-90deg)"></i>
+              </h6>
+              <div class="collapse" id="collapseA_pctBuffs">
+                <div class="pt-3">
+                  <div class="row g-2 mb-2">
+                    <div class="col-12"><small class="text-muted">Attack Multiplier (%)</small></div>
+                    <div class="col-6">
+                      <input id="A_buffAttackPct" type="number" class="form-control small-input" placeholder="Attack %">
+                    </div>
+                    <div class="col-6">
+                      <input id="A_buffAttackPctDur" type="number" class="form-control small-input" placeholder="Duration (0=inf)" value="0">
+                    </div>
+                  </div>
+                  <div class="row g-2 mb-2">
+                    <div class="col-12"><small class="text-muted">HP Multiplier (%)</small></div>
+                    <div class="col-6">
+                      <input id="A_buffHPpct" type="number" class="form-control small-input" placeholder="HP %">
+                    </div>
+                    <div class="col-6">
+                      <input id="A_buffHPpctDur" type="number" class="form-control small-input" placeholder="Duration (0=inf)" value="0">
+                    </div>
+                  </div>
+                  <div class="row g-2">
+                    <div class="col-12"><small class="text-muted">Attack Speed Multiplier (%)</small></div>
+                    <div class="col-6">
+                      <input id="A_buffSpeedPct" type="number" class="form-control small-input" placeholder="Speed %">
+                    </div>
+                    <div class="col-6">
+                      <input id="A_buffSpeedPctDur" type="number" class="form-control small-input" placeholder="Duration (0=inf)" value="0">
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- First Hit Advantage (Collapsible) -->
+            <div class="first-hit-box">
+              <h6 class="fw-bold mb-0 section-toggle" data-bs-toggle="collapse" data-bs-target="#collapseA_firstHit" aria-expanded="false">
+                <span>First-Hit Advantage</span>
+                <i class="bi bi-chevron-down toggle-arrow" style="transform: rotate(-90deg)"></i>
+              </h6>
+              <div class="collapse" id="collapseA_firstHit">
+                <div class="pt-3">
+                  <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" id="A_firstHitEnabled">
+                    <label class="form-check-label" for="A_firstHitEnabled">Enable free hits</label>
+                  </div>
+                  <input id="A_freeHits" type="number" class="form-control small-input" value="0" min="0" placeholder="Free hits">
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ==================== BATTLE BUTTON ==================== -->
+      <div class="col-lg-2 d-flex align-items-center justify-content-center battle-btn-wrapper">
+        <button id="battleBtn" class="battle-btn">&#9876;<span class="btn-label"> BATTLE</span></button>
+      </div>
+
+      <!-- ==================== UNIT B PANEL ==================== -->
+      <div class="col-lg-5">
+        <div class="card card-team-b">
+          <div class="card-body">
+            <h3 class="card-title card-title-b">Unit B</h3>
+
+            <div class="row g-3 mb-3">
+              <div class="col-8">
+                <label class="form-label fw-bold">Unit</label>
+                <select id="unitBSelect" class="form-select"></select>
+              </div>
+              <div class="col-4">
+                <label class="form-label fw-bold">Age</label>
+                <select id="unitBAge" class="form-select"></select>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-bold">Weapon Mode</label>
+              <div class="btn-group w-100 weapon-mode-group" role="group">
+                <input type="radio" class="btn-check" name="weaponModeB" id="primaryB" value="primary" checked>
+                <label class="btn btn-outline-primary btn-sm" for="primaryB">Primary</label>
+
+                <input type="radio" class="btn-check" name="weaponModeB" id="secondaryB" value="secondary">
+                <label class="btn btn-outline-primary btn-sm" for="secondaryB">Secondary</label>
+
+                <input type="radio" class="btn-check" name="weaponModeB" id="bothB" value="both">
+                <label class="btn btn-outline-primary btn-sm" for="bothB">Both</label>
+              </div>
+              <div class="weapon-info" id="weaponInfoB"></div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-bold">Number of Units</label>
+              <input id="countB" type="number" class="form-control" value="10" min="1">
+            </div>
+
+            <div class="stat-box">
+              <h6 class="fw-bold mb-3">Stats</h6>
+              <div class="row g-2">
+                <div class="col-6">
+                  <small class="text-muted">HP</small>
+                  <input id="B_hp" type="number" class="form-control small-input" placeholder="HP">
+                </div>
+                <div class="col-6">
+                  <small class="text-muted">Attack</small>
+                  <input id="B_attack" type="number" class="form-control small-input" placeholder="Attack">
+                </div>
+                <div class="col-6">
+                  <small class="text-muted">Melee Armor</small>
+                  <input id="B_meleeArmor" type="number" class="form-control small-input" placeholder="Melee Armor">
+                </div>
+                <div class="col-6">
+                  <small class="text-muted">Ranged Armor</small>
+                  <input id="B_rangedArmor" type="number" class="form-control small-input" placeholder="Ranged Armor">
+                </div>
+                <div class="col-12">
+                  <small class="text-muted">Attack Speed (s)</small>
+                  <input id="B_attackSpeed" type="number" step="0.01" class="form-control small-input" placeholder="Attack Speed (s)">
+                </div>
+              </div>
+              <div id="B_chargeInfo" class="mt-2" style="display:none;">
+                <small class="text-muted">Charge Damage: </small>
+                <small id="B_chargeDamage" style="color:#d4a44a;font-weight:600;"></small>
+              </div>
+            </div>
+
+            <!-- Unique Effects Section -->
+            <div class="stat-box" id="B_effectsBox" style="display:none;">
+              <h6 class="fw-bold mb-2">Unique Effects</h6>
+              <div id="B_effectsContainer"></div>
+            </div>
+
+            <!-- Tags Section with Pill Checkboxes -->
+            <div class="stat-box">
+              <h6 class="fw-bold mb-2">Tags</h6>
+              <div id="B_tagsContainer" class="tag-pill-group mb-2"></div>
+            </div>
+
+            <!-- Bonus Damage Section -->
+            <div class="stat-box">
+              <h6 class="fw-bold mb-2">Bonus Damage</h6>
+              <div id="B_bonusesContainer"></div>
+            </div>
+
+            <!-- Flat Buffs (Collapsible) -->
+            <div class="buff-box">
+              <h6 class="fw-bold mb-0 section-toggle" data-bs-toggle="collapse" data-bs-target="#collapseB_flatBuffs" aria-expanded="false">
+                <span>Flat Buffs</span>
+                <i class="bi bi-chevron-down toggle-arrow" style="transform: rotate(-90deg)"></i>
+              </h6>
+              <div class="collapse" id="collapseB_flatBuffs">
+                <div class="pt-3">
+                  <div class="row g-2 mb-2">
+                    <div class="col-12"><small class="text-muted">Attack Bonus (absolute value)</small></div>
+                    <div class="col-6">
+                      <input id="B_buffAttackAbs" type="number" class="form-control small-input" placeholder="+Attack">
+                    </div>
+                    <div class="col-6">
+                      <input id="B_buffAttackAbsDur" type="number" class="form-control small-input" placeholder="Duration (0=inf)" value="0">
+                    </div>
+                  </div>
+                  <div class="row g-2 mb-2">
+                    <div class="col-12"><small class="text-muted">HP Bonus (absolute value)</small></div>
+                    <div class="col-6">
+                      <input id="B_buffHPabs" type="number" class="form-control small-input" placeholder="+HP">
+                    </div>
+                    <div class="col-6">
+                      <input id="B_buffHPabsDur" type="number" class="form-control small-input" placeholder="Duration (0=inf)" value="0">
+                    </div>
+                  </div>
+                  <div class="row g-2">
+                    <div class="col-12"><small class="text-muted">Armor Bonuses</small></div>
+                    <div class="col-6">
+                      <input id="B_buffMeleeArmor" type="number" class="form-control small-input" placeholder="+Melee Armor">
+                    </div>
+                    <div class="col-6">
+                      <input id="B_buffRangedArmor" type="number" class="form-control small-input" placeholder="+Ranged Armor">
+                    </div>
+                    <div class="col-12">
+                      <input id="B_buffArmorDur" type="number" class="form-control small-input" placeholder="Duration (0=inf)" value="0">
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Percentage Buffs (Collapsible) -->
+            <div class="buff-box">
+              <h6 class="fw-bold mb-0 section-toggle" data-bs-toggle="collapse" data-bs-target="#collapseB_pctBuffs" aria-expanded="false">
+                <span>Percentage Buffs</span>
+                <i class="bi bi-chevron-down toggle-arrow" style="transform: rotate(-90deg)"></i>
+              </h6>
+              <div class="collapse" id="collapseB_pctBuffs">
+                <div class="pt-3">
+                  <div class="row g-2 mb-2">
+                    <div class="col-12"><small class="text-muted">Attack Multiplier (%)</small></div>
+                    <div class="col-6">
+                      <input id="B_buffAttackPct" type="number" class="form-control small-input" placeholder="Attack %">
+                    </div>
+                    <div class="col-6">
+                      <input id="B_buffAttackPctDur" type="number" class="form-control small-input" placeholder="Duration (0=inf)" value="0">
+                    </div>
+                  </div>
+                  <div class="row g-2 mb-2">
+                    <div class="col-12"><small class="text-muted">HP Multiplier (%)</small></div>
+                    <div class="col-6">
+                      <input id="B_buffHPpct" type="number" class="form-control small-input" placeholder="HP %">
+                    </div>
+                    <div class="col-6">
+                      <input id="B_buffHPpctDur" type="number" class="form-control small-input" placeholder="Duration (0=inf)" value="0">
+                    </div>
+                  </div>
+                  <div class="row g-2">
+                    <div class="col-12"><small class="text-muted">Attack Speed Multiplier (%)</small></div>
+                    <div class="col-6">
+                      <input id="B_buffSpeedPct" type="number" class="form-control small-input" placeholder="Speed %">
+                    </div>
+                    <div class="col-6">
+                      <input id="B_buffSpeedPctDur" type="number" class="form-control small-input" placeholder="Duration (0=inf)" value="0">
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- First Hit Advantage (Collapsible) -->
+            <div class="first-hit-box">
+              <h6 class="fw-bold mb-0 section-toggle" data-bs-toggle="collapse" data-bs-target="#collapseB_firstHit" aria-expanded="false">
+                <span>First-Hit Advantage</span>
+                <i class="bi bi-chevron-down toggle-arrow" style="transform: rotate(-90deg)"></i>
+              </h6>
+              <div class="collapse" id="collapseB_firstHit">
+                <div class="pt-3">
+                  <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" id="B_firstHitEnabled">
+                    <label class="form-check-label" for="B_firstHitEnabled">Enable free hits</label>
+                  </div>
+                  <input id="B_freeHits" type="number" class="form-control small-input" value="0" min="0" placeholder="Free hits">
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== RESULTS DISPLAY ==================== -->
+    <div id="results" style="display: none;" class="results-card mt-4">
+      <!-- Winner Banner -->
+      <h2 class="text-center mb-3 winner-banner" id="winnerText"></h2>
+
+      <!-- Battle Duration -->
+      <div class="text-center mb-4">
+        <span class="battle-duration-label">Battle Duration</span>
+        <div class="battle-duration-value" id="battleDuration"></div>
+      </div>
+
+      <!-- Two-column team results -->
+      <div class="row g-4">
+        <!-- Team A Results -->
+        <div class="col-md-6">
+          <div class="team-result-panel" id="resultPanelA">
+            <h4 class="card-title-a text-center team-name mb-3" id="resultNameA"></h4>
+
+            <!-- HP Bar -->
+            <div class="mb-3">
+              <div class="d-flex justify-content-between mb-1">
+                <small class="result-stat-label">HP Remaining</small>
+                <small class="result-stat-label" id="resultHpPctA"></small>
+              </div>
+              <div class="hp-bar-container">
+                <div class="hp-bar-fill team-a" id="hpBarA" style="width: 0%"></div>
+              </div>
+              <small class="last-unit-hp" id="lastUnitHpA"></small>
+              <div class="unit-grid" id="unitGridA"></div>
+            </div>
+
+            <!-- Stats -->
+            <div class="row text-center g-2">
+              <div class="col-4">
+                <div class="result-stat-value" id="resultUnitsA"></div>
+                <div class="result-stat-label">Units Left</div>
+              </div>
+              <div class="col-4">
+                <div class="result-stat-value" id="resultUnitsLostA"></div>
+                <div class="result-stat-label">Units Lost</div>
+              </div>
+              <div class="col-4">
+                <div class="result-stat-value" id="resultCostLostA"></div>
+                <div class="result-stat-label">Res Lost</div>
+              </div>
+            </div>
+
+            <!-- Winner Badge (shown conditionally) -->
+            <div class="text-center mt-3" id="badgeContainerA"></div>
+          </div>
+        </div>
+
+        <!-- Team B Results -->
+        <div class="col-md-6">
+          <div class="team-result-panel" id="resultPanelB">
+            <h4 class="card-title-b text-center team-name mb-3" id="resultNameB"></h4>
+
+            <!-- HP Bar -->
+            <div class="mb-3">
+              <div class="d-flex justify-content-between mb-1">
+                <small class="result-stat-label">HP Remaining</small>
+                <small class="result-stat-label" id="resultHpPctB"></small>
+              </div>
+              <div class="hp-bar-container">
+                <div class="hp-bar-fill team-b" id="hpBarB" style="width: 0%"></div>
+              </div>
+              <small class="last-unit-hp" id="lastUnitHpB"></small>
+              <div class="unit-grid" id="unitGridB"></div>
+            </div>
+
+            <!-- Stats -->
+            <div class="row text-center g-2">
+              <div class="col-4">
+                <div class="result-stat-value" id="resultUnitsB"></div>
+                <div class="result-stat-label">Units Left</div>
+              </div>
+              <div class="col-4">
+                <div class="result-stat-value" id="resultUnitsLostB"></div>
+                <div class="result-stat-label">Units Lost</div>
+              </div>
+              <div class="col-4">
+                <div class="result-stat-value" id="resultCostLostB"></div>
+                <div class="result-stat-label">Res Lost</div>
+              </div>
+            </div>
+
+            <!-- Winner Badge (shown conditionally) -->
+            <div class="text-center mt-3" id="badgeContainerB"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Battle Log (collapsible) -->
+      <div class="mt-4 text-center">
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse"
+                data-bs-target="#battleLogCollapse" aria-expanded="false">
+          <i class="bi bi-list-ol"></i> Battle Log
+        </button>
+        <div class="collapse mt-2" id="battleLogCollapse">
+          <div class="table-responsive" id="battleLogContainer"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>

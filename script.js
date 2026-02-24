@@ -30,76 +30,59 @@ fetch("units_restructured.json")
   .catch((error) => console.error("Error loading units:", error));
 
 /**
- * 2. UI POPULATION - Dropdowns (with category grouping)
+ * 2. UI POPULATION - Dropdowns (grouped by civilization)
  */
 
-// Category display order
-const CATEGORY_ORDER = [
-  "Light Cavalry",
-  "Heavy Cavalry",
-  "Mounted Ranged",
-  "Elephants",
-  "Light Infantry",
-  "Men-at-Arms",
-  "Archers",
-  "Heavy Ranged",
-  "Gunpowder",
-  "Other",
+// Civilization display order
+const CIV_ORDER = [
+  "Common",
+  "English",
+  "French",
+  "Holy Roman Empire",
+  "Mongols",
+  "Rus",
+  "Delhi Sultanate",
+  "Abbasid Dynasty",
+  "Chinese",
+  "Ottomans",
+  "Malians",
+  "Byzantines",
+  "Japanese",
+  "Ayyubids",
+  "Jeanne d'Arc",
+  "Order of the Dragon",
+  "Zhu Xi's Legacy",
+  "House of Lancaster",
+  "The Knights Templar",
+  "Golden Horde",
+  "Macedonian Dynasty",
+  "Sengoku Daimyo",
+  "Tughlaq Dynasty",
 ];
-
-/**
- * Determine which category a unit belongs to based on its tags.
- */
-function getUnitCategory(unitName) {
-  const unit = units[unitName];
-  if (!unit || !unit.tags) return "Other";
-  const tags = unit.tags;
-  const has = (t) => tags.includes(t);
-
-  // Elephants first (highest priority)
-  if (has("Elephant")) return "Elephants";
-
-  // Cavalry branches
-  if (has("Cavalry") && has("Ranged")) return "Mounted Ranged";
-  if (has("Cavalry") && has("Heavy")) return "Heavy Cavalry";
-  if (has("Cavalry")) return "Light Cavalry";
-
-  // Infantry branches
-  if (has("Light Infantry")) return "Light Infantry";
-  if (has("Light Gunpowder")) return "Gunpowder";
-  if (has("Infantry") && has("Heavy") && has("Ranged")) return "Heavy Ranged";
-  if (has("Infantry") && has("Heavy")) return "Men-at-Arms";
-
-  // Gunpowder units without Light Gunpowder tag
-  const gunpowderNames = ["Handcannoneer", "Streltsy"];
-  if (gunpowderNames.includes(unitName)) return "Gunpowder";
-
-  if (has("Infantry") && has("Ranged")) return "Archers";
-
-  return "Other";
-}
 
 function populateSelects() {
   const selectA = document.getElementById("unitASelect");
   const selectB = document.getElementById("unitBSelect");
 
-  // Build category map
-  const categories = {};
+  // Build civ map — a unit appears under every civ it belongs to
+  const civGroups = {};
   Object.keys(units).forEach((name) => {
-    const cat = getUnitCategory(name);
-    if (!categories[cat]) categories[cat] = [];
-    categories[cat].push(name);
+    const civs = units[name].civs || ["Common"];
+    civs.forEach((civ) => {
+      if (!civGroups[civ]) civGroups[civ] = [];
+      civGroups[civ].push(name);
+    });
   });
 
-  // Sort units within each category alphabetically
-  Object.values(categories).forEach((arr) => arr.sort());
+  // Sort units within each civ alphabetically
+  Object.values(civGroups).forEach((arr) => arr.sort());
 
   // Build HTML with optgroups
   let html = "";
-  CATEGORY_ORDER.forEach((cat) => {
-    if (!categories[cat] || categories[cat].length === 0) return;
-    html += `<optgroup label="${cat}">`;
-    categories[cat].forEach((name) => {
+  CIV_ORDER.forEach((civ) => {
+    if (!civGroups[civ] || civGroups[civ].length === 0) return;
+    html += `<optgroup label="${civ}">`;
+    civGroups[civ].forEach((name) => {
       html += `<option value="${name}">${name}</option>`;
     });
     html += `</optgroup>`;
@@ -1070,7 +1053,7 @@ function runBattle() {
       damageToB += dmg * teamA.units;
       teamA.nextPrimaryAttack = time + atkSpeedA;
       aFiredPrimary = true;
-      if (!teamA.hasCharged || time <= teamA.chargeTime + EPSILON) logNotesA.push("Charge");
+      if (unitA.chargeDamage > 0 && (!teamA.hasCharged || time <= teamA.chargeTime + EPSILON)) logNotesA.push("Charge");
     }
 
     // === TEAM A SECONDARY WEAPON ===
@@ -1112,7 +1095,7 @@ function runBattle() {
       damageToA += dmg * teamB.units;
       teamB.nextPrimaryAttack = time + atkSpeedB;
       bFiredPrimary = true;
-      if (!teamB.hasCharged || time <= teamB.chargeTime + EPSILON) logNotesB.push("Charge");
+      if (unitB.chargeDamage > 0 && (!teamB.hasCharged || time <= teamB.chargeTime + EPSILON)) logNotesB.push("Charge");
     }
 
     // === TEAM B SECONDARY WEAPON ===
