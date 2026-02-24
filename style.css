@@ -46,34 +46,46 @@ h1 {
   overflow: hidden;
 }
 
+/* Flag 1: top-left quadrant */
 .card-team-a::before,
 .card-team-b::before {
   content: "";
   position: absolute;
-  inset: -20%;
+  top: -10%;
+  left: -10%;
+  width: 90%;
+  height: 55%;
   background-image: var(--flag-bg, none);
-  background-size: 70%;
-  background-position: 40% 40%;
+  background-size: cover;
+  background-position: 40% center;
   background-repeat: no-repeat;
-  opacity: 0.12;
+  opacity: 0.15;
   pointer-events: none;
   z-index: 0;
-  transform: rotate(-12deg);
+  transform: rotate(-15deg) scale(1.4);
+  -webkit-mask-image: radial-gradient(ellipse at 30% 30%, black 25%, transparent 75%);
+  mask-image: radial-gradient(ellipse at 30% 30%, black 25%, transparent 75%);
 }
 
+/* Flag 2: bottom-right quadrant */
 .card-team-a::after,
 .card-team-b::after {
   content: "";
   position: absolute;
-  inset: -20%;
+  bottom: -10%;
+  right: -10%;
+  width: 90%;
+  height: 55%;
   background-image: var(--flag-bg-2, none);
-  background-size: 60%;
-  background-position: 65% 55%;
+  background-size: cover;
+  background-position: 40% center;
   background-repeat: no-repeat;
-  opacity: 0.09;
+  opacity: 0.12;
   pointer-events: none;
   z-index: 0;
-  transform: rotate(10deg);
+  transform: rotate(15deg) scale(1.4);
+  -webkit-mask-image: radial-gradient(ellipse at 70% 70%, black 25%, transparent 75%);
+  mask-image: radial-gradient(ellipse at 70% 70%, black 25%, transparent 75%);
 }
 
 .card-team-a > .card-body,
