@@ -60,39 +60,252 @@ const CIV_ORDER = [
   "Tughlaq Dynasty",
 ];
 
-function populateSelects() {
-  const selectA = document.getElementById("unitASelect");
-  const selectB = document.getElementById("unitBSelect");
+// Civ name → flag filename mapping
+const CIV_FLAGS = {
+  "English": "AoE 4 Flags/English_AoE4.webp",
+  "French": "AoE 4 Flags/French_AoE4.webp",
+  "Holy Roman Empire": "AoE 4 Flags/HRE_AoE4.webp",
+  "Mongols": "AoE 4 Flags/Mongols_AoE4.webp",
+  "Rus": "AoE 4 Flags/Rus_AoE4.webp",
+  "Delhi Sultanate": "AoE 4 Flags/Delhi_Sultanate_AoE4.webp",
+  "Abbasid Dynasty": "AoE 4 Flags/Abbasid_Dynasty_AoE4.webp",
+  "Chinese": "AoE 4 Flags/Chinese_AoE4.webp",
+  "Ottomans": "AoE 4 Flags/Ottomans_AoE4.webp",
+  "Malians": "AoE 4 Flags/Malians_AoE4.webp",
+  "Byzantines": "AoE 4 Flags/Byzantines_AoE4.webp",
+  "Japanese": "AoE 4 Flags/Japanese_AoE4.webp",
+  "Ayyubids": "AoE 4 Flags/Ayyubids_AoE4.webp",
+  "Jeanne d'Arc": "AoE 4 Flags/Jeanne_d_Arc_AoE4.webp",
+  "Order of the Dragon": "AoE 4 Flags/Order_of_the_Dragon_AoE4.webp",
+  "Zhu Xi's Legacy": "AoE 4 Flags/Zhu_Xis_Legacy_AoE4.webp",
+  "House of Lancaster": "AoE 4 Flags/House_of_Lancaster_AoE4.webp",
+  "The Knights Templar": "AoE 4 Flags/Knights_Templar_AoE4.webp",
+  "Golden Horde": "AoE 4 Flags/Golden_Horde_AoE4.webp",
+  "Macedonian Dynasty": "AoE 4 Flags/Macedonian_Dynasty_AoE4.webp",
+  "Sengoku Daimyo": "AoE 4 Flags/Sengoku_Daimyo_AoE4.webp",
+  "Tughlaq Dynasty": "AoE 4 Flags/Tughlaq_Dynasty_AoE4.webp",
+};
 
-  // Build civ map — a unit appears under every civ it belongs to
-  const civGroups = {};
-  Object.keys(units).forEach((name) => {
-    const civs = units[name].civs || ["Common"];
-    civs.forEach((civ) => {
-      if (!civGroups[civ]) civGroups[civ] = [];
-      civGroups[civ].push(name);
+// Unit type categories for "sort by type" mode
+const TYPE_ORDER = [
+  "Light Infantry",
+  "Heavy Infantry",
+  "Ranged Infantry",
+  "Light Cavalry",
+  "Heavy Cavalry",
+  "Ranged Cavalry",
+  "Elephants",
+];
+
+function getUnitCategory(unit) {
+  const tags = unit.tags || [];
+  const hasInfantry = tags.includes("Infantry");
+  const hasCavalry = tags.includes("Cavalry");
+  const hasHeavy = tags.includes("Heavy");
+  const hasRanged = tags.includes("Ranged");
+  const hasElephant = tags.includes("Elephant");
+  const hasLight = tags.includes("Light Infantry");
+
+  if (hasElephant) return "Elephants";
+  if (hasCavalry && hasRanged) return "Ranged Cavalry";
+  if (hasCavalry && hasHeavy) return "Heavy Cavalry";
+  if (hasCavalry) return "Light Cavalry";
+  if (hasInfantry && hasHeavy && hasRanged) return "Ranged Infantry";
+  if (hasInfantry && hasRanged) return "Ranged Infantry";
+  if (hasInfantry && hasHeavy) return "Heavy Infantry";
+  if (hasInfantry && hasLight) return "Light Infantry";
+  if (hasInfantry) return "Light Infantry";
+  return "Light Infantry";
+}
+
+// Current sort mode
+let sortByCiv = true;
+
+// Helper: get flag HTML for a unit name (for dropdown & header)
+function getUnitFlagHtml(unitName, imgHeight) {
+  const unit = units[unitName];
+  if (!unit) return "";
+  const civs = (unit.civs || ["Common"]).filter(c => c !== "Common" && CIV_FLAGS[c]);
+  return civs.map(c => `<img src="${CIV_FLAGS[c]}" alt="${c}" style="height:${imgHeight}px; border-radius:2px;">`).join("");
+}
+
+// Build grouped unit list based on current sort mode
+function buildGroupedUnits(filter) {
+  const groups = [];
+  const filterLower = (filter || "").toLowerCase();
+
+  if (sortByCiv) {
+    const civGroups = {};
+    Object.keys(units).forEach((name) => {
+      if (filterLower && !name.toLowerCase().includes(filterLower)) return;
+      const civs = units[name].civs || ["Common"];
+      civs.forEach((civ) => {
+        if (!civGroups[civ]) civGroups[civ] = [];
+        civGroups[civ].push(name);
+      });
     });
-  });
+    Object.values(civGroups).forEach((arr) => arr.sort());
+    CIV_ORDER.forEach((civ) => {
+      if (!civGroups[civ] || civGroups[civ].length === 0) return;
+      groups.push({ label: civ, units: civGroups[civ] });
+    });
+  } else {
+    const typeGroups = {};
+    Object.keys(units).forEach((name) => {
+      if (filterLower && !name.toLowerCase().includes(filterLower)) return;
+      const cat = getUnitCategory(units[name]);
+      if (!typeGroups[cat]) typeGroups[cat] = [];
+      typeGroups[cat].push(name);
+    });
+    Object.values(typeGroups).forEach((arr) => arr.sort());
+    TYPE_ORDER.forEach((type) => {
+      if (!typeGroups[type] || typeGroups[type].length === 0) return;
+      groups.push({ label: type, units: typeGroups[type] });
+    });
+  }
+  return groups;
+}
 
-  // Sort units within each civ alphabetically
-  Object.values(civGroups).forEach((arr) => arr.sort());
+// Render the dropdown panel contents for a custom select
+function renderDropdownOptions(wrapper, filter) {
+  const dropdown = wrapper.querySelector(".custom-select-dropdown");
+  const currentVal = wrapper.dataset.value;
+  const groups = buildGroupedUnits(filter);
 
-  // Build HTML with optgroups
+  // Keep search input, rebuild options
+  const searchInput = dropdown.querySelector(".custom-select-search");
   let html = "";
-  CIV_ORDER.forEach((civ) => {
-    if (!civGroups[civ] || civGroups[civ].length === 0) return;
-    html += `<optgroup label="${civ}">`;
-    civGroups[civ].forEach((name) => {
-      html += `<option value="${name}">${name}</option>`;
+  groups.forEach((g) => {
+    html += `<div class="custom-select-optgroup">${g.label}</div>`;
+    g.units.forEach((name) => {
+      const sel = name === currentVal ? " selected" : "";
+      const flags = getUnitFlagHtml(name, 16);
+      html += `<div class="custom-select-option${sel}" data-value="${name}"><span>${name}</span><span class="cs-opt-flags">${flags}</span></div>`;
     });
-    html += `</optgroup>`;
   });
 
-  selectA.innerHTML = html;
-  selectB.innerHTML = html;
+  // Remove old options (keep search)
+  dropdown.querySelectorAll(".custom-select-optgroup, .custom-select-option").forEach(el => el.remove());
+  searchInput.insertAdjacentHTML("afterend", html);
 
-  selectA.value = "Horseman";
-  selectB.value = "Horseman";
+  // Attach click handlers
+  dropdown.querySelectorAll(".custom-select-option").forEach((opt) => {
+    opt.addEventListener("click", () => {
+      const val = opt.dataset.value;
+      wrapper.dataset.value = val;
+      updateSelectHeader(wrapper);
+      closeDropdown(wrapper);
+      // Fire change event
+      const side = wrapper.id === "unitASelect" ? "A" : "B";
+      updateUnitStats(side);
+    });
+  });
+}
+
+function updateSelectHeader(wrapper) {
+  const val = wrapper.dataset.value;
+  const header = wrapper.querySelector(".custom-select-header");
+  const nameSpan = header.querySelector(".cs-name");
+  const flagsSpan = header.querySelector(".cs-flags");
+  nameSpan.textContent = val;
+  flagsSpan.innerHTML = getUnitFlagHtml(val, 18);
+}
+
+function openDropdown(wrapper) {
+  const header = wrapper.querySelector(".custom-select-header");
+  const dropdown = wrapper.querySelector(".custom-select-dropdown");
+  header.classList.add("open");
+  dropdown.classList.add("show");
+  const search = dropdown.querySelector(".custom-select-search");
+  search.value = "";
+  search.focus();
+  renderDropdownOptions(wrapper, "");
+}
+
+function closeDropdown(wrapper) {
+  const header = wrapper.querySelector(".custom-select-header");
+  const dropdown = wrapper.querySelector(".custom-select-dropdown");
+  header.classList.remove("open");
+  dropdown.classList.remove("show");
+}
+
+function initCustomSelect(wrapperId) {
+  const wrapper = document.getElementById(wrapperId);
+
+  // Build initial structure
+  wrapper.innerHTML = `
+    <div class="custom-select-header">
+      <span class="cs-name">${wrapper.dataset.value}</span>
+      <span class="cs-flags"></span>
+      <span class="cs-arrow">&#9660;</span>
+    </div>
+    <div class="custom-select-dropdown">
+      <input type="text" class="custom-select-search" placeholder="Search units...">
+    </div>
+  `;
+
+  const header = wrapper.querySelector(".custom-select-header");
+  const dropdown = wrapper.querySelector(".custom-select-dropdown");
+  const search = dropdown.querySelector(".custom-select-search");
+
+  // Toggle dropdown on header click
+  header.addEventListener("click", () => {
+    if (dropdown.classList.contains("show")) {
+      closeDropdown(wrapper);
+    } else {
+      // Close any other open dropdowns
+      document.querySelectorAll(".custom-select-wrapper").forEach(w => closeDropdown(w));
+      openDropdown(wrapper);
+    }
+  });
+
+  // Search filter
+  search.addEventListener("input", () => {
+    renderDropdownOptions(wrapper, search.value);
+  });
+
+  // Prevent search click from closing
+  search.addEventListener("click", (e) => e.stopPropagation());
+
+  updateSelectHeader(wrapper);
+}
+
+// Close dropdowns when clicking outside
+document.addEventListener("click", (e) => {
+  if (!e.target.closest(".custom-select-wrapper")) {
+    document.querySelectorAll(".custom-select-wrapper").forEach(w => closeDropdown(w));
+  }
+});
+
+function populateSelects(preserveSelection) {
+  const wrapperA = document.getElementById("unitASelect");
+  const wrapperB = document.getElementById("unitBSelect");
+
+  if (!wrapperA.querySelector(".custom-select-header")) {
+    // First time init
+    initCustomSelect("unitASelect");
+    initCustomSelect("unitBSelect");
+  }
+
+  if (!preserveSelection) {
+    wrapperA.dataset.value = "Horseman";
+    wrapperB.dataset.value = "Horseman";
+  }
+
+  updateSelectHeader(wrapperA);
+  updateSelectHeader(wrapperB);
+}
+
+function toggleSortMode() {
+  sortByCiv = !sortByCiv;
+  const btn = document.getElementById("sortToggleBtn");
+  btn.textContent = sortByCiv ? "Sort: by Civ" : "Sort: by Type";
+  // Re-render any open dropdowns
+  document.querySelectorAll(".custom-select-wrapper").forEach(w => {
+    if (w.querySelector(".custom-select-dropdown.show")) {
+      renderDropdownOptions(w, w.querySelector(".custom-select-search").value);
+    }
+  });
 }
 
 /**
@@ -115,7 +328,7 @@ function getAvailableAges(unitName) {
  * This prevents the dropdown from resetting every time the unit changes.
  */
 function populateAgeDropdown(side) {
-  const unitName = document.getElementById(`unit${side}Select`).value;
+  const unitName = document.getElementById(`unit${side}Select`).dataset.value;
   const ageSelect = document.getElementById(`unit${side}Age`);
   const currentAge = ageSelect.value; // Save what the user had selected
   const availableAges = getAvailableAges(unitName);
@@ -139,7 +352,7 @@ function populateAgeDropdown(side) {
  * Update weapon mode buttons based on whether secondary weapon exists
  */
 function updateWeaponModeButtons(side) {
-  const unitName = document.getElementById(`unit${side}Select`).value;
+  const unitName = document.getElementById(`unit${side}Select`).dataset.value;
   const unit = units[unitName];
   const age = document.getElementById(`unit${side}Age`).value;
 
@@ -536,7 +749,7 @@ function collectEffects(side) {
  * Called when unit, age, or weapon mode changes
  */
 function updateUnitStats(side) {
-  const unitName = document.getElementById(`unit${side}Select`).value;
+  const unitName = document.getElementById(`unit${side}Select`).dataset.value;
   const unit = units[unitName];
 
   if (!unit) return;
@@ -584,10 +797,26 @@ function updateUnitStats(side) {
     chargeInfo.style.display = "none";
   }
 
-  // Update card title to show selected unit name
+  // Update card title: name left, flags right
   const titleEl = document.getElementById(`title${side}`);
   if (titleEl) {
-    titleEl.textContent = unitName;
+    const civs = (unit.civs || ["Common"]).filter(c => c !== "Common" && CIV_FLAGS[c]);
+    let flagsHtml = "";
+    civs.forEach((civ) => {
+      flagsHtml += `<img src="${CIV_FLAGS[civ]}" alt="${civ}" style="height:28px; border-radius:3px; margin-left:6px;">`;
+    });
+    titleEl.style.display = "flex";
+    titleEl.style.justifyContent = "space-between";
+    titleEl.style.alignItems = "center";
+    titleEl.innerHTML = `<span>${unitName}</span><span>${flagsHtml}</span>`;
+  }
+
+  // Set flag as semi-transparent card background via CSS custom properties
+  const card = document.querySelector(`.card-team-${side.toLowerCase()}`);
+  if (card) {
+    const civs = (unit.civs || ["Common"]).filter(c => c !== "Common" && CIV_FLAGS[c]);
+    card.style.setProperty("--flag-bg", civs[0] ? `url('${CIV_FLAGS[civs[0]]}')` : "none");
+    card.style.setProperty("--flag-bg-2", civs[1] ? `url('${CIV_FLAGS[civs[1]]}')` : "none");
   }
 
   // Auto-balance costs if enabled
@@ -600,7 +829,7 @@ function updateUnitStats(side) {
  * Show unit detail modal when clicking the unit name header
  */
 function showUnitDetail(side) {
-  const unitName = document.getElementById(`unit${side}Select`).value;
+  const unitName = document.getElementById(`unit${side}Select`).dataset.value;
   const unit = units[unitName];
   if (!unit) return;
 
@@ -686,8 +915,8 @@ function getTotalCost(unitName) {
  * 4. COST BALANCING
  */
 function balanceCosts() {
-  const unitAName = document.getElementById("unitASelect").value;
-  const unitBName = document.getElementById("unitBSelect").value;
+  const unitAName = document.getElementById("unitASelect").dataset.value;
+  const unitBName = document.getElementById("unitBSelect").dataset.value;
 
   const costA = getTotalCost(unitAName);
   const costB = getTotalCost(unitBName);
@@ -706,7 +935,7 @@ function balanceCosts() {
  * Gather all data from the UI for simulation
  */
 function getUnitData(side) {
-  const unitName = document.getElementById(`unit${side}Select`).value;
+  const unitName = document.getElementById(`unit${side}Select`).dataset.value;
   const unit = units[unitName];
   const age = document.getElementById(`unit${side}Age`).value;
   const weaponMode = document.querySelector(
@@ -1537,12 +1766,7 @@ function runBattle() {
 // EVENT LISTENERS
 // ========================================
 
-document
-  .getElementById("unitASelect")
-  .addEventListener("change", () => updateUnitStats("A"));
-document
-  .getElementById("unitBSelect")
-  .addEventListener("change", () => updateUnitStats("B"));
+// Unit select change is handled by custom dropdown click handler
 document
   .getElementById("unitAAge")
   .addEventListener("change", () => updateUnitStats("A"));
