@@ -1,5 +1,8 @@
 {
   "Horseman": {
+    "civs": [
+      "Common"
+    ],
     "costs": {
       "food": 100,
       "wood": 20
@@ -48,6 +51,9 @@
     }
   },
   "Gilded Horseman": {
+    "civs": [
+      "Order of the Dragon"
+    ],
     "costs": {
       "food": 200,
       "wood": 40
@@ -96,6 +102,9 @@
     }
   },
   "Desert Raider": {
+    "civs": [
+      "Ayyubids"
+    ],
     "costs": {
       "food": 80,
       "wood": 50,
@@ -109,7 +118,11 @@
       "Ranged"
     ],
     "effects": {
-      "camelUnease": { "name": "Camel Unease", "reduction": 20, "description": "Enemy cavalry deal -20% damage" }
+      "camelUnease": {
+        "name": "Camel Unease",
+        "reduction": 20,
+        "description": "Enemy cavalry deal -20% damage"
+      }
     },
     "weapons": {
       "primary": {
@@ -143,6 +156,9 @@
     }
   },
   "Hobelar": {
+    "civs": [
+      "House of Lancaster"
+    ],
     "costs": {
       "food": 70,
       "gold": 20
@@ -191,6 +207,9 @@
     }
   },
   "Sipahi": {
+    "civs": [
+      "Ottomans"
+    ],
     "costs": {
       "food": 120,
       "wood": 40
@@ -202,7 +221,13 @@
       "Cavalry"
     ],
     "effects": {
-      "fortitude": { "name": "Fortitude", "atkSpeedBonus": 50, "dmgTakenIncrease": 50, "duration": 10, "description": "+50% Atk Speed, +50% Melee Dmg Taken for 10s" }
+      "fortitude": {
+        "name": "Fortitude",
+        "atkSpeedBonus": 50,
+        "dmgTakenIncrease": 50,
+        "duration": 10,
+        "description": "+50% Atk Speed, +50% Melee Dmg Taken for 10s"
+      }
     },
     "weapons": {
       "primary": {
@@ -242,6 +267,9 @@
     }
   },
   "Ghazi Raider": {
+    "civs": [
+      "Delhi Sultanate"
+    ],
     "costs": {
       "food": 110,
       "wood": 30
@@ -293,6 +321,9 @@
     }
   },
   "Knight/Lancer": {
+    "civs": [
+      "Common"
+    ],
     "costs": {
       "food": 140,
       "gold": 100
@@ -339,6 +370,10 @@
     }
   },
   "Royal Knight": {
+    "civs": [
+      "French",
+      "Jeanne d'Arc"
+    ],
     "costs": {
       "food": 140,
       "gold": 100
@@ -351,7 +386,12 @@
       "Heavy"
     ],
     "effects": {
-      "postChargeAttackBuff": { "name": "Royal Charge", "value": 3, "duration": 5, "description": "+3 Attack for 5s after charge" }
+      "postChargeAttackBuff": {
+        "name": "Royal Charge",
+        "value": 3,
+        "duration": 5,
+        "description": "+3 Attack for 5s after charge"
+      }
     },
     "weapons": {
       "primary": {
@@ -388,6 +428,10 @@
     }
   },
   "War Elephant": {
+    "civs": [
+      "Delhi Sultanate",
+      "Tughlaq Dynasty"
+    ],
     "costs": {
       "food": 400,
       "gold": 350
@@ -462,6 +506,9 @@
     }
   },
   "Sofa": {
+    "civs": [
+      "Malians"
+    ],
     "costs": {
       "food": 120,
       "gold": 60
@@ -505,6 +552,10 @@
     }
   },
   "Keshik": {
+    "civs": [
+      "Mongols",
+      "Golden Horde"
+    ],
     "costs": {
       "food": 120,
       "gold": 80
@@ -517,7 +568,11 @@
       "Heavy"
     ],
     "effects": {
-      "healPerAttack": { "name": "Battle Veteran", "value": 3, "description": "+3 HP per attack" }
+      "healPerAttack": {
+        "name": "Battle Veteran",
+        "value": 3,
+        "description": "+3 HP per attack"
+      }
     },
     "weapons": {
       "primary": {
@@ -554,6 +609,9 @@
     }
   },
   "Archer": {
+    "civs": [
+      "Common"
+    ],
     "costs": {
       "food": 30,
       "wood": 50
@@ -606,6 +664,9 @@
     }
   },
   "Longbow": {
+    "civs": [
+      "English"
+    ],
     "costs": {
       "food": 40,
       "wood": 50
@@ -618,7 +679,12 @@
       "Ranged"
     ],
     "effects": {
-      "arrowVolley": { "name": "Arrow Volley", "atkSpeedBonus": 70, "duration": 5, "description": "+70% Atk Speed for 5s" }
+      "arrowVolley": {
+        "name": "Arrow Volley",
+        "atkSpeedBonus": 70,
+        "duration": 5,
+        "description": "+70% Atk Speed for 5s"
+      }
     },
     "weapons": {
       "primary": {
@@ -661,6 +727,9 @@
     }
   },
   "Yoeman": {
+    "civs": [
+      "House of Lancaster"
+    ],
     "costs": {
       "food": 50,
       "wood": 45
@@ -673,7 +742,12 @@
       "Ranged"
     ],
     "effects": {
-      "arrowVolley": { "name": "Arrow Volley", "atkSpeedBonus": 70, "duration": 5, "description": "+70% Atk Speed for 5s" }
+      "arrowVolley": {
+        "name": "Arrow Volley",
+        "atkSpeedBonus": 70,
+        "duration": 5,
+        "description": "+70% Atk Speed for 5s"
+      }
     },
     "weapons": {
       "primary": {
@@ -716,6 +790,10 @@
     }
   },
   "Yumi": {
+    "civs": [
+      "Japanese",
+      "Sengoku Daimyo"
+    ],
     "costs": {
       "food": 25,
       "wood": 35
@@ -768,6 +846,9 @@
     }
   },
   "Gilded Archer": {
+    "civs": [
+      "Order of the Dragon"
+    ],
     "costs": {
       "food": 60,
       "wood": 100
@@ -820,6 +901,9 @@
     }
   },
   "Spearman": {
+    "civs": [
+      "Common"
+    ],
     "costs": {
       "food": 60,
       "wood": 20
@@ -874,6 +958,9 @@
     }
   },
   "Gilded Spearman": {
+    "civs": [
+      "Order of the Dragon"
+    ],
     "costs": {
       "food": 120,
       "wood": 40
@@ -925,6 +1012,9 @@
     }
   },
   "Donso": {
+    "civs": [
+      "Malians"
+    ],
     "costs": {
       "food": 60,
       "wood": 30
@@ -937,7 +1027,11 @@
       "Light Infantry"
     ],
     "effects": {
-      "openingAttack": { "name": "Javelin Throw", "damage": 8, "description": "Pre-battle ranged hit (per unit)" }
+      "openingAttack": {
+        "name": "Javelin Throw",
+        "damage": 8,
+        "description": "Pre-battle ranged hit (per unit)"
+      }
     },
     "weapons": {
       "primary": {
@@ -979,6 +1073,9 @@
     }
   },
   "Limitanei": {
+    "civs": [
+      "Byzantines"
+    ],
     "costs": {
       "food": 80,
       "wood": 10
@@ -991,7 +1088,12 @@
       "Light Infantry"
     ],
     "effects": {
-      "shieldWall": { "name": "Shield Wall", "atkSpeedPenalty": 25, "rangedDmgReduction": 30, "description": "-25% Atk Speed, -30% Ranged Dmg Taken" }
+      "shieldWall": {
+        "name": "Shield Wall",
+        "atkSpeedPenalty": 25,
+        "rangedDmgReduction": 30,
+        "description": "-25% Atk Speed, -30% Ranged Dmg Taken"
+      }
     },
     "weapons": {
       "primary": {
@@ -1034,6 +1136,9 @@
     }
   },
   "MAA": {
+    "civs": [
+      "Common"
+    ],
     "costs": {
       "food": 100,
       "gold": 20
@@ -1076,6 +1181,9 @@
     }
   },
   "Gilded MAA": {
+    "civs": [
+      "Order of the Dragon"
+    ],
     "costs": {
       "food": 200,
       "gold": 40
@@ -1118,6 +1226,10 @@
     }
   },
   "Ghulam": {
+    "civs": [
+      "Abbasid Dynasty",
+      "Ayyubids"
+    ],
     "costs": {
       "food": 120,
       "gold": 30
@@ -1155,6 +1267,10 @@
     }
   },
   "Palace Guard": {
+    "civs": [
+      "Chinese",
+      "Zhu Xi's Legacy"
+    ],
     "costs": {
       "food": 100,
       "gold": 25
@@ -1197,6 +1313,10 @@
     }
   },
   "Varangian Guard": {
+    "civs": [
+      "Byzantines",
+      "Macedonian Dynasty"
+    ],
     "costs": {
       "food": 90,
       "gold": 40
@@ -1209,14 +1329,20 @@
       "Heavy"
     ],
     "effects": {
-      "berserking": { "name": "Berserking", "attackBonus": 6, "armorPenalty": 4, "duration": 30, "description": "+6 Attack, -4 Melee & Ranged Armor for 30s" }
+      "berserking": {
+        "name": "Berserking",
+        "attackBonus": 6,
+        "armorPenalty": 4,
+        "duration": 30,
+        "description": "+6 Attack, -4 Melee & Ranged Armor for 30s"
+      }
     },
     "weapons": {
       "primary": {
         "type": "melee",
         "attackSpeed": 1.375,
         "ages": {
-           "2": {
+          "2": {
             "hp": 125,
             "meleeArmor": 4,
             "rangedArmor": 2,
@@ -1242,6 +1368,9 @@
     }
   },
   "Samurai": {
+    "civs": [
+      "Japanese"
+    ],
     "costs": {
       "food": 100,
       "gold": 30
@@ -1254,7 +1383,10 @@
       "Heavy"
     ],
     "effects": {
-      "deflectiveArmor": { "name": "Deflective Armor", "description": "Blocks the first incoming attack" }
+      "deflectiveArmor": {
+        "name": "Deflective Armor",
+        "description": "Blocks the first incoming attack"
+      }
     },
     "weapons": {
       "primary": {
@@ -1287,6 +1419,9 @@
     }
   },
   "Earls Guard": {
+    "civs": [
+      "House of Lancaster"
+    ],
     "costs": {
       "food": 100,
       "gold": 20
@@ -1299,7 +1434,11 @@
       "Heavy"
     ],
     "effects": {
-      "openingAttack": { "name": "Dagger Throw", "damage": 16, "description": "Pre-battle ranged hit (per unit)" }
+      "openingAttack": {
+        "name": "Dagger Throw",
+        "damage": 16,
+        "description": "Pre-battle ranged hit (per unit)"
+      }
     },
     "weapons": {
       "primary": {
@@ -1325,6 +1464,9 @@
     }
   },
   "Crossbow": {
+    "civs": [
+      "Common"
+    ],
     "costs": {
       "food": 80,
       "gold": 40
@@ -1366,6 +1508,9 @@
     }
   },
   "Onna Musha": {
+    "civs": [
+      "Japanese"
+    ],
     "costs": {
       "food": 80,
       "gold": 60
@@ -1374,7 +1519,7 @@
     "population": 1,
     "speed": 1.625,
     "tags": [
-        "Cavalry",
+      "Cavalry",
       "Ranged"
     ],
     "weapons": {
@@ -1406,6 +1551,10 @@
     }
   },
   "Arbaletrier": {
+    "civs": [
+      "French",
+      "Jeanne d'Arc"
+    ],
     "costs": {
       "food": 80,
       "gold": 40
@@ -1419,7 +1568,12 @@
       "Ranged"
     ],
     "effects": {
-      "deployPavise": { "name": "Deploy Pavise", "armorBonus": 5, "duration": 30, "description": "+5 Ranged Armor for 30s" }
+      "deployPavise": {
+        "name": "Deploy Pavise",
+        "armorBonus": 5,
+        "duration": 30,
+        "description": "+5 Ranged Armor for 30s"
+      }
     },
     "weapons": {
       "primary": {
@@ -1450,6 +1604,9 @@
     }
   },
   "Gilded Crossbowman": {
+    "civs": [
+      "Order of the Dragon"
+    ],
     "costs": {
       "food": 160,
       "gold": 80
@@ -1491,6 +1648,9 @@
     }
   },
   "Mangudai": {
+    "civs": [
+      "Mongols"
+    ],
     "costs": {
       "food": 90,
       "gold": 60
@@ -1499,7 +1659,7 @@
     "population": 1,
     "speed": 1.56,
     "tags": [
-        "Cavalry",
+      "Cavalry",
       "Ranged"
     ],
     "weapons": {
@@ -1534,6 +1694,9 @@
     }
   },
   "Akinji": {
+    "civs": [
+      "Ottomans"
+    ],
     "costs": {
       "food": 80,
       "wood": 80
@@ -1577,6 +1740,9 @@
     }
   },
   "Tower Elephant": {
+    "civs": [
+      "Delhi Sultanate"
+    ],
     "costs": {
       "food": 400,
       "gold": 600
@@ -1614,6 +1780,9 @@
     }
   },
   "Sultans Tower Elephant": {
+    "civs": [
+      "Delhi Sultanate"
+    ],
     "costs": {},
     "trainingTime": 60.0,
     "population": 3,
@@ -1648,6 +1817,9 @@
     }
   },
   "Camel Archer": {
+    "civs": [
+      "Abbasid Dynasty"
+    ],
     "costs": {
       "food": 170,
       "wood": 60
@@ -1656,11 +1828,15 @@
     "population": 1,
     "speed": 1.625,
     "tags": [
-       "Cavalry",
+      "Cavalry",
       "Ranged"
     ],
     "effects": {
-      "camelUnease": { "name": "Camel Unease", "reduction": 20, "description": "Enemy cavalry deal -20% damage" }
+      "camelUnease": {
+        "name": "Camel Unease",
+        "reduction": 20,
+        "description": "Enemy cavalry deal -20% damage"
+      }
     },
     "weapons": {
       "primary": {
@@ -1703,6 +1879,9 @@
     }
   },
   "Horse Archer": {
+    "civs": [
+      "Rus"
+    ],
     "costs": {
       "food": 80,
       "wood": 40
@@ -1711,7 +1890,7 @@
     "population": 1,
     "speed": 1.625,
     "tags": [
-     "Cavalry",
+      "Cavalry",
       "Ranged"
     ],
     "weapons": {
@@ -1739,6 +1918,9 @@
     }
   },
   "Handcannoneer": {
+    "civs": [
+      "Common"
+    ],
     "costs": {
       "food": 120,
       "gold": 120
@@ -1775,6 +1957,9 @@
     }
   },
   "Streltsy": {
+    "civs": [
+      "Rus"
+    ],
     "costs": {
       "food": 90,
       "gold": 90
@@ -1787,7 +1972,12 @@
       "Ranged"
     ],
     "effects": {
-      "staticDeployment": { "name": "Static Deployment", "atkSpeedBonus": 30, "delay": 10, "description": "+30% Atk Speed after 10s stationary" }
+      "staticDeployment": {
+        "name": "Static Deployment",
+        "atkSpeedBonus": 30,
+        "delay": 10,
+        "description": "+30% Atk Speed after 10s stationary"
+      }
     },
     "weapons": {
       "primary": {
@@ -1822,6 +2012,9 @@
     }
   },
   "Jannisary": {
+    "civs": [
+      "Ottomans"
+    ],
     "costs": {
       "food": 60,
       "gold": 100
@@ -1863,6 +2056,9 @@
     }
   },
   "Kipchak Archer": {
+    "civs": [
+      "Golden Horde"
+    ],
     "costs": {
       "food": 80,
       "wood": 70
@@ -1871,11 +2067,16 @@
     "population": 1,
     "speed": 1.625,
     "tags": [
-     "Cavalry",
+      "Cavalry",
       "Ranged"
     ],
     "effects": {
-      "bleed": { "name": "Bleed", "dps": 2, "duration": 6, "description": "Each attack inflicts 2 dmg/s bleed for 6s (ignores armor)" }
+      "bleed": {
+        "name": "Bleed",
+        "dps": 2,
+        "duration": 6,
+        "description": "Each attack inflicts 2 dmg/s bleed for 6s (ignores armor)"
+      }
     },
     "weapons": {
       "primary": {
@@ -1902,6 +2103,9 @@
     }
   },
   "Kharash": {
+    "civs": [
+      "Golden Horde"
+    ],
     "costs": {
       "food": 50
     },
@@ -1913,7 +2117,11 @@
       "Light Infantry"
     ],
     "effects": {
-      "armorAura": { "name": "Armor Aura", "armorBonus": 1, "description": "+1 Melee & Ranged Armor aura (does not stack)" }
+      "armorAura": {
+        "name": "Armor Aura",
+        "armorBonus": 1,
+        "description": "+1 Melee & Ranged Armor aura (does not stack)"
+      }
     },
     "weapons": {
       "primary": {
@@ -1946,6 +2154,9 @@
     }
   },
   "Torguud": {
+    "civs": [
+      "Golden Horde"
+    ],
     "costs": {
       "food": 75,
       "stone": 100
@@ -1989,6 +2200,9 @@
     }
   },
   "Atgeirmaðr": {
+    "civs": [
+      "Macedonian Dynasty"
+    ],
     "costs": {
       "food": 70,
       "wood": 20
@@ -2044,6 +2258,9 @@
     }
   },
   "Bogmaðr": {
+    "civs": [
+      "Macedonian Dynasty"
+    ],
     "costs": {
       "food": 40,
       "wood": 50
@@ -2096,6 +2313,9 @@
     }
   },
   "Riddari": {
+    "civs": [
+      "Macedonian Dynasty"
+    ],
     "costs": {
       "food": 130,
       "gold": 110
@@ -2132,6 +2352,9 @@
     }
   },
   "Raider Elephant": {
+    "civs": [
+      "Tughlaq Dynasty"
+    ],
     "costs": {
       "food": 180,
       "wood": 40
@@ -2144,7 +2367,14 @@
       "Elephant"
     ],
     "effects": {
-      "trample": { "name": "Trample", "dps": 8, "duration": 6, "cooldown": 30, "unitsHit": 3, "description": "AoE 4 dmg/0.5s for 6s (30s cooldown)" }
+      "trample": {
+        "name": "Trample",
+        "dps": 8,
+        "duration": 6,
+        "cooldown": 30,
+        "unitsHit": 3,
+        "description": "AoE 4 dmg/0.5s for 6s (30s cooldown)"
+      }
     },
     "weapons": {
       "primary": {
@@ -2184,6 +2414,9 @@
     }
   },
   "Ballista Elephant": {
+    "civs": [
+      "Tughlaq Dynasty"
+    ],
     "costs": {
       "food": 300,
       "gold": 350
@@ -2225,6 +2458,9 @@
     }
   },
   "Kanabo Samurai": {
+    "civs": [
+      "Sengoku Daimyo"
+    ],
     "costs": {
       "food": 130,
       "gold": 30
@@ -2237,7 +2473,11 @@
       "Heavy"
     ],
     "effects": {
-      "percentDamage": { "name": "% HP Damage", "percent": 6, "description": "Deals 6% of enemy max HP as bonus damage" }
+      "percentDamage": {
+        "name": "% HP Damage",
+        "percent": 6,
+        "description": "Deals 6% of enemy max HP as bonus damage"
+      }
     },
     "weapons": {
       "primary": {
@@ -2271,6 +2511,9 @@
     }
   },
   "Naginata Samurai": {
+    "civs": [
+      "Sengoku Daimyo"
+    ],
     "costs": {
       "food": 100,
       "gold": 20
@@ -2313,6 +2556,9 @@
     }
   },
   "Tanegashima Ashigaru": {
+    "civs": [
+      "Sengoku Daimyo"
+    ],
     "costs": {
       "food": 70,
       "gold": 70
@@ -2353,6 +2599,9 @@
     }
   },
   "Yari Cavalry": {
+    "civs": [
+      "Sengoku Daimyo"
+    ],
     "costs": {
       "food": 115,
       "wood": 30
@@ -2398,6 +2647,438 @@
               "Ranged": 13,
               "Cavalry": 4
             }
+          }
+        }
+      }
+    }
+  },
+  "Camel Rider": {
+    "civs": [
+      "Abbasid Dynasty"
+    ],
+    "costs": {
+      "food": 180,
+      "gold": 60
+    },
+    "trainingTime": 30.0,
+    "population": 1,
+    "speed": 1.625,
+    "tags": [
+      "Cavalry",
+      "Heavy"
+    ],
+    "effects": {
+      "camelUnease": {
+        "name": "Camel Unease",
+        "reduction": 20,
+        "description": "Enemy cavalry deal -20% damage"
+      }
+    },
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 0.75,
+        "attackSpeed": 2.0,
+        "ages": {
+          "2": {
+            "hp": 180,
+            "meleeArmor": 3,
+            "rangedArmor": 3,
+            "attack": 14,
+            "bonus": {
+              "Cavalry": 12
+            }
+          },
+          "3": {
+            "hp": 220,
+            "meleeArmor": 4,
+            "rangedArmor": 4,
+            "attack": 18,
+            "bonus": {
+              "Cavalry": 15
+            }
+          },
+          "4": {
+            "hp": 260,
+            "meleeArmor": 5,
+            "rangedArmor": 5,
+            "attack": 22,
+            "bonus": {
+              "Cavalry": 18
+            }
+          }
+        }
+      }
+    }
+  },
+  "Cataphract": {
+    "civs": [
+      "Byzantines",
+      "Macedonian Dynasty"
+    ],
+    "costs": {
+      "food": 160,
+      "gold": 100
+    },
+    "trainingTime": 35.0,
+    "population": 1,
+    "speed": 1.625,
+    "tags": [
+      "Cavalry",
+      "Heavy"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 0.38,
+        "attackSpeed": 1.5,
+        "ages": {
+          "3": {
+            "hp": 280,
+            "meleeArmor": 5,
+            "rangedArmor": 4,
+            "attack": 22,
+            "chargeDamage": 12,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 330,
+            "meleeArmor": 6,
+            "rangedArmor": 5,
+            "attack": 28,
+            "chargeDamage": 14,
+            "bonus": {}
+          }
+        }
+      }
+    }
+  },
+  "Onna-Bugeisha": {
+    "civs": [
+      "Japanese"
+    ],
+    "costs": {
+      "food": 60,
+      "gold": 20
+    },
+    "trainingTime": 15.0,
+    "population": 1,
+    "speed": 1.25,
+    "tags": [
+      "Infantry",
+      "Light Infantry"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "attackSpeed": 1.5,
+        "ages": {
+          "2": {
+            "hp": 95,
+            "meleeArmor": 0,
+            "rangedArmor": 1,
+            "attack": 9,
+            "bonus": {
+              "Cavalry": 18,
+              "Elephant": 4
+            }
+          },
+          "3": {
+            "hp": 115,
+            "meleeArmor": 0,
+            "rangedArmor": 1,
+            "attack": 11,
+            "bonus": {
+              "Cavalry": 22,
+              "Elephant": 5
+            }
+          },
+          "4": {
+            "hp": 135,
+            "meleeArmor": 0,
+            "rangedArmor": 1,
+            "attack": 13,
+            "bonus": {
+              "Cavalry": 26,
+              "Elephant": 6
+            }
+          }
+        }
+      }
+    }
+  },
+  "Mounted Samurai": {
+    "civs": [
+      "Japanese"
+    ],
+    "costs": {
+      "food": 140,
+      "gold": 100
+    },
+    "trainingTime": 35.0,
+    "population": 1,
+    "speed": 1.63,
+    "tags": [
+      "Cavalry",
+      "Heavy"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 0.38,
+        "attackSpeed": 1.5,
+        "ages": {
+          "3": {
+            "hp": 230,
+            "meleeArmor": 4,
+            "rangedArmor": 4,
+            "attack": 24,
+            "chargeDamage": 12,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 270,
+            "meleeArmor": 5,
+            "rangedArmor": 5,
+            "attack": 29,
+            "chargeDamage": 14,
+            "bonus": {}
+          }
+        }
+      }
+    }
+  },
+  "Camel Lancer": {
+    "civs": [
+      "Ayyubids"
+    ],
+    "costs": {
+      "food": 180,
+      "gold": 80
+    },
+    "trainingTime": 32.0,
+    "population": 1,
+    "speed": 1.625,
+    "tags": [
+      "Cavalry",
+      "Heavy"
+    ],
+    "effects": {
+      "camelUnease": {
+        "name": "Camel Unease",
+        "reduction": 20,
+        "description": "Enemy cavalry deal -20% damage"
+      }
+    },
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 0.75,
+        "attackSpeed": 1.75,
+        "ages": {
+          "2": {
+            "hp": 190,
+            "meleeArmor": 3,
+            "rangedArmor": 3,
+            "attack": 16,
+            "chargeDamage": 10,
+            "bonus": {}
+          },
+          "3": {
+            "hp": 230,
+            "meleeArmor": 4,
+            "rangedArmor": 4,
+            "attack": 20,
+            "chargeDamage": 12,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 270,
+            "meleeArmor": 5,
+            "rangedArmor": 5,
+            "attack": 24,
+            "chargeDamage": 14,
+            "bonus": {}
+          }
+        }
+      }
+    }
+  },
+  "Fire Lancer": {
+    "civs": [
+      "Chinese"
+    ],
+    "costs": {
+      "food": 80,
+      "wood": 20,
+      "gold": 20
+    },
+    "trainingTime": 22.5,
+    "population": 1,
+    "speed": 1.88,
+    "tags": [
+      "Cavalry"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 0.38,
+        "attackSpeed": 1.75,
+        "ages": {
+          "3": {
+            "hp": 155,
+            "meleeArmor": 0,
+            "rangedArmor": 3,
+            "attack": 11,
+            "chargeDamage": 8,
+            "bonus": {
+              "Ranged": 11
+            }
+          },
+          "4": {
+            "hp": 180,
+            "meleeArmor": 0,
+            "rangedArmor": 5,
+            "attack": 13,
+            "chargeDamage": 10,
+            "bonus": {
+              "Ranged": 13
+            }
+          }
+        }
+      }
+    }
+  },
+  "Zhuge Nu": {
+    "civs": [
+      "Chinese",
+      "Zhu Xi's Legacy"
+    ],
+    "costs": {
+      "food": 30,
+      "wood": 30,
+      "gold": 30
+    },
+    "trainingTime": 20.0,
+    "population": 1,
+    "speed": 1.125,
+    "tags": [
+      "Infantry",
+      "Ranged"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 4.5,
+        "attackSpeed": 1.375,
+        "ages": {
+          "2": {
+            "hp": 70,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 4,
+            "bonus": {
+              "Light Infantry": 4,
+              "Light Gunpowder": 4
+            }
+          },
+          "3": {
+            "hp": 80,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 5,
+            "bonus": {
+              "Light Infantry": 5,
+              "Light Gunpowder": 5
+            }
+          },
+          "4": {
+            "hp": 95,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 6,
+            "bonus": {
+              "Light Infantry": 6,
+              "Light Gunpowder": 6
+            }
+          }
+        }
+      }
+    }
+  },
+  "Yuan Raider": {
+    "civs": [
+      "Zhu Xi's Legacy"
+    ],
+    "costs": {
+      "food": 100,
+      "wood": 20,
+      "gold": 40
+    },
+    "trainingTime": 26.0,
+    "population": 1,
+    "speed": 1.75,
+    "tags": [
+      "Cavalry",
+      "Ranged"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 4.0,
+        "attackSpeed": 1.5,
+        "ages": {
+          "3": {
+            "hp": 130,
+            "meleeArmor": 0,
+            "rangedArmor": 1,
+            "attack": 10,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 160,
+            "meleeArmor": 0,
+            "rangedArmor": 2,
+            "attack": 13,
+            "bonus": {}
+          }
+        }
+      }
+    }
+  },
+  "Imperial Guard": {
+    "civs": [
+      "Zhu Xi's Legacy"
+    ],
+    "costs": {
+      "food": 120,
+      "gold": 40
+    },
+    "trainingTime": 24.0,
+    "population": 1,
+    "speed": 1.375,
+    "tags": [
+      "Infantry",
+      "Heavy"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "attackSpeed": 1.375,
+        "ages": {
+          "3": {
+            "hp": 170,
+            "meleeArmor": 4,
+            "rangedArmor": 4,
+            "attack": 14,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 200,
+            "meleeArmor": 5,
+            "rangedArmor": 6,
+            "attack": 17,
+            "bonus": {}
           }
         }
       }
