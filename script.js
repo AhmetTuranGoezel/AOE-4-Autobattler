@@ -584,10 +584,93 @@ function updateUnitStats(side) {
     chargeInfo.style.display = "none";
   }
 
+  // Update card title to show selected unit name
+  const titleEl = document.getElementById(`title${side}`);
+  if (titleEl) {
+    titleEl.textContent = unitName;
+  }
+
   // Auto-balance costs if enabled
   if (document.getElementById("autoBalance").checked) {
     balanceCosts();
   }
+}
+
+/**
+ * Show unit detail modal when clicking the unit name header
+ */
+function showUnitDetail(side) {
+  const unitName = document.getElementById(`unit${side}Select`).value;
+  const unit = units[unitName];
+  if (!unit) return;
+
+  const age = document.getElementById(`unit${side}Age`).value;
+  const ageNames = { "1": "Dark Age", "2": "Feudal Age", "3": "Castle Age", "4": "Imperial Age" };
+  const teamColor = side === "A" ? "#4a90d9" : "#d94a4a";
+
+  document.getElementById("unitDetailTitle").textContent = unitName;
+  document.getElementById("unitDetailTitle").style.color = teamColor;
+
+  // Build costs string
+  const costs = unit.costs || {};
+  const costParts = [];
+  if (costs.food) costParts.push(`${costs.food} Food`);
+  if (costs.wood) costParts.push(`${costs.wood} Wood`);
+  if (costs.gold) costParts.push(`${costs.gold} Gold`);
+  if (costs.stone) costParts.push(`${costs.stone} Stone`);
+
+  // Build weapons detail for all ages
+  let weaponsHtml = "";
+  const weaponTypes = [["primary", "Primary"], ["secondary", "Secondary"]];
+  for (const [wKey, wLabel] of weaponTypes) {
+    const weapon = unit.weapons[wKey];
+    if (!weapon) continue;
+
+    weaponsHtml += `<h6 style="color:${teamColor}; margin-top:12px; font-family:'Cinzel',serif;">${wLabel} — ${weapon.type.charAt(0).toUpperCase() + weapon.type.slice(1)}</h6>`;
+    weaponsHtml += `<div style="font-size:0.8rem; color:#999; margin-bottom:8px;">Attack Speed: ${weapon.attackSpeed}s | Range: ${weapon.range}</div>`;
+    weaponsHtml += `<div class="table-responsive"><table class="table table-sm" style="color:#e0d6c2; font-size:0.85rem;">`;
+    weaponsHtml += `<thead><tr style="border-color:#444;"><th>Age</th><th>HP</th><th>Atk</th><th>M.Arm</th><th>R.Arm</th><th>Charge</th><th>Bonuses</th></tr></thead><tbody>`;
+
+    for (const [ageKey, ageStats] of Object.entries(weapon.ages)) {
+      const bonuses = ageStats.bonus ? Object.entries(ageStats.bonus).map(([t, v]) => `+${v} vs ${t}`).join(", ") : "—";
+      const charge = ageStats.chargeDamage ? `+${ageStats.chargeDamage}` : "—";
+      const isSelected = ageKey === age;
+      const rowStyle = isSelected ? `background:rgba(${side === "A" ? "74,144,217" : "217,74,74"},0.15); font-weight:600;` : "";
+      weaponsHtml += `<tr style="border-color:#333;${rowStyle}">`;
+      weaponsHtml += `<td>${ageNames[ageKey] || "Age " + ageKey}</td>`;
+      weaponsHtml += `<td>${ageStats.hp}</td><td>${ageStats.attack}</td>`;
+      weaponsHtml += `<td>${ageStats.meleeArmor}</td><td>${ageStats.rangedArmor}</td>`;
+      weaponsHtml += `<td>${charge}</td><td style="font-size:0.8rem;">${bonuses}</td></tr>`;
+    }
+    weaponsHtml += `</tbody></table></div>`;
+  }
+
+  // Build effects detail
+  let effectsHtml = "";
+  if (unit.effects && Object.keys(unit.effects).length > 0) {
+    effectsHtml = `<h6 style="color:${teamColor}; margin-top:12px; font-family:'Cinzel',serif;">Unique Effects</h6><ul style="font-size:0.85rem; padding-left:20px;">`;
+    for (const [key, effect] of Object.entries(unit.effects)) {
+      effectsHtml += `<li><strong>${effect.label || key}</strong>: ${effect.description || JSON.stringify(effect)}</li>`;
+    }
+    effectsHtml += `</ul>`;
+  }
+
+  const tags = (unit.tags || []).map(t => `<span style="display:inline-block; padding:2px 10px; margin:2px; border-radius:12px; font-size:0.75rem; background:rgba(212,164,74,0.15); color:#d4a44a; border:1px solid rgba(212,164,74,0.3);">${t}</span>`).join("");
+
+  document.getElementById("unitDetailBody").innerHTML = `
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px; font-size:0.9rem;">
+      <div><span style="color:#999;">Civilizations:</span> ${unit.civs.join(", ")}</div>
+      <div><span style="color:#999;">Cost:</span> ${costParts.join(" / ") || "Free"}</div>
+      <div><span style="color:#999;">Training Time:</span> ${unit.trainingTime || "—"}s</div>
+      <div><span style="color:#999;">Speed:</span> ${unit.speed || "—"}</div>
+      <div><span style="color:#999;">Population:</span> ${unit.population || 1}</div>
+    </div>
+    <div style="margin-bottom:12px;">${tags}</div>
+    ${weaponsHtml}
+    ${effectsHtml}
+  `;
+
+  new bootstrap.Modal(document.getElementById("unitDetailModal")).show();
 }
 
 /**
@@ -882,7 +965,9 @@ function runBattle() {
     hasCharged: false,
     chargeTime: -Infinity,
     hasBlocked: false,
-    nextTrample: unitA.effects.trample ? 0 : Infinity,
+    trampleTick: unitA.effects.trample ? 0 : Infinity,
+    trampleActive: false,
+    trampleEnd: -1,
   };
 
   let teamB = {
@@ -897,7 +982,9 @@ function runBattle() {
     hasCharged: false,
     chargeTime: -Infinity,
     hasBlocked: false,
-    nextTrample: unitB.effects.trample ? 0 : Infinity,
+    trampleTick: unitB.effects.trample ? 0 : Infinity,
+    trampleActive: false,
+    trampleEnd: -1,
   };
 
   teamA.totalHp = teamA.stats.hp * teamA.units;
@@ -1004,8 +1091,8 @@ function runBattle() {
       teamA.nextSecondaryAttack,
       teamB.nextPrimaryAttack,
       teamB.nextSecondaryAttack,
-      teamA.nextTrample,
-      teamB.nextTrample
+      teamA.trampleTick,
+      teamB.trampleTick
     );
     time = nextEventTime;
 
@@ -1166,16 +1253,39 @@ function runBattle() {
       damageToA += bleed.dps * bleed.duration * teamB.units;
     }
 
-    // === APPLY TRAMPLE (Raider Elephant): AoE burst damage on cooldown ===
-    if (unitA.effects.trample && teamA.nextTrample <= time + EPSILON && teamA.units > 0) {
+    // === APPLY TRAMPLE (Raider Elephant): Periodic AoE ticks over duration ===
+    const TRAMPLE_TICK = 0.5; // 0.5s between ticks
+    if (unitA.effects.trample && teamA.trampleTick <= time + EPSILON && teamA.units > 0) {
       const t = unitA.effects.trample;
-      damageToB += t.dps * t.duration * teamA.units * (t.unitsHit || 1);
-      teamA.nextTrample = time + t.cooldown + t.duration;
+      if (!teamA.trampleActive) {
+        teamA.trampleActive = true;
+        teamA.trampleEnd = time + t.duration;
+      }
+      const tickDmg = t.dps * TRAMPLE_TICK;
+      const targets = Math.min(t.unitsHit || 1, teamB.units);
+      damageToB += tickDmg * teamA.units * targets;
+      if (time + TRAMPLE_TICK < teamA.trampleEnd - EPSILON) {
+        teamA.trampleTick = time + TRAMPLE_TICK;
+      } else {
+        teamA.trampleActive = false;
+        teamA.trampleTick = teamA.trampleEnd + t.cooldown;
+      }
     }
-    if (unitB.effects.trample && teamB.nextTrample <= time + EPSILON && teamB.units > 0) {
+    if (unitB.effects.trample && teamB.trampleTick <= time + EPSILON && teamB.units > 0) {
       const t = unitB.effects.trample;
-      damageToA += t.dps * t.duration * teamB.units * (t.unitsHit || 1);
-      teamB.nextTrample = time + t.cooldown + t.duration;
+      if (!teamB.trampleActive) {
+        teamB.trampleActive = true;
+        teamB.trampleEnd = time + t.duration;
+      }
+      const tickDmg = t.dps * TRAMPLE_TICK;
+      const targets = Math.min(t.unitsHit || 1, teamA.units);
+      damageToA += tickDmg * teamB.units * targets;
+      if (time + TRAMPLE_TICK < teamB.trampleEnd - EPSILON) {
+        teamB.trampleTick = time + TRAMPLE_TICK;
+      } else {
+        teamB.trampleActive = false;
+        teamB.trampleTick = teamB.trampleEnd + t.cooldown;
+      }
     }
 
     // === APPLY OVERKILL WASTE: each attacker can only kill its target, excess is lost ===
@@ -1244,11 +1354,11 @@ function runBattle() {
     // --- Build log notes for effects ---
     if (unitA.effects.bleed && damageToB > 0) logNotesA.push("Bleed");
     if (unitA.effects.percentDamage && damageToB > 0) logNotesA.push("%HP");
-    if (unitA.effects.trample && teamA.nextTrample > time) logNotesA.push("Trample");
+    if (unitA.effects.trample && teamA.trampleActive) logNotesA.push("Trample");
     if (unitA.effects.deflectiveArmor && teamA.hasBlocked && damageToA === 0) logNotesA.push("Blocked");
     if (unitB.effects.bleed && damageToA > 0) logNotesB.push("Bleed");
     if (unitB.effects.percentDamage && damageToA > 0) logNotesB.push("%HP");
-    if (unitB.effects.trample && teamB.nextTrample > time) logNotesB.push("Trample");
+    if (unitB.effects.trample && teamB.trampleActive) logNotesB.push("Trample");
     if (unitB.effects.deflectiveArmor && teamB.hasBlocked && damageToB === 0) logNotesB.push("Blocked");
 
     // --- Push battle log entry ---

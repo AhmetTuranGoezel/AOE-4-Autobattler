@@ -31,7 +31,7 @@
       <div class="col-lg-5">
         <div class="card card-team-a">
           <div class="card-body">
-            <h3 class="card-title card-title-a">Unit A</h3>
+            <h3 class="card-title card-title-a" id="titleA" style="cursor:pointer" onclick="showUnitDetail('A')" title="Click for details">Unit A</h3>
 
             <!-- Unit Selection and Age -->
             <div class="row g-3 mb-3">
@@ -226,7 +226,7 @@
       <div class="col-lg-5">
         <div class="card card-team-b">
           <div class="card-body">
-            <h3 class="card-title card-title-b">Unit B</h3>
+            <h3 class="card-title card-title-b" id="titleB" style="cursor:pointer" onclick="showUnitDetail('B')" title="Click for details">Unit B</h3>
 
             <div class="row g-3 mb-3">
               <div class="col-8">
@@ -510,6 +510,19 @@
         <div class="collapse mt-2" id="battleLogCollapse">
           <div class="table-responsive" id="battleLogContainer"></div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Unit Detail Modal -->
+  <div class="modal fade" id="unitDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content" style="background:#1a1a2e; border:1px solid #333; color:#e0d6c2;">
+        <div class="modal-header" style="border-bottom:1px solid #333;">
+          <h4 class="modal-title" id="unitDetailTitle" style="font-family:'Cinzel',serif; color:#d4a44a;"></h4>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" id="unitDetailBody"></div>
       </div>
     </div>
   </div>
