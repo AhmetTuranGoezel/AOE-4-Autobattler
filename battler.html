@@ -23,6 +23,8 @@
         <span class="mx-3">|</span>
         <input type="checkbox" id="overkillEnabled">
         <label for="overkillEnabled" class="ms-2 fw-bold">Overkill waste</label>
+        <span class="mx-3">|</span>
+        <button id="sortToggleBtn" class="btn btn-sm btn-outline-warning" onclick="toggleSortMode()" style="font-size:0.78rem; padding:2px 12px;">Sort: by Civ</button>
       </div>
     </div>
 
@@ -37,7 +39,7 @@
             <div class="row g-3 mb-3">
               <div class="col-8">
                 <label class="form-label fw-bold">Unit</label>
-                <select id="unitASelect" class="form-select"></select>
+                <div id="unitASelect" class="custom-select-wrapper" data-value="Horseman"></div>
               </div>
               <div class="col-4">
                 <label class="form-label fw-bold">Age</label>
@@ -231,7 +233,7 @@
             <div class="row g-3 mb-3">
               <div class="col-8">
                 <label class="form-label fw-bold">Unit</label>
-                <select id="unitBSelect" class="form-select"></select>
+                <div id="unitBSelect" class="custom-select-wrapper" data-value="Horseman"></div>
               </div>
               <div class="col-4">
                 <label class="form-label fw-bold">Age</label>

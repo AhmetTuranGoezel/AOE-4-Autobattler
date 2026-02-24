@@ -12,7 +12,8 @@
       "Bash(for unit in \"Tower_Elephant_\\(Age_of_Empires_IV\\)\" \"War_Elephant_\\(Age_of_Empires_IV\\)\" \"Limitanei\" \"Gilded_Horseman\" \"Gilded_Man-at-Arms\" \"Gilded_Spearman\" \"Gilded_Crossbowman\" \"Gilded_Archer\")",
       "Bash(python3:*)",
       "Bash(where:*)",
-      "Bash(\"C:\\\\Users\\\\ahmet\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python313\\\\python.exe\":*)"
+      "Bash(\"C:\\\\Users\\\\ahmet\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python313\\\\python.exe\":*)",
+      "Bash(node -e \"const d=require\\(''./units_restructured.json''\\); const tags={}; Object.entries\\(d\\).forEach\\(\\([n,u]\\)=>{\\(u.tags||[]\\).forEach\\(t=>{if\\(!tags[t]\\)tags[t]=[];tags[t].push\\(n\\)}\\)}\\); Object.keys\\(tags\\).sort\\(\\).forEach\\(t=>console.log\\(t+'': ''+tags[t].length\\)\\)\")"
     ]
   }
 }
