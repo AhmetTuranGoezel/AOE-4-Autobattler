@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Arc Hitzone Reference</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body {
+      background: #1a1a2e;
+      background-image:
+        radial-gradient(ellipse at 20% 50%, rgba(72, 52, 24, 0.15) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 50%, rgba(72, 52, 24, 0.15) 0%, transparent 50%);
+      min-height: 100vh;
+      padding: 20px;
+      font-family: 'Inter', sans-serif;
+      color: #e0d6c2;
+      color-scheme: dark;
+    }
+
+    h1, h2, h3, h4, h5, h6 { font-family: 'Cinzel', serif; }
+
+    h1 {
+      color: #d4a44a;
+      text-shadow: 0 2px 8px rgba(212, 164, 74, 0.3);
+      font-weight: 900;
+      letter-spacing: 1px;
+      font-size: 2rem;
+    }
+
+    /* Arc selector buttons */
+    .arc-selector {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      margin-bottom: 28px;
+    }
+
+    .arc-btn {
+      background: #16213e;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #e0d6c2;
+      padding: 8px 20px;
+      border-radius: 8px;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .arc-btn:hover {
+      border-color: #d4a44a;
+      color: #d4a44a;
+      box-shadow: 0 0 12px rgba(212, 164, 74, 0.15);
+    }
+
+    .arc-btn.active {
+      background: rgba(212, 164, 74, 0.15);
+      border-color: #d4a44a;
+      color: #d4a44a;
+      box-shadow: 0 0 16px rgba(212, 164, 74, 0.2);
+    }
+
+    /* Table card */
+    .table-card {
+      background: #16213e;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+      padding: 24px;
+      overflow-x: auto;
+    }
+
+    .arc-title {
+      font-family: 'Cinzel', serif;
+      color: #d4a44a;
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 16px;
+    }
+
+    /* Hitzone table */
+    .hz-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-size: 0.85rem;
+    }
+
+    .hz-table thead th {
+      background: rgba(212, 164, 74, 0.1);
+      color: #d4a44a;
+      font-family: 'Cinzel', serif;
+      font-weight: 700;
+      font-size: 0.78rem;
+      padding: 10px 12px;
+      text-align: center;
+      border-bottom: 2px solid rgba(212, 164, 74, 0.25);
+      white-space: nowrap;
+    }
+
+    .hz-table thead th:first-child {
+      text-align: left;
+      border-top-left-radius: 8px;
+    }
+
+    .hz-table thead th:last-child {
+      border-top-right-radius: 8px;
+    }
+
+    .hz-table thead .weapon-group {
+      border-left: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .hz-table tbody td {
+      padding: 8px 12px;
+      text-align: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      color: #e0d6c2;
+    }
+
+    .hz-table tbody td:first-child {
+      text-align: left;
+      font-weight: 600;
+      color: #e0d6c2;
+      white-space: nowrap;
+    }
+
+    .hz-table tbody tr:hover {
+      background: rgba(212, 164, 74, 0.05);
+    }
+
+    .hz-table tbody tr:last-child td:first-child {
+      border-bottom-left-radius: 8px;
+    }
+
+    .hz-table tbody tr:last-child td:last-child {
+      border-bottom-right-radius: 8px;
+    }
+
+    /* Break damage column */
+    .break-dmg {
+      font-weight: 700;
+      color: #d4a44a;
+    }
+
+    .break-dmg.none {
+      color: #555;
+      font-weight: 400;
+    }
+
+    /* Weapon cell pairs */
+    .weapon-cell {
+      border-left: 1px solid rgba(255, 255, 255, 0.04);
+      min-width: 50px;
+    }
+
+    /* Multiplier coloring */
+    .mult-high { color: #5ae05a; }       /* > 100% */
+    .mult-normal { color: #e0d6c2; }     /* 100% */
+    .mult-low { color: #e0a040; }        /* > 0% but < 100% */
+    .mult-zero { color: #555; }          /* 0% */
+    .mult-negative { color: #e74c3c; }   /* negative */
+    .mult-na { color: #3a3a4a; }         /* no data */
+
+    .dmg-value { font-weight: 600; }
+    .mult-value { font-size: 0.78rem; opacity: 0.85; }
+
+    .note-tag {
+      display: inline-block;
+      background: rgba(212, 164, 74, 0.12);
+      color: #d4a44a;
+      font-size: 0.72rem;
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-left: 6px;
+      font-weight: 400;
+    }
+
+    /* Legend */
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-top: 16px;
+      font-size: 0.78rem;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .empty-state {
+      text-align: center;
+      color: #666;
+      padding: 60px 20px;
+      font-size: 1rem;
+    }
+
+    @media (max-width: 768px) {
+      .hz-table { font-size: 0.75rem; }
+      .hz-table thead th { padding: 8px 6px; font-size: 0.7rem; }
+      .hz-table tbody td { padding: 6px; }
+      .table-card { padding: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <a href="index.html" style="position:fixed; top:12px; left:16px; z-index:1000; color:#d4a44a; text-decoration:none; font-family:'Inter',sans-serif; font-size:0.85rem; background:rgba(22,33,62,0.9); padding:6px 14px; border-radius:8px; border:1px solid rgba(212,164,74,0.3); backdrop-filter:blur(4px); transition:background 0.2s;">&#8592; Hub</a>
+
+  <div class="container">
+    <h1 class="text-center mb-4">Arc Hitzone Reference</h1>
+
+    <div class="arc-selector" id="arcSelector"></div>
+
+    <div id="content">
+      <div class="empty-state">Select an Arc above to view its hitzones</div>
+    </div>
+  </div>
+
+  <script>
+    let data = null;
+    let selectedArc = null;
+
+    async function init() {
+      const resp = await fetch('arc_hitzones.json');
+      data = await resp.json();
+      buildSelector();
+    }
+
+    function buildSelector() {
+      const container = document.getElementById('arcSelector');
+      const arcNames = Object.keys(data.arcs);
+      container.innerHTML = arcNames.map(name =>
+        `<button class="arc-btn" data-arc="${name}">${name}</button>`
+      ).join('');
+
+      container.addEventListener('click', (e) => {
+        const btn = e.target.closest('.arc-btn');
+        if (!btn) return;
+        selectedArc = btn.dataset.arc;
+        container.querySelectorAll('.arc-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        renderTable();
+      });
+
+      // Auto-select first
+      const first = container.querySelector('.arc-btn');
+      if (first) first.click();
+    }
+
+    function getMultClass(mult) {
+      if (mult === null || mult === undefined) return 'mult-na';
+      if (mult < 0) return 'mult-negative';
+      if (mult === 0) return 'mult-zero';
+      if (mult < 1) return 'mult-low';
+      if (mult === 1) return 'mult-normal';
+      return 'mult-high';
+    }
+
+    function formatMult(mult) {
+      if (mult === null || mult === undefined) return '—';
+      return (mult * 100).toFixed(0) + '%';
+    }
+
+    function formatDmg(dmg) {
+      if (dmg === null || dmg === undefined) return '—';
+      if (Number.isInteger(dmg)) return dmg.toString();
+      return dmg.toFixed(1);
+    }
+
+    function renderTable() {
+      const arc = data.arcs[selectedArc];
+      const weapons = data.weapons;
+      const container = document.getElementById('content');
+
+      let headerCells = `<th>Hitzone</th><th>Break Dmg</th>`;
+      weapons.forEach(w => {
+        const short = w.replace(/\s*\(.*?\)\s*/g, '').trim();
+        headerCells += `<th class="weapon-group" colspan="2">${short}</th>`;
+      });
+
+      let subHeader = `<th></th><th></th>`;
+      weapons.forEach(() => {
+        subHeader += `<th class="weapon-group" style="font-weight:500; font-family:'Inter',sans-serif; font-size:0.72rem; color:#8a8270;">Dmg</th>`;
+        subHeader += `<th style="font-weight:500; font-family:'Inter',sans-serif; font-size:0.72rem; color:#8a8270;">Mult</th>`;
+      });
+
+      let rows = '';
+      arc.hitzones.forEach(hz => {
+        let cells = '';
+        // Hitzone name
+        const noteHtml = hz.notes ? `<span class="note-tag">${hz.notes}</span>` : '';
+        cells += `<td>${hz.name}${noteHtml}</td>`;
+
+        // Break damage
+        if (hz.breakHp !== null && hz.breakHp !== undefined) {
+          cells += `<td class="break-dmg">${hz.breakHp}</td>`;
+        } else {
+          cells += `<td class="break-dmg none">—</td>`;
+        }
+
+        // Weapon columns
+        hz.weapons.forEach(w => {
+          const dmgClass = getMultClass(w.multiplier);
+          const dmgStr = formatDmg(w.damage);
+          const multStr = formatMult(w.multiplier);
+
+          cells += `<td class="weapon-cell"><span class="dmg-value ${dmgClass}">${dmgStr}</span></td>`;
+          cells += `<td><span class="mult-value ${dmgClass}">${multStr}</span></td>`;
+        });
+
+        rows += `<tr>${cells}</tr>`;
+      });
+
+      container.innerHTML = `
+        <div class="table-card">
+          <div class="arc-title">${selectedArc}</div>
+          <table class="hz-table">
+            <thead>
+              <tr>${headerCells}</tr>
+              <tr>${subHeader}</tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+          <div class="legend">
+            <div class="legend-item"><span class="legend-dot" style="background:#5ae05a;"></span> Weak spot (&gt;100%)</div>
+            <div class="legend-item"><span class="legend-dot" style="background:#e0d6c2;"></span> Normal (100%)</div>
+            <div class="legend-item"><span class="legend-dot" style="background:#e0a040;"></span> Resistant (&lt;100%)</div>
+            <div class="legend-item"><span class="legend-dot" style="background:#555;"></span> Immune (0%)</div>
+            <div class="legend-item"><span class="legend-dot" style="background:#e74c3c;"></span> Negative</div>
+            <div class="legend-item"><span class="legend-dot" style="background:#3a3a4a;"></span> No data</div>
+          </div>
+        </div>
+      `;
+    }
+
+    init();
+  </script>
+</body>
+</html>

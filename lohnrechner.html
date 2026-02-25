@@ -46,6 +46,8 @@ function JobBerechnung({ label, isComparison, profileToLoad }) {
   const [kvZusatz, setKvZusatz] = useState('2.9');
   const [geburtsjahr, setGeburtsjahr] = useState('1989');
   const [wochenstunden, setWochenstunden] = useState('40');
+  const [tatsaechlicheStunden, setTatsaechlicheStunden] = useState('40');
+  const [actualManuallySet, setActualManuallySet] = useState(false);
   const [fahrtzeitHin, setFahrtzeitHin] = useState('30');
   const [fahrtzeitZurueck, setFahrtzeitZurueck] = useState('30');
   const [arbeitstage, setArbeitstage] = useState('5');
@@ -67,6 +69,8 @@ function JobBerechnung({ label, isComparison, profileToLoad }) {
       setKvZusatz(d.kvZusatz || '2.9');
       setGeburtsjahr(d.geburtsjahr || '1989');
       setWochenstunden(d.wochenstunden || '40');
+      setTatsaechlicheStunden(d.tatsaechlicheStunden || d.wochenstunden || '40');
+      setActualManuallySet(false);
       setFahrtzeitHin(d.fahrtzeitHin || '30');
       setFahrtzeitZurueck(d.fahrtzeitZurueck || '30');
       setArbeitstage(d.arbeitstage || '5');
@@ -75,6 +79,18 @@ function JobBerechnung({ label, isComparison, profileToLoad }) {
       setStundenlohnMitPartnerAnpassung(d.stundenlohnMitPartnerAnpassung !== undefined ? d.stundenlohnMitPartnerAnpassung : true);
     }
   }, [profileToLoad]);
+
+  // Sync tatsächliche Stunden when Wochenstunden changes
+  const handleWochenstundenChange = (val) => {
+    setWochenstunden(val);
+    setTatsaechlicheStunden(val);
+    setActualManuallySet(false);
+  };
+
+  const handleTatsaechlicheChange = (val) => {
+    setTatsaechlicheStunden(val);
+    setActualManuallySet(true);
+  };
 
   // Brutto berechnen
   let bruttoMonat;
@@ -202,6 +218,7 @@ function JobBerechnung({ label, isComparison, profileToLoad }) {
   const effektivesNettoJahr = effektivesNettoMonat * 12;
 
   const monatsstunden = parseFloat(wochenstunden) * 4.33;
+  const tatsaechlicheMonatsstunden = parseFloat(tatsaechlicheStunden) * 4.33;
 
   // Stundenlöhne - mit Toggle für Partner-Anpassung
   const nettoFuerStundenlohn = (stundenlohnMitPartnerAnpassung && steuerklasse === '3' && partnerMehrsteuer > 0)
@@ -215,6 +232,10 @@ function JobBerechnung({ label, isComparison, profileToLoad }) {
   const fahrtzeitMonat = (fahrtzeitWoche / 60) * 4.33;
   const gesamtZeit = monatsstunden + fahrtzeitMonat;
   const bereinigterStunde = nettoFuerStundenlohn / gesamtZeit;
+
+  const showEffektiv = tatsaechlicheStunden !== wochenstunden && parseFloat(tatsaechlicheStunden) > 0;
+  const effektiverStundenlohn = showEffektiv ? nettoFuerStundenlohn / tatsaechlicheMonatsstunden : 0;
+  const effektivBereinigt = showEffektiv ? nettoFuerStundenlohn / (tatsaechlicheMonatsstunden + fahrtzeitMonat) : 0;
 
   const bonusFaktor = 1 + parseFloat(ueberstundenBonus) / 100;
   const bruttoUeberstunde = bruttoStunde * bonusFaktor;
@@ -316,7 +337,7 @@ function JobBerechnung({ label, isComparison, profileToLoad }) {
   const getCurrentProfile = () => ({
     eingabeArt, lohnWert, steuerklasse, partnerBrutto,
     kinder, bundesland, kirchensteuer, kvZusatz, geburtsjahr,
-    wochenstunden, fahrtzeitHin, fahrtzeitZurueck, arbeitstage,
+    wochenstunden, tatsaechlicheStunden, fahrtzeitHin, fahrtzeitZurueck, arbeitstage,
     ueberstundenBonus, ueberstundenAnzahl, stundenlohnMitPartnerAnpassung
   });
 
@@ -407,7 +428,11 @@ function JobBerechnung({ label, isComparison, profileToLoad }) {
             </div>
             <div>
               <label className="block text-xs text-gray-600 mb-1">Wochenstunden</label>
-              <input type="number" value={wochenstunden} onChange={(e) => setWochenstunden(e.target.value)} className="w-full px-2 py-2 border border-gray-300 rounded-lg" />
+              <input type="number" value={wochenstunden} onChange={(e) => handleWochenstundenChange(e.target.value)} className="w-full px-2 py-2 border border-gray-300 rounded-lg" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Tatsächliche Arbeit (h)</label>
+              <input type="number" value={tatsaechlicheStunden} onChange={(e) => handleTatsaechlicheChange(e.target.value)} className="w-full px-2 py-2 border border-gray-300 rounded-lg" />
             </div>
             <div>
               <label className="block text-xs text-gray-600 mb-1">KV-Zusatz %</label>
@@ -500,6 +525,22 @@ function JobBerechnung({ label, isComparison, profileToLoad }) {
               <div className="text-3xl font-bold text-blue-700">{nettoStunde.toFixed(2)} €</div>
             </div>
           </div>
+
+          {/* Effektiver Stundenlohn (nur wenn tatsächliche Stunden abweichen) */}
+          {showEffektiv && (
+            <div className="p-4 bg-green-50 border-2 border-green-400 rounded-lg">
+              <div className="flex justify-between items-center">
+                <div>
+                  <div className="text-sm font-semibold text-gray-700">Effektiver Stundenlohn</div>
+                  <div className="text-xs text-gray-500">Basierend auf {tatsaechlicheStunden}h tatsächlicher Arbeit/Woche</div>
+                </div>
+                <div className="text-3xl font-bold text-green-700">{effektiverStundenlohn.toFixed(2)} €</div>
+              </div>
+              <div className="mt-2 text-xs text-green-800 bg-green-100 rounded px-2 py-1">
+                Du wirst für {wochenstunden}h bezahlt, arbeitest aber nur {tatsaechlicheStunden}h — jede Arbeitsstunde ist <strong>{((effektiverStundenlohn / nettoStunde - 1) * 100).toFixed(0)}% mehr</strong> wert
+              </div>
+            </div>
+          )}
 
           {/* Bereinigt */}
           <div className="p-4 bg-purple-50 border-2 border-purple-400 rounded-lg">
