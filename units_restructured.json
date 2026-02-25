@@ -3083,5 +3083,695 @@
         }
       }
     }
+  },
+  "Javelin Thrower": {
+    "civs": [
+      "Malians"
+    ],
+    "costs": {
+      "food": 80,
+      "gold": 40
+    },
+    "trainingTime": 22,
+    "population": 1,
+    "speed": 1.25,
+    "tags": [
+      "Infantry",
+      "Ranged",
+      "Light"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 6.0,
+        "attackSpeed": 2.125,
+        "ages": {
+          "2": {
+            "hp": 70,
+            "meleeArmor": 0,
+            "rangedArmor": 3,
+            "attack": 8,
+            "bonus": {
+              "Ranged": 4
+            }
+          },
+          "3": {
+            "hp": 80,
+            "meleeArmor": 0,
+            "rangedArmor": 4,
+            "attack": 10,
+            "bonus": {
+              "Ranged": 8
+            }
+          },
+          "4": {
+            "hp": 95,
+            "meleeArmor": 0,
+            "rangedArmor": 5,
+            "attack": 13,
+            "bonus": {
+              "Ranged": 14
+            }
+          }
+        }
+      }
+    }
+  },
+  "Musofadi Warrior": {
+    "civs": [
+      "Malians"
+    ],
+    "costs": {
+      "food": 45,
+      "gold": 30
+    },
+    "trainingTime": 15,
+    "population": 1,
+    "speed": 1.375,
+    "tags": [
+      "Infantry",
+      "Light"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "attackSpeed": 1.375,
+        "ages": {
+          "2": {
+            "hp": 95,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 8,
+            "bonus": {
+              "Heavy": 10
+            }
+          },
+          "3": {
+            "hp": 115,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 9,
+            "bonus": {
+              "Heavy": 15
+            }
+          },
+          "4": {
+            "hp": 140,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 12,
+            "bonus": {
+              "Heavy": 18
+            }
+          }
+        }
+      }
+    }
+  },
+  "Musofadi Gunner": {
+    "civs": [
+      "Malians"
+    ],
+    "costs": {
+      "food": 110,
+      "gold": 130
+    },
+    "trainingTime": 35,
+    "population": 1,
+    "speed": 1.25,
+    "tags": [
+      "Infantry",
+      "Ranged"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 4.0,
+        "attackSpeed": 2.125,
+        "ages": {
+          "4": {
+            "hp": 130,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 41,
+            "bonus": {}
+          }
+        }
+      }
+    }
+  },
+  "Templar Brother": {
+    "civs": [
+      "Knights Templar"
+    ],
+    "costs": {
+      "food": 120,
+      "gold": 140
+    },
+    "trainingTime": 37.5,
+    "population": 1,
+    "speed": 1.62,
+    "tags": [
+      "Cavalry",
+      "Heavy"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 0.38,
+        "attackSpeed": 1.5,
+        "ages": {
+          "3": {
+            "hp": 275,
+            "meleeArmor": 4,
+            "rangedArmor": 4,
+            "attack": 24,
+            "chargeDamage": 12,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 330,
+            "meleeArmor": 5,
+            "rangedArmor": 5,
+            "attack": 29,
+            "chargeDamage": 14,
+            "bonus": {}
+          }
+        }
+      }
+    }
+  },
+  "Hospitaller Knight": {
+    "civs": [
+      "Knights Templar"
+    ],
+    "costs": {
+      "food": 50,
+      "gold": 60
+    },
+    "trainingTime": 21.0,
+    "population": 1,
+    "speed": 1.25,
+    "tags": [
+      "Infantry",
+      "Heavy"
+    ],
+    "effects": {
+      "healAura": {
+        "name": "Heal",
+        "hps": 9,
+        "description": "Heals nearby friendly units at 9 HP/s"
+      }
+    },
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 0.29,
+        "attackSpeed": 1.375,
+        "ages": {
+          "2": {
+            "hp": 145,
+            "meleeArmor": 2,
+            "rangedArmor": 1,
+            "attack": 10,
+            "bonus": {}
+          },
+          "3": {
+            "hp": 170,
+            "meleeArmor": 3,
+            "rangedArmor": 3,
+            "attack": 12,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 195,
+            "meleeArmor": 4,
+            "rangedArmor": 5,
+            "attack": 14,
+            "bonus": {}
+          }
+        }
+      }
+    }
+  },
+  "Chevalier Confrere": {
+    "civs": [
+      "Knights Templar"
+    ],
+    "costs": {
+      "food": 90,
+      "gold": 76
+    },
+    "trainingTime": 22.0,
+    "population": 1,
+    "speed": 1.62,
+    "tags": [
+      "Cavalry",
+      "Heavy"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 0.38,
+        "attackSpeed": 1.5,
+        "ages": {
+          "2": {
+            "hp": 160,
+            "meleeArmor": 2,
+            "rangedArmor": 2,
+            "attack": 14,
+            "chargeDamage": 7,
+            "bonus": {}
+          },
+          "3": {
+            "hp": 190,
+            "meleeArmor": 3,
+            "rangedArmor": 3,
+            "attack": 17,
+            "chargeDamage": 9,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 230,
+            "meleeArmor": 4,
+            "rangedArmor": 4,
+            "attack": 21,
+            "chargeDamage": 11,
+            "bonus": {}
+          }
+        }
+      }
+    }
+  },
+  "Serjeant": {
+    "civs": [
+      "Knights Templar"
+    ],
+    "costs": {
+      "food": 70,
+      "gold": 50
+    },
+    "trainingTime": 22.5,
+    "population": 1,
+    "speed": 1.25,
+    "tags": [
+      "Infantry",
+      "Heavy"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 4.0,
+        "attackSpeed": 2.0,
+        "ages": {
+          "2": {
+            "hp": 105,
+            "meleeArmor": 4,
+            "rangedArmor": 0,
+            "attack": 11,
+            "bonus": {}
+          },
+          "3": {
+            "hp": 145,
+            "meleeArmor": 5,
+            "rangedArmor": 0,
+            "attack": 13,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 165,
+            "meleeArmor": 6,
+            "rangedArmor": 0,
+            "attack": 15,
+            "bonus": {}
+          }
+        }
+      }
+    }
+  },
+  "Heavy Spearman": {
+    "civs": [
+      "Knights Templar"
+    ],
+    "costs": {
+      "food": 80,
+      "gold": 30
+    },
+    "trainingTime": 22.5,
+    "population": 1,
+    "speed": 1.12,
+    "tags": [
+      "Infantry",
+      "Heavy"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 0.29,
+        "attackSpeed": 1.88,
+        "ages": {
+          "3": {
+            "hp": 140,
+            "meleeArmor": 4,
+            "rangedArmor": 4,
+            "attack": 11,
+            "bonus": {
+              "Cavalry": 25,
+              "Elephant": 8
+            }
+          },
+          "4": {
+            "hp": 170,
+            "meleeArmor": 5,
+            "rangedArmor": 5,
+            "attack": 13,
+            "bonus": {
+              "Cavalry": 30,
+              "Elephant": 10
+            }
+          }
+        }
+      }
+    }
+  },
+  "Genoese Crossbowman": {
+    "civs": [
+      "Knights Templar"
+    ],
+    "costs": {
+      "food": 80,
+      "gold": 90
+    },
+    "trainingTime": 26.0,
+    "population": 1,
+    "speed": 1.06,
+    "tags": [
+      "Ranged",
+      "Heavy",
+      "Infantry"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 6.0,
+        "attackSpeed": 2.625,
+        "ages": {
+          "3": {
+            "hp": 110,
+            "meleeArmor": 0,
+            "rangedArmor": 1,
+            "attack": 21,
+            "bonus": {
+              "Heavy": 9
+            }
+          },
+          "4": {
+            "hp": 120,
+            "meleeArmor": 0,
+            "rangedArmor": 1,
+            "attack": 23,
+            "bonus": {
+              "Heavy": 10
+            }
+          }
+        }
+      }
+    }
+  },
+  "Genitour": {
+    "civs": [
+      "Knights Templar"
+    ],
+    "costs": {
+      "food": 60,
+      "wood": 60
+    },
+    "trainingTime": 23.0,
+    "population": 1,
+    "speed": 1.62,
+    "tags": [
+      "Cavalry",
+      "Ranged"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 6.5,
+        "attackSpeed": 1.62,
+        "ages": {
+          "3": {
+            "hp": 105,
+            "meleeArmor": 0,
+            "rangedArmor": 4,
+            "attack": 6,
+            "bonus": {
+              "Ranged": 10
+            }
+          },
+          "4": {
+            "hp": 125,
+            "meleeArmor": 0,
+            "rangedArmor": 7,
+            "attack": 8,
+            "bonus": {
+              "Ranged": 14
+            }
+          }
+        }
+      }
+    }
+  },
+  "Szlachta Cavalry": {
+    "civs": [
+      "Knights Templar"
+    ],
+    "costs": {
+      "food": 180,
+      "gold": 120
+    },
+    "trainingTime": 40.0,
+    "population": 1,
+    "speed": 1.725,
+    "tags": [
+      "Cavalry",
+      "Heavy"
+    ],
+    "effects": {
+      "atkSpeedDebuff": {
+        "name": "Bludgeoning Attacks",
+        "reduction": 20,
+        "duration": 6,
+        "description": "Reduces enemy attack speed by 20% for 6s on hit"
+      }
+    },
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 0.29,
+        "attackSpeed": 1.5,
+        "ages": {
+          "4": {
+            "hp": 363,
+            "meleeArmor": 2,
+            "rangedArmor": 8,
+            "attack": 30,
+            "chargeDamage": 38,
+            "bonus": {
+              "Light Infantry": 8
+            }
+          }
+        }
+      }
+    }
+  },
+  "Teutonic Knight": {
+    "civs": [
+      "Knights Templar"
+    ],
+    "costs": {
+      "food": 80,
+      "gold": 100
+    },
+    "trainingTime": 28.0,
+    "population": 1,
+    "speed": 0.975,
+    "tags": [
+      "Infantry",
+      "Heavy"
+    ],
+    "effects": {
+      "armorAura": {
+        "name": "Teutonic Wrath",
+        "armorReduction": 2,
+        "description": "-2 Melee & Ranged Armor to enemies within 3 tiles"
+      }
+    },
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 0.29,
+        "attackSpeed": 1.375,
+        "ages": {
+          "4": {
+            "hp": 310,
+            "meleeArmor": 8,
+            "rangedArmor": 6,
+            "attack": 24,
+            "bonus": {}
+          }
+        }
+      }
+    }
+  },
+  "Condottiero": {
+    "civs": [
+      "Knights Templar"
+    ],
+    "costs": {
+      "gold": 120
+    },
+    "trainingTime": 19.0,
+    "population": 1,
+    "speed": 1.44,
+    "tags": [
+      "Infantry"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 0.29,
+        "attackSpeed": 1.12,
+        "ages": {
+          "4": {
+            "hp": 195,
+            "meleeArmor": 2,
+            "rangedArmor": 3,
+            "attack": 16,
+            "bonus": {
+              "Gunpowder": 16,
+              "Siege": 16
+            }
+          }
+        }
+      }
+    }
+  },
+  "Landsknecht": {
+    "civs": [
+      "Holy Roman Empire"
+    ],
+    "costs": {
+      "food": 60,
+      "gold": 100
+    },
+    "trainingTime": 22.5,
+    "population": 1,
+    "speed": 1.25,
+    "tags": [
+      "Infantry",
+      "Light Infantry"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "attackSpeed": 1.375,
+        "ages": {
+          "3": {
+            "hp": 85,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 17,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 100,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 21,
+            "bonus": {}
+          }
+        }
+      }
+    }
+  },
+  "Gilded Landsknecht": {
+    "civs": [
+      "Order of the Dragon"
+    ],
+    "costs": {
+      "food": 120,
+      "gold": 200
+    },
+    "trainingTime": 27.0,
+    "population": 2,
+    "speed": 1.25,
+    "tags": [
+      "Infantry",
+      "Light Infantry"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "attackSpeed": 1.375,
+        "ages": {
+          "3": {
+            "hp": 180,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 21,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 220,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 25,
+            "bonus": {}
+          }
+        }
+      }
+    }
+  },
+  "Black Rider": {
+    "civs": [
+      "Holy Roman Empire"
+    ],
+    "costs": {
+      "food": 150,
+      "gold": 150
+    },
+    "trainingTime": 35.0,
+    "population": 1,
+    "speed": 1.62,
+    "tags": [
+      "Cavalry",
+      "Heavy",
+      "Gunpowder"
+    ],
+    "effects": {
+      "caracole": {
+        "name": "Caracole",
+        "speedBonus": 10,
+        "duration": 30,
+        "cooldown": 60,
+        "description": "+10% Speed, fire while moving for 30s (60s cooldown)"
+      }
+    },
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 4.0,
+        "attackSpeed": 2.12,
+        "ages": {
+          "4": {
+            "hp": 225,
+            "meleeArmor": 4,
+            "rangedArmor": 4,
+            "attack": 45,
+            "bonus": {}
+          }
+        }
+      }
+    }
   }
 }
