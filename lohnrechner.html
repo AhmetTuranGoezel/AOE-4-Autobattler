@@ -526,31 +526,26 @@ function JobBerechnung({ label, isComparison, profileToLoad }) {
             </div>
           </div>
 
-          {/* Effektiver Stundenlohn (nur wenn tatsächliche Stunden abweichen) */}
-          {showEffektiv && (
-            <div className="p-4 bg-green-50 border-2 border-green-400 rounded-lg">
-              <div className="flex justify-between items-center">
-                <div>
-                  <div className="text-sm font-semibold text-gray-700">Effektiver Stundenlohn</div>
-                  <div className="text-xs text-gray-500">Basierend auf {tatsaechlicheStunden}h tatsächlicher Arbeit/Woche</div>
-                </div>
-                <div className="text-3xl font-bold text-green-700">{effektiverStundenlohn.toFixed(2)} €</div>
-              </div>
-              <div className="mt-2 text-xs text-green-800 bg-green-100 rounded px-2 py-1">
-                Du wirst für {wochenstunden}h bezahlt, arbeitest aber nur {tatsaechlicheStunden}h — jede Arbeitsstunde ist <strong>{((effektiverStundenlohn / nettoStunde - 1) * 100).toFixed(0)}% mehr</strong> wert
-              </div>
-            </div>
-          )}
-
-          {/* Bereinigt */}
-          <div className="p-4 bg-purple-50 border-2 border-purple-400 rounded-lg">
+          {/* Bereinigt + Effektiv combined */}
+          <div className={`p-4 ${showEffektiv ? 'bg-green-50 border-2 border-green-400' : 'bg-purple-50 border-2 border-purple-400'} rounded-lg`}>
             <div className="flex justify-between items-center">
               <div>
                 <div className="text-sm font-semibold text-gray-700">Bereinigter Stundenlohn</div>
-                <div className="text-xs text-gray-500">Inkl. {(fahrtzeitMonat).toFixed(1)}h Fahrtzeit/Monat</div>
+                <div className="text-xs text-gray-500">
+                  {showEffektiv
+                    ? `${tatsaechlicheStunden}h tatsächliche Arbeit + ${(fahrtzeitMonat).toFixed(1)}h Fahrtzeit/Monat`
+                    : `Inkl. ${(fahrtzeitMonat).toFixed(1)}h Fahrtzeit/Monat`}
+                </div>
               </div>
-              <div className="text-3xl font-bold text-purple-700">{bereinigterStunde.toFixed(2)} €</div>
+              <div className={`text-3xl font-bold ${showEffektiv ? 'text-green-700' : 'text-purple-700'}`}>
+                {showEffektiv ? effektivBereinigt.toFixed(2) : bereinigterStunde.toFixed(2)} €
+              </div>
             </div>
+            {showEffektiv && (
+              <div className="mt-2 text-xs text-green-800 bg-green-100 rounded px-2 py-1">
+                Bezahlt für {wochenstunden}h, arbeitest {tatsaechlicheStunden}h — jede Arbeitsstunde ist <strong>{((effektivBereinigt / bereinigterStunde - 1) * 100).toFixed(0)}% mehr</strong> wert
+              </div>
+            )}
           </div>
 
           <div className="text-xs text-center text-gray-600 bg-gray-50 py-2 rounded">
