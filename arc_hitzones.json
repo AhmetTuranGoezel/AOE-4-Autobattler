@@ -1,0 +1,380 @@
+{
+  "weapons": [
+    "Very weak (Kettle)",
+    "Moderate (Rattler)",
+    "Strong (Ferro/Anvil)",
+    "Very Strong",
+    "Light impact grenade"
+  ],
+  "arcs": {
+    "Wasp": {
+      "hitzones": [
+        { "name": "Props", "breakHp": 6, "weapons": [
+          { "damage": 12, "multiplier": 1.2 },
+          { "damage": null, "multiplier": null },
+          { "damage": 162.3, "multiplier": null },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]},
+        { "name": "Body", "breakHp": null, "weapons": [
+          { "damage": 10, "multiplier": 1.0 },
+          { "damage": null, "multiplier": 0 },
+          { "damage": null, "multiplier": 0 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]},
+        { "name": "Weapon", "breakHp": null, "weapons": [
+          { "damage": 4, "multiplier": 0.4 },
+          { "damage": null, "multiplier": null },
+          { "damage": 16, "multiplier": 0.4 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]},
+        { "name": "Tail", "breakHp": null, "weapons": [
+          { "damage": 15, "multiplier": 1.5 },
+          { "damage": null, "multiplier": 0 },
+          { "damage": null, "multiplier": 0 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]}
+      ]
+    },
+    "Bombardier": {
+      "hitzones": [
+        { "name": "Knee joints", "breakHp": null, "weapons": [
+          { "damage": 10, "multiplier": 1.0 },
+          { "damage": null, "multiplier": 0 },
+          { "damage": null, "multiplier": 0 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]},
+        { "name": "White zone", "breakHp": null, "weapons": [
+          { "damage": 10, "multiplier": 1.0 },
+          { "damage": null, "multiplier": 0 },
+          { "damage": null, "multiplier": 0 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]},
+        { "name": "Back Canister", "breakHp": null, "weapons": [
+          { "damage": 15, "multiplier": 1.5 },
+          { "damage": null, "multiplier": 0 },
+          { "damage": null, "multiplier": 0 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]},
+        { "name": "Grey zone", "breakHp": null, "weapons": [
+          { "damage": 4, "multiplier": 0.4 },
+          { "damage": null, "multiplier": 0 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]}
+      ]
+    },
+    "Hornet": {
+      "hitzones": [
+        { "name": "Prop Plate", "breakHp": null, "weapons": [
+          { "damage": 0, "multiplier": 0 },
+          { "damage": 4.3, "multiplier": null },
+          { "damage": null, "multiplier": 0 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]},
+        { "name": "Props", "breakHp": null, "weapons": [
+          { "damage": 12, "multiplier": 1.2 },
+          { "damage": 10.8, "multiplier": 1.2 },
+          { "damage": null, "multiplier": 0 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]},
+        { "name": "Eye", "breakHp": null, "weapons": [
+          { "damage": null, "multiplier": null },
+          { "damage": 10.8, "multiplier": 1.2 },
+          { "damage": null, "multiplier": 0 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]},
+        { "name": "Body dark plate", "breakHp": null, "weapons": [
+          { "damage": null, "multiplier": null },
+          { "damage": 1, "multiplier": 0.11 },
+          { "damage": null, "multiplier": 0 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]},
+        { "name": "Tail", "breakHp": null, "weapons": [
+          { "damage": null, "multiplier": 0 },
+          { "damage": 40, "multiplier": null },
+          { "damage": null, "multiplier": 0 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]},
+        { "name": "Tazer", "breakHp": null, "weapons": [
+          { "damage": 4, "multiplier": 0.4 },
+          { "damage": 3.6, "multiplier": 0.4 },
+          { "damage": null, "multiplier": 0 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]}
+      ]
+    },
+    "Rocketeer": {
+      "hitzones": [
+        { "name": "Thruster plate", "breakHp": null, "weapons": [
+          { "damage": 0, "multiplier": 0 },
+          { "damage": 0, "multiplier": 0 },
+          { "damage": 4.5, "multiplier": 0.11 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]},
+        { "name": "Back Small white spot", "breakHp": null, "weapons": [
+          { "damage": 15, "multiplier": 1.5 },
+          { "damage": 13.5, "multiplier": 1.5 },
+          { "damage": 60, "multiplier": 1.5 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]},
+        { "name": "Rocket thrower", "breakHp": null, "weapons": [
+          { "damage": 4, "multiplier": 0.4 },
+          { "damage": 3.6, "multiplier": 0.4 },
+          { "damage": 16, "multiplier": 0.4 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]},
+        { "name": "Eye", "breakHp": null, "weapons": [
+          { "damage": 10, "multiplier": 1.0 },
+          { "damage": 9, "multiplier": 1.0 },
+          { "damage": 40, "multiplier": 1.0 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]},
+        { "name": "Thruster plate white", "breakHp": null, "weapons": [
+          { "damage": 12, "multiplier": 1.2 },
+          { "damage": 10.8, "multiplier": 1.2 },
+          { "damage": 48, "multiplier": 1.2 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]},
+        { "name": "Grey Body", "breakHp": null, "weapons": [
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]}
+      ]
+    },
+    "Surveyor": {
+      "hitzones": [
+        { "name": "Grey plate", "breakHp": 3, "weapons": [
+          { "damage": 0, "multiplier": 0 },
+          { "damage": null, "multiplier": 0 },
+          { "damage": 24, "multiplier": 0.6 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]},
+        { "name": "Opened white center", "breakHp": null, "weapons": [
+          { "damage": 15, "multiplier": 1.5 },
+          { "damage": null, "multiplier": 0 },
+          { "damage": 60, "multiplier": 1.5 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]},
+        { "name": "Opened dark pole", "breakHp": null, "weapons": [
+          { "damage": 10, "multiplier": 1.0 },
+          { "damage": null, "multiplier": 0 },
+          { "damage": 40, "multiplier": 1.0 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]},
+        { "name": "Light plate", "breakHp": null, "weapons": [
+          { "damage": 0, "multiplier": 0 },
+          { "damage": null, "multiplier": 0 },
+          { "damage": 24, "multiplier": 0.6 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]}
+      ]
+    },
+    "Bastion": {
+      "hitzones": [
+        { "name": "Cannister", "breakHp": null, "weapons": [
+          { "damage": null, "multiplier": 0 },
+          { "damage": 13.5, "multiplier": 1.5 },
+          { "damage": null, "multiplier": 0 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]},
+        { "name": "Top center armor", "breakHp": null, "weapons": [
+          { "damage": null, "multiplier": 0 },
+          { "damage": 9, "multiplier": 1.0 },
+          { "damage": null, "multiplier": 0 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]},
+        { "name": "Knee joints", "breakHp": 80, "weapons": [
+          { "damage": null, "multiplier": 0 },
+          { "damage": 9, "multiplier": 1.0 },
+          { "damage": 1, "multiplier": 0.03 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]},
+        { "name": "Back armor", "breakHp": null, "weapons": [
+          { "damage": 12, "multiplier": 1.2 },
+          { "damage": null, "multiplier": null },
+          { "damage": 48, "multiplier": null },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": null }
+        ]},
+        { "name": "Front and top side armor", "breakHp": null, "weapons": [
+          { "damage": 0, "multiplier": 0 },
+          { "damage": 0, "multiplier": 0 },
+          { "damage": 0, "multiplier": 0 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]}
+      ]
+    },
+    "Leaper": {
+      "hitzones": [
+        { "name": "Dark plates", "breakHp": null, "weapons": [
+          { "damage": 0, "multiplier": 0 },
+          { "damage": null, "multiplier": 0 },
+          { "damage": null, "multiplier": 0 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]},
+        { "name": "Eye", "breakHp": null, "weapons": [
+          { "damage": 0, "multiplier": 0 },
+          { "damage": null, "multiplier": 0 },
+          { "damage": 40, "multiplier": 1.0 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]},
+        { "name": "Eye plating", "breakHp": 3, "weapons": [
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": null },
+          { "damage": 0, "multiplier": 0 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]},
+        { "name": "Leg middle inner Bone", "breakHp": null, "notes": "Total 80 damage", "weapons": [
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]},
+        { "name": "Leg middle inner lining", "breakHp": 20, "weapons": [
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": null },
+          { "damage": 48, "multiplier": 1.2 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]},
+        { "name": "Back thruster", "breakHp": null, "weapons": [
+          { "damage": 4, "multiplier": 0.4 },
+          { "damage": null, "multiplier": 0 },
+          { "damage": null, "multiplier": 0 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]},
+        { "name": "Leg middle outer part", "breakHp": 9.5, "weapons": [
+          { "damage": null, "multiplier": 0 },
+          { "damage": null, "multiplier": 0 },
+          { "damage": 0, "multiplier": 0 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]}
+      ]
+    },
+    "Shredder": {
+      "hitzones": [
+        { "name": "Thruster", "breakHp": null, "weapons": [
+          { "damage": 12, "multiplier": 1.2 },
+          { "damage": null, "multiplier": 0 },
+          { "damage": null, "multiplier": 0 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]},
+        { "name": "Bottom thruster", "breakHp": null, "weapons": [
+          { "damage": 10, "multiplier": 1.0 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]},
+        { "name": "Body", "breakHp": null, "weapons": [
+          { "damage": 0, "multiplier": 0 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]},
+        { "name": "Body (alt)", "breakHp": null, "weapons": [
+          { "damage": null, "multiplier": 0 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]}
+      ]
+    },
+    "Queen": {
+      "hitzones": [
+        { "name": "Leg Outer Plating", "breakHp": null, "weapons": [
+          { "damage": 0, "multiplier": 0 },
+          { "damage": 0, "multiplier": 0 },
+          { "damage": 0, "multiplier": 0 },
+          { "damage": null, "multiplier": null },
+          { "damage": 20.5, "multiplier": 0.68 }
+        ]},
+        { "name": "Bottom thruster", "breakHp": null, "weapons": [
+          { "damage": -10.67, "multiplier": -1.07 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]},
+        { "name": "Body", "breakHp": null, "weapons": [
+          { "damage": -16.67, "multiplier": -1.67 },
+          { "damage": null, "multiplier": 0 },
+          { "damage": null, "multiplier": 0 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]}
+      ]
+    },
+    "Matriarch": {
+      "hitzones": [
+        { "name": "Hitzone 1", "breakHp": null, "weapons": [
+          { "damage": -22.67, "multiplier": -2.27 },
+          { "damage": null, "multiplier": 0 },
+          { "damage": null, "multiplier": 0 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]},
+        { "name": "Hitzone 2", "breakHp": null, "weapons": [
+          { "damage": -28.67, "multiplier": -2.87 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]},
+        { "name": "Hitzone 3", "breakHp": null, "weapons": [
+          { "damage": -34.67, "multiplier": -3.47 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]},
+        { "name": "Hitzone 4", "breakHp": null, "weapons": [
+          { "damage": null, "multiplier": 0 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 },
+          { "damage": null, "multiplier": null },
+          { "damage": null, "multiplier": 0 }
+        ]}
+      ]
+    }
+  }
+}
