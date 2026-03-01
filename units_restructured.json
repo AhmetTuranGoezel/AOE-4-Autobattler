@@ -581,7 +581,7 @@
         "attackSpeed": 1.375,
         "ages": {
           "2": {
-            "hp": 145,
+            "hp": 150,
             "meleeArmor": 3,
             "rangedArmor": 3,
             "attack": 15,
@@ -589,7 +589,7 @@
             "bonus": {}
           },
           "3": {
-            "hp": 175,
+            "hp": 180,
             "meleeArmor": 4,
             "rangedArmor": 4,
             "attack": 19,
@@ -597,7 +597,7 @@
             "bonus": {}
           },
           "4": {
-            "hp": 210,
+            "hp": 215,
             "meleeArmor": 5,
             "rangedArmor": 5,
             "attack": 23,
