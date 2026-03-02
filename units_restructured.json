@@ -11,7 +11,8 @@
     "population": 1,
     "speed": 1.875,
     "tags": [
-      "Cavalry"
+      "Cavalry",
+      "Melee"
     ],
     "weapons": {
       "primary": {
@@ -48,7 +49,229 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Boyar's Fortitude",
+        "description": "+25 HP",
+        "age": 3,
+        "category": "hitpoints",
+        "civs": [
+          "Rus"
+        ],
+        "totalUnitCivs": 15
+      },
+      {
+        "name": "Royal Bloodlines",
+        "description": "+35% HP",
+        "age": 3,
+        "category": "hitpoints",
+        "civs": [
+          "French",
+          "Jeanne d'Arc"
+        ],
+        "totalUnitCivs": 15
+      },
+      {
+        "name": "Biology",
+        "description": "+25% HP",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 15,
+        "except": [
+          "French",
+          "Jeanne d'Arc",
+          "Macedonian Dynasty"
+        ],
+        "improved": {
+          "name": "Biology (Improved)",
+          "description": "+35% HP",
+          "civs": [
+            "Mongols"
+          ]
+        }
+      },
+      {
+        "name": "Tatara",
+        "description": "+1 melee attack",
+        "age": 1,
+        "category": "attack",
+        "civs": [
+          "Japanese"
+        ],
+        "totalUnitCivs": 15
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 15,
+        "except": [
+          "Japanese",
+          "Macedonian Dynasty"
+        ]
+      },
+      {
+        "name": "Expilatores",
+        "description": "+2 melee attack",
+        "age": 2,
+        "category": "attack",
+        "civs": [
+          "Byzantines"
+        ],
+        "totalUnitCivs": 15
+      },
+      {
+        "name": "Hizukuri",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "civs": [
+          "Japanese"
+        ],
+        "totalUnitCivs": 15
+      },
+      {
+        "name": "Additional Torches",
+        "description": "+3 fire attack",
+        "age": 3,
+        "category": "attack",
+        "civs": [
+          "Mongols"
+        ],
+        "totalUnitCivs": 15,
+        "improved": {
+          "name": "Additional Torches (Improved)",
+          "description": "+5 fire attack",
+          "civs": [
+            "Mongols"
+          ]
+        }
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 15,
+        "except": [
+          "Japanese",
+          "Macedonian Dynasty"
+        ]
+      },
+      {
+        "name": "Fervor",
+        "description": "+1 melee attack, +1 ranged attack",
+        "age": 3,
+        "category": "attack",
+        "civs": [
+          "Rus"
+        ],
+        "totalUnitCivs": 15
+      },
+      {
+        "name": "Inspired Warriors",
+        "description": "+10% move speed, +1 ranged armor, +1 melee armor, +14% melee attack, +14% ranged attack",
+        "age": 3,
+        "category": "attack",
+        "civs": [
+          "Holy Roman Empire"
+        ],
+        "totalUnitCivs": 15
+      },
+      {
+        "name": "Kobuse-gitae",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "civs": [
+          "Japanese"
+        ],
+        "totalUnitCivs": 15
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 15,
+        "except": [
+          "Japanese",
+          "Macedonian Dynasty"
+        ]
+      },
+      {
+        "name": "Yaki-ire",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "civs": [
+          "Japanese"
+        ],
+        "totalUnitCivs": 15
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 15,
+        "except": [
+          "Macedonian Dynasty"
+        ]
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 15,
+        "except": [
+          "Macedonian Dynasty"
+        ]
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 15,
+        "except": [
+          "Macedonian Dynasty"
+        ]
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 15,
+        "except": [
+          "Macedonian Dynasty"
+        ]
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 15,
+        "except": [
+          "Macedonian Dynasty"
+        ]
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 15,
+        "except": [
+          "Macedonian Dynasty"
+        ]
+      }
+    ]
   },
   "Gilded Horseman": {
     "civs": [
@@ -62,7 +285,8 @@
     "population": 2,
     "speed": 1.875,
     "tags": [
-      "Cavalry"
+      "Cavalry",
+      "Melee"
     ],
     "weapons": {
       "primary": {
@@ -99,7 +323,86 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Biology",
+        "description": "+25% HP",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Inspired Warriors",
+        "description": "+10% move speed, +1 ranged armor, +1 melee armor, +14% melee attack, +14% ranged attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Desert Raider": {
     "civs": [
@@ -128,32 +431,111 @@
       "primary": {
         "type": "ranged",
         "range": 4.5,
-        "attackSpeed": 1.25,
+        "attackSpeed": 1.375,
         "ages": {
           "2": {
             "hp": 120,
             "meleeArmor": 5,
             "rangedArmor": 0,
-            "attack": 7,
+            "attack": 13,
             "bonus": {}
           },
           "3": {
             "hp": 145,
             "meleeArmor": 6,
             "rangedArmor": 0,
-            "attack": 9,
+            "attack": 15,
             "bonus": {}
           },
           "4": {
             "hp": 175,
             "meleeArmor": 7,
             "rangedArmor": 0,
-            "attack": 11,
+            "attack": 19,
             "bonus": {}
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Biology",
+        "description": "+25% HP",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Steeled Arrow",
+        "description": "+1 ranged attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Balanced Projectiles",
+        "description": "+1 ranged attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Incendiary Arrows",
+        "description": "+19% ranged attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Platecutter Point",
+        "description": "+1 ranged attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Hobelar": {
     "civs": [
@@ -167,7 +549,8 @@
     "population": 1,
     "speed": 1.88,
     "tags": [
-      "Cavalry"
+      "Cavalry",
+      "Melee"
     ],
     "weapons": {
       "primary": {
@@ -204,7 +587,79 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Biology",
+        "description": "+25% HP",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Sipahi": {
     "civs": [
@@ -218,7 +673,8 @@
     "population": 1,
     "speed": 1.75,
     "tags": [
-      "Cavalry"
+      "Cavalry",
+      "Melee"
     ],
     "effects": {
       "fortitude": {
@@ -236,7 +692,7 @@
         "attackSpeed": 1.75,
         "ages": {
           "2": {
-            "hp": 155,
+            "hp": 145,
             "meleeArmor": 0,
             "rangedArmor": 2,
             "attack": 12,
@@ -245,7 +701,7 @@
             }
           },
           "3": {
-            "hp": 185,
+            "hp": 175,
             "meleeArmor": 0,
             "rangedArmor": 3,
             "attack": 15,
@@ -254,7 +710,7 @@
             }
           },
           "4": {
-            "hp": 220,
+            "hp": 210,
             "meleeArmor": 0,
             "rangedArmor": 5,
             "attack": 18,
@@ -264,7 +720,79 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Biology",
+        "description": "+25% HP",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Ghazi Raider": {
     "civs": [
@@ -278,7 +806,8 @@
     "population": 1,
     "speed": 1.875,
     "tags": [
-      "Cavalry"
+      "Cavalry",
+      "Melee"
     ],
     "weapons": {
       "primary": {
@@ -318,7 +847,86 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Biology",
+        "description": "+25% HP",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Zeal",
+        "description": "+29% attack speed",
+        "age": 4,
+        "category": "attackSpeed",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Knight/Lancer": {
     "civs": [
@@ -333,7 +941,8 @@
     "speed": 1.63,
     "tags": [
       "Cavalry",
-      "Heavy"
+      "Heavy",
+      "Melee"
     ],
     "weapons": {
       "primary": {
@@ -367,7 +976,129 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Boyar's Fortitude",
+        "description": "+25 HP",
+        "age": 3,
+        "category": "hitpoints",
+        "civs": [
+          "Rus"
+        ],
+        "totalUnitCivs": 4
+      },
+      {
+        "name": "Biology",
+        "description": "+25% HP",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 4
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 4
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 4
+      },
+      {
+        "name": "Fervor",
+        "description": "+1 melee attack, +1 ranged attack",
+        "age": 3,
+        "category": "attack",
+        "civs": [
+          "Rus"
+        ],
+        "totalUnitCivs": 4
+      },
+      {
+        "name": "Inspired Warriors",
+        "description": "+10% move speed, +1 ranged armor, +1 melee armor, +14% melee attack, +14% ranged attack",
+        "age": 3,
+        "category": "attack",
+        "civs": [
+          "Holy Roman Empire"
+        ],
+        "totalUnitCivs": 4
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 4
+      },
+      {
+        "name": "Knight Poleaxes",
+        "description": "+4 melee attack",
+        "age": 4,
+        "category": "attack",
+        "civs": [
+          "Rus"
+        ],
+        "totalUnitCivs": 4
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 4
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 4
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 4
+      },
+      {
+        "name": "Steel Barding",
+        "description": "+2 melee armor, +2 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "civs": [
+          "Holy Roman Empire"
+        ],
+        "totalUnitCivs": 4
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 4
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 4
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 4
+      }
+    ]
   },
   "Royal Knight": {
     "civs": [
@@ -383,7 +1114,8 @@
     "speed": 1.625,
     "tags": [
       "Cavalry",
-      "Heavy"
+      "Heavy",
+      "Melee"
     ],
     "effects": {
       "postChargeAttackBuff": {
@@ -425,7 +1157,86 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Royal Bloodlines",
+        "description": "+35% HP",
+        "age": 3,
+        "category": "hitpoints",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Cantled Saddles",
+        "description": "+10 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 2
+      }
+    ]
   },
   "War Elephant": {
     "civs": [
@@ -442,7 +1253,8 @@
     "tags": [
       "Cavalry",
       "Heavy",
-      "Elephant"
+      "Elephant",
+      "Melee"
     ],
     "weapons": {
       "primary": {
@@ -452,7 +1264,7 @@
         "attackSpeed": 2.875,
         "ages": {
           "3": {
-            "hp": 850,
+            "hp": 800,
             "meleeArmor": 4,
             "rangedArmor": 5,
             "attack": 50,
@@ -503,7 +1315,96 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Armored Beasts",
+        "description": "+4 ranged armor, +19% HP",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Biology",
+        "description": "+25% HP",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Zeal",
+        "description": "+29% attack speed",
+        "age": 4,
+        "category": "attackSpeed",
+        "civs": [
+          "Delhi Sultanate"
+        ],
+        "totalUnitCivs": 2
+      }
+    ]
   },
   "Sofa": {
     "civs": [
@@ -518,7 +1419,8 @@
     "speed": 1.725,
     "tags": [
       "Cavalry",
-      "Heavy"
+      "Heavy",
+      "Melee"
     ],
     "weapons": {
       "primary": {
@@ -549,7 +1451,93 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Biology",
+        "description": "+25% HP",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Imported Armor",
+        "description": "+2 melee armor, +2 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Farima Leadership",
+        "description": "+-10% move speed",
+        "age": 4,
+        "category": "moveSpeed",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Keshik": {
     "civs": [
@@ -565,7 +1553,8 @@
     "speed": 1.625,
     "tags": [
       "Cavalry",
-      "Heavy"
+      "Heavy",
+      "Melee"
     ],
     "effects": {
       "healPerAttack": {
@@ -606,7 +1595,120 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Biology",
+        "description": "+25% HP",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 2,
+        "improved": {
+          "name": "Biology (Improved)",
+          "description": "+35% HP",
+          "civs": [
+            "Mongols"
+          ]
+        }
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Additional Torches",
+        "description": "+3 fire attack",
+        "age": 3,
+        "category": "attack",
+        "civs": [
+          "Mongols"
+        ],
+        "totalUnitCivs": 2,
+        "improved": {
+          "name": "Additional Torches (Improved)",
+          "description": "+5 fire attack",
+          "civs": [
+            "Mongols"
+          ]
+        }
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Steppe Lancers",
+        "description": "+10% attack speed",
+        "age": 3,
+        "category": "attackSpeed",
+        "civs": [
+          "Mongols"
+        ],
+        "totalUnitCivs": 2,
+        "improved": {
+          "name": "Steppe Lancers (Improved)",
+          "description": "+20% attack speed",
+          "civs": [
+            "Mongols"
+          ]
+        }
+      }
+    ]
   },
   "Archer": {
     "civs": [
@@ -661,7 +1763,189 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Boot Camp",
+        "description": "+14% HP",
+        "age": 2,
+        "category": "hitpoints",
+        "civs": [
+          "Abbasid Dynasty"
+        ],
+        "totalUnitCivs": 15
+      },
+      {
+        "name": "Steeled Arrow",
+        "description": "+1 ranged attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 15
+      },
+      {
+        "name": "Additional Torches",
+        "description": "+3 fire attack",
+        "age": 3,
+        "category": "attack",
+        "civs": [
+          "Mongols"
+        ],
+        "totalUnitCivs": 15,
+        "improved": {
+          "name": "Additional Torches (Improved)",
+          "description": "+5 fire attack",
+          "civs": [
+            "Mongols"
+          ]
+        }
+      },
+      {
+        "name": "Balanced Projectiles",
+        "description": "+1 ranged attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 15
+      },
+      {
+        "name": "Fervor",
+        "description": "+1 melee attack, +1 ranged attack",
+        "age": 3,
+        "category": "attack",
+        "civs": [
+          "Rus"
+        ],
+        "totalUnitCivs": 15
+      },
+      {
+        "name": "Inspired Warriors",
+        "description": "+10% move speed, +1 ranged armor, +1 melee armor, +14% melee attack, +14% ranged attack",
+        "age": 3,
+        "category": "attack",
+        "civs": [
+          "Holy Roman Empire"
+        ],
+        "totalUnitCivs": 15
+      },
+      {
+        "name": "Poisoned Arrows",
+        "description": "+3 ranged attack",
+        "age": 3,
+        "category": "attack",
+        "civs": [
+          "Malians"
+        ],
+        "totalUnitCivs": 15
+      },
+      {
+        "name": "Incendiary Arrows",
+        "description": "+19% ranged attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 15,
+        "except": [
+          "Malians"
+        ]
+      },
+      {
+        "name": "Platecutter Point",
+        "description": "+1 ranged attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 15
+      },
+      {
+        "name": "Precision Training",
+        "description": "+6 ranged attack, +2 ranged attack, +3 ranged attack",
+        "age": 4,
+        "category": "attack",
+        "civs": [
+          "Malians"
+        ],
+        "totalUnitCivs": 15
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 15
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 15
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 15
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 15
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 15
+      },
+      {
+        "name": "Camel Support",
+        "description": "+2 melee armor",
+        "age": 4,
+        "category": "armor",
+        "civs": [
+          "Abbasid Dynasty"
+        ],
+        "totalUnitCivs": 15
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 15
+      },
+      {
+        "name": "Composite Bows",
+        "description": "+25% attack speed",
+        "age": 3,
+        "category": "attackSpeed",
+        "civs": [
+          "Abbasid Dynasty"
+        ],
+        "totalUnitCivs": 15
+      },
+      {
+        "name": "Zeal",
+        "description": "+29% attack speed",
+        "age": 4,
+        "category": "attackSpeed",
+        "civs": [
+          "Delhi Sultanate"
+        ],
+        "totalUnitCivs": 15
+      },
+      {
+        "name": "Forced March",
+        "description": "+100% move speed",
+        "age": 3,
+        "category": "moveSpeed",
+        "civs": [
+          "Delhi Sultanate"
+        ],
+        "totalUnitCivs": 15
+      }
+    ]
   },
   "Longbow": {
     "civs": [
@@ -724,7 +2008,93 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Steeled Arrow",
+        "description": "+1 ranged attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Balanced Projectiles",
+        "description": "+1 ranged attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Incendiary Arrows",
+        "description": "+19% ranged attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Platecutter Point",
+        "description": "+1 ranged attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Network of Citadels",
+        "description": "+10% attack speed",
+        "age": 3,
+        "category": "attackSpeed",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Arrow Volley",
+        "description": "+-1 attack speed",
+        "age": 4,
+        "category": "attackSpeed",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Yoeman": {
     "civs": [
@@ -787,7 +2157,51 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Yumi": {
     "civs": [
@@ -843,7 +2257,109 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Steeled Arrow",
+        "description": "+1 ranged attack",
+        "age": 2,
+        "category": "attack",
+        "civs": [
+          "Japanese"
+        ],
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Balanced Projectiles",
+        "description": "+1 ranged attack",
+        "age": 3,
+        "category": "attack",
+        "civs": [
+          "Japanese"
+        ],
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Incendiary Arrows",
+        "description": "+19% ranged attack",
+        "age": 4,
+        "category": "attack",
+        "civs": [
+          "Japanese"
+        ],
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Platecutter Point",
+        "description": "+1 ranged attack",
+        "age": 4,
+        "category": "attack",
+        "civs": [
+          "Japanese"
+        ],
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "civs": [
+          "Japanese"
+        ],
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "civs": [
+          "Japanese"
+        ],
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "civs": [
+          "Japanese"
+        ],
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "civs": [
+          "Japanese"
+        ],
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "civs": [
+          "Japanese"
+        ],
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "civs": [
+          "Japanese"
+        ],
+        "totalUnitCivs": 2
+      }
+    ]
   },
   "Gilded Archer": {
     "civs": [
@@ -898,7 +2414,86 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Steeled Arrow",
+        "description": "+1 ranged attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Balanced Projectiles",
+        "description": "+1 ranged attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Inspired Warriors",
+        "description": "+10% move speed, +1 ranged armor, +1 melee armor, +14% melee attack, +14% ranged attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Incendiary Arrows",
+        "description": "+19% ranged attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Platecutter Point",
+        "description": "+1 ranged attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Spearman": {
     "civs": [
@@ -913,7 +2508,9 @@
     "speed": 1.25,
     "tags": [
       "Infantry",
-      "Light Infantry"
+      "Light Infantry",
+      "Melee",
+      "Melee Infantry"
     ],
     "weapons": {
       "primary": {
@@ -955,7 +2552,254 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Boot Camp",
+        "description": "+14% HP",
+        "age": 2,
+        "category": "hitpoints",
+        "civs": [
+          "Abbasid Dynasty"
+        ],
+        "totalUnitCivs": 18
+      },
+      {
+        "name": "Elite Army Tactics",
+        "description": "+15% HP, +15% melee attack",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 18,
+        "except": [
+          "Japanese",
+          "sen"
+        ],
+        "improved": {
+          "name": "Elite Army Tactics (Improved)",
+          "description": "+20% HP, +20% melee attack",
+          "civs": [
+            "Mongols"
+          ]
+        }
+      },
+      {
+        "name": "Oda Tactics",
+        "description": "+14% HP, +14% melee attack, +14% fire attack",
+        "age": 4,
+        "category": "hitpoints",
+        "civs": [
+          "Japanese",
+          "sen"
+        ],
+        "totalUnitCivs": 18
+      },
+      {
+        "name": "Tatara",
+        "description": "+1 melee attack",
+        "age": 1,
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "sen"
+        ],
+        "totalUnitCivs": 18
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 18,
+        "except": [
+          "Japanese",
+          "sen"
+        ]
+      },
+      {
+        "name": "Hizukuri",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "sen"
+        ],
+        "totalUnitCivs": 18
+      },
+      {
+        "name": "Additional Torches",
+        "description": "+3 fire attack",
+        "age": 3,
+        "category": "attack",
+        "civs": [
+          "Mongols"
+        ],
+        "totalUnitCivs": 18,
+        "improved": {
+          "name": "Additional Torches (Improved)",
+          "description": "+5 fire attack",
+          "civs": [
+            "Mongols"
+          ]
+        }
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 18,
+        "except": [
+          "Japanese",
+          "sen"
+        ]
+      },
+      {
+        "name": "Fervor",
+        "description": "+1 melee attack, +1 ranged attack",
+        "age": 3,
+        "category": "attack",
+        "civs": [
+          "Rus"
+        ],
+        "totalUnitCivs": 18
+      },
+      {
+        "name": "Inspired Warriors",
+        "description": "+10% move speed, +1 ranged armor, +1 melee armor, +14% melee attack, +14% ranged attack",
+        "age": 3,
+        "category": "attack",
+        "civs": [
+          "Holy Roman Empire"
+        ],
+        "totalUnitCivs": 18
+      },
+      {
+        "name": "Kobuse-gitae",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "sen"
+        ],
+        "totalUnitCivs": 18
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 18,
+        "except": [
+          "Japanese",
+          "sen"
+        ]
+      },
+      {
+        "name": "Nagae Yari",
+        "description": "+9.2 melee attack",
+        "age": 4,
+        "category": "attack",
+        "civs": [
+          "Japanese"
+        ],
+        "totalUnitCivs": 18
+      },
+      {
+        "name": "Yaki-ire",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "sen"
+        ],
+        "totalUnitCivs": 18
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 18
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 18
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 18
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 18
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 18
+      },
+      {
+        "name": "Camel Support",
+        "description": "+2 melee armor",
+        "age": 4,
+        "category": "armor",
+        "civs": [
+          "Abbasid Dynasty"
+        ],
+        "totalUnitCivs": 18
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 18
+      },
+      {
+        "name": "Network of Citadels",
+        "description": "+10% attack speed",
+        "age": 3,
+        "category": "attackSpeed",
+        "civs": [
+          "English"
+        ],
+        "totalUnitCivs": 18
+      },
+      {
+        "name": "Zeal",
+        "description": "+29% attack speed",
+        "age": 4,
+        "category": "attackSpeed",
+        "civs": [
+          "Delhi Sultanate"
+        ],
+        "totalUnitCivs": 18
+      },
+      {
+        "name": "Forced March",
+        "description": "+100% move speed",
+        "age": 3,
+        "category": "moveSpeed",
+        "civs": [
+          "Delhi Sultanate"
+        ],
+        "totalUnitCivs": 18
+      }
+    ]
   },
   "Gilded Spearman": {
     "civs": [
@@ -970,7 +2814,9 @@
     "speed": 1.25,
     "tags": [
       "Infantry",
-      "Light Infantry"
+      "Light Infantry",
+      "Melee",
+      "Melee Infantry"
     ],
     "weapons": {
       "primary": {
@@ -978,7 +2824,7 @@
         "attackSpeed": 1.875,
         "ages": {
           "2": {
-            "hp": 160,
+            "hp": 180,
             "meleeArmor": 1,
             "rangedArmor": 0,
             "attack": 12,
@@ -1009,7 +2855,86 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Elite Army Tactics",
+        "description": "+15% HP, +15% melee attack",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Inspired Warriors",
+        "description": "+10% move speed, +1 ranged armor, +1 melee armor, +14% melee attack, +14% ranged attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Donso": {
     "civs": [
@@ -1024,7 +2949,9 @@
     "speed": 1.25,
     "tags": [
       "Infantry",
-      "Light Infantry"
+      "Light Infantry",
+      "Melee",
+      "Melee Infantry"
     ],
     "effects": {
       "openingAttack": {
@@ -1070,7 +2997,86 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Elite Army Tactics",
+        "description": "+15% HP, +15% melee attack",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Precision Training",
+        "description": "+6 ranged attack, +2 ranged attack, +3 ranged attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Limitanei": {
     "civs": [
@@ -1085,7 +3091,9 @@
     "speed": 1.25,
     "tags": [
       "Infantry",
-      "Light Infantry"
+      "Light Infantry",
+      "Melee",
+      "Melee Infantry"
     ],
     "effects": {
       "shieldWall": {
@@ -1133,7 +3141,86 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Elite Army Tactics",
+        "description": "+15% HP, +15% melee attack",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Teardrop Shields",
+        "description": "+1 melee armor, +14% move speed, +13% attack speed",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "MAA": {
     "civs": [
@@ -1148,7 +3235,9 @@
     "speed": 1.125,
     "tags": [
       "Infantry",
-      "Heavy"
+      "Heavy",
+      "Melee",
+      "Melee Infantry"
     ],
     "weapons": {
       "primary": {
@@ -1178,7 +3267,193 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Elite Army Tactics",
+        "description": "+15% HP, +15% melee attack",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 11,
+        "improved": {
+          "name": "Elite Army Tactics (Improved)",
+          "description": "+20% HP, +20% melee attack",
+          "civs": [
+            "Mongols"
+          ]
+        }
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 11
+      },
+      {
+        "name": "Additional Torches",
+        "description": "+3 fire attack",
+        "age": 3,
+        "category": "attack",
+        "civs": [
+          "Mongols"
+        ],
+        "totalUnitCivs": 11,
+        "improved": {
+          "name": "Additional Torches (Improved)",
+          "description": "+5 fire attack",
+          "civs": [
+            "Mongols"
+          ]
+        }
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 11
+      },
+      {
+        "name": "Fervor",
+        "description": "+1 melee attack, +1 ranged attack",
+        "age": 3,
+        "category": "attack",
+        "civs": [
+          "Rus"
+        ],
+        "totalUnitCivs": 11
+      },
+      {
+        "name": "Heavy Maces",
+        "description": "+6 melee attack",
+        "age": 3,
+        "category": "attack",
+        "civs": [
+          "Holy Roman Empire"
+        ],
+        "totalUnitCivs": 11
+      },
+      {
+        "name": "Honed Blades",
+        "description": "+3 melee attack",
+        "age": 3,
+        "category": "attack",
+        "civs": [
+          "Delhi Sultanate"
+        ],
+        "totalUnitCivs": 11
+      },
+      {
+        "name": "Inspired Warriors",
+        "description": "+10% move speed, +1 ranged armor, +1 melee armor, +14% melee attack, +14% ranged attack",
+        "age": 3,
+        "category": "attack",
+        "civs": [
+          "Holy Roman Empire"
+        ],
+        "totalUnitCivs": 11
+      },
+      {
+        "name": "Two-Handed Weapons",
+        "description": "+2 melee attack",
+        "age": 3,
+        "category": "attack",
+        "civs": [
+          "Holy Roman Empire"
+        ],
+        "totalUnitCivs": 11
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 11
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 11
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 11
+      },
+      {
+        "name": "Armor Clad",
+        "description": "+2 ranged armor, +2 melee armor",
+        "age": 3,
+        "category": "armor",
+        "civs": [
+          "English"
+        ],
+        "totalUnitCivs": 11
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 11
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 11
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 11
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 11
+      },
+      {
+        "name": "Network of Citadels",
+        "description": "+10% attack speed",
+        "age": 3,
+        "category": "attackSpeed",
+        "civs": [
+          "English"
+        ],
+        "totalUnitCivs": 11
+      },
+      {
+        "name": "Zeal",
+        "description": "+29% attack speed",
+        "age": 4,
+        "category": "attackSpeed",
+        "civs": [
+          "Delhi Sultanate"
+        ],
+        "totalUnitCivs": 11
+      },
+      {
+        "name": "Forced March",
+        "description": "+100% move speed",
+        "age": 3,
+        "category": "moveSpeed",
+        "civs": [
+          "Delhi Sultanate"
+        ],
+        "totalUnitCivs": 11
+      }
+    ]
   },
   "Gilded MAA": {
     "civs": [
@@ -1193,7 +3468,9 @@
     "speed": 1.125,
     "tags": [
       "Infantry",
-      "Heavy"
+      "Heavy",
+      "Melee",
+      "Melee Infantry"
     ],
     "weapons": {
       "primary": {
@@ -1223,7 +3500,86 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Elite Army Tactics",
+        "description": "+15% HP, +15% melee attack",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Inspired Warriors",
+        "description": "+10% move speed, +1 ranged armor, +1 melee armor, +14% melee attack, +14% ranged attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Ghulam": {
     "civs": [
@@ -1239,12 +3595,14 @@
     "speed": 1.188,
     "tags": [
       "Infantry",
-      "Heavy"
+      "Heavy",
+      "Melee",
+      "Melee Infantry"
     ],
     "weapons": {
       "primary": {
         "type": "melee",
-        "attackSpeed": 0.813,
+        "attackSpeed": 1.125,
         "ages": {
           "3": {
             "hp": 195,
@@ -1264,7 +3622,99 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Boot Camp",
+        "description": "+14% HP",
+        "age": 2,
+        "category": "hitpoints",
+        "civs": [
+          "Abbasid Dynasty"
+        ],
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Elite Army Tactics",
+        "description": "+15% HP, +15% melee attack",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Camel Support",
+        "description": "+2 melee armor",
+        "age": 4,
+        "category": "armor",
+        "civs": [
+          "Abbasid Dynasty"
+        ],
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 2
+      }
+    ]
   },
   "Palace Guard": {
     "civs": [
@@ -1280,7 +3730,9 @@
     "speed": 1.375,
     "tags": [
       "Infantry",
-      "Heavy"
+      "Heavy",
+      "Melee",
+      "Melee Infantry"
     ],
     "weapons": {
       "primary": {
@@ -1310,7 +3762,89 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Battle Hardened",
+        "description": "+30 HP",
+        "age": 4,
+        "category": "hitpoints",
+        "civs": [
+          "Chinese"
+        ],
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Elite Army Tactics",
+        "description": "+15% HP, +15% melee attack",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 2
+      }
+    ]
   },
   "Varangian Guard": {
     "civs": [
@@ -1326,7 +3860,9 @@
     "speed": 1.125,
     "tags": [
       "Infantry",
-      "Heavy"
+      "Heavy",
+      "Melee",
+      "Melee Infantry"
     ],
     "effects": {
       "berserking": {
@@ -1346,7 +3882,7 @@
             "hp": 125,
             "meleeArmor": 4,
             "rangedArmor": 2,
-            "attack": 12,
+            "attack": 11,
             "bonus": {}
           },
           "3": {
@@ -1357,7 +3893,7 @@
             "bonus": {}
           },
           "4": {
-            "hp": 170,
+            "hp": 195,
             "meleeArmor": 6,
             "rangedArmor": 6,
             "attack": 16,
@@ -1365,7 +3901,129 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Elite Army Tactics",
+        "description": "+15% HP, +15% melee attack",
+        "age": 4,
+        "category": "hitpoints",
+        "civs": [
+          "Byzantines"
+        ],
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "civs": [
+          "Byzantines"
+        ],
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "civs": [
+          "Byzantines"
+        ],
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "civs": [
+          "Byzantines"
+        ],
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "civs": [
+          "Byzantines"
+        ],
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "civs": [
+          "Byzantines"
+        ],
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "civs": [
+          "Byzantines"
+        ],
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Teardrop Shields",
+        "description": "+1 melee armor, +14% move speed, +13% attack speed",
+        "age": 3,
+        "category": "armor",
+        "civs": [
+          "Byzantines"
+        ],
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "civs": [
+          "Byzantines"
+        ],
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "civs": [
+          "Byzantines"
+        ],
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "civs": [
+          "Byzantines"
+        ],
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Ferocious Speed",
+        "description": "+-19% move speed",
+        "age": 4,
+        "category": "moveSpeed",
+        "civs": [
+          "Byzantines"
+        ],
+        "totalUnitCivs": 2
+      }
+    ]
   },
   "Samurai": {
     "civs": [
@@ -1380,7 +4038,9 @@
     "speed": 1.125,
     "tags": [
       "Infantry",
-      "Heavy"
+      "Heavy",
+      "Melee",
+      "Melee Infantry"
     ],
     "effects": {
       "deflectiveArmor": {
@@ -1391,10 +4051,10 @@
     "weapons": {
       "primary": {
         "type": "melee",
-        "attackSpeed": 1.125,
+        "attackSpeed": 1.375,
         "ages": {
           "2": {
-            "hp": 100,
+            "hp": 120,
             "meleeArmor": 3,
             "rangedArmor": 3,
             "attack": 10,
@@ -1416,7 +4076,93 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Oda Tactics",
+        "description": "+14% HP, +14% melee attack, +14% fire attack",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Tatara",
+        "description": "+1 melee attack",
+        "age": 1,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Hizukuri",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Kobuse-gitae",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Odachi",
+        "description": "+4 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Yaki-ire",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Earls Guard": {
     "civs": [
@@ -1431,7 +4177,9 @@
     "speed": 1.25,
     "tags": [
       "Infantry",
-      "Heavy"
+      "Heavy",
+      "Melee",
+      "Melee Infantry"
     ],
     "effects": {
       "openingAttack": {
@@ -1461,7 +4209,79 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Elite Army Tactics",
+        "description": "+15% HP, +15% melee attack",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Crossbow": {
     "civs": [
@@ -1505,7 +4325,196 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Boot Camp",
+        "description": "+14% HP",
+        "age": 2,
+        "category": "hitpoints",
+        "civs": [
+          "Abbasid Dynasty"
+        ],
+        "totalUnitCivs": 16
+      },
+      {
+        "name": "Steeled Arrow",
+        "description": "+1 ranged attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 16,
+        "except": [
+          "Macedonian Dynasty"
+        ]
+      },
+      {
+        "name": "Additional Torches",
+        "description": "+3 fire attack",
+        "age": 3,
+        "category": "attack",
+        "civs": [
+          "Mongols"
+        ],
+        "totalUnitCivs": 16,
+        "improved": {
+          "name": "Additional Torches (Improved)",
+          "description": "+5 fire attack",
+          "civs": [
+            "Mongols"
+          ]
+        }
+      },
+      {
+        "name": "Balanced Projectiles",
+        "description": "+1 ranged attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 16,
+        "except": [
+          "Macedonian Dynasty"
+        ]
+      },
+      {
+        "name": "Fervor",
+        "description": "+1 melee attack, +1 ranged attack",
+        "age": 3,
+        "category": "attack",
+        "civs": [
+          "Rus"
+        ],
+        "totalUnitCivs": 16
+      },
+      {
+        "name": "Inspired Warriors",
+        "description": "+10% move speed, +1 ranged armor, +1 melee armor, +14% melee attack, +14% ranged attack",
+        "age": 3,
+        "category": "attack",
+        "civs": [
+          "Holy Roman Empire"
+        ],
+        "totalUnitCivs": 16
+      },
+      {
+        "name": "Incendiary Arrows",
+        "description": "+19% ranged attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 16,
+        "except": [
+          "Macedonian Dynasty"
+        ]
+      },
+      {
+        "name": "Platecutter Point",
+        "description": "+1 ranged attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 16,
+        "except": [
+          "Macedonian Dynasty"
+        ]
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 16,
+        "except": [
+          "Macedonian Dynasty"
+        ]
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 16,
+        "except": [
+          "Macedonian Dynasty"
+        ]
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 16,
+        "except": [
+          "Macedonian Dynasty"
+        ]
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 16,
+        "except": [
+          "Macedonian Dynasty"
+        ]
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 16,
+        "except": [
+          "Macedonian Dynasty"
+        ]
+      },
+      {
+        "name": "Camel Support",
+        "description": "+2 melee armor",
+        "age": 4,
+        "category": "armor",
+        "civs": [
+          "Abbasid Dynasty"
+        ],
+        "totalUnitCivs": 16
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 16,
+        "except": [
+          "Macedonian Dynasty"
+        ]
+      },
+      {
+        "name": "Network of Citadels",
+        "description": "+10% attack speed",
+        "age": 3,
+        "category": "attackSpeed",
+        "civs": [
+          "English"
+        ],
+        "totalUnitCivs": 16
+      },
+      {
+        "name": "Zeal",
+        "description": "+29% attack speed",
+        "age": 4,
+        "category": "attackSpeed",
+        "civs": [
+          "Delhi Sultanate"
+        ],
+        "totalUnitCivs": 16
+      },
+      {
+        "name": "Forced March",
+        "description": "+100% move speed",
+        "age": 3,
+        "category": "moveSpeed",
+        "civs": [
+          "Delhi Sultanate"
+        ],
+        "totalUnitCivs": 16
+      }
+    ]
   },
   "Onna Musha": {
     "civs": [
@@ -1548,7 +4557,86 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Biology",
+        "description": "+25% HP",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Steeled Arrow",
+        "description": "+1 ranged attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Balanced Projectiles",
+        "description": "+1 ranged attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Platecutter Point",
+        "description": "+1 ranged attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Kabura-ya Whistling Arrow",
+        "description": "+10 move speed",
+        "age": 3,
+        "category": "moveSpeed",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Arbaletrier": {
     "civs": [
@@ -1601,7 +4689,93 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Steeled Arrow",
+        "description": "+1 ranged attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Balanced Projectiles",
+        "description": "+1 ranged attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Incendiary Arrows",
+        "description": "+19% ranged attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Platecutter Point",
+        "description": "+1 ranged attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Gambesons",
+        "description": "+5 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Crossbow Stirrups",
+        "description": "+19% attack speed",
+        "age": 3,
+        "category": "attackSpeed",
+        "totalUnitCivs": 2
+      }
+    ]
   },
   "Gilded Crossbowman": {
     "civs": [
@@ -1645,7 +4819,93 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Steeled Arrow",
+        "description": "+1 ranged attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Balanced Projectiles",
+        "description": "+1 ranged attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Inspired Warriors",
+        "description": "+10% move speed, +1 ranged armor, +1 melee armor, +14% melee attack, +14% ranged attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Bodkin Bolts",
+        "description": "+20 ranged attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Incendiary Arrows",
+        "description": "+19% ranged attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Platecutter Point",
+        "description": "+1 ranged attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Mangudai": {
     "civs": [
@@ -1691,7 +4951,101 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Biology",
+        "description": "+25% HP",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1,
+        "improved": {
+          "name": "Biology (Improved)",
+          "description": "+35% HP"
+        }
+      },
+      {
+        "name": "Steeled Arrow",
+        "description": "+1 ranged attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Balanced Projectiles",
+        "description": "+1 ranged attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Incendiary Arrows",
+        "description": "+19% ranged attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Platecutter Point",
+        "description": "+1 ranged attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Siha Bow Limbs",
+        "description": "+1 ranged attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1,
+        "improved": {
+          "name": "Siha Bow Limbs (Improved)",
+          "description": "+2 ranged attack"
+        }
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Akinji": {
     "civs": [
@@ -1712,7 +5066,7 @@
       "primary": {
         "type": "ranged",
         "range": 4.5,
-        "attackSpeed": 1.3125,
+        "attackSpeed": 2.625,
         "ages": {
           "2": {
             "hp": 95,
@@ -1737,7 +5091,79 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Biology",
+        "description": "+25% HP",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Steeled Arrow",
+        "description": "+1 ranged attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Balanced Projectiles",
+        "description": "+1 ranged attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Platecutter Point",
+        "description": "+1 ranged attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Tower Elephant": {
     "civs": [
@@ -1777,7 +5203,114 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Biology",
+        "description": "+25% HP",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Howdahs",
+        "description": "+11 ranged attack, +4 ranged armor, +25% HP",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Steeled Arrow",
+        "description": "+1 ranged attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Balanced Projectiles",
+        "description": "+1 ranged attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Platecutter Point",
+        "description": "+1 ranged attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Zeal",
+        "description": "+29% attack speed",
+        "age": 4,
+        "category": "attackSpeed",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Sultans Tower Elephant": {
     "civs": [
@@ -1876,7 +5409,100 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Biology",
+        "description": "+25% HP",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Steeled Arrow",
+        "description": "+1 ranged attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Balanced Projectiles",
+        "description": "+1 ranged attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Incendiary Arrows",
+        "description": "+19% ranged attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Platecutter Point",
+        "description": "+1 ranged attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Camel Support",
+        "description": "+2 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Camel Handling",
+        "description": "+14% move speed",
+        "age": 3,
+        "category": "moveSpeed",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Horse Archer": {
     "civs": [
@@ -1897,25 +5523,118 @@
       "primary": {
         "type": "ranged",
         "range": 4.5,
-        "attackSpeed": 2.125,
+        "attackSpeed": 1.75,
         "ages": {
           "3": {
             "hp": 85,
             "meleeArmor": 0,
             "rangedArmor": 0,
-            "attack": 12,
+            "attack": 10,
             "bonus": {}
           },
           "4": {
             "hp": 100,
             "meleeArmor": 0,
             "rangedArmor": 0,
-            "attack": 14,
+            "attack": 12,
             "bonus": {}
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Boyar's Fortitude",
+        "description": "+25 HP",
+        "age": 3,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Biology",
+        "description": "+25% HP",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Steeled Arrow",
+        "description": "+1 ranged attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Balanced Projectiles",
+        "description": "+1 ranged attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fervor",
+        "description": "+1 melee attack, +1 ranged attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Incendiary Arrows",
+        "description": "+19% ranged attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Platecutter Point",
+        "description": "+1 ranged attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Handcannoneer": {
     "civs": [
@@ -1954,7 +5673,156 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Boot Camp",
+        "description": "+14% HP",
+        "age": 2,
+        "category": "hitpoints",
+        "civs": [
+          "Abbasid Dynasty"
+        ],
+        "totalUnitCivs": 14
+      },
+      {
+        "name": "Additional Torches",
+        "description": "+3 fire attack",
+        "age": 3,
+        "category": "attack",
+        "civs": [
+          "Mongols"
+        ],
+        "totalUnitCivs": 14,
+        "improved": {
+          "name": "Additional Torches (Improved)",
+          "description": "+5 fire attack",
+          "civs": [
+            "Mongols"
+          ]
+        }
+      },
+      {
+        "name": "Inspired Warriors",
+        "description": "+10% move speed, +1 ranged armor, +1 melee armor, +14% melee attack, +14% ranged attack",
+        "age": 3,
+        "category": "attack",
+        "civs": [
+          "Holy Roman Empire"
+        ],
+        "totalUnitCivs": 14
+      },
+      {
+        "name": "Chemistry",
+        "description": "+25% ranged attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 14,
+        "except": [
+          "Macedonian Dynasty"
+        ]
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 14,
+        "except": [
+          "Macedonian Dynasty"
+        ]
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 14,
+        "except": [
+          "Macedonian Dynasty"
+        ]
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 14,
+        "except": [
+          "Macedonian Dynasty"
+        ]
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 14,
+        "except": [
+          "Macedonian Dynasty"
+        ]
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 14,
+        "except": [
+          "Macedonian Dynasty"
+        ]
+      },
+      {
+        "name": "Camel Support",
+        "description": "+2 melee armor",
+        "age": 4,
+        "category": "armor",
+        "civs": [
+          "Abbasid Dynasty"
+        ],
+        "totalUnitCivs": 14
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 14,
+        "except": [
+          "Macedonian Dynasty"
+        ]
+      },
+      {
+        "name": "Network of Citadels",
+        "description": "+10% attack speed",
+        "age": 3,
+        "category": "attackSpeed",
+        "civs": [
+          "English"
+        ],
+        "totalUnitCivs": 14
+      },
+      {
+        "name": "Zeal",
+        "description": "+29% attack speed",
+        "age": 4,
+        "category": "attackSpeed",
+        "civs": [
+          "Delhi Sultanate"
+        ],
+        "totalUnitCivs": 14
+      },
+      {
+        "name": "Forced March",
+        "description": "+100% move speed",
+        "age": 3,
+        "category": "moveSpeed",
+        "civs": [
+          "Delhi Sultanate"
+        ],
+        "totalUnitCivs": 14
+      }
+    ]
   },
   "Streltsy": {
     "civs": [
@@ -2009,7 +5877,65 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Fervor",
+        "description": "+1 melee attack, +1 ranged attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Chemistry",
+        "description": "+25% ranged attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Jannisary": {
     "civs": [
@@ -2053,7 +5979,65 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Chemistry",
+        "description": "+25% ranged attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Janissary Guns",
+        "description": "+4 ranged attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Kipchak Archer": {
     "civs": [
@@ -2100,7 +6084,79 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Biology",
+        "description": "+25% HP",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Steeled Arrow",
+        "description": "+1 ranged attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Balanced Projectiles",
+        "description": "+1 ranged attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Platecutter Point",
+        "description": "+1 ranged attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Kharash": {
     "civs": [
@@ -2114,7 +6170,9 @@
     "speed": 1.125,
     "tags": [
       "Infantry",
-      "Light Infantry"
+      "Light Infantry",
+      "Melee",
+      "Melee Infantry"
     ],
     "effects": {
       "armorAura": {
@@ -2151,7 +6209,79 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Elite Army Tactics",
+        "description": "+15% HP, +15% melee attack",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Torguud": {
     "civs": [
@@ -2166,7 +6296,8 @@
     "speed": 1.625,
     "tags": [
       "Cavalry",
-      "Heavy"
+      "Heavy",
+      "Melee"
     ],
     "weapons": {
       "primary": {
@@ -2197,7 +6328,79 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Biology",
+        "description": "+25% HP",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Atgeirmaðr": {
     "civs": [
@@ -2212,7 +6415,9 @@
     "speed": 1.25,
     "tags": [
       "Infantry",
-      "Light Infantry"
+      "Light Infantry",
+      "Melee",
+      "Melee Infantry"
     ],
     "weapons": {
       "primary": {
@@ -2325,7 +6530,8 @@
     "speed": 1.7,
     "tags": [
       "Cavalry",
-      "Heavy"
+      "Heavy",
+      "Melee"
     ],
     "weapons": {
       "primary": {
@@ -2364,7 +6570,8 @@
     "speed": 1.6,
     "tags": [
       "Cavalry",
-      "Elephant"
+      "Elephant",
+      "Melee"
     ],
     "effects": {
       "trample": {
@@ -2411,7 +6618,79 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Biology",
+        "description": "+25% HP",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Ballista Elephant": {
     "civs": [
@@ -2455,7 +6734,72 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Biology",
+        "description": "+25% HP",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Siege Works",
+        "description": "+19% HP",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Greased Axles",
+        "description": "+14% move speed",
+        "age": 3,
+        "category": "moveSpeed",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Kanabo Samurai": {
     "civs": [
@@ -2470,7 +6814,9 @@
     "speed": 1.125,
     "tags": [
       "Infantry",
-      "Heavy"
+      "Heavy",
+      "Melee",
+      "Melee Infantry"
     ],
     "effects": {
       "percentDamage": {
@@ -2523,7 +6869,9 @@
     "speed": 1.125,
     "tags": [
       "Infantry",
-      "Heavy"
+      "Heavy",
+      "Melee",
+      "Melee Infantry"
     ],
     "weapons": {
       "primary": {
@@ -2531,10 +6879,10 @@
         "attackSpeed": 1.375,
         "ages": {
           "2": {
-            "hp": 100,
-            "meleeArmor": 2,
+            "hp": 120,
+            "meleeArmor": 3,
             "rangedArmor": 3,
-            "attack": 8,
+            "attack": 10,
             "bonus": {}
           },
           "3": {
@@ -2610,7 +6958,8 @@
     "population": 1,
     "speed": 1.88,
     "tags": [
-      "Cavalry"
+      "Cavalry",
+      "Melee"
     ],
     "weapons": {
       "primary": {
@@ -2665,7 +7014,8 @@
     "speed": 1.625,
     "tags": [
       "Cavalry",
-      "Heavy"
+      "Heavy",
+      "Melee"
     ],
     "effects": {
       "camelUnease": {
@@ -2678,7 +7028,7 @@
       "primary": {
         "type": "melee",
         "range": 0.75,
-        "attackSpeed": 2.0,
+        "attackSpeed": 1.125,
         "ages": {
           "2": {
             "hp": 180,
@@ -2690,26 +7040,126 @@
             }
           },
           "3": {
-            "hp": 220,
-            "meleeArmor": 4,
-            "rangedArmor": 4,
-            "attack": 18,
+            "hp": 270,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 14,
             "bonus": {
               "Cavalry": 15
             }
           },
           "4": {
-            "hp": 260,
-            "meleeArmor": 5,
-            "rangedArmor": 5,
-            "attack": 22,
+            "hp": 320,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 16,
             "bonus": {
               "Cavalry": 18
             }
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Biology",
+        "description": "+25% HP",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Camel Rider Shields",
+        "description": "+3 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Camel Rider Barding",
+        "description": "+2 melee armor, +2 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Camel Support",
+        "description": "+2 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Camel Handling",
+        "description": "+14% move speed",
+        "age": 3,
+        "category": "moveSpeed",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Cataphract": {
     "civs": [
@@ -2725,33 +7175,146 @@
     "speed": 1.625,
     "tags": [
       "Cavalry",
-      "Heavy"
+      "Heavy",
+      "Melee"
     ],
     "weapons": {
       "primary": {
         "type": "melee",
         "range": 0.38,
-        "attackSpeed": 1.5,
+        "attackSpeed": 1.375,
         "ages": {
           "3": {
-            "hp": 280,
-            "meleeArmor": 5,
+            "hp": 360,
+            "meleeArmor": 4,
             "rangedArmor": 4,
-            "attack": 22,
+            "attack": 27,
             "chargeDamage": 12,
             "bonus": {}
           },
           "4": {
-            "hp": 330,
-            "meleeArmor": 6,
+            "hp": 405,
+            "meleeArmor": 5,
             "rangedArmor": 5,
-            "attack": 28,
+            "attack": 32,
             "chargeDamage": 14,
             "bonus": {}
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Biology",
+        "description": "+25% HP",
+        "age": 4,
+        "category": "hitpoints",
+        "civs": [
+          "Byzantines"
+        ],
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "civs": [
+          "Byzantines"
+        ],
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "civs": [
+          "Byzantines"
+        ],
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "civs": [
+          "Byzantines"
+        ],
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "civs": [
+          "Byzantines"
+        ],
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "civs": [
+          "Byzantines"
+        ],
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "civs": [
+          "Byzantines"
+        ],
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Teardrop Shields",
+        "description": "+1 melee armor, +14% move speed, +13% attack speed",
+        "age": 3,
+        "category": "armor",
+        "civs": [
+          "Byzantines"
+        ],
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "civs": [
+          "Byzantines"
+        ],
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "civs": [
+          "Byzantines"
+        ],
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "civs": [
+          "Byzantines"
+        ],
+        "totalUnitCivs": 2
+      }
+    ]
   },
   "Onna-Bugeisha": {
     "civs": [
@@ -2763,31 +7326,33 @@
     },
     "trainingTime": 15.0,
     "population": 1,
-    "speed": 1.25,
+    "speed": 1.5,
     "tags": [
       "Infantry",
-      "Light Infantry"
+      "Light Infantry",
+      "Melee",
+      "Melee Infantry"
     ],
     "weapons": {
       "primary": {
         "type": "melee",
-        "attackSpeed": 1.5,
+        "attackSpeed": 0.9,
         "ages": {
           "2": {
-            "hp": 95,
+            "hp": 85,
             "meleeArmor": 0,
-            "rangedArmor": 1,
-            "attack": 9,
+            "rangedArmor": 0,
+            "attack": 6,
             "bonus": {
               "Cavalry": 18,
               "Elephant": 4
             }
           },
           "3": {
-            "hp": 115,
+            "hp": 100,
             "meleeArmor": 0,
-            "rangedArmor": 1,
-            "attack": 11,
+            "rangedArmor": 0,
+            "attack": 7,
             "bonus": {
               "Cavalry": 22,
               "Elephant": 5
@@ -2796,8 +7361,8 @@
           "4": {
             "hp": 135,
             "meleeArmor": 0,
-            "rangedArmor": 1,
-            "attack": 13,
+            "rangedArmor": 0,
+            "attack": 8,
             "bonus": {
               "Cavalry": 26,
               "Elephant": 6
@@ -2805,7 +7370,86 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Oda Tactics",
+        "description": "+14% HP, +14% melee attack, +14% fire attack",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Tatara",
+        "description": "+1 melee attack",
+        "age": 1,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Hizukuri",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Kobuse-gitae",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Yaki-ire",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Mounted Samurai": {
     "civs": [
@@ -2813,14 +7457,15 @@
     ],
     "costs": {
       "food": 140,
-      "gold": 100
+      "gold": 110
     },
     "trainingTime": 35.0,
     "population": 1,
-    "speed": 1.63,
+    "speed": 1.625,
     "tags": [
       "Cavalry",
-      "Heavy"
+      "Heavy",
+      "Melee"
     ],
     "weapons": {
       "primary": {
@@ -2846,7 +7491,93 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Biology",
+        "description": "+25% HP",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Tatara",
+        "description": "+1 melee attack",
+        "age": 1,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Hizukuri",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Kobuse-gitae",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Yaki-ire",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Do-maru Armor",
+        "description": "+10 move speed",
+        "age": 4,
+        "category": "moveSpeed",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Camel Lancer": {
     "civs": [
@@ -2861,7 +7592,8 @@
     "speed": 1.625,
     "tags": [
       "Cavalry",
-      "Heavy"
+      "Heavy",
+      "Melee"
     ],
     "effects": {
       "camelUnease": {
@@ -2874,7 +7606,7 @@
       "primary": {
         "type": "melee",
         "range": 0.75,
-        "attackSpeed": 1.75,
+        "attackSpeed": 1.375,
         "ages": {
           "2": {
             "hp": 190,
@@ -2885,24 +7617,96 @@
             "bonus": {}
           },
           "3": {
-            "hp": 230,
+            "hp": 210,
             "meleeArmor": 4,
             "rangedArmor": 4,
-            "attack": 20,
+            "attack": 22,
             "chargeDamage": 12,
             "bonus": {}
           },
           "4": {
-            "hp": 270,
+            "hp": 245,
             "meleeArmor": 5,
             "rangedArmor": 5,
-            "attack": 24,
+            "attack": 27,
             "chargeDamage": 14,
             "bonus": {}
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Biology",
+        "description": "+25% HP",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Fire Lancer": {
     "civs": [
@@ -2915,20 +7719,21 @@
     },
     "trainingTime": 22.5,
     "population": 1,
-    "speed": 1.88,
+    "speed": 1.625,
     "tags": [
-      "Cavalry"
+      "Cavalry",
+      "Melee"
     ],
     "weapons": {
       "primary": {
         "type": "melee",
         "range": 0.38,
-        "attackSpeed": 1.75,
+        "attackSpeed": 1.625,
         "ages": {
           "3": {
             "hp": 155,
             "meleeArmor": 0,
-            "rangedArmor": 3,
+            "rangedArmor": 1,
             "attack": 11,
             "chargeDamage": 8,
             "bonus": {
@@ -2938,7 +7743,7 @@
           "4": {
             "hp": 180,
             "meleeArmor": 0,
-            "rangedArmor": 5,
+            "rangedArmor": 3,
             "attack": 13,
             "chargeDamage": 10,
             "bonus": {
@@ -2947,7 +7752,79 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Biology",
+        "description": "+25% HP",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Zhuge Nu": {
     "civs": [
@@ -2970,7 +7847,7 @@
       "primary": {
         "type": "ranged",
         "range": 4.5,
-        "attackSpeed": 1.375,
+        "attackSpeed": 1.75,
         "ages": {
           "2": {
             "hp": 70,
@@ -3004,7 +7881,89 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Steeled Arrow",
+        "description": "+1 ranged attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Balanced Projectiles",
+        "description": "+1 ranged attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "10000 Bolts",
+        "description": "+39% melee attack, +39% ranged attack, +39% fire attack",
+        "age": 4,
+        "category": "attack",
+        "civs": [
+          "Zhu Xi's Legacy"
+        ],
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Incendiary Arrows",
+        "description": "+19% ranged attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Platecutter Point",
+        "description": "+1 ranged attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 2
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 2
+      }
+    ]
   },
   "Yuan Raider": {
     "civs": [
@@ -3017,7 +7976,7 @@
     },
     "trainingTime": 26.0,
     "population": 1,
-    "speed": 1.75,
+    "speed": 2.0,
     "tags": [
       "Cavalry",
       "Ranged"
@@ -3026,7 +7985,7 @@
       "primary": {
         "type": "ranged",
         "range": 4.0,
-        "attackSpeed": 1.5,
+        "attackSpeed": 1.625,
         "ages": {
           "3": {
             "hp": 130,
@@ -3036,15 +7995,87 @@
             "bonus": {}
           },
           "4": {
-            "hp": 160,
+            "hp": 200,
             "meleeArmor": 0,
-            "rangedArmor": 2,
-            "attack": 13,
+            "rangedArmor": 4,
+            "attack": 15,
             "bonus": {}
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Biology",
+        "description": "+25% HP",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Imperial Guard": {
     "civs": [
@@ -3056,15 +8087,17 @@
     },
     "trainingTime": 24.0,
     "population": 1,
-    "speed": 1.375,
+    "speed": 1.625,
     "tags": [
       "Infantry",
-      "Heavy"
+      "Heavy",
+      "Melee",
+      "Melee Infantry"
     ],
     "weapons": {
       "primary": {
         "type": "melee",
-        "attackSpeed": 1.375,
+        "attackSpeed": 1.625,
         "ages": {
           "3": {
             "hp": 170,
@@ -3074,15 +8107,87 @@
             "bonus": {}
           },
           "4": {
-            "hp": 200,
-            "meleeArmor": 5,
-            "rangedArmor": 6,
-            "attack": 17,
+            "hp": 340,
+            "meleeArmor": 10,
+            "rangedArmor": 3,
+            "attack": 28,
             "bonus": {}
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Biology",
+        "description": "+25% HP",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Javelin Thrower": {
     "civs": [
@@ -3135,7 +8240,79 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Steeled Arrow",
+        "description": "+1 ranged attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Balanced Projectiles",
+        "description": "+1 ranged attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Platecutter Point",
+        "description": "+1 ranged attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Precision Training",
+        "description": "+6 ranged attack, +2 ranged attack, +3 ranged attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Musofadi Warrior": {
     "civs": [
@@ -3150,7 +8327,9 @@
     "speed": 1.375,
     "tags": [
       "Infantry",
-      "Light"
+      "Light",
+      "Melee",
+      "Melee Infantry"
     ],
     "weapons": {
       "primary": {
@@ -3186,7 +8365,79 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Elite Army Tactics",
+        "description": "+15% HP, +15% melee attack",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Musofadi Gunner": {
     "civs": [
@@ -3218,7 +8469,58 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Chemistry",
+        "description": "+25% ranged attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Templar Brother": {
     "civs": [
@@ -3233,7 +8535,8 @@
     "speed": 1.62,
     "tags": [
       "Cavalry",
-      "Heavy"
+      "Heavy",
+      "Melee"
     ],
     "weapons": {
       "primary": {
@@ -3259,7 +8562,79 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Biology",
+        "description": "+25% HP",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Hospitaller Knight": {
     "civs": [
@@ -3274,7 +8649,9 @@
     "speed": 1.25,
     "tags": [
       "Infantry",
-      "Heavy"
+      "Heavy",
+      "Melee",
+      "Melee Infantry"
     ],
     "effects": {
       "healAura": {
@@ -3312,7 +8689,79 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Elite Army Tactics",
+        "description": "+15% HP, +15% melee attack",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Chevalier Confrere": {
     "civs": [
@@ -3320,15 +8769,23 @@
     ],
     "costs": {
       "food": 90,
-      "gold": 76
+      "gold": 80
     },
     "trainingTime": 22.0,
     "population": 1,
     "speed": 1.62,
     "tags": [
       "Cavalry",
-      "Heavy"
+      "Heavy",
+      "Melee"
     ],
+    "effects": {
+      "brotherhoodHP": {
+        "name": "Knightly Brotherhood",
+        "description": "+1 max HP for each nearby heavy cavalry unit",
+        "hpPerUnit": 1
+      }
+    },
     "weapons": {
       "primary": {
         "type": "melee",
@@ -3361,7 +8818,79 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Biology",
+        "description": "+25% HP",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Serjeant": {
     "civs": [
@@ -3376,7 +8905,9 @@
     "speed": 1.25,
     "tags": [
       "Infantry",
-      "Heavy"
+      "Heavy",
+      "Melee",
+      "Melee Infantry"
     ],
     "weapons": {
       "primary": {
@@ -3388,26 +8919,98 @@
             "hp": 105,
             "meleeArmor": 4,
             "rangedArmor": 0,
-            "attack": 11,
+            "attack": 10,
             "bonus": {}
           },
           "3": {
             "hp": 145,
             "meleeArmor": 5,
             "rangedArmor": 0,
-            "attack": 13,
+            "attack": 12,
             "bonus": {}
           },
           "4": {
             "hp": 165,
             "meleeArmor": 6,
             "rangedArmor": 0,
-            "attack": 15,
+            "attack": 14,
             "bonus": {}
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Elite Army Tactics",
+        "description": "+15% HP, +15% melee attack",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Heavy Spearman": {
     "civs": [
@@ -3422,7 +9025,9 @@
     "speed": 1.12,
     "tags": [
       "Infantry",
-      "Heavy"
+      "Heavy",
+      "Melee",
+      "Melee Infantry"
     ],
     "weapons": {
       "primary": {
@@ -3452,7 +9057,79 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Elite Army Tactics",
+        "description": "+15% HP, +15% melee attack",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Genoese Crossbowman": {
     "civs": [
@@ -3482,7 +9159,7 @@
             "rangedArmor": 1,
             "attack": 21,
             "bonus": {
-              "Heavy": 9
+              "Melee Infantry": 9
             }
           },
           "4": {
@@ -3491,12 +9168,56 @@
             "rangedArmor": 1,
             "attack": 23,
             "bonus": {
-              "Heavy": 10
+              "Melee Infantry": 10
             }
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Genitour": {
     "civs": [
@@ -3539,7 +9260,79 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Biology",
+        "description": "+25% HP",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Steeled Arrow",
+        "description": "+1 ranged attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Balanced Projectiles",
+        "description": "+1 ranged attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Platecutter Point",
+        "description": "+1 ranged attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Szlachta Cavalry": {
     "civs": [
@@ -3554,7 +9347,8 @@
     "speed": 1.725,
     "tags": [
       "Cavalry",
-      "Heavy"
+      "Heavy",
+      "Melee"
     ],
     "effects": {
       "atkSpeedDebuff": {
@@ -3571,7 +9365,7 @@
         "attackSpeed": 1.5,
         "ages": {
           "4": {
-            "hp": 363,
+            "hp": 330,
             "meleeArmor": 2,
             "rangedArmor": 8,
             "attack": 30,
@@ -3582,7 +9376,79 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Biology",
+        "description": "+25% HP",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Teutonic Knight": {
     "civs": [
@@ -3597,7 +9463,9 @@
     "speed": 0.975,
     "tags": [
       "Infantry",
-      "Heavy"
+      "Heavy",
+      "Melee",
+      "Melee Infantry"
     ],
     "effects": {
       "armorAura": {
@@ -3614,14 +9482,86 @@
         "ages": {
           "4": {
             "hp": 310,
-            "meleeArmor": 8,
+            "meleeArmor": 6,
             "rangedArmor": 6,
             "attack": 24,
             "bonus": {}
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Elite Army Tactics",
+        "description": "+15% HP, +15% melee attack",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Condottiero": {
     "civs": [
@@ -3634,7 +9574,9 @@
     "population": 1,
     "speed": 1.44,
     "tags": [
-      "Infantry"
+      "Infantry",
+      "Melee",
+      "Melee Infantry"
     ],
     "weapons": {
       "primary": {
@@ -3654,7 +9596,79 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Elite Army Tactics",
+        "description": "+15% HP, +15% melee attack",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Landsknecht": {
     "civs": [
@@ -3669,7 +9683,9 @@
     "speed": 1.25,
     "tags": [
       "Infantry",
-      "Light Infantry"
+      "Light Infantry",
+      "Melee",
+      "Melee Infantry"
     ],
     "weapons": {
       "primary": {
@@ -3692,7 +9708,86 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Elite Army Tactics",
+        "description": "+15% HP, +15% melee attack",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Inspired Warriors",
+        "description": "+10% move speed, +1 ranged armor, +1 melee armor, +14% melee attack, +14% ranged attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Gilded Landsknecht": {
     "civs": [
@@ -3707,7 +9802,9 @@
     "speed": 1.25,
     "tags": [
       "Infantry",
-      "Light Infantry"
+      "Light Infantry",
+      "Melee",
+      "Melee Infantry"
     ],
     "weapons": {
       "primary": {
@@ -3730,7 +9827,86 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Elite Army Tactics",
+        "description": "+15% HP, +15% melee attack",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1 melee attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1 melee attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Inspired Warriors",
+        "description": "+10% move speed, +1 ranged armor, +1 melee armor, +14% melee attack, +14% ranged attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1 melee attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   },
   "Black Rider": {
     "civs": [
@@ -3772,6 +9948,92 @@
           }
         }
       }
-    }
+    },
+    "upgrades": [
+      {
+        "name": "Biology",
+        "description": "+25% HP",
+        "age": 4,
+        "category": "hitpoints",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Steeled Arrow",
+        "description": "+1 ranged attack",
+        "age": 2,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Balanced Projectiles",
+        "description": "+1 ranged attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Inspired Warriors",
+        "description": "+10% move speed, +1 ranged armor, +1 melee armor, +14% melee attack, +14% ranged attack",
+        "age": 3,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Chemistry",
+        "description": "+25% ranged attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Platecutter Point",
+        "description": "+1 ranged attack",
+        "age": 4,
+        "category": "attack",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged armor",
+        "age": 2,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged armor",
+        "age": 3,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee armor",
+        "age": 4,
+        "category": "armor",
+        "totalUnitCivs": 1
+      }
+    ]
   }
 }
