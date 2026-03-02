@@ -95,10 +95,24 @@
   </style>
 </head>
 <body>
-  <h1>Owl Tools</h1>
-  <p class="subtitle">A collection of web tools</p>
+  <div id="auth-wall" style="display:flex; flex-direction:column; align-items:center; gap:16px;">
+    <h1>Owl Tools</h1>
+    <p class="subtitle">Enter password to continue</p>
+    <form id="auth-form" style="display:flex; gap:8px;" onsubmit="return checkPass()">
+      <input type="password" id="auth-input" autocomplete="off" placeholder="Password"
+        style="background:#1a1a1a; border:1px solid #2a2a2a; border-radius:8px; padding:10px 16px; color:#e0e0e0; font-family:inherit; font-size:0.95rem; outline:none;">
+      <button type="submit"
+        style="background:#2a2a2a; border:1px solid #333; border-radius:8px; padding:10px 20px; color:#fff; font-family:inherit; cursor:pointer; transition:background 0.2s;"
+        onmouseover="this.style.background='#333'" onmouseout="this.style.background='#2a2a2a'">Enter</button>
+    </form>
+  </div>
 
-  <div class="grid">
+  <div id="hub-content" style="display:none; width:100%; display:none; flex-direction:column; align-items:center;">
+    <h1>Owl Tools</h1>
+    <p class="subtitle">A collection of web tools</p>
+  </div>
+
+  <div class="grid" style="display:none;" id="hub-grid">
     <a href="battler.html" class="card" style="--accent: #d4a44a;">
       <div class="card-icon">&#9876;&#65039;</div>
       <div class="card-title">AoE4 Battle Simulator</div>
@@ -121,6 +135,34 @@
     </a>
   </div>
 
-  <div class="footer">Owl Tools</div>
+  <div class="footer" id="hub-footer" style="display:none;">Owl Tools</div>
+
+  <script>
+    const PASS_HASH = "c952db921f20c0dab5fcac3fe47dc6c8a2fd701ceb63d007210eb6bbe4e91ead";
+    async function sha256(str) {
+      const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+      return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+    }
+    async function checkPass() {
+      const input = document.getElementById("auth-input").value;
+      const hash = await sha256(input);
+      if (hash === PASS_HASH) {
+        sessionStorage.setItem("owl-auth", "1");
+        showHub();
+      } else {
+        document.getElementById("auth-input").style.borderColor = "#e74c3c";
+        document.getElementById("auth-input").value = "";
+        document.getElementById("auth-input").placeholder = "Wrong password";
+      }
+      return false;
+    }
+    function showHub() {
+      document.getElementById("auth-wall").style.display = "none";
+      document.getElementById("hub-content").style.display = "flex";
+      document.getElementById("hub-grid").style.display = "grid";
+      document.getElementById("hub-footer").style.display = "block";
+    }
+    if (sessionStorage.getItem("owl-auth") === "1") showHub();
+  </script>
 </body>
 </html>

@@ -53,7 +53,7 @@ const CIV_ORDER = [
   "Order of the Dragon",
   "Zhu Xi's Legacy",
   "House of Lancaster",
-  "The Knights Templar",
+  "Knights Templar",
   "Golden Horde",
   "Macedonian Dynasty",
   "Sengoku Daimyo",
@@ -79,7 +79,7 @@ const CIV_FLAGS = {
   "Order of the Dragon": "AoE 4 Flags/Order_of_the_Dragon_AoE4.webp",
   "Zhu Xi's Legacy": "AoE 4 Flags/Zhu_Xis_Legacy_AoE4.webp",
   "House of Lancaster": "AoE 4 Flags/House_of_Lancaster_AoE4.webp",
-  "The Knights Templar": "AoE 4 Flags/Knights_Templar_AoE4.webp",
+  "Knights Templar": "AoE 4 Flags/Knights_Templar_AoE4.webp",
   "Golden Horde": "AoE 4 Flags/Golden_Horde_AoE4.webp",
   "Macedonian Dynasty": "AoE 4 Flags/Macedonian_Dynasty_AoE4.webp",
   "Sengoku Daimyo": "AoE 4 Flags/Sengoku_Daimyo_AoE4.webp",
@@ -678,6 +678,13 @@ function renderEffects(side, effects) {
                  value="${effect.percent}" style="font-size:0.8rem;width:80px;display:inline-block;">
           <small class="text-muted" style="font-size:0.7rem;">% of Max HP</small>
         </div>`;
+    } else if (effectId === "brotherhoodHP") {
+      valueHtml = `
+        <div class="ms-4 mt-1">
+          <input type="number" id="${checkId}_hpPerUnit" class="form-control form-control-sm"
+                 value="${effect.hpPerUnit}" style="font-size:0.8rem;width:80px;display:inline-block;">
+          <small class="text-muted" style="font-size:0.7rem;">HP per nearby unit</small>
+        </div>`;
     }
 
     container.innerHTML += `
@@ -687,7 +694,7 @@ function renderEffects(side, effects) {
                  data-effect="${effectId}" checked>
           <label class="form-check-label" for="${checkId}" style="font-size:0.85rem;">
             <strong>${effect.name}</strong>
-            <span class="text-muted" style="font-size:0.75rem;"> — ${effect.description}</span>
+            <span style="font-size:0.75rem; color:#b8ad9e;"> — ${effect.description}</span>
           </label>
         </div>
         ${valueHtml}
@@ -738,6 +745,8 @@ function collectEffects(side) {
       effects.trample = { dps: getVal("dps"), duration: getVal("duration"), cooldown: getVal("cooldown"), unitsHit: getVal("unitsHit") || 3 };
     } else if (effectId === "percentDamage") {
       effects.percentDamage = { percent: getVal("percent") };
+    } else if (effectId === "brotherhoodHP") {
+      effects.brotherhoodHP = { hpPerUnit: getVal("hpPerUnit") };
     }
   });
 
@@ -856,7 +865,7 @@ function showUnitDetail(side) {
     if (!weapon) continue;
 
     weaponsHtml += `<h6 style="color:${teamColor}; margin-top:12px; font-family:'Cinzel',serif;">${wLabel} — ${weapon.type.charAt(0).toUpperCase() + weapon.type.slice(1)}</h6>`;
-    weaponsHtml += `<div style="font-size:0.8rem; color:#999; margin-bottom:8px;">Attack Speed: ${weapon.attackSpeed}s | Range: ${weapon.range}</div>`;
+    weaponsHtml += `<div style="font-size:0.8rem; color:#b8ad9e; margin-bottom:8px;">Attack Speed: ${weapon.attackSpeed}s | Range: ${weapon.range}</div>`;
     weaponsHtml += `<div class="table-responsive"><table class="table table-sm" style="color:#e0d6c2; font-size:0.85rem;">`;
     weaponsHtml += `<thead><tr style="border-color:#444;"><th>Age</th><th>HP</th><th>Atk</th><th>M.Arm</th><th>R.Arm</th><th>Charge</th><th>Bonuses</th></tr></thead><tbody>`;
 
@@ -886,17 +895,59 @@ function showUnitDetail(side) {
 
   const tags = (unit.tags || []).map(t => `<span style="display:inline-block; padding:2px 10px; margin:2px; border-radius:12px; font-size:0.75rem; background:rgba(212,164,74,0.15); color:#d4a44a; border:1px solid rgba(212,164,74,0.3);">${t}</span>`).join("");
 
+  // Build upgrades detail grouped by category
+  let upgradesHtml = "";
+  if (unit.upgrades && unit.upgrades.length > 0) {
+    upgradesHtml = `<h6 style="color:${teamColor}; margin-top:16px; font-family:'Cinzel',serif;">Technologies</h6>`;
+    const catLabels = {hitpoints:"Hit Points", attack:"Attack", armor:"Armor", attackSpeed:"Attack Speed", moveSpeed:"Move Speed", other:"Other"};
+    const catIcons = {hitpoints:"\u2764\uFE0F", attack:"\u2694\uFE0F", armor:"\uD83D\uDEE1\uFE0F", attackSpeed:"\u23F1\uFE0F", moveSpeed:"\uD83D\uDC5F", other:"\u2699\uFE0F"};
+    let curCat = null;
+    const flagImg = (civ) => CIV_FLAGS[civ] ? `<img src="${CIV_FLAGS[civ]}" alt="${civ}" title="${civ}" style="height:16px; border-radius:2px; vertical-align:middle;">` : `<span style="font-size:0.7rem; color:#b8ad9e;" title="${civ}">${civ}</span>`;
+
+    upgradesHtml += `<div style="border:1px solid rgba(212,164,74,0.2); border-radius:8px; overflow:hidden;">`;
+    for (const upg of unit.upgrades) {
+      if (upg.category !== curCat) {
+        curCat = upg.category;
+        upgradesHtml += `<div style="background:rgba(212,164,74,0.12); padding:6px 12px; font-size:0.8rem; font-weight:600; color:#d4a44a; border-top:1px solid rgba(212,164,74,0.2);">${catIcons[curCat] || ""} ${catLabels[curCat] || curCat}</div>`;
+      }
+      // Build civ info string
+      let civInfo = "";
+      if (upg.except && upg.except.length > 0) {
+        civInfo = `<span style="color:#b8ad9e; font-size:0.75rem; margin-left:6px;">(except ${upg.except.map(c => flagImg(c)).join(" ")})</span>`;
+      } else if (upg.civs && upg.civs.length > 0) {
+        civInfo = `<span style="margin-left:6px;">${upg.civs.map(c => flagImg(c)).join(" ")}</span>`;
+      }
+
+      upgradesHtml += `<div style="padding:5px 12px; border-top:1px solid rgba(255,255,255,0.05); font-size:0.82rem; display:flex; align-items:center; flex-wrap:wrap; gap:4px;">`;
+      upgradesHtml += `<strong style="color:#e0d6c2;">${upg.name}</strong>`;
+      upgradesHtml += `<span style="color:#e0d6c2;">(${upg.description})</span>`;
+      upgradesHtml += civInfo;
+      upgradesHtml += `</div>`;
+
+      if (upg.improved) {
+        const impCivInfo = upg.improved.civs ? `<span style="margin-left:6px;">${upg.improved.civs.map(c => flagImg(c)).join(" ")}</span>` : "";
+        upgradesHtml += `<div style="padding:4px 12px 4px 24px; border-top:1px solid rgba(255,255,255,0.03); font-size:0.78rem; display:flex; align-items:center; flex-wrap:wrap; gap:4px; background:rgba(232,195,74,0.04);">`;
+        upgradesHtml += `<strong style="color:#e8c34a;">Improved</strong>`;
+        upgradesHtml += `<span style="color:#e0d6c2;">(${upg.improved.description})</span>`;
+        upgradesHtml += impCivInfo;
+        upgradesHtml += `</div>`;
+      }
+    }
+    upgradesHtml += `</div>`;
+  }
+
   document.getElementById("unitDetailBody").innerHTML = `
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px; font-size:0.9rem;">
-      <div><span style="color:#999;">Civilizations:</span> ${unit.civs.join(", ")}</div>
-      <div><span style="color:#999;">Cost:</span> ${costParts.join(" / ") || "Free"}</div>
-      <div><span style="color:#999;">Training Time:</span> ${unit.trainingTime || "—"}s</div>
-      <div><span style="color:#999;">Speed:</span> ${unit.speed || "—"}</div>
-      <div><span style="color:#999;">Population:</span> ${unit.population || 1}</div>
+      <div><span style="color:#b8ad9e;">Civilizations:</span> ${unit.civs.join(", ")}</div>
+      <div><span style="color:#b8ad9e;">Cost:</span> ${costParts.join(" / ") || "Free"}</div>
+      <div><span style="color:#b8ad9e;">Training Time:</span> ${unit.trainingTime || "—"}s</div>
+      <div><span style="color:#b8ad9e;">Speed:</span> ${unit.speed || "—"}</div>
+      <div><span style="color:#b8ad9e;">Population:</span> ${unit.population || 1}</div>
     </div>
     <div style="margin-bottom:12px;">${tags}</div>
     ${weaponsHtml}
     ${effectsHtml}
+    ${upgradesHtml}
   `;
 
   new bootstrap.Modal(document.getElementById("unitDetailModal")).show();
@@ -1215,6 +1266,16 @@ function runBattle() {
     trampleActive: false,
     trampleEnd: -1,
   };
+
+  // Brotherhood HP: track base hp separately, effective hp includes brotherhood bonus
+  teamA.baseHp = teamA.stats.hp;
+  teamB.baseHp = teamB.stats.hp;
+  if (unitA.effects.brotherhoodHP) {
+    teamA.stats.hp = teamA.baseHp + unitA.effects.brotherhoodHP.hpPerUnit * (teamA.units - 1);
+  }
+  if (unitB.effects.brotherhoodHP) {
+    teamB.stats.hp = teamB.baseHp + unitB.effects.brotherhoodHP.hpPerUnit * (teamB.units - 1);
+  }
 
   teamA.totalHp = teamA.stats.hp * teamA.units;
   teamB.totalHp = teamB.stats.hp * teamB.units;
@@ -1578,6 +1639,27 @@ function runBattle() {
         (teamA.stats.hp * teamA.units - teamA.totalHp) / teamA.stats.hp
       );
       teamA.units = Math.max(0, teamA.units - unitsLost);
+    }
+
+    // Brotherhood HP: recalculate effective HP per unit as allies die
+    if (unitA.effects.brotherhoodHP && teamA.units > 0) {
+      const oldHpPer = teamA.stats.hp;
+      const newHpPer = teamA.baseHp + unitA.effects.brotherhoodHP.hpPerUnit * (teamA.units - 1);
+      if (newHpPer !== oldHpPer) {
+        // Reduce totalHp proportionally: each surviving unit loses the difference
+        teamA.totalHp -= (oldHpPer - newHpPer) * teamA.units;
+        teamA.totalHp = Math.max(teamA.units, teamA.totalHp); // at least 1 hp per unit
+        teamA.stats.hp = newHpPer;
+      }
+    }
+    if (unitB.effects.brotherhoodHP && teamB.units > 0) {
+      const oldHpPer = teamB.stats.hp;
+      const newHpPer = teamB.baseHp + unitB.effects.brotherhoodHP.hpPerUnit * (teamB.units - 1);
+      if (newHpPer !== oldHpPer) {
+        teamB.totalHp -= (oldHpPer - newHpPer) * teamB.units;
+        teamB.totalHp = Math.max(teamB.units, teamB.totalHp);
+        teamB.stats.hp = newHpPer;
+      }
     }
 
     // --- Build log notes for effects ---

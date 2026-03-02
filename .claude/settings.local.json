@@ -13,7 +13,13 @@
       "Bash(python3:*)",
       "Bash(where:*)",
       "Bash(\"C:\\\\Users\\\\ahmet\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python313\\\\python.exe\":*)",
-      "Bash(node -e \"const d=require\\(''./units_restructured.json''\\); const tags={}; Object.entries\\(d\\).forEach\\(\\([n,u]\\)=>{\\(u.tags||[]\\).forEach\\(t=>{if\\(!tags[t]\\)tags[t]=[];tags[t].push\\(n\\)}\\)}\\); Object.keys\\(tags\\).sort\\(\\).forEach\\(t=>console.log\\(t+'': ''+tags[t].length\\)\\)\")"
+      "Bash(node -e \"const d=require\\(''./units_restructured.json''\\); const tags={}; Object.entries\\(d\\).forEach\\(\\([n,u]\\)=>{\\(u.tags||[]\\).forEach\\(t=>{if\\(!tags[t]\\)tags[t]=[];tags[t].push\\(n\\)}\\)}\\); Object.keys\\(tags\\).sort\\(\\).forEach\\(t=>console.log\\(t+'': ''+tags[t].length\\)\\)\")",
+      "Bash(sed 's/\"\"//g')",
+      "WebFetch(domain:aoe4world.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(ls \"c:/Users/ahmet/Desktop/VSCode Stuff/Owl AoE4 Unit Battler/\"*.html)",
+      "Bash(printf '%s' 'Hoot!Hoot!')"
     ]
   }
 }
