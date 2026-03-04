@@ -685,6 +685,74 @@ function renderEffects(side, effects) {
                  value="${effect.hpPerUnit}" style="font-size:0.8rem;width:80px;display:inline-block;">
           <small class="text-muted" style="font-size:0.7rem;">HP per nearby unit</small>
         </div>`;
+    } else if (effectId === "healAura") {
+      valueHtml = `
+        <div class="ms-4 mt-1">
+          <input type="number" id="${checkId}_hps" class="form-control form-control-sm"
+                 value="${effect.hps}" style="font-size:0.8rem;width:80px;display:inline-block;">
+          <small class="text-muted" style="font-size:0.7rem;">HP/s healed</small>
+        </div>`;
+    } else if (effectId === "atkSpeedDebuff") {
+      valueHtml = `
+        <div class="row g-1 mt-1 ms-4">
+          <div class="col-6">
+            <input type="number" id="${checkId}_reduction" class="form-control form-control-sm"
+                   value="${effect.reduction}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">-Atk Spd %</small>
+          </div>
+          <div class="col-6">
+            <input type="number" id="${checkId}_duration" class="form-control form-control-sm"
+                   value="${effect.duration}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">Duration (s)</small>
+          </div>
+        </div>`;
+    } else if (effectId === "caracole") {
+      valueHtml = `
+        <div class="row g-1 mt-1 ms-4">
+          <div class="col-4">
+            <input type="number" id="${checkId}_speedBonus" class="form-control form-control-sm"
+                   value="${effect.speedBonus}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">+Speed %</small>
+          </div>
+          <div class="col-4">
+            <input type="number" id="${checkId}_duration" class="form-control form-control-sm"
+                   value="${effect.duration}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">Duration (s)</small>
+          </div>
+          <div class="col-4">
+            <input type="number" id="${checkId}_cooldown" class="form-control form-control-sm"
+                   value="${effect.cooldown}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">CD (s)</small>
+          </div>
+        </div>`;
+    } else if (effectId === "armorDebuffAura") {
+      valueHtml = `
+        <div class="ms-4 mt-1">
+          <input type="number" id="${checkId}_armorReduction" class="form-control form-control-sm"
+                 value="${effect.armorReduction}" style="font-size:0.8rem;width:80px;display:inline-block;">
+          <small class="text-muted" style="font-size:0.7rem;">-Armor to enemies</small>
+        </div>`;
+    } else if (effectId === "battleGlory") {
+      valueHtml = `
+        <div class="row g-1 mt-1 ms-4">
+          <div class="col-6">
+            <input type="number" id="${checkId}_hpPerKill" class="form-control form-control-sm"
+                   value="${effect.hpPerKill}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">+HP per kill</small>
+          </div>
+          <div class="col-6">
+            <input type="number" id="${checkId}_attackPerKill" class="form-control form-control-sm"
+                   value="${effect.attackPerKill}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">+Atk per kill</small>
+          </div>
+        </div>`;
+    } else if (effectId === "aoeSplash") {
+      valueHtml = `
+        <div class="ms-4 mt-1">
+          <input type="number" id="${checkId}_unitsHit" class="form-control form-control-sm"
+                 value="${effect.unitsHit}" style="font-size:0.8rem;width:80px;display:inline-block;">
+          <small class="text-muted" style="font-size:0.7rem;">Units hit per attack</small>
+        </div>`;
     }
 
     container.innerHTML += `
@@ -747,6 +815,18 @@ function collectEffects(side) {
       effects.percentDamage = { percent: getVal("percent") };
     } else if (effectId === "brotherhoodHP") {
       effects.brotherhoodHP = { hpPerUnit: getVal("hpPerUnit") };
+    } else if (effectId === "healAura") {
+      effects.healAura = { hps: getVal("hps") };
+    } else if (effectId === "atkSpeedDebuff") {
+      effects.atkSpeedDebuff = { reduction: getVal("reduction"), duration: getVal("duration") };
+    } else if (effectId === "caracole") {
+      effects.caracole = { speedBonus: getVal("speedBonus"), duration: getVal("duration"), cooldown: getVal("cooldown") };
+    } else if (effectId === "armorDebuffAura") {
+      effects.armorDebuffAura = { armorReduction: getVal("armorReduction") };
+    } else if (effectId === "battleGlory") {
+      effects.battleGlory = { hpPerKill: getVal("hpPerKill"), attackPerKill: getVal("attackPerKill") };
+    } else if (effectId === "aoeSplash") {
+      effects.aoeSplash = { unitsHit: getVal("unitsHit") };
     }
   });
 
@@ -899,8 +979,8 @@ function showUnitDetail(side) {
   let upgradesHtml = "";
   if (unit.upgrades && unit.upgrades.length > 0) {
     upgradesHtml = `<h6 style="color:${teamColor}; margin-top:16px; font-family:'Cinzel',serif;">Technologies</h6>`;
-    const catLabels = {hitpoints:"Hit Points", attack:"Attack", armor:"Armor", attackSpeed:"Attack Speed", moveSpeed:"Move Speed", other:"Other"};
-    const catIcons = {hitpoints:"\u2764\uFE0F", attack:"\u2694\uFE0F", armor:"\uD83D\uDEE1\uFE0F", attackSpeed:"\u23F1\uFE0F", moveSpeed:"\uD83D\uDC5F", other:"\u2699\uFE0F"};
+    const catLabels = {hitpoints:"Hit Points", attack:"Attack", armor:"Armor", attackSpeed:"Attack Speed", moveSpeed:"Move Speed", range:"Range", creationSpeed:"Creation Speed", upgrading:"Upgrading", ability:"Ability", cost:"Cost", other:"Other"};
+    const catIcons = {hitpoints:"\u2764\uFE0F", attack:"\u2694\uFE0F", armor:"\uD83D\uDEE1\uFE0F", attackSpeed:"\u23F1\uFE0F", moveSpeed:"\uD83D\uDC5F", range:"\uD83C\uDFAF", creationSpeed:"\u23F3", upgrading:"\u2B06\uFE0F", ability:"\u2728", cost:"\uD83D\uDCB0", other:"\u2699\uFE0F"};
     let curCat = null;
     const flagImg = (civ) => CIV_FLAGS[civ] ? `<img src="${CIV_FLAGS[civ]}" alt="${civ}" title="${civ}" style="height:16px; border-radius:2px; vertical-align:middle;">` : `<span style="font-size:0.7rem; color:#b8ad9e;" title="${civ}">${civ}</span>`;
 
@@ -910,11 +990,8 @@ function showUnitDetail(side) {
         curCat = upg.category;
         upgradesHtml += `<div style="background:rgba(212,164,74,0.12); padding:6px 12px; font-size:0.8rem; font-weight:600; color:#d4a44a; border-top:1px solid rgba(212,164,74,0.2);">${catIcons[curCat] || ""} ${catLabels[curCat] || curCat}</div>`;
       }
-      // Build civ info string
       let civInfo = "";
-      if (upg.except && upg.except.length > 0) {
-        civInfo = `<span style="color:#b8ad9e; font-size:0.75rem; margin-left:6px;">(except ${upg.except.map(c => flagImg(c)).join(" ")})</span>`;
-      } else if (upg.civs && upg.civs.length > 0) {
+      if (upg.civs && upg.civs.length > 0) {
         civInfo = `<span style="margin-left:6px;">${upg.civs.map(c => flagImg(c)).join(" ")}</span>`;
       }
 
@@ -924,16 +1001,40 @@ function showUnitDetail(side) {
       upgradesHtml += civInfo;
       upgradesHtml += `</div>`;
 
-      if (upg.improved) {
-        const impCivInfo = upg.improved.civs ? `<span style="margin-left:6px;">${upg.improved.civs.map(c => flagImg(c)).join(" ")}</span>` : "";
-        upgradesHtml += `<div style="padding:4px 12px 4px 24px; border-top:1px solid rgba(255,255,255,0.03); font-size:0.78rem; display:flex; align-items:center; flex-wrap:wrap; gap:4px; background:rgba(232,195,74,0.04);">`;
-        upgradesHtml += `<strong style="color:#e8c34a;">Improved</strong>`;
-        upgradesHtml += `<span style="color:#e0d6c2;">(${upg.improved.description})</span>`;
-        upgradesHtml += impCivInfo;
-        upgradesHtml += `</div>`;
-      }
     }
     upgradesHtml += `</div>`;
+  }
+
+  // Build aura buffs display grouped by category
+  let aurasHtml = "";
+  if (unit.auras && unit.auras.length > 0) {
+    aurasHtml = `<h6 style="color:${teamColor}; margin-top:16px; font-family:'Cinzel',serif;">Aura Buffs</h6>`;
+    const catLabels = {hitpoints:"Hit Points", attack:"Attack", armor:"Armor", attackSpeed:"Attack Speed", moveSpeed:"Move Speed", range:"Range", creationSpeed:"Creation Speed", upgrading:"Upgrading", ability:"Ability", cost:"Cost", other:"Other"};
+    const catIcons = {hitpoints:"\u2764\uFE0F", attack:"\u2694\uFE0F", armor:"\uD83D\uDEE1\uFE0F", attackSpeed:"\u23F1\uFE0F", moveSpeed:"\uD83D\uDC5F", range:"\uD83C\uDFAF", creationSpeed:"\u23F3", upgrading:"\u2B06\uFE0F", ability:"\u2728", cost:"\uD83D\uDCB0", other:"\u2699\uFE0F"};
+    const flagImg = (civ) => CIV_FLAGS[civ] ? `<img src="${CIV_FLAGS[civ]}" alt="${civ}" title="${civ}" style="height:16px; border-radius:2px; vertical-align:middle;">` : `<span style="font-size:0.7rem; color:#b8ad9e;" title="${civ}">${civ}</span>`;
+
+    // Sort auras by category
+    const catOrder = ["attackSpeed", "attack", "armor", "hitpoints", "moveSpeed", "range", "creationSpeed", "ability", "cost", "other"];
+    const sortedAuras = [...unit.auras].sort((a, b) => catOrder.indexOf(a.category) - catOrder.indexOf(b.category));
+
+    let curCat = null;
+    aurasHtml += `<div style="border:1px solid rgba(100,180,255,0.2); border-radius:8px; overflow:hidden;">`;
+    for (const aura of sortedAuras) {
+      if (aura.category !== curCat) {
+        curCat = aura.category;
+        aurasHtml += `<div style="background:rgba(100,180,255,0.08); padding:6px 12px; font-size:0.8rem; font-weight:600; color:#6ab4ff; border-top:1px solid rgba(100,180,255,0.2);">${catIcons[curCat] || ""} ${catLabels[curCat] || curCat}</div>`;
+      }
+      let civInfo = "";
+      if (aura.civs && aura.civs.length > 0) {
+        civInfo = `<span style="margin-left:6px;">${aura.civs.map(c => flagImg(c)).join(" ")}</span>`;
+      }
+      aurasHtml += `<div style="padding:5px 12px; border-top:1px solid rgba(255,255,255,0.05); font-size:0.82rem; display:flex; align-items:center; flex-wrap:wrap; gap:4px;">`;
+      aurasHtml += `<strong style="color:#e0d6c2;">${aura.name}</strong>`;
+      aurasHtml += `<span style="color:#e0d6c2;">(${aura.description})</span>`;
+      aurasHtml += civInfo;
+      aurasHtml += `</div>`;
+    }
+    aurasHtml += `</div>`;
   }
 
   document.getElementById("unitDetailBody").innerHTML = `
@@ -948,6 +1049,7 @@ function showUnitDetail(side) {
     ${weaponsHtml}
     ${effectsHtml}
     ${upgradesHtml}
+    ${aurasHtml}
   `;
 
   new bootstrap.Modal(document.getElementById("unitDetailModal")).show();
@@ -1317,8 +1419,12 @@ function runBattle() {
   const maxTime = 300;
   const EPSILON = 0.0001;
 
+  // Track atkSpeedDebuff applied by enemy
+  teamA.atkSpeedDebuffUntil = -Infinity;
+  teamB.atkSpeedDebuffUntil = -Infinity;
+
   // --- Helper: apply unique effect stat modifiers for a team at current time ---
-  function getEffectiveAttackSpeed(unit, baseAttackSpeed, time) {
+  function getEffectiveAttackSpeed(unit, baseAttackSpeed, time, team) {
     let atkSpeed = baseAttackSpeed;
     const fx = unit.effects;
 
@@ -1338,20 +1444,28 @@ function runBattle() {
     if (fx.shieldWall) {
       atkSpeed /= (1 - fx.shieldWall.atkSpeedPenalty / 100);
     }
+    // Atk Speed Debuff from enemy (e.g. Szlachta Bludgeoning Attacks)
+    if (team && team.atkSpeedDebuffUntil >= time - EPSILON) {
+      atkSpeed /= (1 - team.atkSpeedDebuffReduction / 100);
+    }
     return atkSpeed;
   }
 
-  function getEffectiveAttack(unit, baseAttack, time) {
+  function getEffectiveAttack(unit, baseAttack, time, team) {
     let atk = baseAttack;
     const fx = unit.effects;
     // Berserking: +attackBonus for duration
     if (fx.berserking && time <= fx.berserking.duration + EPSILON) {
       atk += fx.berserking.attackBonus;
     }
+    // Battle Glory: accumulated attack bonus from kills
+    if (team && team.gloryBonusAtk) {
+      atk += team.gloryBonusAtk;
+    }
     return atk;
   }
 
-  function getEffectiveArmor(unit, baseMeleeArmor, baseRangedArmor, time) {
+  function getEffectiveArmor(unit, baseMeleeArmor, baseRangedArmor, time, enemyEffects) {
     let mArmor = baseMeleeArmor;
     let rArmor = baseRangedArmor;
     const fx = unit.effects;
@@ -1368,6 +1482,11 @@ function runBattle() {
     if (fx.armorAura) {
       mArmor += fx.armorAura.armorBonus;
       rArmor += fx.armorAura.armorBonus;
+    }
+    // Teutonic Wrath: enemy reduces our armor
+    if (enemyEffects && enemyEffects.armorDebuffAura) {
+      mArmor -= enemyEffects.armorDebuffAura.armorReduction;
+      rArmor -= enemyEffects.armorDebuffAura.armorReduction;
     }
     return { meleeArmor: mArmor, rangedArmor: rArmor };
   }
@@ -1391,10 +1510,10 @@ function runBattle() {
     teamB.stats = applyBuffs(unitB, time);
 
     // Apply unique effect stat modifiers
-    const atkSpeedA = getEffectiveAttackSpeed(unitA, teamA.stats.attackSpeed, time);
-    const atkSpeedB = getEffectiveAttackSpeed(unitB, teamB.stats.attackSpeed, time);
-    const armorA = getEffectiveArmor(unitA, teamA.stats.meleeArmor, teamA.stats.rangedArmor, time);
-    const armorB = getEffectiveArmor(unitB, teamB.stats.meleeArmor, teamB.stats.rangedArmor, time);
+    const atkSpeedA = getEffectiveAttackSpeed(unitA, teamA.stats.attackSpeed, time, teamA);
+    const atkSpeedB = getEffectiveAttackSpeed(unitB, teamB.stats.attackSpeed, time, teamB);
+    const armorA = getEffectiveArmor(unitA, teamA.stats.meleeArmor, teamA.stats.rangedArmor, time, unitB.effects);
+    const armorB = getEffectiveArmor(unitB, teamB.stats.meleeArmor, teamB.stats.rangedArmor, time, unitA.effects);
 
     // Build effective stat objects for damage calc
     const effectiveStatsA = { ...teamA.stats, ...armorA };
@@ -1409,7 +1528,7 @@ function runBattle() {
 
     // === TEAM A PRIMARY WEAPON ===
     if (teamA.nextPrimaryAttack <= time + EPSILON && teamA.units > 0) {
-      let attackValue = getEffectiveAttack(unitA, teamA.stats.attack, time);
+      let attackValue = getEffectiveAttack(unitA, teamA.stats.attack, time, teamA);
       if (!teamA.hasCharged && unitA.chargeDamage > 0) {
         attackValue += unitA.chargeDamage;
         teamA.hasCharged = true;
@@ -1427,10 +1546,18 @@ function runBattle() {
         teamB.tags,
         effectiveStatsB
       );
-      damageToB += dmg * teamA.units;
+      // AoE Splash: each unit hits multiple enemies
+      const splashA = unitA.effects.aoeSplash ? Math.min(unitA.effects.aoeSplash.unitsHit, teamB.units) : 1;
+      damageToB += dmg * teamA.units * splashA;
       teamA.nextPrimaryAttack = time + atkSpeedA;
       aFiredPrimary = true;
       if (unitA.chargeDamage > 0 && (!teamA.hasCharged || time <= teamA.chargeTime + EPSILON)) logNotesA.push("Charge");
+      if (unitA.effects.aoeSplash && splashA > 1) logNotesA.push(`AoE×${splashA}`);
+      // Atk Speed Debuff: slow enemy on hit
+      if (unitA.effects.atkSpeedDebuff) {
+        teamB.atkSpeedDebuffUntil = time + unitA.effects.atkSpeedDebuff.duration;
+        teamB.atkSpeedDebuffReduction = unitA.effects.atkSpeedDebuff.reduction;
+      }
     }
 
     // === TEAM A SECONDARY WEAPON ===
@@ -1451,7 +1578,7 @@ function runBattle() {
 
     // === TEAM B PRIMARY WEAPON ===
     if (teamB.nextPrimaryAttack <= time + EPSILON && teamB.units > 0) {
-      let attackValue = getEffectiveAttack(unitB, teamB.stats.attack, time);
+      let attackValue = getEffectiveAttack(unitB, teamB.stats.attack, time, teamB);
       if (!teamB.hasCharged && unitB.chargeDamage > 0) {
         attackValue += unitB.chargeDamage;
         teamB.hasCharged = true;
@@ -1469,10 +1596,18 @@ function runBattle() {
         teamA.tags,
         effectiveStatsA
       );
-      damageToA += dmg * teamB.units;
+      // AoE Splash: each unit hits multiple enemies
+      const splashB = unitB.effects.aoeSplash ? Math.min(unitB.effects.aoeSplash.unitsHit, teamA.units) : 1;
+      damageToA += dmg * teamB.units * splashB;
       teamB.nextPrimaryAttack = time + atkSpeedB;
       bFiredPrimary = true;
       if (unitB.chargeDamage > 0 && (!teamB.hasCharged || time <= teamB.chargeTime + EPSILON)) logNotesB.push("Charge");
+      if (unitB.effects.aoeSplash && splashB > 1) logNotesB.push(`AoE×${splashB}`);
+      // Atk Speed Debuff: slow enemy on hit
+      if (unitB.effects.atkSpeedDebuff) {
+        teamA.atkSpeedDebuffUntil = time + unitB.effects.atkSpeedDebuff.duration;
+        teamA.atkSpeedDebuffReduction = unitB.effects.atkSpeedDebuff.reduction;
+      }
     }
 
     // === TEAM B SECONDARY WEAPON ===
@@ -1579,7 +1714,9 @@ function runBattle() {
     }
 
     // === APPLY OVERKILL WASTE: each attacker can only kill its target, excess is lost ===
+    let wasteA = 0, wasteB = 0;
     if (overkillEnabled) {
+      const rawDmgToB = damageToB, rawDmgToA = damageToA;
       if (damageToB > 0 && teamA.units > 0) {
         const dmgPer = damageToB / teamA.units;
         const hpPer = teamB.stats.hp;
@@ -1608,6 +1745,8 @@ function runBattle() {
         }
         damageToA = eff;
       }
+      wasteA = rawDmgToB - damageToB;
+      wasteB = rawDmgToA - damageToA;
     }
 
     // Apply damage SIMULTANEOUSLY
@@ -1626,7 +1765,27 @@ function runBattle() {
       teamB.totalHp = Math.min(maxHpB, teamB.totalHp + healB.value * teamB.units);
     }
 
+    // Heal Aura: passive HP/s regen for all friendly units (e.g. Hospitaller Knight)
+    if (unitA.effects.healAura && teamA.units > 0) {
+      const dt = time - (teamA.lastHealAuraTime || 0);
+      if (dt > 0) {
+        const maxHpA = teamA.stats.hp * teamA.units;
+        teamA.totalHp = Math.min(maxHpA, teamA.totalHp + unitA.effects.healAura.hps * teamA.units * dt);
+      }
+    }
+    if (unitB.effects.healAura && teamB.units > 0) {
+      const dt = time - (teamB.lastHealAuraTime || 0);
+      if (dt > 0) {
+        const maxHpB = teamB.stats.hp * teamB.units;
+        teamB.totalHp = Math.min(maxHpB, teamB.totalHp + unitB.effects.healAura.hps * teamB.units * dt);
+      }
+    }
+    teamA.lastHealAuraTime = time;
+    teamB.lastHealAuraTime = time;
+
     // Update unit counts after both damages are applied
+    const prevUnitsB = teamB.units;
+    const prevUnitsA = teamA.units;
     if (damageToB > 0) {
       const unitsLost = Math.floor(
         (teamB.stats.hp * teamB.units - teamB.totalHp) / teamB.stats.hp
@@ -1639,6 +1798,24 @@ function runBattle() {
         (teamA.stats.hp * teamA.units - teamA.totalHp) / teamA.stats.hp
       );
       teamA.units = Math.max(0, teamA.units - unitsLost);
+    }
+
+    // Battle Glory: +HP and +attack per kill (e.g. Teutonic Knight)
+    const killsByA = prevUnitsB - teamB.units;
+    const killsByB = prevUnitsA - teamA.units;
+    if (unitA.effects.battleGlory && killsByA > 0 && teamA.units > 0) {
+      const bg = unitA.effects.battleGlory;
+      teamA.gloryBonusHp = (teamA.gloryBonusHp || 0) + bg.hpPerKill * killsByA;
+      teamA.gloryBonusAtk = (teamA.gloryBonusAtk || 0) + bg.attackPerKill * killsByA;
+      teamA.stats.hp = teamA.baseHp + teamA.gloryBonusHp;
+      teamA.totalHp += bg.hpPerKill * killsByA * teamA.units;
+    }
+    if (unitB.effects.battleGlory && killsByB > 0 && teamB.units > 0) {
+      const bg = unitB.effects.battleGlory;
+      teamB.gloryBonusHp = (teamB.gloryBonusHp || 0) + bg.hpPerKill * killsByB;
+      teamB.gloryBonusAtk = (teamB.gloryBonusAtk || 0) + bg.attackPerKill * killsByB;
+      teamB.stats.hp = teamB.baseHp + teamB.gloryBonusHp;
+      teamB.totalHp += bg.hpPerKill * killsByB * teamB.units;
     }
 
     // Brotherhood HP: recalculate effective HP per unit as allies die
@@ -1671,15 +1848,19 @@ function runBattle() {
     if (unitB.effects.percentDamage && damageToA > 0) logNotesB.push("%HP");
     if (unitB.effects.trample && teamB.trampleActive) logNotesB.push("Trample");
     if (unitB.effects.deflectiveArmor && teamB.hasBlocked && damageToB === 0) logNotesB.push("Blocked");
+    if (unitA.effects.atkSpeedDebuff && aFiredPrimary) logNotesA.push("Slow");
+    if (unitB.effects.atkSpeedDebuff && bFiredPrimary) logNotesB.push("Slow");
+    if (unitA.effects.healAura) logNotesA.push("Heal");
+    if (unitB.effects.healAura) logNotesB.push("Heal");
 
     // --- Push battle log entry ---
     const aWeapon = aFiredPrimary && aFiredSecondary ? "Both" : aFiredPrimary ? "Primary" : aFiredSecondary ? "Secondary" : "—";
     const bWeapon = bFiredPrimary && bFiredSecondary ? "Both" : bFiredPrimary ? "Primary" : bFiredSecondary ? "Secondary" : "—";
     battleLog.push({
       time: time.toFixed(2),
-      aWeapon, aDmg: damageToB.toFixed(1),
+      aWeapon, aDmg: damageToB.toFixed(1), aWaste: wasteA.toFixed(1),
       aUnits: teamA.units, aHp: Math.round(teamA.totalHp),
-      bWeapon, bDmg: damageToA.toFixed(1),
+      bWeapon, bDmg: damageToA.toFixed(1), bWaste: wasteB.toFixed(1),
       bUnits: teamB.units, bHp: Math.round(teamB.totalHp),
       notes: [...logNotesA, ...logNotesB].join(", ")
     });
@@ -1810,21 +1991,22 @@ function runBattle() {
   // Render battle log table
   const logContainer = document.getElementById("battleLogContainer");
   if (battleLog.length > 0) {
+    const showWaste = overkillEnabled;
     let html = `<table class="battle-log-table">
       <thead><tr>
         <th>Time</th>
-        <th class="team-a-col">Weapon</th><th class="team-a-col">Dmg Dealt</th>
+        <th class="team-a-col">Weapon</th><th class="team-a-col">Dmg Dealt</th>${showWaste ? '<th class="team-a-col">Wasted</th>' : ''}
         <th class="team-a-col">Units</th><th class="team-a-col">Total HP</th>
-        <th class="team-b-col">Weapon</th><th class="team-b-col">Dmg Dealt</th>
+        <th class="team-b-col">Weapon</th><th class="team-b-col">Dmg Dealt</th>${showWaste ? '<th class="team-b-col">Wasted</th>' : ''}
         <th class="team-b-col">Units</th><th class="team-b-col">Total HP</th>
         <th>Notes</th>
       </tr></thead><tbody>`;
     for (const e of battleLog) {
       html += `<tr>
         <td>${e.time}s</td>
-        <td class="team-a-col">${e.aWeapon}</td><td class="team-a-col">${e.aDmg}</td>
+        <td class="team-a-col">${e.aWeapon}</td><td class="team-a-col">${e.aDmg}</td>${showWaste ? `<td class="team-a-col">${e.aWaste || '0.0'}</td>` : ''}
         <td class="team-a-col">${e.aUnits}</td><td class="team-a-col">${e.aHp}</td>
-        <td class="team-b-col">${e.bWeapon}</td><td class="team-b-col">${e.bDmg}</td>
+        <td class="team-b-col">${e.bWeapon}</td><td class="team-b-col">${e.bDmg}</td>${showWaste ? `<td class="team-b-col">${e.bWaste || '0.0'}</td>` : ''}
         <td class="team-b-col">${e.bUnits}</td><td class="team-b-col">${e.bHp}</td>
         <td class="log-notes">${e.notes}</td>
       </tr>`;
