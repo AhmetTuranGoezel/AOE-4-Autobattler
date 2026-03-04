@@ -19,7 +19,12 @@
       "WebFetch(domain:github.com)",
       "WebFetch(domain:raw.githubusercontent.com)",
       "Bash(ls \"c:/Users/ahmet/Desktop/VSCode Stuff/Owl AoE4 Unit Battler/\"*.html)",
-      "Bash(printf '%s' 'Hoot!Hoot!')"
+      "Bash(printf '%s' 'Hoot!Hoot!')",
+      "Bash(cmd.exe /c \"where node\")",
+      "Bash(cmd.exe /c \"node --version\")",
+      "Bash(cmd.exe /c \"python --version\")",
+      "WebFetch(domain:breezewiki.com)",
+      "WebFetch(domain:liquipedia.net)"
     ]
   }
 }
