@@ -795,3 +795,23 @@ small.text-muted,
   height: 16px;
   border-radius: 2px;
 }
+
+/* Ko-fi support button */
+.kofi-btn {
+  display: inline-block;
+  background: rgba(212, 164, 74, 0.12);
+  border: 1px solid rgba(212, 164, 74, 0.3);
+  color: #d4a44a;
+  font-family: 'Cinzel', serif;
+  font-size: 0.8rem;
+  padding: 6px 16px;
+  border-radius: 8px;
+  text-decoration: none;
+  letter-spacing: 0.5px;
+  transition: background 0.2s, border-color 0.2s;
+}
+.kofi-btn:hover {
+  background: rgba(212, 164, 74, 0.22);
+  border-color: rgba(212, 164, 74, 0.5);
+  color: #e8c34a;
+}
