@@ -815,3 +815,15 @@ small.text-muted,
   border-color: rgba(212, 164, 74, 0.5);
   color: #e8c34a;
 }
+
+/* Civ filter dropdown in unit detail modal */
+.civ-filter-select {
+  background: #16213e;
+  color: #e0d6c2;
+  border: 1px solid rgba(212, 164, 74, 0.3);
+  border-radius: 8px;
+  font-size: 0.82rem;
+  padding: 5px 12px;
+  max-width: 280px;
+  color-scheme: dark;
+}

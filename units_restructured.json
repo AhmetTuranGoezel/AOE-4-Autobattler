@@ -55,7 +55,7 @@
         "name": "Biology",
         "description": "+25%, except French, Jeanne d'Arc and Macedonian Dynasty",
         "category": "hitpoints",
-        "civs": [
+        "exceptCivs": [
           "French",
           "Jeanne d'Arc",
           "Macedonian Dynasty"
@@ -105,37 +105,68 @@
       {
         "name": "Tatara",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Hizukuri",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Kobuse-gitae",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Yaki-ire",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Bloomery",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "exceptCivs": [
+          "Japanese",
+          "Sengoku Daimyo",
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Decarbonization",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "exceptCivs": [
+          "Japanese",
+          "Sengoku Daimyo",
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Damascus Steel",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "exceptCivs": [
+          "Japanese",
+          "Sengoku Daimyo",
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Awl Pikes",
@@ -180,32 +211,50 @@
       {
         "name": "Fitted Leatherwork",
         "description": "+1 melee",
-        "category": "armor"
+        "category": "armor",
+        "exceptCivs": [
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Insulated Helm",
         "description": "+1 melee",
-        "category": "armor"
+        "category": "armor",
+        "exceptCivs": [
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Master Smiths",
         "description": "+1 melee",
-        "category": "armor"
+        "category": "armor",
+        "exceptCivs": [
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Iron Undermesh",
         "description": "+1 ranged",
-        "category": "armor"
+        "category": "armor",
+        "exceptCivs": [
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Wedge Rivets",
         "description": "+1 ranged",
-        "category": "armor"
+        "category": "armor",
+        "exceptCivs": [
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Angled Surfaces",
         "description": "+1 ranged",
-        "category": "armor"
+        "category": "armor",
+        "exceptCivs": [
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Padded Armor",
@@ -1021,42 +1070,66 @@
       {
         "name": "Triumph",
         "description": "+2 hp/s while active",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Pilgrim Flask",
         "description": "25 hp/s for 6 seconds, requires Cistern of the First Hill",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Triumph",
         "description": "+4 while active",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Improved Torch",
         "description": "+25% torch attack, requires Trapezites",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Naval Deployment",
         "description": "+50% speed for 12 seconds after unloading from a Transport Ship",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Triumph",
         "description": "+10% while active",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Foreign Engineering Company",
         "description": "+15%, grants Camel Handling",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Conscriptio Influence",
         "description": "+20% per Cistern water level",
-        "category": "creationSpeed"
+        "category": "creationSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       }
     ],
     "auras": []
@@ -1341,37 +1414,58 @@
       {
         "name": "Triumph",
         "description": "+2 hp/s while active",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Pilgrim Flask",
         "description": "25 hp/s for 6 seconds, requires Cistern of the First Hill",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Triumph",
         "description": "+4 while active",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Improved Torch",
         "description": "+25% torch attack, requires Trapezites",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Naval Deployment",
         "description": "+50% speed for 12 seconds after unloading from a Transport Ship",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Triumph",
         "description": "+10% while active",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Conscriptio Influence",
         "description": "+20% per Cistern water level",
-        "category": "creationSpeed"
+        "category": "creationSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       }
     ],
     "auras": []
@@ -1654,7 +1748,10 @@
       {
         "name": "Military Academy",
         "description": "+33%, except Ottomans",
-        "category": "creationSpeed"
+        "category": "creationSpeed",
+        "exceptCivs": [
+          "Ottomans"
+        ]
       },
       {
         "name": "Advanced Academy",
@@ -1901,32 +1998,50 @@
       {
         "name": "Kurultai Aura",
         "description": "+20%",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Mongols"
+        ]
       },
       {
         "name": "Saint's Blessing",
         "description": "+2",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Rus"
+        ]
       },
       {
         "name": "Defense Arrow",
         "description": "+2 melee and ranged for 5/10/12 seconds, depending on Whistling Arrows",
-        "category": "armor"
+        "category": "armor",
+        "civs": [
+          "Mongols"
+        ]
       },
       {
         "name": "Saint's Blessing",
         "description": "+1 melee/ranged",
-        "category": "armor"
+        "category": "armor",
+        "civs": [
+          "Rus"
+        ]
       },
       {
         "name": "Maneuver Arrow",
         "description": "+33% for 5/10/12 seconds, depending on Whistling Arrows",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Mongols"
+        ]
       },
       {
         "name": "Yam Aura",
         "description": "+15%",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Mongols"
+        ]
       }
     ]
   },
@@ -2081,59 +2196,84 @@
         ]
       },
       {
-        "name": "2 units",
-        "description": "1 each",
-        "category": "creationSpeed"
-      },
-      {
         "name": "Foreign Engineering Company",
         "description": "+35%, grants Royal Bloodlines, does not stack with Biology",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Triumph",
         "description": "+2 hp/s while active",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Pilgrim Flask",
         "description": "25 hp/s for 6 seconds, requires Cistern of the First Hill",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Foreign Engineering Company",
         "description": "+1 HP/second, grants Chivalry",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Triumph",
         "description": "+4 while active",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Improved Torch",
         "description": "+25% torch attack, requires Trapezites",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Foreign Engineering Company",
         "description": "+7 bonus after charge, grants Cantled Saddles",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Naval Deployment",
         "description": "+50% speed for 12 seconds after unloading from a Transport Ship",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Triumph",
         "description": "+10% while active",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Conscriptio Influence",
         "description": "+20% per Cistern water level",
-        "category": "creationSpeed"
+        "category": "creationSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       }
     ]
   },
@@ -2342,49 +2482,68 @@
         ]
       },
       {
-        "name": "1 unit",
-        "description": "3 each",
-        "category": "creationSpeed"
-      },
-      {
         "name": "Elite Contract / Foreign Engineering Company",
         "description": "+25%, grants Armored Beasts",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Triumph",
         "description": "+2 hp/s while active",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Pilgrim Flask",
         "description": "25 hp/s for 6 seconds, requires Cistern of the First Hill",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Triumph",
         "description": "+4 while active",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Elite Contract / Foreign Engineering Company",
         "description": "+4 ranged, grants Armored Beasts",
-        "category": "armor"
+        "category": "armor",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Naval Deployment",
         "description": "+50% speed for 12 seconds after unloading from a Transport Ship",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Triumph",
         "description": "+10% while active",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Conscriptio Influence",
         "description": "+20% per Cistern water level",
-        "category": "creationSpeed"
+        "category": "creationSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       }
     ]
   },
@@ -2782,24 +2941,28 @@
         ]
       },
       {
-        "name": "2 units",
-        "description": "1 each",
-        "category": "creationSpeed"
-      },
-      {
         "name": "Foreign Engineering Company",
         "description": "+10%, grants Improved Biology extra health",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Triumph",
         "description": "+2 hp/s while active",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Pilgrim Flask",
         "description": "25 hp/s for 6 seconds, requires Cistern of the First Hill",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Foreign Engineering Company:",
@@ -2809,32 +2972,50 @@
       {
         "name": "Triumph",
         "description": "+4 while active",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Improved Torch",
         "description": "+25% torch attack, requires Trapezites",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Naval Deployment",
         "description": "+50% speed for 12 seconds after unloading from a Transport Ship",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Triumph",
         "description": "+10% while active",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Conscriptio Influence",
         "description": "+20% per Cistern water level",
-        "category": "creationSpeed"
+        "category": "creationSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Trade Post",
         "description": "+50%",
-        "category": "creationSpeed"
+        "category": "creationSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       }
     ]
   },
@@ -2920,7 +3101,7 @@
         "name": "Incendiary Arrows",
         "description": "+20%, +3 siege damage vs buildings, all except Malians",
         "category": "attack",
-        "civs": [
+        "exceptCivs": [
           "Malians"
         ]
       },
@@ -3537,6 +3718,12 @@
         "atkSpeedBonus": 70,
         "duration": 5,
         "description": "+70% Atk Speed for 5s"
+      },
+      "palings": {
+        "name": "Place Palings",
+        "stunDuration": 2.5,
+        "damage": 25,
+        "description": "Stuns charging cavalry for 2.5s, deals 25 damage (30s cooldown)"
       }
     },
     "weapons": {
@@ -3659,7 +3846,7 @@
       {
         "name": "Wall Defense",
         "description": "-25% ranged, -50% siege",
-        "category": "range"
+        "category": "armor"
       },
       {
         "name": "Network of Castles",
@@ -3675,41 +3862,6 @@
         "name": "Set up Camp",
         "description": "+30%",
         "category": "other"
-      },
-      {
-        "name": "5 units",
-        "description": "1 each",
-        "category": "creationSpeed"
-      },
-      {
-        "name": "Pilgrim Flask",
-        "description": "25 hp/s for 6 seconds, requires Cistern of the First Hill",
-        "category": "hitpoints"
-      },
-      {
-        "name": "Camel Support",
-        "description": "+2 melee/ranged, requires Foreign Engineering Company",
-        "category": "armor"
-      },
-      {
-        "name": "Arrow Volley",
-        "description": "+70% for 5 seconds, requires Foreign Engineering Company",
-        "category": "attackSpeed"
-      },
-      {
-        "name": "Naval Deployment",
-        "description": "+50% speed for 12 seconds after unloading from a Transport Ship",
-        "category": "moveSpeed"
-      },
-      {
-        "name": "Conscriptio Influence",
-        "description": "+20% per Cistern water level",
-        "category": "creationSpeed"
-      },
-      {
-        "name": "Trade Post",
-        "description": "+50%",
-        "category": "creationSpeed"
       }
     ]
   },
@@ -3734,6 +3886,12 @@
         "atkSpeedBonus": 70,
         "duration": 5,
         "description": "+70% Atk Speed for 5s"
+      },
+      "palings": {
+        "name": "Place Palings",
+        "stunDuration": 2.5,
+        "damage": 25,
+        "description": "Stuns charging cavalry for 2.5s, deals 25 damage (30s cooldown)"
       }
     },
     "weapons": {
@@ -4306,22 +4464,38 @@
       {
         "name": "Tatara",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Hizukuri",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Kobuse-gitae",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Yaki-ire",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Oda Tactics",
@@ -4331,17 +4505,29 @@
       {
         "name": "Bloomery",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "exceptCivs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Decarbonization",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "exceptCivs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Damascus Steel",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "exceptCivs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Elite Army Tactics",
@@ -5056,7 +5242,14 @@
           "Mongols"
         ]
       }
-    ]
+    ],
+    "effects": {
+      "spearwall": {
+        "name": "Spearwall",
+        "stunDuration": 0.7,
+        "description": "Stuns charging cavalry for 0.7s, cancels charge bonus"
+      }
+    }
   },
   "Gilded Spearman": {
     "civs": [
@@ -5200,7 +5393,14 @@
         "category": "armor"
       }
     ],
-    "auras": []
+    "auras": [],
+    "effects": {
+      "spearwall": {
+        "name": "Spearwall",
+        "stunDuration": 0.7,
+        "description": "Stuns charging cavalry for 0.7s, cancels charge bonus"
+      }
+    }
   },
   "Donso": {
     "civs": [
@@ -5224,6 +5424,11 @@
         "name": "Javelin Throw",
         "damage": 8,
         "description": "Pre-battle ranged hit (per unit)"
+      },
+      "spearwall": {
+        "name": "Spearwall",
+        "stunDuration": 0.7,
+        "description": "Stuns charging cavalry for 0.7s, cancels charge bonus"
       }
     },
     "weapons": {
@@ -5407,6 +5612,11 @@
         "atkSpeedPenalty": 25,
         "rangedDmgReduction": 30,
         "description": "-25% Atk Speed, -30% Ranged Dmg Taken"
+      },
+      "spearwall": {
+        "name": "Spearwall",
+        "stunDuration": 0.7,
+        "description": "Stuns charging cavalry for 0.7s, cancels charge bonus"
       }
     },
     "weapons": {
@@ -5524,17 +5734,26 @@
       {
         "name": "Pilgrim Flask",
         "description": "25 hp/s for 6 seconds, requires Cistern of the First Hill",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Improved Torch",
         "description": "+25% torch attack, requires Trapezites",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Camel Support",
         "description": "+2 melee/ranged, requires Foreign Engineering Company",
-        "category": "armor"
+        "category": "armor",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Wall Defense",
@@ -5544,12 +5763,18 @@
       {
         "name": "Naval Deployment",
         "description": "+50% speed for 12 seconds after unloading from a Transport Ship",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Conscriptio Influence",
         "description": "+20% per Cistern water level",
-        "category": "creationSpeed"
+        "category": "creationSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       }
     ]
   },
@@ -6416,44 +6641,60 @@
         "category": "creationSpeed"
       },
       {
-        "name": "3 units",
-        "description": "1 each",
-        "category": "creationSpeed"
-      },
-      {
         "name": "Foreign Engineering Company",
         "description": "+15%, grants Boot Camp",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Pilgrim Flask",
         "description": "25 hp/s for 6 seconds, requires Cistern of the First Hill",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Improved Torch",
         "description": "+25% torch attack, requires Trapezites",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Camel Support",
         "description": "+2 melee/ranged, requires Foreign Engineering Company",
-        "category": "armor"
+        "category": "armor",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Naval Deployment",
         "description": "+50% speed for 12 seconds after unloading from a Transport Ship",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Conscriptio Influence",
         "description": "+20% per Cistern water level",
-        "category": "creationSpeed"
+        "category": "creationSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Trade Post",
         "description": "+50%",
-        "category": "creationSpeed"
+        "category": "creationSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       }
     ]
   },
@@ -6665,37 +6906,58 @@
       {
         "name": "Khaganate Palace",
         "description": "+30, grants Battle Hardened",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Mongols"
+        ]
       },
       {
         "name": "Kurultai Aura",
         "description": "+20%",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Mongols"
+        ]
       },
       {
         "name": "Saint's Blessing",
         "description": "+2",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Rus"
+        ]
       },
       {
         "name": "Defense Arrow",
         "description": "+2 melee and ranged for 5/10/12 seconds, depending on Whistling Arrows",
-        "category": "armor"
+        "category": "armor",
+        "civs": [
+          "Mongols"
+        ]
       },
       {
         "name": "Saint's Blessing",
         "description": "+1 melee/ranged",
-        "category": "armor"
+        "category": "armor",
+        "civs": [
+          "Rus"
+        ]
       },
       {
         "name": "Maneuver Arrow",
         "description": "+33% for 5/10/12 seconds, depending on Whistling Arrows",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Mongols"
+        ]
       },
       {
         "name": "Yam Aura",
         "description": "+15%, requires Yam Network",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Mongols"
+        ]
       }
     ]
   },
@@ -6775,17 +7037,26 @@
       {
         "name": "Bloomery",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "exceptCivs": [
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Decarbonization",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "exceptCivs": [
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Damascus Steel",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "exceptCivs": [
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Elite Army Tactics",
@@ -6805,32 +7076,50 @@
       {
         "name": "Fitted Leatherwork",
         "description": "+1 melee",
-        "category": "armor"
+        "category": "armor",
+        "exceptCivs": [
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Insulated Helm",
         "description": "+1 melee",
-        "category": "armor"
+        "category": "armor",
+        "exceptCivs": [
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Master Smiths",
         "description": "+1 melee",
-        "category": "armor"
+        "category": "armor",
+        "exceptCivs": [
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Iron Undermesh",
         "description": "+1 ranged",
-        "category": "armor"
+        "category": "armor",
+        "exceptCivs": [
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Wedge Rivets",
         "description": "+1 ranged",
-        "category": "armor"
+        "category": "armor",
+        "exceptCivs": [
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Angled Surfaces",
         "description": "+1 ranged",
-        "category": "armor"
+        "category": "armor",
+        "exceptCivs": [
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Butted Chainmail",
@@ -6923,7 +7212,10 @@
       {
         "name": "Naval Deployment",
         "description": "+50% speed for 12 seconds after unloading from a Transport Ship",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Berserking",
@@ -7036,22 +7328,38 @@
       {
         "name": "Tatara",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Hizukuri",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Kobuse-gitae",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Yaki-ire",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Oda Tactics",
@@ -7437,37 +7745,50 @@
       {
         "name": "Fitted Leatherwork",
         "description": "+1 melee",
-        "category": "armor"
+        "category": "armor",
+        "exceptCivs": [
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Insulated Helm",
         "description": "+1 melee",
-        "category": "armor"
+        "category": "armor",
+        "exceptCivs": [
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Master Smiths",
         "description": "+1 melee",
-        "category": "armor"
+        "category": "armor",
+        "exceptCivs": [
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Iron Undermesh",
         "description": "+1 ranged",
-        "category": "armor"
+        "category": "armor",
+        "exceptCivs": [
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Wedge Rivets",
         "description": "+1 ranged",
-        "category": "armor"
+        "category": "armor",
+        "exceptCivs": [
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Angled Surfaces",
         "description": "+1 ranged",
-        "category": "armor"
-      },
-      {
-        "name": "Lamellar Armor",
-        "description": "+1 melee and ranged per research tier, up to +6/+6",
-        "category": "armor"
+        "category": "armor",
+        "exceptCivs": [
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Sultan's Mamluks",
@@ -7536,6 +7857,14 @@
         "category": "upgrading",
         "civs": [
           "Tughlaq Dynasty"
+        ]
+      },
+      {
+        "name": "Lamellar Armor",
+        "description": "+1 melee and ranged per research tier, up to +6/+6",
+        "category": "armor",
+        "civs": [
+          "Macedonian Dynasty"
         ]
       }
     ],
@@ -8327,39 +8656,52 @@
         ]
       },
       {
-        "name": "4 units",
-        "description": "1 each",
-        "category": "attackSpeed"
-      },
-      {
         "name": "Pilgrim Flask",
         "description": "25 hp/s for 6 seconds, requires Cistern of the First Hill",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Foreign Engineering Company",
         "description": "+5 melee, grants Gambesons",
-        "category": "armor"
+        "category": "armor",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Camel Support",
         "description": "+2 melee/ranged, requires Foreign Engineering Company",
-        "category": "armor"
+        "category": "armor",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Foreign Engineering Company",
         "description": "+25%, grants Crossbow Stirrups",
-        "category": "attackSpeed"
+        "category": "attackSpeed",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Naval Deployment",
         "description": "+50% speed for 12 seconds after unloading from a Transport Ship",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Conscriptio Influence",
         "description": "+20% per Cistern water level",
-        "category": "creationSpeed"
+        "category": "creationSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       }
     ]
   },
@@ -8617,47 +8959,66 @@
       {
         "name": "Kurultai Aura",
         "description": "+20%",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Mongols"
+        ]
       },
       {
         "name": "Khan's Hunter Aura",
         "description": "+1/+1.3/+1.5 per Age",
-        "category": "range"
+        "category": "range",
+        "civs": [
+          "Mongols"
+        ]
       },
       {
         "name": "Defense Arrow",
         "description": "+2 melee and ranged for 5/10/12 seconds, depending on Whistling Arrows",
-        "category": "armor"
+        "category": "armor",
+        "civs": [
+          "Mongols"
+        ]
       },
       {
         "name": "Attack Speed Arrow",
         "description": "+50% for 5/10/12 seconds, depending on Whistling Arrows",
-        "category": "attackSpeed"
+        "category": "attackSpeed",
+        "civs": [
+          "Mongols"
+        ]
       },
       {
         "name": "Yam Aura",
         "description": "+15%",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Mongols"
+        ]
       },
       {
         "name": "Maneuver Arrow",
         "description": "+33% for 5/10/12 seconds, depending on Whistling Arrows",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Mongols"
+        ]
       },
       {
         "name": "Saint's Blessing",
         "description": "+2",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Rus"
+        ]
       },
       {
         "name": "Saint's Blessing",
         "description": "+1 melee/ranged",
-        "category": "armor"
-      },
-      {
-        "name": "3 units",
-        "description": "1 each",
-        "category": "armor"
+        "category": "armor",
+        "civs": [
+          "Rus"
+        ]
       },
       {
         "name": "Foreign Engineering Company :",
@@ -8667,37 +9028,58 @@
       {
         "name": "Triumph",
         "description": "+2 hp/s while active",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Pilgrim Flask",
         "description": "25 hp/s for 6 seconds, requires Cistern of the First Hill",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Triumph",
         "description": "+4 while active",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Foreign Engineering Company",
         "description": "+2, grants Improved Siha Bow Limbs",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Naval Deployment",
         "description": "+50% speed for 12 seconds after unloading from a Transport Ship",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Triumph",
         "description": "+10% while active",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Conscriptio Influence",
         "description": "+20% per Cistern water level",
-        "category": "creationSpeed"
+        "category": "creationSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       }
     ]
   },
@@ -8983,11 +9365,6 @@
         "category": "creationSpeed"
       },
       {
-        "name": "1 unit",
-        "description": "3 each",
-        "category": "creationSpeed"
-      },
-      {
         "name": "Elite Contract",
         "description": "+25%, grants Howdahs",
         "category": "hitpoints"
@@ -8995,12 +9372,18 @@
       {
         "name": "Triumph",
         "description": "+2 hp/s while active",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Pilgrim Flask",
         "description": "25 hp/s for 6 seconds, requires Cistern of the First Hill",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Elite Contract",
@@ -9010,7 +9393,10 @@
       {
         "name": "Triumph",
         "description": "+4 while active",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Elite Contract",
@@ -9020,22 +9406,34 @@
       {
         "name": "Naval Deployment",
         "description": "+50% speed for 12 seconds after unloading from a Transport Ship",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Triumph",
         "description": "+10% while active",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Conscriptio Influence",
         "description": "+20% per Cistern water level",
-        "category": "creationSpeed"
+        "category": "creationSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Trade Post",
         "description": "+50%",
-        "category": "creationSpeed"
+        "category": "creationSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       }
     ]
   },
@@ -9295,7 +9693,10 @@
       {
         "name": "Camel Support",
         "description": "+2 melee/ranged armor to nearby infantry",
-        "category": "ability"
+        "category": "ability",
+        "civs": [
+          "Ayyubids"
+        ]
       }
     ],
     "auras": [
@@ -9305,49 +9706,68 @@
         "category": "creationSpeed"
       },
       {
-        "name": "2 units",
-        "description": "1 each",
-        "category": "creationSpeed"
-      },
-      {
         "name": "Triumph",
         "description": "+2 hp/s while active",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Pilgrim Flask",
         "description": "25 hp/s for 6 seconds, requires Cistern of the First Hill",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Triumph",
         "description": "+4 while active",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Naval Deployment",
         "description": "+50% speed for 12 seconds after unloading from a Transport Ship",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Triumph",
         "description": "+10% while active",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Foreign Engineering Company",
         "description": "+15%, grants Camel Handling",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Conscriptio Influence",
         "description": "+20% per Cistern water level",
-        "category": "creationSpeed"
+        "category": "creationSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Foreign Engineering Company",
         "description": "Grants Camel Support ability",
-        "category": "ability"
+        "category": "ability",
+        "civs": [
+          "Ayyubids"
+        ]
       }
     ]
   },
@@ -9493,34 +9913,44 @@
         "category": "moveSpeed"
       },
       {
-        "name": "3 units",
-        "description": "1 each",
-        "category": "moveSpeed"
-      },
-      {
         "name": "Foreign Engineering Company",
         "description": "+25, grants Boyar's Fortitude",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Triumph",
         "description": "+2 hp/s while active",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Pilgrim Flask",
         "description": "25 hp/s for 6 seconds, requires Cistern of the First Hill",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Triumph",
         "description": "+4 while active",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Foreign Engineering Company",
         "description": "+1, grants Mounted Training",
-        "category": "range"
+        "category": "range",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Gallop",
@@ -9530,12 +9960,18 @@
       {
         "name": "Naval Deployment",
         "description": "+50% speed for 12 seconds after unloading from a Transport Ship",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Triumph",
         "description": "+10% while active",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Gallop",
@@ -9545,12 +9981,18 @@
       {
         "name": "Conscriptio Influence",
         "description": "+20% per Cistern water level",
-        "category": "creationSpeed"
+        "category": "creationSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Foreign Engineering Company",
         "description": "Grants Gallop ability",
-        "category": "ability"
+        "category": "ability",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Biology Improved:",
@@ -9560,12 +10002,18 @@
       {
         "name": "Khaganate Palace",
         "description": "+25, grants Boyar's Fortitude",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Mongols"
+        ]
       },
       {
         "name": "Kurultai Aura",
         "description": "+20%",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Mongols"
+        ]
       },
       {
         "name": "Saint's Blessing",
@@ -9580,12 +10028,18 @@
       {
         "name": "Khan's Hunter Aura",
         "description": "+1/+1.3/+1.5 per Age",
-        "category": "range"
+        "category": "range",
+        "civs": [
+          "Mongols"
+        ]
       },
       {
         "name": "Defense Arrow",
         "description": "+2 melee and ranged for 5/10/12 seconds, depending on Whistling Arrows",
-        "category": "armor"
+        "category": "armor",
+        "civs": [
+          "Mongols"
+        ]
       },
       {
         "name": "Saint's Blessing",
@@ -9595,17 +10049,26 @@
       {
         "name": "Attack Speed Arrow",
         "description": "+50% for 5/10/12 seconds, depending on Whistling Arrows",
-        "category": "attackSpeed"
+        "category": "attackSpeed",
+        "civs": [
+          "Mongols"
+        ]
       },
       {
         "name": "Maneuver Arrow",
         "description": "+33% for 5/10/12 seconds, depending on Whistling Arrows",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Mongols"
+        ]
       },
       {
         "name": "Yam Aura",
         "description": "+15%",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Mongols"
+        ]
       },
       {
         "name": "Gallop",
@@ -9615,7 +10078,10 @@
       {
         "name": "Khaganate Palace",
         "description": "Grants Gallop ability",
-        "category": "ability"
+        "category": "ability",
+        "civs": [
+          "Mongols"
+        ]
       }
     ]
   },
@@ -9706,37 +10172,50 @@
       {
         "name": "Fitted Leatherwork",
         "description": "+1 melee",
-        "category": "armor"
+        "category": "armor",
+        "exceptCivs": [
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Insulated Helm",
         "description": "+1 melee",
-        "category": "armor"
+        "category": "armor",
+        "exceptCivs": [
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Master Smiths",
         "description": "+1 melee",
-        "category": "armor"
+        "category": "armor",
+        "exceptCivs": [
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Iron Undermesh",
         "description": "+1 ranged",
-        "category": "armor"
+        "category": "armor",
+        "exceptCivs": [
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Wedge Rivets",
         "description": "+1 ranged",
-        "category": "armor"
+        "category": "armor",
+        "exceptCivs": [
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Angled Surfaces",
         "description": "+1 ranged",
-        "category": "armor"
-      },
-      {
-        "name": "Lamellar Armor",
-        "description": "+1 melee and ranged per research tier, up to +6/+6",
-        "category": "armor"
+        "category": "armor",
+        "exceptCivs": [
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Serpentine Powder",
@@ -9810,6 +10289,14 @@
         "category": "other",
         "civs": [
           "House of Lancaster"
+        ]
+      },
+      {
+        "name": "Lamellar Armor",
+        "description": "+1 melee and ranged per research tier, up to +6/+6",
+        "category": "armor",
+        "civs": [
+          "Macedonian Dynasty"
         ]
       }
     ],
@@ -10381,27 +10868,42 @@
       {
         "name": "Pilgrim Flask",
         "description": "25 hp/s for 6 seconds, requires Cistern of the First Hill",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Camel Support",
         "description": "+2 melee/ranged, requires Foreign Engineering Company",
-        "category": "armor"
+        "category": "armor",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Naval Deployment",
         "description": "+50% speed for 12 seconds after unloading from a Transport Ship",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Conscriptio Influence",
         "description": "+20% per Cistern water level",
-        "category": "creationSpeed"
+        "category": "creationSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Trade Post",
         "description": "+50%",
-        "category": "creationSpeed"
+        "category": "creationSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       }
     ],
     "auras": []
@@ -11174,7 +11676,14 @@
         "description": "+150% faster",
         "category": "upgrading"
       }
-    ]
+    ],
+    "effects": {
+      "spearwall": {
+        "name": "Spearwall",
+        "stunDuration": 0.7,
+        "description": "Stuns charging cavalry for 0.7s, cancels charge bonus"
+      }
+    }
   },
   "Bogmaðr": {
     "civs": [
@@ -11235,7 +11744,10 @@
       {
         "name": "Lamellar Armor",
         "description": "+5% per research tier, up to +30%",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Sharpening Stones",
@@ -11250,7 +11762,10 @@
       {
         "name": "Lamellar Armor",
         "description": "+1 melee and ranged per research tier, up to +6/+6",
-        "category": "armor"
+        "category": "armor",
+        "civs": [
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Military Academy",
@@ -11297,7 +11812,20 @@
         "description": "+150% faster",
         "category": "upgrading"
       }
-    ]
+    ],
+    "effects": {
+      "armorPenetration": {
+        "name": "Unwavering Focus",
+        "penetration": 2,
+        "description": "Attacks ignore 2 armor, -50% movespeed for 10s (30s cooldown)"
+      },
+      "dmgDebuffOnHit": {
+        "name": "Ruinous Blinding",
+        "reduction": 20,
+        "duration": 5,
+        "description": "Units hit deal -20% damage for 5s (refreshes on hit)"
+      }
+    }
   },
   "Riddari": {
     "civs": [
@@ -11362,7 +11890,10 @@
       {
         "name": "Naval Deployment",
         "description": "+50% speed for 12 seconds after unloading from a Transport Ship",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Runestones",
@@ -11766,22 +12297,38 @@
       {
         "name": "Tatara",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Hizukuri",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Kobuse-gitae",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Yaki-ire",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Oda Tactics",
@@ -11922,22 +12469,38 @@
       {
         "name": "Tatara",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Hizukuri",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Kobuse-gitae",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Yaki-ire",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Oda Tactics",
@@ -12228,22 +12791,38 @@
       {
         "name": "Tatara",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Hizukuri",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Kobuse-gitae",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Yaki-ire",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Improved Yari",
@@ -12452,7 +13031,10 @@
       {
         "name": "Camel Support",
         "description": "+2 melee/ranged armor to nearby infantry",
-        "category": "ability"
+        "category": "ability",
+        "civs": [
+          "Ayyubids"
+        ]
       }
     ],
     "auras": [
@@ -12462,64 +13044,92 @@
         "category": "creationSpeed"
       },
       {
-        "name": "2 units",
-        "description": "1 each",
-        "category": "creationSpeed"
-      },
-      {
         "name": "Triumph",
         "description": "+2 hp/s while active",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Pilgrim Flask",
         "description": "25 hp/s for 6 seconds, requires Cistern of the First Hill",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Triumph",
         "description": "+4 while active",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Improved Torch",
         "description": "+25% torch attack, requires Trapezites",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Foreign Engineering Company",
         "description": "+5 melee, +3 ranged, grants Camel Rider Shields and Camel Rider Barding",
-        "category": "armor"
+        "category": "armor",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Naval Deployment",
         "description": "+50% speed for 12 seconds after unloading from a Transport Ship",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Triumph",
         "description": "+10% while active",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Foreign Engineering Company",
         "description": "+15%, grants Camel Handling",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Conscriptio Influence",
         "description": "+20% per Cistern water level",
-        "category": "creationSpeed"
+        "category": "creationSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Trade Post",
         "description": "+50%",
-        "category": "creationSpeed"
+        "category": "creationSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Foreign Engineering Company",
         "description": "Grants Camel Support ability",
-        "category": "ability"
+        "category": "ability",
+        "civs": [
+          "Ayyubids"
+        ]
       }
     ]
   },
@@ -12595,17 +13205,26 @@
       {
         "name": "Bloomery",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "exceptCivs": [
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Decarbonization",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "exceptCivs": [
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Damascus Steel",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "exceptCivs": [
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Blade Inlaying",
@@ -12615,32 +13234,50 @@
       {
         "name": "Fitted Leatherwork",
         "description": "+1 melee",
-        "category": "armor"
+        "category": "armor",
+        "exceptCivs": [
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Insulated Helm",
         "description": "+1 melee",
-        "category": "armor"
+        "category": "armor",
+        "exceptCivs": [
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Master Smiths",
         "description": "+1 melee",
-        "category": "armor"
+        "category": "armor",
+        "exceptCivs": [
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Iron Undermesh",
         "description": "+1 ranged",
-        "category": "armor"
+        "category": "armor",
+        "exceptCivs": [
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Wedge Rivets",
         "description": "+1 ranged",
-        "category": "armor"
+        "category": "armor",
+        "exceptCivs": [
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Angled Surfaces",
         "description": "+1 ranged",
-        "category": "armor"
+        "category": "armor",
+        "exceptCivs": [
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Teardrop Shields",
@@ -12726,7 +13363,10 @@
       {
         "name": "Naval Deployment",
         "description": "+50% speed for 12 seconds after unloading from a Transport Ship",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Triumph",
@@ -12834,22 +13474,38 @@
       {
         "name": "Tatara",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Hizukuri",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Kobuse-gitae",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Yaki-ire",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Oda Tactics",
@@ -12927,7 +13583,8 @@
   },
   "Mounted Samurai": {
     "civs": [
-      "Japanese"
+      "Japanese",
+      "Sengoku Daimyo"
     ],
     "costs": {
       "food": 140,
@@ -12975,22 +13632,38 @@
       {
         "name": "Tatara",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Hizukuri",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Kobuse-gitae",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Yaki-ire",
         "description": "+1",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Mounted Samurai Odachi",
@@ -13111,7 +13784,17 @@
           "Sengoku Daimyo"
         ]
       }
-    ]
+    ],
+    "civCosts": {
+      "Japanese": {
+        "food": 140,
+        "gold": 110
+      },
+      "Sengoku Daimyo": {
+        "food": 140,
+        "gold": 100
+      }
+    }
   },
   "Camel Lancer": {
     "civs": [
@@ -13614,29 +14297,36 @@
         ]
       },
       {
-        "name": "5 units",
-        "description": "1 each",
-        "category": "other"
-      },
-      {
         "name": "Pilgrim Flask",
         "description": "25 hp/s for 6 seconds, requires Cistern of the First Hill",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Camel Support",
         "description": "+2 melee/ranged, requires Foreign Engineering Company",
-        "category": "armor"
+        "category": "armor",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Naval Deployment",
         "description": "+50% speed for 12 seconds after unloading from a Transport Ship",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Conscriptio Influence",
         "description": "+20% per Cistern water level",
-        "category": "creationSpeed"
+        "category": "creationSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       }
     ]
   },
@@ -14045,39 +14735,52 @@
         "category": "ability"
       },
       {
-        "name": "4 units",
-        "description": "1 each",
-        "category": "ability"
-      },
-      {
         "name": "Pilgrim Flask",
         "description": "25 hp/s for 6 seconds, requires Cistern of the First Hill",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Foreign Engineering Company",
         "description": "+3, grants Precision Training",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Camel Support",
         "description": "+2 melee/ranged, requires Foreign Engineering Company",
-        "category": "armor"
+        "category": "armor",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Naval Deployment",
         "description": "+50% speed for 12 seconds after unloading from a Transport Ship",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Conscriptio Influence",
         "description": "+20% per Cistern water level",
-        "category": "creationSpeed"
+        "category": "creationSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Trade Post",
         "description": "+50%",
-        "category": "creationSpeed"
+        "category": "creationSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       }
     ]
   },
@@ -14252,39 +14955,52 @@
         "category": "ability"
       },
       {
-        "name": "5 units",
-        "description": "1 each",
-        "category": "ability"
-      },
-      {
         "name": "Pilgrim Flask",
         "description": "25 hp/s for 6 seconds, requires Cistern of the First Hill",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Improved Torch",
         "description": "+25% torch attack, requires Trapezites",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Camel Support",
         "description": "+2 melee/ranged, requires Foreign Engineering Company",
-        "category": "armor"
+        "category": "armor",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Naval Deployment",
         "description": "+50% for 12 seconds after unloading from a Transport Ship",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Conscriptio Influence",
         "description": "+20% per Cistern water level",
-        "category": "creationSpeed"
+        "category": "creationSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Foreign Engineering Company",
         "description": "Heal 5 HP per attack for 5 seconds when leaving stealth, grants Local Knowledge",
-        "category": "ability"
+        "category": "ability",
+        "civs": [
+          "Ayyubids"
+        ]
       }
     ]
   },
@@ -15247,7 +15963,14 @@
         "description": "+15%",
         "category": "creationSpeed"
       }
-    ]
+    ],
+    "effects": {
+      "spearwall": {
+        "name": "Spearwall",
+        "stunDuration": 0.7,
+        "description": "Stuns charging cavalry for 0.7s, cancels charge bonus"
+      }
+    }
   },
   "Genoese Crossbowman": {
     "civs": [
@@ -16170,44 +16893,60 @@
         "category": "creationSpeed"
       },
       {
-        "name": "3 units",
-        "description": "1 each",
-        "category": "creationSpeed"
-      },
-      {
         "name": "Pilgrim Flask",
         "description": "25 hp/s for 6 seconds, requires Cistern of the First Hill",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Improved Torch",
         "description": "+25% torch attack, requires Trapezites",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Camel Support",
         "description": "+2 melee/ranged, requires Foreign Engineering Company",
-        "category": "armor"
+        "category": "armor",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Naval Deployment",
         "description": "+50% speed for 12 seconds after unloading from a Transport Ship",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Foreign Engineering Company",
         "description": "+10%",
-        "category": "moveSpeed"
+        "category": "moveSpeed",
+        "civs": [
+          "Ayyubids"
+        ]
       },
       {
         "name": "Conscriptio Influence",
         "description": "+20% per Cistern water level",
-        "category": "creationSpeed"
+        "category": "creationSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       },
       {
         "name": "Trade Post",
         "description": "+50%",
-        "category": "creationSpeed"
+        "category": "creationSpeed",
+        "civs": [
+          "Byzantines"
+        ]
       }
     ]
   },
@@ -16458,6 +17197,273 @@
       {
         "name": "Caracole",
         "description": "Can fire while moving",
+        "category": "other"
+      }
+    ]
+  },
+  "Wynguard Ranger": {
+    "civs": [
+      "English"
+    ],
+    "costs": {
+      "wood": 75,
+      "gold": 50
+    },
+    "trainingTime": 7.5,
+    "population": 1,
+    "speed": 1.125,
+    "tags": [
+      "Infantry",
+      "Ranged"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "attackSpeed": 1.625,
+        "range": 8.0,
+        "ages": {
+          "4": {
+            "hp": 125,
+            "attack": 12,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "bonus": {
+              "Light Infantry": 9,
+              "Light Gunpowder": 9
+            }
+          }
+        }
+      }
+    },
+    "upgrades": [
+      {
+        "name": "Steeled Arrow",
+        "description": "+1",
+        "category": "attack"
+      },
+      {
+        "name": "Balanced Projectiles",
+        "description": "+1",
+        "category": "attack"
+      },
+      {
+        "name": "Platecutter Point",
+        "description": "+1",
+        "category": "attack"
+      },
+      {
+        "name": "Incendiary Arrows",
+        "description": "+20%, +3 siege damage vs buildings",
+        "category": "attack"
+      },
+      {
+        "name": "Silk Bowstrings",
+        "description": "+1.5",
+        "category": "range"
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee",
+        "category": "armor"
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee",
+        "category": "armor"
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee",
+        "category": "armor"
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged",
+        "category": "armor"
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged",
+        "category": "armor"
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged",
+        "category": "armor"
+      },
+      {
+        "name": "Military Academy",
+        "description": "+33%",
+        "category": "creationSpeed"
+      },
+      {
+        "name": "Siege Engineering",
+        "description": "Can build Battering Rams and Siege Towers",
+        "category": "ability"
+      },
+      {
+        "name": "Arrow Volley",
+        "description": "Grants Arrow Volley ability",
+        "category": "ability"
+      }
+    ],
+    "auras": [
+      {
+        "name": "Wall Defense",
+        "description": "+1",
+        "category": "range"
+      },
+      {
+        "name": "Wall Defense",
+        "description": "-25% ranged, -50% siege",
+        "category": "armor"
+      },
+      {
+        "name": "Network of Castles",
+        "description": "+20%, or +30% with Network of Citadels",
+        "category": "attackSpeed"
+      },
+      {
+        "name": "Arrow Volley",
+        "description": "+70% for 5 seconds",
+        "category": "attackSpeed"
+      },
+      {
+        "name": "Set up Camp",
+        "description": "+30%",
+        "category": "other"
+      }
+    ],
+    "effects": {
+      "palings": {
+        "name": "Place Palings",
+        "stunDuration": 2.5,
+        "damage": 25,
+        "description": "Stuns charging cavalry for 2.5s, deals 25 damage (30s cooldown)"
+      }
+    }
+  },
+  "Wynguard Footman": {
+    "civs": [
+      "English"
+    ],
+    "costs": {
+      "food": 50,
+      "gold": 67
+    },
+    "trainingTime": 7.5,
+    "population": 1,
+    "speed": 1.125,
+    "tags": [
+      "Infantry",
+      "Heavy",
+      "Melee",
+      "Melee Infantry"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "attackSpeed": 1.375,
+        "ages": {
+          "4": {
+            "hp": 280,
+            "attack": 20,
+            "meleeArmor": 5,
+            "rangedArmor": 6,
+            "bonus": {
+              "Cavalry": 5
+            }
+          }
+        }
+      }
+    },
+    "effects": {},
+    "upgrades": [
+      {
+        "name": "Elite Army Tactics",
+        "description": "+15%",
+        "category": "hitpoints"
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1",
+        "category": "attack"
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1",
+        "category": "attack"
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1",
+        "category": "attack"
+      },
+      {
+        "name": "Elite Army Tactics",
+        "description": "+15%",
+        "category": "attack"
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee",
+        "category": "armor"
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee",
+        "category": "armor"
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee",
+        "category": "armor"
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged",
+        "category": "armor"
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged",
+        "category": "armor"
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged",
+        "category": "armor"
+      },
+      {
+        "name": "Armor Clad",
+        "description": "+2 melee and +2 ranged",
+        "category": "armor"
+      },
+      {
+        "name": "Military Academy",
+        "description": "+33%",
+        "category": "creationSpeed"
+      },
+      {
+        "name": "Siege Engineering",
+        "description": "Can build Battering Rams and Siege Towers",
+        "category": "ability"
+      }
+    ],
+    "auras": [
+      {
+        "name": "Wall Defense",
+        "description": "-25% ranged, -50% siege",
+        "category": "armor"
+      },
+      {
+        "name": "Network of Castles",
+        "description": "+20%, or +30% with Network of Citadels",
+        "category": "attackSpeed"
+      },
+      {
+        "name": "Set up Camp",
+        "description": "+30%",
         "category": "other"
       }
     ]
