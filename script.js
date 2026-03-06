@@ -122,10 +122,14 @@ function getUnitCategory(unit) {
 let sortByCiv = true;
 
 // Helper: get flag HTML for a unit name (for dropdown & header)
-function getUnitFlagHtml(unitName, imgHeight) {
+function getUnitFlagHtml(unitName, imgHeight, preferredCiv) {
   const unit = units[unitName];
   if (!unit) return "";
-  const civs = (unit.civs || ["Common"]).filter(c => c !== "Common" && CIV_FLAGS[c]);
+  let civs = (unit.civs || ["Common"]).filter(c => c !== "Common" && CIV_FLAGS[c]);
+  // If a preferred civ is specified and it's in the list, put it first
+  if (preferredCiv && civs.includes(preferredCiv)) {
+    civs = [preferredCiv, ...civs.filter(c => c !== preferredCiv)];
+  }
   return civs.map(c => `<img src="${CIV_FLAGS[c]}" alt="${c}" style="height:${imgHeight}px; border-radius:2px;">`).join("");
 }
 
@@ -179,8 +183,8 @@ function renderDropdownOptions(wrapper, filter) {
     html += `<div class="custom-select-optgroup">${g.label}</div>`;
     g.units.forEach((name) => {
       const sel = name === currentVal ? " selected" : "";
-      const flags = getUnitFlagHtml(name, 16);
-      html += `<div class="custom-select-option${sel}" data-value="${name}"><span>${name}</span><span class="cs-opt-flags">${flags}</span></div>`;
+      const flags = getUnitFlagHtml(name, 16, g.label);
+      html += `<div class="custom-select-option${sel}" data-value="${name}" data-civ-group="${g.label}"><span>${name}</span><span class="cs-opt-flags">${flags}</span></div>`;
     });
   });
 
@@ -193,6 +197,7 @@ function renderDropdownOptions(wrapper, filter) {
     opt.addEventListener("click", () => {
       const val = opt.dataset.value;
       wrapper.dataset.value = val;
+      wrapper.dataset.civGroup = opt.dataset.civGroup || "";
       updateSelectHeader(wrapper);
       closeDropdown(wrapper);
       // Fire change event
@@ -204,11 +209,12 @@ function renderDropdownOptions(wrapper, filter) {
 
 function updateSelectHeader(wrapper) {
   const val = wrapper.dataset.value;
+  const civGroup = wrapper.dataset.civGroup || "";
   const header = wrapper.querySelector(".custom-select-header");
   const nameSpan = header.querySelector(".cs-name");
   const flagsSpan = header.querySelector(".cs-flags");
   nameSpan.textContent = val;
-  flagsSpan.innerHTML = getUnitFlagHtml(val, 18);
+  flagsSpan.innerHTML = getUnitFlagHtml(val, 18, civGroup);
 }
 
 function openDropdown(wrapper) {
@@ -753,6 +759,48 @@ function renderEffects(side, effects) {
                  value="${effect.unitsHit}" style="font-size:0.8rem;width:80px;display:inline-block;">
           <small class="text-muted" style="font-size:0.7rem;">Units hit per attack</small>
         </div>`;
+    } else if (effectId === "armorPenetration") {
+      valueHtml = `
+        <div class="ms-4 mt-1">
+          <input type="number" id="${checkId}_penetration" class="form-control form-control-sm"
+                 value="${effect.penetration}" style="font-size:0.8rem;width:80px;display:inline-block;">
+          <small class="text-muted" style="font-size:0.7rem;">Armor ignored</small>
+        </div>`;
+    } else if (effectId === "dmgDebuffOnHit") {
+      valueHtml = `
+        <div class="ms-4 mt-1 d-flex align-items-center gap-2 flex-wrap">
+          <div>
+            <input type="number" id="${checkId}_reduction" class="form-control form-control-sm"
+                   value="${effect.reduction}" style="font-size:0.8rem;width:80px;display:inline-block;">
+            <small class="text-muted" style="font-size:0.7rem;">% dmg reduction</small>
+          </div>
+          <div>
+            <input type="number" id="${checkId}_duration" class="form-control form-control-sm"
+                   value="${effect.duration}" style="font-size:0.8rem;width:80px;display:inline-block;">
+            <small class="text-muted" style="font-size:0.7rem;">Duration (s)</small>
+          </div>
+        </div>`;
+    } else if (effectId === "spearwall") {
+      valueHtml = `
+        <div class="ms-4 mt-1">
+          <input type="number" id="${checkId}_stunDuration" class="form-control form-control-sm"
+                 value="${effect.stunDuration}" step="0.1" style="font-size:0.8rem;width:80px;display:inline-block;">
+          <small class="text-muted" style="font-size:0.7rem;">Stun duration (s) vs cavalry</small>
+        </div>`;
+    } else if (effectId === "palings") {
+      valueHtml = `
+        <div class="ms-4 mt-1 d-flex align-items-center gap-2 flex-wrap">
+          <div>
+            <input type="number" id="${checkId}_stunDuration" class="form-control form-control-sm"
+                   value="${effect.stunDuration}" step="0.1" style="font-size:0.8rem;width:80px;display:inline-block;">
+            <small class="text-muted" style="font-size:0.7rem;">Stun (s)</small>
+          </div>
+          <div>
+            <input type="number" id="${checkId}_damage" class="form-control form-control-sm"
+                   value="${effect.damage}" style="font-size:0.8rem;width:80px;display:inline-block;">
+            <small class="text-muted" style="font-size:0.7rem;">Damage</small>
+          </div>
+        </div>`;
     }
 
     container.innerHTML += `
@@ -827,6 +875,14 @@ function collectEffects(side) {
       effects.battleGlory = { hpPerKill: getVal("hpPerKill"), attackPerKill: getVal("attackPerKill") };
     } else if (effectId === "aoeSplash") {
       effects.aoeSplash = { unitsHit: getVal("unitsHit") };
+    } else if (effectId === "armorPenetration") {
+      effects.armorPenetration = { penetration: getVal("penetration") };
+    } else if (effectId === "dmgDebuffOnHit") {
+      effects.dmgDebuffOnHit = { reduction: getVal("reduction"), duration: getVal("duration") };
+    } else if (effectId === "spearwall") {
+      effects.spearwall = { stunDuration: getVal("stunDuration") };
+    } else if (effectId === "palings") {
+      effects.palings = { stunDuration: getVal("stunDuration"), damage: getVal("damage") };
     }
   });
 
@@ -886,10 +942,16 @@ function updateUnitStats(side) {
     chargeInfo.style.display = "none";
   }
 
+  // Get selected civ group for flag ordering
+  const selectedCivGroup = document.getElementById(`unit${side}Select`).dataset.civGroup || "";
+
   // Update card title: name left, flags right
   const titleEl = document.getElementById(`title${side}`);
   if (titleEl) {
-    const civs = (unit.civs || ["Common"]).filter(c => c !== "Common" && CIV_FLAGS[c]);
+    let civs = (unit.civs || ["Common"]).filter(c => c !== "Common" && CIV_FLAGS[c]);
+    if (selectedCivGroup && civs.includes(selectedCivGroup)) {
+      civs = [selectedCivGroup, ...civs.filter(c => c !== selectedCivGroup)];
+    }
     let flagsHtml = "";
     civs.forEach((civ) => {
       flagsHtml += `<img src="${CIV_FLAGS[civ]}" alt="${civ}" style="height:28px; border-radius:3px; margin-left:6px;">`;
@@ -903,7 +965,10 @@ function updateUnitStats(side) {
   // Set flag as semi-transparent card background via CSS custom properties
   const card = document.querySelector(`.card-team-${side.toLowerCase()}`);
   if (card) {
-    const civs = (unit.civs || ["Common"]).filter(c => c !== "Common" && CIV_FLAGS[c]);
+    let civs = (unit.civs || ["Common"]).filter(c => c !== "Common" && CIV_FLAGS[c]);
+    if (selectedCivGroup && civs.includes(selectedCivGroup)) {
+      civs = [selectedCivGroup, ...civs.filter(c => c !== selectedCivGroup)];
+    }
     card.style.setProperty("--flag-bg", civs[0] ? `url('${CIV_FLAGS[civs[0]]}')` : "none");
     card.style.setProperty("--flag-bg-2", civs[1] ? `url('${CIV_FLAGS[civs[1]]}')` : "none");
   }
@@ -929,13 +994,29 @@ function showUnitDetail(side) {
   document.getElementById("unitDetailTitle").textContent = unitName;
   document.getElementById("unitDetailTitle").style.color = teamColor;
 
-  // Build costs string
-  const costs = unit.costs || {};
-  const costParts = [];
-  if (costs.food) costParts.push(`${costs.food} Food`);
-  if (costs.wood) costParts.push(`${costs.wood} Wood`);
-  if (costs.gold) costParts.push(`${costs.gold} Gold`);
-  if (costs.stone) costParts.push(`${costs.stone} Stone`);
+  // Build costs string (with per-civ costs if available)
+  let costDisplay = "";
+  if (unit.civCosts) {
+    const parts = [];
+    for (const [civ, cc] of Object.entries(unit.civCosts)) {
+      const cp = [];
+      if (cc.food) cp.push(`${cc.food} Food`);
+      if (cc.wood) cp.push(`${cc.wood} Wood`);
+      if (cc.gold) cp.push(`${cc.gold} Gold`);
+      if (cc.stone) cp.push(`${cc.stone} Stone`);
+      const flag = CIV_FLAGS[civ] ? `<img src="${CIV_FLAGS[civ]}" alt="${civ}" title="${civ}" style="height:14px; border-radius:2px; vertical-align:middle;">` : civ;
+      parts.push(`${flag} ${cp.join(" / ")}`);
+    }
+    costDisplay = parts.join(" &nbsp;|&nbsp; ");
+  } else {
+    const costs = unit.costs || {};
+    const costParts = [];
+    if (costs.food) costParts.push(`${costs.food} Food`);
+    if (costs.wood) costParts.push(`${costs.wood} Wood`);
+    if (costs.gold) costParts.push(`${costs.gold} Gold`);
+    if (costs.stone) costParts.push(`${costs.stone} Stone`);
+    costDisplay = costParts.join(" / ") || "Free";
+  }
 
   // Build weapons detail for all ages
   let weaponsHtml = "";
@@ -975,72 +1056,140 @@ function showUnitDetail(side) {
 
   const tags = (unit.tags || []).map(t => `<span style="display:inline-block; padding:2px 10px; margin:2px; border-radius:12px; font-size:0.75rem; background:rgba(212,164,74,0.15); color:#d4a44a; border:1px solid rgba(212,164,74,0.3);">${t}</span>`).join("");
 
-  // Build upgrades detail grouped by category
+  // Collect all unique civs from upgrades + auras for filter dropdown
+  const allEntryCivs = new Set();
+  for (const item of [...(unit.upgrades || []), ...(unit.auras || [])]) {
+    if (item.civs) item.civs.forEach(c => allEntryCivs.add(c));
+  }
+  const sortedEntryCivs = CIV_ORDER.filter(c => allEntryCivs.has(c));
+
+  // Build civ filter dropdown (only if there are civ-specific entries)
+  let civFilterHtml = "";
+  if (sortedEntryCivs.length > 0) {
+    let opts = `<option value="all">All Civilizations</option>`;
+    sortedEntryCivs.forEach(civ => {
+      opts += `<option value="${civ}">${civ}</option>`;
+    });
+    civFilterHtml = `<div style="margin-top:16px; margin-bottom:8px;">
+      <select id="civFilterSelect" class="form-select civ-filter-select" onchange="filterByCiv(this.value)">
+        ${opts}
+      </select>
+    </div>`;
+  }
+
+  const catLabels = {hitpoints:"Hit Points", attack:"Attack", armor:"Armor", attackSpeed:"Attack Speed", moveSpeed:"Move Speed", range:"Range", creationSpeed:"Creation Speed", upgrading:"Upgrading", ability:"Ability", cost:"Cost", other:"Other"};
+  const catIcons = {hitpoints:"\u2764\uFE0F", attack:"\u2694\uFE0F", armor:"\uD83D\uDEE1\uFE0F", attackSpeed:"\u23F1\uFE0F", moveSpeed:"\uD83D\uDC5F", range:"\uD83C\uDFAF", creationSpeed:"\u23F3", upgrading:"\u2B06\uFE0F", ability:"\u2728", cost:"\uD83D\uDCB0", other:"\u2699\uFE0F"};
+  const flagImg = (civ) => CIV_FLAGS[civ] ? `<img src="${CIV_FLAGS[civ]}" alt="${civ}" title="${civ}" style="height:16px; border-radius:2px; vertical-align:middle;">` : `<span style="font-size:0.7rem; color:#b8ad9e;" title="${civ}">${civ}</span>`;
+
+  // Helper: render entries with category headers and civ sub-group headers (wiki-style)
+  function renderEntries(entries, containerId, accentColor, accentBg, accentText) {
+    const catOrder = ["attackSpeed", "attack", "armor", "hitpoints", "moveSpeed", "range", "creationSpeed", "upgrading", "ability", "cost", "other"];
+    const byCategory = {};
+    for (const e of entries) {
+      if (!byCategory[e.category]) byCategory[e.category] = [];
+      byCategory[e.category].push(e);
+    }
+    const sortedCats = Object.keys(byCategory).sort((a, b) => catOrder.indexOf(a) - catOrder.indexOf(b));
+    const subStyle = `padding:4px 12px; font-size:0.74rem; font-weight:600; color:#b8ad9e; background:rgba(255,255,255,0.03); border-top:1px solid rgba(255,255,255,0.05);`;
+
+    let html = `<div id="${containerId}" style="border:1px solid ${accentColor}; border-radius:8px; overflow:hidden;">`;
+    for (const cat of sortedCats) {
+      html += `<div class="tech-cat-header" data-cat="${cat}" style="background:${accentBg}; padding:6px 12px; font-size:0.8rem; font-weight:600; color:${accentText}; border-top:1px solid ${accentColor};">${catIcons[cat] || ""} ${catLabels[cat] || cat}</div>`;
+
+      const catEntries = byCategory[cat];
+      // Sub-group entries by their civ classification
+      const civGroups = {}; // keyed by sorted civs string
+      const exceptGroups = {}; // keyed by sorted exceptCivs string
+      const universal = [];
+
+      for (const e of catEntries) {
+        if (e.exceptCivs && e.exceptCivs.length > 0) {
+          const key = [...e.exceptCivs].sort().join(",");
+          if (!exceptGroups[key]) exceptGroups[key] = { exceptCivs: e.exceptCivs, entries: [] };
+          exceptGroups[key].entries.push(e);
+        } else if (e.civs && e.civs.length > 0) {
+          const key = [...e.civs].sort().join(",");
+          if (!civGroups[key]) civGroups[key] = { civs: e.civs, entries: [] };
+          civGroups[key].entries.push(e);
+        } else {
+          universal.push(e);
+        }
+      }
+
+      // Split civGroups: 2+ entries = named group with header, 1 entry = unique
+      const namedGroups = [];
+      const unique = [];
+      for (const grp of Object.values(civGroups)) {
+        if (grp.entries.length >= 2) namedGroups.push(grp);
+        else unique.push(...grp.entries);
+      }
+
+      const hasMultipleSections = (namedGroups.length + Object.keys(exceptGroups).length + (universal.length > 0 ? 1 : 0) + (unique.length > 0 ? 1 : 0)) > 1;
+
+      // 1. Named civ groups (e.g. "Japanese, Sengoku Daimyo")
+      for (const grp of namedGroups) {
+        const label = grp.civs.map(c => `${flagImg(c)} ${c}`).join(", ");
+        const civAttr = grp.civs.join(",");
+        html += `<div class="tech-subheader tech-entry" data-civs="${civAttr}" style="${subStyle}">${label}</div>`;
+        for (const e of grp.entries) html += renderSingleEntry(e, false);
+      }
+
+      // 2. Except groups (e.g. "All except Japanese, Sengoku Daimyo, Macedonian Dynasty")
+      for (const grp of Object.values(exceptGroups)) {
+        const exceptLabel = grp.exceptCivs.map(c => `${flagImg(c)} ${c}`).join(", ");
+        const exceptAttr = grp.exceptCivs.join(",");
+        html += `<div class="tech-subheader tech-entry" data-civs="all" data-except-civs="${exceptAttr}" style="${subStyle}">All except ${exceptLabel}</div>`;
+        for (const e of grp.entries) html += renderSingleEntry(e, false);
+      }
+
+      // 3. Universal (no civs, no except)
+      if (universal.length > 0 && hasMultipleSections) {
+        html += `<div class="tech-subheader tech-entry" data-civs="all" style="${subStyle}">All Civilizations</div>`;
+      }
+      for (const e of universal) html += renderSingleEntry(e, false);
+
+      // 4. Unique (single-civ entries) with per-entry flags
+      if (unique.length > 0 && hasMultipleSections) {
+        html += `<div class="tech-subheader tech-entry" data-civs="all" style="${subStyle}">Unique</div>`;
+      }
+      for (const e of unique) html += renderSingleEntry(e, true);
+    }
+    html += `</div>`;
+    return html;
+  }
+
+  function renderSingleEntry(e, showFlags) {
+    const hasExcept = e.exceptCivs && e.exceptCivs.length > 0;
+    const hasCivs = e.civs && e.civs.length > 0;
+    const civAttr = hasExcept ? "all" : (hasCivs ? e.civs.join(",") : "all");
+    const exceptAttr = hasExcept ? e.exceptCivs.join(",") : "";
+    let civInfo = showFlags && hasCivs ? `<span style="margin-left:6px;">${e.civs.map(c => flagImg(c)).join(" ")}</span>` : "";
+    let html = `<div class="tech-entry" data-civs="${civAttr}"${exceptAttr ? ` data-except-civs="${exceptAttr}"` : ""} style="padding:5px 12px; border-top:1px solid rgba(255,255,255,0.05); font-size:0.82rem; display:flex; align-items:center; flex-wrap:wrap; gap:4px;">`;
+    html += `<strong style="color:#e0d6c2;">${e.name}</strong>`;
+    html += `<span style="color:#e0d6c2;">(${e.description})</span>`;
+    html += civInfo;
+    html += `</div>`;
+    return html;
+  }
+
+  // Build upgrades detail
   let upgradesHtml = "";
   if (unit.upgrades && unit.upgrades.length > 0) {
     upgradesHtml = `<h6 style="color:${teamColor}; margin-top:16px; font-family:'Cinzel',serif;">Technologies</h6>`;
-    const catLabels = {hitpoints:"Hit Points", attack:"Attack", armor:"Armor", attackSpeed:"Attack Speed", moveSpeed:"Move Speed", range:"Range", creationSpeed:"Creation Speed", upgrading:"Upgrading", ability:"Ability", cost:"Cost", other:"Other"};
-    const catIcons = {hitpoints:"\u2764\uFE0F", attack:"\u2694\uFE0F", armor:"\uD83D\uDEE1\uFE0F", attackSpeed:"\u23F1\uFE0F", moveSpeed:"\uD83D\uDC5F", range:"\uD83C\uDFAF", creationSpeed:"\u23F3", upgrading:"\u2B06\uFE0F", ability:"\u2728", cost:"\uD83D\uDCB0", other:"\u2699\uFE0F"};
-    let curCat = null;
-    const flagImg = (civ) => CIV_FLAGS[civ] ? `<img src="${CIV_FLAGS[civ]}" alt="${civ}" title="${civ}" style="height:16px; border-radius:2px; vertical-align:middle;">` : `<span style="font-size:0.7rem; color:#b8ad9e;" title="${civ}">${civ}</span>`;
-
-    upgradesHtml += `<div style="border:1px solid rgba(212,164,74,0.2); border-radius:8px; overflow:hidden;">`;
-    for (const upg of unit.upgrades) {
-      if (upg.category !== curCat) {
-        curCat = upg.category;
-        upgradesHtml += `<div style="background:rgba(212,164,74,0.12); padding:6px 12px; font-size:0.8rem; font-weight:600; color:#d4a44a; border-top:1px solid rgba(212,164,74,0.2);">${catIcons[curCat] || ""} ${catLabels[curCat] || curCat}</div>`;
-      }
-      let civInfo = "";
-      if (upg.civs && upg.civs.length > 0) {
-        civInfo = `<span style="margin-left:6px;">${upg.civs.map(c => flagImg(c)).join(" ")}</span>`;
-      }
-
-      upgradesHtml += `<div style="padding:5px 12px; border-top:1px solid rgba(255,255,255,0.05); font-size:0.82rem; display:flex; align-items:center; flex-wrap:wrap; gap:4px;">`;
-      upgradesHtml += `<strong style="color:#e0d6c2;">${upg.name}</strong>`;
-      upgradesHtml += `<span style="color:#e0d6c2;">(${upg.description})</span>`;
-      upgradesHtml += civInfo;
-      upgradesHtml += `</div>`;
-
-    }
-    upgradesHtml += `</div>`;
+    upgradesHtml += renderEntries(unit.upgrades, "upgradesContainer", "rgba(212,164,74,0.2)", "rgba(212,164,74,0.12)", "#d4a44a");
   }
 
-  // Build aura buffs display grouped by category
+  // Build aura buffs detail
   let aurasHtml = "";
   if (unit.auras && unit.auras.length > 0) {
     aurasHtml = `<h6 style="color:${teamColor}; margin-top:16px; font-family:'Cinzel',serif;">Aura Buffs</h6>`;
-    const catLabels = {hitpoints:"Hit Points", attack:"Attack", armor:"Armor", attackSpeed:"Attack Speed", moveSpeed:"Move Speed", range:"Range", creationSpeed:"Creation Speed", upgrading:"Upgrading", ability:"Ability", cost:"Cost", other:"Other"};
-    const catIcons = {hitpoints:"\u2764\uFE0F", attack:"\u2694\uFE0F", armor:"\uD83D\uDEE1\uFE0F", attackSpeed:"\u23F1\uFE0F", moveSpeed:"\uD83D\uDC5F", range:"\uD83C\uDFAF", creationSpeed:"\u23F3", upgrading:"\u2B06\uFE0F", ability:"\u2728", cost:"\uD83D\uDCB0", other:"\u2699\uFE0F"};
-    const flagImg = (civ) => CIV_FLAGS[civ] ? `<img src="${CIV_FLAGS[civ]}" alt="${civ}" title="${civ}" style="height:16px; border-radius:2px; vertical-align:middle;">` : `<span style="font-size:0.7rem; color:#b8ad9e;" title="${civ}">${civ}</span>`;
-
-    // Sort auras by category
-    const catOrder = ["attackSpeed", "attack", "armor", "hitpoints", "moveSpeed", "range", "creationSpeed", "ability", "cost", "other"];
-    const sortedAuras = [...unit.auras].sort((a, b) => catOrder.indexOf(a.category) - catOrder.indexOf(b.category));
-
-    let curCat = null;
-    aurasHtml += `<div style="border:1px solid rgba(100,180,255,0.2); border-radius:8px; overflow:hidden;">`;
-    for (const aura of sortedAuras) {
-      if (aura.category !== curCat) {
-        curCat = aura.category;
-        aurasHtml += `<div style="background:rgba(100,180,255,0.08); padding:6px 12px; font-size:0.8rem; font-weight:600; color:#6ab4ff; border-top:1px solid rgba(100,180,255,0.2);">${catIcons[curCat] || ""} ${catLabels[curCat] || curCat}</div>`;
-      }
-      let civInfo = "";
-      if (aura.civs && aura.civs.length > 0) {
-        civInfo = `<span style="margin-left:6px;">${aura.civs.map(c => flagImg(c)).join(" ")}</span>`;
-      }
-      aurasHtml += `<div style="padding:5px 12px; border-top:1px solid rgba(255,255,255,0.05); font-size:0.82rem; display:flex; align-items:center; flex-wrap:wrap; gap:4px;">`;
-      aurasHtml += `<strong style="color:#e0d6c2;">${aura.name}</strong>`;
-      aurasHtml += `<span style="color:#e0d6c2;">(${aura.description})</span>`;
-      aurasHtml += civInfo;
-      aurasHtml += `</div>`;
-    }
-    aurasHtml += `</div>`;
+    aurasHtml += renderEntries(unit.auras, "aurasContainer", "rgba(100,180,255,0.2)", "rgba(100,180,255,0.08)", "#6ab4ff");
   }
 
   document.getElementById("unitDetailBody").innerHTML = `
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px; font-size:0.9rem;">
       <div><span style="color:#b8ad9e;">Civilizations:</span> ${unit.civs.join(", ")}</div>
-      <div><span style="color:#b8ad9e;">Cost:</span> ${costParts.join(" / ") || "Free"}</div>
+      <div><span style="color:#b8ad9e;">Cost:</span> ${costDisplay}</div>
       <div><span style="color:#b8ad9e;">Training Time:</span> ${unit.trainingTime || "—"}s</div>
       <div><span style="color:#b8ad9e;">Speed:</span> ${unit.speed || "—"}</div>
       <div><span style="color:#b8ad9e;">Population:</span> ${unit.population || 1}</div>
@@ -1048,6 +1197,7 @@ function showUnitDetail(side) {
     <div style="margin-bottom:12px;">${tags}</div>
     ${weaponsHtml}
     ${effectsHtml}
+    ${civFilterHtml}
     ${upgradesHtml}
     ${aurasHtml}
   `;
@@ -1056,11 +1206,48 @@ function showUnitDetail(side) {
 }
 
 /**
- * Helper: Calculate total resource cost
+ * Filter Technologies and Auras by selected civ
  */
-function getTotalCost(unitName) {
+function filterByCiv(selectedCiv) {
+  const entries = document.querySelectorAll(".tech-entry");
+  entries.forEach(el => {
+    const civs = el.dataset.civs;
+    const exceptCivs = el.dataset.exceptCivs;
+    let show = selectedCiv === "all" || civs === "all" || civs.split(",").includes(selectedCiv);
+    // Hide if selected civ is in the exception list
+    if (show && exceptCivs && selectedCiv !== "all" && exceptCivs.split(",").includes(selectedCiv)) {
+      show = false;
+    }
+    el.style.display = show ? "" : "none";
+  });
+  // Hide category headers that have no visible entries below them
+  const headers = document.querySelectorAll(".tech-cat-header");
+  headers.forEach(header => {
+    let hasVisible = false;
+    let next = header.nextElementSibling;
+    while (next && !next.classList.contains("tech-cat-header")) {
+      if (next.classList.contains("tech-entry") && next.style.display !== "none") {
+        hasVisible = true;
+        break;
+      }
+      next = next.nextElementSibling;
+    }
+    header.style.display = hasVisible ? "" : "none";
+  });
+}
+
+/**
+ * Helper: Calculate total resource cost (uses civ-specific cost if available)
+ */
+function getTotalCost(unitName, side) {
   const unit = units[unitName];
   if (!unit || !unit.costs) return 0;
+  if (unit.civCosts && side) {
+    const civGroup = document.getElementById(`unit${side}Select`).dataset.civGroup || "";
+    if (civGroup && unit.civCosts[civGroup]) {
+      return Object.values(unit.civCosts[civGroup]).reduce((sum, val) => sum + val, 0);
+    }
+  }
   return Object.values(unit.costs).reduce((sum, val) => sum + val, 0);
 }
 
@@ -1071,8 +1258,8 @@ function balanceCosts() {
   const unitAName = document.getElementById("unitASelect").dataset.value;
   const unitBName = document.getElementById("unitBSelect").dataset.value;
 
-  const costA = getTotalCost(unitAName);
-  const costB = getTotalCost(unitBName);
+  const costA = getTotalCost(unitAName, "A");
+  const costB = getTotalCost(unitBName, "B");
 
   if (costA === 0 || costB === 0) return;
 
@@ -1227,7 +1414,7 @@ function applyBuffs(unitData, time) {
 /**
  * Helper: Calculate damage for a single weapon attack against a target team
  */
-function calcWeaponDamage(weaponType, weaponAttack, weaponBonus, enemyTags, enemyStats) {
+function calcWeaponDamage(weaponType, weaponAttack, weaponBonus, enemyTags, enemyStats, armorPen = 0) {
   let damage = weaponAttack;
 
   // Add bonus damage against enemy tags
@@ -1237,10 +1424,11 @@ function calcWeaponDamage(weaponType, weaponAttack, weaponBonus, enemyTags, enem
     }
   }
 
-  // Subtract armor (minimum 1 damage)
-  const armor = weaponType === "ranged"
+  // Subtract armor (minimum 1 damage), reduced by armor penetration
+  let armor = weaponType === "ranged"
     ? enemyStats.rangedArmor
     : enemyStats.meleeArmor;
+  armor = Math.max(0, armor - armorPen);
 
   return Math.max(1, damage - armor);
 }
@@ -1322,6 +1510,10 @@ function runBattle() {
   const unitA = getUnitData("A");
   const unitB = getUnitData("B");
   const overkillEnabled = document.getElementById("overkillEnabled").checked;
+  const splitA = document.getElementById("A_splitDamage")?.checked;
+  const splitTargetsA = Math.max(1, parseInt(document.getElementById("A_splitTargets")?.value) || 1);
+  const splitB = document.getElementById("B_splitDamage")?.checked;
+  const splitTargetsB = Math.max(1, parseInt(document.getElementById("B_splitTargets")?.value) || 1);
 
   // --- TEAM INITIALIZATION ---
   // Each team tracks separate timers for primary and secondary weapons.
@@ -1400,6 +1592,36 @@ function runBattle() {
   applyOpeningAttack(unitA, teamA, teamB, teamB.stats);
   applyOpeningAttack(unitB, teamB, teamA, teamA.stats);
 
+  // --- PRE-BATTLE: Spearwall / Palings vs Cavalry ---
+  // Stun delays enemy first attack, cancels charge bonus
+  function applyAntiCav(defenderUnit, defenderTeam, attackerUnit, attackerTeam) {
+    if (!attackerTeam.tags.includes("Cavalry")) return;
+    // Palings (higher priority, longer stun + damage)
+    const palings = defenderUnit.effects.palings;
+    if (palings) {
+      attackerTeam.nextPrimaryAttack = Math.max(attackerTeam.nextPrimaryAttack, palings.stunDuration);
+      attackerUnit.chargeDamage = 0; // cancel charge
+      // Deal palings damage
+      const totalDmg = palings.damage * defenderTeam.units;
+      attackerTeam.totalHp -= totalDmg;
+      if (totalDmg > 0) {
+        const unitsLost = Math.floor(
+          (attackerTeam.stats.hp * attackerTeam.units - attackerTeam.totalHp) / attackerTeam.stats.hp
+        );
+        attackerTeam.units = Math.max(0, attackerTeam.units - unitsLost);
+      }
+      return;
+    }
+    // Spearwall
+    const spearwall = defenderUnit.effects.spearwall;
+    if (spearwall) {
+      attackerTeam.nextPrimaryAttack = Math.max(attackerTeam.nextPrimaryAttack, spearwall.stunDuration);
+      attackerUnit.chargeDamage = 0; // cancel charge
+    }
+  }
+  applyAntiCav(unitA, teamA, unitB, teamB);
+  applyAntiCav(unitB, teamB, unitA, teamA);
+
   const battleLog = [];
   // Log opening attacks if any occurred
   if (unitA.effects.openingAttack || unitB.effects.openingAttack) {
@@ -1412,6 +1634,24 @@ function runBattle() {
       bDmg: unitB.effects.openingAttack ? (Math.max(1, unitB.effects.openingAttack.damage - (teamA.stats.rangedArmor || 0)) * teamB.units) : 0,
       bUnits: teamB.units, bHp: Math.round(teamB.totalHp),
       notes: [unitA.effects.openingAttack ? unitA.name : "", unitB.effects.openingAttack ? unitB.name : ""].filter(Boolean).join(", ")
+    });
+  }
+
+  // Log spearwall/palings if triggered
+  const antiCavNotesA = [];
+  const antiCavNotesB = [];
+  if (unitA.effects.palings && teamB.tags.includes("Cavalry")) antiCavNotesA.push("Palings");
+  else if (unitA.effects.spearwall && teamB.tags.includes("Cavalry")) antiCavNotesA.push("Spearwall");
+  if (unitB.effects.palings && teamA.tags.includes("Cavalry")) antiCavNotesB.push("Palings");
+  else if (unitB.effects.spearwall && teamA.tags.includes("Cavalry")) antiCavNotesB.push("Spearwall");
+  if (antiCavNotesA.length || antiCavNotesB.length) {
+    battleLog.push({
+      time: "Pre",
+      aWeapon: antiCavNotesA[0] || "—", aDmg: unitA.effects.palings && teamB.tags.includes("Cavalry") ? unitA.effects.palings.damage * teamA.units : 0,
+      aUnits: teamA.units, aHp: Math.round(teamA.totalHp),
+      bWeapon: antiCavNotesB[0] || "—", bDmg: unitB.effects.palings && teamA.tags.includes("Cavalry") ? unitB.effects.palings.damage * teamB.units : 0,
+      bUnits: teamB.units, bHp: Math.round(teamB.totalHp),
+      notes: [...antiCavNotesA, ...antiCavNotesB].join(", ")
     });
   }
 
@@ -1539,12 +1779,14 @@ function runBattle() {
       if (pcBuff && teamA.hasCharged && time <= teamA.chargeTime + pcBuff.duration + EPSILON && time > teamA.chargeTime + EPSILON) {
         attackValue += pcBuff.value;
       }
+      const armorPenA = unitA.effects.armorPenetration ? unitA.effects.armorPenetration.penetration : 0;
       const dmg = calcWeaponDamage(
         unitA.weaponType,
         attackValue,
         teamA.originalStats.bonus,
         teamB.tags,
-        effectiveStatsB
+        effectiveStatsB,
+        armorPenA
       );
       // AoE Splash: each unit hits multiple enemies
       const splashA = unitA.effects.aoeSplash ? Math.min(unitA.effects.aoeSplash.unitsHit, teamB.units) : 1;
@@ -1558,18 +1800,25 @@ function runBattle() {
         teamB.atkSpeedDebuffUntil = time + unitA.effects.atkSpeedDebuff.duration;
         teamB.atkSpeedDebuffReduction = unitA.effects.atkSpeedDebuff.reduction;
       }
+      // Damage Debuff on Hit (Ruinous Blinding): reduce enemy damage output
+      if (unitA.effects.dmgDebuffOnHit) {
+        teamB.dmgDebuffUntil = time + unitA.effects.dmgDebuffOnHit.duration;
+        teamB.dmgDebuffReduction = unitA.effects.dmgDebuffOnHit.reduction;
+      }
     }
 
     // === TEAM A SECONDARY WEAPON ===
     if (teamA.unitData.secondaryWeapon &&
         teamA.nextSecondaryAttack <= time + EPSILON && teamA.units > 0) {
       const sec = teamA.unitData.secondaryWeapon;
+      const armorPenA2 = unitA.effects.armorPenetration ? unitA.effects.armorPenetration.penetration : 0;
       const dmg = calcWeaponDamage(
         sec.type,
         sec.stats.attack || 0,
         sec.stats.bonus || {},
         teamB.tags,
-        effectiveStatsB
+        effectiveStatsB,
+        armorPenA2
       );
       damageToB += dmg * teamA.units;
       teamA.nextSecondaryAttack = time + sec.attackSpeed;
@@ -1589,12 +1838,14 @@ function runBattle() {
       if (pcBuff && teamB.hasCharged && time <= teamB.chargeTime + pcBuff.duration + EPSILON && time > teamB.chargeTime + EPSILON) {
         attackValue += pcBuff.value;
       }
+      const armorPenB = unitB.effects.armorPenetration ? unitB.effects.armorPenetration.penetration : 0;
       const dmg = calcWeaponDamage(
         unitB.weaponType,
         attackValue,
         teamB.originalStats.bonus,
         teamA.tags,
-        effectiveStatsA
+        effectiveStatsA,
+        armorPenB
       );
       // AoE Splash: each unit hits multiple enemies
       const splashB = unitB.effects.aoeSplash ? Math.min(unitB.effects.aoeSplash.unitsHit, teamA.units) : 1;
@@ -1608,18 +1859,25 @@ function runBattle() {
         teamA.atkSpeedDebuffUntil = time + unitB.effects.atkSpeedDebuff.duration;
         teamA.atkSpeedDebuffReduction = unitB.effects.atkSpeedDebuff.reduction;
       }
+      // Damage Debuff on Hit (Ruinous Blinding): reduce enemy damage output
+      if (unitB.effects.dmgDebuffOnHit) {
+        teamA.dmgDebuffUntil = time + unitB.effects.dmgDebuffOnHit.duration;
+        teamA.dmgDebuffReduction = unitB.effects.dmgDebuffOnHit.reduction;
+      }
     }
 
     // === TEAM B SECONDARY WEAPON ===
     if (teamB.unitData.secondaryWeapon &&
         teamB.nextSecondaryAttack <= time + EPSILON && teamB.units > 0) {
       const sec = teamB.unitData.secondaryWeapon;
+      const armorPenB2 = unitB.effects.armorPenetration ? unitB.effects.armorPenetration.penetration : 0;
       const dmg = calcWeaponDamage(
         sec.type,
         sec.stats.attack || 0,
         sec.stats.bonus || {},
         teamA.tags,
-        effectiveStatsA
+        effectiveStatsA,
+        armorPenB2
       );
       damageToA += dmg * teamB.units;
       teamB.nextSecondaryAttack = time + sec.attackSpeed;
@@ -1648,6 +1906,14 @@ function runBattle() {
     }
     if (unitB.effects.shieldWall && unitA.weaponType === "ranged") {
       damageToB *= (1 - unitB.effects.shieldWall.rangedDmgReduction / 100);
+    }
+
+    // === APPLY DAMAGE DEBUFF ON HIT (Ruinous Blinding): reduce damage output ===
+    if (teamA.dmgDebuffUntil && teamA.dmgDebuffUntil > time) {
+      damageToB *= (1 - teamA.dmgDebuffReduction / 100);
+    }
+    if (teamB.dmgDebuffUntil && teamB.dmgDebuffUntil > time) {
+      damageToA *= (1 - teamB.dmgDebuffReduction / 100);
     }
 
     // === APPLY DEFLECTIVE ARMOR: block first incoming hit (Samurai) ===
@@ -1747,6 +2013,40 @@ function runBattle() {
       }
       wasteA = rawDmgToB - damageToB;
       wasteB = rawDmgToA - damageToA;
+    }
+
+    // === APPLY SPLIT DAMAGE: spread attacks across N targets, capping kills per volley ===
+    if (splitA && damageToB > 0 && teamB.units > 0) {
+      const targets = Math.min(splitTargetsA, teamB.units);
+      const hpPer = teamB.stats.hp;
+      const dmgPerTarget = damageToB / targets;
+      // Each target can only lose up to its remaining HP fraction
+      const frontHp = teamB.totalHp - (teamB.units - 1) * hpPer;
+      // Distribute evenly: first target gets frontHp worth, rest get hpPer each
+      let eff = 0;
+      let remainingTargets = targets;
+      let currentHp = frontHp;
+      for (let t = 0; t < targets && remainingTargets > 0; t++) {
+        eff += Math.min(dmgPerTarget, currentHp);
+        currentHp = hpPer; // subsequent targets are full HP
+        remainingTargets--;
+      }
+      damageToB = eff;
+    }
+    if (splitB && damageToA > 0 && teamA.units > 0) {
+      const targets = Math.min(splitTargetsB, teamA.units);
+      const hpPer = teamA.stats.hp;
+      const dmgPerTarget = damageToA / targets;
+      const frontHp = teamA.totalHp - (teamA.units - 1) * hpPer;
+      let eff = 0;
+      let remainingTargets = targets;
+      let currentHp = frontHp;
+      for (let t = 0; t < targets && remainingTargets > 0; t++) {
+        eff += Math.min(dmgPerTarget, currentHp);
+        currentHp = hpPer;
+        remainingTargets--;
+      }
+      damageToA = eff;
     }
 
     // Apply damage SIMULTANEOUSLY
@@ -1852,6 +2152,20 @@ function runBattle() {
     if (unitB.effects.atkSpeedDebuff && bFiredPrimary) logNotesB.push("Slow");
     if (unitA.effects.healAura) logNotesA.push("Heal");
     if (unitB.effects.healAura) logNotesB.push("Heal");
+    if (unitA.effects.armorPenetration && (aFiredPrimary || aFiredSecondary)) logNotesA.push("ArmorPen");
+    if (unitB.effects.armorPenetration && (bFiredPrimary || bFiredSecondary)) logNotesB.push("ArmorPen");
+    if (unitA.effects.dmgDebuffOnHit && (aFiredPrimary || aFiredSecondary)) logNotesA.push("Weaken");
+    if (unitB.effects.dmgDebuffOnHit && (bFiredPrimary || bFiredSecondary)) logNotesB.push("Weaken");
+    if (teamA.dmgDebuffUntil && teamA.dmgDebuffUntil > time && (aFiredPrimary || aFiredSecondary)) logNotesA.push("Weakened");
+    if (teamB.dmgDebuffUntil && teamB.dmgDebuffUntil > time && (bFiredPrimary || bFiredSecondary)) logNotesB.push("Weakened");
+    if (unitA.effects.berserking && time <= unitA.effects.berserking.duration + EPSILON) logNotesA.push("Berserk");
+    if (unitB.effects.berserking && time <= unitB.effects.berserking.duration + EPSILON) logNotesB.push("Berserk");
+    if (unitA.effects.shieldWall) logNotesA.push("ShieldWall");
+    if (unitB.effects.shieldWall) logNotesB.push("ShieldWall");
+    if (unitA.effects.camelUnease && teamB.tags.includes("Cavalry")) logNotesA.push("CamelUnease");
+    if (unitB.effects.camelUnease && teamA.tags.includes("Cavalry")) logNotesB.push("CamelUnease");
+    if (unitA.effects.armorDebuffAura) logNotesA.push("-Armor");
+    if (unitB.effects.armorDebuffAura) logNotesB.push("-Armor");
 
     // --- Push battle log entry ---
     const aWeapon = aFiredPrimary && aFiredSecondary ? "Both" : aFiredPrimary ? "Primary" : aFiredSecondary ? "Secondary" : "—";
@@ -1871,17 +2185,18 @@ function runBattle() {
   const winner = teamA.units > 0 ? "A" : teamB.units > 0 ? "B" : "Draw";
 
   // Calculate stats for BOTH teams
-  function calcTeamResults(team, unitData) {
+  function calcTeamResults(team, unitData, side) {
     const hpPct = team.units > 0
       ? (team.totalHp / (team.stats.hp * unitData.count)) * 100
       : 0;
     const unitsLost = unitData.count - team.units;
-    const costPerUnit = getTotalCost(unitData.name);
+    const costPerUnit = getTotalCost(unitData.name, side);
     const resourcesLost = costPerUnit * unitsLost;
 
-    // Per-resource breakdown for tooltip
+    // Per-resource breakdown for tooltip (use civ-specific costs if available)
     const unit = units[unitData.name];
-    const costs = unit && unit.costs ? unit.costs : {};
+    const civGroup = side ? (document.getElementById(`unit${side}Select`).dataset.civGroup || "") : "";
+    const costs = (unit && unit.civCosts && civGroup && unit.civCosts[civGroup]) ? unit.civCosts[civGroup] : (unit && unit.costs ? unit.costs : {});
     const costBreakdown = {};
     for (const [res, val] of Object.entries(costs)) {
       costBreakdown[res] = val * unitsLost;
@@ -1898,8 +2213,8 @@ function runBattle() {
     return { hpPct, unitsLost, resourcesLost, costBreakdown, lastUnitHp, lastUnitHpMax, aliveUnits: team.units, startingUnits: unitData.count };
   }
 
-  const resultsA = calcTeamResults(teamA, unitA);
-  const resultsB = calcTeamResults(teamB, unitB);
+  const resultsA = calcTeamResults(teamA, unitA, "A");
+  const resultsB = calcTeamResults(teamB, unitB, "B");
 
   // Show results container with animation
   const resultsEl = document.getElementById("results");

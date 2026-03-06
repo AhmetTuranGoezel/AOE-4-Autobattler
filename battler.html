@@ -105,6 +105,19 @@
               <div id="A_effectsContainer"></div>
             </div>
 
+            <!-- Split Damage Toggle -->
+            <div class="stat-box">
+              <div class="form-check d-flex align-items-center gap-2">
+                <input class="form-check-input" type="checkbox" id="A_splitDamage">
+                <label class="form-check-label" for="A_splitDamage" style="font-size:0.85rem;">
+                  Split damage across
+                </label>
+                <input type="number" id="A_splitTargets" class="form-control form-control-sm"
+                       value="1" min="1" style="width:60px;font-size:0.8rem;display:inline-block;">
+                <span style="font-size:0.85rem;">targets</span>
+              </div>
+            </div>
+
             <!-- Tags Section with Pill Checkboxes -->
             <div class="stat-box">
               <h6 class="fw-bold mb-2">Tags</h6>
@@ -294,6 +307,19 @@
             <div class="stat-box" id="B_effectsBox" style="display:none;">
               <h6 class="fw-bold mb-2">Unique Effects</h6>
               <div id="B_effectsContainer"></div>
+            </div>
+
+            <!-- Split Damage Toggle -->
+            <div class="stat-box">
+              <div class="form-check d-flex align-items-center gap-2">
+                <input class="form-check-input" type="checkbox" id="B_splitDamage">
+                <label class="form-check-label" for="B_splitDamage" style="font-size:0.85rem;">
+                  Split damage across
+                </label>
+                <input type="number" id="B_splitTargets" class="form-control form-control-sm"
+                       value="1" min="1" style="width:60px;font-size:0.8rem;display:inline-block;">
+                <span style="font-size:0.85rem;">targets</span>
+              </div>
             </div>
 
             <!-- Tags Section with Pill Checkboxes -->
