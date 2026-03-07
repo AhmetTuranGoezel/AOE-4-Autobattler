@@ -23,6 +23,7 @@ fetch("units_restructured.json")
       }
     });
 
+    populateCivDropdowns();
     populateSelects();
     updateUnitStats("A");
     updateUnitStats("B");
@@ -86,6 +87,36 @@ const CIV_FLAGS = {
   "Tughlaq Dynasty": "AoE 4 Flags/Tughlaq_Dynasty_AoE4.webp",
 };
 
+// Most exclusions handled by exceptCivs in JSON data.
+// Only needed when a civ has BOTH the common unit AND its replacement.
+const UNIT_REPLACEMENTS = {
+  "Chinese": { "Crossbow": "Zhuge Nu" },
+};
+
+// Selected civ for each side (empty = all civs)
+let selectedCivA = "";
+let selectedCivB = "";
+
+// Get list of unit names available for a given civ
+function getUnitsForCiv(civName) {
+  if (!civName) return Object.keys(units);
+  const replacements = UNIT_REPLACEMENTS[civName] || {};
+  const replacedCommons = new Set(Object.keys(replacements));
+  return Object.keys(units).filter(name => {
+    const unit = units[name];
+    const civs = unit.civs || ["Common"];
+    const exceptCivs = unit.exceptCivs || [];
+    // Check if unit belongs to this civ
+    const belongsToCiv = civs.includes(civName) || civs.includes("Common");
+    if (!belongsToCiv) return false;
+    // Check if excluded for this civ
+    if (exceptCivs.includes(civName)) return false;
+    // Check if this common unit is replaced by a civ-specific one
+    if (civs.includes("Common") && replacedCommons.has(name)) return false;
+    return true;
+  });
+}
+
 // Unit type categories for "sort by type" mode
 const TYPE_ORDER = [
   "Light Infantry",
@@ -95,6 +126,7 @@ const TYPE_ORDER = [
   "Heavy Cavalry",
   "Ranged Cavalry",
   "Elephants",
+  "Siege",
 ];
 
 function getUnitCategory(unit) {
@@ -105,7 +137,9 @@ function getUnitCategory(unit) {
   const hasRanged = tags.includes("Ranged");
   const hasElephant = tags.includes("Elephant");
   const hasLight = tags.includes("Light Infantry");
+  const hasSiege = tags.includes("Siege");
 
+  if (hasSiege) return "Siege";
   if (hasElephant) return "Elephants";
   if (hasCavalry && hasRanged) return "Ranged Cavalry";
   if (hasCavalry && hasHeavy) return "Heavy Cavalry";
@@ -118,8 +152,6 @@ function getUnitCategory(unit) {
   return "Light Infantry";
 }
 
-// Current sort mode
-let sortByCiv = true;
 
 // Helper: get flag HTML for a unit name (for dropdown & header)
 function getUnitFlagHtml(unitName, imgHeight, preferredCiv) {
@@ -133,12 +165,14 @@ function getUnitFlagHtml(unitName, imgHeight, preferredCiv) {
   return civs.map(c => `<img src="${CIV_FLAGS[c]}" alt="${c}" style="height:${imgHeight}px; border-radius:2px;">`).join("");
 }
 
-// Build grouped unit list based on current sort mode
-function buildGroupedUnits(filter) {
+// Build grouped unit list based on current sort mode, optionally filtered by civ
+function buildGroupedUnits(filter, civFilter) {
   const groups = [];
   const filterLower = (filter || "").toLowerCase();
+  const availableUnits = civFilter ? new Set(getUnitsForCiv(civFilter)) : null;
 
-  if (sortByCiv) {
+  if (!civFilter) {
+    // Group by civ (only when no civ filter is active)
     const civGroups = {};
     Object.keys(units).forEach((name) => {
       if (filterLower && !name.toLowerCase().includes(filterLower)) return;
@@ -154,9 +188,11 @@ function buildGroupedUnits(filter) {
       groups.push({ label: civ, units: civGroups[civ] });
     });
   } else {
+    // Sort by type (or when a civ is selected, always sort by type)
     const typeGroups = {};
     Object.keys(units).forEach((name) => {
       if (filterLower && !name.toLowerCase().includes(filterLower)) return;
+      if (availableUnits && !availableUnits.has(name)) return;
       const cat = getUnitCategory(units[name]);
       if (!typeGroups[cat]) typeGroups[cat] = [];
       typeGroups[cat].push(name);
@@ -174,7 +210,9 @@ function buildGroupedUnits(filter) {
 function renderDropdownOptions(wrapper, filter) {
   const dropdown = wrapper.querySelector(".custom-select-dropdown");
   const currentVal = wrapper.dataset.value;
-  const groups = buildGroupedUnits(filter);
+  const side = wrapper.id === "unitASelect" ? "A" : "B";
+  const civFilter = side === "A" ? selectedCivA : selectedCivB;
+  const groups = buildGroupedUnits(filter, civFilter);
 
   // Keep search input, rebuild options
   const searchInput = dropdown.querySelector(".custom-select-search");
@@ -183,8 +221,8 @@ function renderDropdownOptions(wrapper, filter) {
     html += `<div class="custom-select-optgroup">${g.label}</div>`;
     g.units.forEach((name) => {
       const sel = name === currentVal ? " selected" : "";
-      const flags = getUnitFlagHtml(name, 16, g.label);
-      html += `<div class="custom-select-option${sel}" data-value="${name}" data-civ-group="${g.label}"><span>${name}</span><span class="cs-opt-flags">${flags}</span></div>`;
+      const flags = getUnitFlagHtml(name, 16, civFilter || g.label);
+      html += `<div class="custom-select-option${sel}" data-value="${name}" data-civ-group="${civFilter || g.label}"><span>${name}</span><span class="cs-opt-flags">${flags}</span></div>`;
     });
   });
 
@@ -302,17 +340,130 @@ function populateSelects(preserveSelection) {
   updateSelectHeader(wrapperB);
 }
 
-function toggleSortMode() {
-  sortByCiv = !sortByCiv;
-  const btn = document.getElementById("sortToggleBtn");
-  btn.textContent = sortByCiv ? "Sort: by Civ" : "Sort: by Type";
-  // Re-render any open dropdowns
-  document.querySelectorAll(".custom-select-wrapper").forEach(w => {
-    if (w.querySelector(".custom-select-dropdown.show")) {
-      renderDropdownOptions(w, w.querySelector(".custom-select-search").value);
+function initCivSelect(wrapperId, side) {
+  const wrapper = document.getElementById(wrapperId);
+
+  wrapper.innerHTML = `
+    <div class="custom-select-header">
+      <span class="cs-name">All Civilizations</span>
+      <span class="cs-flags"></span>
+      <span class="cs-arrow">&#9660;</span>
+    </div>
+    <div class="custom-select-dropdown">
+      <input type="text" class="custom-select-search" placeholder="Search civilizations...">
+    </div>
+  `;
+
+  const header = wrapper.querySelector(".custom-select-header");
+  const dropdown = wrapper.querySelector(".custom-select-dropdown");
+  const search = dropdown.querySelector(".custom-select-search");
+
+  header.addEventListener("click", () => {
+    if (dropdown.classList.contains("show")) {
+      closeDropdown(wrapper);
+    } else {
+      document.querySelectorAll(".custom-select-wrapper").forEach(w => closeDropdown(w));
+      openCivDropdown(wrapper, side);
     }
   });
+
+  search.addEventListener("input", () => {
+    renderCivOptions(wrapper, side, search.value);
+  });
+  search.addEventListener("click", (e) => e.stopPropagation());
 }
+
+function openCivDropdown(wrapper, side) {
+  const header = wrapper.querySelector(".custom-select-header");
+  const dropdown = wrapper.querySelector(".custom-select-dropdown");
+  header.classList.add("open");
+  dropdown.classList.add("show");
+  const search = dropdown.querySelector(".custom-select-search");
+  search.value = "";
+  search.focus();
+  renderCivOptions(wrapper, side, "");
+}
+
+function renderCivOptions(wrapper, side, filter) {
+  const dropdown = wrapper.querySelector(".custom-select-dropdown");
+  const searchInput = dropdown.querySelector(".custom-select-search");
+  const currentVal = wrapper.dataset.value;
+  const filterLower = (filter || "").toLowerCase();
+
+  let html = "";
+  // "All Civilizations" option
+  if (!filterLower || "all civilizations".includes(filterLower)) {
+    const sel = !currentVal ? " selected" : "";
+    html += `<div class="custom-select-option${sel}" data-value="">All Civilizations</div>`;
+  }
+
+  CIV_ORDER.forEach(civ => {
+    if (civ === "Common") return;
+    if (filterLower && !civ.toLowerCase().includes(filterLower)) return;
+    const sel = civ === currentVal ? " selected" : "";
+    const flag = CIV_FLAGS[civ] ? `<img src="${CIV_FLAGS[civ]}" alt="${civ}" style="height:18px; border-radius:2px;">` : "";
+    html += `<div class="custom-select-option${sel}" data-value="${civ}"><span>${flag} ${civ}</span></div>`;
+  });
+
+  // Remove old options
+  dropdown.querySelectorAll(".custom-select-option").forEach(el => el.remove());
+  searchInput.insertAdjacentHTML("afterend", html);
+
+  // Attach click handlers
+  dropdown.querySelectorAll(".custom-select-option").forEach(opt => {
+    opt.addEventListener("click", () => {
+      const val = opt.dataset.value;
+      wrapper.dataset.value = val;
+      updateCivSelectHeader(wrapper);
+      closeDropdown(wrapper);
+      onCivChange(side);
+    });
+  });
+}
+
+function updateCivSelectHeader(wrapper) {
+  const val = wrapper.dataset.value;
+  const header = wrapper.querySelector(".custom-select-header");
+  const nameSpan = header.querySelector(".cs-name");
+  const flagsSpan = header.querySelector(".cs-flags");
+  if (val && CIV_FLAGS[val]) {
+    nameSpan.textContent = val;
+    flagsSpan.innerHTML = `<img src="${CIV_FLAGS[val]}" alt="${val}" style="height:18px; border-radius:2px;">`;
+  } else {
+    nameSpan.textContent = "All Civilizations";
+    flagsSpan.innerHTML = "";
+  }
+}
+
+function populateCivDropdowns() {
+  initCivSelect("civSelectA", "A");
+  initCivSelect("civSelectB", "B");
+}
+
+function onCivChange(side) {
+  const wrapper = document.getElementById("civSelect" + side);
+  const civ = wrapper.dataset.value;
+  if (side === "A") selectedCivA = civ; else selectedCivB = civ;
+
+  // Check if current unit is still available for this civ
+  const unitWrapper = document.getElementById("unit" + side + "Select");
+  const currentUnit = unitWrapper.dataset.value;
+  if (civ) {
+    const available = getUnitsForCiv(civ);
+    if (!available.includes(currentUnit)) {
+      unitWrapper.dataset.value = available[0] || "Horseman";
+      updateSelectHeader(unitWrapper);
+      updateUnitStats(side);
+    }
+  }
+
+  // Re-render unit dropdown if open
+  const dropdown = unitWrapper.querySelector(".custom-select-dropdown");
+  if (dropdown && dropdown.classList.contains("show")) {
+    renderDropdownOptions(unitWrapper, unitWrapper.querySelector(".custom-select-search").value);
+  }
+}
+
 
 /**
  * Helper: Returns available ages for a unit
@@ -611,6 +762,13 @@ function renderEffects(side, effects) {
                  value="${effect.damage}" style="font-size:0.8rem;width:80px;display:inline-block;">
           <small class="text-muted" style="font-size:0.7rem;">Damage</small>
         </div>`;
+    } else if (effectId === "gunpowderResistance") {
+      valueHtml = `
+        <div class="ms-4 mt-1">
+          <input type="number" id="${checkId}_reduction" class="form-control form-control-sm"
+                 value="${effect.reduction}" style="font-size:0.8rem;width:80px;display:inline-block;">
+          <small class="text-muted" style="font-size:0.7rem;">Reduction % vs Gunpowder</small>
+        </div>`;
     } else if (effectId === "camelUnease") {
       valueHtml = `
         <div class="ms-4 mt-1">
@@ -759,6 +917,13 @@ function renderEffects(side, effects) {
                  value="${effect.unitsHit}" style="font-size:0.8rem;width:80px;display:inline-block;">
           <small class="text-muted" style="font-size:0.7rem;">Units hit per attack</small>
         </div>`;
+    } else if (effectId === "aoeFalloff") {
+      valueHtml = `
+        <div class="ms-4 mt-1">
+          <input type="number" id="${checkId}_unitsHit" class="form-control form-control-sm"
+                 value="${effect.unitsHit}" style="font-size:0.8rem;width:80px;display:inline-block;">
+          <small class="text-muted" style="font-size:0.7rem;">Units hit (center=full, outer=falloff)</small>
+        </div>`;
     } else if (effectId === "armorPenetration") {
       valueHtml = `
         <div class="ms-4 mt-1">
@@ -847,8 +1012,14 @@ function collectEffects(side) {
       effects.staticDeployment = { atkSpeedBonus: getVal("atkSpeedBonus"), delay: getVal("delay") };
     } else if (effectId === "deflectiveArmor") {
       effects.deflectiveArmor = true;
+    } else if (effectId === "doubleAttack") {
+      effects.doubleAttack = true;
+    } else if (effectId === "thrownAxes") {
+      effects.thrownAxes = true;
     } else if (effectId === "openingAttack") {
       effects.openingAttack = { damage: getVal("damage") };
+    } else if (effectId === "gunpowderResistance") {
+      effects.gunpowderResistance = { reduction: getVal("reduction") };
     } else if (effectId === "camelUnease") {
       effects.camelUnease = { reduction: getVal("reduction") };
     } else if (effectId === "shieldWall") {
@@ -875,6 +1046,8 @@ function collectEffects(side) {
       effects.battleGlory = { hpPerKill: getVal("hpPerKill"), attackPerKill: getVal("attackPerKill") };
     } else if (effectId === "aoeSplash") {
       effects.aoeSplash = { unitsHit: getVal("unitsHit") };
+    } else if (effectId === "aoeFalloff") {
+      effects.aoeFalloff = { unitsHit: getVal("unitsHit") };
     } else if (effectId === "armorPenetration") {
       effects.armorPenetration = { penetration: getVal("penetration") };
     } else if (effectId === "dmgDebuffOnHit") {
@@ -1203,6 +1376,16 @@ function showUnitDetail(side) {
   `;
 
   new bootstrap.Modal(document.getElementById("unitDetailModal")).show();
+
+  // Pre-select the civ from the battler dropdown in the popup's civ filter
+  const selectedCiv = side === "A" ? selectedCivA : selectedCivB;
+  if (selectedCiv) {
+    const civSelect = document.getElementById("civFilterSelect");
+    if (civSelect) {
+      civSelect.value = selectedCiv;
+      filterByCiv(selectedCiv);
+    }
+  }
 }
 
 /**
@@ -1346,6 +1529,8 @@ function getUnitData(side) {
     effects: collectEffects(side),
     chargeDamage: ageStats.chargeDamage || 0,
     weaponType: weaponData.type || "melee",
+    weaponRange: weaponData.range || 0,
+    speed: unit.speed || 1,
     secondaryWeapon:
       weaponMode === "both" && unit.weapons.secondary
         ? {
@@ -1510,6 +1695,7 @@ function runBattle() {
   const unitA = getUnitData("A");
   const unitB = getUnitData("B");
   const overkillEnabled = document.getElementById("overkillEnabled").checked;
+  const rangeSpeedEnabled = document.getElementById("rangeSpeedEnabled")?.checked;
   const splitA = document.getElementById("A_splitDamage")?.checked;
   const splitTargetsA = Math.max(1, parseInt(document.getElementById("A_splitTargets")?.value) || 1);
   const splitB = document.getElementById("B_splitDamage")?.checked;
@@ -1519,13 +1705,25 @@ function runBattle() {
   // Each team tracks separate timers for primary and secondary weapons.
   // If no secondary weapon, its timer is Infinity (never fires).
 
-  const primaryStartA = unitA.firstHitEnabled
-    ? -unitA.freeHits * unitA.stats.attackSpeed
-    : 0;
+  // Range & Speed: shorter-range unit must close distance before attacking
+  let closingDelayA = 0, closingDelayB = 0;
+  if (rangeSpeedEnabled) {
+    // Spearwall/palings extend effective engagement range only vs charging cavalry
+    const bIsCavalry = unitB.tags.includes("Cavalry") && unitB.chargeDamage > 0;
+    const aIsCavalry = unitA.tags.includes("Cavalry") && unitA.chargeDamage > 0;
+    const effectiveRangeA = ((unitA.effects.spearwall || unitA.effects.palings) && bIsCavalry) ? Math.max(unitA.weaponRange, 1.04) : unitA.weaponRange;
+    const effectiveRangeB = ((unitB.effects.spearwall || unitB.effects.palings) && aIsCavalry) ? Math.max(unitB.weaponRange, 1.04) : unitB.weaponRange;
+    if (effectiveRangeB > effectiveRangeA) closingDelayA = (effectiveRangeB - effectiveRangeA) / unitA.speed;
+    if (effectiveRangeA > effectiveRangeB) closingDelayB = (effectiveRangeA - effectiveRangeB) / unitB.speed;
+  }
 
-  const primaryStartB = unitB.firstHitEnabled
+  const primaryStartA = (unitA.firstHitEnabled
+    ? -unitA.freeHits * unitA.stats.attackSpeed
+    : 0) + closingDelayA;
+
+  const primaryStartB = (unitB.firstHitEnabled
     ? -unitB.freeHits * unitB.stats.attackSpeed
-    : 0;
+    : 0) + closingDelayB;
 
   let teamA = {
     units: unitA.count,
@@ -1788,13 +1986,22 @@ function runBattle() {
         effectiveStatsB,
         armorPenA
       );
-      // AoE Splash: each unit hits multiple enemies
-      const splashA = unitA.effects.aoeSplash ? Math.min(unitA.effects.aoeSplash.unitsHit, teamB.units) : 1;
+      // AoE: splash (full damage) or falloff (center=full, outer=linear decrease)
+      let splashA = 1;
+      let totalTargetsA = 1;
+      if (unitA.effects.aoeSplash) {
+        splashA = Math.min(unitA.effects.aoeSplash.unitsHit, teamB.units);
+        totalTargetsA = splashA;
+      } else if (unitA.effects.aoeFalloff) {
+        totalTargetsA = Math.min(unitA.effects.aoeFalloff.unitsHit, teamB.units);
+        splashA = (totalTargetsA + 1) / 2;
+      }
       damageToB += dmg * teamA.units * splashA;
       teamA.nextPrimaryAttack = time + atkSpeedA;
       aFiredPrimary = true;
       if (unitA.chargeDamage > 0 && (!teamA.hasCharged || time <= teamA.chargeTime + EPSILON)) logNotesA.push("Charge");
-      if (unitA.effects.aoeSplash && splashA > 1) logNotesA.push(`AoE×${splashA}`);
+      if (unitA.effects.aoeSplash && totalTargetsA > 1) logNotesA.push(`AoE×${totalTargetsA}`);
+      if (unitA.effects.aoeFalloff && totalTargetsA > 1) logNotesA.push(`AoE×${totalTargetsA}(falloff)`);
       // Atk Speed Debuff: slow enemy on hit
       if (unitA.effects.atkSpeedDebuff) {
         teamB.atkSpeedDebuffUntil = time + unitA.effects.atkSpeedDebuff.duration;
@@ -1847,13 +2054,22 @@ function runBattle() {
         effectiveStatsA,
         armorPenB
       );
-      // AoE Splash: each unit hits multiple enemies
-      const splashB = unitB.effects.aoeSplash ? Math.min(unitB.effects.aoeSplash.unitsHit, teamA.units) : 1;
+      // AoE: splash (full damage) or falloff (center=full, outer=linear decrease)
+      let splashB = 1;
+      let totalTargetsB = 1;
+      if (unitB.effects.aoeSplash) {
+        splashB = Math.min(unitB.effects.aoeSplash.unitsHit, teamA.units);
+        totalTargetsB = splashB;
+      } else if (unitB.effects.aoeFalloff) {
+        totalTargetsB = Math.min(unitB.effects.aoeFalloff.unitsHit, teamA.units);
+        splashB = (totalTargetsB + 1) / 2;
+      }
       damageToA += dmg * teamB.units * splashB;
       teamB.nextPrimaryAttack = time + atkSpeedB;
       bFiredPrimary = true;
       if (unitB.chargeDamage > 0 && (!teamB.hasCharged || time <= teamB.chargeTime + EPSILON)) logNotesB.push("Charge");
-      if (unitB.effects.aoeSplash && splashB > 1) logNotesB.push(`AoE×${splashB}`);
+      if (unitB.effects.aoeSplash && totalTargetsB > 1) logNotesB.push(`AoE×${totalTargetsB}`);
+      if (unitB.effects.aoeFalloff && totalTargetsB > 1) logNotesB.push(`AoE×${totalTargetsB}(falloff)`);
       // Atk Speed Debuff: slow enemy on hit
       if (unitB.effects.atkSpeedDebuff) {
         teamA.atkSpeedDebuffUntil = time + unitB.effects.atkSpeedDebuff.duration;
@@ -1890,6 +2106,14 @@ function runBattle() {
     }
     if (unitB.effects.camelUnease && teamA.tags.includes("Cavalry")) {
       damageToB *= (1 - unitB.effects.camelUnease.reduction / 100);
+    }
+
+    // === APPLY GUNPOWDER RESISTANCE: reduce damage from gunpowder units ===
+    if (unitA.effects.gunpowderResistance && (teamB.tags.includes("Gunpowder") || teamB.tags.includes("Light Gunpowder"))) {
+      damageToA *= (1 - unitA.effects.gunpowderResistance.reduction / 100);
+    }
+    if (unitB.effects.gunpowderResistance && (teamA.tags.includes("Gunpowder") || teamA.tags.includes("Light Gunpowder"))) {
+      damageToB *= (1 - unitB.effects.gunpowderResistance.reduction / 100);
     }
 
     // === APPLY FORTITUDE: increased melee damage taken ===
@@ -2164,6 +2388,8 @@ function runBattle() {
     if (unitB.effects.shieldWall) logNotesB.push("ShieldWall");
     if (unitA.effects.camelUnease && teamB.tags.includes("Cavalry")) logNotesA.push("CamelUnease");
     if (unitB.effects.camelUnease && teamA.tags.includes("Cavalry")) logNotesB.push("CamelUnease");
+    if (unitA.effects.gunpowderResistance && (teamB.tags.includes("Gunpowder") || teamB.tags.includes("Light Gunpowder"))) logNotesA.push("GunpowderRes");
+    if (unitB.effects.gunpowderResistance && (teamA.tags.includes("Gunpowder") || teamA.tags.includes("Light Gunpowder"))) logNotesB.push("GunpowderRes");
     if (unitA.effects.armorDebuffAura) logNotesA.push("-Armor");
     if (unitB.effects.armorDebuffAura) logNotesB.push("-Armor");
 
