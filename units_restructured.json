@@ -2595,6 +2595,13 @@
       "Heavy",
       "Melee"
     ],
+    "effects": {
+      "infantrySpeedAura": {
+        "name": "Farima Leadership",
+        "speedBonus": 15,
+        "description": "Nearby infantry gain +15% movement speed"
+      }
+    },
     "weapons": {
       "primary": {
         "type": "melee",
@@ -4090,6 +4097,13 @@
       "Infantry",
       "Ranged"
     ],
+    "effects": {
+      "deflectiveArmor": {
+        "name": "Deflective Armor",
+        "description": "Blocks the first incoming attack",
+        "civs": ["Sengoku Daimyo"]
+      }
+    },
     "weapons": {
       "primary": {
         "type": "ranged",
@@ -8462,6 +8476,14 @@
       "Cavalry",
       "Ranged"
     ],
+    "effects": {
+      "movementBurst": {
+        "name": "Kabura-ya Whistling Arrow",
+        "speedBonus": 15,
+        "duration": 10,
+        "description": "+15% movement speed for 10s when spotting an enemy"
+      }
+    },
     "weapons": {
       "primary": {
         "type": "ranged",
@@ -12369,6 +12391,11 @@
         "name": "% HP Damage",
         "percent": 6,
         "description": "Deals 6% of enemy max HP as bonus damage"
+      },
+      "deflectiveArmor": {
+        "name": "Deflective Armor",
+        "description": "Blocks the first incoming attack",
+        "civs": ["Sengoku Daimyo"]
       }
     },
     "weapons": {
@@ -12544,6 +12571,13 @@
       "Melee",
       "Melee Infantry"
     ],
+    "effects": {
+      "deflectiveArmor": {
+        "name": "Deflective Armor",
+        "description": "Blocks the first incoming attack",
+        "civs": ["Sengoku Daimyo"]
+      }
+    },
     "weapons": {
       "primary": {
         "type": "melee",
@@ -12721,6 +12755,13 @@
       "Ranged",
       "Gunpowder"
     ],
+    "effects": {
+      "deflectiveArmor": {
+        "name": "Deflective Armor",
+        "description": "Blocks the first incoming attack",
+        "civs": ["Sengoku Daimyo"]
+      }
+    },
     "weapons": {
       "primary": {
         "type": "ranged",
@@ -12858,6 +12899,13 @@
       "Cavalry",
       "Melee"
     ],
+    "effects": {
+      "deflectiveArmor": {
+        "name": "Deflective Armor",
+        "description": "Blocks the first incoming attack",
+        "civs": ["Sengoku Daimyo"]
+      }
+    },
     "weapons": {
       "primary": {
         "type": "melee",
@@ -15138,7 +15186,7 @@
       "openingAttack": {
         "name": "First Strike",
         "damage": 24,
-        "description": "Deal extra damage on first attack from Stealth (2x base attack)"
+        "description": "Deal 3x damage when breaking stealth (3x base attack)"
       }
     }
   },
@@ -15158,6 +15206,13 @@
       "Ranged",
       "Gunpowder"
     ],
+    "effects": {
+      "openingAttack": {
+        "name": "First Strike",
+        "damage": 82,
+        "description": "Deal 2x damage when breaking stealth (2x base attack)"
+      }
+    },
     "weapons": {
       "primary": {
         "type": "ranged",
