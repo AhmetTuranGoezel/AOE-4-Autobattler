@@ -23,7 +23,8 @@
         <input type="checkbox" id="overkillEnabled">
         <label for="overkillEnabled" class="ms-2 fw-bold">Overkill waste</label>
         <span class="mx-3">|</span>
-        <button id="sortToggleBtn" class="btn btn-sm btn-outline-warning" onclick="toggleSortMode()" style="font-size:0.78rem; padding:2px 12px;">Sort: by Civ</button>
+        <input type="checkbox" id="rangeSpeedEnabled">
+        <label for="rangeSpeedEnabled" class="ms-2 fw-bold">Consider range & speed</label>
       </div>
     </div>
 
@@ -33,6 +34,11 @@
         <div class="card card-team-a">
           <div class="card-body">
             <h3 class="card-title card-title-a" id="titleA" style="cursor:pointer" onclick="showUnitDetail('A')" title="Click for details">Unit A</h3>
+
+            <!-- Civilization Selection -->
+            <div class="mb-2">
+              <div id="civSelectA" class="custom-select-wrapper civ-select-wrapper" data-value=""></div>
+            </div>
 
             <!-- Unit Selection and Age -->
             <div class="row g-3 mb-3">
@@ -241,6 +247,11 @@
         <div class="card card-team-b">
           <div class="card-body">
             <h3 class="card-title card-title-b" id="titleB" style="cursor:pointer" onclick="showUnitDetail('B')" title="Click for details">Unit B</h3>
+
+            <!-- Civilization Selection -->
+            <div class="mb-2">
+              <div id="civSelectB" class="custom-select-wrapper civ-select-wrapper" data-value=""></div>
+            </div>
 
             <div class="row g-3 mb-3">
               <div class="col-8">

@@ -146,6 +146,16 @@ h1 {
   letter-spacing: 0.5px;
 }
 
+.civ-select-wrapper .custom-select-header {
+  font-size: 0.85rem;
+  padding: 4px 8px;
+}
+
+.civ-select-wrapper .custom-select-option img {
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
 .form-control::placeholder {
   color: #6a6252;
   opacity: 1;

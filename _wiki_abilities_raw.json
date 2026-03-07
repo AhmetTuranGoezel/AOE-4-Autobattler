@@ -1,0 +1,227 @@
+{
+  "Akinji": {
+    "has_ability": false,
+    "ability_text": "",
+    "intro": "{{Infobox AoE4 unit\n|Name = Akinji\n|Image = <gallery>\nAoE4 EarlyHorseArcher.png|Regular\nAoE4 RegularHorseArcher.png|Veteran\nAoE4 EliteHorseArcher.png|Elite\n</gallery>\n|Intro = {{4icons}} - [[update 12.0.1974|Season Nine]]\n|Type = Light ranged cavalry\n|Age = {{4icons|Feudal Age}}\n|Food = {{tt|80|90 before patch 13.1.4420, 100 before patch 12.2.3327}}\n|Wood = 80\n|Civilization = {{4icons|Ottomans}}\n|"
+  },
+  "Archer": {
+    "has_ability": false,
+    "ability_text": "",
+    "intro": "{{for|unit in [[Age of Empires IV]]|other uses of the term|Archer}}\n{{Infobox AoE4 unit\n|Name = Archer\n|Image = <gallery>\nAoE4 RegularArcher.png|Regular\nAoE4 VeteranArcher.png|Veteran\nAoE4 EliteArcher.png|Elite\n</gallery>\n|Intro = {{4icons}}\n|Type = Light ranged infantry\n|Age = {{4icons|Feudal Age}}\n|Food = 30\n|Wood = 50\n|Civilization = See table\n|Building = {{4icons|Archery Range}}<br />{{4icons|"
+  },
+  "Ballista Elephant": {
+    "has_ability": false,
+    "ability_text": "",
+    "intro": "{{Disambig}}\nThe '''Ballista Elephant''' is a unit in ''[[Age of Empires II HD: Rise of the Rajas]]'' and ''[[Age of Empires IV: Dynasties of the East]]''.\n:''For the Age of Empires II article, see [[Ballista Elephant (Age of Empires II)]].''\n:''For the Age of Empires IV article, see [[Ballista Elephant (Age of Empires IV)]].''"
+  },
+  "Condottiero": {
+    "has_ability": true,
+    "ability_text": "== Ability ==\n* [[File:AoE4 WarfareExperience.png|22px]] '''Warfare Experience:''' The Condottiero takes {{tt|33%|20% before patch 13.1.4420}} less damage from gunpowder units.",
+    "intro": "{{For|unit in [[Age of Empires IV: Knights of Cross and Rose]]|the unit in [[Age of Empires II HD: The Forgotten]]|Condottiero (Age of Empires II)}}\n{{Infobox AoE4 unit\n|Name = Condottiero\n|Intro = {{4icons|Knights of Cross and Rose}}\n|Image = Condottiero AoE4.png\n|Type = Heavy[sic] melee infantry\n|TrainReq = {{4icons|Republic of Venice}}\n|Civilization = {{4icons|Knights Templar}}\n|Age = {{4icons|"
+  },
+  "Crossbow": {
+    "has_ability": false,
+    "ability_text": "",
+    "intro": "{{for|unit in [[Age of Empires IV]]|other uses|Crossbowman}}\n{{Infobox AoE4 unit\n|Name = Crossbowman\n|Intro = {{4icons}}\n|Image = <gallery>\nAoE4 RegularCrossbowman.png|Regular\nAoE4 EliteCrossbowman.png|Elite\n</gallery>\n|Type = Light ranged infantry\n|Age = {{4icons|Castle Age}}\n|Food = 80\n|Gold = 40\n|Civilization = [[#Civilizations|See table]]\n|Building = {{4icons|Archery Range}}<br />{{4icons|Keep"
+  },
+  "Fire Lancer": {
+    "has_ability": false,
+    "ability_text": "",
+    "intro": "{{forNoLink|the unit in [[Age of Empires IV]]|the unit in [[Age of Empires II: Definitive Edition - The Three Kingdoms]]|[[Fire Lancer (Age of Empires II)]]|the unit in [[Age of Mythology: Tale of the Dragon]]|[[Fire Lance]]}}\n{{Infobox AoE4 unit\n|Name = Fire Lancer\n|Image = <gallery>\nAoE4 RegularFireLancer.png|Regular\nAoE4 EliteFireLancer.png|Elite\n</gallery>\n|Intro = {{4icons|Age of Empires IV}}"
+  },
+  "Genitour": {
+    "has_ability": false,
+    "ability_text": "",
+    "intro": "{{Disambig}}\nThe '''Genitour''' is a trainable unit in ''[[Age of Empires II HD: The African Kingdoms]]'' and ''[[Age of Empires IV: Knights of Cross and Rose]]''.\n: ''For the Age of Empires II article, see [[Genitour (Age of Empires II)]]''.\n: ''For the Age of Empires IV article, see [[Genitour (Age of Empires IV)]]''.\n\n: For the similar unit in ''[[Age of Empires III: Definitive Edition - The Af"
+  },
+  "Genoese Crossbowman": {
+    "has_ability": false,
+    "ability_text": "",
+    "intro": "{{for|unit in [[Age of Empires IV: The Sultans Ascend]]|the unit in [[Age of Empires II HD: The Forgotten]]|Genoese Crossbowman (Age of Empires II)}}\n{{Infobox AoE4 unit\n|Name = Genoese Crossbowman\n|Intro = {{4icons|Knights of Cross and Rose}}\n|Image = <gallery>\nRegular Genoese Crossbowman AoE4.png|Regular\nElite Genoese Crossbowman AoE4.png|Elite\n</gallery>\n|Type = Light ranged infantry\n|TrainReq "
+  },
+  "Ghazi Raider": {
+    "has_ability": false,
+    "ability_text": "",
+    "intro": "{{Infobox AoE4 unit\n|Name = Ghazi Raider\n|Image = <gallery>\nAoE4 RegularGhaziRaider.png|Regular\nAoE4 VeteranGhaziRaider.png|Veteran\nAoE4 EliteGhaziRaider.png|Elite\n</gallery>\n|Intro = {{4icons|Season Five}}\n|Type = Light melee cavalry\n|Age = {{4icons|Feudal Age}}\n|Food = 110\n|Wood = 30\n|Civilization = {{4icons|Delhi Sultanate}}\n|Building = {{4icons|Stable}}\n|Time = 25 seconds\n|HP = {{tt|135|140 be"
+  },
+  "Ghulam": {
+    "has_ability": true,
+    "ability_text": "== Ability ==\n* [[File:AoE4 QuickStrike.png|22px]] '''Quick Strike''' (passive): Although the ability is described as 'Quickly deals a second hit after finishing an attack', it can be thought of as just an enhancement that increases its attack speed to attacking every 0.813s on average (1.625 seconds for both attacks).\n\nThe Quick Strike ability is also independent of the Ghulam's charge attack. While all Men-at-Arms have a charge attack where they gain increased speed, the Ghulam uniquely gains a damage bonus from this attack, similar to heavy cavalry. Like all Ayyubid and Abbasid Dynasty infantry, they can build [[Mangonel (Age of Empires IV)|Mangonels]] and [[Springald]]s in addition to [[Battering Ram (Age of Empires IV)|Battering Rams]] and [[Siege Tower (Age of Empires IV)|Siege Tower",
+    "intro": "{{For|[[Age of Empires IV]] unit|the unit in [[Age of Empires II: The Age of Kings|Age of Empires II]]|Ghulam (Age of Empires II)}}\n{{Infobox AoE4 unit\n|Name = Ghulam\n|Image = <gallery>\nAoE4 RegularGhulam.png|Regular\nAoE4 EliteGhulam.png|Elite\n</gallery>\n|Intro = {{4icons|Season Five}}\n|Type = Heavy melee infantry\n|Age = {{4icons|Castle Age}}\n|Food = 120\n|Gold = 30\n|Civilization = {{4icons|Abbasid"
+  },
+  "Gilded Archer": {
+    "has_ability": false,
+    "ability_text": "",
+    "intro": "{{Infobox AoE4 unit\n|Name = Gilded Archer\n|Image = <gallery>\nAoE4 RegularGildedArcher.png|Regular\nAoE4 VeteranGildedArcher.png|Veteran\nAoE4 EliteGildedArcher.png|Elite\n</gallery>\n|Intro = {{4icons|The Sultans Ascend}}\n|Type = Light ranged infantry\n|Age = {{4icons|Feudal Age}}\n|Food = 60\n|Wood = 100\n|Civilization = {{4icons|Order of the Dragon}}\n|Building = {{4icons|Archery Range}}\n|Time = 18 secon"
+  },
+  "Gilded Crossbowman": {
+    "has_ability": false,
+    "ability_text": "",
+    "intro": "{{Infobox AoE4 unit\n|Intro = {{4icons|The Sultans Ascend}}\n|Image = <gallery>\nAoE4 RegularGildedCrossbowman.png|Regular\nAoE4 EliteGildedCrossbowman.png|Elite\n</gallery>\n|Type = Light ranged infantry\n|Age = {{4icons|Castle Age}}\n|Food = 160\n|Gold = 80\n|Civilization = {{4icons|Order of the Dragon}}\n|Building = {{4icons|Archery Range}}\n|Time = 27 seconds\n|HP = 140 <small>(Regular)</small><br />170 <s"
+  },
+  "Gilded Horseman": {
+    "has_ability": false,
+    "ability_text": "",
+    "intro": "{{Infobox AoE4 unit\n|Image = <gallery>\nAoE4 RegularGildedHorseman.png|Regular\nAoE4 VeteranGildedHorseman.png|Veteran\nAoE4 EliteGildedHorseman.png|Elite\n</gallery>\n|Intro = {{4icons|The Sultans Ascend}}\n|Type = Light melee cavalry\n|Age = {{4icons|Feudal Age}}\n|Food = 200\n|Wood = 40\n|Civilization = {{4icons|OotD}}\n|Building = {{4icons|Stable}}\n|Time = 27 seconds\n|HP = 250 <small>(Regular)</small><br"
+  },
+  "Gilded MAA": {
+    "has_ability": false,
+    "ability_text": "",
+    "intro": "{{For|unit in [[Age of Empires IV: The Sultans Ascend]]|other uses|Man-at-Arms}}\n{{Infobox AoE4 unit\n|Name = Gilded Man-at-Arms\n|Image = <gallery>\nAoE4 EarlyGildedManAtArms.png|Early\nAoE4 RegularGildedManAtArms.png|Regular\nAoE4 EliteGildedManAtArms.png|Elite\n</gallery>\n|Intro = {{4icons|The Sultans Ascend}}\n|Type = Heavy melee infantry\n|Age = {{4icons|Feudal Age}}\n|Food = 200\n|Gold = 40\n|Civilizat"
+  },
+  "Handcannoneer": {
+    "has_ability": false,
+    "ability_text": "",
+    "intro": ""
+  },
+  "Hobelar": {
+    "has_ability": false,
+    "ability_text": "",
+    "intro": "{{Infobox AoE4 unit\n|Name = Hobelar\n|Intro = {{4icons|Knights of Cross and Rose}}\n|Image = <gallery>\nRegular Hobelar AoE4.png|Regular\nVeteran Hobelar AoE4.png|Veteran\nElite Hobelar AoE4.png|Elite\n</gallery>\n|Type = Light melee cavalry\n|Civilization = {{4icons|House of Lancaster}}\n|Ability = \n|Age = {{4icons|Feudal Age}}\n|Food = {{tt|75|70 before patch 15.3.8338}}\n|Gold = 20\n|Building = {{4icons|St"
+  },
+  "Horse Archer": {
+    "has_ability": true,
+    "ability_text": "== Ability ==\n* [[File:AoE4 Gallop.png|22px]] '''Gallop''' (active, requires {{4icons|Mounted Training}}): When active, base move speed is set to 2 tiles per second, and weapon range is increased by +2 for 8 seconds. This ability has a 45 second cooldown after being used. Note that 2 tiles per second is the maximum speed of any unit; therefore, further speed enhancements such as Yam Aura or Naval Deployment will have no effect, even if the UI displays a higher speed.",
+    "intro": "{{for|unit in [[Age of Empires IV]]|the unit in [[Age of Empires]]|Horse Archer (Age of Empires)}}\n{{Infobox AoE4 unit\n|Name = Horse Archer\n|Image = <gallery>\nAoE4 RegularHorseArcher.png|Regular\nAoE4 EliteHorseArcher.png|Elite\n</gallery>\n|Intro = {{4icons|Age of Empires IV}}\n|Type = Light ranged cavalry\n|Civilization = {{4icons|Rus}}\n|Age = {{4icons|Castle Age}}\n|Building = {{4icons|Archery Range}"
+  },
+  "Horseman": {
+    "has_ability": false,
+    "ability_text": "",
+    "intro": ""
+  },
+  "Imperial Guard": {
+    "has_ability": false,
+    "ability_text": "",
+    "intro": ""
+  },
+  "Jannisary": {
+    "has_ability": true,
+    "ability_text": "== Ability ==\n* Janissaries can repair [[siege engine]]s at an approximate rate of 3 hit points per second (50% slower than a Villager).",
+    "intro": "{{For|unit in [[Age of Empires IV: Anniversary Edition]]|other uses|Janissary}}\n{{Infobox AoE4 unit\n|Name = Janissary\n|Intro = {{4icons|Anniversary Edition}}\n|Image = <gallery>\nAoE4 RegularJanissary.png|Regular\nAoE4 EliteJanissary.png|Elite\n</gallery>\n|Type = Light ranged gunpowder infantry\n|Age = {{4icons|Castle Age}}\n|Food = 60\n|Gold = 100\n|Civilization = {{4icons|Ottomans}}\n|Building = {{4icons"
+  },
+  "Javelin Thrower": {
+    "has_ability": false,
+    "ability_text": "",
+    "intro": ""
+  },
+  "Knight/Lancer": {
+    "has_ability": false,
+    "ability_text": "",
+    "intro": "#REDIRECT [[Lancer (Age of Empires IV)]]"
+  },
+  "MAA": {
+    "has_ability": false,
+    "ability_text": "",
+    "intro": "{{For|[[Age of Empires IV]] unit|the unit in [[Age of Empires II: The Age of Kings|Age of Empires II]]|Man-at-Arms (Age of Empires II)}}\n{{Infobox AoE4 unit\n|Name = Man-at-Arms\n|Image = <gallery>\nAoE4 VanguardManAtArms.png|Vanguard\nAoE4 EarlyManAtArms.png|Early\nAoE4 RegularManAtArms.png|Regular\nAoE4 EliteManAtArms.png|Elite\n</gallery>\n|Intro = {{4icons}}\n|Type = Heavy melee infantry\n|Age = {{4icon"
+  },
+  "Mangudai": {
+    "has_ability": false,
+    "ability_text": "",
+    "intro": "{{For|[[Age of Empires IV]] unit|the unit in [[Age of Empires II: The Age of Kings|Age of Empires II]]|Mangudai (Age of Empires II)}}\n{{Infobox AoE4 unit\n|Name = Mangudai\n|Image = <gallery>\nAoE4 RegularMangudai.png|Regular\nAoE4 VeteranMangudai.png|Veteran\nAoE4 EliteMangudai.png|Elite\n</gallery>\n|Intro = {{4icons|Age of Empires IV}}\n|Type = Light ranged cavalry\n|Age = {{4icons|Feudal Age}}\n|Food = "
+  },
+  "Mounted Samurai": {
+    "has_ability": false,
+    "ability_text": "",
+    "intro": "{{disambig}}\nThe '''Mounted Samurai''' is a [[cavalry]] unit in ''[[Age of Empires II: Definitive Edition]]'' and in ''[[Age of Empires IV: The Sultans Ascend]]''.\n\n:''For the Age of Empires II article, see [[Mounted Samurai (Age of Empires II)]]''.\n:''For the Age of Empires IV article, see [[Mounted Samurai (Age of Empires IV)]]''."
+  },
+  "Musofadi Gunner": {
+    "has_ability": false,
+    "ability_text": "",
+    "intro": "{{Infobox AoE4 unit\n|Image = AoE4 MusofadiGunner.png\n|Intro = {{4icons|Anniversary Edition}}\n|Type = Ranged gunpowder infantry\n|Age = {{4icons|Imperial Age}}\n|Food = 110\n|Gold = 130\n|Civilization = {{4icons|Malians}}\n|Building = {{4icons|Archery Range}}\n|Time = 35 seconds\n|HP = 130\n|RROF = 2.125 seconds\n|Speed = 1.25 tiles/second\n|Pop = 1\n|RDamage = {{tt|41|38 before patch 12.1.2454}}\n|Armor = 0\n|"
+  },
+  "Musofadi Warrior": {
+    "has_ability": true,
+    "ability_text": "== Ability ==\n* [[File:AoE4 Stealth.png|22px]] '''[[Stealth mode|Stealth]]''' (active): Enter Stealth for {{tt|30|20 before patch 8.2.218}} seconds. When in Stealth, units are invisible until they are revealed by enemy [[Scout (Age of Empires IV)|Scouts]], [[Outpost (Age of Empires IV)|Outposts]], [[Town Center (Age of Empires IV)|Capital Town Center]] or they engage in combat. Cooldown: {{tt|30|60 before patch 8.2.218}} seconds.\n* [[File:AoE4 FirstStrike.png|22px]] '''First Strike''' (passive, requires [[Fort of the Huntress]]): Deal 3x damage when breaking stealth with an attack. This ability works with either the Huntress Stealth ability or the standard Stealth ability, and the multiplier applies to both base damage and damage increases from upgrades.",
+    "intro": "{{Infobox AoE4 unit\n|Image = <gallery>\nAoE4 RegularMusofadiWarrior.png|Regular\nAoE4 VeteranMusofadiWarrior.png|Veteran\nAoE4 EliteMusofadiWarrior.png|Elite\n</gallery>\n|Intro = {{4icons|Anniversary Edition}}\n|Type = Light melee infantry\n|Age = {{4icons|Feudal Age}}\n|Food = {{tt|45|50 before patch 13.1.4420}}\n|Gold = 30\n|Civilization = {{4icons|Malians}}\n|Building = {{4icons|Barracks}}<br />{{4icons|"
+  },
+  "Naginata Samurai": {
+    "has_ability": false,
+    "ability_text": "",
+    "intro": "{{Infobox AoE4 unit\n|Name = Naginata Samurai\n|Image = <gallery>\nAoE4 RegularSamurai.png|Regular\nAoE4 HardenedSamurai.png|Hardened\nAoE4 VeteranSamurai.png|Veteran\nAoE4 EliteSamurai.png|Elite\n</gallery>\n|Intro = {{4icons|Dynasties of the East}}\n|Type = Heavy melee infantry\n|Age = {{4icons|Dark Age}}\n|Food = 100\n|Gold = 20\n|Civilization = {{4icons|Sengoku Daimyo}}\n|Building = {{4icons|Barracks}}\n|Tim"
+  },
+  "Onna Musha": {
+    "has_ability": false,
+    "ability_text": "",
+    "intro": "#REDIRECT [[Onna-musha]]"
+  },
+  "Onna-Bugeisha": {
+    "has_ability": false,
+    "ability_text": "",
+    "intro": ""
+  },
+  "Palace Guard": {
+    "has_ability": false,
+    "ability_text": "",
+    "intro": ""
+  },
+  "Riddari": {
+    "has_ability": true,
+    "ability_text": "== Ability ==\n* [[File:Thrown Axes AoE4.png|22px]] '''Thrown Axes''' (Active): The Riddari switches to its throwing axe attack for 10 seconds, which deals melee damage from range. Unlike the [[Serjeant (Age of Empires IV)|Serjeant]], the Riddari still uses its Torch attack against buildings. After the 10 seconds have expired, the ability has a 30 second cooldown before it can be activated again.\n* [[File:Runestones Ability AoE4.png|22px]] '''Runestones''' (Active): The Riddari can place Runestones when they become available. Further details are described on the [[Runestones (building)|Runestones page]]",
+    "intro": "{{Infobox AoE4 unit\n|Name = Riddari\n|Image = <gallery>\nRegular Riddari AoE4.png|Regular\nElite Riddari AoE4.png|Elite\n</gallery>\n|Intro = {{4icons|Dynasties of the East}}\n|Type = Heavy melee Varangian cavalry\n|Civilization = {{4icons|Macedonian Dynasty}}\n|Age = {{4icons|Castle Age}}\n|Building = {{4icons|Stable}}<br />{{4icons|Varangian Stronghold}}\n|Pop = 1\n|Food = 130\n|Gold = 110\n|Time = 35 second"
+  },
+  "Serjeant": {
+    "has_ability": false,
+    "ability_text": "",
+    "intro": "{{For|unit in [[Age of Empires IV: Knights of Cross and Rose]]|the unit in [[Age of Empires II: Definitive Edition - Lords of the West]]|Serjeant (Age of Empires II)}}\n{{Infobox AoE4 unit\n|Name = Serjeant\n|Intro = {{4icons|Knights of Cross and Rose}}\n|Image = <gallery>\nRegular Serjeant AoE4.png|Regular\nVeteran Serjeant AoE4.png|Veteran\nElite Serjeant AoE4.png|Elite\n</gallery>\n|Type = Heavy melee i"
+  },
+  "Sofa": {
+    "has_ability": false,
+    "ability_text": "",
+    "intro": ""
+  },
+  "Sultans Tower Elephant": {
+    "has_ability": false,
+    "ability_text": "",
+    "intro": "{{Infobox AoE4 unit\n|Name = Sultan's Elite Tower Elephant\n|Image = AoE4 SultansEliteTowerElephant.png\n|Intro = {{4icons|Season Four}}\n|Type = Ranged Cavalry<br />Elephant\n|Age = {{4icons|Imperial Age}}\n|Civilization = {{4icons|Delhi Sultanate}}\n|Building = {{4icons|Palace of the Sultan}} (automatically spawning)\n|Time = 200 seconds\n|RROF = 1.62 seconds\n|RDamage = {{tt|38|35 before patch 12.1.2454}"
+  },
+  "Tanegashima Ashigaru": {
+    "has_ability": false,
+    "ability_text": "",
+    "intro": "{{Infobox AoE4 unit\n|Name = Tanegashima Ashigaru\n|Image = <gallery>\nRegular Tanegashima Ashigaru AoE4.png|Regular\nElite Tanegashima Ashigaru AoE4.png|Elite\n</gallery>\n|Type = Ranged gunpowder infantry\n|Intro = {{4icons|Dynasties of the East}}\n|Age = {{4icons|Castle Age}}\n|Food = 70\n|Gold = 70\n|Civilization = {{4icons|Sengoku Daimyo}}\n|Building = {{4icons|Archery Range}}\n|Time = 24 seconds\n|HP = 95"
+  },
+  "Templar Brother": {
+    "has_ability": false,
+    "ability_text": "",
+    "intro": "{{for|Knights Templar civilization unique unit in [[Age of Empires IV: Knights of Cross and Rose]]|the enemy Crusader unit in [[The Sultans Ascend (campaign)|The Sultans Ascend]]|Holy Order Knight}}\n{{Infobox AoE4 unit\n|Name = Templar Brother\n|Intro = {{4icons|Knights of Cross and Rose}}\n|Image = <gallery>\nRegular Templar Brother AoE4.png|Regular\nElite Templar Brother AoE4.png|Elite\n</gallery>\n|Ty"
+  },
+  "Torguud": {
+    "has_ability": true,
+    "ability_text": "== Ability ==\n* [[File:Khan Guard AoE4.png|22px]] '''Khan Guard''' (Passive) - While [[Batu Khan]] is within four tiles of a Torguud, any damage taken by him is redirected to the Torguud. A floating icon will be displayed above the Torguud that is taking damage for the Khan. The first Torguud that is within range will be initially selected, after which this Torguud will continue taking damage until it either dies or moves out of the four-tile range. At this point, the ability switches to the Torguud nearest to the Khan. The Torguud will also passively heal Batu Khan at the rate of 2.5 hit points every five seconds.\n* [[File:AoE4 HealEnhancement.png|22px]] '''Battle Veteran''' (Passive, requires [[Sarai Lancers]]): The Torguud {{tt|heals itself|regenerates}} for four hit points for every at",
+    "intro": "{{Infobox AoE4 unit\n|Name = Torguud\n|Image = Torguud AoE4.png\n|Intro = {{4icons|Dynasties of the East}}\n|Type = Heavy melee cavalry\n|Age = {{4icons|Feudal Age}}\n|Civilization = {{4icons|Golden Horde}}\n|Building = [[Golden Tent]]\n|Time = {{AoE4Icon|Feudal}} 60 seconds<br />{{AoE4Icon|Castle}} {{tt|45|40 before patch 15.2.7380}} seconds<br />{{AoE4Icon|Imperial}} {{tt|35|20 before patch 15.2.7380}} "
+  },
+  "Tower Elephant": {
+    "has_ability": false,
+    "ability_text": "",
+    "intro": ""
+  },
+  "War Elephant": {
+    "has_ability": true,
+    "ability_text": "== Ability ==\n* '''Trample''' (active, {{4icons|Tughlaq Dynasty}}): The skilled Mahout causes the Elephant to rear and enter a frenzied rage for 6 seconds. While enraged the Elephant can trample through any units, dealing 9 damage every 0.5 seconds to anything within range. This ability has a 30 second cooldown after trample ends.",
+    "intro": "{{for|unit in [[Age of Empires IV]]|the similar unit in other games of the [[Age of Empires (series)|series]]|War Elephant}}\n{{Infobox AoE4 unit\n|Name = War Elephant\n|Image = AoE4 WarElephant.png\n|Type = Heavy melee cavalry<br />Elephant\n|Intro = {{4icons}}\n|Age = {{4icons|Castle Age}}\n|Food = {{tt|400|600 before Season Four}}\n|Gold = {{tt|350|400 before Season Four}}\n|Civilization = {{4icons|Delh"
+  },
+  "Wynguard Footman": {
+    "has_ability": false,
+    "ability_text": "",
+    "intro": "{{Infobox army\n|Name = Wynguard Footmen\n|Intro = {{4icons|Season Four}}\n|Image = AoE4 WynguardFootman.png\n|Time = {{tt|45|50 before patch 10.1.48}} seconds\n|Population = 6\n|Food = {{tt|300|200 before patch 10.1.48}}\n|Gold = {{tt|400|500 before patch 10.1.48}}\n|Composition = 6x Wynguard Footman\n|Available = {{4icons|English}}\n|Building = {{4icons|Wynguard Palace}}\n}}\n{{Infobox AoE4 unit\n|Type = Hea"
+  },
+  "Yari Cavalry": {
+    "has_ability": false,
+    "ability_text": "",
+    "intro": "{{Infobox AoE4 unit\n|Name = Yari Cavalry\n|Intro = {{4icons|Dynasties of the East}}\n|Image = <gallery>\nRegular Yari Cavalry AoE4.png|Regular\nVeteran Yari Cavalry AoE4.png|Veteran\nElite Yari Cavalry AoE4.png|Elite\n</gallery>\n|Type = Light melee cavalry\n|Civilization = {{4icons|Sengoku Daimyo}}\n|Ability = \n|Age = {{4icons|Feudal Age}}\n|Food = 115\n|Wood = 30\n|Building = {{4icons|Stable}}\n|Time = 22.5 "
+  },
+  "Yuan Raider": {
+    "has_ability": false,
+    "ability_text": "",
+    "intro": "{{Infobox AoE4 unit\n|Image = AoE4 YuanRaider.png\n|Intro = {{4icons|The Sultans Ascend}}\n|Type = Light melee cavalry\n|Age = {{4icons|Imperial Age}}\n|Food = 80\n|Wood = 20\n|Gold = 20\n|Civilization = {{4icons|ZXL}}\n|TrainReq = {{4icons|Dynastic Protectors}} at {{4icons|Zhu Xi's Library}}\n|Building = {{4icons|Stable}}\n|Time = 22.5 seconds\n|HP = 200\n|MDamage = 15\n|MBonus = +5 vs worker<br />+10 vs {{4cl"
+  },
+  "Yumi": {
+    "has_ability": false,
+    "ability_text": "",
+    "intro": "{{For|unit in [[Age of Empires IV: The Sultans Ascend]]|unit with similar name in [[Age of Empires III: The Asian Dynasties]]|Yumi Archer (Age of Empires III)}}\n{{Infobox AoE4 unit\n|Name = Yumi Ashigaru\n|Image = <gallery>\nAoE4 RegularYumiAshigaru.png|Regular\nAoE4 VeteranYumiAshigaru.png|Veteran\nAoE4 EliteYumiAshigaru.png|Elite\n</gallery>\n|Intro = {{4icons|The Sultans Ascend}}\n|Type = Light ranged "
+  },
+  "Zhuge Nu": {
+    "has_ability": false,
+    "ability_text": "",
+    "intro": ""
+  }
+}

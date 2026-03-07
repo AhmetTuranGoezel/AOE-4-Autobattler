@@ -781,6 +781,14 @@
           "Mongols"
         ]
       }
+    ],
+    "exceptCivs": [
+      "Delhi Sultanate",
+      "House of Lancaster",
+      "Malians",
+      "Order of the Dragon",
+      "Ottomans",
+      "Sengoku Daimyo"
     ]
   },
   "Gilded Horseman": {
@@ -2043,6 +2051,20 @@
           "Mongols"
         ]
       }
+    ],
+    "exceptCivs": [
+      "French",
+      "Mongols",
+      "Malians",
+      "Byzantines",
+      "Japanese",
+      "Ayyubids",
+      "Jeanne d'Arc",
+      "Order of the Dragon",
+      "Knights Templar",
+      "Golden Horde",
+      "Macedonian Dynasty",
+      "Sengoku Daimyo"
     ]
   },
   "Royal Knight": {
@@ -2467,7 +2489,7 @@
       },
       {
         "name": "Tower of Victory",
-        "description": "+15%, Tughlaq Dynasty",
+        "description": "+20% (elephants), Tughlaq Dynasty",
         "category": "attackSpeed",
         "civs": [
           "Tughlaq Dynasty"
@@ -2545,7 +2567,17 @@
           "Byzantines"
         ]
       }
-    ]
+    ],
+    "effects": {
+      "trample": {
+        "name": "Trample",
+        "description": "Charges through enemies, dealing 9 damage every 0.5s for 6s (30s CD)",
+        "dps": 9,
+        "duration": 6,
+        "cooldown": 30,
+        "unitsHit": 5
+      }
+    }
   },
   "Sofa": {
     "civs": [
@@ -3607,14 +3639,6 @@
         ]
       },
       {
-        "name": "Delhi Sultanate",
-        "description": "+20% with Tower of Victory",
-        "category": "attackSpeed",
-        "civs": [
-          "Delhi Sultanate"
-        ]
-      },
-      {
         "name": "Chinese",
         "description": "+15% in Yuan Dynasty",
         "category": "moveSpeed",
@@ -3694,7 +3718,24 @@
         "civs": [
           "Mongols"
         ]
+      },
+      {
+        "name": "Tower of Victory",
+        "description": "+20%, Delhi Sultanate",
+        "category": "attackSpeed",
+        "civs": [
+          "Delhi Sultanate"
+        ]
       }
+    ],
+    "exceptCivs": [
+      "English",
+      "Japanese",
+      "House of Lancaster",
+      "Macedonian Dynasty",
+      "Order of the Dragon",
+      "Sengoku Daimyo",
+      "Zhu Xi's Legacy"
     ]
   },
   "Longbow": {
@@ -4441,7 +4482,8 @@
               "Worker Elephant": 34
             }
           }
-        }
+        },
+        "range": 0.29
       }
     },
     "upgrades": [
@@ -5138,14 +5180,6 @@
         ]
       },
       {
-        "name": "Delhi Sultanate",
-        "description": "+20% with Tower of Victory",
-        "category": "attackSpeed",
-        "civs": [
-          "Delhi Sultanate"
-        ]
-      },
-      {
         "name": "Chinese",
         "description": "+15% in Yuan Dynasty",
         "category": "moveSpeed",
@@ -5241,6 +5275,14 @@
         "civs": [
           "Mongols"
         ]
+      },
+      {
+        "name": "Tower of Victory",
+        "description": "+20%, Delhi Sultanate",
+        "category": "attackSpeed",
+        "civs": [
+          "Delhi Sultanate"
+        ]
       }
     ],
     "effects": {
@@ -5249,7 +5291,12 @@
         "stunDuration": 0.7,
         "description": "Stuns charging cavalry for 0.7s, cancels charge bonus"
       }
-    }
+    },
+    "exceptCivs": [
+      "Byzantines",
+      "Malians",
+      "Order of the Dragon"
+    ]
   },
   "Gilded Spearman": {
     "civs": [
@@ -5303,7 +5350,8 @@
               "Elephant": 12
             }
           }
-        }
+        },
+        "range": 0.29
       }
     },
     "upgrades": [
@@ -5466,7 +5514,8 @@
               "Elephant": 6
             }
           }
-        }
+        },
+        "range": 0.29
       }
     },
     "upgrades": [
@@ -5821,7 +5870,8 @@
             "attack": 14,
             "bonus": {}
           }
-        }
+        },
+        "range": 0.29
       }
     },
     "upgrades": [
@@ -6261,14 +6311,6 @@
         ]
       },
       {
-        "name": "Delhi Sultanate",
-        "description": "+20% with Tower of Victory",
-        "category": "attackSpeed",
-        "civs": [
-          "Delhi Sultanate"
-        ]
-      },
-      {
         "name": "Holy Roman Empire",
         "description": "+10%",
         "category": "moveSpeed",
@@ -6339,7 +6381,28 @@
         "civs": [
           "Mongols"
         ]
+      },
+      {
+        "name": "Tower of Victory",
+        "description": "+20%, Delhi Sultanate",
+        "category": "attackSpeed",
+        "civs": [
+          "Delhi Sultanate"
+        ]
       }
+    ],
+    "exceptCivs": [
+      "Abbasid Dynasty",
+      "Chinese",
+      "Malians",
+      "Byzantines",
+      "Japanese",
+      "Ayyubids",
+      "Order of the Dragon",
+      "Zhu Xi's Legacy",
+      "House of Lancaster",
+      "Macedonian Dynasty",
+      "Sengoku Daimyo"
     ]
   },
   "Gilded MAA": {
@@ -6385,7 +6448,8 @@
             "attack": 21,
             "bonus": {}
           }
-        }
+        },
+        "range": 0.29
       }
     },
     "upgrades": [
@@ -6516,7 +6580,8 @@
             "chargeDamage": 6,
             "bonus": {}
           }
-        }
+        },
+        "range": 0.29
       }
     },
     "upgrades": [
@@ -6696,7 +6761,13 @@
           "Byzantines"
         ]
       }
-    ]
+    ],
+    "effects": {
+      "doubleAttack": {
+        "name": "Quick Strike",
+        "description": "Strikes twice per attack (attack speed already reflects this)"
+      }
+    }
   },
   "Palace Guard": {
     "civs": [
@@ -6742,7 +6813,8 @@
             "attack": 14,
             "bonus": {}
           }
-        }
+        },
+        "range": 0.29
       }
     },
     "upgrades": [
@@ -7014,7 +7086,8 @@
             "attack": 16,
             "bonus": {}
           }
-        }
+        },
+        "range": 0.29
       }
     },
     "upgrades": [
@@ -7316,7 +7389,8 @@
             "attack": 14,
             "bonus": {}
           }
-        }
+        },
+        "range": 0.29
       }
     },
     "upgrades": [
@@ -7483,7 +7557,8 @@
             "attack": 14,
             "bonus": {}
           }
-        }
+        },
+        "range": 0.29
       }
     },
     "upgrades": [
@@ -8242,14 +8317,6 @@
         ]
       },
       {
-        "name": "Delhi Sultanate",
-        "description": "+20% with Tower of Victory",
-        "category": "attackSpeed",
-        "civs": [
-          "Delhi Sultanate"
-        ]
-      },
-      {
         "name": "Chinese",
         "description": "+15% in Yuan Dynasty",
         "category": "moveSpeed",
@@ -8361,7 +8428,23 @@
         "civs": [
           "Mongols"
         ]
+      },
+      {
+        "name": "Tower of Victory",
+        "description": "+20%, Delhi Sultanate",
+        "category": "attackSpeed",
+        "civs": [
+          "Delhi Sultanate"
+        ]
       }
+    ],
+    "exceptCivs": [
+      "French",
+      "Jeanne d'Arc",
+      "Japanese",
+      "Malians",
+      "Sengoku Daimyo",
+      "Order of the Dragon"
     ]
   },
   "Onna Musha": {
@@ -9220,7 +9303,13 @@
         "category": "creationSpeed"
       }
     ],
-    "auras": []
+    "auras": [],
+    "effects": {
+      "doubleAttack": {
+        "name": "Double Shot",
+        "description": "Fires 2 arrows at once (attack speed already reflects this)"
+      }
+    }
   },
   "Tower Elephant": {
     "civs": [
@@ -10098,7 +10187,8 @@
     "speed": 1.125,
     "tags": [
       "Infantry",
-      "Ranged"
+      "Ranged",
+      "Gunpowder"
     ],
     "weapons": {
       "primary": {
@@ -10625,14 +10715,6 @@
         ]
       },
       {
-        "name": "Delhi Sultanate",
-        "description": "+20% with Tower of Victory",
-        "category": "attackSpeed",
-        "civs": [
-          "Delhi Sultanate"
-        ]
-      },
-      {
         "name": "Chinese",
         "description": "+15% in Yuan Dynasty",
         "category": "moveSpeed",
@@ -10712,7 +10794,24 @@
         "civs": [
           "Mongols"
         ]
+      },
+      {
+        "name": "Tower of Victory",
+        "description": "+20%, Delhi Sultanate",
+        "category": "attackSpeed",
+        "civs": [
+          "Delhi Sultanate"
+        ]
       }
+    ],
+    "exceptCivs": [
+      "Ottomans",
+      "Rus",
+      "Sengoku Daimyo",
+      "Order of the Dragon",
+      "Malians",
+      "Knights Templar",
+      "Zhu Xi's Legacy"
     ]
   },
   "Streltsy": {
@@ -11253,7 +11352,8 @@
             "attack": 6,
             "bonus": {}
           }
-        }
+        },
+        "range": 0.29
       }
     },
     "upgrades": [
@@ -11548,7 +11648,14 @@
         "category": "creationSpeed"
       }
     ],
-    "auras": []
+    "auras": [],
+    "effects": {
+      "healPerAttack": {
+        "name": "Battle Veteran",
+        "value": 4,
+        "description": "+4 HP per attack"
+      }
+    }
   },
   "Atgeirmaðr": {
     "civs": [
@@ -11937,7 +12044,13 @@
         "description": "+33%",
         "category": "creationSpeed"
       }
-    ]
+    ],
+    "effects": {
+      "thrownAxes": {
+        "name": "Thrown Axes",
+        "description": "Switches to ranged axes for 10s (30s cooldown) — display only"
+      }
+    }
   },
   "Raider Elephant": {
     "civs": [
@@ -12079,7 +12192,7 @@
       },
       {
         "name": "Tower of Victory",
-        "description": "+15%",
+        "description": "+20% (elephants)",
         "category": "attackSpeed"
       }
     ],
@@ -12217,7 +12330,7 @@
       },
       {
         "name": "Tower of Victory",
-        "description": "+15%",
+        "description": "+20% (elephants)",
         "category": "attackSpeed"
       }
     ],
@@ -12457,7 +12570,8 @@
             "attack": 14,
             "bonus": {}
           }
-        }
+        },
+        "range": 0.29
       }
     },
     "upgrades": [
@@ -12604,7 +12718,8 @@
     "speed": 1.12,
     "tags": [
       "Infantry",
-      "Ranged"
+      "Ranged",
+      "Gunpowder"
     ],
     "weapons": {
       "primary": {
@@ -13462,7 +13577,8 @@
               "Elephant": 6
             }
           }
-        }
+        },
+        "range": 0.29
       }
     },
     "upgrades": [
@@ -13794,6 +13910,12 @@
         "food": 140,
         "gold": 100
       }
+    },
+    "effects": {
+      "deflectiveArmor": {
+        "name": "Deflective Armor",
+        "description": "Blocks the first incoming attack"
+      }
     }
   },
   "Camel Lancer": {
@@ -14060,7 +14182,14 @@
         "description": "Elite upgrade costs 50% less and researches +150% faster at The Spirit Way",
         "category": "other"
       }
-    ]
+    ],
+    "effects": {
+      "aoeSplash": {
+        "name": "Fire Lance Charge",
+        "description": "Charge attack hits multiple units in a cone",
+        "unitsHit": 3
+      }
+    }
   },
   "Zhuge Nu": {
     "civs": [
@@ -14498,7 +14627,8 @@
             "attack": 28,
             "bonus": {}
           }
-        }
+        },
+        "range": 0.29
       }
     },
     "upgrades": [
@@ -14833,7 +14963,8 @@
               "Heavy": 18
             }
           }
-        }
+        },
+        "range": 0.29
       }
     },
     "upgrades": [
@@ -15002,7 +15133,14 @@
           "Ayyubids"
         ]
       }
-    ]
+    ],
+    "effects": {
+      "openingAttack": {
+        "name": "First Strike",
+        "damage": 24,
+        "description": "Deal extra damage on first attack from Stealth (2x base attack)"
+      }
+    }
   },
   "Musofadi Gunner": {
     "civs": [
@@ -15017,7 +15155,8 @@
     "speed": 1.25,
     "tags": [
       "Infantry",
-      "Ranged"
+      "Ranged",
+      "Gunpowder"
     ],
     "weapons": {
       "primary": {
@@ -16743,7 +16882,14 @@
         "description": "+15%",
         "category": "creationSpeed"
       }
-    ]
+    ],
+    "effects": {
+      "gunpowderResistance": {
+        "name": "Warfare Experience",
+        "reduction": 33,
+        "description": "Takes 33% less damage from gunpowder units"
+      }
+    }
   },
   "Landsknecht": {
     "civs": [
@@ -16788,7 +16934,8 @@
             "attack": 21,
             "bonus": {}
           }
-        }
+        },
+        "range": 0.29
       }
     },
     "upgrades": [
@@ -16993,7 +17140,8 @@
             "attack": 25,
             "bonus": {}
           }
-        }
+        },
+        "range": 0.29
       }
     },
     "upgrades": [
@@ -17374,7 +17522,8 @@
               "Cavalry": 5
             }
           }
-        }
+        },
+        "range": 0.29
       }
     },
     "effects": {},
@@ -17467,5 +17616,152 @@
         "category": "other"
       }
     ]
+  },
+  "Springald": {
+    "civs": [
+      "Common"
+    ],
+    "exceptCivs": [
+      "Tughlaq Dynasty"
+    ],
+    "costs": {
+      "wood": 150,
+      "gold": 100
+    },
+    "trainingTime": 30,
+    "population": 2,
+    "speed": 0.875,
+    "tags": [
+      "Siege"
+    ],
+    "effects": {
+      "aoeSplash": {
+        "name": "Piercing Bolt",
+        "description": "Bolt pierces through multiple units in a line",
+        "unitsHit": 3
+      }
+    },
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 7.5,
+        "attackSpeed": 3.125,
+        "ages": {
+          "3": {
+            "hp": 85,
+            "meleeArmor": 3,
+            "rangedArmor": 0,
+            "attack": 14,
+            "bonus": {
+              "Melee Infantry": 12
+            }
+          },
+          "4": {
+            "hp": 85,
+            "meleeArmor": 3,
+            "rangedArmor": 0,
+            "attack": 14,
+            "bonus": {
+              "Melee Infantry": 12
+            }
+          }
+        }
+      }
+    },
+    "upgrades": []
+  },
+  "Mangonel": {
+    "civs": [
+      "Common"
+    ],
+    "exceptCivs": [
+      "Chinese",
+      "Zhu Xi's Legacy"
+    ],
+    "costs": {
+      "wood": 400,
+      "gold": 200
+    },
+    "trainingTime": 40,
+    "population": 3,
+    "speed": 0.75,
+    "tags": [
+      "Siege"
+    ],
+    "effects": {
+      "aoeFalloff": {
+        "name": "Area Bombardment",
+        "description": "3 projectiles with AoE, full damage at center, linear falloff to outer targets",
+        "unitsHit": 5
+      }
+    },
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 8,
+        "attackSpeed": 6.875,
+        "ages": {
+          "3": {
+            "hp": 130,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 30,
+            "bonus": {
+              "Ranged": 30
+            }
+          },
+          "4": {
+            "hp": 130,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 30,
+            "bonus": {
+              "Ranged": 30
+            }
+          }
+        }
+      }
+    },
+    "upgrades": []
+  },
+  "Ribauldequin": {
+    "civs": [
+      "Common"
+    ],
+    "costs": {
+      "wood": 350,
+      "gold": 500
+    },
+    "trainingTime": 45,
+    "population": 3,
+    "speed": 0.875,
+    "tags": [
+      "Siege",
+      "Gunpowder"
+    ],
+    "effects": {
+      "aoeSplash": {
+        "name": "Volley Fire",
+        "description": "Scatters 12 projectiles across a rectangular area, each with small AoE",
+        "unitsHit": 12
+      }
+    },
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 3.75,
+        "attackSpeed": 5.25,
+        "ages": {
+          "4": {
+            "hp": 215,
+            "meleeArmor": 10,
+            "rangedArmor": 0,
+            "attack": 504,
+            "bonus": {}
+          }
+        }
+      }
+    },
+    "upgrades": []
   }
 }
