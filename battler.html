@@ -130,10 +130,15 @@
               <div id="A_tagsContainer" class="tag-pill-group mb-2"></div>
             </div>
 
-            <!-- Bonus Damage Section -->
+            <!-- Bonus Damage Section (Collapsible, open by default) -->
             <div class="stat-box">
-              <h6 class="fw-bold mb-2">Bonus Damage</h6>
-              <div id="A_bonusesContainer"></div>
+              <h6 class="fw-bold mb-0 section-toggle" data-bs-toggle="collapse" data-bs-target="#collapseA_bonusDmg" aria-expanded="true">
+                <span>Bonus Damage</span>
+                <i class="bi bi-chevron-down toggle-arrow"></i>
+              </h6>
+              <div class="collapse show" id="collapseA_bonusDmg">
+                <div class="pt-2" id="A_bonusesContainer"></div>
+              </div>
             </div>
 
             <!-- Flat Buffs (Collapsible) -->
@@ -339,10 +344,15 @@
               <div id="B_tagsContainer" class="tag-pill-group mb-2"></div>
             </div>
 
-            <!-- Bonus Damage Section -->
+            <!-- Bonus Damage Section (Collapsible, open by default) -->
             <div class="stat-box">
-              <h6 class="fw-bold mb-2">Bonus Damage</h6>
-              <div id="B_bonusesContainer"></div>
+              <h6 class="fw-bold mb-0 section-toggle" data-bs-toggle="collapse" data-bs-target="#collapseB_bonusDmg" aria-expanded="true">
+                <span>Bonus Damage</span>
+                <i class="bi bi-chevron-down toggle-arrow"></i>
+              </h6>
+              <div class="collapse show" id="collapseB_bonusDmg">
+                <div class="pt-2" id="B_bonusesContainer"></div>
+              </div>
             </div>
 
             <!-- Flat Buffs (Collapsible) -->

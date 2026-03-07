@@ -662,7 +662,12 @@ function renderEffects(side, effects) {
   box.style.display = "";
   container.innerHTML = "";
 
+  const selectedCiv = side === "A" ? selectedCivA : selectedCivB;
   for (const [effectId, effect] of Object.entries(effects)) {
+    // Skip effects restricted to specific civs if current civ doesn't match
+    if (effect.civs && selectedCiv && !effect.civs.includes(selectedCiv)) continue;
+    if (effect.civs && !selectedCiv) continue; // "All Civilizations" — skip civ-conditional effects
+
     const checkId = `${side}_effect_${effectId}`;
     let valueHtml = "";
 
@@ -966,6 +971,27 @@ function renderEffects(side, effects) {
             <small class="text-muted" style="font-size:0.7rem;">Damage</small>
           </div>
         </div>`;
+    } else if (effectId === "movementBurst") {
+      valueHtml = `
+        <div class="row g-1 mt-1 ms-4">
+          <div class="col-6">
+            <input type="number" id="${checkId}_speedBonus" class="form-control form-control-sm"
+                   value="${effect.speedBonus}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">+Speed %</small>
+          </div>
+          <div class="col-6">
+            <input type="number" id="${checkId}_duration" class="form-control form-control-sm"
+                   value="${effect.duration}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">Duration (s)</small>
+          </div>
+        </div>`;
+    } else if (effectId === "infantrySpeedAura") {
+      valueHtml = `
+        <div class="ms-4 mt-1">
+          <input type="number" id="${checkId}_speedBonus" class="form-control form-control-sm"
+                 value="${effect.speedBonus}" style="font-size:0.8rem;width:80px;display:inline-block;">
+          <small class="text-muted" style="font-size:0.7rem;">+Speed % for infantry</small>
+        </div>`;
     }
 
     container.innerHTML += `
@@ -980,6 +1006,11 @@ function renderEffects(side, effects) {
         </div>
         ${valueHtml}
       </div>`;
+  }
+
+  // Hide effects box if all effects were filtered out by civ
+  if (!container.innerHTML.trim()) {
+    box.style.display = "none";
   }
 }
 
@@ -1056,6 +1087,10 @@ function collectEffects(side) {
       effects.spearwall = { stunDuration: getVal("stunDuration") };
     } else if (effectId === "palings") {
       effects.palings = { stunDuration: getVal("stunDuration"), damage: getVal("damage") };
+    } else if (effectId === "movementBurst") {
+      effects.movementBurst = { speedBonus: getVal("speedBonus"), duration: getVal("duration") };
+    } else if (effectId === "infantrySpeedAura") {
+      effects.infantrySpeedAura = { speedBonus: getVal("speedBonus") };
     }
   });
 
@@ -1666,10 +1701,11 @@ function renderUnitGrid(elementId, results, teamClass) {
   el.style.display = "";
   el.innerHTML = "";
 
-  // How many are fully healthy vs the last damaged one
-  const fullUnits = (results.lastUnitHp >= results.lastUnitHpMax) ? alive : Math.max(0, alive - 1);
-  const hasPartial = alive > 0 && results.lastUnitHp < results.lastUnitHpMax;
-  const partialPct = hasPartial ? (results.lastUnitHp / results.lastUnitHpMax * 100) : 0;
+  // How many are fully healthy vs damaged (split damage can damage multiple units)
+  const damagedCount = results.splitDamagedUnits || 1;
+  const hasPartial = alive > 0 && results.splitUnitHp < results.lastUnitHpMax;
+  const fullUnits = hasPartial ? Math.max(0, alive - damagedCount) : alive;
+  const partialPct = hasPartial ? (results.splitUnitHp / results.lastUnitHpMax * 100) : 100;
 
   for (let i = 0; i < startCount; i++) {
     const cell = document.createElement("div");
@@ -1678,10 +1714,13 @@ function renderUnitGrid(elementId, results, teamClass) {
     if (i < fullUnits) {
       // Full HP unit
       cell.classList.add(`unit-alive-${teamClass}`);
-    } else if (i === fullUnits && hasPartial) {
-      // Partial HP unit - use gradient fill
+    } else if (i < fullUnits + damagedCount && i < alive && hasPartial) {
+      // Partial HP unit(s) - split damage spreads across multiple
       cell.classList.add(`unit-partial-${teamClass}`);
       cell.style.setProperty("--fill-pct", partialPct + "%");
+    } else if (i < alive) {
+      // Full HP unit (no damage)
+      cell.classList.add(`unit-alive-${teamClass}`);
     } else {
       // Dead unit
       cell.classList.add("unit-dead");
@@ -1713,8 +1752,10 @@ function runBattle() {
     const aIsCavalry = unitA.tags.includes("Cavalry") && unitA.chargeDamage > 0;
     const effectiveRangeA = ((unitA.effects.spearwall || unitA.effects.palings) && bIsCavalry) ? Math.max(unitA.weaponRange, 1.04) : unitA.weaponRange;
     const effectiveRangeB = ((unitB.effects.spearwall || unitB.effects.palings) && aIsCavalry) ? Math.max(unitB.weaponRange, 1.04) : unitB.weaponRange;
-    if (effectiveRangeB > effectiveRangeA) closingDelayA = (effectiveRangeB - effectiveRangeA) / unitA.speed;
-    if (effectiveRangeA > effectiveRangeB) closingDelayB = (effectiveRangeA - effectiveRangeB) / unitB.speed;
+    const speedA = unitA.effects.movementBurst ? unitA.speed * (1 + unitA.effects.movementBurst.speedBonus / 100) : unitA.speed;
+    const speedB = unitB.effects.movementBurst ? unitB.speed * (1 + unitB.effects.movementBurst.speedBonus / 100) : unitB.speed;
+    if (effectiveRangeB > effectiveRangeA) closingDelayA = (effectiveRangeB - effectiveRangeA) / speedA;
+    if (effectiveRangeA > effectiveRangeB) closingDelayB = (effectiveRangeA - effectiveRangeB) / speedB;
   }
 
   const primaryStartA = (unitA.firstHitEnabled
@@ -2239,39 +2280,6 @@ function runBattle() {
       wasteB = rawDmgToA - damageToA;
     }
 
-    // === APPLY SPLIT DAMAGE: spread attacks across N targets, capping kills per volley ===
-    if (splitA && damageToB > 0 && teamB.units > 0) {
-      const targets = Math.min(splitTargetsA, teamB.units);
-      const hpPer = teamB.stats.hp;
-      const dmgPerTarget = damageToB / targets;
-      // Each target can only lose up to its remaining HP fraction
-      const frontHp = teamB.totalHp - (teamB.units - 1) * hpPer;
-      // Distribute evenly: first target gets frontHp worth, rest get hpPer each
-      let eff = 0;
-      let remainingTargets = targets;
-      let currentHp = frontHp;
-      for (let t = 0; t < targets && remainingTargets > 0; t++) {
-        eff += Math.min(dmgPerTarget, currentHp);
-        currentHp = hpPer; // subsequent targets are full HP
-        remainingTargets--;
-      }
-      damageToB = eff;
-    }
-    if (splitB && damageToA > 0 && teamA.units > 0) {
-      const targets = Math.min(splitTargetsB, teamA.units);
-      const hpPer = teamA.stats.hp;
-      const dmgPerTarget = damageToA / targets;
-      const frontHp = teamA.totalHp - (teamA.units - 1) * hpPer;
-      let eff = 0;
-      let remainingTargets = targets;
-      let currentHp = frontHp;
-      for (let t = 0; t < targets && remainingTargets > 0; t++) {
-        eff += Math.min(dmgPerTarget, currentHp);
-        currentHp = hpPer;
-        remainingTargets--;
-      }
-      damageToA = eff;
-    }
 
     // Apply damage SIMULTANEOUSLY
     teamB.totalHp -= damageToB;
@@ -2322,6 +2330,48 @@ function runBattle() {
         (teamA.stats.hp * teamA.units - teamA.totalHp) / teamA.stats.hp
       );
       teamA.units = Math.max(0, teamA.units - unitsLost);
+    }
+
+    // === SPLIT DAMAGE CORRECTION: fewer units die when damage is spread ===
+    if (splitA && damageToB > 0 && prevUnitsB > 1 && teamB.units < prevUnitsB) {
+      const targets = Math.min(splitTargetsA, prevUnitsB);
+      if (targets > 1) {
+        const dmgPerTarget = damageToB / targets;
+        const hpPer = teamB.stats.hp;
+        const prevTotalHp = teamB.totalHp + damageToB;
+        const frontHpBefore = prevTotalHp - (prevUnitsB - 1) * hpPer;
+        let kills = 0, tgtHp = frontHpBefore;
+        for (let t = 0; t < targets; t++) {
+          if (dmgPerTarget >= tgtHp) { kills++; tgtHp = hpPer; }
+          else break;
+        }
+        const poolKills = prevUnitsB - teamB.units;
+        if (kills < poolKills) {
+          teamB.units = prevUnitsB - kills;
+          const minHp = (teamB.units - 1) * hpPer + 1;
+          if (teamB.totalHp < minHp) teamB.totalHp = minHp;
+        }
+      }
+    }
+    if (splitB && damageToA > 0 && prevUnitsA > 1 && teamA.units < prevUnitsA) {
+      const targets = Math.min(splitTargetsB, prevUnitsA);
+      if (targets > 1) {
+        const dmgPerTarget = damageToA / targets;
+        const hpPer = teamA.stats.hp;
+        const prevTotalHp = teamA.totalHp + damageToA;
+        const frontHpBefore = prevTotalHp - (prevUnitsA - 1) * hpPer;
+        let kills = 0, tgtHp = frontHpBefore;
+        for (let t = 0; t < targets; t++) {
+          if (dmgPerTarget >= tgtHp) { kills++; tgtHp = hpPer; }
+          else break;
+        }
+        const poolKills = prevUnitsA - teamA.units;
+        if (kills < poolKills) {
+          teamA.units = prevUnitsA - kills;
+          const minHp = (teamA.units - 1) * hpPer + 1;
+          if (teamA.totalHp < minHp) teamA.totalHp = minHp;
+        }
+      }
     }
 
     // Battle Glory: +HP and +attack per kill (e.g. Teutonic Knight)
@@ -2392,6 +2442,10 @@ function runBattle() {
     if (unitB.effects.gunpowderResistance && (teamA.tags.includes("Gunpowder") || teamA.tags.includes("Light Gunpowder"))) logNotesB.push("GunpowderRes");
     if (unitA.effects.armorDebuffAura) logNotesA.push("-Armor");
     if (unitB.effects.armorDebuffAura) logNotesB.push("-Armor");
+    if (unitA.effects.movementBurst && time <= unitA.effects.movementBurst.duration + EPSILON) logNotesA.push("SpeedBurst");
+    if (unitB.effects.movementBurst && time <= unitB.effects.movementBurst.duration + EPSILON) logNotesB.push("SpeedBurst");
+    if (unitA.effects.infantrySpeedAura) logNotesA.push("FarimaAura");
+    if (unitB.effects.infantrySpeedAura) logNotesB.push("FarimaAura");
 
     // --- Push battle log entry ---
     const aWeapon = aFiredPrimary && aFiredSecondary ? "Both" : aFiredPrimary ? "Primary" : aFiredSecondary ? "Secondary" : "—";
@@ -2411,7 +2465,7 @@ function runBattle() {
   const winner = teamA.units > 0 ? "A" : teamB.units > 0 ? "B" : "Draw";
 
   // Calculate stats for BOTH teams
-  function calcTeamResults(team, unitData, side) {
+  function calcTeamResults(team, unitData, side, splitTargetsAgainst) {
     const hpPct = team.units > 0
       ? (team.totalHp / (team.stats.hp * unitData.count)) * 100
       : 0;
@@ -2436,11 +2490,27 @@ function runBattle() {
       lastUnitHp = (remainder === 0) ? team.stats.hp : remainder;
     }
 
-    return { hpPct, unitsLost, resourcesLost, costBreakdown, lastUnitHp, lastUnitHpMax, aliveUnits: team.units, startingUnits: unitData.count };
+    // Partial resource loss from injured surviving units
+    const fullHpAlive = team.stats.hp * team.units;
+    const hpLostOnSurvivors = fullHpAlive - team.totalHp;
+    const partialResLost = team.units > 0 ? (hpLostOnSurvivors / fullHpAlive) * costPerUnit * team.units : 0;
+
+    // Split damage visualization: distribute HP deficit across multiple units
+    let splitDamagedUnits = 1;
+    let splitUnitHp = lastUnitHp;
+    if (splitTargetsAgainst > 1 && team.units > 0 && hpLostOnSurvivors > 0) {
+      splitDamagedUnits = Math.min(splitTargetsAgainst, team.units);
+      const hpLostPerUnit = hpLostOnSurvivors / splitDamagedUnits;
+      splitUnitHp = Math.max(1, team.stats.hp - hpLostPerUnit);
+    }
+
+    return { hpPct, unitsLost, resourcesLost, partialResLost, costBreakdown, lastUnitHp, lastUnitHpMax, splitDamagedUnits, splitUnitHp, aliveUnits: team.units, startingUnits: unitData.count };
   }
 
-  const resultsA = calcTeamResults(teamA, unitA, "A");
-  const resultsB = calcTeamResults(teamB, unitB, "B");
+  const splitAgainstA = splitB ? Math.min(splitTargetsB, teamA.units || 1) : 1;
+  const splitAgainstB = splitA ? Math.min(splitTargetsA, teamB.units || 1) : 1;
+  const resultsA = calcTeamResults(teamA, unitA, "A", splitAgainstA);
+  const resultsB = calcTeamResults(teamB, unitB, "B", splitAgainstB);
 
   // Show results container with animation
   const resultsEl = document.getElementById("results");
@@ -2469,14 +2539,16 @@ function runBattle() {
   document.getElementById("resultNameA").textContent = `${unitA.name} (x${unitA.count})`;
   document.getElementById("resultUnitsA").textContent = teamA.units;
   document.getElementById("resultUnitsLostA").textContent = resultsA.unitsLost;
-  document.getElementById("resultCostLostA").textContent = resultsA.resourcesLost.toFixed(0);
+  document.getElementById("resultCostLostA").innerHTML = resultsA.resourcesLost.toFixed(0) +
+    (resultsA.partialResLost > 0 ? ` <span style="font-size:0.75em;color:#b8ad9e;">(${resultsA.partialResLost.toFixed(0)})</span>` : "");
   document.getElementById("resultHpPctA").textContent = resultsA.hpPct.toFixed(1) + "%";
 
   // Team B results
   document.getElementById("resultNameB").textContent = `${unitB.name} (x${unitB.count})`;
   document.getElementById("resultUnitsB").textContent = teamB.units;
   document.getElementById("resultUnitsLostB").textContent = resultsB.unitsLost;
-  document.getElementById("resultCostLostB").textContent = resultsB.resourcesLost.toFixed(0);
+  document.getElementById("resultCostLostB").innerHTML = resultsB.resourcesLost.toFixed(0) +
+    (resultsB.partialResLost > 0 ? ` <span style="font-size:0.75em;color:#b8ad9e;">(${resultsB.partialResLost.toFixed(0)})</span>` : "");
   document.getElementById("resultHpPctB").textContent = resultsB.hpPct.toFixed(1) + "%";
 
   // Feature 1: Resource breakdown tooltips
@@ -2620,5 +2692,69 @@ document.querySelectorAll('[data-bs-toggle="collapse"]').forEach((toggle) => {
       const arrow = toggle.querySelector(".toggle-arrow");
       if (arrow) arrow.style.transform = "rotate(-90deg)";
     });
+  }
+});
+
+/**
+ * Section glow: highlight buff/first-hit/effects boxes when they have active values
+ */
+function updateSectionGlow(side) {
+  // Flat Buffs
+  const flatBox = document.getElementById(`collapseA_flatBuffs`)?.closest(".buff-box");
+  const pctBox = document.getElementById(`collapseA_pctBuffs`)?.closest(".buff-box");
+  const fhBox = document.getElementById(`collapseA_firstHit`)?.closest(".first-hit-box");
+  const effBox = document.getElementById(`${side}_effectsBox`);
+
+  [["A", "collapseA_flatBuffs", "collapseA_pctBuffs", "collapseA_firstHit"],
+   ["B", "collapseB_flatBuffs", "collapseB_pctBuffs", "collapseB_firstHit"]].forEach(([s, flatId, pctId, fhId]) => {
+    if (s !== side) return;
+
+    const flatEl = document.getElementById(flatId)?.closest(".buff-box");
+    const pctEl = document.getElementById(pctId)?.closest(".buff-box");
+    const fhEl = document.getElementById(fhId)?.closest(".first-hit-box");
+    const effEl = document.getElementById(`${s}_effectsBox`);
+
+    // Check flat buffs
+    if (flatEl) {
+      const hasFlat = [`${s}_buffAttackAbs`, `${s}_buffHPabs`, `${s}_buffMeleeArmor`, `${s}_buffRangedArmor`]
+        .some(id => { const el = document.getElementById(id); return el && parseFloat(el.value); });
+      flatEl.classList.toggle("section-active", hasFlat);
+    }
+
+    // Check pct buffs
+    if (pctEl) {
+      const hasPct = [`${s}_buffAttackPct`, `${s}_buffHPpct`]
+        .some(id => { const el = document.getElementById(id); return el && parseFloat(el.value); });
+      pctEl.classList.toggle("section-active", hasPct);
+    }
+
+    // Check first-hit
+    if (fhEl) {
+      const enabled = document.getElementById(`${s}_firstHitEnabled`)?.checked;
+      const hits = parseInt(document.getElementById(`${s}_freeHits`)?.value) || 0;
+      fhEl.classList.toggle("section-active", enabled && hits > 0);
+    }
+
+    // Check effects
+    if (effEl && effEl.style.display !== "none") {
+      const hasChecked = effEl.querySelector(".effect-checkbox:checked");
+      effEl.classList.toggle("section-active", !!hasChecked);
+    }
+  });
+}
+
+// Listen for input changes on buff/first-hit sections
+document.addEventListener("input", (e) => {
+  const card = e.target.closest(".card-team-a, .card-team-b");
+  if (card) {
+    const side = card.classList.contains("card-team-a") ? "A" : "B";
+    updateSectionGlow(side);
+  }
+});
+document.addEventListener("change", (e) => {
+  const card = e.target.closest(".card-team-a, .card-team-b");
+  if (card) {
+    const side = card.classList.contains("card-team-a") ? "A" : "B";
+    updateSectionGlow(side);
   }
 });
