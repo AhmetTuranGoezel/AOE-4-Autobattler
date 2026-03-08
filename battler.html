@@ -12,9 +12,17 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="container">
-    <h1 class="text-center mb-4">AOE4 Battle Simulator</h1>
+  <!-- AoE4-styled Top Navigation -->
+  <nav class="aoe4-nav">
+    <button class="aoe4-nav-tab active" data-page="unitBattler" onclick="switchPage('unitBattler')">
+      <span class="nav-icon">&#9876;</span> Unit Battler
+    </button>
+    <button class="aoe4-nav-tab" data-page="vsBuilding" onclick="switchPage('vsBuilding')">
+      <span class="nav-icon">&#127984;</span> vs Building
+    </button>
+  </nav>
 
+  <div class="container">
     <div class="text-center">
       <div class="auto-balance-toggle">
         <input type="checkbox" id="autoBalance" checked>
@@ -103,8 +111,21 @@
                 <small class="text-muted">Charge Damage: </small>
                 <small id="A_chargeDamage" style="color:#d4a44a;font-weight:600;"></small>
               </div>
+              <div id="A_torchInfo" class="mt-2" style="display:none;">
+                <div class="row g-2">
+                  <div class="col-6">
+                    <small class="text-muted">Torch Damage</small>
+                    <input id="A_torchDamage" type="number" class="form-control small-input" value="13">
+                  </div>
+                  <div class="col-6">
+                    <small class="text-muted">Torch Speed (s)</small>
+                    <input id="A_torchSpeed" type="number" step="0.01" class="form-control small-input" value="2.15">
+                  </div>
+                </div>
+              </div>
             </div>
 
+            <div id="teamASectionsNormal">
             <!-- Unique Effects Section -->
             <div class="stat-box" id="A_effectsBox" style="display:none;">
               <h6 class="fw-bold mb-2">Unique Effects</h6>
@@ -238,6 +259,7 @@
                 </div>
               </div>
             </div>
+            </div><!-- end teamASectionsNormal -->
           </div>
         </div>
       </div>
@@ -252,6 +274,83 @@
         <div class="card card-team-b">
           <div class="card-body">
             <h3 class="card-title card-title-b" id="titleB" style="cursor:pointer" onclick="showUnitDetail('B')" title="Click for details">Unit B</h3>
+
+            <!-- Hidden checkbox for JS building mode logic -->
+            <input type="checkbox" id="vsBuildingToggle" style="display:none;">
+
+            <!-- Building Panel (hidden by default) -->
+            <div id="buildingPanel" class="building-panel" style="display:none;">
+              <div class="mb-3">
+                <label class="form-label fw-bold">Building</label>
+                <select id="buildingType" class="form-select">
+                  <option value="Town Center">Town Center</option>
+                  <option value="Outpost">Outpost</option>
+                  <option value="Keep">Keep</option>
+                </select>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label fw-bold">Garrison: <span id="buildingGarrisonMax">15</span> max</label>
+                <input id="buildingGarrison" type="number" class="form-control" value="0" min="0" max="15">
+              </div>
+
+              <div class="stat-box">
+                <h6 class="fw-bold mb-3">Building Stats</h6>
+                <div class="row g-2">
+                  <div class="col-4">
+                    <small class="text-muted">HP</small>
+                    <input id="buildingHp" type="number" class="form-control small-input" value="7000">
+                  </div>
+                  <div class="col-4">
+                    <small class="text-muted">Ranged Armor</small>
+                    <input id="buildingRangedArmor" type="number" class="form-control small-input" value="50">
+                  </div>
+                  <div class="col-4">
+                    <small class="text-muted">Fire Armor</small>
+                    <input id="buildingFireArmor" type="number" class="form-control small-input" value="0">
+                  </div>
+                </div>
+              </div>
+
+              <div class="stat-box">
+                <h6 class="fw-bold mb-3">Arrow Stats</h6>
+                <div class="row g-2">
+                  <div class="col-4">
+                    <small class="text-muted">Base Arrows</small>
+                    <input id="buildingBaseArrows" type="number" class="form-control small-input" value="1" min="0">
+                  </div>
+                  <div class="col-4">
+                    <small class="text-muted">Base Arrow Dmg</small>
+                    <input id="buildingBaseArrowDmg" type="number" class="form-control small-input" value="8">
+                  </div>
+                  <div class="col-4">
+                    <small class="text-muted">Base Arrow Speed</small>
+                    <input id="buildingBaseArrowRate" type="number" step="0.01" class="form-control small-input" value="1.88">
+                  </div>
+                  <div class="col-4">
+                    <small class="text-muted">Garrison Dmg</small>
+                    <input id="buildingGarrisonArrowDmg" type="number" class="form-control small-input" value="6">
+                  </div>
+                  <div class="col-4">
+                    <small class="text-muted">Garrison Speed</small>
+                    <input id="buildingGarrisonArrowRate" type="number" step="0.01" class="form-control small-input" value="3.88">
+                  </div>
+                </div>
+              </div>
+
+              <div class="stat-box">
+                <h6 class="fw-bold mb-2">Technologies</h6>
+                <div class="building-tech-grid">
+                  <button type="button" class="building-tech-btn" id="techCourtArchitects" title="+30% HP">Court Architects</button>
+                  <button type="button" class="building-tech-btn" id="techArrowUpgrades" data-level="0" title="+1 arrow damage per level">Arrow Upgrades: 0</button>
+                  <button type="button" class="building-tech-btn outpost-only-tech" id="techFortifyOutpost" title="+1000 HP, +5 Fire Armor">Fortify Outpost</button>
+                  <button type="button" class="building-tech-btn outpost-only-tech" id="techArrowslits" title="+1 Emplacement Arrow, +1 Range">Arrowslits</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Normal Team B Content -->
+            <div id="teamBNormal">
 
             <!-- Civilization Selection -->
             <div class="mb-2">
@@ -452,6 +551,8 @@
                 </div>
               </div>
             </div>
+
+            </div><!-- /teamBNormal -->
           </div>
         </div>
       </div>
