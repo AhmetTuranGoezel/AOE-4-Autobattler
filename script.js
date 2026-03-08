@@ -10,33 +10,175 @@ let allAvailableTags = new Set(); // All unique tags found across all units
 // BUILDING DATA (Outpost, Keep, Town Center)
 // ========================================
 const BUILDINGS = {
-  "Town Center": {
+  // --- Town Centers ---
+  "Capital Town Center": {
     hp: 7000, rangedArmor: 50, fireArmor: 0,
     garrisonMax: 15, range: 8,
-    baseArrows: 1,
-    baseArrowDmg: 8, baseArrowRate: 1.88,
+    baseArrows: 1, baseArrowDmg: 8, baseArrowRate: 1.88,
     garrisonArrowDmg: 6, garrisonArrowRate: 3.88,
-    garrisonArrowRange: 6,
-    techs: ["courtArchitects", "arrowUpgrades"]
+    techs: ["courtArchitects", "arrowUpgrades"],
+    emplacements: [], civs: []
   },
+  "Town Center": {
+    hp: 2400, rangedArmor: 50, fireArmor: 0,
+    garrisonMax: 8, range: 6,
+    baseArrows: 0, baseArrowDmg: 0, baseArrowRate: 0,
+    garrisonArrowDmg: 6, garrisonArrowRate: 2.62,
+    techs: ["courtArchitects", "arrowUpgrades"],
+    emplacements: [], civs: []
+  },
+  // --- Outposts ---
   "Outpost": {
     hp: 750, rangedArmor: 50, fireArmor: 0,
     garrisonMax: 5, range: 6,
-    baseArrows: 0,
-    baseArrowDmg: 0, baseArrowRate: 0,
+    baseArrows: 0, baseArrowDmg: 0, baseArrowRate: 0,
     garrisonArrowDmg: 6, garrisonArrowRate: 3.88,
-    garrisonArrowRange: 6,
-    techs: ["courtArchitects", "arrowUpgrades", "fortifyOutpost", "arrowslits"]
+    techs: ["courtArchitects", "arrowUpgrades", "fortifyOutpost"],
+    emplacements: ["Arrowslits", "Handcannon Slits", "Springald Emplacement", "Mangonel Emplacement", "Cannon Emplacement"],
+    civs: []
   },
+  "Toll Outpost": {
+    hp: 750, rangedArmor: 50, fireArmor: 0,
+    garrisonMax: 5, range: 6,
+    baseArrows: 0, baseArrowDmg: 0, baseArrowRate: 0,
+    garrisonArrowDmg: 6, garrisonArrowRate: 3.88,
+    techs: ["courtArchitects", "arrowUpgrades", "fortifyOutpost"],
+    emplacements: ["Arrowslits", "Handcannon Slits", "Springald Emplacement", "Mangonel Emplacement", "Cannon Emplacement"],
+    civs: ["Holy Roman Empire", "Order of the Dragon"]
+  },
+  "Wooden Fortress": {
+    hp: 1750, rangedArmor: 50, fireArmor: 0,
+    garrisonMax: 8, range: 6,
+    baseArrows: 0, baseArrowDmg: 0, baseArrowRate: 0,
+    garrisonArrowDmg: 6, garrisonArrowRate: 1.88,
+    techs: ["courtArchitects", "arrowUpgrades", "castleTurret"],
+    emplacements: ["Arrowslits", "Handcannon Slits", "Springald Emplacement", "Mangonel Emplacement"],
+    civs: ["Rus", "Golden Horde"]
+  },
+  "Fortified Outpost": {
+    hp: 1700, rangedArmor: 50, fireArmor: 0,
+    garrisonMax: 5, range: 6,
+    baseArrows: 0, baseArrowDmg: 0, baseArrowRate: 0,
+    garrisonArrowDmg: 6, garrisonArrowRate: 3.88,
+    techs: ["courtArchitects", "arrowUpgrades"],
+    emplacements: ["Arrowslits", "Handcannon Slits", "Springald Emplacement", "Mangonel Emplacement", "Cannon Emplacement"],
+    civs: ["Delhi Sultanate"]
+  },
+  // --- Keeps ---
   "Keep": {
     hp: 5000, rangedArmor: 50, fireArmor: 6,
     garrisonMax: 15, range: 8,
-    baseArrows: 3,
-    baseArrowDmg: 12, baseArrowRate: 0.5,
+    baseArrows: 3, baseArrowDmg: 12, baseArrowRate: 0.5,
     garrisonArrowDmg: 10, garrisonArrowRate: 2.62,
-    garrisonArrowRange: 8,
-    techs: ["courtArchitects", "arrowUpgrades"]
+    techs: ["courtArchitects", "arrowUpgrades"],
+    emplacements: ["Springald Emplacement", "Mangonel Emplacement", "Cannon Emplacement", "Great Bombard Emplacement", "Arbalest Emplacement"],
+    civs: []
+  },
+  "Castle": {
+    hp: 5500, rangedArmor: 50, fireArmor: 5,
+    garrisonMax: 15, range: 9,
+    baseArrows: 1, baseArrowDmg: 80, baseArrowRate: 4.125,
+    garrisonArrowDmg: 10, garrisonArrowRate: 2.62,
+    techs: ["courtArchitects", "arrowUpgrades"],
+    emplacements: ["Springald Emplacement", "Mangonel Emplacement", "Cannon Emplacement", "Great Bombard Emplacement", "Arbalest Emplacement"],
+    civs: ["Japanese", "Sengoku Daimyo"]
+  },
+  "Fortress": {
+    hp: 5000, rangedArmor: 50, fireArmor: 6,
+    garrisonMax: 15, range: 8,
+    baseArrows: 3, baseArrowDmg: 12, baseArrowRate: 0.5,
+    garrisonArrowDmg: 10, garrisonArrowRate: 2.62,
+    techs: ["courtArchitects", "arrowUpgrades"],
+    emplacements: ["Springald Emplacement", "Mangonel Emplacement", "Cannon Emplacement", "Trebuchet Emplacement"],
+    civs: ["Knights Templar"]
+  },
+  "Tughlaqabad Fort": {
+    hp: 2000, rangedArmor: 50, fireArmor: 0,
+    garrisonMax: 10, range: 6,
+    baseArrows: 2, baseArrowDmg: 10, baseArrowRate: 0.5,
+    garrisonArrowDmg: 6, garrisonArrowRate: 2.62,
+    techs: ["courtArchitects", "arrowUpgrades"],
+    emplacements: ["Springald Emplacement", "Mangonel Emplacement", "Cannon Emplacement"],
+    civs: ["Tughlaq Dynasty"]
+  },
+  // --- Landmarks ---
+  "The White Tower": {
+    hp: 5000, rangedArmor: 50, fireArmor: 6,
+    garrisonMax: 20, range: 8,
+    baseArrows: 3, baseArrowDmg: 12, baseArrowRate: 0.5,
+    garrisonArrowDmg: 10, garrisonArrowRate: 2.62,
+    techs: ["courtArchitects", "arrowUpgrades"],
+    emplacements: ["Springald Emplacement", "Mangonel Emplacement", "Cannon Emplacement", "Great Bombard Emplacement", "Arbalest Emplacement"],
+    civs: ["English", "House of Lancaster"]
+  },
+  "Berkshire Palace": {
+    hp: 6500, rangedArmor: 50, fireArmor: 6,
+    garrisonMax: 20, range: 14.5,
+    baseArrows: 3, baseArrowDmg: 14, baseArrowRate: 0.5,
+    garrisonArrowDmg: 12, garrisonArrowRate: 2.62,
+    techs: ["courtArchitects", "arrowUpgrades"],
+    emplacements: ["Springald Emplacement", "Mangonel Emplacement", "Cannon Emplacement", "Great Bombard Emplacement", "Arbalest Emplacement"],
+    civs: ["English", "House of Lancaster"]
+  },
+  "Red Palace": {
+    hp: 5000, rangedArmor: 50, fireArmor: 6,
+    garrisonMax: 15, range: 10,
+    baseArrows: 2, baseArrowDmg: 60, baseArrowRate: 1.5,
+    garrisonArrowDmg: 60, garrisonArrowRate: 1.5,
+    techs: ["courtArchitects", "arrowUpgrades"],
+    emplacements: ["Springald Emplacement", "Mangonel Emplacement", "Cannon Emplacement", "Great Bombard Emplacement", "Arbalest Emplacement"],
+    civs: ["French", "Jeanne d'Arc"]
+  },
+  "Elzbach Palace": {
+    hp: 7500, rangedArmor: 50, fireArmor: 6,
+    garrisonMax: 20, range: 8,
+    baseArrows: 3, baseArrowDmg: 12, baseArrowRate: 0.5,
+    garrisonArrowDmg: 10, garrisonArrowRate: 2.62,
+    techs: ["courtArchitects", "arrowUpgrades"],
+    emplacements: ["Springald Emplacement", "Mangonel Emplacement", "Cannon Emplacement", "Great Bombard Emplacement", "Arbalest Emplacement"],
+    civs: ["Holy Roman Empire", "Order of the Dragon"]
+  },
+  "Fort of the Huntress": {
+    hp: 5000, rangedArmor: 50, fireArmor: 6,
+    garrisonMax: 15, range: 8,
+    baseArrows: 3, baseArrowDmg: 15, baseArrowRate: 0.5,
+    garrisonArrowDmg: 13, garrisonArrowRate: 2.62,
+    techs: ["courtArchitects", "arrowUpgrades"],
+    emplacements: ["Springald Emplacement", "Mangonel Emplacement", "Cannon Emplacement", "Great Bombard Emplacement", "Arbalest Emplacement"],
+    civs: ["Rus", "Golden Horde"]
+  },
+  "Sea Gate Castle": {
+    hp: 5000, rangedArmor: 50, fireArmor: 6,
+    garrisonMax: 15, range: 8,
+    baseArrows: 3, baseArrowDmg: 12, baseArrowRate: 0.5,
+    garrisonArrowDmg: 10, garrisonArrowRate: 2.62,
+    techs: ["courtArchitects", "arrowUpgrades"],
+    emplacements: ["Springald Emplacement", "Mangonel Emplacement", "Cannon Emplacement", "Great Bombard Emplacement", "Arbalest Emplacement"],
+    civs: ["Japanese"]
+  },
+  "Castle of the Crow": {
+    hp: 5500, rangedArmor: 50, fireArmor: 6,
+    garrisonMax: 15, range: 9,
+    baseArrows: 1, baseArrowDmg: 80, baseArrowRate: 4.125,
+    garrisonArrowDmg: 10, garrisonArrowRate: 2.62,
+    techs: ["courtArchitects", "arrowUpgrades"],
+    emplacements: ["Springald Emplacement", "Mangonel Emplacement", "Cannon Emplacement", "Great Bombard Emplacement", "Arbalest Emplacement"],
+    civs: ["Japanese", "Sengoku Daimyo"]
   }
+};
+
+// ========================================
+// EMPLACEMENT DATA
+// ========================================
+const EMPLACEMENTS = {
+  "Arrowslits":                { dmg: 10,  projectiles: 1, rate: 1.12,  range: 7,   type: "ranged", civs: [] },
+  "Handcannon Slits":          { dmg: 25,  projectiles: 1, rate: 3.12,  range: 7,   type: "ranged", civs: ["Chinese", "Zhu Xi's Legacy"] },
+  "Springald Emplacement":     { dmg: 40,  projectiles: 1, rate: 3.88,  range: 9,   type: "ranged", civs: [] },
+  "Mangonel Emplacement":      { dmg: 7,   projectiles: 3, rate: 4.12,  range: 8,   type: "siege",  civs: ["Byzantines", "Macedonian Dynasty"] },
+  "Cannon Emplacement":        { dmg: 70,  projectiles: 1, rate: 5.88,  range: 9.5, type: "ranged", civs: [] },
+  "Great Bombard Emplacement": { dmg: 100, projectiles: 1, rate: 7.12,  range: 10,  type: "ranged", civs: ["Ottomans"] },
+  "Arbalest Emplacement":      { dmg: 40,  projectiles: 1, rate: 1.50,  range: 9.5, type: "ranged", civs: ["French", "Jeanne d'Arc"] },
+  "Trebuchet Emplacement":     { dmg: 25,  projectiles: 2, rate: 12.12, range: 18,  type: "siege",  civs: ["Knights Templar"] }
 };
 
 const TORCH_BY_AGE = { 2: 13, 3: 17, 4: 21 };
@@ -1190,15 +1332,21 @@ function updateUnitStats(side) {
   if (side === "A") {
     const torchInfo = document.getElementById("A_torchInfo");
     const torchDmgEl = document.getElementById("A_torchDamage");
+    const attackCol = document.getElementById("A_attackCol");
+    const attackSpeedCol = document.getElementById("A_attackSpeedCol");
     const inBuildingMode = document.getElementById("vsBuildingToggle")?.checked;
-    if (torchInfo && torchDmgEl && inBuildingMode) {
+    if (inBuildingMode) {
       const weaponType = stats.type || "melee";
       if (weaponType === "melee") {
         const age = parseInt(document.getElementById("unitAAge")?.value) || 2;
-        torchDmgEl.value = TORCH_BY_AGE[age] || 13;
-        torchInfo.style.display = "";
+        if (torchDmgEl) torchDmgEl.value = TORCH_BY_AGE[age] || 13;
+        if (torchInfo) torchInfo.style.display = "";
+        if (attackCol) attackCol.style.display = "none";
+        if (attackSpeedCol) attackSpeedCol.style.display = "none";
       } else {
-        torchInfo.style.display = "none";
+        if (torchInfo) torchInfo.style.display = "none";
+        if (attackCol) attackCol.style.display = "";
+        if (attackSpeedCol) attackSpeedCol.style.display = "";
       }
     }
   }
@@ -1816,7 +1964,8 @@ function runBuildingBattle() {
   let nextAttackerHit = 0;
   let nextBaseArrow = building.baseArrows > 0 ? 0 : Infinity;
   let nextGarrisonArrow = building.garrison > 0 ? 0 : Infinity;
-  let nextEmplacementArrow = building.emplacementArrows > 0 ? 0 : Infinity;
+  // Emplacement timers (one per active emplacement)
+  const empTimers = (building.emplacements || []).map(emp => ({ emp, nextHit: 0 }));
 
   const battleLog = [];
   let time = 0;
@@ -1825,7 +1974,8 @@ function runBuildingBattle() {
 
   while (teamA.units > 0 && buildingHp > 0 && time < maxTime) {
     // Find next event
-    const nextEvent = Math.min(nextAttackerHit, nextBaseArrow, nextGarrisonArrow, nextEmplacementArrow);
+    const nextEmpTime = empTimers.length > 0 ? Math.min(...empTimers.map(t => t.nextHit)) : Infinity;
+    const nextEvent = Math.min(nextAttackerHit, nextBaseArrow, nextGarrisonArrow, nextEmpTime);
     time = nextEvent;
     if (time >= maxTime) break;
 
@@ -1867,12 +2017,17 @@ function runBuildingBattle() {
       logNotesB.push(`Garrison×${building.garrison}`);
     }
 
-    // Building → Attackers (emplacement arrows, Outpost + Arrowslits)
-    if (building.emplacementArrows > 0 && nextEmplacementArrow <= time + EPSILON) {
-      const dmgPerArrow = Math.max(1, building.garrisonArrowDmg - teamA.stats.rangedArmor);
-      dmgToAttackers += dmgPerArrow * building.emplacementArrows;
-      nextEmplacementArrow = time + building.garrisonArrowRate;
-      logNotesB.push("Emplacement");
+    // Building → Attackers (emplacement weapons)
+    for (const et of empTimers) {
+      if (et.nextHit <= time + EPSILON) {
+        const emp = et.emp;
+        // Siege type bypasses ranged armor
+        const armor = emp.type === "siege" ? 0 : teamA.stats.rangedArmor;
+        const dmgPerProjectile = Math.max(1, emp.dmg - armor);
+        dmgToAttackers += dmgPerProjectile * emp.projectiles;
+        et.nextHit = time + emp.rate;
+        logNotesB.push(emp.name.replace(" Emplacement", ""));
+      }
     }
 
     // Apply damage
@@ -3015,6 +3170,8 @@ function switchPage(pageName) {
   const teamASections = document.getElementById("teamASectionsNormal");
   const torchInfo = document.getElementById("A_torchInfo");
   const torchDmgEl = document.getElementById("A_torchDamage");
+  const attackCol = document.getElementById("A_attackCol");
+  const attackSpeedCol = document.getElementById("A_attackSpeedCol");
 
   if (pageName === "vsBuilding") {
     toggle.checked = true;
@@ -3022,19 +3179,21 @@ function switchPage(pageName) {
     buildingPanel.style.display = "block";
     if (teamASections) teamASections.style.display = "none";
     updateBuildingStats();
-    // Show torch damage for melee units
-    if (torchInfo && torchDmgEl) {
-      const age = parseInt(document.getElementById("unitAAge")?.value) || 2;
-      const weaponMode = document.querySelector('input[name="weaponModeA"]:checked')?.value;
-      const unitName = document.getElementById("unitASelect")?.dataset.value;
-      const unit = units[unitName];
-      const weaponType = unit?.weapons?.[weaponMode === "secondary" ? "secondary" : "primary"]?.type || "melee";
-      if (weaponType === "melee") {
-        torchDmgEl.value = TORCH_BY_AGE[age] || 13;
-        torchInfo.style.display = "";
-      } else {
-        torchInfo.style.display = "none";
-      }
+    // Show torch damage for melee units, hide normal attack stats
+    const age = parseInt(document.getElementById("unitAAge")?.value) || 2;
+    const weaponMode = document.querySelector('input[name="weaponModeA"]:checked')?.value;
+    const unitName = document.getElementById("unitASelect")?.dataset.value;
+    const unit = units[unitName];
+    const weaponType = unit?.weapons?.[weaponMode === "secondary" ? "secondary" : "primary"]?.type || "melee";
+    if (weaponType === "melee") {
+      if (torchDmgEl) torchDmgEl.value = TORCH_BY_AGE[age] || 13;
+      if (torchInfo) torchInfo.style.display = "";
+      if (attackCol) attackCol.style.display = "none";
+      if (attackSpeedCol) attackSpeedCol.style.display = "none";
+    } else {
+      if (torchInfo) torchInfo.style.display = "none";
+      if (attackCol) attackCol.style.display = "";
+      if (attackSpeedCol) attackSpeedCol.style.display = "";
     }
     // Update Team B title to show building name
     const bName = document.getElementById("buildingType")?.value || "Building";
@@ -3049,6 +3208,8 @@ function switchPage(pageName) {
     buildingPanel.style.display = "none";
     if (teamASections) teamASections.style.display = "";
     if (torchInfo) torchInfo.style.display = "none";
+    if (attackCol) attackCol.style.display = "";
+    if (attackSpeedCol) attackSpeedCol.style.display = "";
     // Restore Team B title to unit name
     if (titleB) {
       titleB.style.cursor = "pointer";
@@ -3082,30 +3243,27 @@ function updateBuildingStats() {
   let fireArmor = b.fireArmor;
   let rangedArmor = b.rangedArmor;
   let arrowUpgrades = 0;
-  let extraArrows = 0;
-  let extraRange = 0;
 
   // Court Architects: +30% HP
   if (document.getElementById("techCourtArchitects")?.classList.contains("active")) {
     hp = Math.round(hp * 1.3);
   }
 
-  // Fortify Outpost: +1000 HP, +5 fire armor (Outpost only)
-  if (bName === "Outpost" && document.getElementById("techFortifyOutpost")?.classList.contains("active")) {
+  // Fortify Outpost: +1000 HP, +5 fire armor
+  if (b.techs?.includes("fortifyOutpost") && document.getElementById("techFortifyOutpost")?.classList.contains("active")) {
     hp += 1000;
     fireArmor += 5;
   }
 
-  // Arrowslits: +1 emplacement arrow, +1 range (Outpost only)
-  if (bName === "Outpost" && document.getElementById("techArrowslits")?.classList.contains("active")) {
-    extraArrows = 1;
-    extraRange = 1;
+  // Castle Turret: +2 arrow damage
+  if (b.techs?.includes("castleTurret") && document.getElementById("techCastleTurret")?.classList.contains("active")) {
+    arrowUpgrades += 2;
   }
 
   // Arrow Upgrades: +1/+2/+3
   const arrowUpgradeBtn = document.getElementById("techArrowUpgrades");
   if (arrowUpgradeBtn) {
-    arrowUpgrades = parseInt(arrowUpgradeBtn.dataset.level) || 0;
+    arrowUpgrades += parseInt(arrowUpgradeBtn.dataset.level) || 0;
   }
 
   // Set editable fields
@@ -3120,21 +3278,92 @@ function updateBuildingStats() {
   document.getElementById("buildingGarrisonArrowDmg").value = b.garrisonArrowDmg + arrowUpgrades;
   document.getElementById("buildingGarrisonArrowRate").value = b.garrisonArrowRate;
 
-  // Update Team B title to building name
+  // Update Team B title to building name with civ flags
   const titleB = document.getElementById("titleB");
   if (titleB && document.getElementById("vsBuildingToggle")?.checked) {
-    titleB.innerHTML = `<span>${bName}</span>`;
+    const civs = (b.civs || []).filter(c => CIV_FLAGS[c]);
+    const flagsHtml = civs.map(c => `<img src="${CIV_FLAGS[c]}" alt="${c}" style="height:28px; border-radius:3px; margin-left:6px;">`).join("");
+    titleB.style.display = "flex";
+    titleB.style.justifyContent = "space-between";
+    titleB.style.alignItems = "center";
+    titleB.innerHTML = `<span>${bName}</span><span>${flagsHtml}</span>`;
   }
 
-  // Show/hide Outpost-only techs
-  const outpostTechs = document.querySelectorAll(".outpost-only-tech");
-  outpostTechs.forEach(el => el.style.display = bName === "Outpost" ? "" : "none");
+  // Show/hide conditional techs
+  const hasFortify = b.techs?.includes("fortifyOutpost");
+  const hasCastleTurret = b.techs?.includes("castleTurret");
+  const fortifyEl = document.getElementById("techFortifyOutpost");
+  const castleTurretEl = document.getElementById("techCastleTurret");
+  if (fortifyEl) fortifyEl.style.display = hasFortify ? "" : "none";
+  if (castleTurretEl) castleTurretEl.style.display = hasCastleTurret ? "" : "none";
 
-  // Reset outpost-only tech states when switching away from Outpost
-  if (bName !== "Outpost") {
+  // Reset hidden tech states
+  if (!hasFortify) {
     document.getElementById("techFortifyOutpost")?.classList.remove("active");
-    document.getElementById("techArrowslits")?.classList.remove("active");
   }
+  if (!hasCastleTurret) {
+    document.getElementById("techCastleTurret")?.classList.remove("active");
+  }
+
+  // Populate emplacement toggle buttons
+  const emplacementSection = document.getElementById("emplacementSection");
+  const emplacementGrid = document.getElementById("emplacementGrid");
+  const emplacementSummary = document.getElementById("emplacementSummary");
+  if (emplacementSection && emplacementGrid) {
+    const empList = b.emplacements || [];
+    if (empList.length === 0) {
+      emplacementSection.style.display = "none";
+    } else {
+      emplacementSection.style.display = "";
+      // Outposts = single emplacement (radio), Keeps/Landmarks = multiple (toggle)
+      const isOutpost = ["Outpost", "Toll Outpost", "Wooden Fortress", "Fortified Outpost"].includes(bName);
+      emplacementGrid.dataset.mode = isOutpost ? "radio" : "toggle";
+      emplacementGrid.innerHTML = "";
+      empList.forEach(name => {
+        const emp = EMPLACEMENTS[name];
+        if (!emp) return;
+        const civLabel = emp.civs?.length ? ` (${emp.civs[0].replace("Macedonian Dynasty", "Macedon.").replace("Knights Templar", "KT")})` : "";
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "building-tech-btn";
+        btn.dataset.emplacement = name;
+        const dmgText = emp.projectiles > 1 ? `${emp.dmg}×${emp.projectiles}` : `${emp.dmg}`;
+        btn.title = `${dmgText} dmg, ${emp.rate}s, range ${emp.range}`;
+        btn.textContent = name.replace(" Emplacement", "") + civLabel;
+        btn.addEventListener("click", function() {
+          if (emplacementGrid.dataset.mode === "radio") {
+            // Radio: deactivate all others
+            emplacementGrid.querySelectorAll(".building-tech-btn").forEach(b => b.classList.remove("active"));
+          }
+          this.classList.toggle("active");
+          updateEmplacementSummary();
+        });
+        emplacementGrid.appendChild(btn);
+      });
+    }
+    if (emplacementSummary) emplacementSummary.textContent = "";
+  }
+}
+
+function updateEmplacementSummary() {
+  const summaryEl = document.getElementById("emplacementSummary");
+  if (!summaryEl) return;
+  const grid = document.getElementById("emplacementGrid");
+  if (!grid) return;
+  const active = grid.querySelectorAll(".building-tech-btn.active");
+  if (active.length === 0) {
+    summaryEl.textContent = "";
+    return;
+  }
+  const parts = [];
+  active.forEach(btn => {
+    const name = btn.dataset.emplacement;
+    const emp = EMPLACEMENTS[name];
+    if (!emp) return;
+    const dmgText = emp.projectiles > 1 ? `${emp.dmg}×${emp.projectiles}` : `${emp.dmg}`;
+    parts.push(`${name.replace(" Emplacement", "")}: ${dmgText} dmg / ${emp.rate}s`);
+  });
+  summaryEl.textContent = parts.join(" | ");
 }
 
 function getBuildingData() {
@@ -3145,11 +3374,24 @@ function getBuildingData() {
   const rangedArmor = parseFloat(document.getElementById("buildingRangedArmor").value) || 0;
   const fireArmor = parseFloat(document.getElementById("buildingFireArmor").value) || 0;
 
-  let extraArrows = 0;
-  let extraRange = 0;
-  if (bName === "Outpost" && document.getElementById("techArrowslits")?.classList.contains("active")) {
-    extraArrows = 1;
-    extraRange = 1;
+  // Read active emplacements from toggle buttons
+  const emplacements = [];
+  const grid = document.getElementById("emplacementGrid");
+  if (grid) {
+    grid.querySelectorAll(".building-tech-btn.active").forEach(btn => {
+      const name = btn.dataset.emplacement;
+      const empData = EMPLACEMENTS[name];
+      if (empData) {
+        emplacements.push({
+          name,
+          dmg: empData.dmg,
+          projectiles: empData.projectiles,
+          rate: empData.rate,
+          range: empData.range,
+          type: empData.type
+        });
+      }
+    });
   }
 
   return {
@@ -3161,8 +3403,8 @@ function getBuildingData() {
     baseArrowRate: parseFloat(document.getElementById("buildingBaseArrowRate").value) || 1,
     garrisonArrowDmg: parseFloat(document.getElementById("buildingGarrisonArrowDmg").value) || 0,
     garrisonArrowRate: parseFloat(document.getElementById("buildingGarrisonArrowRate").value) || 1,
-    emplacementArrows: extraArrows,
-    range: b.range + extraRange
+    emplacements,
+    range: b.range
   };
 }
 
@@ -3316,7 +3558,9 @@ document.getElementById("techFortifyOutpost")?.addEventListener("click", functio
   this.classList.toggle("active");
   updateBuildingStats();
 });
-document.getElementById("techArrowslits")?.addEventListener("click", function() {
+document.getElementById("techCastleTurret")?.addEventListener("click", function() {
   this.classList.toggle("active");
   updateBuildingStats();
 });
+
+// Emplacement toggle buttons are created dynamically in updateBuildingStats()
