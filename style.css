@@ -119,6 +119,24 @@ h1 {
   font-weight: 700;
 }
 
+/* Beta badge */
+.beta-badge {
+  display: inline-block;
+  font-family: 'Cinzel', serif;
+  font-size: 0.45rem;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #d4a44a;
+  border: 1px solid rgba(212, 164, 74, 0.5);
+  padding: 1px 5px;
+  margin-left: 6px;
+  vertical-align: middle;
+  position: relative;
+  top: -1px;
+  background: rgba(212, 164, 74, 0.08);
+}
+
 /* Thin separator between tabs */
 .aoe4-nav-tab + .aoe4-nav-tab::before {
   content: "";
