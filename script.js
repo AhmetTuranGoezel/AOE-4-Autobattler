@@ -6,6 +6,42 @@
 let units = {}; // All unit data from JSON
 let allAvailableTags = new Set(); // All unique tags found across all units
 
+// ========================================
+// BUILDING DATA (Outpost, Keep, Town Center)
+// ========================================
+const BUILDINGS = {
+  "Town Center": {
+    hp: 7000, rangedArmor: 50, fireArmor: 0,
+    garrisonMax: 15, range: 8,
+    baseArrows: 1,
+    baseArrowDmg: 8, baseArrowRate: 1.88,
+    garrisonArrowDmg: 6, garrisonArrowRate: 3.88,
+    garrisonArrowRange: 6,
+    techs: ["courtArchitects", "arrowUpgrades"]
+  },
+  "Outpost": {
+    hp: 750, rangedArmor: 50, fireArmor: 0,
+    garrisonMax: 5, range: 6,
+    baseArrows: 0,
+    baseArrowDmg: 0, baseArrowRate: 0,
+    garrisonArrowDmg: 6, garrisonArrowRate: 3.88,
+    garrisonArrowRange: 6,
+    techs: ["courtArchitects", "arrowUpgrades", "fortifyOutpost", "arrowslits"]
+  },
+  "Keep": {
+    hp: 5000, rangedArmor: 50, fireArmor: 6,
+    garrisonMax: 15, range: 8,
+    baseArrows: 3,
+    baseArrowDmg: 12, baseArrowRate: 0.5,
+    garrisonArrowDmg: 10, garrisonArrowRate: 2.62,
+    garrisonArrowRange: 8,
+    techs: ["courtArchitects", "arrowUpgrades"]
+  }
+};
+
+const TORCH_BY_AGE = { 2: 13, 3: 17, 4: 21 };
+const TORCH_ATTACK_SPEED = 2.15;
+
 /**
  * 1. DATA LOADING
  * Fetches the JSON file and extracts all unique tags from all units.
@@ -527,7 +563,7 @@ function updateWeaponModeButtons(side) {
 
   const selectedMode = document.querySelector(
     `input[name="weaponMode${side}"]:checked`
-  ).value;
+  )?.value || "primary";
   if (
     !hasSecondary &&
     (selectedMode === "secondary" || selectedMode === "both")
@@ -1114,7 +1150,7 @@ function updateUnitStats(side) {
   const age = document.getElementById(`unit${side}Age`).value;
   const weaponMode = document.querySelector(
     `input[name="weaponMode${side}"]:checked`
-  ).value;
+  )?.value || "primary";
 
   // Determine which weapon to display stats for
   let weaponData, stats;
@@ -1148,6 +1184,23 @@ function updateUnitStats(side) {
     document.getElementById(`${side}_chargeDamage`).textContent = `+${chargeDmg} (first hit)`;
   } else {
     chargeInfo.style.display = "none";
+  }
+
+  // Update torch damage display if in building mode (Team A only)
+  if (side === "A") {
+    const torchInfo = document.getElementById("A_torchInfo");
+    const torchDmgEl = document.getElementById("A_torchDamage");
+    const inBuildingMode = document.getElementById("vsBuildingToggle")?.checked;
+    if (torchInfo && torchDmgEl && inBuildingMode) {
+      const weaponType = stats.type || "melee";
+      if (weaponType === "melee") {
+        const age = parseInt(document.getElementById("unitAAge")?.value) || 2;
+        torchDmgEl.value = TORCH_BY_AGE[age] || 13;
+        torchInfo.style.display = "";
+      } else {
+        torchInfo.style.display = "none";
+      }
+    }
   }
 
   // Get selected civ group for flag ordering
@@ -1498,7 +1551,7 @@ function getUnitData(side) {
   const age = document.getElementById(`unit${side}Age`).value;
   const weaponMode = document.querySelector(
     `input[name="weaponMode${side}"]:checked`
-  ).value;
+  )?.value || "primary";
 
   let weaponData, ageStats;
 
@@ -1673,8 +1726,11 @@ function setLastUnitHp(elementId, results) {
   if (!el) return;
   if (results.aliveUnits <= 0) {
     el.textContent = "All units dead";
-  } else if (results.lastUnitHp >= results.lastUnitHpMax) {
+  } else if (results.splitUnitHp >= results.lastUnitHpMax) {
     el.textContent = "All units full HP";
+  } else if (results.splitDamagedUnits > 1) {
+    const pct = (results.splitUnitHp / results.lastUnitHpMax * 100).toFixed(0);
+    el.textContent = `${results.splitDamagedUnits} units damaged: ${pct}% HP each (${Math.round(results.splitUnitHp)}/${Math.round(results.lastUnitHpMax)})`;
   } else {
     const pct = (results.lastUnitHp / results.lastUnitHpMax * 100).toFixed(0);
     el.textContent = `Last unit: ${pct}% HP (${Math.round(results.lastUnitHp)}/${Math.round(results.lastUnitHpMax)})`;
@@ -1730,7 +1786,305 @@ function renderUnitGrid(elementId, results, teamClass) {
   }
 }
 
+function runBuildingBattle() {
+  const unitA = getUnitData("A");
+  const building = getBuildingData();
+  const age = parseInt(document.getElementById("unitAAge").value) || 2;
+
+  // Determine if attacker uses torch (melee) or ranged attack
+  const isMelee = unitA.weaponType === "melee";
+  const torchDmg = parseFloat(document.getElementById("A_torchDamage")?.value) || TORCH_BY_AGE[age] || 13;
+  const torchSpeed = parseFloat(document.getElementById("A_torchSpeed")?.value) || TORCH_ATTACK_SPEED;
+
+  // Team A setup (attackers)
+  let teamA = {
+    units: unitA.count,
+    totalHp: 0,
+    stats: applyBuffs(unitA, 0),
+    originalStats: unitA.stats,
+    unitData: unitA,
+    tags: unitA.tags,
+  };
+  teamA.totalHp = teamA.stats.hp * teamA.units;
+
+  // Building setup
+  let buildingHp = building.hp;
+  const maxBuildingHp = building.hp;
+
+  // Attack timers
+  const attackerSpeed = isMelee ? torchSpeed : teamA.stats.attackSpeed;
+  let nextAttackerHit = 0;
+  let nextBaseArrow = building.baseArrows > 0 ? 0 : Infinity;
+  let nextGarrisonArrow = building.garrison > 0 ? 0 : Infinity;
+  let nextEmplacementArrow = building.emplacementArrows > 0 ? 0 : Infinity;
+
+  const battleLog = [];
+  let time = 0;
+  const maxTime = 300;
+  const EPSILON = 0.0001;
+
+  while (teamA.units > 0 && buildingHp > 0 && time < maxTime) {
+    // Find next event
+    const nextEvent = Math.min(nextAttackerHit, nextBaseArrow, nextGarrisonArrow, nextEmplacementArrow);
+    time = nextEvent;
+    if (time >= maxTime) break;
+
+    // Refresh buffs
+    teamA.stats = applyBuffs(unitA, time);
+
+    let dmgToBuilding = 0;
+    let dmgToAttackers = 0;
+    let logNotesA = [];
+    let logNotesB = [];
+
+    // Attackers → Building
+    if (nextAttackerHit <= time + EPSILON && teamA.units > 0) {
+      if (isMelee) {
+        const dmgPerUnit = Math.max(1, torchDmg - building.fireArmor);
+        dmgToBuilding = dmgPerUnit * teamA.units;
+        logNotesA.push("Torch");
+      } else {
+        const dmgPerUnit = Math.max(1, teamA.stats.attack - building.rangedArmor);
+        dmgToBuilding = dmgPerUnit * teamA.units;
+        logNotesA.push("Ranged");
+      }
+      nextAttackerHit = time + (isMelee ? torchSpeed : teamA.stats.attackSpeed);
+    }
+
+    // Building → Attackers (base arrows)
+    if (building.baseArrows > 0 && nextBaseArrow <= time + EPSILON) {
+      const dmgPerArrow = Math.max(1, building.baseArrowDmg - teamA.stats.rangedArmor);
+      dmgToAttackers += dmgPerArrow * building.baseArrows;
+      nextBaseArrow = time + building.baseArrowRate;
+      logNotesB.push(`Base×${building.baseArrows}`);
+    }
+
+    // Building → Attackers (garrison arrows)
+    if (building.garrison > 0 && nextGarrisonArrow <= time + EPSILON) {
+      const dmgPerArrow = Math.max(1, building.garrisonArrowDmg - teamA.stats.rangedArmor);
+      dmgToAttackers += dmgPerArrow * building.garrison;
+      nextGarrisonArrow = time + building.garrisonArrowRate;
+      logNotesB.push(`Garrison×${building.garrison}`);
+    }
+
+    // Building → Attackers (emplacement arrows, Outpost + Arrowslits)
+    if (building.emplacementArrows > 0 && nextEmplacementArrow <= time + EPSILON) {
+      const dmgPerArrow = Math.max(1, building.garrisonArrowDmg - teamA.stats.rangedArmor);
+      dmgToAttackers += dmgPerArrow * building.emplacementArrows;
+      nextEmplacementArrow = time + building.garrisonArrowRate;
+      logNotesB.push("Emplacement");
+    }
+
+    // Apply damage
+    buildingHp -= dmgToBuilding;
+    teamA.totalHp -= dmgToAttackers;
+
+    // Update attacker unit count
+    if (dmgToAttackers > 0 && teamA.units > 0) {
+      const unitsLost = Math.floor(
+        (teamA.stats.hp * teamA.units - teamA.totalHp) / teamA.stats.hp
+      );
+      teamA.units = Math.max(0, teamA.units - unitsLost);
+    }
+
+    buildingHp = Math.max(0, buildingHp);
+
+    battleLog.push({
+      time: time.toFixed(2),
+      aWeapon: logNotesA.join("+") || "—",
+      aDmg: dmgToBuilding.toFixed(1),
+      aWaste: "0.0",
+      aUnits: teamA.units,
+      aHp: Math.round(teamA.totalHp),
+      bWeapon: logNotesB.join("+") || "—",
+      bDmg: dmgToAttackers.toFixed(1),
+      bWaste: "0.0",
+      bUnits: buildingHp > 0 ? 1 : 0,
+      bHp: Math.round(buildingHp),
+      notes: ""
+    });
+  }
+
+  // --- RESULTS DISPLAY (Building Mode) ---
+  const attackerWins = buildingHp <= 0;
+  const winner = attackerWins ? "A" : teamA.units > 0 ? "timeout" : "B";
+
+  const resultsEl = document.getElementById("results");
+  resultsEl.style.display = "block";
+  resultsEl.style.animation = "none";
+  resultsEl.offsetHeight;
+  resultsEl.style.animation = "";
+
+  // Winner text
+  const winnerTextEl = document.getElementById("winnerText");
+  if (winner === "A") {
+    winnerTextEl.textContent = `Units destroyed the ${building.name}!`;
+    winnerTextEl.classList.add("winner-banner");
+    winnerTextEl.classList.remove("draw-banner");
+  } else if (winner === "B") {
+    winnerTextEl.textContent = `${building.name} survived! All attackers dead.`;
+    winnerTextEl.classList.add("winner-banner");
+    winnerTextEl.classList.remove("draw-banner");
+  } else {
+    const pct = (buildingHp / maxBuildingHp * 100).toFixed(1);
+    winnerTextEl.textContent = `Time limit! ${building.name} at ${pct}% HP`;
+    winnerTextEl.classList.add("draw-banner");
+    winnerTextEl.classList.remove("winner-banner");
+  }
+
+  // Duration
+  document.getElementById("battleDuration").textContent = time.toFixed(1) + "s";
+
+  // Team A results (attackers)
+  const hpPctA = teamA.units > 0 ? (teamA.totalHp / (teamA.stats.hp * unitA.count)) * 100 : 0;
+  const unitsLostA = unitA.count - teamA.units;
+  const costPerUnit = getTotalCost(unitA.name, "A");
+  const resourcesLostA = costPerUnit * unitsLostA;
+
+  document.getElementById("resultNameA").textContent = `${unitA.name} (x${unitA.count})`;
+  document.getElementById("resultUnitsA").textContent = teamA.units;
+  document.getElementById("resultUnitsLostA").textContent = unitsLostA;
+  document.getElementById("resultCostLostA").textContent = resourcesLostA.toFixed(0);
+  document.getElementById("resultHpPctA").textContent = hpPctA.toFixed(1) + "%";
+
+  // Last unit HP for attackers
+  let lastUnitHp = 0;
+  if (teamA.units > 0) {
+    const remainder = teamA.totalHp % teamA.stats.hp;
+    lastUnitHp = remainder === 0 ? teamA.stats.hp : remainder;
+  }
+  const resultsAObj = {
+    aliveUnits: teamA.units, startingUnits: unitA.count,
+    lastUnitHp, lastUnitHpMax: teamA.stats.hp,
+    splitDamagedUnits: 1, splitUnitHp: lastUnitHp
+  };
+  setLastUnitHp("lastUnitHpA", resultsAObj);
+  renderUnitGrid("unitGridA", resultsAObj, "a");
+
+  // Team B results (building)
+  const buildingHpPct = (buildingHp / maxBuildingHp) * 100;
+  document.getElementById("resultNameB").textContent = building.name;
+  document.getElementById("resultUnitsB").textContent = buildingHp > 0 ? "1" : "0";
+  document.getElementById("resultUnitsLostB").textContent = buildingHp <= 0 ? "1" : "0";
+  document.getElementById("resultCostLostB").textContent = "";
+  document.getElementById("resultHpPctB").textContent = buildingHpPct.toFixed(1) + "%";
+
+  // Building HP display
+  const lastUnitHpB = document.getElementById("lastUnitHpB");
+  if (lastUnitHpB) {
+    if (buildingHp <= 0) {
+      lastUnitHpB.textContent = "Building destroyed";
+    } else {
+      lastUnitHpB.textContent = `${Math.round(buildingHp)} / ${maxBuildingHp} HP`;
+    }
+  }
+
+  // Building "unit grid" - single cell
+  const gridB = document.getElementById("unitGridB");
+  if (gridB) {
+    gridB.style.display = "";
+    gridB.innerHTML = "";
+    const cell = document.createElement("div");
+    cell.className = "unit-cell building-cell";
+    if (buildingHp > 0) {
+      cell.classList.add("unit-partial-b");
+      cell.style.setProperty("--fill-pct", buildingHpPct + "%");
+      cell.style.width = "40px";
+      cell.style.height = "40px";
+    } else {
+      cell.classList.add("unit-dead");
+      cell.style.width = "40px";
+      cell.style.height = "40px";
+    }
+    gridB.appendChild(cell);
+  }
+
+  // Winner/loser panels
+  const panelA = document.getElementById("resultPanelA");
+  const panelB = document.getElementById("resultPanelB");
+  panelA.classList.remove("winner", "loser");
+  panelB.classList.remove("winner", "loser");
+  const badgeA = document.getElementById("badgeContainerA");
+  const badgeB = document.getElementById("badgeContainerB");
+  badgeA.innerHTML = "";
+  badgeB.innerHTML = "";
+
+  if (winner === "A") {
+    panelA.classList.add("winner");
+    panelB.classList.add("loser");
+    badgeA.innerHTML = '<span class="winner-badge">Winner</span>';
+  } else if (winner === "B") {
+    panelB.classList.add("winner");
+    panelA.classList.add("loser");
+    badgeB.innerHTML = '<span class="winner-badge">Winner</span>';
+  }
+
+  // HP bars
+  const hpBarA = document.getElementById("hpBarA");
+  const hpBarB = document.getElementById("hpBarB");
+  hpBarA.style.transition = "none";
+  hpBarB.style.transition = "none";
+  hpBarA.style.width = "0%";
+  hpBarB.style.width = "0%";
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      hpBarA.style.transition = "width 1s ease-out";
+      hpBarB.style.transition = "width 1s ease-out";
+      hpBarA.style.width = hpPctA.toFixed(1) + "%";
+      hpBarB.style.width = buildingHpPct.toFixed(1) + "%";
+    });
+  });
+
+  // Resource tooltips
+  setResLostTooltip("resultCostLostA", {});
+  setResLostTooltip("resultCostLostB", {});
+
+  // Battle log
+  const logContainer = document.getElementById("battleLogContainer");
+  if (battleLog.length > 0) {
+    let html = `<table class="battle-log-table">
+      <thead><tr>
+        <th>Time</th>
+        <th class="team-a-col">Weapon</th><th class="team-a-col">Dmg</th>
+        <th class="team-a-col">Units</th><th class="team-a-col">Total HP</th>
+        <th class="team-b-col">Arrows</th><th class="team-b-col">Dmg</th>
+        <th class="team-b-col">Building HP</th>
+        <th>Notes</th>
+      </tr></thead><tbody>`;
+    for (const e of battleLog) {
+      html += `<tr>
+        <td>${e.time}s</td>
+        <td class="team-a-col">${e.aWeapon}</td><td class="team-a-col">${e.aDmg}</td>
+        <td class="team-a-col">${e.aUnits}</td><td class="team-a-col">${e.aHp}</td>
+        <td class="team-b-col">${e.bWeapon}</td><td class="team-b-col">${e.bDmg}</td>
+        <td class="team-b-col">${e.bHp}</td>
+        <td class="log-notes">${e.notes}</td>
+      </tr>`;
+    }
+    html += "</tbody></table>";
+    logContainer.innerHTML = html;
+  } else {
+    logContainer.innerHTML = "<p class='text-muted'>No events recorded.</p>";
+  }
+
+  const logCollapse = document.getElementById("battleLogCollapse");
+  if (logCollapse.classList.contains("show")) logCollapse.classList.remove("show");
+
+  resultsEl.scrollIntoView({ behavior: "smooth" });
+}
+
 function runBattle() {
+  // === BUILDING MODE ===
+  if (document.getElementById("vsBuildingToggle")?.checked) {
+    try {
+      return runBuildingBattle();
+    } catch (e) {
+      console.error("Building battle error:", e);
+      alert("Building battle error: " + e.message);
+      return;
+    }
+  }
+
   const unitA = getUnitData("A");
   const unitB = getUnitData("B");
   const overkillEnabled = document.getElementById("overkillEnabled").checked;
@@ -2333,8 +2687,9 @@ function runBattle() {
     }
 
     // === SPLIT DAMAGE CORRECTION: fewer units die when damage is spread ===
-    if (splitA && damageToB > 0 && prevUnitsB > 1 && teamB.units < prevUnitsB) {
-      const targets = Math.min(splitTargetsA, prevUnitsB);
+    // Split requires >1 attacker and >1 defender; targets capped at both counts
+    if (splitA && damageToB > 0 && prevUnitsA > 1 && prevUnitsB > 1 && teamB.units < prevUnitsB) {
+      const targets = Math.min(splitTargetsA, prevUnitsB, prevUnitsA);
       if (targets > 1) {
         const dmgPerTarget = damageToB / targets;
         const hpPer = teamB.stats.hp;
@@ -2353,8 +2708,8 @@ function runBattle() {
         }
       }
     }
-    if (splitB && damageToA > 0 && prevUnitsA > 1 && teamA.units < prevUnitsA) {
-      const targets = Math.min(splitTargetsB, prevUnitsA);
+    if (splitB && damageToA > 0 && prevUnitsB > 1 && prevUnitsA > 1 && teamA.units < prevUnitsA) {
+      const targets = Math.min(splitTargetsB, prevUnitsA, prevUnitsB);
       if (targets > 1) {
         const dmgPerTarget = damageToA / targets;
         const hpPer = teamA.stats.hp;
@@ -2507,8 +2862,8 @@ function runBattle() {
     return { hpPct, unitsLost, resourcesLost, partialResLost, costBreakdown, lastUnitHp, lastUnitHpMax, splitDamagedUnits, splitUnitHp, aliveUnits: team.units, startingUnits: unitData.count };
   }
 
-  const splitAgainstA = splitB ? Math.min(splitTargetsB, teamA.units || 1) : 1;
-  const splitAgainstB = splitA ? Math.min(splitTargetsA, teamB.units || 1) : 1;
+  const splitAgainstA = (splitB && teamB.units > 1) ? Math.min(splitTargetsB, teamA.units || 1, teamB.units) : 1;
+  const splitAgainstB = (splitA && teamA.units > 1) ? Math.min(splitTargetsA, teamB.units || 1, teamA.units) : 1;
   const resultsA = calcTeamResults(teamA, unitA, "A", splitAgainstA);
   const resultsB = calcTeamResults(teamB, unitB, "B", splitAgainstB);
 
@@ -2640,6 +2995,190 @@ function runBattle() {
 }
 
 // ========================================
+// PAGE NAVIGATION
+// ========================================
+
+function switchPage(pageName) {
+  // Update nav tabs
+  document.querySelectorAll(".aoe4-nav-tab").forEach(tab => {
+    tab.classList.toggle("active", tab.dataset.page === pageName);
+  });
+
+  // Toggle building mode
+  const toggle = document.getElementById("vsBuildingToggle");
+  const buildingPanel = document.getElementById("buildingPanel");
+  const teamBNormal = document.getElementById("teamBNormal");
+  if (!toggle || !buildingPanel || !teamBNormal) return;
+
+  const titleB = document.getElementById("titleB");
+
+  const teamASections = document.getElementById("teamASectionsNormal");
+  const torchInfo = document.getElementById("A_torchInfo");
+  const torchDmgEl = document.getElementById("A_torchDamage");
+
+  if (pageName === "vsBuilding") {
+    toggle.checked = true;
+    teamBNormal.style.display = "none";
+    buildingPanel.style.display = "block";
+    if (teamASections) teamASections.style.display = "none";
+    updateBuildingStats();
+    // Show torch damage for melee units
+    if (torchInfo && torchDmgEl) {
+      const age = parseInt(document.getElementById("unitAAge")?.value) || 2;
+      const weaponMode = document.querySelector('input[name="weaponModeA"]:checked')?.value;
+      const unitName = document.getElementById("unitASelect")?.dataset.value;
+      const unit = units[unitName];
+      const weaponType = unit?.weapons?.[weaponMode === "secondary" ? "secondary" : "primary"]?.type || "melee";
+      if (weaponType === "melee") {
+        torchDmgEl.value = TORCH_BY_AGE[age] || 13;
+        torchInfo.style.display = "";
+      } else {
+        torchInfo.style.display = "none";
+      }
+    }
+    // Update Team B title to show building name
+    const bName = document.getElementById("buildingType")?.value || "Building";
+    if (titleB) {
+      titleB.innerHTML = `<span>${bName}</span>`;
+      titleB.style.cursor = "default";
+      titleB.onclick = null;
+    }
+  } else {
+    toggle.checked = false;
+    teamBNormal.style.display = "";
+    buildingPanel.style.display = "none";
+    if (teamASections) teamASections.style.display = "";
+    if (torchInfo) torchInfo.style.display = "none";
+    // Restore Team B title to unit name
+    if (titleB) {
+      titleB.style.cursor = "pointer";
+      titleB.onclick = () => showUnitDetail('B');
+    }
+    updateUnitStats("B");
+  }
+}
+
+// Keep for backwards compatibility if called directly
+function toggleBuildingMode() {
+  const toggle = document.getElementById("vsBuildingToggle");
+  switchPage(toggle && toggle.checked ? "vsBuilding" : "unitBattler");
+}
+
+function updateBuildingStats() {
+  const select = document.getElementById("buildingType");
+  if (!select) return;
+  const bName = select.value;
+  const b = BUILDINGS[bName];
+  if (!b) return;
+
+  // Update garrison max
+  const garrisonInput = document.getElementById("buildingGarrison");
+  garrisonInput.max = b.garrisonMax;
+  document.getElementById("buildingGarrisonMax").textContent = b.garrisonMax;
+  if (parseInt(garrisonInput.value) > b.garrisonMax) garrisonInput.value = b.garrisonMax;
+
+  // Calculate effective stats with techs
+  let hp = b.hp;
+  let fireArmor = b.fireArmor;
+  let rangedArmor = b.rangedArmor;
+  let arrowUpgrades = 0;
+  let extraArrows = 0;
+  let extraRange = 0;
+
+  // Court Architects: +30% HP
+  if (document.getElementById("techCourtArchitects")?.classList.contains("active")) {
+    hp = Math.round(hp * 1.3);
+  }
+
+  // Fortify Outpost: +1000 HP, +5 fire armor (Outpost only)
+  if (bName === "Outpost" && document.getElementById("techFortifyOutpost")?.classList.contains("active")) {
+    hp += 1000;
+    fireArmor += 5;
+  }
+
+  // Arrowslits: +1 emplacement arrow, +1 range (Outpost only)
+  if (bName === "Outpost" && document.getElementById("techArrowslits")?.classList.contains("active")) {
+    extraArrows = 1;
+    extraRange = 1;
+  }
+
+  // Arrow Upgrades: +1/+2/+3
+  const arrowUpgradeBtn = document.getElementById("techArrowUpgrades");
+  if (arrowUpgradeBtn) {
+    arrowUpgrades = parseInt(arrowUpgradeBtn.dataset.level) || 0;
+  }
+
+  // Set editable fields
+  document.getElementById("buildingHp").value = hp;
+  document.getElementById("buildingRangedArmor").value = rangedArmor;
+  document.getElementById("buildingFireArmor").value = fireArmor;
+
+  // Set arrow stats
+  document.getElementById("buildingBaseArrows").value = b.baseArrows;
+  document.getElementById("buildingBaseArrowDmg").value = b.baseArrowDmg + arrowUpgrades;
+  document.getElementById("buildingBaseArrowRate").value = b.baseArrowRate;
+  document.getElementById("buildingGarrisonArrowDmg").value = b.garrisonArrowDmg + arrowUpgrades;
+  document.getElementById("buildingGarrisonArrowRate").value = b.garrisonArrowRate;
+
+  // Update Team B title to building name
+  const titleB = document.getElementById("titleB");
+  if (titleB && document.getElementById("vsBuildingToggle")?.checked) {
+    titleB.innerHTML = `<span>${bName}</span>`;
+  }
+
+  // Show/hide Outpost-only techs
+  const outpostTechs = document.querySelectorAll(".outpost-only-tech");
+  outpostTechs.forEach(el => el.style.display = bName === "Outpost" ? "" : "none");
+
+  // Reset outpost-only tech states when switching away from Outpost
+  if (bName !== "Outpost") {
+    document.getElementById("techFortifyOutpost")?.classList.remove("active");
+    document.getElementById("techArrowslits")?.classList.remove("active");
+  }
+}
+
+function getBuildingData() {
+  const bName = document.getElementById("buildingType").value;
+  const b = BUILDINGS[bName];
+  const garrison = parseInt(document.getElementById("buildingGarrison").value) || 0;
+  const hp = parseFloat(document.getElementById("buildingHp").value) || b.hp;
+  const rangedArmor = parseFloat(document.getElementById("buildingRangedArmor").value) || 0;
+  const fireArmor = parseFloat(document.getElementById("buildingFireArmor").value) || 0;
+
+  let extraArrows = 0;
+  let extraRange = 0;
+  if (bName === "Outpost" && document.getElementById("techArrowslits")?.classList.contains("active")) {
+    extraArrows = 1;
+    extraRange = 1;
+  }
+
+  return {
+    name: bName,
+    hp, rangedArmor, fireArmor,
+    garrison,
+    baseArrows: parseInt(document.getElementById("buildingBaseArrows").value) || 0,
+    baseArrowDmg: parseFloat(document.getElementById("buildingBaseArrowDmg").value) || 0,
+    baseArrowRate: parseFloat(document.getElementById("buildingBaseArrowRate").value) || 1,
+    garrisonArrowDmg: parseFloat(document.getElementById("buildingGarrisonArrowDmg").value) || 0,
+    garrisonArrowRate: parseFloat(document.getElementById("buildingGarrisonArrowRate").value) || 1,
+    emplacementArrows: extraArrows,
+    range: b.range + extraRange
+  };
+}
+
+function cycleArrowUpgrades() {
+  const btn = document.getElementById("techArrowUpgrades");
+  if (!btn) return;
+  let level = (parseInt(btn.dataset.level) || 0) + 1;
+  if (level > 3) level = 0;
+  btn.dataset.level = level;
+  btn.classList.toggle("active", level > 0);
+  const labels = ["Arrow Upgrades: 0", "Steeled Arrow: +1", "Balanced Arrow: +2", "Platecutter: +3"];
+  btn.textContent = labels[level];
+  updateBuildingStats();
+}
+
+// ========================================
 // EVENT LISTENERS
 // ========================================
 
@@ -2757,4 +3296,27 @@ document.addEventListener("change", (e) => {
     const side = card.classList.contains("card-team-a") ? "A" : "B";
     updateSectionGlow(side);
   }
+});
+
+// Building mode event listeners
+document.getElementById("buildingType")?.addEventListener("change", updateBuildingStats);
+document.getElementById("buildingGarrison")?.addEventListener("input", () => {
+  const input = document.getElementById("buildingGarrison");
+  const max = parseInt(input.max) || 15;
+  if (parseInt(input.value) > max) input.value = max;
+});
+
+// Tech toggle buttons
+document.getElementById("techCourtArchitects")?.addEventListener("click", function() {
+  this.classList.toggle("active");
+  updateBuildingStats();
+});
+document.getElementById("techArrowUpgrades")?.addEventListener("click", cycleArrowUpgrades);
+document.getElementById("techFortifyOutpost")?.addEventListener("click", function() {
+  this.classList.toggle("active");
+  updateBuildingStats();
+});
+document.getElementById("techArrowslits")?.addEventListener("click", function() {
+  this.classList.toggle("active");
+  updateBuildingStats();
 });
