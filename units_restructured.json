@@ -291,7 +291,10 @@
       {
         "name": "Increased Supplies",
         "description": "+50%",
-        "category": "creationSpeed"
+        "category": "creationSpeed",
+        "civs": [
+          "Golden Horde"
+        ]
       },
       {
         "name": "Military Academy",
@@ -1387,7 +1390,10 @@
       {
         "name": "Advanced Academy",
         "description": "+25% at Military School",
-        "category": "creationSpeed"
+        "category": "creationSpeed",
+          "civs": [
+          "Ottomans"
+        ]
       },
       {
         "name": "Mehter Melee Armor Drums",
@@ -4739,12 +4745,18 @@
       {
         "name": "Increased Supplies",
         "description": "+50%",
-        "category": "creationSpeed"
+        "category": "creationSpeed",
+        "civs": [
+          "Golden Horde"
+        ]
       },
       {
         "name": "Advanced Academy",
         "description": "+25% from Military School",
-        "category": "creationSpeed"
+        "category": "creationSpeed",
+        "civs": [
+          "Ottomans"
+        ]
       },
       {
         "name": "Military Academy",
@@ -6017,12 +6029,18 @@
       {
         "name": "Increased Supplies",
         "description": "+50%",
-        "category": "creationSpeed"
+        "category": "creationSpeed",
+        "civs": [
+          "Golden Horde"
+        ]
       },
       {
         "name": "Advanced Academy",
         "description": "+25% from Military School",
-        "category": "creationSpeed"
+        "category": "creationSpeed",
+        "civs": [
+          "Ottomans"
+        ]
       },
       {
         "name": "Military Academy",
@@ -6775,13 +6793,7 @@
           "Byzantines"
         ]
       }
-    ],
-    "effects": {
-      "doubleAttack": {
-        "name": "Quick Strike",
-        "description": "Strikes twice per attack (attack speed already reflects this)"
-      }
-    }
+    ]
   },
   "Palace Guard": {
     "civs": [
@@ -9295,9 +9307,12 @@
         "category": "armor"
       },
       {
-        "name": "Advanced Academy",
+         "name": "Advanced Academy",
         "description": "+25% at Military School",
-        "category": "creationSpeed"
+        "category": "creationSpeed",
+          "civs": [
+          "Ottomans"
+        ]
       },
       {
         "name": "Mehter Melee Armor Drums",
@@ -9325,13 +9340,8 @@
         "category": "creationSpeed"
       }
     ],
-    "auras": [],
-    "effects": {
-      "doubleAttack": {
-        "name": "Double Shot",
-        "description": "Fires 2 arrows at once (attack speed already reflects this)"
-      }
-    }
+    "auras": []
+    
   },
   "Tower Elephant": {
     "civs": [
@@ -11111,7 +11121,10 @@
       {
         "name": "Advanced Academy",
         "description": "+25% from Military Schools",
-        "category": "creationSpeed"
+        "category": "creationSpeed",
+        "civs": [
+          "Ottomans"
+        ]
       },
       {
         "name": "Siege Engineering",
@@ -11121,7 +11134,10 @@
       {
         "name": "Advanced Academy",
         "description": "Can train from Military Schools",
-        "category": "other"
+        "category": "other",
+        "civs": [
+          "Ottomans"
+        ]
       }
     ],
     "auras": [
@@ -11280,7 +11296,10 @@
       {
         "name": "Increased Supplies",
         "description": "+50% from Archery Range",
-        "category": "creationSpeed"
+        "category": "creationSpeed",
+        "civs": [
+          "Golden Horde"
+        ]
       },
       {
         "name": "Archery Range Reinforcements",
@@ -11447,7 +11466,10 @@
       {
         "name": "Increased Supplies",
         "description": "+50%",
-        "category": "creationSpeed"
+        "category": "creationSpeed",
+        "civs": [
+          "Golden Horde"
+        ]
       },
       {
         "name": "Siege Engineering",
