@@ -2754,34 +2754,71 @@ function runBattle() {
     }
 
     // === APPLY OVERKILL WASTE: each attacker can only kill its target, excess is lost ===
+    // Split-aware: when split is enabled, attackers are divided into groups per split target
     let wasteA = 0, wasteB = 0;
     if (overkillEnabled) {
       const rawDmgToB = damageToB, rawDmgToA = damageToA;
       if (damageToB > 0 && teamA.units > 0) {
         const dmgPer = damageToB / teamA.units;
         const hpPer = teamB.stats.hp;
-        let frontHp = teamB.totalHp - (teamB.units - 1) * hpPer;
+        const frontHp = teamB.totalHp - (teamB.units - 1) * hpPer;
+        const targets = (splitA && teamB.units > 1) ? Math.min(splitTargetsA, teamB.units, teamA.units) : 1;
         let eff = 0;
-        for (let i = 0; i < teamA.units; i++) {
-          if (frontHp <= 0) break;
-          const dealt = Math.min(dmgPer, frontHp);
-          eff += dealt;
-          frontHp -= dealt;
-          if (frontHp <= 0) frontHp = hpPer;
+        if (targets > 1) {
+          const perGroup = Math.floor(teamA.units / targets);
+          const extra = teamA.units % targets;
+          for (let g = 0; g < targets; g++) {
+            const groupSize = perGroup + (g < extra ? 1 : 0);
+            let tgtHp = (g === 0) ? frontHp : hpPer;
+            for (let i = 0; i < groupSize; i++) {
+              if (tgtHp <= 0) break;
+              const dealt = Math.min(dmgPer, tgtHp);
+              eff += dealt;
+              tgtHp -= dealt;
+              if (tgtHp <= 0) tgtHp = hpPer;
+            }
+          }
+        } else {
+          let fHp = frontHp;
+          for (let i = 0; i < teamA.units; i++) {
+            if (fHp <= 0) break;
+            const dealt = Math.min(dmgPer, fHp);
+            eff += dealt;
+            fHp -= dealt;
+            if (fHp <= 0) fHp = hpPer;
+          }
         }
         damageToB = eff;
       }
       if (damageToA > 0 && teamB.units > 0) {
         const dmgPer = damageToA / teamB.units;
         const hpPer = teamA.stats.hp;
-        let frontHp = teamA.totalHp - (teamA.units - 1) * hpPer;
+        const frontHp = teamA.totalHp - (teamA.units - 1) * hpPer;
+        const targets = (splitB && teamA.units > 1) ? Math.min(splitTargetsB, teamA.units, teamB.units) : 1;
         let eff = 0;
-        for (let i = 0; i < teamB.units; i++) {
-          if (frontHp <= 0) break;
-          const dealt = Math.min(dmgPer, frontHp);
-          eff += dealt;
-          frontHp -= dealt;
-          if (frontHp <= 0) frontHp = hpPer;
+        if (targets > 1) {
+          const perGroup = Math.floor(teamB.units / targets);
+          const extra = teamB.units % targets;
+          for (let g = 0; g < targets; g++) {
+            const groupSize = perGroup + (g < extra ? 1 : 0);
+            let tgtHp = (g === 0) ? frontHp : hpPer;
+            for (let i = 0; i < groupSize; i++) {
+              if (tgtHp <= 0) break;
+              const dealt = Math.min(dmgPer, tgtHp);
+              eff += dealt;
+              tgtHp -= dealt;
+              if (tgtHp <= 0) tgtHp = hpPer;
+            }
+          }
+        } else {
+          let fHp = frontHp;
+          for (let i = 0; i < teamB.units; i++) {
+            if (fHp <= 0) break;
+            const dealt = Math.min(dmgPer, fHp);
+            eff += dealt;
+            fHp -= dealt;
+            if (fHp <= 0) fHp = hpPer;
+          }
         }
         damageToA = eff;
       }
