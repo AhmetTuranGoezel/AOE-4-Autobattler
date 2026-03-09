@@ -14260,7 +14260,7 @@
       "primary": {
         "type": "ranged",
         "range": 4.5,
-        "attackSpeed": 1.75,
+        "attackSpeed": 0.583,
         "ages": {
           "2": {
             "hp": 70,
