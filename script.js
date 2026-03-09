@@ -265,6 +265,139 @@ const CIV_FLAGS = {
   "Tughlaq Dynasty": "AoE 4 Flags/Tughlaq_Dynasty_AoE4.webp",
 };
 
+// ========================================
+// GLOBAL TECH / UPGRADE RULES
+// ========================================
+// This lets us define generic technologies (like Military Academy
+// and Increased Supplies) once, instead of copying them onto every
+// single unit in the JSON. Units only need their unique stuff; the
+// generic techs are attached at runtime based on tags/civs.
+
+const GLOBAL_UPGRADE_TECHS = [
+  // --- Military Academy / Increased Supplies (creation speed) ---
+  {
+    id: "militaryAcademy",
+    name: "Military Academy",
+    description: "+33% production speed for infantry, cavalry, siege and transport units at buildings (equivalent to -25% training time).",
+    category: "creationSpeed",
+    // Available to all civilizations except Ottomans (blacksmith/uni influence)
+    // and Golden Horde (Increased Supplies instead).
+    exceptCivs: ["Ottomans", "Golden Horde"],
+    appliesToUnit(unit) {
+      const tags = unit.tags || [];
+      const relevantTags = ["Infantry", "Cavalry", "Siege", "Transport"];
+      return tags.some(t => relevantTags.includes(t));
+    }
+  },
+  {
+    id: "increasedSupplies",
+    name: "Increased Supplies",
+    description: "+50% production speed for infantry, cavalry, siege and transport units.",
+    category: "creationSpeed",
+    civs: ["Golden Horde"],
+    appliesToUnit(unit) {
+      const tags = unit.tags || [];
+      const relevantTags = ["Infantry", "Cavalry", "Siege", "Transport"];
+      return tags.some(t => relevantTags.includes(t));
+    }
+  },
+  {
+    id: "eliteArmyTacticsHp",
+    name: "Elite Army Tactics",
+    description: "+15% hit points for infantry.",
+    category: "hitpoints",
+    appliesToUnit(unit) {
+      const tags = unit.tags || [];
+      return tags.includes("Infantry");
+    }
+  },
+  {
+    id: "eliteArmyTacticsAttack",
+    name: "Elite Army Tactics",
+    description: "+15% attack for infantry.",
+    category: "attack",
+    appliesToUnit(unit) {
+      const tags = unit.tags || [];
+      return tags.includes("Infantry");
+    }
+  },
+  {
+    id: "improvedEliteArmyTacticsHp",
+    name: "Improved Elite Army Tactics",
+    description: "+5% more hit points (stacks for +20% total), Mongols.",
+    category: "hitpoints",
+    civs: ["Mongols"],
+    appliesToUnit(unit) {
+      const tags = unit.tags || [];
+      return tags.includes("Infantry");
+    }
+  },
+  {
+    id: "improvedEliteArmyTacticsAttack",
+    name: "Improved Elite Army Tactics",
+    description: "+5% more attack (stacks for +20% total), Mongols.",
+    category: "attack",
+    civs: ["Mongols"],
+    appliesToUnit(unit) {
+      const tags = unit.tags || [];
+      return tags.includes("Infantry");
+    }
+  },
+  {
+    id: "additionalTorches",
+    name: "Additional Torches",
+    description: "+3 torch damage vs buildings.",
+    category: "attack",
+    appliesToUnit(unit) {
+      const tags = unit.tags || [];
+      const mustHave = ["Infantry", "Cavalry"];
+      return tags.some(t => mustHave.includes(t));
+    }
+  },
+  {
+    id: "additionalTorchesImproved",
+    name: "Additional Torches Improved",
+    description: "+2 more torch damage (stacks for +5 total), Mongols.",
+    category: "attack",
+    civs: ["Mongols"],
+    appliesToUnit(unit) {
+      const tags = unit.tags || [];
+      const mustHave = ["Infantry", "Cavalry"];
+      return tags.some(t => mustHave.includes(t));
+    }
+  }
+];
+
+// Names of techs that are driven by GLOBAL_UPGRADE_TECHS instead of per-unit copies
+const GLOBAL_UPGRADE_TECH_NAMES = new Set([
+  ...GLOBAL_UPGRADE_TECHS.map(t => t.name),
+  "Additional Torches Improved",
+  "Additional Torches Improved:"  // typo variant in JSON
+]);
+
+function computeGlobalUpgradesForUnit(unit) {
+  const results = [];
+  for (const tech of GLOBAL_UPGRADE_TECHS) {
+    if (typeof tech.appliesToUnit === "function" && !tech.appliesToUnit(unit)) continue;
+    const entry = {
+      name: tech.name,
+      description: tech.description,
+      category: tech.category
+    };
+    if (tech.civs) entry.civs = [...tech.civs];
+    if (tech.exceptCivs) entry.exceptCivs = [...tech.exceptCivs];
+    results.push(entry);
+  }
+  return results;
+}
+
+function getMergedUpgradesForUnit(unit) {
+  // Drop per-unit copies of globally defined techs (by name)
+  const base = (unit.upgrades || []).filter(e => !GLOBAL_UPGRADE_TECH_NAMES.has(e.name));
+  const derived = computeGlobalUpgradesForUnit(unit);
+  return [...base, ...derived];
+}
+
 // Most exclusions handled by exceptCivs in JSON data.
 // Only needed when a civ has BOTH the common unit AND its replacement.
 const UNIT_REPLACEMENTS = {
@@ -1465,9 +1598,12 @@ function showUnitDetail(side) {
 
   const tags = (unit.tags || []).map(t => `<span style="display:inline-block; padding:2px 10px; margin:2px; border-radius:12px; font-size:0.75rem; background:rgba(212,164,74,0.15); color:#d4a44a; border:1px solid rgba(212,164,74,0.3);">${t}</span>`).join("");
 
+  // Merge per-unit upgrades with global tech rules (e.g. Military Academy, Increased Supplies)
+  const mergedUpgrades = getMergedUpgradesForUnit(unit);
+
   // Collect all unique civs from upgrades + auras for filter dropdown
   const allEntryCivs = new Set();
-  for (const item of [...(unit.upgrades || []), ...(unit.auras || [])]) {
+  for (const item of [...mergedUpgrades, ...(unit.auras || [])]) {
     if (item.civs) item.civs.forEach(c => allEntryCivs.add(c));
   }
   const sortedEntryCivs = CIV_ORDER.filter(c => allEntryCivs.has(c));
@@ -1583,9 +1719,9 @@ function showUnitDetail(side) {
 
   // Build upgrades detail
   let upgradesHtml = "";
-  if (unit.upgrades && unit.upgrades.length > 0) {
+  if (mergedUpgrades.length > 0) {
     upgradesHtml = `<h6 style="color:${teamColor}; margin-top:16px; font-family:'Cinzel',serif;">Technologies</h6>`;
-    upgradesHtml += renderEntries(unit.upgrades, "upgradesContainer", "rgba(212,164,74,0.2)", "rgba(212,164,74,0.12)", "#d4a44a");
+    upgradesHtml += renderEntries(mergedUpgrades, "upgradesContainer", "rgba(212,164,74,0.2)", "rgba(212,164,74,0.12)", "#d4a44a");
   }
 
   // Build aura buffs detail
