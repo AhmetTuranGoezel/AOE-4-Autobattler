@@ -20,6 +20,9 @@
     <button class="aoe4-nav-tab" data-page="vsBuilding" onclick="switchPage('vsBuilding')">
       <span class="nav-icon">&#127984;</span> vs Building <span class="beta-badge">BETA</span>
     </button>
+    <button class="aoe4-nav-tab" data-page="multiBattle" onclick="switchPage('multiBattle')">
+      <span class="nav-icon">&#9876;</span> Multi Battle <span class="beta-badge">BETA</span>
+    </button>
   </nav>
 
   <div class="container">
@@ -80,6 +83,13 @@
             <div class="mb-3">
               <label class="form-label fw-bold">Number of Units</label>
               <input id="countA" type="number" class="form-control" value="10" min="1">
+            </div>
+            <div class="multi-only multi-group-controls" id="multiControlsA" style="display:none;">
+              <div class="d-flex gap-2 flex-wrap align-items-center">
+                <button id="A_saveGroupBtn" type="button" class="btn btn-sm btn-outline-warning">Save Group</button>
+                <button id="A_newGroupBtn" type="button" class="btn btn-sm btn-outline-secondary">New Group</button>
+                <span class="multi-editing-label" id="A_editingLabel">Editing: None</span>
+              </div>
             </div>
 
             <!-- Base Stats -->
@@ -415,6 +425,13 @@
               <label class="form-label fw-bold">Number of Units</label>
               <input id="countB" type="number" class="form-control" value="10" min="1">
             </div>
+            <div class="multi-only multi-group-controls" id="multiControlsB" style="display:none;">
+              <div class="d-flex gap-2 flex-wrap align-items-center">
+                <button id="B_saveGroupBtn" type="button" class="btn btn-sm btn-outline-warning">Save Group</button>
+                <button id="B_newGroupBtn" type="button" class="btn btn-sm btn-outline-secondary">New Group</button>
+                <span class="multi-editing-label" id="B_editingLabel">Editing: None</span>
+              </div>
+            </div>
 
             <div class="stat-box">
               <h6 class="fw-bold mb-3">Stats</h6>
@@ -586,6 +603,35 @@
       </div>
     </div>
 
+    <!-- ==================== MULTI ROSTERS ==================== -->
+    <div class="row g-4 multi-only" id="multiRosterRow" style="display:none;">
+      <div class="col-lg-5">
+        <div class="card multi-roster-card multi-roster-a">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h5 class="mb-0">Team A Roster</h5>
+              <button id="A_addGroupBtn" type="button" class="btn btn-sm btn-outline-info">Add Group</button>
+            </div>
+            <div id="rosterListA" class="multi-roster-list"></div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-2 d-flex align-items-center justify-content-center">
+        <div class="multi-roster-hint text-center">Set target priorities per group</div>
+      </div>
+      <div class="col-lg-5">
+        <div class="card multi-roster-card multi-roster-b">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h5 class="mb-0">Team B Roster</h5>
+              <button id="B_addGroupBtn" type="button" class="btn btn-sm btn-outline-info">Add Group</button>
+            </div>
+            <div id="rosterListB" class="multi-roster-list"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ==================== RESULTS DISPLAY ==================== -->
     <div id="results" style="display: none;" class="results-card mt-4">
       <!-- Winner Banner -->
@@ -595,6 +641,24 @@
       <div class="text-center mb-4">
         <span class="battle-duration-label">Battle Duration</span>
         <div class="battle-duration-value" id="battleDuration"></div>
+      </div>
+
+      <!-- Multi Mode Results -->
+      <div id="multiResultsContainer" style="display:none;">
+        <div class="row g-4 mb-3">
+          <div class="col-md-6">
+            <div class="team-result-panel">
+              <h4 class="card-title-a text-center team-name mb-3">Team A Summary</h4>
+              <div id="multiSummaryA"></div>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="team-result-panel">
+              <h4 class="card-title-b text-center team-name mb-3">Team B Summary</h4>
+              <div id="multiSummaryB"></div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Two-column team results -->
