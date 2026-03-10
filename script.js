@@ -5,6 +5,12 @@
 // Global variables
 let units = {}; // All unit data from JSON
 let allAvailableTags = new Set(); // All unique tags found across all units
+let currentPage = "unitBattler";
+
+// Multi battle state
+let multiRosters = { A: [], B: [] };
+let multiEditing = { A: null, B: null };
+let multiIdCounters = { A: 1, B: 1 };
 
 // ========================================
 // BUILDING DATA (Outpost, Keep, Town Center)
@@ -1959,6 +1965,65 @@ function applyBuffs(unitData, time) {
   return { hp, attack, attackSpeed, meleeArmor, rangedArmor };
 }
 
+function calcEffectiveAttackSpeed(unit, baseAttackSpeed, time, team) {
+  const EPS = 0.0001;
+  let atkSpeed = baseAttackSpeed;
+  const fx = unit.effects;
+
+  if (fx.arrowVolley && time <= fx.arrowVolley.duration + EPS) {
+    atkSpeed /= (1 + fx.arrowVolley.atkSpeedBonus / 100);
+  }
+  if (fx.fortitude && time <= fx.fortitude.duration + EPS) {
+    atkSpeed /= (1 + fx.fortitude.atkSpeedBonus / 100);
+  }
+  if (fx.staticDeployment && time >= fx.staticDeployment.delay - EPS) {
+    atkSpeed /= (1 + fx.staticDeployment.atkSpeedBonus / 100);
+  }
+  if (fx.shieldWall) {
+    atkSpeed /= (1 - fx.shieldWall.atkSpeedPenalty / 100);
+  }
+  if (team && team.atkSpeedDebuffUntil >= time - EPS) {
+    atkSpeed /= (1 - team.atkSpeedDebuffReduction / 100);
+  }
+  return atkSpeed;
+}
+
+function calcEffectiveAttack(unit, baseAttack, time, team) {
+  const EPS = 0.0001;
+  let atk = baseAttack;
+  const fx = unit.effects;
+  if (fx.berserking && time <= fx.berserking.duration + EPS) {
+    atk += fx.berserking.attackBonus;
+  }
+  if (team && team.gloryBonusAtk) {
+    atk += team.gloryBonusAtk;
+  }
+  return atk;
+}
+
+function calcEffectiveArmor(unit, baseMeleeArmor, baseRangedArmor, time, enemyEffects) {
+  const EPS = 0.0001;
+  let mArmor = baseMeleeArmor;
+  let rArmor = baseRangedArmor;
+  const fx = unit.effects;
+  if (fx.berserking && time <= fx.berserking.duration + EPS) {
+    mArmor -= fx.berserking.armorPenalty;
+    rArmor -= fx.berserking.armorPenalty;
+  }
+  if (fx.deployPavise && time <= fx.deployPavise.duration + EPS) {
+    rArmor += fx.deployPavise.armorBonus;
+  }
+  if (fx.armorAura) {
+    mArmor += fx.armorAura.armorBonus;
+    rArmor += fx.armorAura.armorBonus;
+  }
+  if (enemyEffects && enemyEffects.armorDebuffAura) {
+    mArmor -= enemyEffects.armorDebuffAura.armorReduction;
+    rArmor -= enemyEffects.armorDebuffAura.armorReduction;
+  }
+  return { meleeArmor: mArmor, rangedArmor: rArmor };
+}
+
 /**
  * 7. SIMULATION ENGINE
  *
@@ -2363,6 +2428,874 @@ function runBuildingBattle() {
 
   resultsEl.scrollIntoView({ behavior: "smooth" });
 }
+
+// ========================================
+// MULTI BATTLE HELPERS
+// ========================================
+
+function isMultiMode() {
+  return currentPage === "multiBattle";
+}
+
+function setMultiModeUI(active) {
+  document.querySelectorAll(".multi-only").forEach((el) => {
+    el.style.display = active ? "" : "none";
+  });
+  const autoBalance = document.getElementById("autoBalance");
+  if (autoBalance) {
+    if (active) {
+      autoBalance.checked = false;
+      autoBalance.disabled = true;
+    } else {
+      autoBalance.disabled = false;
+    }
+  }
+}
+
+function nextGroupId(side) {
+  const id = `${side}${multiIdCounters[side]++}`;
+  return id;
+}
+
+function updateEditingLabel(side) {
+  const label = document.getElementById(`${side}_editingLabel`);
+  const saveBtn = document.getElementById(`${side}_saveGroupBtn`);
+  if (!label || !saveBtn) return;
+  if (multiEditing[side]) {
+    label.textContent = `Editing: ${multiEditing[side]}`;
+    saveBtn.textContent = "Update Group";
+  } else {
+    label.textContent = "Editing: None";
+    saveBtn.textContent = "Save Group";
+  }
+}
+
+function serializeGroupFromEditor(side) {
+  const unitData = getUnitData(side);
+  unitData.age = parseInt(document.getElementById(`unit${side}Age`).value) || 2;
+  unitData.civGroup = document.getElementById(`unit${side}Select`)?.dataset.civGroup || "";
+  return { unitData };
+}
+
+function applyUnitDataToEditor(side, unitData) {
+  const wrapper = document.getElementById(`unit${side}Select`);
+  if (wrapper) {
+    wrapper.dataset.value = unitData.name;
+    if (unitData.civGroup !== undefined) wrapper.dataset.civGroup = unitData.civGroup || "";
+    updateSelectHeader(wrapper);
+  }
+
+  const ageEl = document.getElementById(`unit${side}Age`);
+  if (ageEl && unitData.age) ageEl.value = String(unitData.age);
+
+  const wm = unitData.weaponMode || "primary";
+  const wmEl = document.getElementById(`${wm}${side}`);
+  if (wmEl) wmEl.checked = true;
+
+  updateUnitStats(side);
+
+  document.getElementById(`count${side}`).value = unitData.count || 1;
+  document.getElementById(`${side}_hp`).value = unitData.stats.hp ?? "";
+  document.getElementById(`${side}_attack`).value = unitData.stats.attack ?? "";
+  document.getElementById(`${side}_meleeArmor`).value = unitData.stats.meleeArmor ?? 0;
+  document.getElementById(`${side}_rangedArmor`).value = unitData.stats.rangedArmor ?? 0;
+  document.getElementById(`${side}_attackSpeed`).value = unitData.stats.attackSpeed ?? 1;
+
+  document.getElementById(`${side}_buffAttackAbs`).value = unitData.buffs.attackAbs ?? 0;
+  document.getElementById(`${side}_buffAttackAbsDur`).value = unitData.buffs.attackAbsDur ?? 0;
+  document.getElementById(`${side}_buffAttackPct`).value = unitData.buffs.attackPct ?? 0;
+  document.getElementById(`${side}_buffAttackPctDur`).value = unitData.buffs.attackPctDur ?? 0;
+  document.getElementById(`${side}_buffHPabs`).value = unitData.buffs.hpAbs ?? 0;
+  document.getElementById(`${side}_buffHPabsDur`).value = unitData.buffs.hpAbsDur ?? 0;
+  document.getElementById(`${side}_buffHPpct`).value = unitData.buffs.hpPct ?? 0;
+  document.getElementById(`${side}_buffHPpctDur`).value = unitData.buffs.hpPctDur ?? 0;
+  document.getElementById(`${side}_buffSpeedPct`).value = unitData.buffs.speedPct ?? 0;
+  document.getElementById(`${side}_buffSpeedPctDur`).value = unitData.buffs.speedPctDur ?? 0;
+  document.getElementById(`${side}_buffMeleeArmor`).value = unitData.buffs.meleeArmor ?? 0;
+  document.getElementById(`${side}_buffRangedArmor`).value = unitData.buffs.rangedArmor ?? 0;
+  document.getElementById(`${side}_buffArmorDur`).value = unitData.buffs.armorDur ?? 0;
+
+  document.getElementById(`${side}_firstHitEnabled`).checked = !!unitData.firstHitEnabled;
+  document.getElementById(`${side}_freeHits`).value = unitData.freeHits ?? 0;
+
+  const tagChecks = document.querySelectorAll(`#${side}_tagsContainer .tag-checkbox`);
+  tagChecks.forEach((cb) => {
+    cb.checked = unitData.tags?.includes(cb.value) || false;
+  });
+
+  const bonusInputs = document.querySelectorAll(`#${side}_bonusesContainer .bonus-input`);
+  bonusInputs.forEach((input) => {
+    const tag = input.dataset.tag;
+    input.value = unitData.stats.bonus?.[tag] ?? 0;
+  });
+
+  const effectChecks = document.querySelectorAll(`#${side}_effectsContainer .effect-checkbox`);
+  effectChecks.forEach((cb) => {
+    const effectId = cb.dataset.effect;
+    cb.checked = !!unitData.effects?.[effectId];
+  });
+
+  if (unitData.effects) {
+    Object.entries(unitData.effects).forEach(([effectId, effectVal]) => {
+      const checkId = `${side}_effect_${effectId}`;
+      if (effectVal && typeof effectVal === "object") {
+        Object.entries(effectVal).forEach(([k, v]) => {
+          const input = document.getElementById(`${checkId}_${k}`);
+          if (input) input.value = v;
+        });
+      }
+    });
+  }
+}
+
+function loadGroupIntoEditor(side, group) {
+  if (!group) return;
+  applyUnitDataToEditor(side, group.unitData);
+  multiEditing[side] = group.id;
+  updateEditingLabel(side);
+}
+
+function clearGroupEditor(side) {
+  multiEditing[side] = null;
+  updateEditingLabel(side);
+}
+
+function saveGroupFromEditor(side) {
+  const { unitData } = serializeGroupFromEditor(side);
+  if (!unitData || !unitData.name) return;
+
+  if (multiEditing[side]) {
+    const idx = multiRosters[side].findIndex((g) => g.id === multiEditing[side]);
+    if (idx >= 0) {
+      multiRosters[side][idx].unitData = unitData;
+    }
+  } else {
+    const id = nextGroupId(side);
+    multiRosters[side].push({ id, side, unitData, targetPriority: [] });
+    multiEditing[side] = id;
+  }
+
+  syncTargetPriorities();
+  renderRoster("A");
+  renderRoster("B");
+  updateEditingLabel(side);
+}
+
+function removeGroup(side, groupId) {
+  const idx = multiRosters[side].findIndex((g) => g.id === groupId);
+  if (idx >= 0) {
+    multiRosters[side].splice(idx, 1);
+  }
+  if (multiEditing[side] === groupId) {
+    multiEditing[side] = null;
+    updateEditingLabel(side);
+  }
+  syncTargetPriorities();
+  renderRoster("A");
+  renderRoster("B");
+}
+
+function syncTargetPriorities() {
+  const enemyIds = {
+    A: multiRosters.B.map((g) => g.id),
+    B: multiRosters.A.map((g) => g.id),
+  };
+  ["A", "B"].forEach((side) => {
+    multiRosters[side].forEach((g) => {
+      let list = g.targetPriority || [];
+      list = list.filter((id) => enemyIds[side].includes(id));
+      enemyIds[side].forEach((id) => {
+        if (!list.includes(id)) list.push(id);
+      });
+      g.targetPriority = list;
+      g.unitData.targetPriority = list;
+    });
+  });
+}
+
+function renderRoster(side) {
+  const container = document.getElementById(`rosterList${side}`);
+  if (!container) return;
+  container.innerHTML = "";
+
+  if (multiRosters[side].length === 0) {
+    container.innerHTML = `<div class="text-muted" style="font-size:0.8rem;">No groups added.</div>`;
+    return;
+  }
+
+  multiRosters[side].forEach((g) => {
+    const unitName = g.unitData.name;
+    const count = g.unitData.count;
+    const weaponMode = g.unitData.weaponMode || "primary";
+    const age = g.unitData.age || 2;
+    const priority = g.targetPriority || [];
+
+    let targetHtml = "";
+    if (priority.length === 0) {
+      targetHtml = `<div class="text-muted">No targets.</div>`;
+    } else {
+      priority.forEach((tid, idx) => {
+        targetHtml += `
+          <div class="target-row">
+            <span class="target-name">${tid}</span>
+            <div class="target-actions">
+              <button class="btn btn-sm btn-outline-secondary" data-action="target-up" data-id="${g.id}" data-target="${tid}" ${idx === 0 ? "disabled" : ""}>&uarr;</button>
+              <button class="btn btn-sm btn-outline-secondary" data-action="target-down" data-id="${g.id}" data-target="${tid}" ${idx === priority.length - 1 ? "disabled" : ""}>&darr;</button>
+            </div>
+          </div>`;
+      });
+    }
+
+    const card = document.createElement("div");
+    card.className = "multi-group-card";
+    card.innerHTML = `
+      <div class="d-flex justify-content-between align-items-center mb-1">
+        <div class="multi-group-title">${g.id} — ${unitName} x${count}</div>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-outline-info" data-action="edit" data-id="${g.id}">Edit</button>
+          <button class="btn btn-sm btn-outline-danger" data-action="remove" data-id="${g.id}">Remove</button>
+        </div>
+      </div>
+      <div class="multi-group-meta">Age ${age} • ${weaponMode}</div>
+      <div class="target-priority">
+        <div class="text-muted mb-1">Target Priority</div>
+        ${targetHtml}
+      </div>
+    `;
+    container.appendChild(card);
+  });
+}
+
+function handleRosterClick(side, event) {
+  const btn = event.target.closest("button");
+  if (!btn) return;
+  const action = btn.dataset.action;
+  const groupId = btn.dataset.id;
+  const targetId = btn.dataset.target;
+  if (!action || !groupId) return;
+
+  const group = multiRosters[side].find((g) => g.id === groupId);
+  if (!group) return;
+
+  if (action === "edit") {
+    loadGroupIntoEditor(side, group);
+  } else if (action === "remove") {
+    removeGroup(side, groupId);
+  } else if (action === "target-up" || action === "target-down") {
+    const list = group.targetPriority || [];
+    const idx = list.indexOf(targetId);
+    if (idx === -1) return;
+    const swapWith = action === "target-up" ? idx - 1 : idx + 1;
+    if (swapWith < 0 || swapWith >= list.length) return;
+    [list[idx], list[swapWith]] = [list[swapWith], list[idx]];
+    group.targetPriority = list;
+    group.unitData.targetPriority = list;
+    renderRoster(side);
+  }
+}
+
+function renderMultiBattleLog(battleLog) {
+  const logContainer = document.getElementById("battleLogContainer");
+  if (!logContainer) return;
+  if (battleLog.length === 0) {
+    logContainer.innerHTML = "<p class='text-muted'>No events recorded.</p>";
+    return;
+  }
+  let html = `<table class="battle-log-table">
+    <thead><tr>
+      <th>Time</th><th>Attacker</th><th>Target</th><th>Weapon</th>
+      <th>Dmg</th><th>Waste</th><th>Atk Units</th><th>Tgt Units</th><th>Notes</th>
+    </tr></thead><tbody>`;
+  for (const e of battleLog) {
+    html += `<tr>
+      <td>${e.time}s</td>
+      <td>${e.attacker}</td>
+      <td>${e.target}</td>
+      <td>${e.weapon}</td>
+      <td>${e.dmg}</td>
+      <td>${e.waste}</td>
+      <td>${e.atkUnits}</td>
+      <td>${e.tgtUnits}</td>
+      <td class="log-notes">${e.notes}</td>
+    </tr>`;
+  }
+  html += "</tbody></table>";
+  logContainer.innerHTML = html;
+}
+
+function renderMultiResults(teamsA, teamsB, time, winner) {
+  const resultsEl = document.getElementById("results");
+  resultsEl.style.display = "block";
+  resultsEl.style.animation = "none";
+  resultsEl.offsetHeight;
+  resultsEl.style.animation = "";
+  const multiResults = document.getElementById("multiResultsContainer");
+  if (multiResults) multiResults.style.display = "none";
+  document.getElementById("resultPanelA").style.display = "";
+  document.getElementById("resultPanelB").style.display = "";
+
+  const winnerTextEl = document.getElementById("winnerText");
+  if (winner === "A") {
+    winnerTextEl.textContent = "Team A wins!";
+    winnerTextEl.classList.add("winner-banner");
+    winnerTextEl.classList.remove("draw-banner");
+  } else if (winner === "B") {
+    winnerTextEl.textContent = "Team B wins!";
+    winnerTextEl.classList.add("winner-banner");
+    winnerTextEl.classList.remove("draw-banner");
+  } else {
+    winnerTextEl.textContent = "Draw";
+    winnerTextEl.classList.add("draw-banner");
+    winnerTextEl.classList.remove("winner-banner");
+  }
+
+  document.getElementById("battleDuration").textContent = time.toFixed(1) + "s";
+
+  document.getElementById("multiResultsContainer").style.display = "";
+  document.getElementById("resultPanelA").style.display = "none";
+  document.getElementById("resultPanelB").style.display = "none";
+
+  function buildSummaryHtml(teams, side) {
+    let totalStart = 0;
+    let totalLeft = 0;
+    let totalResLost = 0;
+    let rows = "";
+    teams.forEach((t) => {
+      const start = t.unitData.count;
+      const left = t.units;
+      const hpPct = left > 0 ? (t.totalHp / (t.stats.hp * start)) * 100 : 0;
+      const unitsLost = start - left;
+      const costPerUnit = getTotalCost(t.unitData.name, side);
+      const resLost = costPerUnit * unitsLost;
+      totalStart += start;
+      totalLeft += left;
+      totalResLost += resLost;
+      rows += `<tr><td>${t.groupId}</td><td>${t.unitData.name}</td><td>${start}</td><td>${left}</td><td>${hpPct.toFixed(1)}%</td><td>${Math.round(resLost)}</td></tr>`;
+    });
+    rows += `<tr><th colspan="2">Total</th><th>${totalStart}</th><th>${totalLeft}</th><th></th><th>${Math.round(totalResLost)}</th></tr>`;
+    return `
+      <table class="multi-summary-table">
+        <thead><tr><th>Group</th><th>Unit</th><th>Start</th><th>Left</th><th>HP%</th><th>Res Lost</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  }
+
+  document.getElementById("multiSummaryA").innerHTML = buildSummaryHtml(teamsA, "A");
+  document.getElementById("multiSummaryB").innerHTML = buildSummaryHtml(teamsB, "B");
+
+  const logCollapse = document.getElementById("battleLogCollapse");
+  if (logCollapse.classList.contains("show")) logCollapse.classList.remove("show");
+  resultsEl.scrollIntoView({ behavior: "smooth" });
+}
+
+function createTeamState(group) {
+  const unitData = group.unitData;
+  const stats = applyBuffs(unitData, 0);
+  const team = {
+    groupId: group.id,
+    side: group.side,
+    unitData,
+    units: unitData.count,
+    totalHp: 0,
+    stats,
+    originalStats: unitData.stats,
+    nextPrimaryAttack: 0,
+    nextSecondaryAttack: unitData.secondaryWeapon ? 0 : Infinity,
+    tags: unitData.tags,
+    hasCharged: false,
+    chargeTime: -Infinity,
+    hasBlocked: false,
+    trampleTick: unitData.effects.trample ? 0 : Infinity,
+    trampleActive: false,
+    trampleEnd: -1,
+    closingDelay: 0,
+    currentTargetId: null,
+    baseHp: stats.hp,
+    gloryBonusHp: 0,
+    gloryBonusAtk: 0
+  };
+
+  if (unitData.effects.brotherhoodHP) {
+    team.stats.hp = team.baseHp + unitData.effects.brotherhoodHP.hpPerUnit * (team.units - 1);
+  }
+  team.totalHp = team.stats.hp * team.units;
+  return team;
+}
+
+function pickNextTarget(team, enemyTeams) {
+  const alive = enemyTeams.filter((t) => t.units > 0).map((t) => t.groupId);
+  const priority = team.unitData.targetPriority || [];
+  for (const id of priority) {
+    if (alive.includes(id)) return id;
+  }
+  return alive[0] || null;
+}
+
+function computeClosingDelay(attacker, defender) {
+  const aIsCavalry = attacker.tags.includes("Cavalry") && attacker.unitData.chargeDamage > 0;
+  const bIsCavalry = defender.tags.includes("Cavalry") && defender.unitData.chargeDamage > 0;
+  const effectiveRangeA = ((attacker.unitData.effects.spearwall || attacker.unitData.effects.palings) && bIsCavalry)
+    ? Math.max(attacker.unitData.weaponRange, 1.04)
+    : attacker.unitData.weaponRange;
+  const effectiveRangeB = ((defender.unitData.effects.spearwall || defender.unitData.effects.palings) && aIsCavalry)
+    ? Math.max(defender.unitData.weaponRange, 1.04)
+    : defender.unitData.weaponRange;
+  const speedA = attacker.unitData.effects.movementBurst
+    ? attacker.unitData.speed * (1 + attacker.unitData.effects.movementBurst.speedBonus / 100)
+    : attacker.unitData.speed;
+  if (effectiveRangeB > effectiveRangeA) {
+    return (effectiveRangeB - effectiveRangeA) / speedA;
+  }
+  return 0;
+}
+
+function applyBattleGlory(team, kills) {
+  if (!team.unitData.effects.battleGlory || kills <= 0 || team.units <= 0) return;
+  const bg = team.unitData.effects.battleGlory;
+  team.gloryBonusHp = (team.gloryBonusHp || 0) + bg.hpPerKill * kills;
+  team.gloryBonusAtk = (team.gloryBonusAtk || 0) + bg.attackPerKill * kills;
+  team.stats.hp = team.baseHp + team.gloryBonusHp;
+  team.totalHp += bg.hpPerKill * kills * team.units;
+}
+
+function applyOpeningAttacks(attackerTeams, teamById, battleLog) {
+  attackerTeams.forEach((attacker) => {
+    if (!attacker.unitData.effects.openingAttack || attacker.units <= 0) return;
+    const targetId = attacker.currentTargetId;
+    const defender = teamById[targetId];
+    if (!defender || defender.units <= 0) return;
+    const oa = attacker.unitData.effects.openingAttack;
+    const armor = defender.stats.rangedArmor || 0;
+    const dmgPerUnit = Math.max(1, oa.damage - armor);
+    const totalDmg = dmgPerUnit * attacker.units;
+    defender.totalHp -= totalDmg;
+    if (totalDmg > 0) {
+      const unitsLost = Math.floor((defender.stats.hp * defender.units - defender.totalHp) / defender.stats.hp);
+      defender.units = Math.max(0, defender.units - unitsLost);
+    }
+    battleLog.push({
+      time: "Pre",
+      attacker: attacker.groupId,
+      target: defender.groupId,
+      weapon: "Opening",
+      dmg: totalDmg.toFixed(1),
+      waste: "0.0",
+      atkUnits: attacker.units,
+      tgtUnits: defender.units,
+      notes: attacker.unitData.name
+    });
+  });
+}
+
+function applyAntiCavEffects(allTeams, teamById) {
+  allTeams.forEach((attacker) => {
+    const target = teamById[attacker.currentTargetId];
+    if (!target) return;
+    if (!attacker.tags.includes("Cavalry")) return;
+    const palings = target.unitData.effects.palings;
+    const spearwall = target.unitData.effects.spearwall;
+    if (palings) {
+      attacker.nextPrimaryAttack = Math.max(attacker.nextPrimaryAttack, palings.stunDuration);
+      attacker.unitData.chargeDamage = 0;
+      const totalDmg = palings.damage * target.units;
+      attacker.totalHp -= totalDmg;
+      if (totalDmg > 0) {
+        const unitsLost = Math.floor((attacker.stats.hp * attacker.units - attacker.totalHp) / attacker.stats.hp);
+        attacker.units = Math.max(0, attacker.units - unitsLost);
+      }
+    } else if (spearwall) {
+      attacker.nextPrimaryAttack = Math.max(attacker.nextPrimaryAttack, spearwall.stunDuration);
+      attacker.unitData.chargeDamage = 0;
+    }
+  });
+}
+
+function computeTeamAttack(attacker, target, time, config) {
+  const { overkillEnabled, splitEnabled, splitTargets, EPSILON } = config;
+  const unitA = attacker.unitData;
+  const unitB = target.unitData;
+
+  let damageToB = 0;
+  let logNotes = [];
+  let firedPrimary = false;
+  let firedSecondary = false;
+
+  const atkSpeedA = calcEffectiveAttackSpeed(unitA, attacker.stats.attackSpeed, time, attacker);
+  const armorB = calcEffectiveArmor(unitB, target.stats.meleeArmor, target.stats.rangedArmor, time, unitA.effects);
+  const effectiveStatsB = { ...target.stats, ...armorB };
+
+  if (attacker.nextPrimaryAttack <= time + EPSILON && attacker.units > 0) {
+    let attackValue = calcEffectiveAttack(unitA, attacker.stats.attack, time, attacker);
+    if (!attacker.hasCharged && unitA.chargeDamage > 0) {
+      attackValue += unitA.chargeDamage;
+      attacker.hasCharged = true;
+      attacker.chargeTime = time;
+    }
+    const pcBuff = unitA.effects.postChargeAttackBuff;
+    if (pcBuff && attacker.hasCharged && time <= attacker.chargeTime + pcBuff.duration + EPSILON && time > attacker.chargeTime + EPSILON) {
+      attackValue += pcBuff.value;
+    }
+    const armorPenA = unitA.effects.armorPenetration ? unitA.effects.armorPenetration.penetration : 0;
+    const dmg = calcWeaponDamage(
+      unitA.weaponType,
+      attackValue,
+      attacker.originalStats.bonus,
+      target.tags,
+      effectiveStatsB,
+      armorPenA
+    );
+    let splashA = 1;
+    let totalTargetsA = 1;
+    if (unitA.effects.aoeSplash) {
+      splashA = Math.min(unitA.effects.aoeSplash.unitsHit, target.units);
+      totalTargetsA = splashA;
+    } else if (unitA.effects.aoeFalloff) {
+      totalTargetsA = Math.min(unitA.effects.aoeFalloff.unitsHit, target.units);
+      splashA = (totalTargetsA + 1) / 2;
+    }
+    damageToB += dmg * attacker.units * splashA;
+    attacker.nextPrimaryAttack = time + atkSpeedA;
+    firedPrimary = true;
+    if (unitA.chargeDamage > 0 && (!attacker.hasCharged || time <= attacker.chargeTime + EPSILON)) logNotes.push("Charge");
+    if (unitA.effects.aoeSplash && totalTargetsA > 1) logNotes.push(`AoE×${totalTargetsA}`);
+    if (unitA.effects.aoeFalloff && totalTargetsA > 1) logNotes.push(`AoE×${totalTargetsA}(falloff)`);
+    if (unitA.effects.atkSpeedDebuff) {
+      target.atkSpeedDebuffUntil = time + unitA.effects.atkSpeedDebuff.duration;
+      target.atkSpeedDebuffReduction = unitA.effects.atkSpeedDebuff.reduction;
+    }
+    if (unitA.effects.dmgDebuffOnHit) {
+      target.dmgDebuffUntil = time + unitA.effects.dmgDebuffOnHit.duration;
+      target.dmgDebuffReduction = unitA.effects.dmgDebuffOnHit.reduction;
+    }
+  }
+
+  if (attacker.unitData.secondaryWeapon &&
+      attacker.nextSecondaryAttack <= time + EPSILON && attacker.units > 0) {
+    const sec = attacker.unitData.secondaryWeapon;
+    const armorPenA2 = unitA.effects.armorPenetration ? unitA.effects.armorPenetration.penetration : 0;
+    const dmg = calcWeaponDamage(
+      sec.type,
+      sec.stats.attack || 0,
+      sec.stats.bonus || {},
+      target.tags,
+      effectiveStatsB,
+      armorPenA2
+    );
+    damageToB += dmg * attacker.units;
+    attacker.nextSecondaryAttack = time + sec.attackSpeed;
+    firedSecondary = true;
+  }
+
+  // Trample ticks
+  if (unitA.effects.trample && attacker.trampleTick <= time + EPSILON && attacker.units > 0) {
+    const t = unitA.effects.trample;
+    if (!attacker.trampleActive) {
+      attacker.trampleActive = true;
+      attacker.trampleEnd = time + t.duration;
+    }
+    const tickDmg = t.dps * 0.5;
+    const targets = Math.min(t.unitsHit || 1, target.units);
+    damageToB += tickDmg * attacker.units * targets;
+    if (time + 0.5 < attacker.trampleEnd - EPSILON) {
+      attacker.trampleTick = time + 0.5;
+    } else {
+      attacker.trampleActive = false;
+      attacker.trampleTick = attacker.trampleEnd + t.cooldown;
+    }
+    logNotes.push("Trample");
+  }
+
+  // Defender-based reductions
+  if (target.unitData.effects.camelUnease && attacker.tags.includes("Cavalry")) {
+    damageToB *= (1 - target.unitData.effects.camelUnease.reduction / 100);
+  }
+  if (target.unitData.effects.gunpowderResistance && (attacker.tags.includes("Gunpowder") || attacker.tags.includes("Light Gunpowder"))) {
+    damageToB *= (1 - target.unitData.effects.gunpowderResistance.reduction / 100);
+  }
+  if (target.unitData.effects.fortitude && time <= target.unitData.effects.fortitude.duration + EPSILON && unitA.weaponType === "melee") {
+    damageToB *= (1 + target.unitData.effects.fortitude.dmgTakenIncrease / 100);
+  }
+  if (target.unitData.effects.shieldWall && unitA.weaponType === "ranged") {
+    damageToB *= (1 - target.unitData.effects.shieldWall.rangedDmgReduction / 100);
+  }
+  if (attacker.dmgDebuffUntil && attacker.dmgDebuffUntil > time) {
+    damageToB *= (1 - attacker.dmgDebuffReduction / 100);
+  }
+
+  if (target.unitData.effects.deflectiveArmor && !target.hasBlocked && damageToB > 0) {
+    damageToB = 0;
+    target.hasBlocked = true;
+    logNotes.push("Blocked");
+  }
+
+  if (unitA.effects.percentDamage && damageToB > 0) {
+    damageToB += (unitA.effects.percentDamage.percent / 100) * target.stats.hp * attacker.units;
+    logNotes.push("%HP");
+  }
+  if (unitA.effects.bleed && damageToB > 0) {
+    const bleed = unitA.effects.bleed;
+    damageToB += bleed.dps * bleed.duration * attacker.units;
+    logNotes.push("Bleed");
+  }
+
+  // Overkill waste
+  let waste = 0;
+  if (overkillEnabled) {
+    const rawDmg = damageToB;
+    if (damageToB > 0 && attacker.units > 0) {
+      const dmgPer = damageToB / attacker.units;
+      const hpPer = target.stats.hp;
+      const frontHpRaw = target.totalHp - (target.units - 1) * hpPer;
+      const frontHp = Math.min(hpPer, Math.max(EPSILON, frontHpRaw));
+      const targets = (splitEnabled && target.units > 1) ? Math.min(splitTargets, target.units, attacker.units) : 1;
+      let eff = 0;
+      if (targets > 1) {
+        const perGroup = Math.floor(attacker.units / targets);
+        const extra = attacker.units % targets;
+        for (let g = 0; g < targets; g++) {
+          const groupSize = perGroup + (g < extra ? 1 : 0);
+          let tgtHp = (g === 0) ? frontHp : hpPer;
+          for (let i = 0; i < groupSize; i++) {
+            if (tgtHp <= 0) break;
+            const dealt = Math.min(dmgPer, tgtHp);
+            eff += dealt;
+            tgtHp -= dealt;
+            if (tgtHp <= 0) tgtHp = hpPer;
+          }
+        }
+      } else {
+        let fHp = frontHp;
+        for (let i = 0; i < attacker.units; i++) {
+          if (fHp <= 0) break;
+          const dealt = Math.min(dmgPer, fHp);
+          eff += dealt;
+          fHp -= dealt;
+          if (fHp <= 0) fHp = hpPer;
+        }
+      }
+      damageToB = eff;
+    }
+    waste = rawDmg - damageToB;
+  }
+
+  if (unitA.effects.armorPenetration && (firedPrimary || firedSecondary)) logNotes.push("ArmorPen");
+  if (unitA.effects.atkSpeedDebuff && firedPrimary) logNotes.push("Slow");
+  if (unitA.effects.dmgDebuffOnHit && (firedPrimary || firedSecondary)) logNotes.push("Weaken");
+  if (attacker.dmgDebuffUntil && attacker.dmgDebuffUntil > time && (firedPrimary || firedSecondary)) logNotes.push("Weakened");
+  if (unitA.effects.berserking && time <= unitA.effects.berserking.duration + EPSILON) logNotes.push("Berserk");
+  if (unitA.effects.shieldWall) logNotes.push("ShieldWall");
+  if (unitA.effects.camelUnease && target.tags.includes("Cavalry")) logNotes.push("CamelUnease");
+  if (unitA.effects.gunpowderResistance && (target.tags.includes("Gunpowder") || target.tags.includes("Light Gunpowder"))) logNotes.push("GunpowderRes");
+  if (unitA.effects.armorDebuffAura) logNotes.push("-Armor");
+  if (unitA.effects.movementBurst && time <= unitA.effects.movementBurst.duration + EPSILON) logNotes.push("SpeedBurst");
+  if (unitA.effects.infantrySpeedAura) logNotes.push("FarimaAura");
+
+  const weapon = firedPrimary && firedSecondary ? "Both" : firedPrimary ? "Primary" : firedSecondary ? "Secondary" : "—";
+  const log = (firedPrimary || firedSecondary || (unitA.effects.trample && attacker.trampleActive)) ? {
+    time: time.toFixed(2),
+    attacker: attacker.groupId,
+    target: target.groupId,
+    weapon,
+    dmg: damageToB.toFixed(1),
+    waste: waste.toFixed(1),
+    atkUnits: attacker.units,
+    tgtUnits: target.units,
+    notes: logNotes.join(", ")
+  } : null;
+
+  return { damage: damageToB, log };
+}
+
+function runMultiBattle() {
+  if (multiRosters.A.length === 0 || multiRosters.B.length === 0) {
+    alert("Add at least one group on each side.");
+    return;
+  }
+
+  const overkillEnabled = document.getElementById("overkillEnabled").checked;
+  const rangeSpeedEnabled = document.getElementById("rangeSpeedEnabled")?.checked;
+  const splitA = document.getElementById("A_splitDamage")?.checked;
+  const splitTargetsA = Math.max(1, parseInt(document.getElementById("A_splitTargets")?.value) || 1);
+  const splitB = document.getElementById("B_splitDamage")?.checked;
+  const splitTargetsB = Math.max(1, parseInt(document.getElementById("B_splitTargets")?.value) || 1);
+
+  syncTargetPriorities();
+
+  const teamsA = multiRosters.A.map((g) => createTeamState(g));
+  const teamsB = multiRosters.B.map((g) => createTeamState(g));
+  const allTeams = [...teamsA, ...teamsB];
+  const teamById = Object.fromEntries(allTeams.map((t) => [t.groupId, t]));
+
+  allTeams.forEach((team) => {
+    team.currentTargetId = pickNextTarget(team, team.side === "A" ? teamsB : teamsA);
+    if (team.currentTargetId) {
+      const target = teamById[team.currentTargetId];
+      team.closingDelay = rangeSpeedEnabled ? computeClosingDelay(team, target) : 0;
+      team.nextPrimaryAttack = (team.unitData.firstHitEnabled
+        ? -team.unitData.freeHits * team.unitData.stats.attackSpeed
+        : 0) + team.closingDelay;
+      team.nextSecondaryAttack = team.unitData.secondaryWeapon ? 0 : Infinity;
+    } else {
+      team.nextPrimaryAttack = Infinity;
+      team.nextSecondaryAttack = Infinity;
+    }
+  });
+
+  const battleLog = [];
+  applyOpeningAttacks(teamsA, teamById, battleLog);
+  applyOpeningAttacks(teamsB, teamById, battleLog);
+  applyAntiCavEffects(allTeams, teamById);
+
+  let time = 0;
+  const maxTime = 300;
+  const EPSILON = 0.0001;
+
+  allTeams.forEach((t) => {
+    t.atkSpeedDebuffUntil = -Infinity;
+    t.dmgDebuffUntil = -Infinity;
+    t.lastHealAuraTime = 0;
+  });
+
+  while (teamsA.some(t => t.units > 0) && teamsB.some(t => t.units > 0) && time < maxTime) {
+    let nextEventTime = Infinity;
+    allTeams.forEach((t) => {
+      if (t.units <= 0) return;
+      const next = Math.min(t.nextPrimaryAttack, t.nextSecondaryAttack, t.trampleTick);
+      if (next < nextEventTime) nextEventTime = next;
+    });
+    if (!isFinite(nextEventTime)) break;
+    time = nextEventTime;
+
+    allTeams.forEach((t) => {
+      if (t.units > 0) t.stats = applyBuffs(t.unitData, time);
+    });
+
+    const incoming = new Map();
+
+    allTeams.forEach((attacker) => {
+      if (attacker.units <= 0) return;
+      let targetId = attacker.currentTargetId;
+      if (!targetId) return;
+      let target = teamById[targetId];
+      if (!target || target.units <= 0) {
+        targetId = pickNextTarget(attacker, attacker.side === "A" ? teamsB : teamsA);
+        attacker.currentTargetId = targetId;
+        if (!targetId) return;
+        target = teamById[targetId];
+      }
+
+      const atkResult = computeTeamAttack(attacker, target, time, {
+        overkillEnabled,
+        splitEnabled: attacker.side === "A" ? splitA : splitB,
+        splitTargets: attacker.side === "A" ? splitTargetsA : splitTargetsB,
+        EPSILON
+      });
+
+      if (atkResult.log) battleLog.push(atkResult.log);
+      if (atkResult.damage > 0) {
+        if (!incoming.has(targetId)) incoming.set(targetId, { total: 0, details: [] });
+        const entry = incoming.get(targetId);
+        entry.total += atkResult.damage;
+        entry.details.push({ attacker, damage: atkResult.damage });
+      }
+
+      const healA = attacker.unitData.effects.healPerAttack;
+      if (healA && atkResult.damage > 0) {
+        const maxHp = attacker.stats.hp * attacker.units;
+        attacker.totalHp = Math.min(maxHp, attacker.totalHp + healA.value * attacker.units);
+      }
+    });
+
+    incoming.forEach((entry, targetId) => {
+      const target = teamById[targetId];
+      if (!target || target.units <= 0) return;
+      target.totalHp -= entry.total;
+    });
+
+    allTeams.forEach((t) => {
+      if (t.units <= 0) return;
+      if (t.unitData.effects.healAura) {
+        const dt = time - (t.lastHealAuraTime || 0);
+        if (dt > 0) {
+          const maxHp = t.stats.hp * t.units;
+          t.totalHp = Math.min(maxHp, t.totalHp + t.unitData.effects.healAura.hps * t.units * dt);
+        }
+      }
+      t.lastHealAuraTime = time;
+    });
+
+    const prevUnits = new Map(allTeams.map((t) => [t.groupId, t.units]));
+    allTeams.forEach((t) => {
+      if (t.units <= 0) return;
+      const unitsLost = Math.floor((t.stats.hp * t.units - t.totalHp) / t.stats.hp);
+      if (unitsLost > 0) {
+        t.units = Math.max(0, t.units - unitsLost);
+      }
+    });
+
+    incoming.forEach((entry, targetId) => {
+      const target = teamById[targetId];
+      if (!target) return;
+      const lost = (prevUnits.get(targetId) || 0) - target.units;
+      if (lost <= 0) return;
+      const totalDmg = entry.details.reduce((s, d) => s + d.damage, 0);
+      if (totalDmg <= 0) return;
+      const allocations = entry.details.map((d) => {
+        const share = d.damage / totalDmg;
+        return { attacker: d.attacker, base: Math.floor(lost * share), frac: (lost * share) % 1 };
+      });
+      let allocated = allocations.reduce((s, a) => s + a.base, 0);
+      allocations.sort((a, b) => b.frac - a.frac);
+      for (let i = 0; i < lost - allocated; i++) {
+        allocations[i % allocations.length].base += 1;
+      }
+      allocations.forEach((a) => {
+        if (a.base > 0) applyBattleGlory(a.attacker, a.base);
+      });
+    });
+
+    allTeams.forEach((t) => {
+      if (t.unitData.effects.brotherhoodHP && t.units > 0) {
+        const oldHpPer = t.stats.hp;
+        const newHpPer = t.baseHp + t.unitData.effects.brotherhoodHP.hpPerUnit * (t.units - 1);
+        if (newHpPer !== oldHpPer) {
+          t.totalHp -= (oldHpPer - newHpPer) * t.units;
+          t.totalHp = Math.max(t.units, t.totalHp);
+          t.stats.hp = newHpPer;
+        }
+      }
+    });
+
+    allTeams.forEach((t) => {
+      if (t.units <= 0) {
+        t.nextPrimaryAttack = Infinity;
+        t.nextSecondaryAttack = Infinity;
+        t.trampleTick = Infinity;
+        return;
+      }
+      const target = teamById[t.currentTargetId];
+      if (!target || target.units <= 0) {
+        t.currentTargetId = pickNextTarget(t, t.side === "A" ? teamsB : teamsA);
+        if (!t.currentTargetId) {
+          t.nextPrimaryAttack = Infinity;
+          t.nextSecondaryAttack = Infinity;
+        }
+      }
+    });
+  }
+
+  const winner = teamsA.some(t => t.units > 0) ? (teamsB.some(t => t.units > 0) ? "Draw" : "A")
+    : (teamsB.some(t => t.units > 0) ? "B" : "Draw");
+
+  renderMultiResults(teamsA, teamsB, time, winner);
+  renderMultiBattleLog(battleLog);
+}
+
+
+
+
+
+
 
 function runBattle() {
   // === BUILDING MODE ===
@@ -2897,7 +3830,8 @@ function runBattle() {
       if (damageToB > 0 && teamA.units > 0) {
         const dmgPer = damageToB / teamA.units;
         const hpPer = teamB.stats.hp;
-        const frontHp = teamB.totalHp - (teamB.units - 1) * hpPer;
+        const frontHpRaw = teamB.totalHp - (teamB.units - 1) * hpPer;
+        const frontHp = Math.min(hpPer, Math.max(EPSILON, frontHpRaw));
         const targets = (splitA && teamB.units > 1) ? Math.min(splitTargetsA, teamB.units, teamA.units) : 1;
         let eff = 0;
         if (targets > 1) {
@@ -2929,7 +3863,8 @@ function runBattle() {
       if (damageToA > 0 && teamB.units > 0) {
         const dmgPer = damageToA / teamB.units;
         const hpPer = teamA.stats.hp;
-        const frontHp = teamA.totalHp - (teamA.units - 1) * hpPer;
+        const frontHpRaw = teamA.totalHp - (teamA.units - 1) * hpPer;
+        const frontHp = Math.min(hpPer, Math.max(EPSILON, frontHpRaw));
         const targets = (splitB && teamA.units > 1) ? Math.min(splitTargetsB, teamA.units, teamB.units) : 1;
         let eff = 0;
         if (targets > 1) {
@@ -3201,6 +4136,10 @@ function runBattle() {
   resultsEl.style.animation = "none";
   resultsEl.offsetHeight; // trigger reflow
   resultsEl.style.animation = "";
+  const multiResults = document.getElementById("multiResultsContainer");
+  if (multiResults) multiResults.style.display = "none";
+  document.getElementById("resultPanelA").style.display = "";
+  document.getElementById("resultPanelB").style.display = "";
 
   // Winner text
   const winnerTextEl = document.getElementById("winnerText");
@@ -3327,6 +4266,7 @@ function runBattle() {
 // ========================================
 
 function switchPage(pageName) {
+  currentPage = pageName;
   // Update nav tabs
   document.querySelectorAll(".aoe4-nav-tab").forEach(tab => {
     tab.classList.toggle("active", tab.dataset.page === pageName);
@@ -3345,6 +4285,16 @@ function switchPage(pageName) {
   const torchDmgEl = document.getElementById("A_torchDamage");
   const attackCol = document.getElementById("A_attackCol");
   const attackSpeedCol = document.getElementById("A_attackSpeedCol");
+
+  setMultiModeUI(pageName === "multiBattle");
+  if (pageName !== "multiBattle") {
+    const multiResults = document.getElementById("multiResultsContainer");
+    if (multiResults) multiResults.style.display = "none";
+    const rpA = document.getElementById("resultPanelA");
+    const rpB = document.getElementById("resultPanelB");
+    if (rpA) rpA.style.display = "";
+    if (rpB) rpB.style.display = "";
+  }
 
   if (pageName === "vsBuilding") {
     toggle.checked = true;
@@ -3375,6 +4325,19 @@ function switchPage(pageName) {
       titleB.style.cursor = "default";
       titleB.onclick = null;
     }
+  } else if (pageName === "multiBattle") {
+    toggle.checked = false;
+    teamBNormal.style.display = "";
+    buildingPanel.style.display = "none";
+    if (teamASections) teamASections.style.display = "";
+    if (torchInfo) torchInfo.style.display = "none";
+    if (attackCol) attackCol.style.display = "";
+    if (attackSpeedCol) attackSpeedCol.style.display = "";
+    if (titleB) {
+      titleB.style.cursor = "pointer";
+      titleB.onclick = () => showUnitDetail('B');
+    }
+    updateUnitStats("B");
   } else {
     toggle.checked = false;
     teamBNormal.style.display = "";
@@ -3625,12 +4588,23 @@ document.getElementById("battleBtn").addEventListener("click", function () {
     btn.style.animation = "";
   }, 300);
 
-  runBattle();
+  if (isMultiMode()) runMultiBattle();
+  else runBattle();
 });
 
 document.getElementById("autoBalance").addEventListener("change", function () {
   if (this.checked) balanceCosts();
 });
+
+document.getElementById("A_saveGroupBtn")?.addEventListener("click", () => saveGroupFromEditor("A"));
+document.getElementById("B_saveGroupBtn")?.addEventListener("click", () => saveGroupFromEditor("B"));
+document.getElementById("A_newGroupBtn")?.addEventListener("click", () => clearGroupEditor("A"));
+document.getElementById("B_newGroupBtn")?.addEventListener("click", () => clearGroupEditor("B"));
+document.getElementById("A_addGroupBtn")?.addEventListener("click", () => clearGroupEditor("A"));
+document.getElementById("B_addGroupBtn")?.addEventListener("click", () => clearGroupEditor("B"));
+
+document.getElementById("rosterListA")?.addEventListener("click", (e) => handleRosterClick("A", e));
+document.getElementById("rosterListB")?.addEventListener("click", (e) => handleRosterClick("B", e));
 
 // Collapse toggle arrow rotation
 document.querySelectorAll('[data-bs-toggle="collapse"]').forEach((toggle) => {
@@ -3737,3 +4711,8 @@ document.getElementById("techCastleTurret")?.addEventListener("click", function(
 });
 
 // Emplacement toggle buttons are created dynamically in updateBuildingStats()
+
+updateEditingLabel("A");
+updateEditingLabel("B");
+renderRoster("A");
+renderRoster("B");
