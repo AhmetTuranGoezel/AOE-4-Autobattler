@@ -10,6 +10,7 @@ let currentPage = "unitBattler";
 // Multi battle state
 let multiRosters = { A: [], B: [] };
 let multiEditing = { A: null, B: null };
+let multiEditorOpen = { A: false, B: false };
 let multiIdCounters = { A: 1, B: 1 };
 
 // ========================================
@@ -2437,6 +2438,19 @@ function isMultiMode() {
   return currentPage === "multiBattle";
 }
 
+function setEditorCollapsed(side, collapsed) {
+  const body = document.getElementById(`${side}_editorBody`);
+  const collapsedEl = document.getElementById(`${side}_editorCollapsed`);
+  if (!body || !collapsedEl) return;
+  if (collapsed) {
+    body.style.display = "none";
+    collapsedEl.style.display = "";
+  } else {
+    body.style.display = "";
+    collapsedEl.style.display = "none";
+  }
+}
+
 function setMultiModeUI(active) {
   document.querySelectorAll(".multi-only").forEach((el) => {
     el.style.display = active ? "" : "none";
@@ -2450,6 +2464,15 @@ function setMultiModeUI(active) {
       autoBalance.disabled = false;
     }
   }
+  if (active) {
+    setEditorCollapsed("A", !multiEditorOpen.A);
+    setEditorCollapsed("B", !multiEditorOpen.B);
+    updateEditingLabel("A");
+    updateEditingLabel("B");
+  } else {
+    setEditorCollapsed("A", false);
+    setEditorCollapsed("B", false);
+  }
 }
 
 function nextGroupId(side) {
@@ -2462,11 +2485,14 @@ function updateEditingLabel(side) {
   const saveBtn = document.getElementById(`${side}_saveGroupBtn`);
   if (!label || !saveBtn) return;
   if (multiEditing[side]) {
-    label.textContent = `Editing: ${multiEditing[side]}`;
-    saveBtn.textContent = "Update Group";
+    label.textContent = `Active: ${multiEditing[side]}`;
+    saveBtn.textContent = "Update Unit";
   } else {
-    label.textContent = "Editing: None";
-    saveBtn.textContent = "Save Group";
+    label.textContent = "Active: None";
+    saveBtn.textContent = "Save Unit";
+  }
+  if (isMultiMode()) {
+    setEditorCollapsed(side, !multiEditorOpen[side]);
   }
 }
 
@@ -2552,11 +2578,21 @@ function loadGroupIntoEditor(side, group) {
   if (!group) return;
   applyUnitDataToEditor(side, group.unitData);
   multiEditing[side] = group.id;
+  multiEditorOpen[side] = true;
   updateEditingLabel(side);
+  renderRoster(side);
 }
 
 function clearGroupEditor(side) {
   multiEditing[side] = null;
+  multiEditorOpen[side] = true;
+  updateEditingLabel(side);
+  renderRoster(side);
+}
+
+function collapseGroupEditor(side) {
+  multiEditing[side] = null;
+  multiEditorOpen[side] = false;
   updateEditingLabel(side);
 }
 
@@ -2576,9 +2612,9 @@ function saveGroupFromEditor(side) {
   }
 
   syncTargetPriorities();
+  collapseGroupEditor(side);
   renderRoster("A");
   renderRoster("B");
-  updateEditingLabel(side);
 }
 
 function removeGroup(side, groupId) {
@@ -2588,6 +2624,7 @@ function removeGroup(side, groupId) {
   }
   if (multiEditing[side] === groupId) {
     multiEditing[side] = null;
+    multiEditorOpen[side] = false;
     updateEditingLabel(side);
   }
   syncTargetPriorities();
@@ -2613,22 +2650,39 @@ function syncTargetPriorities() {
   });
 }
 
+function renderRosterTotals() {
+  const totalA = multiRosters.A.reduce((sum, g) => sum + (parseInt(g.unitData.count, 10) || 0), 0);
+  const totalB = multiRosters.B.reduce((sum, g) => sum + (parseInt(g.unitData.count, 10) || 0), 0);
+  const totalAEl = document.getElementById("multiTotalsA");
+  const totalBEl = document.getElementById("multiTotalsB");
+  const diffEl = document.getElementById("multiRosterDiff");
+  if (totalAEl) totalAEl.textContent = `Total units: ${totalA}`;
+  if (totalBEl) totalBEl.textContent = `Total units: ${totalB}`;
+  if (diffEl) {
+    const diff = totalA - totalB;
+    const diffLabel = diff > 0 ? `+${diff}` : `${diff}`;
+    diffEl.textContent = `Unit diff: ${diffLabel}`;
+  }
+}
+
 function renderRoster(side) {
   const container = document.getElementById(`rosterList${side}`);
   if (!container) return;
   container.innerHTML = "";
 
   if (multiRosters[side].length === 0) {
-    container.innerHTML = `<div class="text-muted" style="font-size:0.8rem;">No groups added.</div>`;
+    container.innerHTML = `<div class="text-muted" style="font-size:0.8rem;">No units added.</div>`;
+    renderRosterTotals();
     return;
   }
 
   multiRosters[side].forEach((g) => {
     const unitName = g.unitData.name;
-    const count = g.unitData.count;
+    const count = g.unitData.count || 1;
     const weaponMode = g.unitData.weaponMode || "primary";
     const age = g.unitData.age || 2;
     const priority = g.targetPriority || [];
+    const isActive = multiEditing[side] === g.id && multiEditorOpen[side];
 
     let targetHtml = "";
     if (priority.length === 0) {
@@ -2647,16 +2701,20 @@ function renderRoster(side) {
     }
 
     const card = document.createElement("div");
-    card.className = "multi-group-card";
+    card.className = `multi-group-card${isActive ? " is-active" : ""}`;
+    card.dataset.groupId = g.id;
     card.innerHTML = `
-      <div class="d-flex justify-content-between align-items-center mb-1">
-        <div class="multi-group-title">${g.id} — ${unitName} x${count}</div>
-        <div class="d-flex gap-2">
-          <button class="btn btn-sm btn-outline-info" data-action="edit" data-id="${g.id}">Edit</button>
-          <button class="btn btn-sm btn-outline-danger" data-action="remove" data-id="${g.id}">Remove</button>
+      <div class="d-flex justify-content-between align-items-start mb-2">
+        <div>
+          <div class="multi-group-title">${g.id} - ${unitName}</div>
+          <div class="multi-group-meta">Age ${age} | ${weaponMode}</div>
         </div>
+        <button class="btn btn-sm btn-outline-danger" data-action="remove" data-id="${g.id}">Remove</button>
       </div>
-      <div class="multi-group-meta">Age ${age} • ${weaponMode}</div>
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <div class="text-muted" style="font-size:0.75rem;">Units</div>
+        <input type="number" class="form-control form-control-sm multi-count-input" min="1" data-action="count" data-id="${g.id}" value="${count}">
+      </div>
       <div class="target-priority">
         <div class="text-muted mb-1">Target Priority</div>
         ${targetHtml}
@@ -2664,11 +2722,22 @@ function renderRoster(side) {
     `;
     container.appendChild(card);
   });
+  renderRosterTotals();
 }
 
 function handleRosterClick(side, event) {
   const btn = event.target.closest("button");
-  if (!btn) return;
+  if (!btn) {
+    const input = event.target.closest("input");
+    if (input) return;
+    const card = event.target.closest(".multi-group-card");
+    if (card) {
+      const groupId = card.dataset.groupId;
+      const group = multiRosters[side].find((g) => g.id === groupId);
+      if (group) loadGroupIntoEditor(side, group);
+    }
+    return;
+  }
   const action = btn.dataset.action;
   const groupId = btn.dataset.id;
   const targetId = btn.dataset.target;
@@ -2677,9 +2746,7 @@ function handleRosterClick(side, event) {
   const group = multiRosters[side].find((g) => g.id === groupId);
   if (!group) return;
 
-  if (action === "edit") {
-    loadGroupIntoEditor(side, group);
-  } else if (action === "remove") {
+  if (action === "remove") {
     removeGroup(side, groupId);
   } else if (action === "target-up" || action === "target-down") {
     const list = group.targetPriority || [];
@@ -2694,6 +2761,1176 @@ function handleRosterClick(side, event) {
   }
 }
 
+function handleRosterInput(side, event) {
+  const input = event.target.closest("input");
+  if (!input || input.dataset.action !== "count") return;
+  const groupId = input.dataset.id;
+  const group = multiRosters[side].find((g) => g.id === groupId);
+  if (!group) return;
+  let value = parseInt(input.value, 10);
+  if (!Number.isFinite(value) || value < 1) value = 1;
+  input.value = value;
+  group.unitData.count = value;
+  if (multiEditing[side] === groupId && multiEditorOpen[side]) {
+    const editorCount = document.getElementById(`count${side}`);
+    if (editorCount) editorCount.value = value;
+  }
+  renderRosterTotals();
+}
+
+// === MULTI CARD MODE OVERRIDES ===
+function setMultiModeUI(active) {
+  document.querySelectorAll(".multi-only").forEach((el) => {
+    el.style.display = active ? "" : "none";
+  });
+  document.querySelectorAll(".single-only").forEach((el) => {
+    el.style.display = active ? "none" : "";
+  });
+  const autoBalance = document.getElementById("autoBalance");
+  if (autoBalance) {
+    if (active) {
+      autoBalance.checked = false;
+      autoBalance.disabled = true;
+    } else {
+      autoBalance.disabled = false;
+    }
+  }
+  updateMultiTotals();
+  updateMultiBattleReadyState();
+}
+
+function updateMultiBattleReadyState() {
+  const buttons = document.querySelectorAll(".battle-btn");
+  if (!isMultiMode()) {
+    buttons.forEach((btn) => {
+      btn.disabled = false;
+      btn.title = "";
+    });
+    return;
+  }
+  buttons.forEach((btn) => {
+    btn.disabled = false;
+    btn.title = "";
+  });
+}
+
+function getMultiField(card, name) {
+  return card.querySelector(`[data-field="${name}"]`);
+}
+
+function getTotalCostForUnitData(unitData) {
+  const unit = units[unitData.name];
+  if (!unit || !unit.costs) return 0;
+  if (unit.civCosts && unitData.civGroup && unit.civCosts[unitData.civGroup]) {
+    return Object.values(unit.civCosts[unitData.civGroup]).reduce((sum, val) => sum + val, 0);
+  }
+  return Object.values(unit.costs).reduce((sum, val) => sum + val, 0);
+}
+
+function getCostBreakdownForUnitData(unitData) {
+  const unit = units[unitData.name];
+  if (!unit) return {};
+  if (unit.civCosts && unitData.civGroup && unit.civCosts[unitData.civGroup]) {
+    return unit.civCosts[unitData.civGroup];
+  }
+  return unit.costs || {};
+}
+
+function updateMultiTotals() {
+  const totals = { A: { units: 0, cost: 0, pop: 0 }, B: { units: 0, cost: 0, pop: 0 } };
+  ["A", "B"].forEach((side) => {
+    multiRosters[side].forEach((g) => {
+      const count = g.unitData?.count || 0;
+      const cost = g.unitData ? getTotalCostForUnitData(g.unitData) : 0;
+      const unit = g.unitData ? units[g.unitData.name] : null;
+      const pop = unit?.population || 1;
+      totals[side].units += count;
+      totals[side].cost += cost * count;
+      totals[side].pop += pop * count;
+    });
+  });
+  const setText = (id, value) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+  };
+  setText("multiTotalUnitsA", totals.A.units);
+  setText("multiTotalCostA", Math.round(totals.A.cost));
+  setText("multiTotalPopA", totals.A.pop);
+  setText("multiTotalUnitsB", totals.B.units);
+  setText("multiTotalCostB", Math.round(totals.B.cost));
+  setText("multiTotalPopB", totals.B.pop);
+}
+
+function updateGroupSummary(card, group) {
+  const title = card.querySelector('[data-role="summaryTitle"]');
+  const meta = card.querySelector('[data-role="summaryMeta"]');
+  if (!group.unitData) return;
+  const data = group.unitData;
+  if (title) title.textContent = `${group.id} - ${data.name}`;
+  if (meta) meta.textContent = `Age ${data.age || 2} | ${data.weaponMode || "primary"} | x${data.count || 1}`;
+}
+
+function setGroupCollapsed(group, card, collapsed) {
+  group.ui = group.ui || {};
+  group.ui.collapsed = collapsed;
+  card.classList.toggle("is-collapsed", collapsed);
+  if (!collapsed) card.classList.add("is-active");
+  else card.classList.remove("is-active");
+  updateMultiBattleReadyState();
+}
+
+function collapseOtherGroups(activeGroup) {
+  const sideGroups = multiRosters[activeGroup.side] || [];
+  sideGroups.forEach((g) => {
+    if (g === activeGroup) return;
+    if (g.ui?.collapsed === false && g.cardEl) {
+      syncGroupFromCard(g.cardEl, g);
+      setGroupCollapsed(g, g.cardEl, true);
+    }
+  });
+}
+
+function collapseAllOpenGroups() {
+  ["A", "B"].forEach((side) => {
+    (multiRosters[side] || []).forEach((g) => {
+      if (g.ui?.collapsed === false && g.cardEl) {
+        syncGroupFromCard(g.cardEl, g);
+        setGroupCollapsed(g, g.cardEl, true);
+      }
+    });
+  });
+}
+
+function syncTargetPriorities() {
+  const enemyIds = {
+    A: multiRosters.B.map((g) => g.id),
+    B: multiRosters.A.map((g) => g.id),
+  };
+  ["A", "B"].forEach((side) => {
+    multiRosters[side].forEach((g) => {
+      let list = g.targetPriority || [];
+      list = list.filter((id) => enemyIds[side].includes(id));
+      enemyIds[side].forEach((id) => {
+        if (!list.includes(id)) list.push(id);
+      });
+      g.targetPriority = list;
+      if (g.unitData) g.unitData.targetPriority = list;
+      if (g.cardEl) renderTargetPriority(g.cardEl, g);
+    });
+  });
+}
+
+function renderTargetPriority(card, group) {
+  const container = card.querySelector('[data-role="targetList"]');
+  if (!container) return;
+  const list = group.targetPriority || [];
+  if (list.length === 0) {
+    container.innerHTML = '<div class="text-muted">No targets.</div>';
+    return;
+  }
+  let html = "";
+  list.forEach((tid, idx) => {
+    const label = getGroupLabel(tid);
+    html += `
+      <div class="target-row">
+        <span class="target-name">${label}</span>
+        <div class="target-actions">
+          <button class="btn btn-sm btn-outline-secondary" data-action="target-up" data-id="${group.id}" data-target="${tid}" ${idx === 0 ? "disabled" : ""}>&uarr;</button>
+          <button class="btn btn-sm btn-outline-secondary" data-action="target-down" data-id="${group.id}" data-target="${tid}" ${idx === list.length - 1 ? "disabled" : ""}>&darr;</button>
+        </div>
+      </div>`;
+  });
+  container.innerHTML = html;
+}
+
+function findGroupById(groupId) {
+  return multiRosters.A.find((g) => g.id === groupId) || multiRosters.B.find((g) => g.id === groupId);
+}
+
+function getGroupLabel(groupId) {
+  const group = findGroupById(groupId);
+  const name = group?.unitData?.name;
+  return name ? `${groupId} ${name}` : groupId;
+}
+
+function refreshTargetLabels() {
+  ["A", "B"].forEach((side) => {
+    multiRosters[side].forEach((g) => {
+      if (g.cardEl) renderTargetPriority(g.cardEl, g);
+    });
+  });
+}
+
+function renderTagCheckboxesMulti(container, selectedTags, groupId) {
+  container.innerHTML = "";
+  const sortedTags = Array.from(allAvailableTags).sort();
+  sortedTags.forEach((tag) => {
+    const isChecked = selectedTags.includes(tag);
+    const checkboxId = `${groupId}_tag_${tag.replace(/\s+/g, "_")}`;
+    container.innerHTML += `
+      <div class="form-check form-check-inline">
+        <input class="form-check-input tag-checkbox" type="checkbox" id="${checkboxId}" value="${tag}" ${isChecked ? "checked" : ""}>
+        <label class="form-check-label small" for="${checkboxId}">${tag}</label>
+      </div>
+    `;
+  });
+}
+
+function renderBonusInputsMulti(container, bonuses, groupId) {
+  container.innerHTML = "";
+  const sortedTags = Array.from(allAvailableTags).sort();
+  sortedTags.forEach((tag) => {
+    const bonusValue = bonuses[tag] || 0;
+    const inputId = `${groupId}_bonus_${tag.replace(/\s+/g, "_")}`;
+    container.innerHTML += `
+      <div class="row g-2 mb-2">
+        <div class="col-6">
+          <small class="text-muted">vs ${tag}</small>
+        </div>
+        <div class="col-6">
+          <input type="number" id="${inputId}" class="form-control form-control-sm bonus-input" data-tag="${tag}" value="${bonusValue}" placeholder="0">
+        </div>
+      </div>
+    `;
+  });
+}
+
+function collectTagsFromCard(card) {
+  const checkboxes = card.querySelectorAll('.tag-checkbox:checked');
+  return Array.from(checkboxes).map((cb) => cb.value);
+}
+
+function collectBonusesFromCard(card) {
+  const bonuses = {};
+  const inputs = card.querySelectorAll('.bonus-input');
+  inputs.forEach((input) => {
+    const tag = input.dataset.tag;
+    const value = parseFloat(input.value) || 0;
+    if (value > 0) bonuses[tag] = value;
+  });
+  return bonuses;
+}
+
+function renderEffectsMulti(card, effects, groupId, selectedCiv) {
+  const box = card.querySelector('[data-role="effectsBox"]');
+  const container = card.querySelector('[data-role="effectsContainer"]');
+  if (!effects || Object.keys(effects).length === 0) {
+    box.style.display = "none";
+    container.innerHTML = "";
+    return;
+  }
+  box.style.display = "";
+  container.innerHTML = "";
+
+  for (const [effectId, effect] of Object.entries(effects)) {
+    if (effect.civs && selectedCiv && !effect.civs.includes(selectedCiv)) continue;
+    if (effect.civs && !selectedCiv) continue;
+
+    const checkId = `${groupId}_effect_${effectId}`;
+    let valueHtml = "";
+
+    if (effectId === "postChargeAttackBuff") {
+      valueHtml = `
+        <div class="row g-1 mt-1 ms-4">
+          <div class="col-6">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="value"
+                   value="${effect.value}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">+Attack</small>
+          </div>
+          <div class="col-6">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="duration"
+                   value="${effect.duration}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">Duration (s)</small>
+          </div>
+        </div>`;
+    } else if (effectId === "healPerAttack") {
+      valueHtml = `
+        <div class="ms-4 mt-1">
+          <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="value"
+                 value="${effect.value}" style="font-size:0.8rem;width:80px;display:inline-block;">
+          <small class="text-muted" style="font-size:0.7rem;">HP per attack</small>
+        </div>`;
+    } else if (effectId === "berserking") {
+      valueHtml = `
+        <div class="row g-1 mt-1 ms-4">
+          <div class="col-4">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="attackBonus"
+                   value="${effect.attackBonus}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">+Attack</small>
+          </div>
+          <div class="col-4">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="armorPenalty"
+                   value="${effect.armorPenalty}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">-Armor</small>
+          </div>
+          <div class="col-4">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="duration"
+                   value="${effect.duration}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">Dur (s)</small>
+          </div>
+        </div>`;
+    } else if (effectId === "fortitude") {
+      valueHtml = `
+        <div class="row g-1 mt-1 ms-4">
+          <div class="col-4">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="atkSpeedBonus"
+                   value="${effect.atkSpeedBonus}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">Atk Spd %</small>
+          </div>
+          <div class="col-4">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="dmgTakenIncrease"
+                   value="${effect.dmgTakenIncrease}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">Dmg Taken %</small>
+          </div>
+          <div class="col-4">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="duration"
+                   value="${effect.duration}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">Dur (s)</small>
+          </div>
+        </div>`;
+    } else if (effectId === "deployPavise") {
+      valueHtml = `
+        <div class="row g-1 mt-1 ms-4">
+          <div class="col-6">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="armorBonus"
+                   value="${effect.armorBonus}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">+Ranged Armor</small>
+          </div>
+          <div class="col-6">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="duration"
+                   value="${effect.duration}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">Duration (s)</small>
+          </div>
+        </div>`;
+    } else if (effectId === "arrowVolley") {
+      valueHtml = `
+        <div class="row g-1 mt-1 ms-4">
+          <div class="col-6">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="atkSpeedBonus"
+                   value="${effect.atkSpeedBonus}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">Atk Spd %</small>
+          </div>
+          <div class="col-6">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="duration"
+                   value="${effect.duration}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">Dur (s)</small>
+          </div>
+        </div>`;
+    } else if (effectId === "staticDeployment") {
+      valueHtml = `
+        <div class="row g-1 mt-1 ms-4">
+          <div class="col-6">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="atkSpeedBonus"
+                   value="${effect.atkSpeedBonus}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">Atk Spd %</small>
+          </div>
+          <div class="col-6">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="delay"
+                   value="${effect.delay}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">Delay (s)</small>
+          </div>
+        </div>`;
+    } else if (effectId === "openingAttack") {
+      valueHtml = `
+        <div class="ms-4 mt-1">
+          <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="damage"
+                 value="${effect.damage}" style="font-size:0.8rem;width:80px;display:inline-block;">
+          <small class="text-muted" style="font-size:0.7rem;">Damage</small>
+        </div>`;
+    } else if (effectId === "gunpowderResistance") {
+      valueHtml = `
+        <div class="ms-4 mt-1">
+          <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="reduction"
+                 value="${effect.reduction}" style="font-size:0.8rem;width:80px;display:inline-block;">
+          <small class="text-muted" style="font-size:0.7rem;">Damage reduction %</small>
+        </div>`;
+    } else if (effectId === "camelUnease") {
+      valueHtml = `
+        <div class="ms-4 mt-1">
+          <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="reduction"
+                 value="${effect.reduction}" style="font-size:0.8rem;width:80px;display:inline-block;">
+          <small class="text-muted" style="font-size:0.7rem;">Attack reduction %</small>
+        </div>`;
+    } else if (effectId === "shieldWall") {
+      valueHtml = `
+        <div class="row g-1 mt-1 ms-4">
+          <div class="col-6">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="atkSpeedPenalty"
+                   value="${effect.atkSpeedPenalty}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">Atk Speed %</small>
+          </div>
+          <div class="col-6">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="rangedDmgReduction"
+                   value="${effect.rangedDmgReduction}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">Ranged Dmg %</small>
+          </div>
+        </div>`;
+    } else if (effectId === "bleed") {
+      valueHtml = `
+        <div class="row g-1 mt-1 ms-4">
+          <div class="col-6">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="dps"
+                   value="${effect.dps}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">DPS</small>
+          </div>
+          <div class="col-6">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="duration"
+                   value="${effect.duration}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">Duration (s)</small>
+          </div>
+        </div>`;
+    } else if (effectId === "armorAura") {
+      valueHtml = `
+        <div class="ms-4 mt-1">
+          <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="armorBonus"
+                 value="${effect.armorBonus}" style="font-size:0.8rem;width:80px;display:inline-block;">
+          <small class="text-muted" style="font-size:0.7rem;">Armor bonus</small>
+        </div>`;
+    } else if (effectId === "trample") {
+      valueHtml = `
+        <div class="row g-1 mt-1 ms-4">
+          <div class="col-3">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="dps"
+                   value="${effect.dps}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">DPS</small>
+          </div>
+          <div class="col-3">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="duration"
+                   value="${effect.duration}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">Dur (s)</small>
+          </div>
+          <div class="col-3">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="cooldown"
+                   value="${effect.cooldown}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">CD</small>
+          </div>
+          <div class="col-3">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="unitsHit"
+                   value="${effect.unitsHit || 3}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">Units</small>
+          </div>
+        </div>`;
+    } else if (effectId === "percentDamage") {
+      valueHtml = `
+        <div class="ms-4 mt-1">
+          <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="percent"
+                 value="${effect.percent}" style="font-size:0.8rem;width:80px;display:inline-block;">
+          <small class="text-muted" style="font-size:0.7rem;">% HP damage</small>
+        </div>`;
+    } else if (effectId === "brotherhoodHP") {
+      valueHtml = `
+        <div class="ms-4 mt-1">
+          <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="hpPerUnit"
+                 value="${effect.hpPerUnit}" style="font-size:0.8rem;width:80px;display:inline-block;">
+          <small class="text-muted" style="font-size:0.7rem;">HP per ally</small>
+        </div>`;
+    } else if (effectId === "healAura") {
+      valueHtml = `
+        <div class="ms-4 mt-1">
+          <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="hps"
+                 value="${effect.hps}" style="font-size:0.8rem;width:80px;display:inline-block;">
+          <small class="text-muted" style="font-size:0.7rem;">HP/s</small>
+        </div>`;
+    } else if (effectId === "atkSpeedDebuff") {
+      valueHtml = `
+        <div class="row g-1 mt-1 ms-4">
+          <div class="col-6">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="reduction"
+                   value="${effect.reduction}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">Reduction %</small>
+          </div>
+          <div class="col-6">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="duration"
+                   value="${effect.duration}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">Duration (s)</small>
+          </div>
+        </div>`;
+    } else if (effectId === "caracole") {
+      valueHtml = `
+        <div class="row g-1 mt-1 ms-4">
+          <div class="col-4">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="speedBonus"
+                   value="${effect.speedBonus}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">Speed %</small>
+          </div>
+          <div class="col-4">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="duration"
+                   value="${effect.duration}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">Dur (s)</small>
+          </div>
+          <div class="col-4">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="cooldown"
+                   value="${effect.cooldown}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">CD</small>
+          </div>
+        </div>`;
+    } else if (effectId === "armorDebuffAura") {
+      valueHtml = `
+        <div class="ms-4 mt-1">
+          <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="armorReduction"
+                 value="${effect.armorReduction}" style="font-size:0.8rem;width:80px;display:inline-block;">
+          <small class="text-muted" style="font-size:0.7rem;">Armor reduction</small>
+        </div>`;
+    } else if (effectId === "battleGlory") {
+      valueHtml = `
+        <div class="row g-1 mt-1 ms-4">
+          <div class="col-6">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="hpPerKill"
+                   value="${effect.hpPerKill}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">HP per kill</small>
+          </div>
+          <div class="col-6">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="attackPerKill"
+                   value="${effect.attackPerKill}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">Attack per kill</small>
+          </div>
+        </div>`;
+    } else if (effectId === "aoeSplash") {
+      valueHtml = `
+        <div class="ms-4 mt-1">
+          <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="unitsHit"
+                 value="${effect.unitsHit}" style="font-size:0.8rem;width:80px;display:inline-block;">
+          <small class="text-muted" style="font-size:0.7rem;">Units hit</small>
+        </div>`;
+    } else if (effectId === "aoeFalloff") {
+      valueHtml = `
+        <div class="ms-4 mt-1">
+          <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="unitsHit"
+                 value="${effect.unitsHit}" style="font-size:0.8rem;width:80px;display:inline-block;">
+          <small class="text-muted" style="font-size:0.7rem;">Units hit</small>
+        </div>`;
+    } else if (effectId === "armorPenetration") {
+      valueHtml = `
+        <div class="ms-4 mt-1">
+          <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="penetration"
+                 value="${effect.penetration}" style="font-size:0.8rem;width:80px;display:inline-block;">
+          <small class="text-muted" style="font-size:0.7rem;">Armor pen</small>
+        </div>`;
+    } else if (effectId === "dmgDebuffOnHit") {
+      valueHtml = `
+        <div class="row g-1 mt-1 ms-4">
+          <div class="col-6">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="reduction"
+                   value="${effect.reduction}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">Reduction %</small>
+          </div>
+          <div class="col-6">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="duration"
+                   value="${effect.duration}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">Duration (s)</small>
+          </div>
+        </div>`;
+    } else if (effectId === "spearwall") {
+      valueHtml = `
+        <div class="ms-4 mt-1">
+          <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="stunDuration"
+                 value="${effect.stunDuration}" style="font-size:0.8rem;width:80px;display:inline-block;">
+          <small class="text-muted" style="font-size:0.7rem;">Stun (s)</small>
+        </div>`;
+    } else if (effectId === "palings") {
+      valueHtml = `
+        <div class="row g-1 mt-1 ms-4">
+          <div class="col-6">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="stunDuration"
+                   value="${effect.stunDuration}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">Stun (s)</small>
+          </div>
+          <div class="col-6">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="damage"
+                   value="${effect.damage}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">Damage</small>
+          </div>
+        </div>`;
+    } else if (effectId === "movementBurst") {
+      valueHtml = `
+        <div class="row g-1 mt-1 ms-4">
+          <div class="col-6">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="speedBonus"
+                   value="${effect.speedBonus}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">Speed %</small>
+          </div>
+          <div class="col-6">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="duration"
+                   value="${effect.duration}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">Duration (s)</small>
+          </div>
+        </div>`;
+    } else if (effectId === "infantrySpeedAura") {
+      valueHtml = `
+        <div class="ms-4 mt-1">
+          <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="speedBonus"
+                 value="${effect.speedBonus}" style="font-size:0.8rem;width:80px;display:inline-block;">
+          <small class="text-muted" style="font-size:0.7rem;">+Speed % for infantry</small>
+        </div>`;
+    }
+
+    container.innerHTML += `
+      <div class="mb-2">
+        <div class="form-check">
+          <input class="form-check-input effect-checkbox" type="checkbox" id="${checkId}" data-effect="${effectId}" checked>
+          <label class="form-check-label" for="${checkId}" style="font-size:0.85rem;">
+            <strong>${effect.name}</strong>
+            <span style="font-size:0.75rem; color:#b8ad9e;"> - ${effect.description}</span>
+          </label>
+        </div>
+        ${valueHtml}
+      </div>`;
+  }
+
+  if (!container.innerHTML.trim()) {
+    box.style.display = "none";
+  }
+}
+
+function collectEffectsFromCard(card) {
+  const effects = {};
+  const checkboxes = card.querySelectorAll('.effect-checkbox');
+  checkboxes.forEach((cb) => {
+    if (!cb.checked) return;
+    const effectId = cb.dataset.effect;
+    const getVal = (field) => {
+      const input = card.querySelector(`[data-effect-id="${effectId}"][data-effect-field="${field}"]`);
+      return parseFloat(input?.value) || 0;
+    };
+
+    if (effectId === "postChargeAttackBuff") {
+      effects.postChargeAttackBuff = { value: getVal("value"), duration: getVal("duration") };
+    } else if (effectId === "healPerAttack") {
+      effects.healPerAttack = { value: getVal("value") };
+    } else if (effectId === "berserking") {
+      effects.berserking = { attackBonus: getVal("attackBonus"), armorPenalty: getVal("armorPenalty"), duration: getVal("duration") };
+    } else if (effectId === "fortitude") {
+      effects.fortitude = { atkSpeedBonus: getVal("atkSpeedBonus"), dmgTakenIncrease: getVal("dmgTakenIncrease"), duration: getVal("duration") };
+    } else if (effectId === "deployPavise") {
+      effects.deployPavise = { armorBonus: getVal("armorBonus"), duration: getVal("duration") };
+    } else if (effectId === "arrowVolley") {
+      effects.arrowVolley = { atkSpeedBonus: getVal("atkSpeedBonus"), duration: getVal("duration") };
+    } else if (effectId === "staticDeployment") {
+      effects.staticDeployment = { atkSpeedBonus: getVal("atkSpeedBonus"), delay: getVal("delay") };
+    } else if (effectId === "deflectiveArmor") {
+      effects.deflectiveArmor = true;
+    } else if (effectId === "doubleAttack") {
+      effects.doubleAttack = true;
+    } else if (effectId === "thrownAxes") {
+      effects.thrownAxes = true;
+    } else if (effectId === "openingAttack") {
+      effects.openingAttack = { damage: getVal("damage") };
+    } else if (effectId === "gunpowderResistance") {
+      effects.gunpowderResistance = { reduction: getVal("reduction") };
+    } else if (effectId === "camelUnease") {
+      effects.camelUnease = { reduction: getVal("reduction") };
+    } else if (effectId === "shieldWall") {
+      effects.shieldWall = { atkSpeedPenalty: getVal("atkSpeedPenalty"), rangedDmgReduction: getVal("rangedDmgReduction") };
+    } else if (effectId === "bleed") {
+      effects.bleed = { dps: getVal("dps"), duration: getVal("duration") };
+    } else if (effectId === "armorAura") {
+      effects.armorAura = { armorBonus: getVal("armorBonus") };
+    } else if (effectId === "trample") {
+      effects.trample = { dps: getVal("dps"), duration: getVal("duration"), cooldown: getVal("cooldown"), unitsHit: getVal("unitsHit") || 3 };
+    } else if (effectId === "percentDamage") {
+      effects.percentDamage = { percent: getVal("percent") };
+    } else if (effectId === "brotherhoodHP") {
+      effects.brotherhoodHP = { hpPerUnit: getVal("hpPerUnit") };
+    } else if (effectId === "healAura") {
+      effects.healAura = { hps: getVal("hps") };
+    } else if (effectId === "atkSpeedDebuff") {
+      effects.atkSpeedDebuff = { reduction: getVal("reduction"), duration: getVal("duration") };
+    } else if (effectId === "caracole") {
+      effects.caracole = { speedBonus: getVal("speedBonus"), duration: getVal("duration"), cooldown: getVal("cooldown") };
+    } else if (effectId === "armorDebuffAura") {
+      effects.armorDebuffAura = { armorReduction: getVal("armorReduction") };
+    } else if (effectId === "battleGlory") {
+      effects.battleGlory = { hpPerKill: getVal("hpPerKill"), attackPerKill: getVal("attackPerKill") };
+    } else if (effectId === "aoeSplash") {
+      effects.aoeSplash = { unitsHit: getVal("unitsHit") };
+    } else if (effectId === "aoeFalloff") {
+      effects.aoeFalloff = { unitsHit: getVal("unitsHit") };
+    } else if (effectId === "armorPenetration") {
+      effects.armorPenetration = { penetration: getVal("penetration") };
+    } else if (effectId === "dmgDebuffOnHit") {
+      effects.dmgDebuffOnHit = { reduction: getVal("reduction"), duration: getVal("duration") };
+    } else if (effectId === "spearwall") {
+      effects.spearwall = { stunDuration: getVal("stunDuration") };
+    } else if (effectId === "palings") {
+      effects.palings = { stunDuration: getVal("stunDuration"), damage: getVal("damage") };
+    } else if (effectId === "movementBurst") {
+      effects.movementBurst = { speedBonus: getVal("speedBonus"), duration: getVal("duration") };
+    } else if (effectId === "infantrySpeedAura") {
+      effects.infantrySpeedAura = { speedBonus: getVal("speedBonus") };
+    }
+  });
+  return effects;
+}
+
+function populateAgeDropdownMulti(card, unitName) {
+  const ageSelect = getMultiField(card, "age");
+  const currentAge = ageSelect.value;
+  const availableAges = getAvailableAges(unitName);
+  ageSelect.innerHTML = "";
+  availableAges.forEach((age) => {
+    ageSelect.innerHTML += `<option value="${age}">Age ${age}</option>`;
+  });
+  if (availableAges.includes(currentAge)) {
+    ageSelect.value = currentAge;
+  } else if (availableAges.includes("3")) {
+    ageSelect.value = "3";
+  } else {
+    ageSelect.value = availableAges[availableAges.length - 1];
+  }
+}
+
+function updateWeaponModeButtonsMulti(card, unit, age) {
+  const group = card.querySelector('[data-role="weaponModeGroup"]');
+  const inputs = group.querySelectorAll('input[data-field="weaponMode"]');
+  const labels = group.querySelectorAll('label');
+  const primaryLabel = labels[0];
+  const secondaryLabel = labels[1];
+  const bothLabel = labels[2];
+  const weaponInfoEl = card.querySelector('[data-role="weaponInfo"]');
+
+  const hasSecondary = unit.weapons.secondary && unit.weapons.secondary.ages && unit.weapons.secondary.ages[age];
+
+  inputs.forEach((input) => {
+    const disabled = !hasSecondary && (input.value === "secondary" || input.value === "both");
+    input.disabled = disabled;
+    if (disabled && input.checked) {
+      inputs[0].checked = true;
+    }
+  });
+
+  if (hasSecondary && unit.weapons.primary.name) {
+    primaryLabel.textContent = unit.weapons.primary.name;
+    secondaryLabel.textContent = unit.weapons.secondary.name || "Secondary";
+    bothLabel.textContent = "Both";
+    const priAge = unit.weapons.primary.ages[age] || {};
+    const secAge = unit.weapons.secondary.ages[age] || {};
+    weaponInfoEl.textContent =
+      `${unit.weapons.primary.name}: ${priAge.attack || 0} atk, ${unit.weapons.primary.attackSpeed}s` +
+      ` | ${unit.weapons.secondary.name}: ${secAge.attack || 0} atk, ${unit.weapons.secondary.attackSpeed}s`;
+    weaponInfoEl.style.display = "";
+  } else {
+    const typeLabel = (unit.weapons.primary.type || "melee") === "ranged" ? "Ranged" : "Melee";
+    primaryLabel.textContent = typeLabel;
+    secondaryLabel.textContent = "Secondary";
+    bothLabel.textContent = "Both";
+    weaponInfoEl.textContent = "";
+    weaponInfoEl.style.display = "none";
+  }
+}
+
+function updateMultiUnitStats(card, group) {
+  const unitWrapper = getMultiField(card, "unitSelect");
+  const unitName = unitWrapper.dataset.value;
+  const unit = units[unitName];
+  if (!unit) return;
+
+  populateAgeDropdownMulti(card, unitName);
+  const age = getMultiField(card, "age").value;
+  updateWeaponModeButtonsMulti(card, unit, age);
+
+  const weaponMode = card.querySelector('input[data-field="weaponMode"]:checked')?.value || "primary";
+  let weaponData, stats;
+  if (weaponMode === "secondary" && unit.weapons.secondary) {
+    weaponData = unit.weapons.secondary;
+    stats = weaponData.ages[age] || {};
+  } else {
+    weaponData = unit.weapons.primary;
+    stats = weaponData.ages[age] || {};
+  }
+
+  getMultiField(card, "hp").value = stats.hp || "";
+  getMultiField(card, "attack").value = stats.attack || "";
+  getMultiField(card, "meleeArmor").value = stats.meleeArmor || 0;
+  getMultiField(card, "rangedArmor").value = stats.rangedArmor || 0;
+  getMultiField(card, "attackSpeed").value = weaponData.attackSpeed || 1;
+
+  const tagsContainer = card.querySelector('[data-role="tagsContainer"]');
+  renderTagCheckboxesMulti(tagsContainer, unit.tags || [], group.id);
+  const bonusesContainer = card.querySelector('[data-role="bonusesContainer"]');
+  renderBonusInputsMulti(bonusesContainer, stats.bonus || {}, group.id);
+
+  const civWrapper = getMultiField(card, "civSelect");
+  const selectedCiv = civWrapper?.dataset.value || "";
+  renderEffectsMulti(card, unit.effects || {}, group.id, selectedCiv);
+
+  const chargeInfo = card.querySelector('[data-role="chargeInfo"]');
+  const chargeDmgEl = card.querySelector('[data-role="chargeDamage"]');
+  const chargeDmg = stats.chargeDamage || 0;
+  if (chargeDmg > 0) {
+    chargeInfo.style.display = "";
+    chargeDmgEl.textContent = `+${chargeDmg} (first hit)`;
+  } else {
+    chargeInfo.style.display = "none";
+  }
+}
+
+function initMultiUnitSelect(wrapper, card) {
+  wrapper.innerHTML = `
+    <div class="custom-select-header">
+      <span class="cs-name">${wrapper.dataset.value}</span>
+      <span class="cs-flags"></span>
+      <span class="cs-arrow">&#9660;</span>
+    </div>
+    <div class="custom-select-dropdown">
+      <input type="text" class="custom-select-search" placeholder="Search units...">
+    </div>
+  `;
+
+  const header = wrapper.querySelector(".custom-select-header");
+  const dropdown = wrapper.querySelector(".custom-select-dropdown");
+  const search = dropdown.querySelector(".custom-select-search");
+
+  header.addEventListener("click", () => {
+    if (dropdown.classList.contains("show")) {
+      closeDropdown(wrapper);
+    } else {
+      document.querySelectorAll(".custom-select-wrapper").forEach(w => closeDropdown(w));
+      openMultiUnitDropdown(wrapper, card);
+    }
+  });
+
+  search.addEventListener("input", () => {
+    renderMultiUnitOptions(wrapper, card, search.value);
+  });
+  search.addEventListener("click", (e) => e.stopPropagation());
+
+  updateSelectHeader(wrapper);
+}
+
+function openMultiUnitDropdown(wrapper, card) {
+  const header = wrapper.querySelector(".custom-select-header");
+  const dropdown = wrapper.querySelector(".custom-select-dropdown");
+  header.classList.add("open");
+  dropdown.classList.add("show");
+  const search = dropdown.querySelector(".custom-select-search");
+  search.value = "";
+  search.focus();
+  renderMultiUnitOptions(wrapper, card, "");
+}
+
+function renderMultiUnitOptions(wrapper, card, filter) {
+  const dropdown = wrapper.querySelector(".custom-select-dropdown");
+  const currentVal = wrapper.dataset.value;
+  const civFilter = getMultiField(card, "civSelect")?.dataset.value || "";
+  const groups = buildGroupedUnits(filter, civFilter);
+  const searchInput = dropdown.querySelector(".custom-select-search");
+  let html = "";
+  groups.forEach((g) => {
+    html += `<div class="custom-select-optgroup">${g.label}</div>`;
+    g.units.forEach((name) => {
+      const sel = name === currentVal ? " selected" : "";
+      const flags = getUnitFlagHtml(name, 16, civFilter || g.label);
+      html += `<div class="custom-select-option${sel}" data-value="${name}" data-civ-group="${civFilter || g.label}"><span>${name}</span><span class="cs-opt-flags">${flags}</span></div>`;
+    });
+  });
+  dropdown.querySelectorAll(".custom-select-optgroup, .custom-select-option").forEach(el => el.remove());
+  searchInput.insertAdjacentHTML("afterend", html);
+
+  dropdown.querySelectorAll(".custom-select-option").forEach((opt) => {
+    opt.addEventListener("click", () => {
+      const val = opt.dataset.value;
+      wrapper.dataset.value = val;
+      wrapper.dataset.civGroup = opt.dataset.civGroup || "";
+      updateSelectHeader(wrapper);
+      closeDropdown(wrapper);
+      updateMultiUnitStats(card, card._groupRef);
+      syncGroupFromCard(card, card._groupRef);
+    });
+  });
+}
+
+function initMultiCivSelect(wrapper, card) {
+  wrapper.innerHTML = `
+    <div class="custom-select-header">
+      <span class="cs-name">All Civilizations</span>
+      <span class="cs-flags"></span>
+      <span class="cs-arrow">&#9660;</span>
+    </div>
+    <div class="custom-select-dropdown">
+      <input type="text" class="custom-select-search" placeholder="Search civilizations...">
+    </div>
+  `;
+
+  const header = wrapper.querySelector(".custom-select-header");
+  const dropdown = wrapper.querySelector(".custom-select-dropdown");
+  const search = dropdown.querySelector(".custom-select-search");
+
+  header.addEventListener("click", () => {
+    if (dropdown.classList.contains("show")) {
+      closeDropdown(wrapper);
+    } else {
+      document.querySelectorAll(".custom-select-wrapper").forEach(w => closeDropdown(w));
+      openMultiCivDropdown(wrapper, card);
+    }
+  });
+
+  search.addEventListener("input", () => {
+    renderMultiCivOptions(wrapper, card, search.value);
+  });
+  search.addEventListener("click", (e) => e.stopPropagation());
+}
+
+function openMultiCivDropdown(wrapper, card) {
+  const header = wrapper.querySelector(".custom-select-header");
+  const dropdown = wrapper.querySelector(".custom-select-dropdown");
+  header.classList.add("open");
+  dropdown.classList.add("show");
+  const search = dropdown.querySelector(".custom-select-search");
+  search.value = "";
+  search.focus();
+  renderMultiCivOptions(wrapper, card, "");
+}
+
+function renderMultiCivOptions(wrapper, card, filter) {
+  const dropdown = wrapper.querySelector(".custom-select-dropdown");
+  const searchInput = dropdown.querySelector(".custom-select-search");
+  const currentVal = wrapper.dataset.value;
+  const filterLower = (filter || "").toLowerCase();
+  let html = "";
+  if (!filterLower || "all civilizations".includes(filterLower)) {
+    const sel = !currentVal ? " selected" : "";
+    html += `<div class="custom-select-option${sel}" data-value="">All Civilizations</div>`;
+  }
+  CIV_ORDER.forEach(civ => {
+    if (civ === "Common") return;
+    if (filterLower && !civ.toLowerCase().includes(filterLower)) return;
+    const sel = civ === currentVal ? " selected" : "";
+    const flag = CIV_FLAGS[civ] ? `<img src="${CIV_FLAGS[civ]}" alt="${civ}" style="height:14px; border-radius:2px; vertical-align:middle;">` : "";
+    html += `<div class="custom-select-option${sel}" data-value="${civ}"><span>${flag} ${civ}</span></div>`;
+  });
+  dropdown.querySelectorAll(".custom-select-option").forEach(el => el.remove());
+  searchInput.insertAdjacentHTML("afterend", html);
+
+  dropdown.querySelectorAll(".custom-select-option").forEach((opt) => {
+    opt.addEventListener("click", () => {
+      const val = opt.dataset.value;
+      wrapper.dataset.value = val;
+      updateCivSelectHeader(wrapper);
+      closeDropdown(wrapper);
+      handleMultiCivChange(card, val);
+    });
+  });
+}
+
+function handleMultiCivChange(card, civ) {
+  const unitWrapper = getMultiField(card, "unitSelect");
+  const currentUnit = unitWrapper.dataset.value;
+  if (civ) {
+    const available = getUnitsForCiv(civ);
+    if (!available.includes(currentUnit)) {
+      unitWrapper.dataset.value = available[0] || "Horseman";
+      updateSelectHeader(unitWrapper);
+    }
+  }
+  updateMultiUnitStats(card, card._groupRef);
+  syncGroupFromCard(card, card._groupRef);
+}
+
+function syncGroupFromCard(card, group) {
+  const prevName = group.unitData?.name;
+  const unitWrapper = getMultiField(card, "unitSelect");
+  const unitName = unitWrapper.dataset.value;
+  const unit = units[unitName];
+  if (!unit) return;
+
+  const age = getMultiField(card, "age").value;
+  const weaponMode = card.querySelector('input[data-field="weaponMode"]:checked')?.value || "primary";
+
+  let weaponData, ageStats;
+  if (weaponMode === "secondary" && unit.weapons.secondary) {
+    weaponData = unit.weapons.secondary;
+    ageStats = weaponData.ages[age] || {};
+  } else {
+    weaponData = unit.weapons.primary;
+    ageStats = weaponData.ages[age] || {};
+  }
+
+  const countInput = getMultiField(card, "count");
+  const collapsedInput = getMultiField(card, "countCollapsed");
+  let count = group.ui?.collapsed ? parseInt(collapsedInput.value, 10) : parseInt(countInput.value, 10);
+  if (!Number.isFinite(count) || count < 1) count = 1;
+  countInput.value = count;
+  collapsedInput.value = count;
+
+  const tags = collectTagsFromCard(card);
+  const bonuses = collectBonusesFromCard(card);
+  const effects = collectEffectsFromCard(card);
+
+  group.unitData = {
+    name: unitName,
+    count,
+    age: parseInt(age, 10) || 2,
+    civGroup: unitWrapper.dataset.civGroup || "",
+    weaponMode,
+    stats: {
+      hp: parseFloat(getMultiField(card, "hp").value) || 0,
+      attack: parseFloat(getMultiField(card, "attack").value) || 0,
+      meleeArmor: parseFloat(getMultiField(card, "meleeArmor").value) || 0,
+      rangedArmor: parseFloat(getMultiField(card, "rangedArmor").value) || 0,
+      attackSpeed: parseFloat(getMultiField(card, "attackSpeed").value) || 1,
+      bonus: bonuses,
+    },
+    buffs: {
+      attackAbs: parseFloat(getMultiField(card, "buffAttackAbs").value) || 0,
+      attackAbsDur: parseFloat(getMultiField(card, "buffAttackAbsDur").value) || 0,
+      attackPct: parseFloat(getMultiField(card, "buffAttackPct").value) || 0,
+      attackPctDur: parseFloat(getMultiField(card, "buffAttackPctDur").value) || 0,
+      hpAbs: parseFloat(getMultiField(card, "buffHPabs").value) || 0,
+      hpAbsDur: parseFloat(getMultiField(card, "buffHPabsDur").value) || 0,
+      hpPct: parseFloat(getMultiField(card, "buffHPpct").value) || 0,
+      hpPctDur: parseFloat(getMultiField(card, "buffHPpctDur").value) || 0,
+      speedPct: parseFloat(getMultiField(card, "buffSpeedPct").value) || 0,
+      speedPctDur: parseFloat(getMultiField(card, "buffSpeedPctDur").value) || 0,
+      meleeArmor: parseFloat(getMultiField(card, "buffMeleeArmor").value) || 0,
+      rangedArmor: parseFloat(getMultiField(card, "buffRangedArmor").value) || 0,
+      armorDur: parseFloat(getMultiField(card, "buffArmorDur").value) || 0,
+    },
+    firstHitEnabled: getMultiField(card, "firstHitEnabled").checked,
+    freeHits: parseInt(getMultiField(card, "freeHits").value, 10) || 0,
+    tags,
+    effects,
+    chargeDamage: ageStats.chargeDamage || 0,
+    weaponType: weaponData.type || "melee",
+    weaponRange: weaponData.range || 0,
+    speed: unit.speed || 1,
+    secondaryWeapon:
+      weaponMode === "both" && unit.weapons.secondary
+        ? {
+            type: unit.weapons.secondary.type || "melee",
+            attackSpeed: unit.weapons.secondary.attackSpeed || 1,
+            stats: unit.weapons.secondary.ages[age] || {},
+          }
+        : null,
+  };
+
+  updateGroupSummary(card, group);
+  updateMultiTotals();
+  if (prevName !== unitName) refreshTargetLabels();
+}
+
+function initMultiCard(card, group) {
+  const modeGroup = card.querySelector('[data-role="weaponModeGroup"]');
+  const modeInputs = modeGroup.querySelectorAll('input[data-field="weaponMode"]');
+  const modeLabels = modeGroup.querySelectorAll('label');
+  modeInputs.forEach((input, idx) => {
+    const id = `${group.id}_weapon_${input.value}`;
+    input.id = id;
+    input.name = `weaponMode_${group.id}`;
+    modeLabels[idx].setAttribute("for", id);
+  });
+
+  const civWrapper = getMultiField(card, "civSelect");
+  const unitWrapper = getMultiField(card, "unitSelect");
+  initMultiCivSelect(civWrapper, card);
+  initMultiUnitSelect(unitWrapper, card);
+
+  updateMultiUnitStats(card, group);
+  syncGroupFromCard(card, group);
+  updateGroupSummary(card, group);
+  setGroupCollapsed(group, card, false);
+}
+
+function attachCardListeners(card, group) {
+  card._groupRef = group;
+  card.addEventListener("click", (e) => {
+    const action = e.target.closest("button")?.dataset.action;
+    if (!action) return;
+    if (action === "remove") {
+      removeMultiGroup(group);
+    } else if (action === "collapse") {
+      syncGroupFromCard(card, group);
+      setGroupCollapsed(group, card, true);
+      syncTargetPriorities();
+    } else if (action === "expand") {
+      collapseOtherGroups(group);
+      setGroupCollapsed(group, card, false);
+    } else if (action === "target-up" || action === "target-down") {
+      const targetId = e.target.dataset.target;
+      const list = group.targetPriority || [];
+      const idx = list.indexOf(targetId);
+      const swapWith = action === "target-up" ? idx - 1 : idx + 1;
+      if (idx === -1 || swapWith < 0 || swapWith >= list.length) return;
+      [list[idx], list[swapWith]] = [list[swapWith], list[idx]];
+      group.targetPriority = list;
+      renderTargetPriority(card, group);
+    }
+  });
+
+  card.addEventListener("click", (e) => {
+    if (!group.ui?.collapsed) return;
+    const interactive = e.target.closest("input, select, textarea, button, .custom-select-wrapper, .target-actions");
+    if (interactive) return;
+    collapseOtherGroups(group);
+    setGroupCollapsed(group, card, false);
+  });
+
+  card.addEventListener("input", (e) => {
+    const field = e.target.closest("[data-field]")?.dataset.field;
+    if (!field) return;
+    syncGroupFromCard(card, group);
+    if (field === "count" || field === "countCollapsed") {
+      updateGroupSummary(card, group);
+    }
+  });
+
+  card.addEventListener("change", (e) => {
+    const field = e.target.closest("[data-field]")?.dataset.field;
+    if (field === "age" || field === "weaponMode") {
+      updateMultiUnitStats(card, group);
+      syncGroupFromCard(card, group);
+    }
+  });
+}
+
+function createMultiGroup(side) {
+  return {
+    id: nextGroupId(side),
+    side,
+    unitData: null,
+    targetPriority: [],
+    ui: { collapsed: false },
+    cardEl: null,
+  };
+}
+
+function addMultiGroup(side) {
+  const group = createMultiGroup(side);
+  multiRosters[side].push(group);
+
+  const template = document.getElementById("multiGroupTemplate");
+  const card = template.content.firstElementChild.cloneNode(true);
+  card.dataset.groupId = group.id;
+  group.cardEl = card;
+
+  initMultiCard(card, group);
+  attachCardListeners(card, group);
+  collapseOtherGroups(group);
+
+  const stack = document.getElementById(`multiStack${side}`);
+  stack.appendChild(card);
+
+  syncTargetPriorities();
+  updateMultiTotals();
+  updateMultiBattleReadyState();
+}
+
+function removeMultiGroup(group) {
+  const side = group.side;
+  multiRosters[side] = multiRosters[side].filter((g) => g.id !== group.id);
+  if (group.cardEl) group.cardEl.remove();
+  syncTargetPriorities();
+  updateMultiTotals();
+  updateMultiBattleReadyState();
+}
+
+function syncAllGroupsFromCards() {
+  ["A", "B"].forEach((side) => {
+    multiRosters[side].forEach((g) => {
+      if (g.cardEl) syncGroupFromCard(g.cardEl, g);
+    });
+  });
+}
+
 function renderMultiBattleLog(battleLog) {
   const logContainer = document.getElementById("battleLogContainer");
   if (!logContainer) return;
@@ -2704,18 +3941,23 @@ function renderMultiBattleLog(battleLog) {
   let html = `<table class="battle-log-table">
     <thead><tr>
       <th>Time</th><th>Attacker</th><th>Target</th><th>Weapon</th>
-      <th>Dmg</th><th>Waste</th><th>Atk Units</th><th>Tgt Units</th><th>Notes</th>
+      <th>Dmg</th><th>Waste</th><th>Atk Units</th><th>Tgt Units</th><th>Units Died</th><th>Notes</th>
     </tr></thead><tbody>`;
   for (const e of battleLog) {
+    const attackerClass = e.attackerSide === "A" ? "team-a-col" : e.attackerSide === "B" ? "team-b-col" : "";
+    const targetClass = e.attackerSide === "A" ? "team-b-col" : e.attackerSide === "B" ? "team-a-col" : "";
+    const timeLabel = e.time === "Pre" ? "Pre" : `${e.time}s`;
+    const unitsDied = e.unitsDied ?? e.killsA ?? e.killsB ?? 0;
     html += `<tr>
-      <td>${e.time}s</td>
-      <td>${e.attacker}</td>
-      <td>${e.target}</td>
+      <td>${timeLabel}</td>
+      <td class="${attackerClass}">${e.attacker}</td>
+      <td class="${targetClass}">${e.target}</td>
       <td>${e.weapon}</td>
       <td>${e.dmg}</td>
       <td>${e.waste}</td>
       <td>${e.atkUnits}</td>
       <td>${e.tgtUnits}</td>
+      <td class="${targetClass}">${unitsDied}</td>
       <td class="log-notes">${e.notes}</td>
     </tr>`;
   }
@@ -2765,7 +4007,7 @@ function renderMultiResults(teamsA, teamsB, time, winner) {
       const left = t.units;
       const hpPct = left > 0 ? (t.totalHp / (t.stats.hp * start)) * 100 : 0;
       const unitsLost = start - left;
-      const costPerUnit = getTotalCost(t.unitData.name, side);
+      const costPerUnit = getTotalCostForUnitData(t.unitData);
       const resLost = costPerUnit * unitsLost;
       totalStart += start;
       totalLeft += left;
@@ -2869,25 +4111,37 @@ function applyOpeningAttacks(attackerTeams, teamById, battleLog) {
     const dmgPerUnit = Math.max(1, oa.damage - armor);
     const totalDmg = dmgPerUnit * attacker.units;
     defender.totalHp -= totalDmg;
+    let unitsLost = 0;
     if (totalDmg > 0) {
-      const unitsLost = Math.floor((defender.stats.hp * defender.units - defender.totalHp) / defender.stats.hp);
+      unitsLost = Math.floor((defender.stats.hp * defender.units - defender.totalHp) / defender.stats.hp);
       defender.units = Math.max(0, defender.units - unitsLost);
     }
     battleLog.push({
       time: "Pre",
       attacker: attacker.groupId,
+      attackerId: attacker.groupId,
+      attackerSide: attacker.side,
       target: defender.groupId,
       weapon: "Opening",
       dmg: totalDmg.toFixed(1),
       waste: "0.0",
       atkUnits: attacker.units,
       tgtUnits: defender.units,
+      unitsDied: unitsLost,
+      killsA: attacker.side === "A" ? unitsLost : 0,
+      killsB: attacker.side === "B" ? unitsLost : 0,
       notes: attacker.unitData.name
     });
   });
 }
 
-function applyAntiCavEffects(allTeams, teamById) {
+function formatSeconds(value) {
+  if (!Number.isFinite(value)) return "";
+  const rounded = Math.round(value * 100) / 100;
+  return rounded.toString();
+}
+
+function applyAntiCavEffects(allTeams, teamById, battleLog) {
   allTeams.forEach((attacker) => {
     const target = teamById[attacker.currentTargetId];
     if (!target) return;
@@ -2899,13 +4153,50 @@ function applyAntiCavEffects(allTeams, teamById) {
       attacker.unitData.chargeDamage = 0;
       const totalDmg = palings.damage * target.units;
       attacker.totalHp -= totalDmg;
+      let unitsLost = 0;
       if (totalDmg > 0) {
-        const unitsLost = Math.floor((attacker.stats.hp * attacker.units - attacker.totalHp) / attacker.stats.hp);
+        unitsLost = Math.floor((attacker.stats.hp * attacker.units - attacker.totalHp) / attacker.stats.hp);
         attacker.units = Math.max(0, attacker.units - unitsLost);
+      }
+      if (battleLog) {
+        battleLog.push({
+          time: "Pre",
+          attacker: target.groupId,
+          attackerId: target.groupId,
+          attackerSide: target.side,
+          target: attacker.groupId,
+          weapon: "Palings",
+          dmg: totalDmg.toFixed(1),
+          waste: "0.0",
+          atkUnits: target.units,
+          tgtUnits: attacker.units,
+          unitsDied: unitsLost,
+          killsA: target.side === "A" ? unitsLost : 0,
+          killsB: target.side === "B" ? unitsLost : 0,
+          notes: `Stun ${formatSeconds(palings.stunDuration)}s`
+        });
       }
     } else if (spearwall) {
       attacker.nextPrimaryAttack = Math.max(attacker.nextPrimaryAttack, spearwall.stunDuration);
       attacker.unitData.chargeDamage = 0;
+      if (battleLog) {
+        battleLog.push({
+          time: "Pre",
+          attacker: target.groupId,
+          attackerId: target.groupId,
+          attackerSide: target.side,
+          target: attacker.groupId,
+          weapon: "Spearwall",
+          dmg: "0.0",
+          waste: "0.0",
+          atkUnits: target.units,
+          tgtUnits: attacker.units,
+          unitsDied: 0,
+          killsA: 0,
+          killsB: 0,
+          notes: `Stun ${formatSeconds(spearwall.stunDuration)}s`
+        });
+      }
     }
   });
 }
@@ -3094,12 +4385,16 @@ function computeTeamAttack(attacker, target, time, config) {
   const log = (firedPrimary || firedSecondary || (unitA.effects.trample && attacker.trampleActive)) ? {
     time: time.toFixed(2),
     attacker: attacker.groupId,
+    attackerId: attacker.groupId,
+    attackerSide: attacker.side,
     target: target.groupId,
     weapon,
     dmg: damageToB.toFixed(1),
     waste: waste.toFixed(1),
     atkUnits: attacker.units,
     tgtUnits: target.units,
+    killsA: 0,
+    killsB: 0,
     notes: logNotes.join(", ")
   } : null;
 
@@ -3111,13 +4406,15 @@ function runMultiBattle() {
     alert("Add at least one group on each side.");
     return;
   }
+  collapseAllOpenGroups();
+  syncAllGroupsFromCards();
 
   const overkillEnabled = document.getElementById("overkillEnabled").checked;
   const rangeSpeedEnabled = document.getElementById("rangeSpeedEnabled")?.checked;
-  const splitA = document.getElementById("A_splitDamage")?.checked;
-  const splitTargetsA = Math.max(1, parseInt(document.getElementById("A_splitTargets")?.value) || 1);
-  const splitB = document.getElementById("B_splitDamage")?.checked;
-  const splitTargetsB = Math.max(1, parseInt(document.getElementById("B_splitTargets")?.value) || 1);
+  const splitA = document.getElementById("multiSplitA")?.checked;
+  const splitTargetsA = Math.max(1, parseInt(document.getElementById("multiSplitTargetsA")?.value) || 1);
+  const splitB = document.getElementById("multiSplitB")?.checked;
+  const splitTargetsB = Math.max(1, parseInt(document.getElementById("multiSplitTargetsB")?.value) || 1);
 
   syncTargetPriorities();
 
@@ -3144,7 +4441,7 @@ function runMultiBattle() {
   const battleLog = [];
   applyOpeningAttacks(teamsA, teamById, battleLog);
   applyOpeningAttacks(teamsB, teamById, battleLog);
-  applyAntiCavEffects(allTeams, teamById);
+  applyAntiCavEffects(allTeams, teamById, battleLog);
 
   let time = 0;
   const maxTime = 300;
@@ -3171,6 +4468,7 @@ function runMultiBattle() {
     });
 
     const incoming = new Map();
+    const stepLogs = [];
 
     allTeams.forEach((attacker) => {
       if (attacker.units <= 0) return;
@@ -3191,7 +4489,10 @@ function runMultiBattle() {
         EPSILON
       });
 
-      if (atkResult.log) battleLog.push(atkResult.log);
+      if (atkResult.log) {
+        battleLog.push(atkResult.log);
+        stepLogs.push(atkResult.log);
+      }
       if (atkResult.damage > 0) {
         if (!incoming.has(targetId)) incoming.set(targetId, { total: 0, details: [] });
         const entry = incoming.get(targetId);
@@ -3233,6 +4534,7 @@ function runMultiBattle() {
       }
     });
 
+    const killsByAttacker = new Map();
     incoming.forEach((entry, targetId) => {
       const target = teamById[targetId];
       if (!target) return;
@@ -3251,7 +4553,22 @@ function runMultiBattle() {
       }
       allocations.forEach((a) => {
         if (a.base > 0) applyBattleGlory(a.attacker, a.base);
+        if (a.base > 0) {
+          killsByAttacker.set(a.attacker.groupId, (killsByAttacker.get(a.attacker.groupId) || 0) + a.base);
+        }
       });
+    });
+
+    stepLogs.forEach((log) => {
+      const kills = killsByAttacker.get(log.attackerId) || 0;
+      if (log.attackerSide === "A") {
+        log.killsA = kills;
+        log.killsB = 0;
+      } else if (log.attackerSide === "B") {
+        log.killsA = 0;
+        log.killsB = kills;
+      }
+      log.unitsDied = kills;
     });
 
     allTeams.forEach((t) => {
@@ -3457,10 +4774,16 @@ function runBattle() {
   // Log spearwall/palings if triggered
   const antiCavNotesA = [];
   const antiCavNotesB = [];
-  if (unitA.effects.palings && teamB.tags.includes("Cavalry")) antiCavNotesA.push("Palings");
-  else if (unitA.effects.spearwall && teamB.tags.includes("Cavalry")) antiCavNotesA.push("Spearwall");
-  if (unitB.effects.palings && teamA.tags.includes("Cavalry")) antiCavNotesB.push("Palings");
-  else if (unitB.effects.spearwall && teamA.tags.includes("Cavalry")) antiCavNotesB.push("Spearwall");
+  if (unitA.effects.palings && teamB.tags.includes("Cavalry")) {
+    antiCavNotesA.push(`Palings (stun ${formatSeconds(unitA.effects.palings.stunDuration)}s)`);
+  } else if (unitA.effects.spearwall && teamB.tags.includes("Cavalry")) {
+    antiCavNotesA.push(`Spearwall (stun ${formatSeconds(unitA.effects.spearwall.stunDuration)}s)`);
+  }
+  if (unitB.effects.palings && teamA.tags.includes("Cavalry")) {
+    antiCavNotesB.push(`Palings (stun ${formatSeconds(unitB.effects.palings.stunDuration)}s)`);
+  } else if (unitB.effects.spearwall && teamA.tags.includes("Cavalry")) {
+    antiCavNotesB.push(`Spearwall (stun ${formatSeconds(unitB.effects.spearwall.stunDuration)}s)`);
+  }
   if (antiCavNotesA.length || antiCavNotesB.length) {
     battleLog.push({
       time: "Pre",
@@ -4072,8 +5395,10 @@ function runBattle() {
       time: time.toFixed(2),
       aWeapon, aDmg: damageToB.toFixed(1), aWaste: wasteA.toFixed(1),
       aUnits: teamA.units, aHp: Math.round(teamA.totalHp),
+      aKills: killsByA,
       bWeapon, bDmg: damageToA.toFixed(1), bWaste: wasteB.toFixed(1),
       bUnits: teamB.units, bHp: Math.round(teamB.totalHp),
+      bKills: killsByB,
       notes: [...logNotesA, ...logNotesB].join(", ")
     });
   }
@@ -4231,18 +5556,18 @@ function runBattle() {
       <thead><tr>
         <th>Time</th>
         <th class="team-a-col">Weapon</th><th class="team-a-col">Dmg Dealt</th>${showWaste ? '<th class="team-a-col">Wasted</th>' : ''}
-        <th class="team-a-col">Units</th><th class="team-a-col">Total HP</th>
+        <th class="team-a-col">Units</th><th class="team-a-col">Kills</th><th class="team-a-col">Total HP</th>
         <th class="team-b-col">Weapon</th><th class="team-b-col">Dmg Dealt</th>${showWaste ? '<th class="team-b-col">Wasted</th>' : ''}
-        <th class="team-b-col">Units</th><th class="team-b-col">Total HP</th>
+        <th class="team-b-col">Units</th><th class="team-b-col">Kills</th><th class="team-b-col">Total HP</th>
         <th>Notes</th>
       </tr></thead><tbody>`;
     for (const e of battleLog) {
       html += `<tr>
         <td>${e.time}s</td>
         <td class="team-a-col">${e.aWeapon}</td><td class="team-a-col">${e.aDmg}</td>${showWaste ? `<td class="team-a-col">${e.aWaste || '0.0'}</td>` : ''}
-        <td class="team-a-col">${e.aUnits}</td><td class="team-a-col">${e.aHp}</td>
+        <td class="team-a-col">${e.aUnits}</td><td class="team-a-col">${e.aKills ?? 0}</td><td class="team-a-col">${e.aHp}</td>
         <td class="team-b-col">${e.bWeapon}</td><td class="team-b-col">${e.bDmg}</td>${showWaste ? `<td class="team-b-col">${e.bWaste || '0.0'}</td>` : ''}
-        <td class="team-b-col">${e.bUnits}</td><td class="team-b-col">${e.bHp}</td>
+        <td class="team-b-col">${e.bUnits}</td><td class="team-b-col">${e.bKills ?? 0}</td><td class="team-b-col">${e.bHp}</td>
         <td class="log-notes">${e.notes}</td>
       </tr>`;
     }
@@ -4575,36 +5900,45 @@ document.querySelectorAll('input[name="weaponModeB"]').forEach((radio) => {
   radio.addEventListener("change", () => updateUnitStats("B"));
 });
 
-document.getElementById("battleBtn").addEventListener("click", function () {
-  // Button press animation
-  const btn = this;
-  btn.style.animation = "none";
-  btn.style.transform = "scale(0.9)";
-  btn.style.boxShadow = "0 0 60px rgba(212, 164, 74, 0.8)";
+document.querySelectorAll(".battle-btn").forEach((btn) => {
+  btn.addEventListener("click", function () {
+    if (this.disabled) return;
+    // Button press animation
+    this.style.animation = "none";
+    this.style.transform = "scale(0.9)";
+    this.style.boxShadow = "0 0 60px rgba(212, 164, 74, 0.8)";
 
-  setTimeout(() => {
-    btn.style.transform = "";
-    btn.style.boxShadow = "";
-    btn.style.animation = "";
-  }, 300);
+    setTimeout(() => {
+      this.style.transform = "";
+      this.style.boxShadow = "";
+      this.style.animation = "";
+    }, 300);
 
-  if (isMultiMode()) runMultiBattle();
-  else runBattle();
+    if (isMultiMode()) {
+      collapseAllOpenGroups();
+      syncAllGroupsFromCards();
+      runMultiBattle();
+    }
+    else runBattle();
+  });
 });
 
 document.getElementById("autoBalance").addEventListener("change", function () {
   if (this.checked) balanceCosts();
 });
 
-document.getElementById("A_saveGroupBtn")?.addEventListener("click", () => saveGroupFromEditor("A"));
-document.getElementById("B_saveGroupBtn")?.addEventListener("click", () => saveGroupFromEditor("B"));
-document.getElementById("A_newGroupBtn")?.addEventListener("click", () => clearGroupEditor("A"));
-document.getElementById("B_newGroupBtn")?.addEventListener("click", () => clearGroupEditor("B"));
-document.getElementById("A_addGroupBtn")?.addEventListener("click", () => clearGroupEditor("A"));
-document.getElementById("B_addGroupBtn")?.addEventListener("click", () => clearGroupEditor("B"));
+document.querySelectorAll(".multi-add-tile").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const side = btn.dataset.side;
+    if (side) addMultiGroup(side);
+  });
+});
 
-document.getElementById("rosterListA")?.addEventListener("click", (e) => handleRosterClick("A", e));
-document.getElementById("rosterListB")?.addEventListener("click", (e) => handleRosterClick("B", e));
+document.addEventListener("click", (e) => {
+  if (!isMultiMode()) return;
+  if (e.target.closest(".multi-group-card")) return;
+  collapseAllOpenGroups();
+});
 
 // Collapse toggle arrow rotation
 document.querySelectorAll('[data-bs-toggle="collapse"]').forEach((toggle) => {
@@ -4712,7 +6046,6 @@ document.getElementById("techCastleTurret")?.addEventListener("click", function(
 
 // Emplacement toggle buttons are created dynamically in updateBuildingStats()
 
-updateEditingLabel("A");
-updateEditingLabel("B");
-renderRoster("A");
-renderRoster("B");
+updateMultiTotals();
+updateMultiBattleReadyState();
+

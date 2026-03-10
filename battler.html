@@ -39,7 +39,7 @@
       </div>
     </div>
 
-    <div class="row g-4">
+    <div class="row g-4 single-only" id="singleBattleRow">
       <!-- ==================== UNIT A PANEL ==================== -->
       <div class="col-lg-5">
         <div class="card card-team-a">
@@ -83,13 +83,6 @@
             <div class="mb-3">
               <label class="form-label fw-bold">Number of Units</label>
               <input id="countA" type="number" class="form-control" value="10" min="1">
-            </div>
-            <div class="multi-only multi-group-controls" id="multiControlsA" style="display:none;">
-              <div class="d-flex gap-2 flex-wrap align-items-center">
-                <button id="A_saveGroupBtn" type="button" class="btn btn-sm btn-outline-warning">Save Group</button>
-                <button id="A_newGroupBtn" type="button" class="btn btn-sm btn-outline-secondary">New Group</button>
-                <span class="multi-editing-label" id="A_editingLabel">Editing: None</span>
-              </div>
             </div>
 
             <!-- Base Stats -->
@@ -425,13 +418,6 @@
               <label class="form-label fw-bold">Number of Units</label>
               <input id="countB" type="number" class="form-control" value="10" min="1">
             </div>
-            <div class="multi-only multi-group-controls" id="multiControlsB" style="display:none;">
-              <div class="d-flex gap-2 flex-wrap align-items-center">
-                <button id="B_saveGroupBtn" type="button" class="btn btn-sm btn-outline-warning">Save Group</button>
-                <button id="B_newGroupBtn" type="button" class="btn btn-sm btn-outline-secondary">New Group</button>
-                <span class="multi-editing-label" id="B_editingLabel">Editing: None</span>
-              </div>
-            </div>
 
             <div class="stat-box">
               <h6 class="fw-bold mb-3">Stats</h6>
@@ -603,34 +589,253 @@
       </div>
     </div>
 
-    <!-- ==================== MULTI ROSTERS ==================== -->
-    <div class="row g-4 multi-only" id="multiRosterRow" style="display:none;">
+    <!-- ==================== MULTI BATTLE ==================== -->
+    <div class="row g-4 multi-only" id="multiBattleRow" style="display:none;">
       <div class="col-lg-5">
-        <div class="card multi-roster-card multi-roster-a">
+        <div class="card card-team-a multi-stack-card">
           <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <h5 class="mb-0">Team A Roster</h5>
-              <button id="A_addGroupBtn" type="button" class="btn btn-sm btn-outline-info">Add Group</button>
+            <div class="multi-stack-header">
+              <h3 class="card-title card-title-a mb-2">Team A</h3>
+              <div class="multi-stack-summary">
+                <div>Total Units: <span id="multiTotalUnitsA">0</span></div>
+                <div>Total Cost: <span id="multiTotalCostA">0</span></div>
+                <div>Total Pop: <span id="multiTotalPopA">0</span></div>
+              </div>
+              <div class="multi-stack-split">
+                <div class="form-check d-flex align-items-center gap-2">
+                  <input class="form-check-input" type="checkbox" id="multiSplitA">
+                  <label class="form-check-label" for="multiSplitA" style="font-size:0.85rem;">
+                    Split damage across
+                  </label>
+                  <input type="number" id="multiSplitTargetsA" class="form-control form-control-sm"
+                         value="1" min="1" style="width:60px;font-size:0.8rem;display:inline-block;">
+                  <span style="font-size:0.85rem;">targets</span>
+                </div>
+              </div>
             </div>
-            <div id="rosterListA" class="multi-roster-list"></div>
+            <div id="multiStackA" class="multi-card-stack"></div>
+            <button class="multi-add-tile" data-action="add" data-side="A" type="button">
+              <span class="multi-add-plus">+</span>
+              <span class="multi-add-text">Add a unit to the battle</span>
+            </button>
           </div>
         </div>
       </div>
-      <div class="col-lg-2 d-flex align-items-center justify-content-center">
-        <div class="multi-roster-hint text-center">Set target priorities per group</div>
+      <div class="col-lg-2 d-flex align-items-center justify-content-center battle-btn-wrapper">
+        <button id="battleBtnMulti" class="battle-btn">&#9876;<span class="btn-label"> BATTLE</span></button>
       </div>
       <div class="col-lg-5">
-        <div class="card multi-roster-card multi-roster-b">
+        <div class="card card-team-b multi-stack-card">
           <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <h5 class="mb-0">Team B Roster</h5>
-              <button id="B_addGroupBtn" type="button" class="btn btn-sm btn-outline-info">Add Group</button>
+            <div class="multi-stack-header">
+              <h3 class="card-title card-title-b mb-2">Team B</h3>
+              <div class="multi-stack-summary">
+                <div>Total Units: <span id="multiTotalUnitsB">0</span></div>
+                <div>Total Cost: <span id="multiTotalCostB">0</span></div>
+                <div>Total Pop: <span id="multiTotalPopB">0</span></div>
+              </div>
+              <div class="multi-stack-split">
+                <div class="form-check d-flex align-items-center gap-2">
+                  <input class="form-check-input" type="checkbox" id="multiSplitB">
+                  <label class="form-check-label" for="multiSplitB" style="font-size:0.85rem;">
+                    Split damage across
+                  </label>
+                  <input type="number" id="multiSplitTargetsB" class="form-control form-control-sm"
+                         value="1" min="1" style="width:60px;font-size:0.8rem;display:inline-block;">
+                  <span style="font-size:0.85rem;">targets</span>
+                </div>
+              </div>
             </div>
-            <div id="rosterListB" class="multi-roster-list"></div>
+            <div id="multiStackB" class="multi-card-stack"></div>
+            <button class="multi-add-tile" data-action="add" data-side="B" type="button">
+              <span class="multi-add-plus">+</span>
+              <span class="multi-add-text">Add a unit to the battle</span>
+            </button>
           </div>
         </div>
       </div>
     </div>
+
+    <!-- ==================== MULTI GROUP TEMPLATE ==================== -->
+    <template id="multiGroupTemplate">
+      <div class="multi-group-card" data-group-id="">
+        <div class="multi-card-header">
+          <div class="multi-card-summary">
+            <div class="multi-group-title" data-role="summaryTitle">Unit</div>
+            <div class="multi-group-meta" data-role="summaryMeta">Ready</div>
+          </div>
+          <button class="multi-remove-btn" data-action="remove" type="button">Remove</button>
+        </div>
+        <div class="multi-card-collapsed">
+          <div class="multi-collapsed-row">
+            <div class="text-muted" style="font-size:0.75rem;">Units</div>
+            <input type="number" class="form-control form-control-sm multi-count-input" min="1" data-field="countCollapsed" value="1">
+            <button class="btn btn-sm btn-outline-secondary" data-action="expand" type="button">Edit</button>
+          </div>
+          <div class="target-priority">
+            <div class="text-muted mb-1">Target Priority</div>
+            <div class="multi-target-list" data-role="targetList"></div>
+          </div>
+        </div>
+        <div class="multi-card-expanded">
+          <div class="mb-2">
+            <div class="custom-select-wrapper civ-select-wrapper" data-field="civSelect" data-value=""></div>
+          </div>
+          <div class="row g-3 mb-3">
+            <div class="col-8">
+              <label class="form-label fw-bold">Unit</label>
+              <div class="custom-select-wrapper" data-field="unitSelect" data-value="Horseman"></div>
+            </div>
+            <div class="col-4">
+              <label class="form-label fw-bold">Age</label>
+              <select class="form-select" data-field="age"></select>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">Weapon Mode</label>
+            <div class="btn-group w-100 weapon-mode-group" role="group" data-role="weaponModeGroup">
+              <input type="radio" class="btn-check" data-field="weaponMode" value="primary" checked>
+              <label class="btn btn-outline-primary btn-sm">Primary</label>
+
+              <input type="radio" class="btn-check" data-field="weaponMode" value="secondary">
+              <label class="btn btn-outline-primary btn-sm">Secondary</label>
+
+              <input type="radio" class="btn-check" data-field="weaponMode" value="both">
+              <label class="btn btn-outline-primary btn-sm">Both</label>
+            </div>
+            <div class="weapon-info" data-role="weaponInfo"></div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-bold">Number of Units</label>
+            <input type="number" class="form-control" data-field="count" value="1" min="1">
+          </div>
+          <div class="stat-box">
+            <h6 class="fw-bold mb-3">Stats</h6>
+            <div class="row g-2">
+              <div class="col-6">
+                <small class="text-muted">HP</small>
+                <input type="number" class="form-control small-input" data-field="hp" placeholder="HP">
+              </div>
+              <div class="col-6">
+                <small class="text-muted">Attack</small>
+                <input type="number" class="form-control small-input" data-field="attack" placeholder="Attack">
+              </div>
+              <div class="col-6">
+                <small class="text-muted">Melee Armor</small>
+                <input type="number" class="form-control small-input" data-field="meleeArmor" placeholder="Melee Armor">
+              </div>
+              <div class="col-6">
+                <small class="text-muted">Ranged Armor</small>
+                <input type="number" class="form-control small-input" data-field="rangedArmor" placeholder="Ranged Armor">
+              </div>
+              <div class="col-12">
+                <small class="text-muted">Attack Speed (s)</small>
+                <input type="number" step="0.01" class="form-control small-input" data-field="attackSpeed" placeholder="Attack Speed (s)">
+              </div>
+            </div>
+            <div class="mt-2" data-role="chargeInfo" style="display:none;">
+              <small class="text-muted">Charge Damage: </small>
+              <small data-role="chargeDamage" style="color:#d4a44a;font-weight:600;"></small>
+            </div>
+          </div>
+          <div class="stat-box" data-role="effectsBox" style="display:none;">
+            <h6 class="fw-bold mb-2">Unique Effects</h6>
+            <div data-role="effectsContainer"></div>
+          </div>
+          <div class="stat-box">
+            <h6 class="fw-bold mb-2">Tags</h6>
+            <div class="tag-pill-group mb-2" data-role="tagsContainer"></div>
+          </div>
+          <div class="stat-box">
+            <h6 class="fw-bold mb-0">Bonus Damage</h6>
+            <div class="pt-2" data-role="bonusesContainer"></div>
+          </div>
+          <div class="buff-box">
+            <h6 class="fw-bold mb-2">Flat Buffs</h6>
+            <div class="pt-2">
+              <div class="row g-2 mb-2">
+                <div class="col-12"><small class="text-muted">Attack Bonus (absolute value)</small></div>
+                <div class="col-6">
+                  <input type="number" class="form-control small-input" data-field="buffAttackAbs" placeholder="Attack +">
+                </div>
+                <div class="col-6">
+                  <input type="number" class="form-control small-input" data-field="buffAttackAbsDur" placeholder="Duration (0=inf)" value="0">
+                </div>
+              </div>
+              <div class="row g-2 mb-2">
+                <div class="col-12"><small class="text-muted">HP Bonus (absolute value)</small></div>
+                <div class="col-6">
+                  <input type="number" class="form-control small-input" data-field="buffHPabs" placeholder="HP +">
+                </div>
+                <div class="col-6">
+                  <input type="number" class="form-control small-input" data-field="buffHPabsDur" placeholder="Duration (0=inf)" value="0">
+                </div>
+              </div>
+              <div class="row g-2 mb-2">
+                <div class="col-12"><small class="text-muted">Armor Bonus</small></div>
+                <div class="col-6">
+                  <input type="number" class="form-control small-input" data-field="buffMeleeArmor" placeholder="Melee Armor +">
+                </div>
+                <div class="col-6">
+                  <input type="number" class="form-control small-input" data-field="buffRangedArmor" placeholder="Ranged Armor +">
+                </div>
+              </div>
+              <div class="row g-2">
+                <div class="col-12"><small class="text-muted">Armor Duration (0=inf)</small></div>
+                <div class="col-6">
+                  <input type="number" class="form-control small-input" data-field="buffArmorDur" placeholder="Duration (0=inf)" value="0">
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="buff-box">
+            <h6 class="fw-bold mb-2">Percent Buffs</h6>
+            <div class="pt-2">
+              <div class="row g-2 mb-2">
+                <div class="col-12"><small class="text-muted">Attack Multiplier (%)</small></div>
+                <div class="col-6">
+                  <input type="number" class="form-control small-input" data-field="buffAttackPct" placeholder="Attack %">
+                </div>
+                <div class="col-6">
+                  <input type="number" class="form-control small-input" data-field="buffAttackPctDur" placeholder="Duration (0=inf)" value="0">
+                </div>
+              </div>
+              <div class="row g-2 mb-2">
+                <div class="col-12"><small class="text-muted">HP Multiplier (%)</small></div>
+                <div class="col-6">
+                  <input type="number" class="form-control small-input" data-field="buffHPpct" placeholder="HP %">
+                </div>
+                <div class="col-6">
+                  <input type="number" class="form-control small-input" data-field="buffHPpctDur" placeholder="Duration (0=inf)" value="0">
+                </div>
+              </div>
+              <div class="row g-2">
+                <div class="col-12"><small class="text-muted">Attack Speed Multiplier (%)</small></div>
+                <div class="col-6">
+                  <input type="number" class="form-control small-input" data-field="buffSpeedPct" placeholder="Speed %">
+                </div>
+                <div class="col-6">
+                  <input type="number" class="form-control small-input" data-field="buffSpeedPctDur" placeholder="Duration (0=inf)" value="0">
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="first-hit-box">
+            <h6 class="fw-bold mb-2">First-Hit Advantage</h6>
+            <div class="pt-2">
+              <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" data-field="firstHitEnabled">
+                <label class="form-check-label">Enable free hits</label>
+              </div>
+              <input type="number" class="form-control small-input" data-field="freeHits" value="0" min="0" placeholder="Free hits">
+            </div>
+          </div>
+          <div class="multi-sticky-footer">
+            <button class="btn btn-outline-success btn-sm" data-action="collapse" type="button">Collapse (Ready)</button>
+          </div>
+        </div>
+      </div>
+    </template>
 
     <!-- ==================== RESULTS DISPLAY ==================== -->
     <div id="results" style="display: none;" class="results-card mt-4">
