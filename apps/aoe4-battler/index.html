@@ -9,24 +9,28 @@
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <!-- AoE4-styled Top Navigation -->
   <nav class="aoe4-nav">
-    <button class="aoe4-nav-tab active" data-page="unitBattler" onclick="switchPage('unitBattler')">
-      <span class="nav-icon">&#9876;</span> Unit Battler <span class="beta-badge">BETA</span>
+    <button class="aoe4-nav-tab active" type="button" data-page="unitBattler">
+      <span class="nav-icon"><i class="fa-solid fa-shield-halved"></i></span> Unit Battler <span class="beta-badge">BETA</span>
     </button>
-    <button class="aoe4-nav-tab" data-page="vsBuilding" onclick="switchPage('vsBuilding')">
-      <span class="nav-icon">&#127984;</span> vs Building <span class="beta-badge">BETA</span>
+    <button class="aoe4-nav-tab" type="button" data-page="vsBuilding">
+      <span class="nav-icon"><i class="fa-solid fa-chess-rook"></i></span> vs Building <span class="beta-badge">BETA</span>
     </button>
-    <button class="aoe4-nav-tab" data-page="multiBattle" onclick="switchPage('multiBattle')">
-      <span class="nav-icon">&#9876;</span> Multi Battle <span class="beta-badge">BETA</span>
+    <button class="aoe4-nav-tab" type="button" data-page="multiBattle">
+      <span class="nav-icon"><i class="fa-solid fa-users"></i></span> Multi Battle <span class="beta-badge">BETA</span>
+    </button>
+    <button class="aoe4-nav-tab" type="button" data-page="buildOrder">
+      <span class="nav-icon"><i class="fa-solid fa-clock"></i></span> Build Order <span class="beta-badge">BETA</span>
     </button>
   </nav>
 
   <div class="container">
-    <div class="text-center">
+    <div class="text-center battle-only">
       <div class="auto-balance-toggle">
         <input type="checkbox" id="autoBalance" checked>
         <label for="autoBalance" class="ms-2 fw-bold">Auto-balance units by cost</label>
@@ -44,7 +48,7 @@
       <div class="col-lg-5">
         <div class="card card-team-a">
           <div class="card-body">
-            <h3 class="card-title card-title-a" id="titleA" style="cursor:pointer" onclick="showUnitDetail('A')" title="Click for details">Unit A</h3>
+            <h3 class="card-title card-title-a" id="titleA" style="cursor:pointer" title="Click for details">Unit A</h3>
 
             <!-- Civilization Selection -->
             <div class="mb-2">
@@ -276,7 +280,7 @@
       <div class="col-lg-5">
         <div class="card card-team-b">
           <div class="card-body">
-            <h3 class="card-title card-title-b" id="titleB" style="cursor:pointer" onclick="showUnitDetail('B')" title="Click for details">Unit B</h3>
+            <h3 class="card-title card-title-b" id="titleB" style="cursor:pointer" title="Click for details">Unit B</h3>
 
             <!-- Hidden checkbox for JS building mode logic -->
             <input type="checkbox" id="vsBuildingToggle" style="display:none;">
@@ -285,31 +289,32 @@
             <div id="buildingPanel" class="building-panel" style="display:none;">
               <div class="mb-3">
                 <label class="form-label fw-bold">Building</label>
-                <select id="buildingType" class="form-select">
+                <div id="buildingTypeSelect" class="custom-select-wrapper building-select-wrapper" data-value="Capital Town Center"></div>
+                <select id="buildingType" class="form-select" style="display:none;">
                   <optgroup label="Town Centers">
                     <option value="Capital Town Center">Capital Town Center</option>
                     <option value="Town Center">Town Center</option>
                   </optgroup>
                   <optgroup label="Outposts">
                     <option value="Outpost">Outpost</option>
-                    <option value="Toll Outpost">Toll Outpost (HRE)</option>
-                    <option value="Wooden Fortress">Wooden Fortress (Rus)</option>
-                    <option value="Fortified Outpost">Fortified Outpost (Delhi)</option>
+                    <option value="Toll Outpost">Toll Outpost</option>
+                    <option value="Wooden Fortress">Wooden Fortress</option>
+                    <option value="Fortified Outpost">Fortified Outpost</option>
                   </optgroup>
                   <optgroup label="Keeps">
                     <option value="Keep">Keep</option>
-                    <option value="Castle">Castle (Japanese)</option>
-                    <option value="Fortress">Fortress (Knights Templar)</option>
-                    <option value="Tughlaqabad Fort">Tughlaqabad Fort (Tughlaq)</option>
+                    <option value="Castle">Castle</option>
+                    <option value="Fortress">Fortress</option>
+                    <option value="Tughlaqabad Fort">Tughlaqabad Fort</option>
                   </optgroup>
                   <optgroup label="Landmarks">
-                    <option value="The White Tower">The White Tower (English)</option>
-                    <option value="Berkshire Palace">Berkshire Palace (English)</option>
-                    <option value="Red Palace">Red Palace (French)</option>
-                    <option value="Elzbach Palace">Elzbach Palace (HRE)</option>
-                    <option value="Fort of the Huntress">Fort of the Huntress (Rus)</option>
-                    <option value="Sea Gate Castle">Sea Gate Castle (Japanese)</option>
-                    <option value="Castle of the Crow">Castle of the Crow (Japanese)</option>
+                    <option value="The White Tower">The White Tower</option>
+                    <option value="Berkshire Palace">Berkshire Palace</option>
+                    <option value="Red Palace">Red Palace</option>
+                    <option value="Elzbach Palace">Elzbach Palace</option>
+                    <option value="Fort of the Huntress">Fort of the Huntress</option>
+                    <option value="Sea Gate Castle">Sea Gate Castle</option>
+                    <option value="Castle of the Crow">Castle of the Crow</option>
                   </optgroup>
                 </select>
               </div>
@@ -656,6 +661,329 @@
       </div>
     </div>
 
+    <!-- ==================== BUILD ORDER ==================== -->
+    <div class="row g-4 build-only" id="buildOrderRow" style="display:none;">
+      <div class="col-12">
+        <div class="card build-card flag-card" id="boBuildCard">
+          <div class="card-body">
+            <div class="bo-header">
+              <h3 class="card-title mb-0 bo-title">
+                <span id="boTitleText">Build Order</span>
+                <span id="boCivFlags" class="bo-title-flags"></span>
+              </h3>
+            </div>
+
+            <div class="bo-timeline-panel">
+              <div class="bo-civ-row row g-3 mb-3">
+                <div class="col-lg-5">
+                  <label class="form-label fw-bold">Civilization</label>
+                  <select id="boCiv" class="form-select">
+                    <option value="" selected>Select Civilization</option>
+                  </select>
+                </div>
+                <div class="col-lg-4">
+                  <label class="form-label fw-bold">Starting Age</label>
+                  <select id="boStartAge" class="form-select">
+                    <option value="1">Age I</option>
+                    <option value="2">Age II</option>
+                    <option value="3">Age III</option>
+                    <option value="4">Age IV</option>
+                  </select>
+                </div>
+                <div class="col-lg-3">
+                  <label class="form-label fw-bold">Sim End (s)</label>
+                  <input id="boSimEnd" type="number" class="form-control" value="420" min="0" step="5">
+                </div>
+              </div>
+
+              <div class="bo-utility-row mb-3">
+                <div class="dropdown bo-save-menu" data-bs-auto-close="outside">
+                  <button class="btn btn-outline-secondary btn-sm bo-save-menu-btn dropdown-toggle" id="boSaveMenuBtn" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="bi bi-bookmark-star"></i> Saves
+                  </button>
+                  <div class="dropdown-menu bo-save-menu-panel p-3" aria-labelledby="boSaveMenuBtn">
+                    <div class="bo-save-panel-grid">
+                      <div>
+                        <label class="form-label fw-bold">Saved Builds</label>
+                        <select id="boSaveSelect" class="form-select form-select-sm">
+                          <option value="__draft__">Current draft (autosaved)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label class="form-label fw-bold">Save Name</label>
+                        <input id="boSaveName" type="text" class="form-control form-control-sm" placeholder="e.g. 2TC Boom">
+                      </div>
+                      <div class="bo-save-actions">
+                        <button id="boSaveBtn" class="btn btn-outline-secondary btn-sm" type="button">Save</button>
+                        <button id="boLoadBtn" class="btn btn-outline-secondary btn-sm" type="button">Load</button>
+                        <button id="boDeleteBtn" class="btn btn-outline-secondary btn-sm" type="button">Delete</button>
+                      </div>
+                      <div>
+                        <small id="boSaveStatus" class="bo-save-status text-muted">Drafts and named builds are stored locally in this browser.</small>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="bo-secondary-actions">
+                  <button class="btn btn-outline-secondary btn-sm bo-overlay-toggle" id="boOverlayToggle" type="button" aria-pressed="true" title="Hide the resources lane">
+                    <i class="bi bi-bar-chart-line-fill" aria-hidden="true"></i><span>Resources lane: On</span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="bo-gather-rates" id="boGatherRates"></div>
+              <div id="boSummary" class="bo-summary mb-3"></div>
+
+              <div class="bo-editor-panel" id="boCommandEditor">
+                <span class="text-muted">Select a command in the timeline to edit.</span>
+              </div>
+
+              <div class="bo-timeline-toolbar">
+                <div class="bo-toolbar-left">
+                  <button id="boAddCommand" class="btn btn-outline-secondary btn-sm bo-add-command" type="button">
+                    + Add command
+                  </button>
+                  <div class="bo-add-picker" id="boAddPicker" hidden>
+                    <button class="bo-add-picker-btn" type="button" data-type="assign">Assign</button>
+                    <button class="bo-add-picker-btn" type="button" data-type="buildBuilding">Build</button>
+                    <button class="bo-add-picker-btn" type="button" data-type="tech">Tech</button>
+                    <button class="bo-add-picker-btn" type="button" data-type="trainUnit">Queue</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="bo-timeline-shell" id="boTimelineShell">
+                <div class="bo-civ-gate" id="boCivGateOverlay" style="display:none;">
+                  <div class="bo-civ-gate-inner">
+                    <div class="bo-civ-gate-title" id="boCivGateMessage">Select a civilization to begin.</div>
+                    <div class="bo-civ-gate-sub text-muted">Build Order commands and costs are civ-dependent.</div>
+                  </div>
+                </div>
+                <div class="bo-timeline-grid">
+                  <div class="bo-lane-labels" id="boLaneLabels"></div>
+                  <div class="bo-lane-tracks" id="boLaneTracks">
+                    <div class="bo-track-stack" id="boTrackStack">
+                      <div class="bo-lane-timeline bo-big-timeline" id="boLaneTimeline"></div>
+                      <div class="bo-resource-lane" id="boResourceLane">
+                        <div class="bo-resource-chart" id="boResourceChart"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="bo-timeline-footer mb-3" id="boTimelineFooter">
+                <div class="bo-timeline-footer-main">
+                  <button class="btn btn-outline-secondary btn-sm bo-setup-toggle" id="boAdvancedToggle" type="button" data-bs-toggle="collapse" data-bs-target="#boSetupCollapse" aria-expanded="false">
+                    Advanced Setup
+                  </button>
+                  <div class="bo-pin-status" id="boPinStatus">Timeline start 0:00</div>
+                </div>
+                <button class="btn btn-outline-secondary btn-sm bo-clear-pin-btn" id="boClearPinBtn" type="button" hidden>
+                  Clear pin
+                </button>
+              </div>
+
+              <button class="btn btn-outline-secondary btn-sm mb-2 bo-event-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#boEventCollapse" aria-expanded="false">
+                Event log
+              </button>
+              <div class="collapse" id="boEventCollapse">
+                <div class="bo-event-list" id="boEventList"></div>
+              </div>
+            </div>
+
+            <div class="collapse" id="boSetupCollapse">
+              <div class="build-settings">
+                <div class="stat-box mb-3">
+                  <h6 class="fw-bold mb-2">Starting Resources</h6>
+                  <div class="row g-2">
+                    <div class="col-3">
+                      <small class="text-muted">Food</small>
+                      <input id="boStartFood" type="number" class="form-control small-input" value="200" min="0">
+                    </div>
+                    <div class="col-3">
+                      <small class="text-muted">Wood</small>
+                      <input id="boStartWood" type="number" class="form-control small-input" value="150" min="0">
+                    </div>
+                    <div class="col-3">
+                      <small class="text-muted">Gold</small>
+                      <input id="boStartGold" type="number" class="form-control small-input" value="100" min="0">
+                    </div>
+                    <div class="col-3">
+                      <small class="text-muted">Stone</small>
+                      <input id="boStartStone" type="number" class="form-control small-input" value="0" min="0">
+                    </div>
+                  </div>
+                  <div class="row g-2 mt-2" id="boSpecialResourcesRow" style="display:none;">
+                    <div class="col-6" id="boOliveCol">
+                      <small class="text-muted">Olive Oil</small>
+                      <input id="boStartOlive" type="number" class="form-control small-input" value="0" min="0">
+                    </div>
+                    <div class="col-6" id="boSilverCol">
+                      <small class="text-muted">Silver</small>
+                      <input id="boStartSilver" type="number" class="form-control small-input" value="0" min="0">
+                    </div>
+                  </div>
+                </div>
+
+              <div class="stat-box mb-3">
+                <h6 class="fw-bold mb-2">Food Node Settings</h6>
+                <div class="row g-2">
+                  <div class="col-4">
+                    <small class="text-muted">Source</small>
+                  </div>
+                  <div class="col-4">
+                    <small class="text-muted">Count</small>
+                  </div>
+                  <div class="col-4">
+                    <small class="text-muted">Food per Node</small>
+                  </div>
+                </div>
+                <div class="row g-2 align-items-end">
+                  <div class="col-4">
+                    <small class="text-muted">Sheep</small>
+                  </div>
+                  <div class="col-4">
+                    <input id="boSheepCount" type="number" class="form-control small-input" value="5" min="0" title="Number of sheep nodes available.">
+                  </div>
+                  <div class="col-4">
+                    <input id="boSheepFood" type="number" class="form-control small-input" value="200" min="0" title="Food per sheep before depletion.">
+                  </div>
+                </div>
+                <div class="row g-2 align-items-end">
+                  <div class="col-4">
+                    <small class="text-muted">Berries</small>
+                  </div>
+                  <div class="col-4">
+                    <input id="boBerriesCount" type="number" class="form-control small-input" value="7" min="0" title="Number of berry patches.">
+                  </div>
+                  <div class="col-4">
+                    <input id="boBerriesFood" type="number" class="form-control small-input" value="250" min="0" title="Food per berry patch before depletion.">
+                  </div>
+                </div>
+                <div class="row g-2 align-items-end">
+                  <div class="col-4">
+                    <small class="text-muted">Deer</small>
+                  </div>
+                  <div class="col-4">
+                    <input id="boDeerCount" type="number" class="form-control small-input" value="7" min="0" title="Number of deer in the pack.">
+                  </div>
+                  <div class="col-4">
+                    <input id="boDeerFood" type="number" class="form-control small-input" value="350" min="0" title="Food per deer before depletion.">
+                  </div>
+                </div>
+                <div class="row g-2 align-items-end">
+                  <div class="col-4">
+                    <small class="text-muted">Boar</small>
+                  </div>
+                  <div class="col-4">
+                    <input id="boBoarCount" type="number" class="form-control small-input" value="1" min="0" title="Number of boar available.">
+                  </div>
+                  <div class="col-4">
+                    <input id="boBoarFood" type="number" class="form-control small-input" value="2400" min="0" title="Food per boar before depletion.">
+                  </div>
+                </div>
+                <small id="boBoarRestrictedNote" class="text-muted" style="display:none;">Boar unavailable for this civilization.</small>
+              </div>
+
+              <div id="boCivBonuses" class="bo-civ-bonuses mb-2"></div>
+
+              <div class="stat-box mb-3">
+                <h6 class="fw-bold mb-2">Villagers & Gather Rates (per sec)</h6>
+                <div class="row g-2 align-items-end">
+                  <div class="col-3">
+                    <small class="text-muted">Start Vills</small>
+                    <input id="boStartVills" type="number" class="form-control small-input" value="6" min="1" title="Starting villagers (idle by default).">
+                  </div>
+                  <div class="col-3">
+                    <small class="text-muted">Berries</small>
+                    <input id="boRateBerries" type="number" class="form-control small-input" value="0.69" step="0.01" min="0">
+                  </div>
+                  <div class="col-3">
+                    <small class="text-muted">Deer</small>
+                    <input id="boRateDeer" type="number" class="form-control small-input" value="0.825" step="0.01" min="0">
+                  </div>
+                  <div class="col-3">
+                    <small class="text-muted">Boar</small>
+                    <input id="boRateBoar" type="number" class="form-control small-input" value="0.90" step="0.01" min="0">
+                  </div>
+                  <div class="col-3">
+                    <small class="text-muted">Sheep</small>
+                    <input id="boRateSheep" type="number" class="form-control small-input" value="0.75" step="0.01" min="0">
+                  </div>
+                  <div class="col-3">
+                    <small class="text-muted">Farms</small>
+                    <input id="boRateFarm" type="number" class="form-control small-input" value="0.75" step="0.01" min="0">
+                  </div>
+                  <div class="col-3">
+                    <small class="text-muted">Wood</small>
+                    <input id="boRateWood" type="number" class="form-control small-input" value="0.75" step="0.01" min="0">
+                  </div>
+                  <div class="col-3">
+                    <small class="text-muted">Gold</small>
+                    <input id="boRateGold" type="number" class="form-control small-input" value="0.75" step="0.01" min="0">
+                  </div>
+                  <div class="col-3">
+                    <small class="text-muted">Stone</small>
+                    <input id="boRateStone" type="number" class="form-control small-input" value="0.75" step="0.01" min="0">
+                  </div>
+                </div>
+              </div>
+
+              <div class="stat-box mb-3">
+                <h6 class="fw-bold mb-2">Carry Settings</h6>
+                <div class="row g-2">
+                  <div class="col-5">
+                    <small class="text-muted">Resource</small>
+                  </div>
+                  <div class="col-7">
+                    <small class="text-muted">Carry Cap</small>
+                  </div>
+                </div>
+                <div class="row g-2 align-items-center">
+                  <div class="col-5"><small class="text-muted">Sheep</small></div>
+                  <div class="col-7"><input id="boCarrySheep" type="number" class="form-control small-input" value="10" min="0" title="Carry capacity per villager before drop-off."></div>
+                </div>
+                <div class="row g-2 align-items-center">
+                  <div class="col-5"><small class="text-muted">Berries</small></div>
+                  <div class="col-7"><input id="boCarryBerries" type="number" class="form-control small-input" value="10" min="0" title="Carry capacity per villager before drop-off."></div>
+                </div>
+                  <div class="row g-2 align-items-center">
+                    <div class="col-5"><small class="text-muted">Deer</small></div>
+                    <div class="col-7"><input id="boCarryDeer" type="number" class="form-control small-input" value="25" min="0" title="Carry capacity per villager before drop-off."></div>
+                  </div>
+                  <div class="row g-2 align-items-center">
+                    <div class="col-5"><small class="text-muted">Boar</small></div>
+                    <div class="col-7"><input id="boCarryBoar" type="number" class="form-control small-input" value="25" min="0" title="Carry capacity per villager before drop-off."></div>
+                  </div>
+                <div class="row g-2 align-items-center">
+                  <div class="col-5"><small class="text-muted">Farms</small></div>
+                  <div class="col-7"><input id="boCarryFarm" type="number" class="form-control small-input" value="10" min="0" title="Carry capacity per villager before drop-off."></div>
+                </div>
+                <div class="row g-2 align-items-center">
+                  <div class="col-5"><small class="text-muted">Wood</small></div>
+                  <div class="col-7"><input id="boCarryWood" type="number" class="form-control small-input" value="10" min="0" title="Carry capacity per villager before drop-off."></div>
+                </div>
+                <div class="row g-2 align-items-center">
+                  <div class="col-5"><small class="text-muted">Gold</small></div>
+                  <div class="col-7"><input id="boCarryGold" type="number" class="form-control small-input" value="10" min="0" title="Carry capacity per villager before drop-off."></div>
+                </div>
+                <div class="row g-2 align-items-center">
+                  <div class="col-5"><small class="text-muted">Stone</small></div>
+                  <div class="col-7"><input id="boCarryStone" type="number" class="form-control small-input" value="10" min="0" title="Carry capacity per villager before drop-off."></div>
+                </div>
+              </div>
+
+            </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Build Order editor is timeline-only; no command card template -->
+
     <!-- ==================== MULTI GROUP TEMPLATE ==================== -->
     <template id="multiGroupTemplate">
       <div class="multi-group-card" data-group-id="">
@@ -981,6 +1309,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="script.js"></script>
+  <script type="module" src="src/main.js"></script>
 </body>
 </html>

@@ -1,0 +1,181 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Civ: New Dawn Online</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="civ-new-dawn.css">
+</head>
+<body>
+  <div class="page">
+    <header class="topbar">
+      <div class="title-block">
+        <p class="eyebrow">Owl Boardgame Hub</p>
+        <h1>Civ: New Dawn Online</h1>
+        <p class="subtitle">Focus-row strategy with Terra Incognita exploration, armies, and trade.</p>
+      </div>
+      <div class="room-panel">
+        <div class="room-row">
+          <label class="label">Player Name</label>
+          <input id="player-name" class="input" type="text" placeholder="Your name" maxlength="18">
+        </div>
+        <div class="room-row">
+          <label class="label">Color</label>
+          <select id="player-color" class="select">
+            <option value="#c2432e">Crimson</option>
+            <option value="#2e7fb2">Azure</option>
+            <option value="#d1a642">Gold</option>
+            <option value="#2f9e5d">Emerald</option>
+            <option value="#6b5fa7">Amethyst</option>
+          </select>
+        </div>
+        <div class="room-actions">
+          <button id="create-room" class="btn primary">Create Room</button>
+          <button id="local-game" class="btn ghost">Local Solo</button>
+        </div>
+        <div class="room-row join-row">
+          <input id="join-code" class="input" type="text" placeholder="Room code">
+          <button id="join-room" class="btn">Join</button>
+        </div>
+        <div class="room-row room-code">
+          <span class="label">Room</span>
+          <span id="room-code" class="code">-</span>
+          <button id="copy-room" class="btn tiny">Copy</button>
+        </div>
+        <div id="status" class="status">Ready.</div>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="panel" id="left-panel">
+        <div class="panel-header">
+          <h2>Players</h2>
+          <div id="round-display" class="chip">Round 1</div>
+        </div>
+        <div id="player-list" class="player-list"></div>
+
+        <div class="panel-section">
+          <div class="panel-header small">
+            <h3>Focus Row</h3>
+            <div class="chip" id="focus-owner">-</div>
+          </div>
+          <div id="focus-row" class="focus-row"></div>
+          <div class="focus-hint">Click a card to play it on your turn.</div>
+        </div>
+      </aside>
+
+      <section class="board">
+        <div class="board-header">
+          <div class="board-title">
+            <h2>World Map</h2>
+            <div class="legend">
+              <span class="legend-item terrain grass">Grass</span>
+              <span class="legend-item terrain hill">Hill</span>
+              <span class="legend-item terrain forest">Forest</span>
+              <span class="legend-item terrain desert">Desert</span>
+              <span class="legend-item terrain mountain">Mountain</span>
+              <span class="legend-item terrain water">Water</span>
+            </div>
+          </div>
+          <div class="board-actions">
+            <button id="reveal-map" class="btn tiny">Reveal All</button>
+            <button id="randomize-map" class="btn tiny">Randomize</button>
+          </div>
+        </div>
+        <div id="map" class="map"></div>
+      </section>
+
+      <aside class="panel" id="right-panel">
+        <div class="panel-header">
+          <h2>Actions</h2>
+          <div id="turn-indicator" class="chip">Turn: -</div>
+        </div>
+        <div id="action-panel" class="action-panel">
+          <div class="empty-state">Create or join a room to begin.</div>
+        </div>
+
+        <div class="panel-section">
+          <div class="panel-header small">
+            <h3>Dice</h3>
+            <div id="dice-result" class="chip">-</div>
+          </div>
+          <button id="roll-dice" class="btn">Roll d6</button>
+        </div>
+
+        <div class="panel-section">
+          <div class="panel-header small">
+            <h3>Log</h3>
+          </div>
+          <div id="log" class="log"></div>
+        </div>
+
+        <div class="panel-section" id="host-tools">
+          <div class="panel-header small">
+            <h3>Host Tools</h3>
+            <div class="chip">Host</div>
+          </div>
+          <div class="tool-row">
+            <label class="label">Tool</label>
+            <select id="tool-mode" class="select">
+              <option value="inspect">Inspect</option>
+              <option value="terrain">Set Terrain</option>
+              <option value="control">Toggle Control</option>
+              <option value="fortify">Toggle Fortify</option>
+              <option value="district">Toggle District</option>
+              <option value="city">Toggle City</option>
+              <option value="capital">Toggle Capital</option>
+              <option value="army">Toggle Army</option>
+              <option value="wagon">Toggle Wagon</option>
+              <option value="barbarian">Toggle Barbarian</option>
+              <option value="citystate">Toggle City-State</option>
+              <option value="resource">Toggle Resource</option>
+              <option value="fortress">Toggle Fortress</option>
+              <option value="clear">Clear Hex</option>
+            </select>
+          </div>
+          <div class="tool-row">
+            <label class="label">Owner</label>
+            <select id="tool-owner" class="select"></select>
+          </div>
+          <div class="tool-row">
+            <label class="label">Detail</label>
+            <select id="tool-detail" class="select"></select>
+          </div>
+          <div class="panel-section">
+            <div class="panel-header small">
+              <h3>Advanced Setup</h3>
+            </div>
+            <button id="start-advanced-setup" class="btn">Start Advanced Setup</button>
+            <div class="tool-row">
+              <label class="label">Phase</label>
+              <div id="setup-phase" class="chip">-</div>
+            </div>
+            <div class="tool-row">
+              <label class="label">Active</label>
+              <div id="setup-turn" class="chip">-</div>
+            </div>
+            <div class="tool-row">
+              <label class="label">Tile</label>
+              <select id="setup-tile" class="select"></select>
+            </div>
+            <div class="tool-row">
+              <button id="rotate-tile" class="btn tiny">Rotate</button>
+              <button id="flip-tile" class="btn tiny">Flip A/B</button>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <footer class="footer">
+      <p>Rules reference: Base and Terra Incognita expansion. This is a digital prototype with optional automation and manual host tools.</p>
+    </footer>
+  </div>
+
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <script src="civ-new-dawn.js"></script>
+</body>
+</html>
