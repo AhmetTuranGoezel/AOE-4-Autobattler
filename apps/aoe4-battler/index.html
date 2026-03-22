@@ -747,7 +747,6 @@
                     <button class="bo-add-picker-btn" type="button" data-type="assign">Assign</button>
                     <button class="bo-add-picker-btn" type="button" data-type="buildBuilding">Build</button>
                     <button class="bo-add-picker-btn" type="button" data-type="tech">Tech</button>
-                    <button class="bo-add-picker-btn" type="button" data-type="trainUnit">Queue</button>
                   </div>
                 </div>
               </div>
@@ -774,19 +773,19 @@
 
               <div class="bo-timeline-footer mb-3" id="boTimelineFooter">
                 <div class="bo-timeline-footer-main">
-                  <button class="btn btn-outline-secondary btn-sm bo-setup-toggle" id="boAdvancedToggle" type="button" data-bs-toggle="collapse" data-bs-target="#boSetupCollapse" aria-expanded="false">
+                  <button class="btn btn-outline-secondary btn-sm bo-setup-toggle bo-footer-toggle" id="boAdvancedToggle" type="button" data-bs-toggle="collapse" data-bs-target="#boSetupCollapse" aria-expanded="false">
                     Advanced Setup
+                  </button>
+                  <button class="btn btn-outline-secondary btn-sm bo-event-toggle bo-footer-toggle" id="boEventToggle" type="button" data-bs-toggle="collapse" data-bs-target="#boEventCollapse" aria-expanded="false">
+                    Event Log
                   </button>
                   <div class="bo-pin-status" id="boPinStatus">Timeline start 0:00</div>
                 </div>
-                <button class="btn btn-outline-secondary btn-sm bo-clear-pin-btn" id="boClearPinBtn" type="button" hidden>
+                <button class="btn btn-outline-secondary btn-sm bo-clear-pin-btn bo-footer-toggle" id="boClearPinBtn" type="button" hidden>
                   Clear pin
                 </button>
               </div>
 
-              <button class="btn btn-outline-secondary btn-sm mb-2 bo-event-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#boEventCollapse" aria-expanded="false">
-                Event log
-              </button>
               <div class="collapse" id="boEventCollapse">
                 <div class="bo-event-list" id="boEventList"></div>
               </div>

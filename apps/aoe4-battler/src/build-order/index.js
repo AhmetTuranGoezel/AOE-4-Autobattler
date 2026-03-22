@@ -17,6 +17,8 @@ let boHoverTime = null;
 let boPinnedTime = null;
 let boRunTimer = null;
 let boPersistTimer = null;
+let boMarkerDraft = null;
+let boEditorScrollFrame = null;
 
 const BO_SAVE_STORAGE_KEY = "aoe4Battler.buildOrder.local.v1";
 const BO_SAVE_DRAFT_ID = "__draft__";
@@ -66,7 +68,7 @@ const BO_DEFAULT_NODE_COUNTS = { sheep: 5, berries: 7, deer: 7, boar: 1 };
 const BO_DEFAULT_CARRY = { sheep: 10, berries: 10, deer: 25, boar: 25, farm: 10, wood: 10, gold: 10, stone: 10 };
 const BO_DEFAULT_TRIP = { sheep: 0.1, berries: 1.1, deer: 1.7, boar: 1.7, farm: 1.1, wood: 1.7, gold: 1.1, stone: 1.1 };
 const BO_WHEEL_CARRY_BONUS = 5;
-const BO_WHEEL_TRIP_MULT = 0.85;
+const BO_WHEEL_TRIP_MULT = 1 / 1.15;
 const BO_FOOD_UPGRADE_MULT = 1.1;
 const BO_SPECIAL_RES_KEYS = ["oliveOil", "silver"];
 const BO_CAPITAL_TC_ANCHOR = "__bo_tc1__";
@@ -1182,6 +1184,7 @@ function getPrevBoCommandId(id) {
 }
 
 function addBoCommand(type, insertAfterId = null) {
+  discardBoMarkerDraft(false);
   const cmd = createBoCommand(type);
   boLastCommandType = type === "trainUnit" ? "assign" : type;
   applyAutoDefaultsForCommand(cmd, document.getElementById("boCiv")?.value || "");
@@ -1230,7 +1233,83 @@ function getSelectedBoCommand() {
   return boCommands.find((c) => c.id === boSelectedCommandId) || null;
 }
 
-function selectBoCommand(id) {
+function getBoMarkerDraftKey(marker) {
+  if (!marker) return "";
+  const buildingId = marker.buildingId || "TC #1";
+  const target = marker.target || "idle";
+  const time = Math.round((Math.max(0, marker.time || 0)) * 1000) / 1000;
+  return `${buildingId}|${time.toFixed(3)}|${target}|${marker.sourceCommandId || ""}`;
+}
+
+function isBoMarkerDraftCommand(cmd) {
+  return !!(boMarkerDraft && cmd && boMarkerDraft.cmd?.id === cmd.id);
+}
+
+function clearBoMarkerDraft() {
+  boMarkerDraft = null;
+}
+
+function discardBoMarkerDraft(render = false) {
+  if (!boMarkerDraft) return;
+  clearBoMarkerDraft();
+  if (render) {
+    renderBoTimelineEditor();
+    renderBoCommandEditor(getSelectedBoCommand());
+    renderBoGatherRates();
+  }
+}
+
+function commitBoMarkerDraft() {
+  if (!boMarkerDraft?.cmd) return null;
+  const cmd = boMarkerDraft.cmd;
+  insertBoCommandAtTime(cmd, boMarkerDraft.marker?.time || 0);
+  clearBoMarkerDraft();
+  boSelectedBuilding = null;
+  setBoTargetBuilding(null);
+  boSelectedCommandId = cmd.id;
+  boLastCommandType = "trainUnit";
+  boLastResults = null;
+  return cmd;
+}
+
+function isBoEditorComfortablyVisible(editorEl) {
+  if (!editorEl) return true;
+  const rect = editorEl.getBoundingClientRect();
+  const minTop = 72;
+  const maxTop = Math.min(Math.max(160, window.innerHeight * 0.35), 260);
+  return rect.top >= minTop && rect.top <= maxTop;
+}
+
+function animateBoWindowScroll(targetY, durationMs = 200) {
+  const startY = window.scrollY || window.pageYOffset || 0;
+  const endY = Math.max(0, Math.round(targetY));
+  if (Math.abs(endY - startY) < 6) return;
+  if (boEditorScrollFrame) cancelAnimationFrame(boEditorScrollFrame);
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) {
+    window.scrollTo(0, endY);
+    return;
+  }
+  const startTime = performance.now();
+  const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+  const step = (now) => {
+    const progress = Math.min(1, (now - startTime) / durationMs);
+    const eased = easeOutCubic(progress);
+    window.scrollTo(0, startY + ((endY - startY) * eased));
+    if (progress < 1) boEditorScrollFrame = requestAnimationFrame(step);
+    else boEditorScrollFrame = null;
+  };
+  boEditorScrollFrame = requestAnimationFrame(step);
+}
+
+function scrollBoEditorIntoView() {
+  const editor = document.getElementById("boCommandEditor");
+  if (!editor || isBoEditorComfortablyVisible(editor)) return;
+  const targetY = (window.scrollY || window.pageYOffset || 0) + editor.getBoundingClientRect().top - 88;
+  animateBoWindowScroll(targetY, 190);
+}
+
+function selectBoCommand(id, options = {}) {
+  discardBoMarkerDraft(false);
   boSelectedCommandId = id;
   boSelectedBuilding = null;
   setBoTargetBuilding(null);
@@ -1241,14 +1320,18 @@ function selectBoCommand(id) {
   renderBoTimelineEditor();
   renderBoCommandEditor(getSelectedBoCommand());
   renderBoGatherRates();
+  if (options.scrollToEditor) scrollBoEditorIntoView();
 }
 
-function selectBoBuilding(building) {
+function selectBoBuilding(building, options = {}) {
+  discardBoMarkerDraft(false);
+  boSelectedCommandId = null;
   boSelectedBuilding = building;
   if (building) setBoTargetBuilding({ id: building.id, type: building.type });
   renderBoTimelineEditor();
   renderBoCommandEditor(null);
   renderBoGatherRates();
+  if (options.scrollToEditor) scrollBoEditorIntoView();
 }
 
 function setBoOverlayToggleLabel() {
@@ -1762,6 +1845,21 @@ function getBoBlockFamilyClass(cmd, row) {
   return "bo-family-generic";
 }
 
+function getBoLaneActionBadges(lane) {
+  const buildingType = lane?.type === "building"
+    ? lane.buildingType
+    : (lane?.key === "tc" ? "Town Center" : null);
+  if (!buildingType) return [];
+  const badges = [];
+  if (buildingType === "Town Center" || BO_PRODUCTION_BUILDINGS.has(buildingType)) {
+    badges.push({ label: "Queue", className: "queue", icon: "bi-people-fill" });
+  }
+  if (BO_TECH_BUILDINGS.has(buildingType)) {
+    badges.push({ label: "Research", className: "tech", icon: "bi-stars" });
+  }
+  return badges;
+}
+
 function renderBoTimelineEditor() {
   const laneEl = document.getElementById("boLaneTimeline");
   const labelsEl = document.getElementById("boLaneLabels");
@@ -1939,17 +2037,18 @@ function renderBoTimelineEditor() {
   });
   markerMap.forEach((marker) => {
     const laneKey = usedResources.has(marker.target) ? `res:${marker.target}` : "global";
+    const markerLabel = `Vill +${marker.count}`;
     blocks.push({
       commandId: null,
       start: marker.time,
       end: marker.time,
       laneKey,
-      label: `V+${marker.count}`,
-      shortLabel: `V+${marker.count}`,
-      fullLabel: `Villager -> ${resourceLabels[marker.target] || marker.target} (+${marker.count}) | click to reroute future villagers`,
+      label: markerLabel,
+      shortLabel: markerLabel,
+      fullLabel: `Villager completion -> ${resourceLabels[marker.target] || marker.target} (+${marker.count}) | click to reroute future villagers`,
       displayDuration: MIN_VISUAL_SECONDS,
       villagerMarker: true,
-      minWidthPx: 34,
+      minWidthPx: 54,
       markerTime: marker.time,
       markerTarget: marker.target,
       markerCount: marker.count || 1,
@@ -2135,7 +2234,12 @@ function renderBoTimelineEditor() {
       : "";
     const laneHeight = laneHeights.get(lane.key) || (BO_TIMELINE_BLOCK_HEIGHT + BO_LANE_CAPTION_HEIGHT);
     const top = laneTops.get(lane.key) || BO_TIMELINE_PADDING;
-    return `<div class="bo-lane-label-row" data-lane-key="${lane.key}"${resourceAttr}${buildingAttr} style="top:${top}px;height:${laneHeight}px;">${lane.label}</div>`;
+    const actionBadges = getBoLaneActionBadges(lane);
+    const interactiveClass = actionBadges.length ? " bo-interactive-lane" : "";
+    const badgeHtml = actionBadges.length
+      ? `<span class="bo-lane-label-badges">${actionBadges.map((badge) => `<span class="bo-lane-badge ${badge.className}"><i class="bi ${badge.icon}" aria-hidden="true"></i>${badge.label}</span>`).join("")}</span>`
+      : "";
+    return `<div class="bo-lane-label-row${interactiveClass}" data-lane-key="${lane.key}"${resourceAttr}${buildingAttr} style="top:${top}px;height:${laneHeight}px;"><div class="bo-lane-label-content"><span class="bo-lane-label-name">${lane.label}</span>${badgeHtml}</div></div>`;
   }).join("");
   const resourceLabel = boOverlayEnabled
     ? `<div class="bo-lane-label-row bo-resource-label-row" data-lane-key="resources" style="top:${baseTimelineHeight}px;height:${BO_RESOURCE_LANE_HEIGHT}px;">Resources</div>`
@@ -2196,13 +2300,19 @@ function renderBoTimelineEditor() {
     const classes = ["bo-lane-block"];
     classes.push(getBoBlockFamilyClass(cmd, row));
     if (row.commandId && row.commandId === boSelectedCommandId) classes.push("selected");
+    if (row.villagerMarker && boMarkerDraft?.key === getBoMarkerDraftKey({
+      time: row.markerTime ?? row.start,
+      target: row.markerTarget || "idle",
+      buildingId: row.markerBuildingId || "TC #1",
+      sourceCommandId: row.markerSourceCommandId || ""
+    })) classes.push("selected");
     if (row.assignBlock) classes.push("bo-assign-block");
     if (row.laneDisabled) classes.push("bo-lane-disabled");
     if (row.gatherSegment) classes.push("bo-gather-segment");
     if (row.villagerMarker) classes.push("bo-villager-marker");
     const buildingAttrs = "";
     const markerAttrs = row.villagerMarker
-      ? ` data-marker="villager" data-marker-time="${row.markerTime ?? row.start}" data-marker-target="${row.markerTarget || ""}" data-marker-count="${row.markerCount || 1}" data-marker-source-command="${row.markerSourceCommandId || ""}" data-marker-building-id="${row.markerBuildingId || ""}" data-marker-building-type="${row.markerBuildingType || ""}" data-marker-time-per-unit="${row.markerTimePerUnit || BO_VILLAGER_TIME}" data-marker-rally-delay="${row.markerRallyTravelDelaySec || 0}" data-marker-rally-trip="${row.markerRallyTripOverrideSec}"`
+      ? ` data-marker="villager" data-marker-key="${escapeAttr(getBoMarkerDraftKey({ time: row.markerTime ?? row.start, target: row.markerTarget || "idle", buildingId: row.markerBuildingId || "TC #1", sourceCommandId: row.markerSourceCommandId || "" }))}" data-marker-time="${row.markerTime ?? row.start}" data-marker-target="${row.markerTarget || ""}" data-marker-count="${row.markerCount || 1}" data-marker-source-command="${row.markerSourceCommandId || ""}" data-marker-building-id="${row.markerBuildingId || ""}" data-marker-building-type="${row.markerBuildingType || ""}" data-marker-time-per-unit="${row.markerTimePerUnit || BO_VILLAGER_TIME}" data-marker-rally-delay="${row.markerRallyTravelDelaySec || 0}" data-marker-rally-trip="${row.markerRallyTripOverrideSec}"`
       : "";
     const shortLabel = row.shortLabel || row.label || "";
     html += `<div class="${classes.join(" ")}" data-command-id="${row.commandId || ""}" data-lane-key="${row.laneKey}" data-full-label="${escapeAttr(titleLabel)}"${buildingAttrs}${markerAttrs}
@@ -2284,9 +2394,61 @@ function getBoSampleAtTime(time) {
   return last;
 }
 
+function getBoSampleAtTimeFromSamples(time, samples) {
+  if (!Array.isArray(samples) || !samples.length) return null;
+  let last = samples[0];
+  for (let i = 0; i < samples.length; i++) {
+    const sample = samples[i];
+    if (sample.time <= time + 0.0001) {
+      last = sample;
+    } else {
+      break;
+    }
+  }
+  return last;
+}
+
+function getBoLiveResourceSnapshot(sample, settings) {
+  if (sample) {
+    return {
+      food: sample.food ?? 0,
+      wood: sample.wood ?? 0,
+      gold: sample.gold ?? 0,
+      stone: sample.stone ?? 0,
+      oliveOil: sample.oliveOil ?? 0,
+      silver: sample.silver ?? 0
+    };
+  }
+  return {
+    food: settings?.resources?.food ?? 0,
+    wood: settings?.resources?.wood ?? 0,
+    gold: settings?.resources?.gold ?? 0,
+    stone: settings?.resources?.stone ?? 0,
+    oliveOil: settings?.resources?.oliveOil ?? 0,
+    silver: settings?.resources?.silver ?? 0
+  };
+}
+
+function buildBoLiveRatePill(label, value, suffix = "/s") {
+  const safeValue = Number.isFinite(value) ? value : 0;
+  return `<div class="bo-live-pill"><span>${label}</span><strong>${safeValue.toFixed(3)}${suffix}</strong></div>`;
+}
+
+function buildBoLiveValuePill(label, value) {
+  const safeValue = Number.isFinite(value) ? value : 0;
+  return `<div class="bo-live-pill"><span>${label}</span><strong>${Math.floor(safeValue)}</strong></div>`;
+}
+
+function renderBoLiveGroupTitle(badge, title) {
+  return `<div class="bo-live-group-title"><span class="bo-live-group-badge">${badge}</span><span>${title}</span></div>`;
+}
+
 function getBoAnchorTime() {
   if (Number.isFinite(boPinnedTime)) return boPinnedTime;
   if (Number.isFinite(boHoverTime)) return boHoverTime;
+  if (boMarkerDraft?.cmd) {
+    return Number.isFinite(boMarkerDraft.cmd.atTime) ? boMarkerDraft.cmd.atTime : 0;
+  }
   if (boSelectedCommandId) {
     const planned = buildBoPlannedCommands(boCommands);
     const match = planned.find((p) => p.cmd.id === boSelectedCommandId);
@@ -2304,15 +2466,19 @@ function renderBoGatherRates(timeOverride = null) {
     renderBoTimelineFooter(0);
     return;
   }
+  const settings = readBoSettings();
   const time = Number.isFinite(timeOverride) ? timeOverride : getBoAnchorTime();
-  const sample = getBoSampleAtTime(time);
-  const rates = sample?.rates || readBoSettings().gatherRates || {};
+  const sample = getBoSampleAtTimeFromSamples(time, boLastResults?.samples || []);
+  const currentRateInfo = getBoCurrentRatesAtTime(boLastResults, time);
+  const gatherSpeeds = currentRateInfo.gatherSpeeds || {};
+  const actualIncome = currentRateInfo.actualIncome || {};
+  const liveResources = getBoLiveResourceSnapshot(sample, settings);
   let farmBuilt = sample?.farmCount;
   if (!Number.isFinite(farmBuilt)) {
     const info = estimateBoVillagerState(boSelectedCommandId);
     farmBuilt = info?.farmCount ?? 0;
   }
-  const labels = [
+  const gatherLabels = [
     { key: "sheep", label: "Sheep" },
     { key: "berries", label: "Berries" },
     { key: "deer", label: "Deer" },
@@ -2322,22 +2488,31 @@ function renderBoGatherRates(timeOverride = null) {
     { key: "gold", label: "Gold" },
     { key: "stone", label: "Stone" }
   ];
-  const rateHtml = labels
-    .map((item) => {
-      const val = Number.isFinite(rates[item.key]) ? rates[item.key] : 0;
-      return `<div class="bo-live-pill"><span>${item.label}</span><strong>${val.toFixed(3)}/s</strong></div>`;
-    })
+  const gatherHtml = gatherLabels
+    .map((item) => buildBoLiveRatePill(item.label, gatherSpeeds[item.key]))
+    .join("");
+  const incomePills = [
+    ["Food", actualIncome.food],
+    ["Wood", actualIncome.wood],
+    ["Gold", actualIncome.gold],
+    ["Stone", actualIncome.stone]
+  ];
+  if ((actualIncome.oliveOil || 0) > 0) incomePills.push(["Olive", actualIncome.oliveOil || 0]);
+  if ((actualIncome.silver || 0) > 0) incomePills.push(["Silver", actualIncome.silver || 0]);
+  const incomeHtml = incomePills
+    .map(([label, value]) => buildBoLiveRatePill(label, value))
     .join("");
   const resourcePills = [
-    ["Food", sample?.food ?? 0],
-    ["Wood", sample?.wood ?? 0],
-    ["Gold", sample?.gold ?? 0],
-    ["Stone", sample?.stone ?? 0]
+    ["Food", liveResources.food],
+    ["Wood", liveResources.wood],
+    ["Gold", liveResources.gold],
+    ["Stone", liveResources.stone]
   ];
-  if ((sample?.oliveOil || 0) > 0) resourcePills.push(["Olive", sample.oliveOil || 0]);
-  if ((sample?.silver || 0) > 0) resourcePills.push(["Silver", sample.silver || 0]);
+  if ((liveResources.oliveOil || 0) > 0) resourcePills.push(["Olive", liveResources.oliveOil || 0]);
+  if ((liveResources.silver || 0) > 0) resourcePills.push(["Silver", liveResources.silver || 0]);
+  resourcePills.push(["Farms built", Math.max(0, Math.floor(farmBuilt || 0))]);
   const resourceHtml = resourcePills
-    .map(([label, value]) => `<div class="bo-live-pill"><span>${label}</span><strong>${Math.floor(value || 0)}</strong></div>`)
+    .map(([label, value]) => buildBoLiveValuePill(label, value))
     .join("");
   const anchorInfo = getBoSummaryAnchorInfo(time);
 
@@ -2346,14 +2521,19 @@ function renderBoGatherRates(timeOverride = null) {
       <div class="bo-live-title">Current state at ${formatTimeMMSS(time)}</div>
       <div class="bo-live-anchor-note">${anchorInfo.label}</div>
     </div>
+    <div class="bo-live-help">Wheelbarrow improves actual income through carry + movement, even when per-vill gather speed stays the same.</div>
     <div class="bo-live-groups">
       <div class="bo-live-group">
-        <div class="bo-live-group-title">Resources</div>
+        ${renderBoLiveGroupTitle("Stock", "Resources")}
         <div class="bo-live-pill-row">${resourceHtml}</div>
       </div>
       <div class="bo-live-group">
-        <div class="bo-live-group-title">Current effective rate</div>
-        <div class="bo-live-pill-row">${rateHtml}<div class="bo-live-pill"><span>Farms built</span><strong>${Math.max(0, Math.floor(farmBuilt || 0))}</strong></div></div>
+        ${renderBoLiveGroupTitle("Live", "Current actual income")}
+        <div class="bo-live-pill-row">${incomeHtml}</div>
+      </div>
+      <div class="bo-live-group">
+        ${renderBoLiveGroupTitle("Per vill", "Gather speed / vill")}
+        <div class="bo-live-pill-row">${gatherHtml}</div>
       </div>
     </div>
   `;
@@ -2363,7 +2543,7 @@ function renderBoGatherRates(timeOverride = null) {
     const key = el.dataset.resource;
     const base = el.dataset.baseLabel || el.textContent;
     if (!key) return;
-    const val = Number.isFinite(rates[key]) ? rates[key] : 0;
+    const val = Number.isFinite(gatherSpeeds[key]) ? gatherSpeeds[key] : 0;
     el.textContent = `${base} (${val.toFixed(3)}/s)`;
   });
   renderBoTimelineFooter(time);
@@ -2677,21 +2857,7 @@ function insertBoCommandAtTime(cmd, time) {
   boCommands.splice(insertIdx, 0, cmd);
 }
 
-function findBoVillagerMarkerCommand(marker) {
-  if (!marker) return null;
-  const buildingId = marker.buildingId || "TC #1";
-  const targetTime = Math.max(0, marker.time || 0);
-  const matches = boCommands.filter((cmd) => (
-    cmd?.type === "trainUnit" &&
-    (cmd.payload?.unitName || "") === "Villager" &&
-    (cmd.payload?.buildingId || "") === buildingId &&
-    cmd.timeMode === "atTime" &&
-    Math.abs((cmd.atTime || 0) - targetTime) <= 0.0001
-  ));
-  return matches.length ? matches[matches.length - 1] : null;
-}
-
-function createBoVillagerMarkerCommand(marker) {
+function createBoVillagerMarkerDraft(marker) {
   const civ = document.getElementById("boCiv")?.value || "";
   const sourceCmd = boCommands.find((cmd) => cmd.id === marker?.sourceCommandId);
   const nextCmd = createBoCommand("trainUnit");
@@ -2721,27 +2887,54 @@ function createBoVillagerMarkerCommand(marker) {
     nextCmd.payload.rallyTripOverrideSec = Number.isFinite(marker.rallyTripOverrideSec) ? marker.rallyTripOverrideSec : null;
     applyAutoDefaultsForCommand(nextCmd, civ);
   }
-  insertBoCommandAtTime(nextCmd, marker.time);
-  return nextCmd;
+  nextCmd.timeMode = "atTime";
+  nextCmd.atTime = Math.max(0, marker?.time || 0);
+  nextCmd.afterId = null;
+  return {
+    key: getBoMarkerDraftKey(marker),
+    marker: cloneBoData(marker),
+    cmd: nextCmd,
+    dirty: false
+  };
+}
+
+function findBoVillagerMarkerCommand(marker) {
+  if (!marker) return null;
+  const buildingId = marker.buildingId || "TC #1";
+  const targetTime = Math.max(0, marker.time || 0);
+  const matches = boCommands.filter((cmd) => (
+    cmd?.type === "trainUnit" &&
+    (cmd.payload?.unitName || "") === "Villager" &&
+    (cmd.payload?.buildingId || "") === buildingId &&
+    cmd.timeMode === "atTime" &&
+    Math.abs((cmd.atTime || 0) - targetTime) <= 0.0001
+  ));
+  return matches.length ? matches[matches.length - 1] : null;
 }
 
 function selectOrCreateBoVillagerMarkerCommand(marker) {
+  const markerKey = getBoMarkerDraftKey(marker);
+  if (boMarkerDraft?.key === markerKey) {
+    discardBoMarkerDraft(true);
+    return null;
+  }
   const existing = findBoVillagerMarkerCommand(marker);
   if (existing) {
-    selectBoCommand(existing.id);
+    selectBoCommand(existing.id, { scrollToEditor: true });
     return existing;
   }
-  const cmd = createBoVillagerMarkerCommand(marker);
-  if (!cmd) return null;
+  discardBoMarkerDraft(false);
+  boMarkerDraft = createBoVillagerMarkerDraft(marker);
+  if (!boMarkerDraft?.cmd) return null;
   boSelectedBuilding = null;
   setBoTargetBuilding(null);
-  boSelectedCommandId = cmd.id;
+  boSelectedCommandId = null;
   boLastCommandType = "trainUnit";
-  boLastResults = null;
   renderBoTimelineEditor();
-  renderBoCommandEditor(getSelectedBoCommand());
-  scheduleRunBuildOrder();
-  return cmd;
+  renderBoCommandEditor(boMarkerDraft.cmd);
+  renderBoGatherRates();
+  scrollBoEditorIntoView();
+  return boMarkerDraft.cmd;
 }
 
 function updateAssignSummary(editor, cmd) {
@@ -2897,9 +3090,98 @@ function renderBoEditorAdvanced(title, body, open = false) {
   `;
 }
 
+function escapeBoHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function escapeBoAttr(value) {
+  return escapeBoHtml(value).replace(/"/g, "&quot;");
+}
+
+function getBoAvailableTechs(civ) {
+  const fallbackTechs = ["Wheelbarrow", "Food Upgrade", "Survival Techniques", "Sanctity", "Enlistment Incentives", "Dome of the Faith"];
+  const delhiOnlyTechs = new Set(["Sanctity", "Dome of the Faith"]);
+  const isDelhi = civ === "Delhi Sultanate";
+  const techKeys = Object.keys(BO_TECH_DEFAULTS || {}).length ? Object.keys(BO_TECH_DEFAULTS || {}) : fallbackTechs;
+  return isDelhi ? techKeys : techKeys.filter((name) => !delhiOnlyTechs.has(name));
+}
+
+function formatBoCompactCost(cost = {}) {
+  const parts = [];
+  if ((cost.food || 0) > 0) parts.push(`${Math.round(cost.food)}F`);
+  if ((cost.wood || 0) > 0) parts.push(`${Math.round(cost.wood)}W`);
+  if ((cost.gold || 0) > 0) parts.push(`${Math.round(cost.gold)}G`);
+  if ((cost.stone || 0) > 0) parts.push(`${Math.round(cost.stone)}S`);
+  return parts.join(" ");
+}
+
+function getBoTechDisplayInfo(techType, civ, buildingType = null) {
+  const civBonus = BO_CIV_BONUSES?.[civ] || {};
+  const def = getBoTechDefaults(techType) || {};
+  let time = Number(def.time) || 0;
+  let cost = def.cost
+    ? {
+      food: def.cost.food || 0,
+      wood: def.cost.wood || 0,
+      gold: def.cost.gold || 0,
+      stone: def.cost.stone || 0
+    }
+    : { food: 0, wood: 0, gold: 0, stone: 0 };
+  if (buildingType === "Town Center") {
+    time = applyBoWorkRateToDuration(time, getBoPreviewTownCenterWorkRatePct(civ));
+  }
+  if (civ === "Delhi Sultanate" && civBonus.techCostFree) {
+    cost = { food: 0, wood: 0, gold: 0, stone: 0 };
+  } else if ((civ === "French" || civ === "Jeanne d'Arc") && def.category === "eco") {
+    const mult = civBonus.ecoTechCostMult || 0.65;
+    cost = {
+      food: Math.round((cost.food || 0) * mult),
+      wood: Math.round((cost.wood || 0) * mult),
+      gold: Math.round((cost.gold || 0) * mult),
+      stone: Math.round((cost.stone || 0) * mult)
+    };
+  }
+  return { time, cost };
+}
+
+function renderBoTechButtonGrid(fieldName, selectedTech, techChoices, civ, buildingType = null) {
+  const choices = Array.isArray(techChoices) && techChoices.length ? techChoices : ["Wheelbarrow"];
+  const selected = choices.includes(selectedTech) ? selectedTech : choices[0];
+  return `
+    <div class="bo-tech-grid" data-tech-grid="${fieldName}">
+      <input type="hidden" data-field="${fieldName}" value="${escapeBoAttr(selected)}">
+      ${choices.map((techName) => {
+        const info = getBoTechDisplayInfo(techName, civ, buildingType);
+        const metaParts = [];
+        if (info.time > 0) metaParts.push(`${Math.round(info.time)}s`);
+        const costText = formatBoCompactCost(info.cost);
+        metaParts.push(costText || "Free");
+        return `
+          <button type="button" class="bo-tech-btn${selected === techName ? " selected" : ""}" data-tech-field="${fieldName}" data-tech-value="${escapeBoAttr(techName)}">
+            <span class="bo-tech-btn-label">${escapeBoHtml(techName)}</span>
+            <span class="bo-tech-btn-meta">${escapeBoHtml(metaParts.join(" • "))}</span>
+          </button>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
+function applyBoTechButtonSelection(root, fieldName, value) {
+  if (!root || !fieldName) return;
+  const hidden = root.querySelector(`[data-field="${fieldName}"]`);
+  if (hidden) hidden.value = value;
+  root.querySelectorAll(`.bo-tech-btn[data-tech-field="${fieldName}"]`).forEach((btn) => {
+    btn.classList.toggle("selected", btn.dataset.techValue === value);
+  });
+}
+
 function renderBoCommandEditor(cmd) {
   normalizeBoCommands();
-  if (cmd?.id) cmd = boCommands.find((entry) => entry.id === cmd.id) || cmd;
+  if (cmd?.id && !isBoMarkerDraftCommand(cmd)) cmd = boCommands.find((entry) => entry.id === cmd.id) || cmd;
   const current = document.getElementById("boCommandEditor");
   if (!current) return;
   const editor = current.cloneNode(false);
@@ -2909,10 +3191,14 @@ function renderBoCommandEditor(cmd) {
     renderBoBuildingPanel(editor, boSelectedBuilding);
     return;
   }
+  if (!cmd && boMarkerDraft?.cmd) {
+    cmd = boMarkerDraft.cmd;
+  }
   if (!cmd) {
     editor.innerHTML = "<span class='text-muted'>Select a command in the timeline to edit.</span>";
     return;
   }
+  const isMarkerDraft = isBoMarkerDraftCommand(cmd);
   const civ = document.getElementById("boCiv")?.value || "";
   if (!civ) {
     editor.innerHTML = "<span class='text-muted'>Select a civilization to begin.</span>";
@@ -3050,10 +3336,7 @@ function renderBoCommandEditor(cmd) {
   const buildingOptions = buildingKeys
     .filter((name) => !(farmsDisabled && name === "Farm"))
     .map((name) => `<option value="${name}">${name}</option>`).join("");
-  const fallbackTechs = ["Wheelbarrow", "Food Upgrade", "Survival Techniques", "Sanctity", "Enlistment Incentives", "Dome of the Faith"];
-  const techKeys = Object.keys(BO_TECH_DEFAULTS || {}).length ? Object.keys(BO_TECH_DEFAULTS || {}) : fallbackTechs;
-  const filteredTechs = isDelhi ? techKeys : techKeys.filter((name) => !delhiOnlyTechs.has(name));
-  const techOptions = filteredTechs.map((name) => `<option value="${name}">${name}</option>`).join("");
+  const filteredTechs = getBoAvailableTechs(civ);
   const rallyOptions = `
     <option value="sheep">Sheep</option>
     <option value="berries">Berries</option>
@@ -3183,17 +3466,18 @@ function renderBoCommandEditor(cmd) {
     `;
   } else if (cmd.type === "tech") {
     const techTargetInfo = cmd.payload.buildingId ? `<div class="bo-target-note text-muted">Targeted: ${cmd.payload.buildingId}</div>` : "";
+    const techBuildingType = cmd.payload.building || inferBoBuildingTypeFromId(cmd.payload.buildingId);
     const basics = `
       <div class="row g-2">
-        <div class="col-6">
+        <div class="col-12">
           <small class="text-muted">Tech</small>
-          <select class="form-select form-select-sm" data-field="techType">${techOptions}</select>
+          ${renderBoTechButtonGrid("techType", cmd.payload.techType || "Wheelbarrow", filteredTechs, civ, techBuildingType)}
         </div>
-        <div class="col-3">
+        <div class="col-md-3 col-sm-4">
           <small class="text-muted">Time (s)</small>
           <input type="number" class="form-control form-control-sm" data-field="techTime" value="${cmd.payload.time}" min="0">
         </div>
-        <div class="col-3 d-flex align-items-end justify-content-end">
+        <div class="col-md-9 col-sm-8 d-flex align-items-end justify-content-end">
           <div class="form-check form-check-inline">
             <input class="form-check-input" type="checkbox" data-field="autoTime" title="Use default time for this item." ${cmd.autoTime ? "checked" : ""}>
             <label class="form-check-label" title="Use default time for this item.">Auto time</label>
@@ -3382,7 +3666,7 @@ function renderBoCommandEditor(cmd) {
     { value: "assign", label: "Assign Villagers" },
     { value: "buildBuilding", label: "Build Building" },
     { value: "tech", label: "Research Tech" },
-    { value: "trainUnit", label: "Train Unit", includeIf: cmd.type === "trainUnit" },
+    { value: "trainUnit", label: "Queue Unit", includeIf: cmd.type === "trainUnit" },
     { value: "sacredSite", label: "Sacred Sites" },
     { value: "garrisonScholars", label: "Garrison Scholars", delhiOnly: true }
   ]
@@ -3394,8 +3678,9 @@ function renderBoCommandEditor(cmd) {
   editor.innerHTML = `
     <div class="bo-card-header">
       <div class="bo-card-title">Command</div>
-      <button class="bo-remove-btn" data-action="remove" type="button">Remove</button>
+      <button class="bo-remove-btn" data-action="remove" type="button">${isMarkerDraft ? "Discard draft" : "Remove"}</button>
     </div>
+    ${isMarkerDraft ? `<div class="bo-target-note text-muted">Draft reroute from ${formatTimeMMSS(cmd.atTime || 0)}. No command is inserted until you change something.</div>` : ""}
     <div class="bo-editor-stack">
       ${renderBoEditorSection("Command", `
         <div class="row g-2">
@@ -3444,8 +3729,7 @@ function renderBoCommandEditor(cmd) {
     syncBoBuildStepUi(editor, cmd);
   }
   if (cmd.type === "tech") {
-    const techSel = editor.querySelector('[data-field="techType"]');
-    if (techSel) techSel.value = cmd.payload.techType || "Wheelbarrow";
+    applyBoTechButtonSelection(editor, "techType", cmd.payload.techType || "Wheelbarrow");
   }
   if (cmd.type === "rally") {
     const rally = editor.querySelector('[data-field="rallyTarget"]');
@@ -3480,9 +3764,33 @@ function renderBoCommandEditor(cmd) {
 
   updateAssignSummary(editor, cmd);
 
+  const ensureDraftCommitted = () => {
+    if (!isBoMarkerDraftCommand(cmd)) return cmd;
+    const committed = commitBoMarkerDraft();
+    if (committed) cmd = committed;
+    return cmd;
+  };
+
   editor.addEventListener("click", (e) => {
+    const techBtn = e.target.closest(".bo-tech-btn");
+    if (techBtn && cmd.type === "tech") {
+      cmd = ensureDraftCommitted();
+      const fieldName = techBtn.dataset.techField || "techType";
+      const value = techBtn.dataset.techValue || "Wheelbarrow";
+      applyBoTechButtonSelection(editor, fieldName, value);
+      syncBoCommandFromEditor(editor, cmd);
+      boLastResults = null;
+      renderBoCommandEditor(cmd);
+      renderBoTimelineEditor();
+      scheduleRunBuildOrder();
+      return;
+    }
     const action = e.target.closest("button")?.dataset.action;
     if (action === "remove") {
+      if (isBoMarkerDraftCommand(cmd)) {
+        discardBoMarkerDraft(true);
+        return;
+      }
       const removedId = cmd.id;
       boCommands = boCommands.filter((c) => c.id !== removedId);
       boCommands.forEach((c) => {
@@ -3557,6 +3865,7 @@ function renderBoCommandEditor(cmd) {
     const field = e.target.closest("[data-field]")?.dataset.field;
     const buildField = e.target.closest("[data-build-field]")?.dataset.buildField;
     if (buildField) {
+      cmd = ensureDraftCommitted();
       syncBoCommandFromEditor(editor, cmd);
       if (["building", "autoTime", "autoCost"].includes(buildField)) {
         renderBoCommandEditor(cmd);
@@ -3567,6 +3876,7 @@ function renderBoCommandEditor(cmd) {
       return;
     }
     if (!field) return;
+    cmd = ensureDraftCommitted();
     if (field === "type") {
       cmd.type = e.target.value;
       boLastCommandType = cmd.type === "trainUnit" ? "assign" : cmd.type;
@@ -3607,11 +3917,13 @@ function renderBoCommandEditor(cmd) {
     const field = e.target.closest("[data-field]")?.dataset.field;
     const buildField = e.target.closest("[data-build-field]")?.dataset.buildField;
     if (buildField) {
+      cmd = ensureDraftCommitted();
       syncBoCommandFromEditor(editor, cmd);
       scheduleRunBuildOrder();
       return;
     }
     if (!field) return;
+    cmd = ensureDraftCommitted();
     syncBoCommandFromEditor(editor, cmd);
     scheduleRunBuildOrder();
   }, { passive: true });
@@ -3804,11 +4116,7 @@ function renderBoBuildingPanel(editor, building) {
     return u !== "Villager" && u !== "Scout";
   });
   const unitOptions = unitPool.map((name) => `<option value="${name}">${name}</option>`).join("");
-
-  const fallbackTechs = ["Wheelbarrow", "Food Upgrade", "Survival Techniques", "Sanctity", "Enlistment Incentives", "Dome of the Faith"];
-  const techKeys = Object.keys(BO_TECH_DEFAULTS || {}).length ? Object.keys(BO_TECH_DEFAULTS || {}) : fallbackTechs;
-  const filteredTechs = isDelhi ? techKeys : techKeys.filter((name) => !delhiOnlyTechs.has(name));
-  const techOptions = filteredTechs.map((name) => `<option value="${name}">${name}</option>`).join("");
+  const filteredTechs = getBoAvailableTechs(civ);
 
   const rallyOptions = `
     <option value="sheep">Sheep</option>
@@ -3877,37 +4185,39 @@ function renderBoBuildingPanel(editor, building) {
     </div>
   ` : "";
   const rallyHint = isTownCenter
-    ? `<div class="bo-target-note text-muted">Tip: click a V+ marker on the resource lane to reassign from that time.</div>`
+    ? `<div class="bo-target-note text-muted">Tip: click a Vill marker on the resource lane to reroute villagers from that time.</div>`
     : "";
 
   const techBlock = isTech ? `
     <div class="bo-action-block">
       <div class="bo-action-title">Research Tech</div>
-      <div class="row g-2 align-items-end">
-        <div class="col-6">
+      <div class="row g-2">
+        <div class="col-12">
           <small class="text-muted">Tech</small>
-          <select class="form-select form-select-sm" data-field="techSelect">${techOptions}</select>
+          ${renderBoTechButtonGrid("techSelect", filteredTechs[0] || "Wheelbarrow", filteredTechs, civ, building.type)}
         </div>
-        <div class="col-3">
+        <div class="col-md-3 col-sm-4">
           <small class="text-muted">Timing</small>
           <select class="form-select form-select-sm" data-field="techTimeMode">
             <option value="afterPrev">After previous</option>
             <option value="atTime">At time</option>
           </select>
         </div>
-        <div class="col-3">
+        <div class="col-md-3 col-sm-4">
           <small class="text-muted">Time (s)</small>
           <input type="number" class="form-control form-control-sm" data-field="techAtTime" value="0" min="0" step="1" title="Start time if using 'At time'.">
         </div>
-      </div>
-      <div class="row g-2 mt-2">
-        <div class="col-12 d-flex justify-content-end">
+        <div class="col-md-6 col-sm-4 d-flex align-items-end justify-content-end">
           <button class="btn btn-outline-secondary btn-sm" type="button" data-action="queueTech">Add Research</button>
         </div>
       </div>
     </div>
   ` : "";
 
+  const capabilityBadges = [
+    isProduction || isTownCenter ? `<span class="bo-lane-badge queue"><i class="bi bi-people-fill" aria-hidden="true"></i>Queue</span>` : "",
+    isTech ? `<span class="bo-lane-badge tech"><i class="bi bi-stars" aria-hidden="true"></i>Research</span>` : ""
+  ].filter(Boolean).join("");
   const emptyBlock = (!isProduction && !isTech && !isTownCenter)
     ? `<div class="text-muted">No actions available for this building.</div>`
     : "";
@@ -3917,6 +4227,7 @@ function renderBoBuildingPanel(editor, building) {
       <div class="bo-card-title">Building Actions</div>
     </div>
     <div class="bo-building-meta"><strong>Selected:</strong> ${building.type} - ${building.id} <span class="text-muted">Ready ${readyAt}</span></div>
+    ${capabilityBadges ? `<div class="bo-building-capabilities">${capabilityBadges}</div>` : ""}
     ${queueBlock}
     ${rallyHint}
     ${techBlock}
@@ -3940,6 +4251,15 @@ function renderBoBuildingPanel(editor, building) {
   };
   syncQueueRepeatUi();
   queueRepeatToggle?.addEventListener("change", syncQueueRepeatUi);
+  applyBoTechButtonSelection(editor, "techSelect", filteredTechs[0] || "Wheelbarrow");
+
+  editor.addEventListener("click", (e) => {
+    const techBtn = e.target.closest(".bo-tech-btn");
+    if (!techBtn) return;
+    const fieldName = techBtn.dataset.techField || "techSelect";
+    const value = techBtn.dataset.techValue || "Wheelbarrow";
+    applyBoTechButtonSelection(editor, fieldName, value);
+  });
 
   const anchorId = building.sourceCommandId || null;
 
@@ -4431,10 +4751,11 @@ function simulateBuildOrder(commands, config) {
   function pushSample(t, res) {
     const rounded = Math.round(t * 1000) / 1000;
     const existing = samples.find((s) => Math.abs(s.time - rounded) < 0.0005);
-    const rateSnapshot = {};
+    const gatherSpeedSnapshot = {};
     BO_RESOURCE_KEYS.forEach((key) => {
-      rateSnapshot[key] = gatherRate(key);
+      gatherSpeedSnapshot[key] = gatherRate(key);
     });
+    const actualIncomeRates = getIncomeRates();
     const payload = {
       time: rounded,
       food: res.food,
@@ -4443,7 +4764,16 @@ function simulateBuildOrder(commands, config) {
       stone: res.stone,
       oliveOil: res.oliveOil,
       silver: res.silver,
-      rates: rateSnapshot,
+      rates: gatherSpeedSnapshot,
+      gatherSpeeds: gatherSpeedSnapshot,
+      actualIncomeRates: {
+        food: actualIncomeRates.food || 0,
+        wood: actualIncomeRates.wood || 0,
+        gold: actualIncomeRates.gold || 0,
+        stone: actualIncomeRates.stone || 0,
+        oliveOil: 0,
+        silver: 0
+      },
       farmCount,
       villagers,
       assignments: { ...assignments }
@@ -4566,6 +4896,11 @@ function simulateBuildOrder(commands, config) {
   function effectiveTrip(res) {
     const override = tripOverrides[res];
     const base = Number.isFinite(override) ? override : (config.trip[res] || 0);
+    return effectiveMoveTime(base);
+  }
+
+  function effectiveMoveTime(baseTime) {
+    const base = Math.max(0, baseTime || 0);
     return base * (wheelbarrowActive ? (config.techEffects.wheelTripMult || BO_WHEEL_TRIP_MULT) : 1);
   }
 
@@ -4836,7 +5171,7 @@ function simulateBuildOrder(commands, config) {
         if (Number.isFinite(b.rallyTripOverrideSec) && BO_RESOURCE_KEYS.includes(rally)) {
           tripOverrides[rally] = Math.max(0, b.rallyTripOverrideSec);
         }
-        const travelDelay = Math.max(0, b.rallyTravelDelaySec || 0);
+        const travelDelay = effectiveMoveTime(b.rallyTravelDelaySec || 0);
         if (rally !== "idle" && assignments[rally] !== undefined && travelDelay > 0) {
           assignments.idle += 1;
           busy.push({
@@ -5441,12 +5776,12 @@ function simulateBuildOrder(commands, config) {
         stone: cmd.payload.stone || 0
       };
       const overrides = cmd.payload.tripOverrides || {};
-      const travelDelay = Math.max(0, cmd.payload.travelDelaySec || 0);
+      const travelDelay = effectiveMoveTime(cmd.payload.travelDelaySec || 0);
       if (travelDelay > 0) {
         actionLabel = assignmentLabelFromCounts(desired);
         const start = time;
         const end = time + travelDelay;
-        notes.push(`Travel ${travelDelay}s`);
+        notes.push(`Travel ${Number(travelDelay.toFixed(2))}s`);
         busy.push({ endTime: end, kind: "assignDelay", desired, overrides });
         timeline.push({
           start,
@@ -5772,7 +6107,7 @@ function simulateBuildOrder(commands, config) {
       }
       const pulled = pullBuilders(source, requestedBuilders);
       const queueSummary = getBoBuildQueueSummary(cmd.payload);
-      const travelDelay = Math.max(0, cmd.payload.travelDelaySec || 0);
+      const travelDelay = effectiveMoveTime(cmd.payload.travelDelaySec || 0);
       const queueSteps = [];
       let segmentIndex = 0;
       getBoBuildSteps(cmd.payload).forEach((step) => {
@@ -5793,7 +6128,7 @@ function simulateBuildOrder(commands, config) {
             buildingName: step.building,
             cost: { ...costForStep },
             duration: durationPerBuilding + (segmentIndex === 0 ? travelDelay : 0),
-            notes: segmentIndex === 0 && travelDelay > 0 ? `Travel ${travelDelay}s` : "",
+            notes: segmentIndex === 0 && travelDelay > 0 ? `Travel ${Number(travelDelay.toFixed(2))}s` : "",
             fullLabel: `${queueSummary} | ${step.building}${stepSuffix}`,
             shortLabel: step.building,
             minAge,
@@ -5854,7 +6189,7 @@ function simulateBuildOrder(commands, config) {
       const perUnit = Math.max(0, effectiveTrainTimePerUnit || cmd.payload.timePerUnit || BO_VILLAGER_TIME);
       const count = Math.max(1, cmd.payload.count || 1);
       const rallyTarget = cmd.payload.rallyTarget || "idle";
-      const rallyDelay = Math.max(0, cmd.payload.rallyTravelDelaySec || 0);
+      const rallyDelay = effectiveMoveTime(cmd.payload.rallyTravelDelaySec || 0);
       const rallyTrip = Number.isFinite(cmd.payload.rallyTripOverrideSec) ? cmd.payload.rallyTripOverrideSec : null;
       for (let i = 1; i <= count; i++) {
         busy.push({
@@ -5961,21 +6296,37 @@ function getBoMetrics(results) {
 
 function getBoCurrentRatesAtTime(results, timeOverride = null) {
   const time = Number.isFinite(timeOverride) ? timeOverride : getBoAnchorTime();
-  const sample = results ? getBoSampleAtTime(time) : null;
+  const sample = results ? getBoSampleAtTimeFromSamples(time, results?.samples || []) : null;
   const fallbackRates = readBoSettings().gatherRates || {};
-  const rates = sample?.rates || fallbackRates;
+  const gatherSpeeds = sample?.gatherSpeeds || sample?.rates || fallbackRates;
+  const actualIncome = sample?.actualIncomeRates || {
+    food: 0,
+    wood: 0,
+    gold: 0,
+    stone: 0,
+    oliveOil: 0,
+    silver: 0
+  };
   return {
     time,
-    rates: {
+    gatherSpeeds: {
       food: 0,
-      wood: Number.isFinite(rates.wood) ? rates.wood : 0,
-      gold: Number.isFinite(rates.gold) ? rates.gold : 0,
-      stone: Number.isFinite(rates.stone) ? rates.stone : 0,
-      sheep: Number.isFinite(rates.sheep) ? rates.sheep : 0,
-      berries: Number.isFinite(rates.berries) ? rates.berries : 0,
-      deer: Number.isFinite(rates.deer) ? rates.deer : 0,
-      boar: Number.isFinite(rates.boar) ? rates.boar : 0,
-      farm: Number.isFinite(rates.farm) ? rates.farm : 0
+      wood: Number.isFinite(gatherSpeeds.wood) ? gatherSpeeds.wood : 0,
+      gold: Number.isFinite(gatherSpeeds.gold) ? gatherSpeeds.gold : 0,
+      stone: Number.isFinite(gatherSpeeds.stone) ? gatherSpeeds.stone : 0,
+      sheep: Number.isFinite(gatherSpeeds.sheep) ? gatherSpeeds.sheep : 0,
+      berries: Number.isFinite(gatherSpeeds.berries) ? gatherSpeeds.berries : 0,
+      deer: Number.isFinite(gatherSpeeds.deer) ? gatherSpeeds.deer : 0,
+      boar: Number.isFinite(gatherSpeeds.boar) ? gatherSpeeds.boar : 0,
+      farm: Number.isFinite(gatherSpeeds.farm) ? gatherSpeeds.farm : 0
+    },
+    actualIncome: {
+      food: Number.isFinite(actualIncome.food) ? actualIncome.food : 0,
+      wood: Number.isFinite(actualIncome.wood) ? actualIncome.wood : 0,
+      gold: Number.isFinite(actualIncome.gold) ? actualIncome.gold : 0,
+      stone: Number.isFinite(actualIncome.stone) ? actualIncome.stone : 0,
+      oliveOil: Number.isFinite(actualIncome.oliveOil) ? actualIncome.oliveOil : 0,
+      silver: Number.isFinite(actualIncome.silver) ? actualIncome.silver : 0
     }
   };
 }
@@ -5986,6 +6337,9 @@ function getBoSummaryAnchorInfo(time) {
   }
   if (Number.isFinite(boHoverTime)) {
     return { label: `Hover time ${formatTimeMMSS(time)}`, clearable: false };
+  }
+  if (boMarkerDraft?.cmd) {
+    return { label: `Draft reroute ${formatTimeMMSS(time)}`, clearable: false };
   }
   if (boSelectedCommandId) {
     return { label: `Selected command ${formatTimeMMSS(time)}`, clearable: false };
@@ -6088,6 +6442,8 @@ function syncBoDisplayControlStates() {
   const overlayToggle = document.getElementById("boOverlayToggle");
   const setupToggle = document.getElementById("boAdvancedToggle");
   const setupCollapse = document.getElementById("boSetupCollapse");
+  const eventToggle = document.getElementById("boEventToggle");
+  const eventCollapse = document.getElementById("boEventCollapse");
   if (overlayToggle) {
     overlayToggle.classList.toggle("is-active", !!boOverlayEnabled);
     overlayToggle.setAttribute("aria-pressed", boOverlayEnabled ? "true" : "false");
@@ -6095,6 +6451,10 @@ function syncBoDisplayControlStates() {
   }
   const setupActive = !!setupCollapse?.classList.contains("show");
   setupToggle?.classList.toggle("is-active", setupActive);
+  setupToggle?.setAttribute("aria-expanded", setupActive ? "true" : "false");
+  const eventActive = !!eventCollapse?.classList.contains("show");
+  eventToggle?.classList.toggle("is-active", eventActive);
+  eventToggle?.setAttribute("aria-expanded", eventActive ? "true" : "false");
 }
 
 function renderBoResults(results) {
@@ -7820,12 +8180,15 @@ const boAddPickerEl = document.getElementById("boAddPicker");
 const boAddCommandBtn = document.getElementById("boAddCommand");
 
 function getBoPickerDefaultType() {
-  if (boSelectedBuilding) return "trainUnit";
+  if (boSelectedBuilding) {
+    return BO_TECH_BUILDINGS.has(boSelectedBuilding.type) ? "tech" : "assign";
+  }
   if (boSelectedCommandId) {
     const cmd = boCommands.find((c) => c.id === boSelectedCommandId);
-    const type = cmd?.type || "assign";
-    const allowed = ["assign", "buildBuilding", "tech", "trainUnit"];
-    return allowed.includes(type) ? type : "assign";
+    const type = cmd?.type || boLastCommandType || "assign";
+    const allowed = ["assign", "buildBuilding", "tech"];
+    if (allowed.includes(type)) return type;
+    return allowed.includes(boLastCommandType) ? boLastCommandType : "assign";
   }
   return "assign";
 }
@@ -7857,19 +8220,17 @@ boAddPickerEl?.addEventListener("click", (e) => {
   const type = btn.dataset.type || "assign";
   if (!updateBoCivGate(true, "Select a civilization before adding commands.")) return;
   const hadSelectedCommand = !!boSelectedCommandId;
-  const buildingTargetedType = !!boSelectedBuilding && (type === "trainUnit" || type === "tech");
+  const buildingTargetedType = !!boSelectedBuilding
+    && ((type === "tech" && BO_TECH_BUILDINGS.has(boSelectedBuilding.type)));
   const insertAfter = buildingTargetedType
     ? (boSelectedBuilding?.sourceCommandId || null)
     : (boSelectedCommandId || null);
   const cmd = addBoCommand(type, insertAfter);
   if (!cmd) return;
 
-  if (boSelectedBuilding && (type === "trainUnit" || type === "tech")) {
+  if (boSelectedBuilding && type === "tech" && BO_TECH_BUILDINGS.has(boSelectedBuilding.type)) {
     cmd.payload.building = boSelectedBuilding.type;
     cmd.payload.buildingId = boSelectedBuilding.id;
-    if (boSelectedBuilding.type === "Town Center" || boSelectedBuilding.id.startsWith("TC ")) {
-      if (type === "trainUnit") cmd.payload.unitName = "Villager";
-    }
   }
   if (!hadSelectedCommand && !buildingTargetedType) {
     setBoCommandToTimelineStart(cmd);
@@ -7915,6 +8276,12 @@ document.getElementById("boSetupCollapse")?.addEventListener("shown.bs.collapse"
 document.getElementById("boSetupCollapse")?.addEventListener("hidden.bs.collapse", () => {
   syncBoDisplayControlStates();
 });
+document.getElementById("boEventCollapse")?.addEventListener("shown.bs.collapse", () => {
+  syncBoDisplayControlStates();
+});
+document.getElementById("boEventCollapse")?.addEventListener("hidden.bs.collapse", () => {
+  syncBoDisplayControlStates();
+});
 
 document.getElementById("boSaveSelect")?.addEventListener("change", () => {
   syncBoSaveSelectionUi();
@@ -7946,6 +8313,9 @@ document.getElementById("buildOrderRow")?.addEventListener("change", (e) => {
 });
 
 function toggleBoPinnedTimeFromEvent(event) {
+  if (boMarkerDraft) {
+    discardBoMarkerDraft(false);
+  }
   const targetTime = getBoTimelinePointerTime(event);
   if (!Number.isFinite(targetTime)) return;
   const threshold = getBoPinToggleThreshold();
@@ -7989,12 +8359,13 @@ document.getElementById("boLaneTimeline")?.addEventListener("click", (e) => {
   if (id) {
     if (id === boSelectedCommandId) {
       boSelectedCommandId = null;
+      discardBoMarkerDraft(false);
       renderBoTimelineEditor();
       renderBoCommandEditor(null);
       renderBoGatherRates();
       return;
     }
-    selectBoCommand(id);
+    selectBoCommand(id, { scrollToEditor: true });
   }
 });
 
@@ -8015,18 +8386,20 @@ document.getElementById("boLaneLabels")?.addEventListener("click", (e) => {
   if (laneKey === "tc") {
     if (boSelectedBuilding?.id === "TC #1") {
       boSelectedBuilding = null;
+      discardBoMarkerDraft(false);
       setBoTargetBuilding(null);
       renderBoTimelineEditor();
       renderBoCommandEditor(getSelectedBoCommand());
       renderBoGatherRates();
       return;
     }
-    selectBoBuilding({ id: "TC #1", type: "Town Center", sourceCommandId: BO_CAPITAL_TC_ANCHOR, readyAt: 0 });
+    selectBoBuilding({ id: "TC #1", type: "Town Center", sourceCommandId: BO_CAPITAL_TC_ANCHOR, readyAt: 0 }, { scrollToEditor: true });
     return;
   }
   if (buildingId && buildingType) {
     if (boSelectedBuilding?.id === buildingId) {
       boSelectedBuilding = null;
+      discardBoMarkerDraft(false);
       setBoTargetBuilding(null);
       renderBoTimelineEditor();
       renderBoCommandEditor(getSelectedBoCommand());
@@ -8038,7 +8411,7 @@ document.getElementById("boLaneLabels")?.addEventListener("click", (e) => {
       type: buildingType,
       sourceCommandId: buildingSource || null,
       readyAt: Number.isFinite(buildingReady) ? buildingReady : undefined
-    });
+    }, { scrollToEditor: true });
   }
 });
 

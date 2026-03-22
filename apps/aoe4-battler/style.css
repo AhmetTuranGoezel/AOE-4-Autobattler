@@ -1565,12 +1565,14 @@ small.text-muted,
 
 .bo-overlay-toggle,
 .bo-setup-toggle,
+.bo-event-toggle,
 .bo-clear-pin-btn,
 .bo-pin-status {
   transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.bo-overlay-toggle {
+.bo-overlay-toggle,
+.bo-footer-toggle {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -1582,6 +1584,7 @@ small.text-muted,
 
 .bo-overlay-toggle.is-active,
 .bo-setup-toggle.is-active,
+.bo-event-toggle.is-active,
 .bo-clear-pin-btn.is-active,
 .bo-pin-status.is-pinned {
   border-color: rgba(212, 164, 74, 0.5);
@@ -1707,6 +1710,65 @@ small.text-muted,
   overflow: hidden;
   text-overflow: ellipsis;
   box-sizing: border-box;
+}
+
+.bo-lane-label-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.bo-lane-label-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bo-lane-label-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.bo-lane-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(20, 28, 44, 0.76);
+  color: #efe6d4;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.bo-lane-badge.queue {
+  border-color: rgba(212, 164, 74, 0.55);
+  background: rgba(212, 164, 74, 0.14);
+  color: #f4ddb0;
+}
+
+.bo-lane-badge.tech {
+  border-color: rgba(78, 185, 170, 0.45);
+  background: rgba(62, 143, 133, 0.16);
+  color: #bfe8df;
+}
+
+.bo-lane-label-row.bo-interactive-lane {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(18, 26, 42, 0.56);
+}
+
+.bo-lane-label-row.bo-interactive-lane:hover {
+  border-color: rgba(212, 164, 74, 0.26);
+  box-shadow: 0 0 0 1px rgba(212, 164, 74, 0.08);
 }
 
 .bo-lane-label-spacer {
@@ -1954,6 +2016,12 @@ small.text-muted,
   font-weight: 600;
 }
 
+.bo-live-help {
+  color: rgba(228, 218, 190, 0.82);
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
 .bo-live-groups {
   display: grid;
   gap: 10px;
@@ -1968,11 +2036,29 @@ small.text-muted,
 }
 
 .bo-live-group-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   color: #d9cda8;
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin-bottom: 6px;
+}
+
+.bo-live-group-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(92, 66, 19, 0.7);
+  border: 1px solid rgba(240, 205, 121, 0.18);
+  color: #f0d287;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
 }
 
 .bo-live-pill-row {
@@ -2265,6 +2351,56 @@ small.text-muted,
   box-shadow: 0 0 0 0.2rem rgba(212, 164, 74, 0.25);
 }
 
+.bo-tech-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.bo-tech-btn {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 4px;
+  min-height: 64px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background:
+    linear-gradient(180deg, rgba(32, 44, 70, 0.92), rgba(15, 22, 36, 0.92));
+  color: #f2e8d5;
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.bo-tech-btn:hover {
+  border-color: rgba(212, 164, 74, 0.35);
+  background:
+    linear-gradient(180deg, rgba(40, 53, 82, 0.94), rgba(18, 27, 43, 0.94));
+  transform: translateY(-1px);
+}
+
+.bo-tech-btn.selected {
+  border-color: rgba(212, 164, 74, 0.62);
+  background:
+    linear-gradient(180deg, rgba(92, 70, 22, 0.96), rgba(46, 34, 11, 0.96));
+  box-shadow: 0 0 0 1px rgba(212, 164, 74, 0.14);
+  color: #fff1ce;
+}
+
+.bo-tech-btn-label {
+  font-family: "Cinzel", serif;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+}
+
+.bo-tech-btn-meta {
+  font-size: 0.7rem;
+  color: #d7caab;
+}
+
 .bo-assign-summary {
   font-weight: 600;
   color: #f0e6d2;
@@ -2347,6 +2483,13 @@ small.text-muted,
   margin-bottom: 8px;
   font-size: 0.9rem;
   color: #e7dcc6;
+}
+
+.bo-building-capabilities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
 }
 
 .bo-action-block {
