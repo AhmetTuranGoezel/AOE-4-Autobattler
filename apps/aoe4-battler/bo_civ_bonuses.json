@@ -1,0 +1,118 @@
+{
+  "sourceUrl": {
+    "farm": "https://ageofempires.fandom.com/wiki/Farm_(Age_of_Empires_IV)",
+    "pasture": "https://ageofempires.fandom.com/wiki/Pasture",
+    "ovoo": "https://ageofempires.fandom.com/wiki/Ovoo",
+    "sacredSite": "https://ageofempires.fandom.com/wiki/Sacred_site_(Age_of_Empires_IV)",
+    "survivalTech": "https://ageofempires.fandom.com/wiki/Survival_Techniques"
+  },
+  "scrapedAt": "2026-03-12T00:00:00Z",
+  "buildings": {
+    "Farm": { "cost": { "food": 0, "wood": 75, "gold": 0, "stone": 0 }, "time": 6, "minAge": 1, "type": "economic" },
+    "Mill": { "cost": { "food": 0, "wood": 50, "gold": 0, "stone": 0 }, "time": 20, "minAge": 1, "type": "dropoff" },
+    "Lumber Camp": { "cost": { "food": 0, "wood": 50, "gold": 0, "stone": 0 }, "time": 20, "minAge": 1, "type": "dropoff" },
+    "Mining Camp": { "cost": { "food": 0, "wood": 50, "gold": 0, "stone": 0 }, "time": 20, "minAge": 1, "type": "dropoff" },
+    "Town Center": { "cost": { "food": 0, "wood": 300, "gold": 0, "stone": 300 }, "time": 150, "minAge": 2, "type": "civic" },
+    "Barracks": { "cost": { "food": 0, "wood": 150, "gold": 0, "stone": 0 }, "time": 30, "minAge": 2, "type": "production" },
+    "Archery Range": { "cost": { "food": 0, "wood": 150, "gold": 0, "stone": 0 }, "time": 30, "minAge": 2, "type": "production" },
+    "Stable": { "cost": { "food": 0, "wood": 150, "gold": 0, "stone": 0 }, "time": 30, "minAge": 2, "type": "production" },
+    "Keep": { "cost": { "food": 0, "wood": 350, "gold": 0, "stone": 300 }, "time": 90, "minAge": 3, "type": "military" },
+    "Mosque": { "cost": { "food": 0, "wood": 150, "gold": 0, "stone": 0 }, "time": 25, "minAge": 1, "type": "religious" },
+    "Monastery": { "cost": { "food": 0, "wood": 200, "gold": 0, "stone": 0 }, "time": 25, "minAge": 1, "type": "religious" },
+    "Prayer Tent": { "cost": { "food": 0, "wood": 200, "gold": 0, "stone": 0 }, "time": 25, "minAge": 1, "type": "religious" },
+    "Pasture": { "cost": { "food": 0, "wood": 75, "gold": 0, "stone": 0 }, "time": 45, "minAge": 1, "type": "economic" },
+    "Ger": { "cost": { "food": 0, "wood": 100, "gold": 0, "stone": 0 }, "time": 30, "minAge": 1, "type": "dropoff" },
+    "Ovoo": { "cost": { "food": 0, "wood": 100, "gold": 0, "stone": 0 }, "time": 60, "minAge": 1, "type": "special" },
+    "House": { "cost": { "food": 0, "wood": 25, "gold": 0, "stone": 0 }, "time": 15, "minAge": 1, "type": "house" },
+    "Market": { "cost": { "food": 0, "wood": 150, "gold": 0, "stone": 0 }, "time": 20, "minAge": 1, "type": "economic" },
+    "Outpost": { "cost": { "food": 0, "wood": 100, "gold": 0, "stone": 0 }, "time": 60, "minAge": 1, "type": "military" },
+    "Siege Workshop": { "cost": { "food": 0, "wood": 300, "gold": 0, "stone": 0 }, "time": 45, "minAge": 1, "type": "production" },
+    "Blacksmith": { "cost": { "food": 0, "wood": 150, "gold": 0, "stone": 0 }, "time": 25, "minAge": 1, "type": "economic" },
+    "Landmark (Age II)": { "cost": { "food": 400, "wood": 0, "gold": 200, "stone": 0 }, "time": 190, "minAge": 1, "type": "landmark" },
+    "Landmark (Age III)": { "cost": { "food": 1200, "wood": 0, "gold": 600, "stone": 0 }, "time": 220, "minAge": 2, "type": "landmark" },
+    "Landmark (Age IV)": { "cost": { "food": 2400, "wood": 0, "gold": 1200, "stone": 0 }, "time": 240, "minAge": 3, "type": "landmark" }
+  },
+  "techs": {
+    "Wheelbarrow": { "cost": { "food": 150, "wood": 50, "gold": 0, "stone": 0 }, "time": 60, "category": "eco" },
+    "Food Upgrade": { "cost": { "food": 100, "wood": 100, "gold": 0, "stone": 0 }, "time": 60, "category": "eco" },
+    "Survival Techniques": { "cost": { "food": 0, "wood": 25, "gold": 75, "stone": 0 }, "time": 25, "category": "eco" },
+    "Sanctity": { "cost": { "food": 150, "wood": 0, "gold": 150, "stone": 0 }, "time": 60, "category": "religious" },
+    "Enlistment Incentives": { "cost": { "food": 0, "wood": 0, "gold": 0, "stone": 0 }, "time": 60, "category": "military" },
+    "Dome of the Faith": { "cost": { "food": 0, "wood": 0, "gold": 0, "stone": 0 }, "time": 0, "category": "landmark" }
+  },
+  "buildTimeMultByVillagers": {
+    "1": 1,
+    "2": 0.75,
+    "3": 0.6,
+    "4": 0.5,
+    "5": 0.42858,
+    "6": 0.375,
+    "7": 0.33332,
+    "8": 0.3,
+    "9": 0.27274,
+    "10": 0.25,
+    "11": 0.23079,
+    "12": 0.21426,
+    "13": 0.2,
+    "14": 0.18753,
+    "15": 0.17647,
+    "16": 0.16668,
+    "17": 0.15789,
+    "18": 0.15,
+    "19": 0.14284,
+    "20": 0.13637,
+    "30": 0.09374,
+    "40": 0.07142,
+    "50": 0.05768
+  },
+  "sacredSiteGoldPerMin": 100,
+  "pastureSheepSeconds": 116,
+  "ovooStonePerMinByAge": { "1": 70, "2": 100, "3": 130, "4": 160 },
+  "scholar": { "costGold": 135, "costGoldDome": 80, "time": 30 },
+  "muslimCivs": [
+    "Abbasid Dynasty",
+    "Ayyubids",
+    "Delhi Sultanate",
+    "Tughlaq Dynasty",
+    "Ottomans"
+  ],
+  "muslimBerryBonus": { "capacityBonusPerNode": 100, "gatherBonusPct": 25, "carryBonus": 3 },
+  "civs": {
+    "English": {
+      "farmBonusByAge": { "1": 20, "2": 25, "3": 30, "4": 30 },
+      "farmGoldPerSec": 0.1666667,
+      "farmCostMult": 0.5,
+      "ageUpTimeByTarget": { "2": 190, "3": 220 }
+    },
+    "House of Lancaster": {
+      "farmBonusByAge": { "1": 20, "2": 25, "3": 30, "4": 30 },
+      "farmGoldPerSec": 0.1666667,
+      "farmCostMult": 0.5,
+      "ageUpTimeByTarget": { "2": 190, "3": 220 }
+    },
+    "French": {
+      "dropoffCostMult": 0.5,
+      "ecoTechCostMult": 0.65,
+      "townCenterWorkRateByAge": { "1": 15, "2": 15, "3": 20, "4": 25 },
+      "keepAuraUnitCostMult": 0.8,
+      "keepAuraUnitCostMultEnlistment": 0.75
+    },
+    "Jeanne d'Arc": {
+      "ecoTechCostMult": 0.65,
+      "consecrationFoodCostMult": 0.75,
+      "darkAgeBuildSpeedMult": 1.33,
+      "feudalBuildAuraMult": 1.33
+    },
+    "Delhi Sultanate": {
+      "techCostFree": true,
+      "sanctityGoldMult": 1.25,
+      "scholarFormula": { "minFraction": 0.0666667, "ratio": 0.8780845, "maxScholars": 53 }
+    },
+    "Mongols": {
+      "farmsDisabled": true,
+      "gerDropoff": true,
+      "horsemenTrainTimeMult": 0.75,
+      "stablesMinAge": 1
+    }
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "sourceUrl": "https://ageofempires.fandom.com/wiki/Resource_(Age_of_Empires_IV)",
+  "scrapedAt": "2026-03-11T13:16:58.446272+00:00",
+  "baseRates": {
+    "sheep": 0.75,
+    "farm": 0.75,
+    "berries": 0.69,
+    "deer": 0.825,
+    "boar": 0.9,
+    "wood": 0.75,
+    "gold": 0.75,
+    "stone": 0.75
+  },
+  "civOverrides": {
+    "House of Lancaster": {
+      "sheep": 0.9
+    },
+    "Abbasid Dynasty": {
+      "berries": 0.8625
+    },
+    "Ayyubids": {
+      "berries": 0.8625
+    },
+    "Delhi Sultanate": {
+      "berries": 0.8625
+    },
+    "Knights Templar": {
+      "wood": 0.6
+    }
+  },
+  "nodeAmounts": {
+    "sheep": 200,
+    "berries": 250,
+    "deer": 350,
+    "boar": 2400,
+    "shoreFish": {
+      "amount": 600,
+      "rates": {
+        "villager": 1.0,
+        "fishingBoat": 0.675,
+        "lodya": 1.2825
+      }
+    },
+    "deepFish": {
+      "amount": 1000,
+      "rates": {
+        "fishingBoat": 0.75,
+        "lodya": 1.42
+      }
+    },
+    "tree": 150,
+    "goldVein": {
+      "tiny": 1600,
+      "small": 4000,
+      "large": 8000
+    },
+    "stoneOutcrop": {
+      "small": 1200,
+      "large": 2400
+    }
+  },
+  "starting": {
+    "resources": {
+      "food": 200,
+      "wood": 150,
+      "gold": 100,
+      "stone": 0
+    },
+    "sheep": 5
+  }
+}

@@ -1,0 +1,2934 @@
+{
+  "generatedAt": "2026-03-20T08:06:18.200753+00:00",
+  "generatedFrom": "units_restructured.json",
+  "civOrder": [
+    "Common",
+    "English",
+    "French",
+    "Holy Roman Empire",
+    "Mongols",
+    "Rus",
+    "Delhi Sultanate",
+    "Abbasid Dynasty",
+    "Chinese",
+    "Ottomans",
+    "Malians",
+    "Byzantines",
+    "Japanese",
+    "Ayyubids",
+    "Jeanne d'Arc",
+    "Order of the Dragon",
+    "Zhu Xi's Legacy",
+    "House of Lancaster",
+    "Knights Templar",
+    "Golden Horde",
+    "Macedonian Dynasty",
+    "Sengoku Daimyo",
+    "Tughlaq Dynasty"
+  ],
+  "typeOrder": [
+    "Light Infantry",
+    "Heavy Infantry",
+    "Ranged Infantry",
+    "Light Cavalry",
+    "Heavy Cavalry",
+    "Ranged Cavalry",
+    "Elephants",
+    "Siege"
+  ],
+  "unitReplacements": {
+    "Chinese": {
+      "Crossbow": "Zhuge Nu"
+    }
+  },
+  "allTags": [
+    "Cavalry",
+    "Elephant",
+    "Gunpowder",
+    "Heavy",
+    "Infantry",
+    "Light",
+    "Light Gunpowder",
+    "Light Infantry",
+    "Melee",
+    "Melee Infantry",
+    "Ranged",
+    "Siege"
+  ],
+  "units": {
+    "Akinji": {
+      "name": "Akinji",
+      "civs": [
+        "Ottomans"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 80,
+        "wood": 80
+      },
+      "trainingTime": 24.0,
+      "population": 1,
+      "speed": 1.62,
+      "tags": [
+        "Cavalry",
+        "Ranged"
+      ],
+      "category": "Ranged Cavalry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": false,
+      "hasEffects": false
+    },
+    "Arbaletrier": {
+      "name": "Arbaletrier",
+      "civs": [
+        "French",
+        "Jeanne d'Arc"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 80,
+        "gold": 40
+      },
+      "trainingTime": 23.0,
+      "population": 1,
+      "speed": 1.12,
+      "tags": [
+        "Infantry",
+        "Heavy",
+        "Ranged"
+      ],
+      "category": "Ranged Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": true
+    },
+    "Archer": {
+      "name": "Archer",
+      "civs": [
+        "Common"
+      ],
+      "exceptCivs": [
+        "English",
+        "Japanese",
+        "House of Lancaster",
+        "Macedonian Dynasty",
+        "Order of the Dragon",
+        "Sengoku Daimyo",
+        "Zhu Xi's Legacy"
+      ],
+      "costs": {
+        "food": 30,
+        "wood": 50
+      },
+      "trainingTime": 15.0,
+      "population": 1,
+      "speed": 1.25,
+      "tags": [
+        "Infantry",
+        "Ranged"
+      ],
+      "category": "Ranged Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": false
+    },
+    "Atgeirma\u00f0r": {
+      "name": "Atgeirma\u00f0r",
+      "civs": [
+        "Macedonian Dynasty"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 70,
+        "wood": 20
+      },
+      "trainingTime": 17.0,
+      "population": 1,
+      "speed": 1.25,
+      "tags": [
+        "Infantry",
+        "Light Infantry",
+        "Melee",
+        "Melee Infantry"
+      ],
+      "category": "Light Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": false,
+      "hasEffects": true
+    },
+    "Ballista Elephant": {
+      "name": "Ballista Elephant",
+      "civs": [
+        "Tughlaq Dynasty"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 300,
+        "gold": 350
+      },
+      "trainingTime": 45.0,
+      "population": 4,
+      "speed": 1.0,
+      "tags": [
+        "Cavalry",
+        "Ranged",
+        "Elephant"
+      ],
+      "category": "Elephants",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": false
+    },
+    "Black Rider": {
+      "name": "Black Rider",
+      "civs": [
+        "Holy Roman Empire"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 150,
+        "gold": 150
+      },
+      "trainingTime": 35.0,
+      "population": 1,
+      "speed": 1.62,
+      "tags": [
+        "Cavalry",
+        "Heavy",
+        "Gunpowder"
+      ],
+      "category": "Heavy Cavalry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": true
+    },
+    "Bogma\u00f0r": {
+      "name": "Bogma\u00f0r",
+      "civs": [
+        "Macedonian Dynasty"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 40,
+        "wood": 50
+      },
+      "trainingTime": 15.0,
+      "population": 1,
+      "speed": 1.25,
+      "tags": [
+        "Infantry",
+        "Ranged"
+      ],
+      "category": "Ranged Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": false,
+      "hasEffects": true
+    },
+    "Camel Archer": {
+      "name": "Camel Archer",
+      "civs": [
+        "Abbasid Dynasty"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 170,
+        "wood": 60
+      },
+      "trainingTime": 35.0,
+      "population": 1,
+      "speed": 1.625,
+      "tags": [
+        "Cavalry",
+        "Ranged"
+      ],
+      "category": "Ranged Cavalry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": true
+    },
+    "Camel Lancer": {
+      "name": "Camel Lancer",
+      "civs": [
+        "Ayyubids"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 180,
+        "gold": 80
+      },
+      "trainingTime": 32.0,
+      "population": 1,
+      "speed": 1.625,
+      "tags": [
+        "Cavalry",
+        "Heavy",
+        "Melee"
+      ],
+      "category": "Heavy Cavalry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": true
+    },
+    "Camel Rider": {
+      "name": "Camel Rider",
+      "civs": [
+        "Abbasid Dynasty"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 180,
+        "gold": 60
+      },
+      "trainingTime": 30.0,
+      "population": 1,
+      "speed": 1.625,
+      "tags": [
+        "Cavalry",
+        "Heavy",
+        "Melee"
+      ],
+      "category": "Heavy Cavalry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": true
+    },
+    "Cataphract": {
+      "name": "Cataphract",
+      "civs": [
+        "Byzantines",
+        "Macedonian Dynasty"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 160,
+        "gold": 100
+      },
+      "trainingTime": 35.0,
+      "population": 1,
+      "speed": 1.625,
+      "tags": [
+        "Cavalry",
+        "Heavy",
+        "Melee"
+      ],
+      "category": "Heavy Cavalry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": true
+    },
+    "Chevalier Confrere": {
+      "name": "Chevalier Confrere",
+      "civs": [
+        "Knights Templar"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 90,
+        "gold": 80
+      },
+      "trainingTime": 22.0,
+      "population": 1,
+      "speed": 1.62,
+      "tags": [
+        "Cavalry",
+        "Heavy",
+        "Melee"
+      ],
+      "category": "Heavy Cavalry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": true
+    },
+    "Condottiero": {
+      "name": "Condottiero",
+      "civs": [
+        "Knights Templar"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "gold": 120
+      },
+      "trainingTime": 19.0,
+      "population": 1,
+      "speed": 1.44,
+      "tags": [
+        "Infantry",
+        "Melee",
+        "Melee Infantry"
+      ],
+      "category": "Light Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": true
+    },
+    "Crossbow": {
+      "name": "Crossbow",
+      "civs": [
+        "Common"
+      ],
+      "exceptCivs": [
+        "French",
+        "Jeanne d'Arc",
+        "Japanese",
+        "Malians",
+        "Sengoku Daimyo",
+        "Order of the Dragon"
+      ],
+      "costs": {
+        "food": 80,
+        "gold": 40
+      },
+      "trainingTime": 22.5,
+      "population": 1,
+      "speed": 1.125,
+      "tags": [
+        "Infantry",
+        "Heavy",
+        "Ranged"
+      ],
+      "category": "Ranged Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": false
+    },
+    "Desert Raider": {
+      "name": "Desert Raider",
+      "civs": [
+        "Ayyubids"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 80,
+        "wood": 50,
+        "gold": 50
+      },
+      "trainingTime": 30.0,
+      "population": 1,
+      "speed": 1.625,
+      "tags": [
+        "Cavalry",
+        "Ranged"
+      ],
+      "category": "Ranged Cavalry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": false,
+      "hasEffects": true
+    },
+    "Donso": {
+      "name": "Donso",
+      "civs": [
+        "Malians"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 60,
+        "wood": 30
+      },
+      "trainingTime": 15.0,
+      "population": 1,
+      "speed": 1.25,
+      "tags": [
+        "Infantry",
+        "Light Infantry",
+        "Melee",
+        "Melee Infantry"
+      ],
+      "category": "Light Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": true
+    },
+    "Earls Guard": {
+      "name": "Earls Guard",
+      "civs": [
+        "House of Lancaster"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 100,
+        "gold": 20
+      },
+      "trainingTime": 22.5,
+      "population": 1,
+      "speed": 1.25,
+      "tags": [
+        "Infantry",
+        "Heavy",
+        "Melee",
+        "Melee Infantry"
+      ],
+      "category": "Heavy Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": true
+    },
+    "Fire Lancer": {
+      "name": "Fire Lancer",
+      "civs": [
+        "Chinese"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 80,
+        "wood": 20,
+        "gold": 20
+      },
+      "trainingTime": 22.5,
+      "population": 1,
+      "speed": 1.625,
+      "tags": [
+        "Cavalry",
+        "Melee"
+      ],
+      "category": "Light Cavalry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": true
+    },
+    "Genitour": {
+      "name": "Genitour",
+      "civs": [
+        "Knights Templar"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 60,
+        "wood": 60
+      },
+      "trainingTime": 23.0,
+      "population": 1,
+      "speed": 1.62,
+      "tags": [
+        "Cavalry",
+        "Ranged"
+      ],
+      "category": "Ranged Cavalry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": false
+    },
+    "Genoese Crossbowman": {
+      "name": "Genoese Crossbowman",
+      "civs": [
+        "Knights Templar"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 80,
+        "gold": 90
+      },
+      "trainingTime": 26.0,
+      "population": 1,
+      "speed": 1.06,
+      "tags": [
+        "Ranged",
+        "Heavy",
+        "Infantry"
+      ],
+      "category": "Ranged Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": false
+    },
+    "Ghazi Raider": {
+      "name": "Ghazi Raider",
+      "civs": [
+        "Delhi Sultanate"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 110,
+        "wood": 30
+      },
+      "trainingTime": 25.0,
+      "population": 1,
+      "speed": 1.875,
+      "tags": [
+        "Cavalry",
+        "Melee"
+      ],
+      "category": "Light Cavalry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": false
+    },
+    "Ghulam": {
+      "name": "Ghulam",
+      "civs": [
+        "Abbasid Dynasty",
+        "Ayyubids"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 120,
+        "gold": 30
+      },
+      "trainingTime": 26.0,
+      "population": 1,
+      "speed": 1.188,
+      "tags": [
+        "Infantry",
+        "Heavy",
+        "Melee",
+        "Melee Infantry"
+      ],
+      "category": "Heavy Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": false
+    },
+    "Gilded Archer": {
+      "name": "Gilded Archer",
+      "civs": [
+        "Order of the Dragon"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 60,
+        "wood": 100
+      },
+      "trainingTime": 18.0,
+      "population": 2,
+      "speed": 1.25,
+      "tags": [
+        "Infantry",
+        "Ranged"
+      ],
+      "category": "Ranged Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": false
+    },
+    "Gilded Crossbowman": {
+      "name": "Gilded Crossbowman",
+      "civs": [
+        "Order of the Dragon"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 160,
+        "gold": 80
+      },
+      "trainingTime": 27.0,
+      "population": 2,
+      "speed": 1.125,
+      "tags": [
+        "Infantry",
+        "Heavy",
+        "Ranged"
+      ],
+      "category": "Ranged Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": false
+    },
+    "Gilded Horseman": {
+      "name": "Gilded Horseman",
+      "civs": [
+        "Order of the Dragon"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 200,
+        "wood": 40
+      },
+      "trainingTime": 27.0,
+      "population": 2,
+      "speed": 1.875,
+      "tags": [
+        "Cavalry",
+        "Melee"
+      ],
+      "category": "Light Cavalry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": false,
+      "hasEffects": false
+    },
+    "Gilded Landsknecht": {
+      "name": "Gilded Landsknecht",
+      "civs": [
+        "Order of the Dragon"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 120,
+        "gold": 200
+      },
+      "trainingTime": 27.0,
+      "population": 2,
+      "speed": 1.25,
+      "tags": [
+        "Infantry",
+        "Light Infantry",
+        "Melee",
+        "Melee Infantry"
+      ],
+      "category": "Light Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        3,
+        4
+      ],
+      "hasAuras": false,
+      "hasEffects": true
+    },
+    "Gilded MAA": {
+      "name": "Gilded MAA",
+      "civs": [
+        "Order of the Dragon"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 200,
+        "gold": 40
+      },
+      "trainingTime": 27.0,
+      "population": 2,
+      "speed": 1.125,
+      "tags": [
+        "Infantry",
+        "Heavy",
+        "Melee",
+        "Melee Infantry"
+      ],
+      "category": "Heavy Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": false,
+      "hasEffects": false
+    },
+    "Gilded Spearman": {
+      "name": "Gilded Spearman",
+      "civs": [
+        "Order of the Dragon"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 120,
+        "wood": 40
+      },
+      "trainingTime": 18.0,
+      "population": 2,
+      "speed": 1.25,
+      "tags": [
+        "Infantry",
+        "Light Infantry",
+        "Melee",
+        "Melee Infantry"
+      ],
+      "category": "Light Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": false,
+      "hasEffects": true
+    },
+    "Handcannoneer": {
+      "name": "Handcannoneer",
+      "civs": [
+        "Common"
+      ],
+      "exceptCivs": [
+        "Ottomans",
+        "Rus",
+        "Sengoku Daimyo",
+        "Order of the Dragon",
+        "Malians",
+        "Knights Templar",
+        "Zhu Xi's Legacy"
+      ],
+      "costs": {
+        "food": 120,
+        "gold": 120
+      },
+      "trainingTime": 35.0,
+      "population": 1,
+      "speed": 1.125,
+      "tags": [
+        "Infantry",
+        "Ranged",
+        "Gunpowder"
+      ],
+      "category": "Ranged Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": false
+    },
+    "Heavy Spearman": {
+      "name": "Heavy Spearman",
+      "civs": [
+        "Knights Templar"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 80,
+        "gold": 30
+      },
+      "trainingTime": 22.5,
+      "population": 1,
+      "speed": 1.12,
+      "tags": [
+        "Infantry",
+        "Heavy",
+        "Melee",
+        "Melee Infantry"
+      ],
+      "category": "Heavy Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": true
+    },
+    "Hobelar": {
+      "name": "Hobelar",
+      "civs": [
+        "House of Lancaster"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 70,
+        "gold": 20
+      },
+      "trainingTime": 15.0,
+      "population": 1,
+      "speed": 1.88,
+      "tags": [
+        "Cavalry",
+        "Melee"
+      ],
+      "category": "Light Cavalry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": false
+    },
+    "Horse Archer": {
+      "name": "Horse Archer",
+      "civs": [
+        "Rus"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 80,
+        "wood": 40
+      },
+      "trainingTime": 22.0,
+      "population": 1,
+      "speed": 1.625,
+      "tags": [
+        "Cavalry",
+        "Ranged"
+      ],
+      "category": "Ranged Cavalry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": false
+    },
+    "Horseman": {
+      "name": "Horseman",
+      "civs": [
+        "Common"
+      ],
+      "exceptCivs": [
+        "Delhi Sultanate",
+        "House of Lancaster",
+        "Malians",
+        "Order of the Dragon",
+        "Ottomans",
+        "Sengoku Daimyo"
+      ],
+      "costs": {
+        "food": 100,
+        "wood": 20
+      },
+      "trainingTime": 22.5,
+      "population": 1,
+      "speed": 1.875,
+      "tags": [
+        "Cavalry",
+        "Melee"
+      ],
+      "category": "Light Cavalry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": false
+    },
+    "Hospitaller Knight": {
+      "name": "Hospitaller Knight",
+      "civs": [
+        "Knights Templar"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 50,
+        "gold": 60
+      },
+      "trainingTime": 21.0,
+      "population": 1,
+      "speed": 1.25,
+      "tags": [
+        "Infantry",
+        "Heavy",
+        "Melee",
+        "Melee Infantry"
+      ],
+      "category": "Heavy Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": true
+    },
+    "Imperial Guard": {
+      "name": "Imperial Guard",
+      "civs": [
+        "Zhu Xi's Legacy"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 120,
+        "gold": 40
+      },
+      "trainingTime": 24.0,
+      "population": 1,
+      "speed": 1.625,
+      "tags": [
+        "Infantry",
+        "Heavy",
+        "Melee",
+        "Melee Infantry"
+      ],
+      "category": "Heavy Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": false
+    },
+    "Jannisary": {
+      "name": "Jannisary",
+      "civs": [
+        "Ottomans"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 60,
+        "gold": 100
+      },
+      "trainingTime": 24.0,
+      "population": 1,
+      "speed": 1.125,
+      "tags": [
+        "Infantry",
+        "Ranged",
+        "Light Gunpowder"
+      ],
+      "category": "Ranged Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": false
+    },
+    "Javelin Thrower": {
+      "name": "Javelin Thrower",
+      "civs": [
+        "Malians"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 80,
+        "gold": 40
+      },
+      "trainingTime": 22,
+      "population": 1,
+      "speed": 1.25,
+      "tags": [
+        "Infantry",
+        "Ranged",
+        "Light"
+      ],
+      "category": "Ranged Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": false
+    },
+    "Kanabo Samurai": {
+      "name": "Kanabo Samurai",
+      "civs": [
+        "Sengoku Daimyo"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 130,
+        "gold": 30
+      },
+      "trainingTime": 24.0,
+      "population": 1,
+      "speed": 1.125,
+      "tags": [
+        "Infantry",
+        "Heavy",
+        "Melee",
+        "Melee Infantry"
+      ],
+      "category": "Heavy Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": true
+    },
+    "Keshik": {
+      "name": "Keshik",
+      "civs": [
+        "Mongols",
+        "Golden Horde"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 120,
+        "gold": 80
+      },
+      "trainingTime": 30.0,
+      "population": 1,
+      "speed": 1.625,
+      "tags": [
+        "Cavalry",
+        "Heavy",
+        "Melee"
+      ],
+      "category": "Heavy Cavalry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": true
+    },
+    "Kharash": {
+      "name": "Kharash",
+      "civs": [
+        "Golden Horde"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 50
+      },
+      "trainingTime": 20.0,
+      "population": 1,
+      "speed": 1.125,
+      "tags": [
+        "Infantry",
+        "Light Infantry",
+        "Melee",
+        "Melee Infantry"
+      ],
+      "category": "Light Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": false,
+      "hasEffects": true
+    },
+    "Kipchak Archer": {
+      "name": "Kipchak Archer",
+      "civs": [
+        "Golden Horde"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 80,
+        "wood": 70
+      },
+      "trainingTime": 24.0,
+      "population": 1,
+      "speed": 1.625,
+      "tags": [
+        "Cavalry",
+        "Ranged"
+      ],
+      "category": "Ranged Cavalry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        3,
+        4
+      ],
+      "hasAuras": false,
+      "hasEffects": true
+    },
+    "Knight/Lancer": {
+      "name": "Knight/Lancer",
+      "civs": [
+        "Common"
+      ],
+      "exceptCivs": [
+        "French",
+        "Mongols",
+        "Malians",
+        "Byzantines",
+        "Japanese",
+        "Ayyubids",
+        "Jeanne d'Arc",
+        "Order of the Dragon",
+        "Knights Templar",
+        "Golden Horde",
+        "Macedonian Dynasty",
+        "Sengoku Daimyo"
+      ],
+      "costs": {
+        "food": 140,
+        "gold": 100
+      },
+      "trainingTime": 35.0,
+      "population": 1,
+      "speed": 1.63,
+      "tags": [
+        "Cavalry",
+        "Heavy",
+        "Melee"
+      ],
+      "category": "Heavy Cavalry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": false
+    },
+    "Landsknecht": {
+      "name": "Landsknecht",
+      "civs": [
+        "Holy Roman Empire"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 60,
+        "gold": 100
+      },
+      "trainingTime": 22.5,
+      "population": 1,
+      "speed": 1.25,
+      "tags": [
+        "Infantry",
+        "Light Infantry",
+        "Melee",
+        "Melee Infantry"
+      ],
+      "category": "Light Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": true
+    },
+    "Limitanei": {
+      "name": "Limitanei",
+      "civs": [
+        "Byzantines"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 80,
+        "wood": 10
+      },
+      "trainingTime": 17.0,
+      "population": 1,
+      "speed": 1.25,
+      "tags": [
+        "Infantry",
+        "Light Infantry",
+        "Melee",
+        "Melee Infantry"
+      ],
+      "category": "Light Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": true
+    },
+    "Longbow": {
+      "name": "Longbow",
+      "civs": [
+        "English"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 40,
+        "wood": 50
+      },
+      "trainingTime": 15.0,
+      "population": 1,
+      "speed": 1.125,
+      "tags": [
+        "Infantry",
+        "Ranged"
+      ],
+      "category": "Ranged Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": true
+    },
+    "MAA": {
+      "name": "MAA",
+      "civs": [
+        "Common"
+      ],
+      "exceptCivs": [
+        "Abbasid Dynasty",
+        "Chinese",
+        "Malians",
+        "Byzantines",
+        "Japanese",
+        "Ayyubids",
+        "Order of the Dragon",
+        "Zhu Xi's Legacy",
+        "House of Lancaster",
+        "Macedonian Dynasty",
+        "Sengoku Daimyo"
+      ],
+      "costs": {
+        "food": 100,
+        "gold": 20
+      },
+      "trainingTime": 22.5,
+      "population": 1,
+      "speed": 1.125,
+      "tags": [
+        "Infantry",
+        "Heavy",
+        "Melee",
+        "Melee Infantry"
+      ],
+      "category": "Heavy Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": false
+    },
+    "Mangonel": {
+      "name": "Mangonel",
+      "civs": [
+        "Common"
+      ],
+      "exceptCivs": [
+        "Chinese",
+        "Zhu Xi's Legacy"
+      ],
+      "costs": {
+        "wood": 400,
+        "gold": 200
+      },
+      "trainingTime": 40,
+      "population": 3,
+      "speed": 0.75,
+      "tags": [
+        "Siege"
+      ],
+      "category": "Siege",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        3,
+        4
+      ],
+      "hasAuras": false,
+      "hasEffects": true
+    },
+    "Mangudai": {
+      "name": "Mangudai",
+      "civs": [
+        "Mongols"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 90,
+        "gold": 60
+      },
+      "trainingTime": 28.0,
+      "population": 1,
+      "speed": 1.56,
+      "tags": [
+        "Cavalry",
+        "Ranged"
+      ],
+      "category": "Ranged Cavalry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": false
+    },
+    "Mounted Samurai": {
+      "name": "Mounted Samurai",
+      "civs": [
+        "Japanese",
+        "Sengoku Daimyo"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 140,
+        "gold": 110
+      },
+      "trainingTime": 35.0,
+      "population": 1,
+      "speed": 1.625,
+      "tags": [
+        "Cavalry",
+        "Heavy",
+        "Melee"
+      ],
+      "category": "Heavy Cavalry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": true
+    },
+    "Musofadi Gunner": {
+      "name": "Musofadi Gunner",
+      "civs": [
+        "Malians"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 110,
+        "gold": 130
+      },
+      "trainingTime": 35,
+      "population": 1,
+      "speed": 1.25,
+      "tags": [
+        "Infantry",
+        "Ranged",
+        "Gunpowder"
+      ],
+      "category": "Ranged Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        4
+      ],
+      "hasAuras": false,
+      "hasEffects": true
+    },
+    "Musofadi Warrior": {
+      "name": "Musofadi Warrior",
+      "civs": [
+        "Malians"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 45,
+        "gold": 30
+      },
+      "trainingTime": 15,
+      "population": 1,
+      "speed": 1.375,
+      "tags": [
+        "Infantry",
+        "Light",
+        "Melee",
+        "Melee Infantry"
+      ],
+      "category": "Light Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": true
+    },
+    "Naginata Samurai": {
+      "name": "Naginata Samurai",
+      "civs": [
+        "Sengoku Daimyo"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 100,
+        "gold": 20
+      },
+      "trainingTime": 22.5,
+      "population": 1,
+      "speed": 1.125,
+      "tags": [
+        "Infantry",
+        "Heavy",
+        "Melee",
+        "Melee Infantry"
+      ],
+      "category": "Heavy Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": true
+    },
+    "Onna Musha": {
+      "name": "Onna Musha",
+      "civs": [
+        "Japanese"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 80,
+        "gold": 60
+      },
+      "trainingTime": 24.0,
+      "population": 1,
+      "speed": 1.625,
+      "tags": [
+        "Cavalry",
+        "Ranged"
+      ],
+      "category": "Ranged Cavalry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": true
+    },
+    "Onna-Bugeisha": {
+      "name": "Onna-Bugeisha",
+      "civs": [
+        "Japanese"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 60,
+        "gold": 20
+      },
+      "trainingTime": 15.0,
+      "population": 1,
+      "speed": 1.5,
+      "tags": [
+        "Infantry",
+        "Light Infantry",
+        "Melee",
+        "Melee Infantry"
+      ],
+      "category": "Light Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": false
+    },
+    "Palace Guard": {
+      "name": "Palace Guard",
+      "civs": [
+        "Chinese",
+        "Zhu Xi's Legacy"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 100,
+        "gold": 25
+      },
+      "trainingTime": 22.5,
+      "population": 1,
+      "speed": 1.375,
+      "tags": [
+        "Infantry",
+        "Heavy",
+        "Melee",
+        "Melee Infantry"
+      ],
+      "category": "Heavy Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": false
+    },
+    "Raider Elephant": {
+      "name": "Raider Elephant",
+      "civs": [
+        "Tughlaq Dynasty"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 180,
+        "wood": 40
+      },
+      "trainingTime": 25.0,
+      "population": 2,
+      "speed": 1.6,
+      "tags": [
+        "Cavalry",
+        "Elephant",
+        "Melee"
+      ],
+      "category": "Elephants",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": true
+    },
+    "Ribauldequin": {
+      "name": "Ribauldequin",
+      "civs": [
+        "Common"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "wood": 350,
+        "gold": 500
+      },
+      "trainingTime": 45,
+      "population": 3,
+      "speed": 0.875,
+      "tags": [
+        "Siege",
+        "Gunpowder"
+      ],
+      "category": "Siege",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        4
+      ],
+      "hasAuras": false,
+      "hasEffects": true
+    },
+    "Riddari": {
+      "name": "Riddari",
+      "civs": [
+        "Macedonian Dynasty"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 130,
+        "gold": 110
+      },
+      "trainingTime": 35.0,
+      "population": 1,
+      "speed": 1.7,
+      "tags": [
+        "Cavalry",
+        "Heavy",
+        "Melee"
+      ],
+      "category": "Heavy Cavalry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": true
+    },
+    "Royal Knight": {
+      "name": "Royal Knight",
+      "civs": [
+        "French",
+        "Jeanne d'Arc"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 140,
+        "gold": 100
+      },
+      "trainingTime": 35.0,
+      "population": 1,
+      "speed": 1.625,
+      "tags": [
+        "Cavalry",
+        "Heavy",
+        "Melee"
+      ],
+      "category": "Heavy Cavalry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": true
+    },
+    "Samurai": {
+      "name": "Samurai",
+      "civs": [
+        "Japanese"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 100,
+        "gold": 30
+      },
+      "trainingTime": 20.0,
+      "population": 1,
+      "speed": 1.125,
+      "tags": [
+        "Infantry",
+        "Heavy",
+        "Melee",
+        "Melee Infantry"
+      ],
+      "category": "Heavy Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": true
+    },
+    "Serjeant": {
+      "name": "Serjeant",
+      "civs": [
+        "Knights Templar"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 70,
+        "gold": 50
+      },
+      "trainingTime": 22.5,
+      "population": 1,
+      "speed": 1.25,
+      "tags": [
+        "Infantry",
+        "Heavy",
+        "Melee",
+        "Melee Infantry"
+      ],
+      "category": "Heavy Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": false
+    },
+    "Sipahi": {
+      "name": "Sipahi",
+      "civs": [
+        "Ottomans"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 120,
+        "wood": 40
+      },
+      "trainingTime": 30.0,
+      "population": 1,
+      "speed": 1.75,
+      "tags": [
+        "Cavalry",
+        "Melee"
+      ],
+      "category": "Light Cavalry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": false,
+      "hasEffects": true
+    },
+    "Sofa": {
+      "name": "Sofa",
+      "civs": [
+        "Malians"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 120,
+        "gold": 60
+      },
+      "trainingTime": 26.0,
+      "population": 1,
+      "speed": 1.725,
+      "tags": [
+        "Cavalry",
+        "Heavy",
+        "Melee"
+      ],
+      "category": "Heavy Cavalry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": true
+    },
+    "Spearman": {
+      "name": "Spearman",
+      "civs": [
+        "Common"
+      ],
+      "exceptCivs": [
+        "Byzantines",
+        "Malians",
+        "Order of the Dragon"
+      ],
+      "costs": {
+        "food": 60,
+        "wood": 20
+      },
+      "trainingTime": 15.0,
+      "population": 1,
+      "speed": 1.25,
+      "tags": [
+        "Infantry",
+        "Light Infantry",
+        "Melee",
+        "Melee Infantry"
+      ],
+      "category": "Light Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": true
+    },
+    "Springald": {
+      "name": "Springald",
+      "civs": [
+        "Common"
+      ],
+      "exceptCivs": [
+        "Tughlaq Dynasty"
+      ],
+      "costs": {
+        "wood": 150,
+        "gold": 100
+      },
+      "trainingTime": 30,
+      "population": 2,
+      "speed": 0.875,
+      "tags": [
+        "Siege"
+      ],
+      "category": "Siege",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        3,
+        4
+      ],
+      "hasAuras": false,
+      "hasEffects": true
+    },
+    "Streltsy": {
+      "name": "Streltsy",
+      "civs": [
+        "Rus"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 90,
+        "gold": 90
+      },
+      "trainingTime": 35.0,
+      "population": 1,
+      "speed": 1.12,
+      "tags": [
+        "Infantry",
+        "Ranged"
+      ],
+      "category": "Ranged Infantry",
+      "weaponModes": [
+        "primary",
+        "secondary"
+      ],
+      "ages": [
+        4
+      ],
+      "hasAuras": false,
+      "hasEffects": true
+    },
+    "Sultans Tower Elephant": {
+      "name": "Sultans Tower Elephant",
+      "civs": [
+        "Delhi Sultanate"
+      ],
+      "exceptCivs": [],
+      "costs": {},
+      "trainingTime": 60.0,
+      "population": 3,
+      "speed": 0.875,
+      "tags": [
+        "Cavalry",
+        "Ranged",
+        "Elephant"
+      ],
+      "category": "Elephants",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": false
+    },
+    "Szlachta Cavalry": {
+      "name": "Szlachta Cavalry",
+      "civs": [
+        "Knights Templar"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 180,
+        "gold": 120
+      },
+      "trainingTime": 40.0,
+      "population": 1,
+      "speed": 1.725,
+      "tags": [
+        "Cavalry",
+        "Heavy",
+        "Melee"
+      ],
+      "category": "Heavy Cavalry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": true
+    },
+    "Tanegashima Ashigaru": {
+      "name": "Tanegashima Ashigaru",
+      "civs": [
+        "Sengoku Daimyo"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 70,
+        "gold": 70
+      },
+      "trainingTime": 24.0,
+      "population": 1,
+      "speed": 1.12,
+      "tags": [
+        "Infantry",
+        "Ranged",
+        "Gunpowder"
+      ],
+      "category": "Ranged Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": true
+    },
+    "Templar Brother": {
+      "name": "Templar Brother",
+      "civs": [
+        "Knights Templar"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 120,
+        "gold": 140
+      },
+      "trainingTime": 37.5,
+      "population": 1,
+      "speed": 1.62,
+      "tags": [
+        "Cavalry",
+        "Heavy",
+        "Melee"
+      ],
+      "category": "Heavy Cavalry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": false
+    },
+    "Teutonic Knight": {
+      "name": "Teutonic Knight",
+      "civs": [
+        "Knights Templar"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 80,
+        "gold": 100
+      },
+      "trainingTime": 28.0,
+      "population": 1,
+      "speed": 0.975,
+      "tags": [
+        "Infantry",
+        "Heavy",
+        "Melee",
+        "Melee Infantry"
+      ],
+      "category": "Heavy Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": true
+    },
+    "Torguud": {
+      "name": "Torguud",
+      "civs": [
+        "Golden Horde"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 75,
+        "stone": 100
+      },
+      "trainingTime": 45.0,
+      "population": 1,
+      "speed": 1.625,
+      "tags": [
+        "Cavalry",
+        "Heavy",
+        "Melee"
+      ],
+      "category": "Heavy Cavalry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": false,
+      "hasEffects": true
+    },
+    "Tower Elephant": {
+      "name": "Tower Elephant",
+      "civs": [
+        "Delhi Sultanate"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 400,
+        "gold": 600
+      },
+      "trainingTime": 60.0,
+      "population": 3,
+      "speed": 0.875,
+      "tags": [
+        "Cavalry",
+        "Ranged",
+        "Elephant"
+      ],
+      "category": "Elephants",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": false
+    },
+    "Varangian Guard": {
+      "name": "Varangian Guard",
+      "civs": [
+        "Byzantines",
+        "Macedonian Dynasty"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 90,
+        "gold": 40
+      },
+      "trainingTime": 25.0,
+      "population": 1,
+      "speed": 1.125,
+      "tags": [
+        "Infantry",
+        "Heavy",
+        "Melee",
+        "Melee Infantry"
+      ],
+      "category": "Heavy Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": true
+    },
+    "War Elephant": {
+      "name": "War Elephant",
+      "civs": [
+        "Delhi Sultanate",
+        "Tughlaq Dynasty"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 400,
+        "gold": 350
+      },
+      "trainingTime": 60.0,
+      "population": 3,
+      "speed": 1.0,
+      "tags": [
+        "Cavalry",
+        "Heavy",
+        "Elephant",
+        "Melee"
+      ],
+      "category": "Elephants",
+      "weaponModes": [
+        "primary",
+        "secondary"
+      ],
+      "ages": [
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": true
+    },
+    "Wynguard Footman": {
+      "name": "Wynguard Footman",
+      "civs": [
+        "English"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 50,
+        "gold": 67
+      },
+      "trainingTime": 7.5,
+      "population": 1,
+      "speed": 1.125,
+      "tags": [
+        "Infantry",
+        "Heavy",
+        "Melee",
+        "Melee Infantry"
+      ],
+      "category": "Heavy Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": false
+    },
+    "Wynguard Ranger": {
+      "name": "Wynguard Ranger",
+      "civs": [
+        "English"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "wood": 75,
+        "gold": 50
+      },
+      "trainingTime": 7.5,
+      "population": 1,
+      "speed": 1.125,
+      "tags": [
+        "Infantry",
+        "Ranged"
+      ],
+      "category": "Ranged Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": true
+    },
+    "Yari Cavalry": {
+      "name": "Yari Cavalry",
+      "civs": [
+        "Sengoku Daimyo"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 115,
+        "wood": 30
+      },
+      "trainingTime": 22.5,
+      "population": 1,
+      "speed": 1.88,
+      "tags": [
+        "Cavalry",
+        "Melee"
+      ],
+      "category": "Light Cavalry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": true
+    },
+    "Yoeman": {
+      "name": "Yoeman",
+      "civs": [
+        "House of Lancaster"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 50,
+        "wood": 45
+      },
+      "trainingTime": 15.0,
+      "population": 1,
+      "speed": 1.31,
+      "tags": [
+        "Infantry",
+        "Ranged"
+      ],
+      "category": "Ranged Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": true
+    },
+    "Yuan Raider": {
+      "name": "Yuan Raider",
+      "civs": [
+        "Zhu Xi's Legacy"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 100,
+        "wood": 20,
+        "gold": 40
+      },
+      "trainingTime": 26.0,
+      "population": 1,
+      "speed": 2.0,
+      "tags": [
+        "Cavalry",
+        "Ranged"
+      ],
+      "category": "Ranged Cavalry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": false
+    },
+    "Yumi": {
+      "name": "Yumi",
+      "civs": [
+        "Japanese",
+        "Sengoku Daimyo"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 25,
+        "wood": 35
+      },
+      "trainingTime": 12.5,
+      "population": 1,
+      "speed": 1.375,
+      "tags": [
+        "Infantry",
+        "Ranged"
+      ],
+      "category": "Ranged Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": true
+    },
+    "Zhuge Nu": {
+      "name": "Zhuge Nu",
+      "civs": [
+        "Chinese",
+        "Zhu Xi's Legacy"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 30,
+        "wood": 30,
+        "gold": 30
+      },
+      "trainingTime": 20.0,
+      "population": 1,
+      "speed": 1.125,
+      "tags": [
+        "Infantry",
+        "Ranged"
+      ],
+      "category": "Ranged Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": true,
+      "hasEffects": false
+    }
+  },
+  "unitsByCiv": {
+    "All": [
+      "Akinji",
+      "Arbaletrier",
+      "Archer",
+      "Atgeirma\u00f0r",
+      "Ballista Elephant",
+      "Black Rider",
+      "Bogma\u00f0r",
+      "Camel Archer",
+      "Camel Lancer",
+      "Camel Rider",
+      "Cataphract",
+      "Chevalier Confrere",
+      "Condottiero",
+      "Crossbow",
+      "Desert Raider",
+      "Donso",
+      "Earls Guard",
+      "Fire Lancer",
+      "Genitour",
+      "Genoese Crossbowman",
+      "Ghazi Raider",
+      "Ghulam",
+      "Gilded Archer",
+      "Gilded Crossbowman",
+      "Gilded Horseman",
+      "Gilded Landsknecht",
+      "Gilded MAA",
+      "Gilded Spearman",
+      "Handcannoneer",
+      "Heavy Spearman",
+      "Hobelar",
+      "Horse Archer",
+      "Horseman",
+      "Hospitaller Knight",
+      "Imperial Guard",
+      "Jannisary",
+      "Javelin Thrower",
+      "Kanabo Samurai",
+      "Keshik",
+      "Kharash",
+      "Kipchak Archer",
+      "Knight/Lancer",
+      "Landsknecht",
+      "Limitanei",
+      "Longbow",
+      "MAA",
+      "Mangonel",
+      "Mangudai",
+      "Mounted Samurai",
+      "Musofadi Gunner",
+      "Musofadi Warrior",
+      "Naginata Samurai",
+      "Onna Musha",
+      "Onna-Bugeisha",
+      "Palace Guard",
+      "Raider Elephant",
+      "Ribauldequin",
+      "Riddari",
+      "Royal Knight",
+      "Samurai",
+      "Serjeant",
+      "Sipahi",
+      "Sofa",
+      "Spearman",
+      "Springald",
+      "Streltsy",
+      "Sultans Tower Elephant",
+      "Szlachta Cavalry",
+      "Tanegashima Ashigaru",
+      "Templar Brother",
+      "Teutonic Knight",
+      "Torguud",
+      "Tower Elephant",
+      "Varangian Guard",
+      "War Elephant",
+      "Wynguard Footman",
+      "Wynguard Ranger",
+      "Yari Cavalry",
+      "Yoeman",
+      "Yuan Raider",
+      "Yumi",
+      "Zhuge Nu"
+    ],
+    "Common": [
+      "Archer",
+      "Crossbow",
+      "Handcannoneer",
+      "Horseman",
+      "Knight/Lancer",
+      "MAA",
+      "Mangonel",
+      "Ribauldequin",
+      "Spearman",
+      "Springald"
+    ],
+    "English": [
+      "Crossbow",
+      "Handcannoneer",
+      "Horseman",
+      "Knight/Lancer",
+      "Longbow",
+      "MAA",
+      "Mangonel",
+      "Ribauldequin",
+      "Spearman",
+      "Springald",
+      "Wynguard Footman",
+      "Wynguard Ranger"
+    ],
+    "French": [
+      "Arbaletrier",
+      "Archer",
+      "Handcannoneer",
+      "Horseman",
+      "MAA",
+      "Mangonel",
+      "Ribauldequin",
+      "Royal Knight",
+      "Spearman",
+      "Springald"
+    ],
+    "Holy Roman Empire": [
+      "Archer",
+      "Black Rider",
+      "Crossbow",
+      "Handcannoneer",
+      "Horseman",
+      "Knight/Lancer",
+      "Landsknecht",
+      "MAA",
+      "Mangonel",
+      "Ribauldequin",
+      "Spearman",
+      "Springald"
+    ],
+    "Mongols": [
+      "Archer",
+      "Crossbow",
+      "Handcannoneer",
+      "Horseman",
+      "Keshik",
+      "MAA",
+      "Mangonel",
+      "Mangudai",
+      "Ribauldequin",
+      "Spearman",
+      "Springald"
+    ],
+    "Rus": [
+      "Archer",
+      "Crossbow",
+      "Horse Archer",
+      "Horseman",
+      "Knight/Lancer",
+      "MAA",
+      "Mangonel",
+      "Ribauldequin",
+      "Spearman",
+      "Springald",
+      "Streltsy"
+    ],
+    "Delhi Sultanate": [
+      "Archer",
+      "Crossbow",
+      "Ghazi Raider",
+      "Handcannoneer",
+      "Knight/Lancer",
+      "MAA",
+      "Mangonel",
+      "Ribauldequin",
+      "Spearman",
+      "Springald",
+      "Sultans Tower Elephant",
+      "Tower Elephant",
+      "War Elephant"
+    ],
+    "Abbasid Dynasty": [
+      "Archer",
+      "Camel Archer",
+      "Camel Rider",
+      "Crossbow",
+      "Ghulam",
+      "Handcannoneer",
+      "Horseman",
+      "Knight/Lancer",
+      "Mangonel",
+      "Ribauldequin",
+      "Spearman",
+      "Springald"
+    ],
+    "Chinese": [
+      "Archer",
+      "Fire Lancer",
+      "Handcannoneer",
+      "Horseman",
+      "Knight/Lancer",
+      "Palace Guard",
+      "Ribauldequin",
+      "Spearman",
+      "Springald",
+      "Zhuge Nu"
+    ],
+    "Ottomans": [
+      "Akinji",
+      "Archer",
+      "Crossbow",
+      "Jannisary",
+      "Knight/Lancer",
+      "MAA",
+      "Mangonel",
+      "Ribauldequin",
+      "Sipahi",
+      "Spearman",
+      "Springald"
+    ],
+    "Malians": [
+      "Archer",
+      "Donso",
+      "Javelin Thrower",
+      "Mangonel",
+      "Musofadi Gunner",
+      "Musofadi Warrior",
+      "Ribauldequin",
+      "Sofa",
+      "Springald"
+    ],
+    "Byzantines": [
+      "Archer",
+      "Cataphract",
+      "Crossbow",
+      "Handcannoneer",
+      "Horseman",
+      "Limitanei",
+      "Mangonel",
+      "Ribauldequin",
+      "Springald",
+      "Varangian Guard"
+    ],
+    "Japanese": [
+      "Handcannoneer",
+      "Horseman",
+      "Mangonel",
+      "Mounted Samurai",
+      "Onna Musha",
+      "Onna-Bugeisha",
+      "Ribauldequin",
+      "Samurai",
+      "Spearman",
+      "Springald",
+      "Yumi"
+    ],
+    "Ayyubids": [
+      "Archer",
+      "Camel Lancer",
+      "Crossbow",
+      "Desert Raider",
+      "Ghulam",
+      "Handcannoneer",
+      "Horseman",
+      "Mangonel",
+      "Ribauldequin",
+      "Spearman",
+      "Springald"
+    ],
+    "Jeanne d'Arc": [
+      "Arbaletrier",
+      "Archer",
+      "Handcannoneer",
+      "Horseman",
+      "MAA",
+      "Mangonel",
+      "Ribauldequin",
+      "Royal Knight",
+      "Spearman",
+      "Springald"
+    ],
+    "Order of the Dragon": [
+      "Gilded Archer",
+      "Gilded Crossbowman",
+      "Gilded Horseman",
+      "Gilded Landsknecht",
+      "Gilded MAA",
+      "Gilded Spearman",
+      "Mangonel",
+      "Ribauldequin",
+      "Springald"
+    ],
+    "Zhu Xi's Legacy": [
+      "Crossbow",
+      "Horseman",
+      "Imperial Guard",
+      "Knight/Lancer",
+      "Palace Guard",
+      "Ribauldequin",
+      "Spearman",
+      "Springald",
+      "Yuan Raider",
+      "Zhuge Nu"
+    ],
+    "House of Lancaster": [
+      "Crossbow",
+      "Earls Guard",
+      "Handcannoneer",
+      "Hobelar",
+      "Knight/Lancer",
+      "Mangonel",
+      "Ribauldequin",
+      "Spearman",
+      "Springald",
+      "Yoeman"
+    ],
+    "Knights Templar": [
+      "Archer",
+      "Chevalier Confrere",
+      "Condottiero",
+      "Crossbow",
+      "Genitour",
+      "Genoese Crossbowman",
+      "Heavy Spearman",
+      "Horseman",
+      "Hospitaller Knight",
+      "MAA",
+      "Mangonel",
+      "Ribauldequin",
+      "Serjeant",
+      "Spearman",
+      "Springald",
+      "Szlachta Cavalry",
+      "Templar Brother",
+      "Teutonic Knight"
+    ],
+    "Golden Horde": [
+      "Archer",
+      "Crossbow",
+      "Handcannoneer",
+      "Horseman",
+      "Keshik",
+      "Kharash",
+      "Kipchak Archer",
+      "MAA",
+      "Mangonel",
+      "Ribauldequin",
+      "Spearman",
+      "Springald",
+      "Torguud"
+    ],
+    "Macedonian Dynasty": [
+      "Atgeirma\u00f0r",
+      "Bogma\u00f0r",
+      "Cataphract",
+      "Crossbow",
+      "Handcannoneer",
+      "Horseman",
+      "Mangonel",
+      "Ribauldequin",
+      "Riddari",
+      "Spearman",
+      "Springald",
+      "Varangian Guard"
+    ],
+    "Sengoku Daimyo": [
+      "Kanabo Samurai",
+      "Mangonel",
+      "Mounted Samurai",
+      "Naginata Samurai",
+      "Ribauldequin",
+      "Spearman",
+      "Springald",
+      "Tanegashima Ashigaru",
+      "Yari Cavalry",
+      "Yumi"
+    ],
+    "Tughlaq Dynasty": [
+      "Archer",
+      "Ballista Elephant",
+      "Crossbow",
+      "Handcannoneer",
+      "Horseman",
+      "Knight/Lancer",
+      "MAA",
+      "Mangonel",
+      "Raider Elephant",
+      "Ribauldequin",
+      "Spearman",
+      "War Elephant"
+    ]
+  }
+}

@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
 """Scrape Technologies and Aura sections from AoE4 wiki for all units."""
 import json, re, html, subprocess, time, sys
+from pathlib import Path
 
-with open('units_restructured.json', 'r', encoding='utf-8') as f:
+BASE_DIR = Path(__file__).resolve().parent
+BATTLER_DIR = BASE_DIR.parent.parent / "apps" / "aoe4-battler"
+UNITS_PATH = BATTLER_DIR / "units_restructured.json"
+WIKI_DATA_PATH = BASE_DIR / "wiki_data.json"
+
+with UNITS_PATH.open('r', encoding='utf-8') as f:
     data = json.load(f)
 
 # Load existing results to avoid re-fetching successful ones
 try:
-    with open('wiki_data.json', 'r', encoding='utf-8') as f:
+    with WIKI_DATA_PATH.open('r', encoding='utf-8') as f:
         results = json.load(f)
 except:
     results = {}
@@ -115,7 +121,7 @@ for i, name in enumerate(data.keys()):
         results[name] = text
     time.sleep(0.3)
 
-with open('wiki_data.json', 'w', encoding='utf-8') as f:
+with WIKI_DATA_PATH.open('w', encoding='utf-8') as f:
     json.dump(results, f, indent=2, ensure_ascii=False)
 
 ok = sum(1 for v in results.values() if not v.startswith('ERROR'))

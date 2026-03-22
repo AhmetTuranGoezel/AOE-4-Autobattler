@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """Retry failed wiki scrapes with longer delays."""
 import json, re, html, subprocess, time, sys
+from pathlib import Path
 
-with open('wiki_data.json', 'r', encoding='utf-8') as f:
+BASE_DIR = Path(__file__).resolve().parent
+WIKI_DATA_PATH = BASE_DIR / "wiki_data.json"
+
+with WIKI_DATA_PATH.open('r', encoding='utf-8') as f:
     results = json.load(f)
 
 RETRY_URLS = {
@@ -71,7 +75,7 @@ for name, wiki_name in RETRY_URLS.items():
         print(f"  OK ({len(text)} chars)", file=sys.stderr)
         results[name] = text
 
-with open('wiki_data.json', 'w', encoding='utf-8') as f:
+with WIKI_DATA_PATH.open('w', encoding='utf-8') as f:
     json.dump(results, f, indent=2, ensure_ascii=False)
 
 ok = sum(1 for v in results.values() if not v.startswith('ERROR'))
