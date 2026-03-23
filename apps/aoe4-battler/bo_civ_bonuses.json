@@ -28,9 +28,15 @@
     "Outpost": { "cost": { "food": 0, "wood": 100, "gold": 0, "stone": 0 }, "time": 60, "minAge": 1, "type": "military" },
     "Siege Workshop": { "cost": { "food": 0, "wood": 300, "gold": 0, "stone": 0 }, "time": 45, "minAge": 1, "type": "production" },
     "Blacksmith": { "cost": { "food": 0, "wood": 150, "gold": 0, "stone": 0 }, "time": 25, "minAge": 1, "type": "economic" },
+    "University": { "cost": { "food": 0, "wood": 450, "gold": 0, "stone": 0 }, "time": 60, "minAge": 4, "type": "technology" },
+    "Military School": { "cost": { "food": 0, "wood": 150, "gold": 0, "stone": 100 }, "time": 30, "minAge": 1, "type": "production" },
     "Landmark (Age II)": { "cost": { "food": 400, "wood": 0, "gold": 200, "stone": 0 }, "time": 190, "minAge": 1, "type": "landmark" },
     "Landmark (Age III)": { "cost": { "food": 1200, "wood": 0, "gold": 600, "stone": 0 }, "time": 220, "minAge": 2, "type": "landmark" },
-    "Landmark (Age IV)": { "cost": { "food": 2400, "wood": 0, "gold": 1200, "stone": 0 }, "time": 240, "minAge": 3, "type": "landmark" }
+    "Landmark (Age IV)": { "cost": { "food": 2400, "wood": 0, "gold": 1200, "stone": 0 }, "time": 240, "minAge": 3, "type": "landmark" },
+    "Twin Minaret Medrese": { "cost": { "food": 400, "wood": 0, "gold": 200, "stone": 0 }, "time": 190, "minAge": 1, "type": "landmark", "landmarkAge": 2 },
+    "Mehmed Imperial Armory": { "cost": { "food": 1200, "wood": 0, "gold": 600, "stone": 0 }, "time": 220, "minAge": 2, "type": "landmark", "landmarkAge": 3 },
+    "Istanbul Imperial Palace": { "cost": { "food": 1200, "wood": 0, "gold": 600, "stone": 0 }, "time": 220, "minAge": 2, "type": "landmark", "landmarkAge": 3 },
+    "Istanbul Observatory": { "cost": { "food": 2400, "wood": 0, "gold": 1200, "stone": 0 }, "time": 240, "minAge": 3, "type": "landmark", "landmarkAge": 4 }
   },
   "techs": {
     "Wheelbarrow": { "cost": { "food": 0, "wood": 50, "gold": 150, "stone": 0 }, "time": 90, "category": "eco", "researchedAt": ["Mill", "Ger"] },
@@ -113,6 +119,41 @@
       "gerDropoff": true,
       "horsemenTrainTimeMult": 0.75,
       "stablesMinAge": 1
+    },
+    "Ottomans": {
+      "militaryInducementCostMult": 0.6,
+      "militaryInducementBuildings": [
+        "Barracks",
+        "Archery Range",
+        "Stable",
+        "Siege Workshop",
+        "Blacksmith",
+        "University"
+      ],
+      "productionInfluenceByAge": { "2": 20, "3": 30, "4": 40 },
+      "militarySchool": {
+        "trainTimeMult": 4.75,
+        "baseLimitPerAge": 1,
+        "militaryCampusBonus": 1,
+        "advancedAcademySpeedPct": 25,
+        "baseUnits": [
+          "Spearman",
+          "Archer",
+          "Sipahi",
+          "Mehter",
+          "Man-at-Arms",
+          "Crossbowman"
+        ],
+        "advancedAcademyUnits": [
+          "Lancer",
+          "Janissary"
+        ]
+      },
+      "landmarksByAge": {
+        "2": ["Twin Minaret Medrese"],
+        "3": ["Mehmed Imperial Armory", "Istanbul Imperial Palace"],
+        "4": ["Istanbul Observatory"]
+      }
     }
   }
 }

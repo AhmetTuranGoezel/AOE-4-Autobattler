@@ -1,0 +1,2 @@
+/battler /apps/aoe4-battler/ 301
+/battler/* /apps/aoe4-battler/:splat 301
