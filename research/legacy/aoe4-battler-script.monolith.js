@@ -4672,7 +4672,7 @@ function setBoDefaults(cmd) {
     cmd.payload = {
       techType: "Wheelbarrow",
       time: 60,
-      cost: { food: 150, wood: 50, gold: 0, stone: 0 }
+      cost: { food: 0, wood: 50, gold: 150, stone: 0 }
     };
   } else if (cmd.type === "ageUp") {
     cmd.payload = {
