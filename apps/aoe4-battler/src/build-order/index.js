@@ -77,29 +77,37 @@ const BO_TIMELINE_BUILDING_SET = new Set([
   "Archery Range",
   "Stable",
   "Siege Workshop",
+  "Military School",
   "Mill",
   "Blacksmith",
+  "University",
   "Mosque",
   "Monastery",
   "Prayer Tent",
   "Town Center",
   "Landmark (Age II)",
   "Landmark (Age III)",
-  "Landmark (Age IV)"
+  "Landmark (Age IV)",
+  "Twin Minaret Medrese",
+  "Mehmed Imperial Armory",
+  "Istanbul Imperial Palace",
+  "Istanbul Observatory"
 ]);
 const BO_TRAINING_BUILDING_SET = new Set([
   "Town Center",
   "Barracks",
   "Archery Range",
   "Stable",
-  "Siege Workshop"
+  "Siege Workshop",
+  "Military School"
 ]);
 const BO_PRODUCTION_BUILDINGS = new Set([
   "Town Center",
   "Barracks",
   "Archery Range",
   "Stable",
-  "Siege Workshop"
+  "Siege Workshop",
+  "Military School"
 ]);
 const BO_TECH_BUILDINGS = new Set([
   "Mill",
@@ -154,6 +162,28 @@ const BO_ENGLISH_FARM_BONUS_BY_AGE = { 1: 20, 2: 25, 3: 30, 4: 30 };
 const BO_ENGLISH_FARM_GOLD_PER_SEC = 1 / 6;
 const BO_ENGLISH_FARM_COST_MULT = 0.5;
 const BO_AGE_UP_TIME_DEFAULTS = { 2: 190, 3: 220 };
+const BO_OTTOMAN_MILITARY_SCHOOL_BUILDING = "Military School";
+const BO_OTTOMAN_UNIT_ALIASES = {
+  "Crossbowman": "Crossbow",
+  "Man-at-Arms": "MAA",
+  "Lancer": "Knight/Lancer"
+};
+const BO_OTTOMAN_EXTRA_UNIT_SPECS = {
+  "Mehter": {
+    civs: ["Ottomans"],
+    cost: { food: 100, wood: 0, gold: 80, stone: 0 },
+    time: 28,
+    ages: [2, 3, 4],
+    buildings: ["Stable", BO_OTTOMAN_MILITARY_SCHOOL_BUILDING]
+  },
+  "Janissary": {
+    civs: ["Ottomans"],
+    cost: { food: 60, wood: 0, gold: 100, stone: 0 },
+    time: 24,
+    ages: [3, 4],
+    buildings: ["Archery Range", BO_OTTOMAN_MILITARY_SCHOOL_BUILDING]
+  }
+};
 
 function getBoRatesForCiv(civ) {
   const base = { ...BO_BASE_RATES };
@@ -198,6 +228,154 @@ function applyBoWorkRateToDuration(duration, workRatePct) {
   return base / (1 + (pct / 100));
 }
 
+function getBoOttomanSettingsFromInputs() {
+  return {
+    militaryCampus: !!document.getElementById("boOttomanMilitaryCampus")?.checked,
+    advancedAcademy: !!document.getElementById("boOttomanAdvancedAcademy")?.checked
+  };
+}
+
+function applyBoOttomanSettings(settings = {}) {
+  const militaryCampus = document.getElementById("boOttomanMilitaryCampus");
+  const advancedAcademy = document.getElementById("boOttomanAdvancedAcademy");
+  if (militaryCampus) militaryCampus.checked = !!settings.militaryCampus;
+  if (advancedAcademy) advancedAcademy.checked = !!settings.advancedAcademy;
+}
+
+function updateBoOttomanPanel(civ) {
+  const panel = document.getElementById("boOttomanPanel");
+  if (!panel) return;
+  panel.style.display = civ === "Ottomans" ? "" : "none";
+}
+
+function getBoOttomanMilitarySchoolConfig(civ) {
+  return civ === "Ottomans" ? (BO_CIV_BONUSES?.[civ]?.militarySchool || null) : null;
+}
+
+function getBoLandmarkChoicesForCiv(civ) {
+  return BO_CIV_BONUSES?.[civ]?.landmarksByAge || {};
+}
+
+function getBoBuildableBuildingsForCiv(civ) {
+  const fallbackBuildings = [
+    "Farm",
+    "Mill",
+    "Lumber Camp",
+    "Mining Camp",
+    "Town Center",
+    "Barracks",
+    "Archery Range",
+    "Stable",
+    "Keep",
+    "Mosque",
+    "Monastery",
+    "Prayer Tent",
+    "Pasture",
+    "Ger",
+    "Ovoo",
+    "Blacksmith",
+    "University",
+    "Military School",
+    "Landmark (Age II)",
+    "Landmark (Age III)",
+    "Landmark (Age IV)"
+  ];
+  const buildingKeys = Object.keys(BO_BUILDING_DEFAULTS || {}).length ? Object.keys(BO_BUILDING_DEFAULTS || {}) : fallbackBuildings;
+  const landmarkChoices = getBoLandmarkChoicesForCiv(civ);
+  const next = [];
+  const seen = new Set();
+  const push = (name) => {
+    if (!name || seen.has(name)) return;
+    seen.add(name);
+    next.push(name);
+  };
+  buildingKeys.forEach((name) => {
+    if (name === BO_OTTOMAN_MILITARY_SCHOOL_BUILDING && civ !== "Ottomans") return;
+    if (name === "Landmark (Age II)" && landmarkChoices?.["2"]?.length) {
+      landmarkChoices["2"].forEach(push);
+      return;
+    }
+    if (name === "Landmark (Age III)" && landmarkChoices?.["3"]?.length) {
+      landmarkChoices["3"].forEach(push);
+      return;
+    }
+    if (name === "Landmark (Age IV)" && landmarkChoices?.["4"]?.length) {
+      landmarkChoices["4"].forEach(push);
+      return;
+    }
+    const def = BO_BUILDING_DEFAULTS?.[name];
+    if (def?.landmarkAge && civ !== "Ottomans") return;
+    push(name);
+  });
+  return next;
+}
+
+function resolveBoUnitName(unitName) {
+  return BO_OTTOMAN_UNIT_ALIASES[unitName] || unitName;
+}
+
+function getBoExtraUnitSpec(unitName, civ) {
+  const direct = BO_OTTOMAN_EXTRA_UNIT_SPECS[unitName] || BO_OTTOMAN_EXTRA_UNIT_SPECS[resolveBoUnitName(unitName)];
+  if (!direct) return null;
+  if (Array.isArray(direct.civs) && civ && !direct.civs.includes(civ)) return null;
+  return direct;
+}
+
+function getBoUnitAgeList(unitName, civ) {
+  const extra = getBoExtraUnitSpec(unitName, civ);
+  if (extra?.ages?.length) return extra.ages.slice();
+  const resolved = resolveBoUnitName(unitName);
+  if (resolved === "Villager" || resolved === "Scout") return [1, 2, 3, 4];
+  const unit = getUnitMeta(resolved);
+  if (Array.isArray(unit?.ages) && unit.ages.length) return unit.ages.slice();
+  return [1, 2, 3, 4];
+}
+
+function getBoUnitMinAge(unitName, civ) {
+  const ages = getBoUnitAgeList(unitName, civ).filter((age) => Number.isFinite(age));
+  return ages.length ? Math.min(...ages) : 1;
+}
+
+function isBoUnitTrainableAtBuilding(unitName, buildingType, civ, ottomanSettings = null) {
+  const resolved = resolveBoUnitName(unitName);
+  if (buildingType === "Town Center") {
+    return resolved === "Villager" || resolved === "Scout";
+  }
+  if (buildingType === BO_OTTOMAN_MILITARY_SCHOOL_BUILDING) {
+    const school = getBoOttomanMilitarySchoolConfig(civ);
+    if (!school) return false;
+    const baseUnits = school.baseUnits || [];
+    const advancedUnits = school.advancedAcademyUnits || [];
+    if (baseUnits.includes(unitName)) return true;
+    return !!ottomanSettings?.advancedAcademy && advancedUnits.includes(unitName);
+  }
+  const extra = getBoExtraUnitSpec(unitName, civ);
+  if (extra?.buildings?.length) {
+    return extra.buildings.includes(buildingType);
+  }
+  const unit = getUnitMeta(resolved);
+  if (!unit) return false;
+  const tags = Array.isArray(unit.tags) ? unit.tags : [];
+  const category = String(unit.category || "");
+  if (buildingType === "Siege Workshop") return tags.includes("Siege") || category === "Siege";
+  if (buildingType === "Stable") return tags.includes("Cavalry") && !tags.includes("Ranged");
+  if (buildingType === "Archery Range") return !tags.includes("Siege") && (tags.includes("Ranged") || category.includes("Ranged"));
+  if (buildingType === "Barracks") return tags.includes("Infantry") && !tags.includes("Ranged") && !tags.includes("Siege");
+  return false;
+}
+
+function getBoUnitOptionsForBuilding(buildingType, civ, ottomanSettings = null) {
+  if (!buildingType) return [];
+  if (buildingType === BO_OTTOMAN_MILITARY_SCHOOL_BUILDING) {
+    const school = getBoOttomanMilitarySchoolConfig(civ);
+    if (!school) return [];
+    const choices = [...(school.baseUnits || [])];
+    if (ottomanSettings?.advancedAcademy) choices.push(...(school.advancedAcademyUnits || []));
+    return Array.from(new Set(choices));
+  }
+  return getBoUnitOptions(civ).filter((unitName) => isBoUnitTrainableAtBuilding(unitName, buildingType, civ, ottomanSettings));
+}
+
 function getBoPreviewTownCenterWorkRatePct(civ, ageOverride = null) {
   const civBonus = BO_CIV_BONUSES?.[civ] || {};
   const age = Number.isFinite(ageOverride)
@@ -209,6 +387,7 @@ function getBoPreviewTownCenterWorkRatePct(civ, ageOverride = null) {
 function renderBoCivBonuses(civ) {
   const box = document.getElementById("boCivBonuses");
   if (!box) return;
+  updateBoOttomanPanel(civ);
   if (!civ) {
     box.innerHTML = `<span class="text-muted">Select a civilization to apply civ bonuses.</span>`;
     return;
@@ -228,6 +407,18 @@ function renderBoCivBonuses(civ) {
   if (civBonus.ecoTechCostMult) parts.push("Eco techs cheaper (French/Jeanne)");
   if (civBonus.townCenterWorkRateByAge) parts.push("Town Center works faster by age (15/15/20/25%)");
   if (civ === "Mongols") parts.push("Pasture/Ovoo/Ger rules apply; farms disabled");
+  if (civ === "Ottomans") {
+    const school = civBonus.militarySchool || {};
+    const costMult = civBonus.militaryInducementCostMult || 0.6;
+    const influenceByAge = civBonus.productionInfluenceByAge || {};
+    const militaryCampus = getBoOttomanSettingsFromInputs().militaryCampus;
+    const advancedAcademy = getBoOttomanSettingsFromInputs().advancedAcademy;
+    const influenceText = `${getBoAgeBonusValue(influenceByAge, 2)} / ${getBoAgeBonusValue(influenceByAge, 3)} / ${getBoAgeBonusValue(influenceByAge, 4)}%`;
+    parts.push(`Military Inducement: ${Math.round((1 - costMult) * 100)}% cheaper Barracks/Range/Stable/Workshop/Blacksmith/University`);
+    parts.push(`Influence: +${influenceText} production speed with Blacksmith or University`);
+    parts.push(`Military School: Dark Age, 1 per Age${militaryCampus ? " (+1 via Military Campus)" : ""}, free production at ${school.trainTimeMult || 4.75}x train time`);
+    if (advancedAcademy) parts.push("Advanced Academy active: +25% military production speed, unlocks Lancer + Janissary in Military Schools");
+  }
   if (!parts.length) {
     box.innerHTML = `<span class="text-muted">No civ bonuses applied.</span>`;
     return;
@@ -324,6 +515,7 @@ function applyBoDefaults() {
   const civ = document.getElementById("boCiv")?.value || "";
   applyBoStartingResources(civ);
   applyBoStartingVillagers(civ);
+  updateBoOttomanPanel(civ);
 
   const setVal = (id, val) => {
     const el = document.getElementById(id);
@@ -463,6 +655,7 @@ function getBoPersistedSnapshot() {
     villagers: settings.villagers,
     gatherRates: cloneBoData(settings.gatherRates || {}),
     carry: cloneBoData(settings.carry || {}),
+    ottomanBonuses: cloneBoData(settings.ottomanBonuses || {}),
     overlayEnabled: !!boOverlayEnabled,
     commands: cloneBoData(boCommands),
     lastCommandType: boLastCommandType,
@@ -560,6 +753,7 @@ function applyBoSnapshot(snapshot, options = {}) {
 
   applyBoStartingResources(civ);
   applyBoStartingVillagers(civ);
+  applyBoOttomanSettings(snapshot.ottomanBonuses || {});
   applyBoCivRates(civ);
   applyBoCivRestrictions(civ);
   applyBoBoarRestriction(civ);
@@ -751,6 +945,7 @@ function restoreBoSavedStateOnInit() {
   civSelect.value = civ;
   applyBoStartingResources(civ);
   applyBoStartingVillagers(civ);
+  applyBoOttomanSettings({});
   applyBoCivRates(civ);
   applyBoCivRestrictions(civ);
   applyBoBoarRestriction(civ);
@@ -857,6 +1052,7 @@ function initBuildOrderUI() {
       }
       applyBoStartingResources(civ);
       applyBoStartingVillagers(civ);
+      applyBoOttomanSettings({});
       applyBoCivRates(civ);
       applyBoCivRestrictions(civ);
       applyBoBoarRestriction(civ);
@@ -1079,6 +1275,15 @@ function getBoBuildStepCost(step, civ, civBonus) {
     }
     if (civ === "French" && def?.type === "dropoff") {
       const mult = civBonus?.dropoffCostMult || 0.5;
+      cost = {
+        food: Math.round((cost.food || 0) * mult),
+        wood: Math.round((cost.wood || 0) * mult),
+        gold: Math.round((cost.gold || 0) * mult),
+        stone: Math.round((cost.stone || 0) * mult)
+      };
+    }
+    if (civ === "Ottomans" && civBonus?.militaryInducementBuildings?.includes(step.building)) {
+      const mult = civBonus?.militaryInducementCostMult || 0.6;
       cost = {
         food: Math.round((cost.food || 0) * mult),
         wood: Math.round((cost.wood || 0) * mult),
@@ -1394,24 +1599,41 @@ function getBoTechDefaults(name) {
 }
 
 function getBoUnitDefaults(unitName, civ) {
-  if (unitName === "Villager") {
+  const resolved = resolveBoUnitName(unitName);
+  if (resolved === "Villager") {
     return {
       cost: { food: 50, wood: 0, gold: 0, stone: 0 },
       time: BO_VILLAGER_TIME,
       population: 1
     };
   }
-  if (unitName === "Scout") {
+  if (resolved === "Scout") {
     return {
       cost: { food: 65, wood: 0, gold: 0, stone: 0 },
       time: 23,
       population: 1
     };
   }
-  const unit = getUnitMeta(unitName);
+  const extra = getBoExtraUnitSpec(unitName, civ);
+  if (extra) {
+    return {
+      cost: {
+        food: extra.cost?.food || 0,
+        wood: extra.cost?.wood || 0,
+        gold: extra.cost?.gold || 0,
+        stone: extra.cost?.stone || 0
+      },
+      time: extra.time || 0,
+      population: extra.population || 1
+    };
+  }
+  const unit = getUnitMeta(resolved);
   if (!unit) return null;
   const civs = unit.civs || [];
-  const isAllowed = civ ? (civs.includes("Common") || civs.includes(civ)) : civs.includes("Common");
+  const exceptCivs = unit.exceptCivs || [];
+  const isAllowed = civ
+    ? (civs.includes("Common") || civs.includes(civ)) && !exceptCivs.includes(civ)
+    : civs.includes("Common");
   if (!isAllowed) return null;
   return {
     cost: {
@@ -1431,11 +1653,59 @@ function getBoUnitOptions(civ) {
     ? base.filter((name) => {
       const unit = getUnitMeta(name);
       const civs = unit.civs || [];
-      return civs.includes("Common") || civs.includes(civ);
+      const exceptCivs = unit.exceptCivs || [];
+      return (civs.includes("Common") || civs.includes(civ)) && !exceptCivs.includes(civ);
     })
     : base.slice();
   const list = ["Villager", "Scout", ...pool];
   return Array.from(new Set(list)).sort((a, b) => a.localeCompare(b));
+}
+
+function getBoMilitaryProductionSpeedPct(civ, buildingType, age, options = {}) {
+  if (civ !== "Ottomans") return 0;
+  if (!BO_PRODUCTION_BUILDINGS.has(buildingType) || buildingType === "Town Center") return 0;
+  const civBonus = BO_CIV_BONUSES?.[civ] || {};
+  const ottomanSettings = options.ottomanSettings || getBoOttomanSettingsFromInputs();
+  let pct = 0;
+  if (options.hasInfluenceSource) {
+    pct += getBoAgeBonusValue(civBonus.productionInfluenceByAge, age);
+  }
+  if (ottomanSettings?.advancedAcademy) {
+    pct += civBonus.militarySchool?.advancedAcademySpeedPct || 25;
+  }
+  return pct;
+}
+
+function getBoPreviewTrainSpec(unitName, buildingType, civ, options = {}) {
+  const base = getBoUnitDefaults(unitName, civ);
+  if (!base) return null;
+  let cost = { ...(base.cost || { food: 0, wood: 0, gold: 0, stone: 0 }) };
+  let time = base.time || 0;
+  if (civ === "Mongols" && /horseman/i.test(resolveBoUnitName(unitName))) {
+    const civBonus = BO_CIV_BONUSES?.[civ] || {};
+    time *= civBonus.horsemenTrainTimeMult || 0.75;
+  }
+  if (buildingType === BO_OTTOMAN_MILITARY_SCHOOL_BUILDING) {
+    const school = getBoOttomanMilitarySchoolConfig(civ);
+    if (school) {
+      cost = { food: 0, wood: 0, gold: 0, stone: 0 };
+      time *= school.trainTimeMult || 4.75;
+      time = applyBoWorkRateToDuration(
+        time,
+        getBoMilitaryProductionSpeedPct(civ, buildingType, options.age || (parseInt(document.getElementById("boStartAge")?.value, 10) || 1), {
+          ottomanSettings: options.ottomanSettings || getBoOttomanSettingsFromInputs(),
+          hasInfluenceSource: !!options.hasInfluenceSource
+        })
+      );
+    }
+  } else if (buildingType === "Town Center") {
+    time = applyBoWorkRateToDuration(time, getBoPreviewTownCenterWorkRatePct(civ, options.age));
+  }
+  return {
+    cost,
+    time,
+    population: base.population || 1
+  };
 }
 
 function applyAutoDefaultsForCommand(cmd, civ) {
@@ -1480,31 +1750,27 @@ function applyAutoDefaultsForCommand(cmd, civ) {
     }
   }
   if (cmd.type === "trainUnit") {
-    const def = getBoUnitDefaults(cmd.payload.unitName, civ);
-    if (def) {
-      if (cmd.autoTime) cmd.payload.timePerUnit = def.time;
-      if (cmd.autoTime) {
-        const trainingBuilding = cmd.payload.building || inferBoBuildingTypeFromId(cmd.payload.buildingId);
-        if (trainingBuilding === "Town Center") {
-          const tcPct = getBoPreviewTownCenterWorkRatePct(civ);
-          cmd.payload.timePerUnit = applyBoWorkRateToDuration(cmd.payload.timePerUnit, tcPct);
-        }
-      }
-      if (cmd.autoCost) cmd.payload.cost = { ...def.cost };
+    const trainingBuilding = cmd.payload.building || inferBoBuildingTypeFromId(cmd.payload.buildingId);
+    const preview = getBoPreviewTrainSpec(cmd.payload.unitName, trainingBuilding, civ, {
+      ottomanSettings: getBoOttomanSettingsFromInputs()
+    });
+    if (preview) {
+      if (cmd.autoTime) cmd.payload.timePerUnit = preview.time;
+      if (cmd.autoCost) cmd.payload.cost = { ...preview.cost };
+    }
+    if (trainingBuilding === BO_OTTOMAN_MILITARY_SCHOOL_BUILDING) {
+      cmd.payload.repeatUntilEnd = true;
+      cmd.payload.count = 1;
     }
   }
   if (cmd.type === "autoQueue") {
-    const def = getBoUnitDefaults(cmd.payload.unitName, civ);
-    if (def) {
-      if (cmd.autoTime) cmd.payload.timePerUnit = def.time;
-      if (cmd.autoTime) {
-        const trainingBuilding = cmd.payload.building || inferBoBuildingTypeFromId(cmd.payload.buildingId);
-        if (trainingBuilding === "Town Center") {
-          const tcPct = getBoPreviewTownCenterWorkRatePct(civ);
-          cmd.payload.timePerUnit = applyBoWorkRateToDuration(cmd.payload.timePerUnit, tcPct);
-        }
-      }
-      if (cmd.autoCost) cmd.payload.cost = { ...def.cost };
+    const trainingBuilding = cmd.payload.building || inferBoBuildingTypeFromId(cmd.payload.buildingId);
+    const preview = getBoPreviewTrainSpec(cmd.payload.unitName, trainingBuilding, civ, {
+      ottomanSettings: getBoOttomanSettingsFromInputs()
+    });
+    if (preview) {
+      if (cmd.autoTime) cmd.payload.timePerUnit = preview.time;
+      if (cmd.autoCost) cmd.payload.cost = { ...preview.cost };
     }
   }
   if (cmd.type === "garrisonScholars") {
@@ -3318,38 +3584,34 @@ function renderBoCommandEditor(cmd) {
     return;
   }
   const farmsDisabled = (BO_CIV_BONUSES?.[civ]?.farmsDisabled || civ === "Mongols");
-  const baseUnitPool = getBoUnitOptions(civ);
-  const isTcTarget = (cmd.type === "trainUnit")
-    ? ((cmd.payload?.buildingId || "").startsWith("TC ") || cmd.payload?.building === "Town Center")
-    : false;
-  const unitPool = isTcTarget
-    ? baseUnitPool.filter((u) => u === "Villager" || u === "Scout")
-    : baseUnitPool.filter((u) => u !== "Villager" && u !== "Scout");
+  const ottomanSettings = getBoOttomanSettingsFromInputs();
+  const trainBuildingTarget = (cmd.type === "trainUnit")
+    ? (cmd.payload?.building || inferBoBuildingTypeFromId(cmd.payload?.buildingId) || "Barracks")
+    : "Barracks";
+  const isTcTarget = cmd.type === "trainUnit" && trainBuildingTarget === "Town Center";
+  const isMilitarySchoolTarget = cmd.type === "trainUnit" && trainBuildingTarget === BO_OTTOMAN_MILITARY_SCHOOL_BUILDING;
+  const unitPool = cmd.type === "trainUnit"
+    ? Array.from(new Set([
+      ...getBoUnitOptionsForBuilding(trainBuildingTarget, civ, ottomanSettings),
+      ...(cmd.payload?.unitName ? [cmd.payload.unitName] : [])
+    ]))
+    : getBoUnitOptions(civ);
   const unitOptions = unitPool.map((name) => `<option value="${name}">${name}</option>`).join("");
-  const fallbackBuildings = [
-    "Farm",
-    "Mill",
-    "Lumber Camp",
-    "Mining Camp",
-    "Town Center",
-    "Barracks",
-    "Archery Range",
-    "Stable",
-    "Keep",
-    "Mosque",
-    "Monastery",
-    "Prayer Tent",
-    "Pasture",
-    "Ger",
-    "Ovoo",
-    "Landmark (Age II)",
-    "Landmark (Age III)",
-    "Landmark (Age IV)"
-  ];
-  const buildingKeys = Object.keys(BO_BUILDING_DEFAULTS || {}).length ? Object.keys(BO_BUILDING_DEFAULTS || {}) : fallbackBuildings;
+  const buildingKeys = getBoBuildableBuildingsForCiv(civ);
   const buildingOptions = buildingKeys
     .filter((name) => !(farmsDisabled && name === "Farm"))
     .map((name) => `<option value="${name}">${name}</option>`).join("");
+  const trainBuildingChoices = [
+    "Barracks",
+    "Archery Range",
+    "Stable",
+    "Siege Workshop",
+    ...((civ === "Ottomans" || isMilitarySchoolTarget) ? [BO_OTTOMAN_MILITARY_SCHOOL_BUILDING] : []),
+    "Town Center"
+  ];
+  const trainBuildingOptions = trainBuildingChoices
+    .map((name) => `<option value="${name}">${name}</option>`)
+    .join("");
   const filteredTechs = getBoAvailableTechs(civ);
   const rallyOptions = `
     <option value="sheep">Sheep</option>
@@ -3558,6 +3820,9 @@ function renderBoCommandEditor(cmd) {
       </div>
     `;
   } else if (cmd.type === "trainUnit") {
+    const militarySchoolNote = isMilitarySchoolTarget
+      ? `<div class="bo-target-note text-muted">Military Schools continuously produce one selected unit for free. Output speed uses the Ottoman school multiplier and bonuses.</div>`
+      : "";
     const targetInfo = cmd.payload.buildingId ? `<div class="bo-target-note text-muted">Targeted: ${cmd.payload.buildingId}</div>` : "";
     const rallyFields = showRallyFields ? `
       <div class="row g-2 mt-2">
@@ -3581,27 +3846,24 @@ function renderBoCommandEditor(cmd) {
           <small class="text-muted">Unit</small>
           <select class="form-select form-select-sm" data-field="trainUnit">${unitOptions}</select>
         </div>
-        <div class="col-3" data-role="trainCountWrap">
+        <div class="col-3" data-role="trainCountWrap" ${isMilitarySchoolTarget ? "hidden" : ""}>
           <small class="text-muted">Count</small>
           <input type="number" class="form-control form-control-sm" data-field="trainCount" value="${cmd.payload.count}" min="1">
         </div>
         <div class="col-3">
           <small class="text-muted">Building</small>
           <select class="form-select form-select-sm" data-field="trainBuilding">
-            <option value="Barracks">Barracks</option>
-            <option value="Archery Range">Archery Range</option>
-            <option value="Stable">Stable</option>
-            <option value="Siege Workshop">Siege Workshop</option>
-            <option value="Town Center">Town Center</option>
+            ${trainBuildingOptions}
           </select>
         </div>
       </div>
       ${targetInfo}
-      <div class="form-check mt-2">
+      <div class="form-check mt-2" ${isMilitarySchoolTarget ? "hidden" : ""}>
         <input class="form-check-input" type="checkbox" data-field="trainRepeatUntilEnd" id="trainRepeatUntilEnd_${cmd.id}" ${cmd.payload.repeatUntilEnd ? "checked" : ""}>
         <label class="form-check-label" for="trainRepeatUntilEnd_${cmd.id}">Repeat until sim end</label>
       </div>
-      <div class="bo-target-note text-muted" data-role="trainRepeatNote" ${cmd.payload.repeatUntilEnd ? "" : "hidden"}>Keeps training whenever this building is idle and resources allow.</div>
+      <div class="bo-target-note text-muted" data-role="trainRepeatNote" ${(cmd.payload.repeatUntilEnd && !isMilitarySchoolTarget) ? "" : "hidden"}>Keeps training whenever this building is idle and resources allow.</div>
+      ${militarySchoolNote}
     `;
     const timing = `
       <div class="row g-2">
@@ -3760,12 +4022,19 @@ function renderBoCommandEditor(cmd) {
     const countWrap = editor.querySelector('[data-role="trainCountWrap"]');
     const repeatNote = editor.querySelector('[data-role="trainRepeatNote"]');
     const syncRepeatUi = () => {
-      const repeating = !!repeatToggle?.checked;
+      const selectedBuilding = buildSel?.value || cmd.payload.building || "Barracks";
+      const isMilitarySchool = selectedBuilding === BO_OTTOMAN_MILITARY_SCHOOL_BUILDING;
+      if (repeatToggle) {
+        repeatToggle.checked = isMilitarySchool ? true : repeatToggle.checked;
+        repeatToggle.disabled = isMilitarySchool;
+      }
+      const repeating = isMilitarySchool || !!repeatToggle?.checked;
       if (countWrap) countWrap.hidden = repeating;
-      if (repeatNote) repeatNote.hidden = !repeating;
+      if (repeatNote) repeatNote.hidden = !repeating || isMilitarySchool;
     };
     syncRepeatUi();
     repeatToggle?.addEventListener("change", syncRepeatUi);
+    buildSel?.addEventListener("change", syncRepeatUi);
   }
   if (cmd.type === "sacredSite") {
     const count = editor.querySelector('[data-field="sacredCount"]');
@@ -4065,7 +4334,9 @@ function syncBoCommandFromEditor(editor, cmd) {
     updateAuto();
     const selectedBuilding = getVal("trainBuilding") || cmd.payload.building || "Barracks";
     const unitName = getVal("trainUnit") || cmd.payload.unitName;
-    const repeatUntilEnd = !!editor.querySelector('[data-field="trainRepeatUntilEnd"]')?.checked;
+    const repeatUntilEnd = selectedBuilding === BO_OTTOMAN_MILITARY_SCHOOL_BUILDING
+      ? true
+      : !!editor.querySelector('[data-field="trainRepeatUntilEnd"]')?.checked;
     const rallyTarget = editor.querySelector('[data-field="rallyTarget"]')?.value;
     const rallyTravelDelay = parseFloat(editor.querySelector('[data-field="rallyTravelDelay"]')?.value);
     const tripRaw = editor.querySelector('[data-field="rallyTripOverride"]')?.value;
@@ -4082,7 +4353,9 @@ function syncBoCommandFromEditor(editor, cmd) {
     cmd.payload = {
       unitName,
       building: selectedBuilding,
-      count: Math.max(1, Math.floor(getNum("trainCount") || 1)),
+      count: selectedBuilding === BO_OTTOMAN_MILITARY_SCHOOL_BUILDING
+        ? 1
+        : Math.max(1, Math.floor(getNum("trainCount") || 1)),
       repeatUntilEnd,
       timePerUnit: getNum("trainTime"),
       cost: {
@@ -4123,12 +4396,11 @@ function renderBoBuildingPanel(editor, building) {
   const isProduction = BO_PRODUCTION_BUILDINGS.has(building.type);
   const isTech = BO_TECH_BUILDINGS.has(building.type);
   const isTownCenter = building.type === "Town Center";
+  const isMilitarySchool = building.type === BO_OTTOMAN_MILITARY_SCHOOL_BUILDING;
   const readyAt = Number.isFinite(building.readyAt) ? formatTimeMMSS(building.readyAt) : "0:00";
 
-  const unitPool = getBoUnitOptions(civ).filter((u) => {
-    if (isTownCenter) return u === "Villager" || u === "Scout";
-    return u !== "Villager" && u !== "Scout";
-  });
+  const ottomanSettings = getBoOttomanSettingsFromInputs();
+  const unitPool = getBoUnitOptionsForBuilding(building.type, civ, ottomanSettings);
   const unitOptions = unitPool.map((name) => `<option value="${name}">${name}</option>`).join("");
   const filteredTechs = getBoAvailableTechs(civ);
 
@@ -4160,15 +4432,17 @@ function renderBoBuildingPanel(editor, building) {
         </div>
       </div>
   ` : "";
+  const queueActionTitle = isMilitarySchool ? "Set Military School Output" : "Queue Unit";
+  const queueActionLabel = isMilitarySchool ? "Set Output" : "Add Queue";
   const queueBlock = isProduction ? `
     <div class="bo-action-block">
-      <div class="bo-action-title">Queue Unit</div>
+      <div class="bo-action-title">${queueActionTitle}</div>
       <div class="row g-2 align-items-end">
         <div class="col-5">
           <small class="text-muted">Unit</small>
           <select class="form-select form-select-sm" data-field="queueUnit">${unitOptions}</select>
         </div>
-        <div class="col-3" data-role="queueCountWrap">
+        <div class="col-3" data-role="queueCountWrap" ${isMilitarySchool ? "hidden" : ""}>
           <small class="text-muted">Count</small>
           <input type="number" class="form-control form-control-sm" data-field="queueCount" value="1" min="1" title="How many units to queue.">
         </div>
@@ -4186,16 +4460,16 @@ function renderBoBuildingPanel(editor, building) {
           <input type="number" class="form-control form-control-sm" data-field="queueAtTime" value="0" min="0" step="1" title="Start time if using 'At time'.">
         </div>
         <div class="col-8 d-flex align-items-end justify-content-end">
-          <button class="btn btn-outline-secondary btn-sm" type="button" data-action="queueUnit">Add Queue</button>
+          <button class="btn btn-outline-secondary btn-sm" type="button" data-action="queueUnit">${queueActionLabel}</button>
         </div>
       </div>
-      <div class="form-check mt-2">
+      <div class="form-check mt-2" ${isMilitarySchool ? "hidden" : ""}>
         <input class="form-check-input" type="checkbox" data-field="queueRepeatUntilEnd" id="queueRepeat_${building.id.replace(/[^a-zA-Z0-9]/g, "_")}">
         <label class="form-check-label" for="queueRepeat_${building.id.replace(/[^a-zA-Z0-9]/g, "_")}">Repeat until sim end</label>
       </div>
       <div class="bo-target-note text-muted" data-role="queueRepeatNote" hidden>Uses this building continuously until the sim ends or a newer repeat queue replaces it.</div>
       ${queueRallyFields}
-      <div class="bo-target-note text-muted">After previous anchors to this building's completion.</div>
+      <div class="bo-target-note text-muted">${isMilitarySchool ? "Military Schools continuously produce one selected unit for free. The output command uses repeat mode automatically." : "After previous anchors to this building's completion."}</div>
     </div>
   ` : "";
   const rallyHint = isTownCenter
@@ -4254,14 +4528,18 @@ function renderBoBuildingPanel(editor, building) {
     const queueRally = editor.querySelector('[data-field="queueRallyTarget"]');
     if (queueRally) queueRally.value = "idle";
   }
+  if (isMilitarySchool) {
+    const queueRepeat = editor.querySelector('[data-field="queueRepeatUntilEnd"]');
+    if (queueRepeat) queueRepeat.checked = true;
+  }
 
   const queueRepeatToggle = editor.querySelector('[data-field="queueRepeatUntilEnd"]');
   const queueCountWrap = editor.querySelector('[data-role="queueCountWrap"]');
   const queueRepeatNote = editor.querySelector('[data-role="queueRepeatNote"]');
   const syncQueueRepeatUi = () => {
-    const repeating = !!queueRepeatToggle?.checked;
+    const repeating = isMilitarySchool || !!queueRepeatToggle?.checked;
     if (queueCountWrap) queueCountWrap.hidden = repeating;
-    if (queueRepeatNote) queueRepeatNote.hidden = !repeating;
+    if (queueRepeatNote) queueRepeatNote.hidden = !repeating || isMilitarySchool;
   };
   syncQueueRepeatUi();
   queueRepeatToggle?.addEventListener("change", syncQueueRepeatUi);
@@ -4294,8 +4572,8 @@ function renderBoBuildingPanel(editor, building) {
 
   editor.querySelector('[data-action="queueUnit"]')?.addEventListener("click", () => {
     const unitName = editor.querySelector('[data-field="queueUnit"]')?.value || (isTownCenter ? "Villager" : "Spearman");
-    const count = Math.max(1, parseInt(editor.querySelector('[data-field="queueCount"]')?.value, 10) || 1);
-    const repeatUntilEnd = !!editor.querySelector('[data-field="queueRepeatUntilEnd"]')?.checked;
+    const count = isMilitarySchool ? 1 : Math.max(1, parseInt(editor.querySelector('[data-field="queueCount"]')?.value, 10) || 1);
+    const repeatUntilEnd = isMilitarySchool ? true : !!editor.querySelector('[data-field="queueRepeatUntilEnd"]')?.checked;
     const mode = editor.querySelector('[data-field="queueTimeMode"]')?.value || "afterPrev";
     const atTime = parseFloat(editor.querySelector('[data-field="queueAtTime"]')?.value) || 0;
     const rallyTarget = editor.querySelector('[data-field="queueRallyTarget"]')?.value || "idle";
@@ -4664,6 +4942,7 @@ function readBoSettings() {
       gold: BO_DEFAULT_TRIP.gold,
       stone: BO_DEFAULT_TRIP.stone
     },
+    ottomanBonuses: getBoOttomanSettingsFromInputs(),
     bonusData: {
       civBonuses: BO_CIV_BONUSES,
       muslimCivs: BO_MUSLIM_CIVS,
@@ -4689,6 +4968,7 @@ function simulateBuildOrder(commands, config) {
   let time = 0;
   let age = config.startAge;
   const civ = config.civ || "";
+  const ottomanBonuses = config.ottomanBonuses || { militaryCampus: false, advancedAcademy: false };
   const bonusData = config.bonusData || {};
   const civBonus = bonusData.civBonuses?.[civ] || BO_CIV_BONUSES?.[civ] || {};
   const muslimCiv = bonusData.muslimCivs ? bonusData.muslimCivs.has(civ) : BO_MUSLIM_CIVS.has(civ);
@@ -4719,6 +4999,8 @@ function simulateBuildOrder(commands, config) {
     "Archery Range": 0,
     "Stable": 0,
     "Keep": 0,
+    "University": 0,
+    "Military School": 0,
     "Mosque": 0,
     "Farm": 0,
     "Pasture": 0,
@@ -4730,7 +5012,8 @@ function simulateBuildOrder(commands, config) {
     "Barracks": [],
     "Archery Range": [],
     "Stable": [],
-    "Siege Workshop": []
+    "Siege Workshop": [],
+    "Military School": []
   };
   const buildingInstances = {};
   Object.keys(buildingCounts).forEach((name) => {
@@ -4761,7 +5044,8 @@ function simulateBuildOrder(commands, config) {
   const autoQueues = [];
   const finiteQueues = [];
   const buildQueues = [];
-  const nextDropoff = {};
+  const dropoffCohorts = Object.fromEntries(BO_RESOURCE_KEYS.map((res) => [res, []]));
+  let nextDropoffCohortId = 1;
   let advanceFiniteReservation = null;
 
   function pushSample(t, res) {
@@ -4881,7 +5165,7 @@ function simulateBuildOrder(commands, config) {
 
   pushSample(0, resources);
   syncGatherSegments(0);
-  rescheduleAllDropoffs(0);
+  syncDropoffCohorts(BO_RESOURCE_KEYS, 0);
 
   function foodMult() {
     return Math.pow(config.techEffects.foodUpgradeMult || 1, foodTechLevel);
@@ -4957,97 +5241,200 @@ function simulateBuildOrder(commands, config) {
       : (assignments[res] || 0);
   }
 
-  function scheduleDropoff(res, now) {
-    const vills = assignedCount(res);
-    if (vills <= 0) {
-      nextDropoff[res] = null;
-      return;
-    }
-    if (!dropoffAvailable(res)) {
-      nextDropoff[res] = null;
-      return;
-    }
-    if (BO_FINITE_FOOD_SOURCES.includes(res) && (foodRemaining[res] || 0) <= 0) {
-      nextDropoff[res] = null;
-      return;
-    }
+  function getResourceCohorts(res) {
+    if (!Array.isArray(dropoffCohorts[res])) dropoffCohorts[res] = [];
+    return dropoffCohorts[res];
+  }
+
+  function getResourceCohortCount(res) {
+    return getResourceCohorts(res).reduce((sum, cohort) => sum + Math.max(0, cohort?.count || 0), 0);
+  }
+
+  function canUseDropoffCohorts(res) {
+    if (assignedCount(res) <= 0) return false;
+    if (!dropoffAvailable(res)) return false;
+    if (BO_FINITE_FOOD_SOURCES.includes(res) && (foodRemaining[res] || 0) <= 0) return false;
+    return gatherRate(res) > 0 && effectiveCarry(res) > 0;
+  }
+
+  function clamp01(value) {
+    if (!Number.isFinite(value)) return 0;
+    return Math.max(0, Math.min(1, value));
+  }
+
+  function getCohortProgress(cohort, now) {
+    const start = Number.isFinite(cohort?.phaseStartedAt) ? cohort.phaseStartedAt : now;
+    const end = Number.isFinite(cohort?.phaseEndsAt) ? cohort.phaseEndsAt : start;
+    const duration = end - start;
+    if (duration <= 0.0001) return now >= end - 0.0001 ? 1 : 0;
+    return clamp01((now - start) / duration);
+  }
+
+  function getCohortCarryNow(cohort, now) {
+    const progress = getCohortProgress(cohort, now);
+    const startCarry = cohort?.phaseStartCarry || 0;
+    const endCarry = cohort?.phaseEndCarry || 0;
+    return startCarry + ((endCarry - startCarry) * progress);
+  }
+
+  function scheduleCohortGather(res, cohort, now, startCarry = 0) {
     const rate = gatherRate(res);
-    if (rate <= 0) {
-      nextDropoff[res] = null;
-      return;
-    }
-    const carry = effectiveCarry(res);
-    if (carry <= 0) {
-      nextDropoff[res] = null;
-      return;
-    }
-    const gatherTime = carry / rate;
-    const trip = effectiveTrip(res);
-    const first = now + gatherTime + trip;
-    const interval = gatherTime + (2 * trip);
-    nextDropoff[res] = { time: first, interval };
+    const carryTarget = Math.max(0, effectiveCarry(res));
+    const clampedStart = Math.max(0, Math.min(startCarry, carryTarget));
+    const remainingCarry = Math.max(0, carryTarget - clampedStart);
+    const duration = rate > 0 ? (remainingCarry / rate) : Infinity;
+    cohort.phase = "gather";
+    cohort.phaseStartedAt = now;
+    cohort.phaseEndsAt = Number.isFinite(duration) ? now + duration : Infinity;
+    cohort.phaseStartCarry = clampedStart;
+    cohort.phaseEndCarry = carryTarget;
   }
 
-  function rescheduleAllDropoffs(now) {
-    BO_RESOURCE_KEYS.forEach((res) => scheduleDropoff(res, now));
+  function scheduleCohortMove(res, cohort, phase, now, progress = 0, carryAmount = 0) {
+    const trip = Math.max(0, effectiveTrip(res));
+    const clampedProgress = clamp01(progress);
+    const load = phase === "toDropoff" ? Math.max(0, carryAmount) : 0;
+    cohort.phase = phase;
+    cohort.phaseStartCarry = load;
+    cohort.phaseEndCarry = load;
+    cohort.phaseStartedAt = now - (trip * clampedProgress);
+    cohort.phaseEndsAt = cohort.phaseStartedAt + trip;
   }
 
-  function rescheduleDropoffs(resources, now) {
-    if (!resources) return;
-    const list = resources instanceof Set ? Array.from(resources) : resources;
-    list.forEach((res) => {
-      if (!BO_RESOURCE_KEYS.includes(res)) return;
-      scheduleDropoff(res, now);
-    });
-  }
-
-  function nextDropoffTime() {
-    let soonest = null;
-    let resource = null;
-    Object.entries(nextDropoff).forEach(([res, entry]) => {
-      if (!entry || !Number.isFinite(entry.time)) return;
-      if (soonest === null || entry.time < soonest) {
-        soonest = entry.time;
-        resource = res;
+  function rebaseResourceCohorts(res, now) {
+    const cohorts = getResourceCohorts(res);
+    if (!cohorts.length) return;
+    cohorts.forEach((cohort) => {
+      if (!cohort || (cohort.count || 0) <= 0) return;
+      const progress = getCohortProgress(cohort, now);
+      if (cohort.phase === "gather") {
+        scheduleCohortGather(res, cohort, now, getCohortCarryNow(cohort, now));
+      } else if (cohort.phase === "toDropoff") {
+        scheduleCohortMove(res, cohort, "toDropoff", now, progress, cohort.phaseStartCarry || cohort.phaseEndCarry || 0);
+      } else if (cohort.phase === "toResource") {
+        scheduleCohortMove(res, cohort, "toResource", now, progress, 0);
+      } else {
+        scheduleCohortGather(res, cohort, now, 0);
       }
     });
-    if (soonest === null) return null;
-    return { time: soonest, res: resource };
+    dropoffCohorts[res] = cohorts.filter((cohort) => cohort && (cohort.count || 0) > 0);
   }
 
-  function processDropoff(res, now) {
-    const entry = nextDropoff[res];
-    if (!entry) return;
-    const vills = assignedCount(res);
-    if (vills <= 0 || !dropoffAvailable(res) || gatherRate(res) <= 0) {
-      nextDropoff[res] = null;
+  function addResourceCohort(res, count, now) {
+    const safeCount = Math.max(0, Math.floor(count || 0));
+    if (safeCount <= 0 || !canUseDropoffCohorts(res)) return;
+    const cohort = {
+      id: nextDropoffCohortId++,
+      count: safeCount,
+      phase: "gather",
+      phaseStartedAt: now,
+      phaseEndsAt: now,
+      phaseStartCarry: 0,
+      phaseEndCarry: 0
+    };
+    scheduleCohortGather(res, cohort, now, 0);
+    getResourceCohorts(res).push(cohort);
+  }
+
+  function removeResourceWorkers(res, count) {
+    let remaining = Math.max(0, Math.floor(count || 0));
+    if (remaining <= 0) return;
+    const cohorts = getResourceCohorts(res);
+    for (let i = cohorts.length - 1; i >= 0 && remaining > 0; i -= 1) {
+      const cohort = cohorts[i];
+      if (!cohort || (cohort.count || 0) <= 0) {
+        cohorts.splice(i, 1);
+        continue;
+      }
+      const used = Math.min(remaining, cohort.count);
+      cohort.count -= used;
+      remaining -= used;
+      if (cohort.count <= 0) cohorts.splice(i, 1);
+    }
+  }
+
+  function syncDropoffCohorts(resourcesToSync, now) {
+    const list = resourcesToSync
+      ? (resourcesToSync instanceof Set ? Array.from(resourcesToSync) : resourcesToSync)
+      : BO_RESOURCE_KEYS;
+    list.forEach((res) => {
+      if (!BO_RESOURCE_KEYS.includes(res)) return;
+      rebaseResourceCohorts(res, now);
+      if (!canUseDropoffCohorts(res)) {
+        dropoffCohorts[res] = [];
+        return;
+      }
+      const targetCount = assignedCount(res);
+      const currentCount = getResourceCohortCount(res);
+      if (currentCount < targetCount) addResourceCohort(res, targetCount - currentCount, now);
+      else if (currentCount > targetCount) removeResourceWorkers(res, currentCount - targetCount);
+    });
+  }
+
+  function nextCohortEventTime() {
+    let soonest = null;
+    BO_RESOURCE_KEYS.forEach((res) => {
+      getResourceCohorts(res).forEach((cohort) => {
+        if (!cohort || (cohort.count || 0) <= 0 || !Number.isFinite(cohort.phaseEndsAt)) return;
+        if (soonest === null || cohort.phaseEndsAt < soonest) soonest = cohort.phaseEndsAt;
+      });
+    });
+    return soonest;
+  }
+
+  function processCohortEvent(res, cohort, now) {
+    if (!cohort || (cohort.count || 0) <= 0) return;
+    if (!getResourceCohorts(res).includes(cohort)) return;
+    if (!canUseDropoffCohorts(res)) {
+      dropoffCohorts[res] = [];
       return;
     }
-    const carry = effectiveCarry(res);
-    let gain = carry * vills;
-    if (gain <= 0) {
-      nextDropoff[res] = null;
+    if (cohort.phase === "gather") {
+      const carried = Math.max(0, cohort.phaseEndCarry || getCohortCarryNow(cohort, now));
+      scheduleCohortMove(res, cohort, "toDropoff", now, 0, carried);
       return;
     }
-    if (BO_FINITE_FOOD_SOURCES.includes(res)) {
-      const remaining = foodRemaining[res] || 0;
-      gain = Math.min(gain, remaining);
-      foodRemaining[res] = Math.max(0, remaining - gain);
-    }
-    if (gain > 0) {
-      if (isFood(res)) resources.food += gain;
-      else resources[res] += gain;
-      addGathered(isFood(res) ? "food" : res, gain);
-      pushSample(now, resources);
-    }
-    if (BO_FINITE_FOOD_SOURCES.includes(res) && (foodRemaining[res] || 0) <= 0) {
-      const label = res.charAt(0).toUpperCase() + res.slice(1);
-      pushEvent(`${label} depleted`, "", "Assignments");
-      syncGatherSegments(now);
-      nextDropoff[res] = null;
+    if (cohort.phase === "toDropoff") {
+      let gain = Math.max(0, (cohort.phaseStartCarry || cohort.phaseEndCarry || 0) * Math.max(0, cohort.count || 0));
+      if (BO_FINITE_FOOD_SOURCES.includes(res)) {
+        const remaining = foodRemaining[res] || 0;
+        gain = Math.min(gain, remaining);
+        foodRemaining[res] = Math.max(0, remaining - gain);
+      }
+      if (gain > 0) {
+        if (isFood(res)) resources.food += gain;
+        else resources[res] += gain;
+        addGathered(isFood(res) ? "food" : res, gain);
+        pushSample(now, resources);
+      }
+      if (BO_FINITE_FOOD_SOURCES.includes(res) && (foodRemaining[res] || 0) <= 0) {
+        const label = res.charAt(0).toUpperCase() + res.slice(1);
+        pushEvent(`${label} depleted`, "", "Assignments");
+        dropoffCohorts[res] = [];
+        syncGatherSegments(now);
+        return;
+      }
+      scheduleCohortMove(res, cohort, "toResource", now, 0, 0);
       return;
     }
-    scheduleDropoff(res, now);
+    if (cohort.phase === "toResource") {
+      scheduleCohortGather(res, cohort, now, 0);
+    }
+  }
+
+  function processCohortEvents(now) {
+    while (true) {
+      const due = [];
+      BO_RESOURCE_KEYS.forEach((res) => {
+        getResourceCohorts(res).forEach((cohort) => {
+          if (!cohort || (cohort.count || 0) <= 0 || !Number.isFinite(cohort.phaseEndsAt)) return;
+          if (cohort.phaseEndsAt <= now + 0.0001) due.push({ res, cohort });
+        });
+      });
+      if (!due.length) break;
+      due.sort((a, b) => (a.cohort.phaseEndsAt - b.cohort.phaseEndsAt) || ((a.cohort.id || 0) - (b.cohort.id || 0)));
+      due.forEach(({ res, cohort }) => processCohortEvent(res, cohort, now));
+    }
   }
 
   function applyPassiveIncome(dt) {
@@ -5133,11 +5520,11 @@ function simulateBuildOrder(commands, config) {
       .filter((b) => b.endTime <= endTime + 0.0001)
       .sort((a, b) => (priority[a.kind] ?? 99) - (priority[b.kind] ?? 99));
     if (releasing.length === 0) return;
-    let needsGlobalDropoffReschedule = false;
-    const targetedDropoffReschedules = new Set();
+    let needsGlobalDropoffSync = false;
+    const targetedDropoffSync = new Set();
     releasing.forEach((b) => {
       if (b.kind === "buildComplete") {
-        needsGlobalDropoffReschedule = true;
+        needsGlobalDropoffSync = true;
         const name = b.buildingName;
         buildingCounts[name] = (buildingCounts[name] || 0) + 1;
         if (name === "Farm") farmCount += 1;
@@ -5163,7 +5550,7 @@ function simulateBuildOrder(commands, config) {
             berryCapacityBonusApplied = true;
           }
         }
-        if (name === "Barracks" || name === "Archery Range" || name === "Stable" || name === "Siege Workshop" || name === "Town Center") {
+        if (name === "Barracks" || name === "Archery Range" || name === "Stable" || name === "Siege Workshop" || name === "Town Center" || name === BO_OTTOMAN_MILITARY_SCHOOL_BUILDING) {
           const list = productionQueues[name] || [];
           list.push({ id: instanceId, busyUntil: endTime });
           productionQueues[name] = list;
@@ -5182,7 +5569,7 @@ function simulateBuildOrder(commands, config) {
           }
         }
       } else if (b.kind === "techComplete") {
-        needsGlobalDropoffReschedule = true;
+        needsGlobalDropoffSync = true;
         if (b.techType === "Wheelbarrow") wheelbarrowActive = true;
         if (b.techType === "Food Upgrade") foodTechLevel += 1;
         if (b.techType === "Survival Techniques") survivalTechActive = true;
@@ -5193,14 +5580,14 @@ function simulateBuildOrder(commands, config) {
       } else if (b.kind === "scholarComplete") {
         scholarGarrison = Math.max(0, b.count || 0);
       } else if (b.kind === "builder") {
-        needsGlobalDropoffReschedule = true;
+        needsGlobalDropoffSync = true;
         returnBuildersToTarget(b.source, b.count, b.returnTarget);
       } else if (b.kind === "trainVill") {
         villagers += 1;
         const rally = b.rallyTarget || "idle";
         if (Number.isFinite(b.rallyTripOverrideSec) && BO_RESOURCE_KEYS.includes(rally)) {
           tripOverrides[rally] = Math.max(0, b.rallyTripOverrideSec);
-          targetedDropoffReschedules.add(rally);
+          targetedDropoffSync.add(rally);
         }
         const travelDelay = effectiveMoveTime(b.rallyTravelDelaySec || 0);
         if (rally !== "idle" && assignments[rally] !== undefined && travelDelay > 0) {
@@ -5219,7 +5606,7 @@ function simulateBuildOrder(commands, config) {
           });
         } else if (assignments[rally] !== undefined) {
           assignments[rally] += 1;
-          if (BO_RESOURCE_KEYS.includes(rally)) targetedDropoffReschedules.add(rally);
+          if (BO_RESOURCE_KEYS.includes(rally)) targetedDropoffSync.add(rally);
         } else {
           assignments.idle += 1;
         }
@@ -5242,11 +5629,11 @@ function simulateBuildOrder(commands, config) {
         const count = Math.max(1, b.count || 1);
         if (Number.isFinite(b.tripOverrideSec) && BO_RESOURCE_KEYS.includes(target)) {
           tripOverrides[target] = Math.max(0, b.tripOverrideSec);
-          targetedDropoffReschedules.add(target);
+          targetedDropoffSync.add(target);
         }
         if (assignments[target] !== undefined) {
           assignments[target] += count;
-          if (BO_RESOURCE_KEYS.includes(target)) targetedDropoffReschedules.add(target);
+          if (BO_RESOURCE_KEYS.includes(target)) targetedDropoffSync.add(target);
         } else {
           assignments.idle += count;
         }
@@ -5269,11 +5656,8 @@ function simulateBuildOrder(commands, config) {
     for (let i = busy.length - 1; i >= 0; i--) {
       if (busy[i].endTime <= endTime + 0.0001) busy.splice(i, 1);
     }
-    if (needsGlobalDropoffReschedule) {
-      rescheduleAllDropoffs(endTime);
-    } else {
-      rescheduleDropoffs(targetedDropoffReschedules, endTime);
-    }
+    if (needsGlobalDropoffSync) syncDropoffCohorts(BO_RESOURCE_KEYS, endTime);
+    else syncDropoffCohorts(targetedDropoffSync, endTime);
     syncGatherSegments(endTime);
     tryStartBuildQueues();
     tryStartFiniteQueues();
@@ -5331,13 +5715,13 @@ function simulateBuildOrder(commands, config) {
     try {
       while (time < targetTime) {
         const nextBusy = nextBusyTime();
-        const nextDrop = nextDropoffTime();
+        const nextDrop = nextCohortEventTime();
         const nextBuild = nextBuildQueueStartTime();
         const nextFinite = nextFiniteQueueStartTime();
         const nextAuto = nextAutoQueueStartTime();
         let next = targetTime;
         if (nextBusy !== null && nextBusy < next) next = nextBusy;
-        if (nextDrop !== null && nextDrop.time < next) next = nextDrop.time;
+        if (nextDrop !== null && nextDrop < next) next = nextDrop;
         if (nextBuild !== null && nextBuild < next) next = nextBuild;
         if (nextFinite !== null && nextFinite < next) next = nextFinite;
         if (nextAuto !== null && nextAuto < next) next = nextAuto;
@@ -5348,12 +5732,7 @@ function simulateBuildOrder(commands, config) {
         if (nextBusy !== null && Math.abs(time - nextBusy) < 0.0001) {
           releaseBusy(time);
         }
-        if (nextDrop !== null && Math.abs(time - nextDrop.time) < 0.0001) {
-          const due = Object.entries(nextDropoff)
-            .filter(([_, entry]) => entry && Math.abs(entry.time - time) < 0.0001)
-            .map(([res]) => res);
-          due.forEach((res) => processDropoff(res, time));
-        }
+        if (nextDrop !== null && Math.abs(time - nextDrop) < 0.0001) processCohortEvents(time);
         tryStartBuildQueues();
         tryStartFiniteQueues();
         tryStartAutoQueues();
@@ -5480,7 +5859,7 @@ function simulateBuildOrder(commands, config) {
 
     applyTripOverrideUpdates(overrides);
     syncGatherSegments(time);
-    rescheduleAllDropoffs(time);
+    syncDropoffCohorts(BO_RESOURCE_KEYS, time);
     return assignmentLabelFromCounts(capped);
   }
 
@@ -5513,7 +5892,7 @@ function simulateBuildOrder(commands, config) {
     }
 
     syncGatherSegments(time);
-    rescheduleAllDropoffs(time);
+    syncDropoffCohorts(BO_RESOURCE_KEYS, time);
 
     return { used: count - remaining, entries };
   }
@@ -5537,6 +5916,59 @@ function simulateBuildOrder(commands, config) {
     }
   }
 
+  function hasOttomanInfluenceSource() {
+    if (civ !== "Ottomans") return false;
+    return (buildingCounts["Blacksmith"] || 0) > 0 || (buildingCounts["University"] || 0) > 0;
+  }
+
+  function getOttomanMilitarySchoolCap() {
+    const school = civBonus.militarySchool || {};
+    const basePerAge = school.baseLimitPerAge || 1;
+    const bonus = ottomanBonuses.militaryCampus ? (school.militaryCampusBonus || 1) : 0;
+    return (Math.max(1, age) * basePerAge) + bonus;
+  }
+
+  function getUnitAvailabilityIssue(unitName, buildingType) {
+    if (
+      civ === "Ottomans" &&
+      buildingType === BO_OTTOMAN_MILITARY_SCHOOL_BUILDING &&
+      (civBonus.militarySchool?.advancedAcademyUnits || []).includes(unitName) &&
+      !ottomanBonuses.advancedAcademy
+    ) {
+      return { type: "blocked", message: "Blocked (requires Advanced Academy)" };
+    }
+    if (!isBoUnitTrainableAtBuilding(unitName, buildingType, civ, ottomanBonuses)) {
+      return { type: "blocked", message: `Blocked (${unitName} unavailable at ${buildingType})` };
+    }
+    const minAge = getBoUnitMinAge(unitName, civ);
+    if (age < minAge) {
+      return { type: "waitAge", message: `Waiting for Age ${minAge}` };
+    }
+    return null;
+  }
+
+  function waitForUnitUnlock(unitName, buildingType, notes) {
+    let warned = false;
+    while (true) {
+      const issue = getUnitAvailabilityIssue(unitName, buildingType);
+      if (!issue) return true;
+      if (issue.type !== "waitAge") {
+        if (issue.message) notes?.push(issue.message);
+        return false;
+      }
+      const nextBusy = nextBusyTime();
+      if (nextBusy === null) {
+        if (issue.message) notes?.push(issue.message);
+        return false;
+      }
+      if (!warned && issue.message) {
+        notes?.push(issue.message);
+        warned = true;
+      }
+      advanceTo(nextBusy);
+    }
+  }
+
   function getUnitProductionSpec(unitName, buildingType, count = 1) {
     const unitDef = getBoUnitDefaults(unitName, civ);
     const baseCost = unitDef?.cost || { food: 0, wood: 0, gold: 0, stone: 0 };
@@ -5555,6 +5987,18 @@ function simulateBuildOrder(commands, config) {
       const tcWorkRatePct = getBoAgeBonusValue(civBonus.townCenterWorkRateByAge, age);
       timePerUnit = applyBoWorkRateToDuration(timePerUnit, tcWorkRatePct);
     }
+    if (buildingType === BO_OTTOMAN_MILITARY_SCHOOL_BUILDING && civ === "Ottomans") {
+      const school = civBonus.militarySchool || {};
+      cost = { food: 0, wood: 0, gold: 0, stone: 0 };
+      timePerUnit *= school.trainTimeMult || 4.75;
+    }
+    const militarySpeedPct = getBoMilitaryProductionSpeedPct(civ, buildingType, age, {
+      ottomanSettings: ottomanBonuses,
+      hasInfluenceSource: hasOttomanInfluenceSource()
+    });
+    if (militarySpeedPct) {
+      timePerUnit = applyBoWorkRateToDuration(timePerUnit, militarySpeedPct);
+    }
     const duration = timePerUnit * count;
     return { unitDef, cost, duration, timePerUnit };
   }
@@ -5567,6 +6011,8 @@ function simulateBuildOrder(commands, config) {
 
   function getLandmarkTargetAge(name) {
     if (!name) return null;
+    const defAge = getBoBuildingDefaults(name)?.landmarkAge;
+    if (Number.isFinite(defAge)) return defAge;
     if (name.includes("Age II")) return 2;
     if (name.includes("Age III")) return 3;
     if (name.includes("Age IV")) return 4;
@@ -5641,6 +6087,7 @@ function simulateBuildOrder(commands, config) {
       const step = queue.steps?.[queue.nextIndex];
       if (!step) return;
       if ((step.minAge || 1) > age) return;
+      if (step.buildingName === BO_OTTOMAN_MILITARY_SCHOOL_BUILDING && (buildingCounts[BO_OTTOMAN_MILITARY_SCHOOL_BUILDING] || 0) >= getOttomanMilitarySchoolCap()) return;
       const readyAt = Math.max(time, queue.availableAt || 0);
       const timeNeeded = timeToAfford(step.cost || { food: 0, wood: 0, gold: 0, stone: 0 });
       if (!Number.isFinite(timeNeeded)) return;
@@ -5660,6 +6107,7 @@ function simulateBuildOrder(commands, config) {
         return;
       }
       if ((step.minAge || 1) > age) return;
+      if (step.buildingName === BO_OTTOMAN_MILITARY_SCHOOL_BUILDING && (buildingCounts[BO_OTTOMAN_MILITARY_SCHOOL_BUILDING] || 0) >= getOttomanMilitarySchoolCap()) return;
       if (time + 0.0001 < (queue.availableAt || 0)) return;
       if (!hasResources(step.cost || { food: 0, wood: 0, gold: 0, stone: 0 })) return;
       const resBefore = { ...resources };
@@ -5712,6 +6160,8 @@ function simulateBuildOrder(commands, config) {
       const isTc = buildingType === "Town Center";
       if (isTc && !(unitName === "Villager" || unitName === "Scout")) return;
       if (!isTc && (unitName === "Villager" || unitName === "Scout")) return;
+      const unitIssue = getUnitAvailabilityIssue(unitName, buildingType);
+      if (unitIssue) return;
       const windowStart = Math.max(time, aq.startTime || 0);
       if (windowStart >= aq.endTime) return;
       const queueReady = Math.max(windowStart, queue.busyUntil || 0);
@@ -5742,6 +6192,7 @@ function simulateBuildOrder(commands, config) {
       if (hasBlockingFiniteQueueAtTime(buildingType, buildingId, time)) return;
       if (buildingType === "Town Center" && !(cmd.payload.unitName === "Villager" || cmd.payload.unitName === "Scout")) return;
       if (buildingType !== "Town Center" && (cmd.payload.unitName === "Villager" || cmd.payload.unitName === "Scout")) return;
+      if (getUnitAvailabilityIssue(cmd.payload.unitName, buildingType)) return;
       const { unitName, cost, timePerUnit } = getAutoQueueSpec(cmd, buildingType);
       if (!hasResources(cost)) return;
       const resBefore = { ...resources };
@@ -5797,6 +6248,8 @@ function simulateBuildOrder(commands, config) {
       }
       const queue = getQueueForAutoQueue(fq.buildingType, fq.buildingId);
       if (!queue) return;
+      const unitIssue = getUnitAvailabilityIssue(fq.unitName, fq.buildingType);
+      if (unitIssue) return;
       const readyAt = Math.max(time, queue.busyUntil || 0, fq.startTime || 0);
       const timeNeeded = timeToAfford(fq.cost);
       if (!isFinite(timeNeeded)) return;
@@ -5813,6 +6266,7 @@ function simulateBuildOrder(commands, config) {
       if (time + 0.0001 < (fq.startTime || 0)) return;
       const queue = getQueueForAutoQueue(fq.buildingType, fq.buildingId);
       if (!queue || queue.busyUntil > time + 0.0001) return;
+      if (getUnitAvailabilityIssue(fq.unitName, fq.buildingType)) return;
       if (!hasResources(fq.cost)) return;
 
       const resBefore = { ...resources };
@@ -6025,6 +6479,12 @@ function simulateBuildOrder(commands, config) {
       const count = repeating ? 1 : Math.max(1, cmd.payload.count || 1);
       const buildingType = cmd.payload.building || "Barracks";
       const buildingId = cmd.payload.buildingId || null;
+      const availabilityIssue = getUnitAvailabilityIssue(unitName, buildingType);
+      if (availabilityIssue?.type === "blocked") {
+        warnings.push(`${actionLabel || `Train ${unitName}`}: ${availabilityIssue.message}`);
+        pushEvent(actionLabel || `Train ${unitName}`, availabilityIssue.message, laneFor(cmd), cmd.id);
+        return;
+      }
       if (!buildingId) {
         warnings.push(`Blocked: Train ${unitName} (select a building)`);
         pushEvent(`Train ${unitName}`, "Blocked (select a building)", laneFor(cmd), cmd.id);
@@ -6108,6 +6568,12 @@ function simulateBuildOrder(commands, config) {
     if (cmd.type === "autoQueue" || isBoRepeatQueueCommand(cmd)) {
       const buildingType = cmd.payload.building || "Barracks";
       const buildingId = cmd.payload.buildingId || null;
+      const availabilityIssue = getUnitAvailabilityIssue(cmd.payload.unitName, buildingType);
+      if (availabilityIssue?.type === "blocked") {
+        warnings.push(`${actionLabel}: ${availabilityIssue.message}`);
+        pushEvent(actionLabel, availabilityIssue.message, laneFor(cmd), cmd.id);
+        return;
+      }
       if (!buildingId) {
         warnings.push(`Blocked: ${actionLabel} (select a building)`);
         pushEvent(actionLabel, "Blocked (select a building)", laneFor(cmd), cmd.id);
@@ -6235,6 +6701,12 @@ function simulateBuildOrder(commands, config) {
         }
         break;
       }
+      const unlocked = waitForUnitUnlock(cmd.payload.unitName, buildingType, notes);
+      if (!unlocked) {
+        warnings.push(`Blocked: ${actionLabel}`);
+        pushEvent(actionLabel, notes.join(", "), laneFor(cmd), cmd.id);
+        return;
+      }
       if (queuedBuilding && queuedBuilding.busyUntil > time) {
         advanceTo(queuedBuilding.busyUntil);
         notes.push("Delayed (queue)");
@@ -6258,6 +6730,7 @@ function simulateBuildOrder(commands, config) {
       }
       finiteQueues.push({
         commandId: cmd.id,
+        unitName: cmd.payload.unitName,
         buildingType: "Town Center",
         buildingId: queuedBuilding.id,
         startTime: time,
@@ -8501,6 +8974,15 @@ document.getElementById("boLoadBtn")?.addEventListener("click", () => {
 
 document.getElementById("boDeleteBtn")?.addEventListener("click", () => {
   deleteBoSelectedPreset();
+});
+
+["boOttomanMilitaryCampus", "boOttomanAdvancedAcademy"].forEach((id) => {
+  document.getElementById(id)?.addEventListener("change", () => {
+    const civ = getBoSelectedCiv();
+    renderBoCivBonuses(civ);
+    renderBoCommandEditor(getSelectedBoCommand());
+    scheduleRunBuildOrder();
+  });
 });
 
 document.getElementById("buildOrderRow")?.addEventListener("input", (e) => {

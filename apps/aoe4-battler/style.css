@@ -2492,6 +2492,45 @@ small.text-muted,
   margin-bottom: 8px;
 }
 
+.bo-ottoman-toggle-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+}
+
+.bo-ottoman-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(212, 164, 74, 0.18);
+  background: rgba(12, 18, 34, 0.42);
+  color: #efe6d4;
+}
+
+.bo-ottoman-toggle .form-check-input {
+  margin-top: 2px;
+  flex: 0 0 auto;
+}
+
+.bo-ottoman-toggle-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bo-ottoman-toggle-title {
+  font-weight: 700;
+  color: #f2ddb0;
+}
+
+.bo-ottoman-toggle-note {
+  font-size: 0.78rem;
+  color: #d8ccb3;
+  line-height: 1.35;
+}
+
 .bo-action-block {
   margin-top: 10px;
   padding: 10px 12px;
