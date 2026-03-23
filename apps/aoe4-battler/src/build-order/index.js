@@ -1605,14 +1605,21 @@ function getBoCommandLabel(cmd) {
   if (cmd.type === "ageUp") return `Age Up to ${cmd.payload.targetAge}`;
   if (cmd.type === "rally") return `Rally -> ${cmd.payload.target}`;
   if (cmd.type === "trainUnit") {
+    const isTownCenterVillager =
+      cmd.payload?.building === "Town Center" &&
+      cmd.payload?.unitName === "Villager";
     if (cmd.payload?.repeatUntilEnd) {
       if (cmd.payload.unitName === "Villager" && cmd.payload.rallyTarget) {
-        return `Repeat Villager -> ${cmd.payload.rallyTarget}`;
+        return isTownCenterVillager
+          ? `Rally Villagers -> ${cmd.payload.rallyTarget}`
+          : `Repeat Villager -> ${cmd.payload.rallyTarget}`;
       }
       return `Repeat ${cmd.payload.unitName}`;
     }
     if (cmd.payload.unitName === "Villager" && cmd.payload.rallyTarget) {
-      return `Train ${cmd.payload.count || 1} Villager -> ${cmd.payload.rallyTarget}`;
+      return isTownCenterVillager
+        ? `Rally next ${cmd.payload.count || 1} -> ${cmd.payload.rallyTarget}`
+        : `Train ${cmd.payload.count || 1} Villager -> ${cmd.payload.rallyTarget}`;
     }
     return `Train ${cmd.payload.count || 1} ${cmd.payload.unitName}`;
   }
@@ -2037,7 +2044,7 @@ function renderBoTimelineEditor() {
   });
   markerMap.forEach((marker) => {
     const laneKey = usedResources.has(marker.target) ? `res:${marker.target}` : "global";
-    const markerLabel = `Vill +${marker.count}`;
+    const markerLabel = `Rally +${marker.count}`;
     blocks.push({
       commandId: null,
       start: marker.time,
@@ -2045,7 +2052,7 @@ function renderBoTimelineEditor() {
       laneKey,
       label: markerLabel,
       shortLabel: markerLabel,
-      fullLabel: `Villager completion -> ${resourceLabels[marker.target] || marker.target} (+${marker.count}) | click to reroute future villagers`,
+      fullLabel: `Villager completion -> ${resourceLabels[marker.target] || marker.target} (+${marker.count}) | click to change rally from this point`,
       displayDuration: MIN_VISUAL_SECONDS,
       villagerMarker: true,
       minWidthPx: 54,
@@ -2101,7 +2108,14 @@ function renderBoTimelineEditor() {
     let shortLabel = row.action;
     if (cmd.type === "buildBuilding") shortLabel = row.shortLabel || "Build";
     if (cmd.type === "tech") shortLabel = "Tech";
-    if (cmd.type === "trainUnit") shortLabel = cmd.payload?.repeatUntilEnd ? "Repeat" : "Queue";
+    if (cmd.type === "trainUnit") {
+      const isTownCenterVillager =
+        cmd.payload?.building === "Town Center" &&
+        cmd.payload?.unitName === "Villager";
+      shortLabel = isTownCenterVillager
+        ? "Rally"
+        : (cmd.payload?.repeatUntilEnd ? "Repeat" : "Queue");
+    }
     if (cmd.type === "autoQueue") shortLabel = "Repeat";
     if (cmd.type === "sacredSite") shortLabel = "Sacred";
     if (cmd.type === "garrisonScholars") shortLabel = "Scholars";
@@ -4745,8 +4759,10 @@ function simulateBuildOrder(commands, config) {
   const warnings = [];
   const busy = [];
   const autoQueues = [];
+  const finiteQueues = [];
   const buildQueues = [];
   const nextDropoff = {};
+  let advanceFiniteReservation = null;
 
   function pushSample(t, res) {
     const rounded = Math.round(t * 1000) / 1000;
@@ -4976,6 +4992,15 @@ function simulateBuildOrder(commands, config) {
     BO_RESOURCE_KEYS.forEach((res) => scheduleDropoff(res, now));
   }
 
+  function rescheduleDropoffs(resources, now) {
+    if (!resources) return;
+    const list = resources instanceof Set ? Array.from(resources) : resources;
+    list.forEach((res) => {
+      if (!BO_RESOURCE_KEYS.includes(res)) return;
+      scheduleDropoff(res, now);
+    });
+  }
+
   function nextDropoffTime() {
     let soonest = null;
     let resource = null;
@@ -5108,8 +5133,11 @@ function simulateBuildOrder(commands, config) {
       .filter((b) => b.endTime <= endTime + 0.0001)
       .sort((a, b) => (priority[a.kind] ?? 99) - (priority[b.kind] ?? 99));
     if (releasing.length === 0) return;
+    let needsGlobalDropoffReschedule = false;
+    const targetedDropoffReschedules = new Set();
     releasing.forEach((b) => {
       if (b.kind === "buildComplete") {
+        needsGlobalDropoffReschedule = true;
         const name = b.buildingName;
         buildingCounts[name] = (buildingCounts[name] || 0) + 1;
         if (name === "Farm") farmCount += 1;
@@ -5154,6 +5182,7 @@ function simulateBuildOrder(commands, config) {
           }
         }
       } else if (b.kind === "techComplete") {
+        needsGlobalDropoffReschedule = true;
         if (b.techType === "Wheelbarrow") wheelbarrowActive = true;
         if (b.techType === "Food Upgrade") foodTechLevel += 1;
         if (b.techType === "Survival Techniques") survivalTechActive = true;
@@ -5164,12 +5193,14 @@ function simulateBuildOrder(commands, config) {
       } else if (b.kind === "scholarComplete") {
         scholarGarrison = Math.max(0, b.count || 0);
       } else if (b.kind === "builder") {
+        needsGlobalDropoffReschedule = true;
         returnBuildersToTarget(b.source, b.count, b.returnTarget);
       } else if (b.kind === "trainVill") {
         villagers += 1;
         const rally = b.rallyTarget || "idle";
         if (Number.isFinite(b.rallyTripOverrideSec) && BO_RESOURCE_KEYS.includes(rally)) {
           tripOverrides[rally] = Math.max(0, b.rallyTripOverrideSec);
+          targetedDropoffReschedules.add(rally);
         }
         const travelDelay = effectiveMoveTime(b.rallyTravelDelaySec || 0);
         if (rally !== "idle" && assignments[rally] !== undefined && travelDelay > 0) {
@@ -5188,6 +5219,7 @@ function simulateBuildOrder(commands, config) {
           });
         } else if (assignments[rally] !== undefined) {
           assignments[rally] += 1;
+          if (BO_RESOURCE_KEYS.includes(rally)) targetedDropoffReschedules.add(rally);
         } else {
           assignments.idle += 1;
         }
@@ -5204,16 +5236,20 @@ function simulateBuildOrder(commands, config) {
             rallyTripOverrideSec: Number.isFinite(b.rallyTripOverrideSec) ? b.rallyTripOverrideSec : null
           });
         }
-        rescheduleAllDropoffs(endTime);
         pushEvent("Villager complete", "", b.tcId || "TC #1");
       } else if (b.kind === "rallyDelay") {
         const target = b.target || "idle";
         const count = Math.max(1, b.count || 1);
         if (Number.isFinite(b.tripOverrideSec) && BO_RESOURCE_KEYS.includes(target)) {
           tripOverrides[target] = Math.max(0, b.tripOverrideSec);
+          targetedDropoffReschedules.add(target);
         }
-        if (assignments[target] !== undefined) assignments[target] += count;
-        else assignments.idle += count;
+        if (assignments[target] !== undefined) {
+          assignments[target] += count;
+          if (BO_RESOURCE_KEYS.includes(target)) targetedDropoffReschedules.add(target);
+        } else {
+          assignments.idle += count;
+        }
         villagerMarkers.push({
           time: endTime,
           target,
@@ -5225,7 +5261,6 @@ function simulateBuildOrder(commands, config) {
           rallyTravelDelaySec: b.rallyTravelDelaySec || 0,
           rallyTripOverrideSec: Number.isFinite(b.tripOverrideSec) ? b.tripOverrideSec : null
         });
-        rescheduleAllDropoffs(endTime);
       } else if (b.kind === "assignDelay") {
         const notes = [];
         applyAssignment(b.desired, notes, b.overrides);
@@ -5234,9 +5269,14 @@ function simulateBuildOrder(commands, config) {
     for (let i = busy.length - 1; i >= 0; i--) {
       if (busy[i].endTime <= endTime + 0.0001) busy.splice(i, 1);
     }
-    rescheduleAllDropoffs(endTime);
+    if (needsGlobalDropoffReschedule) {
+      rescheduleAllDropoffs(endTime);
+    } else {
+      rescheduleDropoffs(targetedDropoffReschedules, endTime);
+    }
     syncGatherSegments(endTime);
     tryStartBuildQueues();
+    tryStartFiniteQueues();
     tryStartAutoQueues();
     pushSample(endTime, resources);
   }
@@ -5285,32 +5325,41 @@ function simulateBuildOrder(commands, config) {
     return soonest;
   }
 
-  function advanceTo(targetTime) {
-    while (time < targetTime) {
-      const nextBusy = nextBusyTime();
-      const nextDrop = nextDropoffTime();
-      const nextBuild = nextBuildQueueStartTime();
-      const nextAuto = nextAutoQueueStartTime();
-      let next = targetTime;
-      if (nextBusy !== null && nextBusy < next) next = nextBusy;
-      if (nextDrop !== null && nextDrop.time < next) next = nextDrop.time;
-      if (nextBuild !== null && nextBuild < next) next = nextBuild;
-      if (nextAuto !== null && nextAuto < next) next = nextAuto;
+  function advanceTo(targetTime, options = {}) {
+    const previousReservation = advanceFiniteReservation;
+    advanceFiniteReservation = options?.finiteReservation || previousReservation;
+    try {
+      while (time < targetTime) {
+        const nextBusy = nextBusyTime();
+        const nextDrop = nextDropoffTime();
+        const nextBuild = nextBuildQueueStartTime();
+        const nextFinite = nextFiniteQueueStartTime();
+        const nextAuto = nextAutoQueueStartTime();
+        let next = targetTime;
+        if (nextBusy !== null && nextBusy < next) next = nextBusy;
+        if (nextDrop !== null && nextDrop.time < next) next = nextDrop.time;
+        if (nextBuild !== null && nextBuild < next) next = nextBuild;
+        if (nextFinite !== null && nextFinite < next) next = nextFinite;
+        if (nextAuto !== null && nextAuto < next) next = nextAuto;
 
-      applyIncome(next - time);
-      time = next;
+        applyIncome(next - time);
+        time = next;
 
-      if (nextBusy !== null && Math.abs(time - nextBusy) < 0.0001) {
-        releaseBusy(time);
+        if (nextBusy !== null && Math.abs(time - nextBusy) < 0.0001) {
+          releaseBusy(time);
+        }
+        if (nextDrop !== null && Math.abs(time - nextDrop.time) < 0.0001) {
+          const due = Object.entries(nextDropoff)
+            .filter(([_, entry]) => entry && Math.abs(entry.time - time) < 0.0001)
+            .map(([res]) => res);
+          due.forEach((res) => processDropoff(res, time));
+        }
+        tryStartBuildQueues();
+        tryStartFiniteQueues();
+        tryStartAutoQueues();
       }
-      if (nextDrop !== null && Math.abs(time - nextDrop.time) < 0.0001) {
-        const due = Object.entries(nextDropoff)
-          .filter(([_, entry]) => entry && Math.abs(entry.time - time) < 0.0001)
-          .map(([res]) => res);
-        due.forEach((res) => processDropoff(res, time));
-      }
-      tryStartBuildQueues();
-      tryStartAutoQueues();
+    } finally {
+      advanceFiniteReservation = previousReservation;
     }
   }
 
@@ -5564,6 +5613,26 @@ function simulateBuildOrder(commands, config) {
     return { unitName, cost, timePerUnit, unitDef: spec.unitDef };
   }
 
+  function getFiniteQueueKey(buildingType, buildingId) {
+    return `${buildingType || ""}|${buildingId || ""}`;
+  }
+
+  function hasBlockingFiniteQueueAtTime(buildingType, buildingId, atTime) {
+    const key = getFiniteQueueKey(buildingType, buildingId);
+    if (
+      advanceFiniteReservation &&
+      getFiniteQueueKey(advanceFiniteReservation.buildingType, advanceFiniteReservation.buildingId) === key &&
+      (advanceFiniteReservation.startTime || 0) <= atTime + 0.0001
+    ) {
+      return true;
+    }
+    return finiteQueues.some((queue) =>
+      !queue.done &&
+      getFiniteQueueKey(queue.buildingType, queue.buildingId) === key &&
+      (queue.startTime || 0) <= atTime + 0.0001
+    );
+  }
+
   function nextBuildQueueStartTime() {
     if (!buildQueues.length) return null;
     let soonest = null;
@@ -5647,6 +5716,7 @@ function simulateBuildOrder(commands, config) {
       if (windowStart >= aq.endTime) return;
       const queueReady = Math.max(windowStart, queue.busyUntil || 0);
       if (queueReady >= aq.endTime) return;
+      if (hasBlockingFiniteQueueAtTime(buildingType, buildingId, queueReady)) return;
       const { cost } = getAutoQueueSpec(cmd, buildingType);
       const timeNeeded = timeToAfford(cost);
       if (!isFinite(timeNeeded)) return;
@@ -5669,6 +5739,7 @@ function simulateBuildOrder(commands, config) {
       const buildingId = cmd.payload.buildingId || aq.buildingId || null;
       const queue = getQueueForAutoQueue(buildingType, buildingId);
       if (!queue || queue.busyUntil > time + 0.0001) return;
+      if (hasBlockingFiniteQueueAtTime(buildingType, buildingId, time)) return;
       if (buildingType === "Town Center" && !(cmd.payload.unitName === "Villager" || cmd.payload.unitName === "Scout")) return;
       if (buildingType !== "Town Center" && (cmd.payload.unitName === "Villager" || cmd.payload.unitName === "Scout")) return;
       const { unitName, cost, timePerUnit } = getAutoQueueSpec(cmd, buildingType);
@@ -5696,7 +5767,9 @@ function simulateBuildOrder(commands, config) {
       timeline.push({
         start,
         end: start,
-        action: rallyLabel ? `Repeat Villager -> ${rallyLabel}` : `Repeat ${unitName}`,
+        action: unitName === "Villager" && buildingType === "Town Center"
+          ? `Rally Villagers -> ${rallyLabel}`
+          : (rallyLabel ? `Repeat Villager -> ${rallyLabel}` : `Repeat ${unitName}`),
         notes: buildingId ? `(${buildingId})` : "",
         lane: queue.id || buildingType,
         commandId: null,
@@ -5712,10 +5785,103 @@ function simulateBuildOrder(commands, config) {
     }
   }
 
+  function nextFiniteQueueStartTime() {
+    if (!finiteQueues.length) return null;
+    let soonest = null;
+    finiteQueues.forEach((fq) => {
+      if (!fq || fq.done || fq.remainingCount <= 0) return;
+      if (time + 0.0001 < (fq.startTime || 0)) {
+        const candidate = fq.startTime || 0;
+        if (soonest === null || candidate < soonest) soonest = candidate;
+        return;
+      }
+      const queue = getQueueForAutoQueue(fq.buildingType, fq.buildingId);
+      if (!queue) return;
+      const readyAt = Math.max(time, queue.busyUntil || 0, fq.startTime || 0);
+      const timeNeeded = timeToAfford(fq.cost);
+      if (!isFinite(timeNeeded)) return;
+      const candidate = Math.max(readyAt, time + timeNeeded);
+      if (soonest === null || candidate < soonest) soonest = candidate;
+    });
+    return soonest;
+  }
+
+  function tryStartFiniteQueues() {
+    if (!finiteQueues.length) return;
+    finiteQueues.forEach((fq) => {
+      if (!fq || fq.done || fq.remainingCount <= 0) return;
+      if (time + 0.0001 < (fq.startTime || 0)) return;
+      const queue = getQueueForAutoQueue(fq.buildingType, fq.buildingId);
+      if (!queue || queue.busyUntil > time + 0.0001) return;
+      if (!hasResources(fq.cost)) return;
+
+      const resBefore = { ...resources };
+      resources.food -= fq.cost.food || 0;
+      resources.wood -= fq.cost.wood || 0;
+      resources.gold -= fq.cost.gold || 0;
+      resources.stone -= fq.cost.stone || 0;
+
+      const start = time;
+      const end = start + Math.max(0.1, fq.timePerUnit || 0.1);
+      queue.busyUntil = end;
+      busy.push({
+        endTime: end,
+        kind: "trainVill",
+        rallyTarget: fq.rallyTarget || "idle",
+        rallyTravelDelaySec: Math.max(0, fq.rallyTravelDelaySec || 0),
+        rallyTripOverrideSec: Number.isFinite(fq.rallyTripOverrideSec) ? fq.rallyTripOverrideSec : null,
+        tcId: queue.id,
+        sourceCommandId: fq.commandId || null,
+        buildingId: fq.buildingId || queue.id,
+        buildingType: fq.buildingType || "Town Center",
+        timePerUnit: fq.timePerUnit || BO_VILLAGER_TIME
+      });
+
+      if (!fq.timelineRow) {
+        fq.timelineRow = {
+          start,
+          end,
+          action: fq.actionLabel,
+          notes: fq.notes || "",
+          lane: fq.lane || queue.id || fq.buildingType,
+          commandId: fq.commandId || null,
+          before: resBefore,
+          after: { ...resources }
+        };
+        timeline.push(fq.timelineRow);
+      } else {
+        fq.timelineRow.end = end;
+      }
+
+      fq.remainingCount -= 1;
+      if (fq.remainingCount <= 0) fq.done = true;
+
+      pushSample(start, resBefore);
+      pushSample(start + 0.001, resources);
+    });
+    for (let i = finiteQueues.length - 1; i >= 0; i--) {
+      if (finiteQueues[i]?.done) finiteQueues.splice(i, 1);
+    }
+  }
+
   const plannedCommands = getBoExecutionPlan(commands);
   plannedCommands.forEach(({ cmd, start: plannedStart, end: plannedEnd }) => {
     const earliest = plannedStart;
-    if (time < earliest) advanceTo(earliest);
+    const reserveFiniteRallyAtStart =
+      cmd?.type === "trainUnit" &&
+      !cmd.payload?.repeatUntilEnd &&
+      cmd.payload?.unitName === "Villager" &&
+      (cmd.payload?.building || inferBuildingTypeFromId(cmd.payload?.buildingId) || "Barracks") === "Town Center" &&
+      !!cmd.payload?.buildingId
+        ? {
+            buildingType: "Town Center",
+            buildingId: cmd.payload.buildingId,
+            startTime: earliest
+          }
+        : null;
+    if (time < earliest) {
+      advanceTo(earliest, reserveFiniteRallyAtStart ? { finiteReservation: reserveFiniteRallyAtStart } : undefined);
+    }
 
     let cost = { food: 0, wood: 0, gold: 0, stone: 0 };
     let duration = 0;
@@ -5883,7 +6049,7 @@ function simulateBuildOrder(commands, config) {
         duration = Math.max(0, plannedEnd - time);
         if (unitName === "Villager") {
           const rallyLabel = cmd.payload.rallyTarget || "idle";
-          actionLabel = `Repeat Villager -> ${rallyLabel}`;
+          actionLabel = getBoCommandLabel(cmd);
           cmd.payload.rallyTarget = rallyLabel;
         } else {
           actionLabel = `Repeat ${unitName}`;
@@ -5896,7 +6062,7 @@ function simulateBuildOrder(commands, config) {
         effectiveTrainTimePerUnit = spec.timePerUnit;
         if (unitName === "Villager") {
           const rallyLabel = cmd.payload.rallyTarget || "idle";
-          actionLabel = `Train ${count} Villager -> ${rallyLabel}`;
+          actionLabel = getBoCommandLabel(cmd);
           cmd.payload.rallyTarget = rallyLabel;
         } else {
           actionLabel = `Train ${count} ${unitName}`;
@@ -5911,7 +6077,9 @@ function simulateBuildOrder(commands, config) {
       duration = Math.max(0, plannedEnd - time);
       if (unitName === "Villager") {
         const rallyLabel = cmd.payload.rallyTarget || "idle";
-        actionLabel = `Repeat Villager -> ${rallyLabel}`;
+        actionLabel = buildingType === "Town Center"
+          ? `Rally Villagers -> ${rallyLabel}`
+          : `Repeat Villager -> ${rallyLabel}`;
       } else {
         actionLabel = `Repeat ${unitName}`;
       }
@@ -6071,6 +6239,42 @@ function simulateBuildOrder(commands, config) {
         advanceTo(queuedBuilding.busyUntil);
         notes.push("Delayed (queue)");
       }
+    }
+
+    const isFiniteTownCenterVillagerQueue =
+      cmd.type === "trainUnit" &&
+      !cmd.payload?.repeatUntilEnd &&
+      cmd.payload?.unitName === "Villager" &&
+      (cmd.payload?.building || "Barracks") === "Town Center" &&
+      !!queuedBuilding?.id;
+
+    if (isFiniteTownCenterVillagerQueue) {
+      const spec = getAutoQueueSpec(cmd, "Town Center");
+      if (!spec.unitDef && !notes.includes("Unit data not found (manual values)")) {
+        notes.push("Unit data not found (manual values)");
+      }
+      if (cmd.timeMode === "atTime" && !hasResources(spec.cost)) {
+        notes.push("Delayed (resources)");
+      }
+      finiteQueues.push({
+        commandId: cmd.id,
+        buildingType: "Town Center",
+        buildingId: queuedBuilding.id,
+        startTime: time,
+        remainingCount: Math.max(1, cmd.payload.count || 1),
+        cost: { ...spec.cost },
+        timePerUnit: Math.max(0.1, spec.timePerUnit || BO_VILLAGER_TIME),
+        rallyTarget: cmd.payload.rallyTarget || "idle",
+        rallyTravelDelaySec: effectiveMoveTime(cmd.payload.rallyTravelDelaySec || 0),
+        rallyTripOverrideSec: Number.isFinite(cmd.payload.rallyTripOverrideSec) ? cmd.payload.rallyTripOverrideSec : null,
+        actionLabel,
+        notes: notes.join(", "),
+        lane: queuedBuilding.id || laneFor(cmd),
+        timelineRow: null,
+        done: false
+      });
+      tryStartFiniteQueues();
+      return;
     }
 
     const ok = waitForResources(cost);
