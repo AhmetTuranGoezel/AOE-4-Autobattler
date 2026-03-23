@@ -1552,6 +1552,7 @@ small.text-muted,
   flex-wrap: wrap;
 }
 
+.bo-primary-actions,
 .bo-secondary-actions {
   display: flex;
   align-items: center;
@@ -1560,6 +1561,10 @@ small.text-muted,
 }
 
 .bo-secondary-actions .bo-overlay-toggle {
+  margin-bottom: 0;
+}
+
+.bo-reset-timeline-btn {
   margin-bottom: 0;
 }
 

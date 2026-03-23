@@ -697,32 +697,37 @@
               </div>
 
               <div class="bo-utility-row mb-3">
-                <div class="dropdown bo-save-menu" data-bs-auto-close="outside">
-                  <button class="btn btn-outline-secondary btn-sm bo-save-menu-btn dropdown-toggle" id="boSaveMenuBtn" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                    <i class="bi bi-bookmark-star"></i> Saves
-                  </button>
-                  <div class="dropdown-menu bo-save-menu-panel p-3" aria-labelledby="boSaveMenuBtn">
-                    <div class="bo-save-panel-grid">
-                      <div>
-                        <label class="form-label fw-bold">Saved Builds</label>
-                        <select id="boSaveSelect" class="form-select form-select-sm">
-                          <option value="__draft__">Current draft (autosaved)</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label class="form-label fw-bold">Save Name</label>
-                        <input id="boSaveName" type="text" class="form-control form-control-sm" placeholder="e.g. 2TC Boom">
-                      </div>
-                      <div class="bo-save-actions">
-                        <button id="boSaveBtn" class="btn btn-outline-secondary btn-sm" type="button">Save</button>
-                        <button id="boLoadBtn" class="btn btn-outline-secondary btn-sm" type="button">Load</button>
-                        <button id="boDeleteBtn" class="btn btn-outline-secondary btn-sm" type="button">Delete</button>
-                      </div>
-                      <div>
-                        <small id="boSaveStatus" class="bo-save-status text-muted">Drafts and named builds are stored locally in this browser.</small>
+                <div class="bo-primary-actions">
+                  <div class="dropdown bo-save-menu" data-bs-auto-close="outside">
+                    <button class="btn btn-outline-secondary btn-sm bo-save-menu-btn dropdown-toggle" id="boSaveMenuBtn" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                      <i class="bi bi-bookmark-star"></i> Saves
+                    </button>
+                    <div class="dropdown-menu bo-save-menu-panel p-3" aria-labelledby="boSaveMenuBtn">
+                      <div class="bo-save-panel-grid">
+                        <div>
+                          <label class="form-label fw-bold">Saved Builds</label>
+                          <select id="boSaveSelect" class="form-select form-select-sm">
+                            <option value="__draft__">Current draft (autosaved)</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label class="form-label fw-bold">Save Name</label>
+                          <input id="boSaveName" type="text" class="form-control form-control-sm" placeholder="e.g. 2TC Boom">
+                        </div>
+                        <div class="bo-save-actions">
+                          <button id="boSaveBtn" class="btn btn-outline-secondary btn-sm" type="button">Save</button>
+                          <button id="boLoadBtn" class="btn btn-outline-secondary btn-sm" type="button">Load</button>
+                          <button id="boDeleteBtn" class="btn btn-outline-secondary btn-sm" type="button">Delete</button>
+                        </div>
+                        <div>
+                          <small id="boSaveStatus" class="bo-save-status text-muted">Drafts and named builds are stored locally in this browser.</small>
+                        </div>
                       </div>
                     </div>
                   </div>
+                  <button class="btn btn-outline-secondary btn-sm bo-footer-toggle bo-reset-timeline-btn" id="boResetTimelineBtn" type="button" title="Clear all commands from the current draft and reset the timeline">
+                    <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i><span>Reset timeline</span>
+                  </button>
                 </div>
                 <div class="bo-secondary-actions">
                   <button class="btn btn-outline-secondary btn-sm bo-overlay-toggle" id="boOverlayToggle" type="button" aria-pressed="true" title="Hide the resources lane">
