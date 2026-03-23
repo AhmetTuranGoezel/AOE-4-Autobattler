@@ -551,6 +551,27 @@ function applyBoDefaults() {
   renderBoCommandEditor(getSelectedBoCommand());
 }
 
+function resetBoTimeline() {
+  boCommands = [];
+  boSelectedCommandId = null;
+  boLastResults = null;
+  boLastCommandType = "assign";
+  boIdCounter = 1;
+  boPinnedTime = null;
+  boHoverTime = null;
+  boSelectedBuilding = null;
+  clearBoTargetBuilding();
+  clearBoMarkerDraft();
+  applyBoDisplayDefaults();
+  refreshBoSaveUi(BO_SAVE_DRAFT_ID);
+  renderBoTimelineEditor();
+  renderBoCommandEditor(null);
+  renderBoGatherRates();
+  renderBoTimelineFooter();
+  scheduleRunBuildOrder();
+  setBoSaveStatus("Timeline reset. Current draft cleared.");
+}
+
 function getBoSelectedCiv() {
   return (document.getElementById("boCiv")?.value || "").trim();
 }
@@ -638,6 +659,27 @@ function writeBoSaveStorage(storage) {
 function setBoSaveStatus(message) {
   const status = document.getElementById("boSaveStatus");
   if (status) status.textContent = message || "";
+}
+
+function applyBoDisplayDefaults() {
+  const overlayToggle = document.getElementById("boOverlayToggle");
+  const setupCollapse = document.getElementById("boSetupCollapse");
+  const setupToggle = document.getElementById("boAdvancedToggle");
+
+  boOverlayEnabled = true;
+  if (overlayToggle) overlayToggle.setAttribute("aria-pressed", "true");
+  setBoOverlayToggleLabel();
+
+  if (setupCollapse?.classList.contains("show")) {
+    if (window.bootstrap?.Collapse) {
+      const collapse = window.bootstrap.Collapse.getOrCreateInstance(setupCollapse, { toggle: false });
+      collapse.hide();
+    } else {
+      setupCollapse.classList.remove("show");
+    }
+  }
+  setupToggle?.setAttribute("aria-expanded", "false");
+  syncBoDisplayControlStates();
 }
 
 function getBoPersistedSnapshot() {
@@ -1067,6 +1109,7 @@ function initBuildOrderUI() {
       scheduleRunBuildOrder();
     });
   }
+  applyBoDisplayDefaults();
   applyBoDefaults();
   renderBoTimelineEditor();
   renderBoCommandEditor(getSelectedBoCommand());
@@ -8974,6 +9017,20 @@ document.getElementById("boLoadBtn")?.addEventListener("click", () => {
 
 document.getElementById("boDeleteBtn")?.addEventListener("click", () => {
   deleteBoSelectedPreset();
+});
+
+document.getElementById("boResetTimelineBtn")?.addEventListener("click", () => {
+  if (!boCommands.length && !boSelectedCommandId && !boLastResults) {
+    applyBoDisplayDefaults();
+    renderBoTimelineEditor();
+    renderBoGatherRates();
+    renderBoTimelineFooter();
+    setBoSaveStatus("Timeline is already empty.");
+    return;
+  }
+  const confirmed = window.confirm("Reset the current timeline? This clears all Build Order commands from the current draft but keeps your civ and settings.");
+  if (!confirmed) return;
+  resetBoTimeline();
 });
 
 ["boOttomanMilitaryCampus", "boOttomanAdvancedAcademy"].forEach((id) => {
