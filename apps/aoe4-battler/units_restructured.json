@@ -914,6 +914,401 @@
     ],
     "auras": []
   },
+  "Gilded Knight": {
+    "civs": [
+      "Order of the Dragon"
+    ],
+    "costs": {
+      "food": 280,
+      "gold": 200
+    },
+    "trainingTime": 42.0,
+    "population": 2,
+    "speed": 1.63,
+    "tags": [
+      "Cavalry",
+      "Heavy",
+      "Melee"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 0.38,
+        "attackSpeed": 1.25,
+        "ages": {
+          "3": {
+            "hp": 400,
+            "meleeArmor": 5,
+            "rangedArmor": 4,
+            "attack": 36,
+            "chargeDamage": 9,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 460,
+            "meleeArmor": 7,
+            "rangedArmor": 6,
+            "attack": 42,
+            "chargeDamage": 15,
+            "bonus": {}
+          }
+        }
+      }
+    },
+    "upgrades": [
+      {
+        "name": "Biology",
+        "description": "+25%",
+        "category": "hitpoints"
+      },
+      {
+        "name": "Boyar's Fortitude",
+        "description": "+25, Rus",
+        "category": "hitpoints",
+        "civs": [
+          "Rus"
+        ]
+      },
+      {
+        "name": "Bloomery",
+        "description": "+1",
+        "category": "attack"
+      },
+      {
+        "name": "Decarbonization",
+        "description": "+1",
+        "category": "attack"
+      },
+      {
+        "name": "Damascus Steel",
+        "description": "+1",
+        "category": "attack"
+      },
+      {
+        "name": "Honed Blades",
+        "description": "+3, Delhi Sultanate",
+        "category": "attack",
+        "civs": [
+          "Delhi Sultanate"
+        ]
+      },
+      {
+        "name": "Collar of Esses",
+        "description": "+5 vs heavy, House of Lancaster",
+        "category": "attack",
+        "civs": [
+          "House of Lancaster"
+        ]
+      },
+      {
+        "name": "Military Tactics Training",
+        "description": "+20% bonus damage with Collar of Esses, House of Lancaster",
+        "category": "attack",
+        "civs": [
+          "House of Lancaster"
+        ]
+      },
+      {
+        "name": "Knight Poleaxes",
+        "description": "+4, Rus",
+        "category": "attack",
+        "civs": [
+          "Rus"
+        ]
+      },
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee",
+        "category": "armor"
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee",
+        "category": "armor"
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee",
+        "category": "armor"
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged",
+        "category": "armor"
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged",
+        "category": "armor"
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged",
+        "category": "armor"
+      },
+      {
+        "name": "Steel Barding",
+        "description": "+2 melee/ranged, Holy Roman Empire",
+        "category": "armor",
+        "civs": [
+          "Holy Roman Empire"
+        ]
+      },
+      {
+        "name": "Dali Horses",
+        "description": "+20%, Zhu Xi's Legacy",
+        "category": "attackSpeed",
+        "civs": [
+          "Zhu Xi's Legacy"
+        ]
+      },
+      {
+        "name": "Military Academy",
+        "description": "+33%, except Ottomans",
+        "category": "creationSpeed",
+        "exceptCivs": [
+          "Ottomans"
+        ]
+      },
+      {
+        "name": "Advanced Academy",
+        "description": "+25% from Military School, Ottomans",
+        "category": "creationSpeed",
+        "civs": [
+          "Ottomans"
+        ]
+      },
+      {
+        "name": "Governor of Uch",
+        "description": "-15%/20%/25%/35% cost per level, Tughlaq Dynasty",
+        "category": "upgrading",
+        "civs": [
+          "Tughlaq Dynasty"
+        ]
+      },
+      {
+        "name": "Advanced Academy",
+        "description": "Enable creation from Military School, Ottomans",
+        "category": "other",
+        "civs": [
+          "Ottomans"
+        ]
+      }
+    ],
+    "auras": [
+      {
+        "name": "Lord of Lancaster Inspiration",
+        "description": "+5% per Lord, House of Lancaster",
+        "category": "hitpoints",
+        "civs": [
+          "House of Lancaster"
+        ]
+      },
+      {
+        "name": "Governor of Jalor",
+        "description": "+20/35/50/65 per level, Tughlaq Dynasty",
+        "category": "hitpoints",
+        "civs": [
+          "Tughlaq Dynasty"
+        ]
+      },
+      {
+        "name": "Divine Vitality",
+        "description": "+2 hp/s out of combat, Zhu Xi's Legacy",
+        "category": "hitpoints",
+        "civs": [
+          "Zhu Xi's Legacy"
+        ]
+      },
+      {
+        "name": "Inspiration Bonus",
+        "description": "+15%, Holy Roman Empire",
+        "category": "attack",
+        "civs": [
+          "Holy Roman Empire"
+        ]
+      },
+      {
+        "name": "Saint's Blessing",
+        "description": "+2, or +3 with Fervor, Rus",
+        "category": "attack",
+        "civs": [
+          "Rus"
+        ]
+      },
+      {
+        "name": "Sehwan's Fervor",
+        "description": "+10%/+15%/+20% for 10 seconds, depending on level of Governor of Sehwan, Tughlaq Dynasty",
+        "category": "attack",
+        "civs": [
+          "Tughlaq Dynasty"
+        ]
+      },
+      {
+        "name": "Divine Charge",
+        "description": "+20%, Zhu Xi's Legacy",
+        "category": "attack",
+        "civs": [
+          "Zhu Xi's Legacy"
+        ]
+      },
+      {
+        "name": "Inspiration Bonus",
+        "description": "+1 melee/ranged, Holy Roman Empire",
+        "category": "armor",
+        "civs": [
+          "Holy Roman Empire"
+        ]
+      },
+      {
+        "name": "Mehter Melee Armor Drums",
+        "description": "+2 melee, Ottomans",
+        "category": "armor",
+        "civs": [
+          "Ottomans"
+        ]
+      },
+      {
+        "name": "Mehter Ranged Armor Drums",
+        "description": "+1 ranged, Ottomans",
+        "category": "armor",
+        "civs": [
+          "Ottomans"
+        ]
+      },
+      {
+        "name": "Saint's Blessing",
+        "description": "+1 melee/ranged, Rus",
+        "category": "armor",
+        "civs": [
+          "Rus"
+        ]
+      },
+      {
+        "name": "Zeal",
+        "description": "+50% for 3 seconds, Delhi Sultanate",
+        "category": "attackSpeed",
+        "civs": [
+          "Delhi Sultanate"
+        ]
+      },
+      {
+        "name": "Mehter Attack Drums",
+        "description": "+15%, Ottomans",
+        "category": "attackSpeed",
+        "civs": [
+          "Ottomans"
+        ]
+      },
+      {
+        "name": "Set up Camp",
+        "description": "+30%, English",
+        "category": "other",
+        "civs": [
+          "English"
+        ]
+      },
+      {
+        "name": "Mehter Speed Bonus",
+        "description": "+15% when in formation with Mehter, requires Mehter Drums, Ottomans",
+        "category": "moveSpeed",
+        "civs": [
+          "Ottomans"
+        ]
+      },
+      {
+        "name": "Golden Age Tier 3",
+        "description": "+20%, Abbasid Dynasty",
+        "category": "creationSpeed",
+        "civs": [
+          "Abbasid Dynasty"
+        ]
+      },
+      {
+        "name": "Supervision",
+        "description": "+150% for Chinese; +150% for Zhu Xi's Legacy or +300% with Regional Inspection",
+        "category": "creationSpeed",
+        "civs": [
+          "Chinese",
+          "Zhu Xi's Legacy"
+        ]
+      },
+      {
+        "name": "Garrisoned Scholar",
+        "description": "+100%, requires Efficient Production, Delhi Sultanate",
+        "category": "creationSpeed",
+        "civs": [
+          "Delhi Sultanate"
+        ]
+      },
+      {
+        "name": "Blacksmith/University Influence",
+        "description": "+30%/40% per Age, +100% with Istanbul Observatory, Ottomans",
+        "category": "creationSpeed",
+        "civs": [
+          "Ottomans"
+        ]
+      },
+      {
+        "name": "Chinese",
+        "description": "+15% in Ming Dynasty",
+        "category": "hitpoints",
+        "civs": [
+          "Chinese"
+        ]
+      },
+      {
+        "name": "Chinese",
+        "description": "+15% in Yuan Dynasty",
+        "category": "moveSpeed",
+        "civs": [
+          "Chinese"
+        ]
+      },
+      {
+        "name": "Zhu Xi's Legacy",
+        "description": "-10% in Yuan Dynasty",
+        "category": "moveSpeed",
+        "civs": [
+          "Zhu Xi's Legacy"
+        ]
+      },
+      {
+        "name": "English",
+        "description": "+75% from The White Tower",
+        "category": "creationSpeed",
+        "civs": [
+          "English"
+        ]
+      },
+      {
+        "name": "House of Lancaster",
+        "description": "-15% cost with King's College",
+        "category": "upgrading",
+        "civs": [
+          "House of Lancaster"
+        ]
+      },
+      {
+        "name": "English",
+        "description": "Can be created at Keeps",
+        "category": "other",
+        "civs": [
+          "English"
+        ]
+      },
+      {
+        "name": "Improved Biology",
+        "description": "+30%",
+        "category": "hitpoints"
+      },
+      {
+        "name": "Boyar's Fortitude",
+        "description": "+25, granted free",
+        "category": "hitpoints"
+      }
+    ]
+  },
   "Desert Raider": {
     "civs": [
       "Ayyubids"

@@ -1553,8 +1553,7 @@ function updateUnitStats(side) {
     if (selectedCivGroup && civs.includes(selectedCivGroup)) {
       civs = [selectedCivGroup, ...civs.filter(c => c !== selectedCivGroup)];
     }
-    card.style.setProperty("--flag-bg", civs[0] ? `url('${CIV_FLAGS[civs[0]]}')` : "none");
-    card.style.setProperty("--flag-bg-2", civs[1] ? `url('${CIV_FLAGS[civs[1]]}')` : "none");
+    setFlagBackground(card, civs);
   }
 
   // Auto-balance costs if enabled

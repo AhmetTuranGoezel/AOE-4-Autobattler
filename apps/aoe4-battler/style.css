@@ -193,12 +193,15 @@ h1 {
 .flag-card {
   position: relative;
   overflow: hidden;
+  isolation: isolate;
+  border-radius: inherit;
 }
 
 /* Ensure flag overlays sit behind content */
 .flag-card::before,
 .flag-card::after {
   z-index: 0;
+  border-radius: inherit;
 }
 
 /* Support non-card bodies (multi cards) */
@@ -208,27 +211,6 @@ h1 {
 .flag-card .multi-card-expanded {
   position: relative;
   z-index: 1;
-}
-
-/* Flag 1: top-left quadrant */
-.card-team-a::before,
-.card-team-b::before {
-  content: "";
-  position: absolute;
-  top: -10%;
-  left: -10%;
-  width: 90%;
-  height: 55%;
-  background-image: var(--flag-bg, none);
-  background-size: cover;
-  background-position: 40% center;
-  background-repeat: no-repeat;
-  opacity: 0.15;
-  pointer-events: none;
-  z-index: 0;
-  transform: rotate(-15deg) scale(1.4);
-  -webkit-mask-image: radial-gradient(ellipse at 30% 30%, black 25%, transparent 75%);
-  mask-image: radial-gradient(ellipse at 30% 30%, black 25%, transparent 75%);
 }
 
 .flag-card::before {
@@ -248,27 +230,6 @@ h1 {
   transform: rotate(-15deg) scale(1.4);
   -webkit-mask-image: radial-gradient(ellipse at 30% 30%, black 25%, transparent 75%);
   mask-image: radial-gradient(ellipse at 30% 30%, black 25%, transparent 75%);
-}
-
-/* Flag 2: bottom-right quadrant */
-.card-team-a::after,
-.card-team-b::after {
-  content: "";
-  position: absolute;
-  bottom: -10%;
-  right: -10%;
-  width: 90%;
-  height: 55%;
-  background-image: var(--flag-bg-2, none);
-  background-size: cover;
-  background-position: 40% center;
-  background-repeat: no-repeat;
-  opacity: 0.12;
-  pointer-events: none;
-  z-index: 0;
-  transform: rotate(15deg) scale(1.4);
-  -webkit-mask-image: radial-gradient(ellipse at 70% 70%, black 25%, transparent 75%);
-  mask-image: radial-gradient(ellipse at 70% 70%, black 25%, transparent 75%);
 }
 
 .flag-card::after {
@@ -510,6 +471,26 @@ small.text-muted,
 .weapon-mode-group .btn-check:disabled + .btn {
   opacity: 0.25;
   cursor: not-allowed;
+}
+
+.build-card .form-control:disabled,
+.build-card .form-select:disabled,
+.build-card .small-input:disabled,
+.build-card input[readonly],
+.build-card select[readonly] {
+  background: rgba(17, 26, 44, 0.78);
+  color: #d9ccb4;
+  border-color: rgba(212, 164, 74, 0.18);
+  -webkit-text-fill-color: #d9ccb4;
+  opacity: 0.82;
+  box-shadow: none;
+}
+
+.build-card .form-control:disabled::placeholder,
+.build-card .form-select:disabled::placeholder,
+.build-card .small-input:disabled::placeholder,
+.build-card input[readonly]::placeholder {
+  color: rgba(217, 204, 180, 0.7);
 }
 
 /* Improve outline secondary readability on dark backgrounds */
@@ -1766,6 +1747,18 @@ small.text-muted,
   color: #bfe8df;
 }
 
+.bo-lane-badge.vizier {
+  border-color: rgba(212, 164, 74, 0.45);
+  background: rgba(212, 164, 74, 0.16);
+  color: #f4ddb0;
+}
+
+.bo-lane-badge.trip {
+  border-color: rgba(125, 173, 235, 0.42);
+  background: rgba(63, 97, 150, 0.18);
+  color: #cbdfff;
+}
+
 .bo-lane-label-row.bo-interactive-lane {
   border-color: rgba(255, 255, 255, 0.1);
   background: rgba(18, 26, 42, 0.56);
@@ -1781,7 +1774,8 @@ small.text-muted,
 }
 
 .bo-lane-label-row[data-building-id],
-.bo-lane-label-row[data-lane-key="tc"] {
+.bo-lane-label-row[data-lane-key="tc"],
+.bo-lane-label-row[data-resource] {
   cursor: pointer;
 }
 
@@ -2536,6 +2530,121 @@ small.text-muted,
   line-height: 1.35;
 }
 
+.bo-vizier-summary-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bo-vizier-anchor {
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.bo-vizier-note {
+  font-size: 0.82rem;
+  color: #d8ccb3;
+  line-height: 1.45;
+}
+
+.bo-vizier-warning {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(212, 164, 74, 0.28);
+  background: rgba(212, 164, 74, 0.08);
+  color: #f4e3b4;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.bo-vizier-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.bo-vizier-summary-pill {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(212, 164, 74, 0.18);
+  background: rgba(12, 18, 34, 0.42);
+}
+
+.bo-vizier-summary-pill-label {
+  display: block;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #bfae8a;
+}
+
+.bo-vizier-summary-pill-value {
+  display: block;
+  margin-top: 4px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #f4e7cb;
+}
+
+.bo-vizier-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.bo-vizier-choice-btn {
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(212, 164, 74, 0.18);
+  background: rgba(12, 18, 34, 0.42);
+  color: #efe6d4;
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+}
+
+.bo-vizier-choice-btn:hover:not(:disabled) {
+  border-color: rgba(212, 164, 74, 0.45);
+  background: rgba(25, 36, 60, 0.58);
+  transform: translateY(-1px);
+}
+
+.bo-vizier-choice-btn:disabled,
+.bo-vizier-choice-btn.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.bo-vizier-choice-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-weight: 700;
+  color: #f2ddb0;
+}
+
+.bo-vizier-choice-level {
+  flex: 0 0 auto;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #bfae8a;
+}
+
+.bo-vizier-choice-body {
+  margin-top: 4px;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: #d8ccb3;
+}
+
+.bo-vizier-choice-state {
+  margin-top: 6px;
+  font-size: 0.75rem;
+  color: #f0d89e;
+}
+
 .bo-action-block {
   margin-top: 10px;
   padding: 10px 12px;
@@ -2650,14 +2759,30 @@ small.text-muted,
 
 .bo-afford-pill {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
   padding: 9px 10px;
   border-radius: 10px;
   border: 1px solid rgba(212, 164, 74, 0.18);
   background: rgba(12, 18, 34, 0.45);
   color: #efe6d4;
+}
+
+.bo-afford-label {
+  font-size: 0.76rem;
+  color: #f0d287;
+}
+
+.bo-afford-time {
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+.bo-afford-manual {
+  font-size: 0.72rem;
+  line-height: 1.25;
+  color: #d9cda8;
 }
 
 .bo-summary-card {
