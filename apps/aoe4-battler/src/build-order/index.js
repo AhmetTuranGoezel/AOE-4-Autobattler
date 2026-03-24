@@ -19,14 +19,25 @@ let boRunTimer = null;
 let boPersistTimer = null;
 let boMarkerDraft = null;
 let boEditorScrollFrame = null;
+let boOttomanLegacyWarning = "";
 
 const BO_SAVE_STORAGE_KEY = "aoe4Battler.buildOrder.local.v1";
 const BO_SAVE_DRAFT_ID = "__draft__";
-const BO_SAVE_STORAGE_VERSION = 1;
+const BO_SAVE_STORAGE_VERSION = 2;
 
 const BO_FOOD_SOURCES = ["berries", "deer", "boar", "sheep", "farm"];
 const BO_FINITE_FOOD_SOURCES = ["berries", "deer", "boar", "sheep"];
 const BO_RESOURCE_KEYS = [...BO_FOOD_SOURCES, "wood", "gold", "stone"];
+const BO_RESOURCE_LABELS = {
+  sheep: "Sheep",
+  berries: "Berries",
+  deer: "Deer",
+  boar: "Boar",
+  farm: "Farm",
+  wood: "Wood",
+  gold: "Gold",
+  stone: "Stone"
+};
 const BO_ASSIGN_CAP_ORDER = ["stone", "gold", "wood", "farm", "sheep", "boar", "deer", "berries"];
 const BO_VILLAGER_TIME = 20;
 const BO_TIMELINE_BLOCK_HEIGHT = 28;
@@ -72,6 +83,7 @@ const BO_WHEEL_TRIP_MULT = 1 / 1.15;
 const BO_FOOD_UPGRADE_MULT = 1.1;
 const BO_SPECIAL_RES_KEYS = ["oliveOil", "silver"];
 const BO_CAPITAL_TC_ANCHOR = "__bo_tc1__";
+const BO_OTTOMAN_IMPERIAL_COUNCIL_BUILDING = "Imperial Council";
 const BO_TIMELINE_BUILDING_SET = new Set([
   "Barracks",
   "Archery Range",
@@ -85,6 +97,7 @@ const BO_TIMELINE_BUILDING_SET = new Set([
   "Monastery",
   "Prayer Tent",
   "Town Center",
+  "Imperial Council",
   "Landmark (Age II)",
   "Landmark (Age III)",
   "Landmark (Age IV)",
@@ -184,6 +197,124 @@ const BO_OTTOMAN_EXTRA_UNIT_SPECS = {
     buildings: ["Archery Range", BO_OTTOMAN_MILITARY_SCHOOL_BUILDING]
   }
 };
+const BO_OTTOMAN_VIZIER_THRESHOLDS = [60, 160, 310, 550, 870, 1190, 1510, 1830];
+const BO_OTTOMAN_VIZIER_AGE_XP = { 2: 15, 3: 45, 4: 100 };
+const BO_OTTOMAN_VIZIER_UNIT_XP = {
+  "Villager": 2,
+  "Scout": 2,
+  "Spearman": 2,
+  "Archer": 2,
+  "Sipahi": 4,
+  "Akinji": 5,
+  "Man-at-Arms": 3,
+  "MAA": 3,
+  "Crossbowman": 3,
+  "Crossbow": 3,
+  "Mehter": 5,
+  "Janissary": 4,
+  "Lancer": 6,
+  "Knight/Lancer": 6,
+  "Battering Ram": 5,
+  "Ram": 5,
+  "Springald": 6,
+  "Mangonel": 15,
+  "Counterweight Trebuchet": 14,
+  "Trebuchet": 14,
+  "Ribauldequin": 21,
+  "Great Bombard": 31
+};
+const BO_OTTOMAN_DEFENSIVE_BUILDINGS = new Set(["Town Center", "Outpost", "Keep"]);
+const BO_OTTOMAN_VIZIER_CHOICES = {
+  fieldWork: {
+    id: "fieldWork",
+    label: "Field Work",
+    level: 1,
+    description: "Spawn 2 Imams at the Capital Town Center.",
+    effectNote: "Spawns 2 Imams at the Capital Town Center."
+  },
+  mehterDrums: {
+    id: "mehterDrums",
+    label: "Mehter Drums",
+    level: 1,
+    description: "Spawn 2 Mehters at the Capital Town Center.",
+    effectNote: "Spawns 2 Mehters at the Capital Town Center."
+  },
+  anatolianHills: {
+    id: "anatolianHills",
+    label: "Anatolian Hills",
+    level: 1,
+    description: "Spawn 10 Sheep and increase villager gold/stone mining by 15%.",
+    effectNote: "Adds 10 Sheep and +15% villager gold/stone mining."
+  },
+  militaryCampus: {
+    id: "militaryCampus",
+    label: "Military Campus",
+    level: 2,
+    description: "Increase the Military School cap by +1.",
+    effectNote: "Military School cap increased by +1."
+  },
+  akinjiSystem: {
+    id: "akinjiSystem",
+    label: "Akinji System",
+    level: 2,
+    description: "Unlock Akinji at Archery Range and Military School, and spawn 3 Akinji.",
+    effectNote: "Unlocks Akinji and spawns 3 Akinji at the Capital Town Center."
+  },
+  extensiveFortifications: {
+    id: "extensiveFortifications",
+    label: "Extensive Fortifications",
+    level: 2,
+    description: "Town Centers, Outposts, and Keeps cost 20% less.",
+    effectNote: "Town Centers, Outposts, and Keeps cost 20% less."
+  },
+  advancedAcademy: {
+    id: "advancedAcademy",
+    label: "Advanced Academy",
+    level: 3,
+    description: "+25% military production speed; unlock Lancer and Janissary in Military Schools from Age III.",
+    effectNote: "+25% military production speed and Military School unlocks."
+  },
+  janissaryCompany: {
+    id: "janissaryCompany",
+    label: "Janissary Company",
+    level: 3,
+    description: "Spawn 2 Janissaries plus 2 more per Military School.",
+    effectNote: "Spawns Janissaries at the Capital Town Center."
+  },
+  paxOttomana: {
+    id: "paxOttomana",
+    label: "Pax Ottomana",
+    level: 3,
+    description: "Villagers train 75% faster for 4 minutes.",
+    effectNote: "Villagers train 75% faster for 4 minutes."
+  },
+  siegeCrews: {
+    id: "siegeCrews",
+    label: "Siege Crews",
+    level: 4,
+    description: "Track siege garrison/setup bonus as an unlocked effect.",
+    effectNote: "Siege Crews unlocked (combat effect tracked only)."
+  },
+  greatBombard: {
+    id: "greatBombard",
+    label: "Great Bombard",
+    level: 4,
+    description: "Spawn 1 Great Bombard at the Capital Town Center.",
+    effectNote: "Spawns 1 Great Bombard at the Capital Town Center."
+  },
+  tradeBags: {
+    id: "tradeBags",
+    label: "Trade Bags",
+    level: 4,
+    description: "Trade-only bonus. Visible for reference but not modeled in Build Order.",
+    effectNote: "Trade not modeled in Build Order.",
+    modeled: false
+  }
+};
+const BO_OTTOMAN_VIZIER_LEVELS = [1, 2, 3, 4].map((level) => ({
+  level,
+  choices: Object.values(BO_OTTOMAN_VIZIER_CHOICES).filter((choice) => choice.level === level).map((choice) => choice.id)
+}));
 
 function getBoRatesForCiv(civ) {
   const base = { ...BO_BASE_RATES };
@@ -228,24 +359,119 @@ function applyBoWorkRateToDuration(duration, workRatePct) {
   return base / (1 + (pct / 100));
 }
 
-function getBoOttomanSettingsFromInputs() {
+function getBoOttomanChoiceDef(choiceId) {
+  return BO_OTTOMAN_VIZIER_CHOICES[choiceId] || null;
+}
+
+function getBoOttomanVizierCap(state = null) {
+  if (state?.cap && Number.isFinite(state.cap)) return state.cap;
+  if (state?.imperialPalace) return 8;
+  return 5;
+}
+
+function getBoOttomanVizierPointsEarned(xp = 0, cap = 5) {
+  let points = 0;
+  for (let i = 0; i < BO_OTTOMAN_VIZIER_THRESHOLDS.length && i < cap; i++) {
+    if (xp >= BO_OTTOMAN_VIZIER_THRESHOLDS[i]) points += 1;
+  }
+  return points;
+}
+
+function getBoOttomanVizierStateFromSample(sample = null) {
+  const fallback = {
+    xp: 0,
+    cap: 5,
+    pointsEarned: 0,
+    pointsSpent: 0,
+    pointsAvailable: 0,
+    nextThreshold: BO_OTTOMAN_VIZIER_THRESHOLDS[0],
+    imperialPalace: false,
+    choices: [],
+    effects: {}
+  };
+  if (!sample?.vizier) return fallback;
+  const effects = sample.vizier.effects || {};
   return {
-    militaryCampus: !!document.getElementById("boOttomanMilitaryCampus")?.checked,
-    advancedAcademy: !!document.getElementById("boOttomanAdvancedAcademy")?.checked
+    xp: Math.max(0, sample.vizier.xp || 0),
+    cap: getBoOttomanVizierCap(sample.vizier),
+    pointsEarned: Math.max(0, sample.vizier.pointsEarned || 0),
+    pointsSpent: Math.max(0, sample.vizier.pointsSpent || 0),
+    pointsAvailable: Math.max(0, sample.vizier.pointsAvailable || 0),
+    nextThreshold: Number.isFinite(sample.vizier.nextThreshold) ? sample.vizier.nextThreshold : null,
+    imperialPalace: !!sample.vizier.imperialPalace,
+    choices: Array.isArray(sample.vizier.choices) ? sample.vizier.choices.slice() : [],
+    effects: { ...effects }
   };
 }
 
-function applyBoOttomanSettings(settings = {}) {
-  const militaryCampus = document.getElementById("boOttomanMilitaryCampus");
-  const advancedAcademy = document.getElementById("boOttomanAdvancedAcademy");
-  if (militaryCampus) militaryCampus.checked = !!settings.militaryCampus;
-  if (advancedAcademy) advancedAcademy.checked = !!settings.advancedAcademy;
+function getBoOttomanPreviewState(timeOverride = null) {
+  const civ = (document.getElementById("boCiv")?.value || "").trim();
+  if (civ !== "Ottomans") return getBoOttomanVizierStateFromSample(null);
+  const sample = getBoSampleAtTimeFromSamples(
+    Number.isFinite(timeOverride) ? timeOverride : getBoAnchorTime(),
+    boLastResults?.samples || []
+  );
+  return getBoOttomanVizierStateFromSample(sample);
 }
 
-function updateBoOttomanPanel(civ) {
+function getBoOttomanSettingsFromInputs() {
+  return getBoOttomanPreviewState().effects || {};
+}
+
+function applyBoOttomanSettings() {
+  boOttomanLegacyWarning = "";
+}
+
+function getBoOttomanLevelStatus(level, state) {
+  const previousLevel = level - 1;
+  if (level <= 1) return { allowed: true, note: "Available immediately" };
+  const hasPreviousChoice = (state?.choices || []).some((choiceId) => getBoOttomanChoiceDef(choiceId)?.level === previousLevel);
+  return hasPreviousChoice
+    ? { allowed: true, note: "Previous level unlocked" }
+    : { allowed: false, note: `Choose a Level ${previousLevel} Vizier point first` };
+}
+
+function getBoOttomanChoiceUiState(choiceId, state = null) {
+  const choice = getBoOttomanChoiceDef(choiceId);
+  if (!choice) return { disabled: true, reason: "Unknown choice" };
+  const current = state || getBoOttomanPreviewState();
+  if ((current.choices || []).includes(choiceId)) return { disabled: true, reason: "Already chosen" };
+  if (choice.modeled === false) return { disabled: true, reason: choice.effectNote || "Unmodeled" };
+  if ((current.pointsAvailable || 0) <= 0) return { disabled: true, reason: "No Vizier points available yet" };
+  const levelStatus = getBoOttomanLevelStatus(choice.level, current);
+  if (!levelStatus.allowed) return { disabled: true, reason: levelStatus.note };
+  return { disabled: false, reason: choice.effectNote || choice.description };
+}
+
+function updateBoOttomanPanel(civ, timeOverride = null) {
   const panel = document.getElementById("boOttomanPanel");
-  if (!panel) return;
-  panel.style.display = civ === "Ottomans" ? "" : "none";
+  const summary = document.getElementById("boOttomanVizierSummary");
+  const warning = document.getElementById("boOttomanVizierWarning");
+  const anchor = document.getElementById("boOttomanVizierAnchor");
+  if (!panel || !summary || !warning || !anchor) return;
+  if (civ !== "Ottomans") {
+    panel.style.display = "none";
+    return;
+  }
+  panel.style.display = "";
+  const state = getBoOttomanPreviewState(timeOverride);
+  const currentTime = Number.isFinite(timeOverride) ? timeOverride : getBoAnchorTime();
+  anchor.textContent = `State at ${formatTimeMMSS(currentTime)}`;
+  warning.hidden = !boOttomanLegacyWarning;
+  warning.textContent = boOttomanLegacyWarning || "";
+  const nextThreshold = Number.isFinite(state.nextThreshold) ? state.nextThreshold : "Cap reached";
+  const summaryItems = [
+    ["Vizier XP", Math.floor(state.xp || 0)],
+    ["Points earned", `${state.pointsEarned}/${state.cap}`],
+    ["Spent / available", `${state.pointsSpent} / ${state.pointsAvailable}`],
+    ["Next threshold", nextThreshold]
+  ];
+  summary.innerHTML = summaryItems.map(([label, value]) => `
+    <div class="bo-vizier-summary-pill">
+      <span class="bo-vizier-summary-pill-label">${label}</span>
+      <span class="bo-vizier-summary-pill-value">${value}</span>
+    </div>
+  `).join("");
 }
 
 function getBoOttomanMilitarySchoolConfig(civ) {
@@ -346,8 +572,12 @@ function isBoUnitTrainableAtBuilding(unitName, buildingType, civ, ottomanSetting
     if (!school) return false;
     const baseUnits = school.baseUnits || [];
     const advancedUnits = school.advancedAcademyUnits || [];
+    if (unitName === "Akinji") return !!ottomanSettings?.akinjiSystem;
     if (baseUnits.includes(unitName)) return true;
     return !!ottomanSettings?.advancedAcademy && advancedUnits.includes(unitName);
+  }
+  if (civ === "Ottomans" && buildingType === "Archery Range" && unitName === "Akinji" && !ottomanSettings?.akinjiSystem) {
+    return false;
   }
   const extra = getBoExtraUnitSpec(unitName, civ);
   if (extra?.buildings?.length) {
@@ -370,6 +600,7 @@ function getBoUnitOptionsForBuilding(buildingType, civ, ottomanSettings = null) 
     const school = getBoOttomanMilitarySchoolConfig(civ);
     if (!school) return [];
     const choices = [...(school.baseUnits || [])];
+    if (ottomanSettings?.akinjiSystem) choices.push("Akinji");
     if (ottomanSettings?.advancedAcademy) choices.push(...(school.advancedAcademyUnits || []));
     return Array.from(new Set(choices));
   }
@@ -411,13 +642,15 @@ function renderBoCivBonuses(civ) {
     const school = civBonus.militarySchool || {};
     const costMult = civBonus.militaryInducementCostMult || 0.6;
     const influenceByAge = civBonus.productionInfluenceByAge || {};
-    const militaryCampus = getBoOttomanSettingsFromInputs().militaryCampus;
-    const advancedAcademy = getBoOttomanSettingsFromInputs().advancedAcademy;
+    const previewState = getBoOttomanPreviewState();
+    const ottomanEffects = previewState.effects || {};
     const influenceText = `${getBoAgeBonusValue(influenceByAge, 2)} / ${getBoAgeBonusValue(influenceByAge, 3)} / ${getBoAgeBonusValue(influenceByAge, 4)}%`;
     parts.push(`Military Inducement: ${Math.round((1 - costMult) * 100)}% cheaper Barracks/Range/Stable/Workshop/Blacksmith/University`);
     parts.push(`Influence: +${influenceText} production speed with Blacksmith or University`);
-    parts.push(`Military School: Dark Age, 1 per Age${militaryCampus ? " (+1 via Military Campus)" : ""}, free production at ${school.trainTimeMult || 4.75}x train time`);
-    if (advancedAcademy) parts.push("Advanced Academy active: +25% military production speed, unlocks Lancer + Janissary in Military Schools");
+    parts.push(`Military School: Dark Age, 1 per Age${ottomanEffects.militaryCampus ? " (+1 via Military Campus)" : ""}, free production at ${school.trainTimeMult || 4.75}x train time`);
+    parts.push("Imperial Council choices are made from the Imperial Council lane.");
+    if (ottomanEffects.advancedAcademy) parts.push("Advanced Academy active: +25% military production speed, unlocks Lancer + Janissary in Military Schools");
+    if (ottomanEffects.anatolianHills) parts.push("Anatolian Hills active: +10 Sheep, +15% gold/stone mining");
   }
   if (!parts.length) {
     box.innerHTML = `<span class="text-muted">No civ bonuses applied.</span>`;
@@ -697,7 +930,6 @@ function getBoPersistedSnapshot() {
     villagers: settings.villagers,
     gatherRates: cloneBoData(settings.gatherRates || {}),
     carry: cloneBoData(settings.carry || {}),
-    ottomanBonuses: cloneBoData(settings.ottomanBonuses || {}),
     overlayEnabled: !!boOverlayEnabled,
     commands: cloneBoData(boCommands),
     lastCommandType: boLastCommandType,
@@ -792,10 +1024,16 @@ function applyBoSnapshot(snapshot, options = {}) {
   boPinnedTime = null;
   boHoverTime = null;
   boLastResults = null;
+  boOttomanLegacyWarning = "";
 
   applyBoStartingResources(civ);
   applyBoStartingVillagers(civ);
-  applyBoOttomanSettings(snapshot.ottomanBonuses || {});
+  const legacyOttomanBonuses = snapshot?.ottomanBonuses && typeof snapshot.ottomanBonuses === "object"
+    ? snapshot.ottomanBonuses
+    : null;
+  if (civ === "Ottomans" && legacyOttomanBonuses && Object.values(legacyOttomanBonuses).some(Boolean)) {
+    boOttomanLegacyWarning = "Legacy Ottoman checkbox bonuses were deprecated. Re-add Vizier choices from the Imperial Council lane.";
+  }
   applyBoCivRates(civ);
   applyBoCivRestrictions(civ);
   applyBoBoarRestriction(civ);
@@ -987,7 +1225,7 @@ function restoreBoSavedStateOnInit() {
   civSelect.value = civ;
   applyBoStartingResources(civ);
   applyBoStartingVillagers(civ);
-  applyBoOttomanSettings({});
+  boOttomanLegacyWarning = "";
   applyBoCivRates(civ);
   applyBoCivRestrictions(civ);
   applyBoBoarRestriction(civ);
@@ -1094,7 +1332,7 @@ function initBuildOrderUI() {
       }
       applyBoStartingResources(civ);
       applyBoStartingVillagers(civ);
-      applyBoOttomanSettings({});
+      boOttomanLegacyWarning = "";
       applyBoCivRates(civ);
       applyBoCivRestrictions(civ);
       applyBoBoarRestriction(civ);
@@ -1206,6 +1444,19 @@ function setBoDefaults(cmd) {
       time: BO_AGE_UP_TIME_DEFAULTS[2] || 120,
       cost: { food: 400, wood: 0, gold: 200, stone: 0 }
     };
+  } else if (cmd.type === "resourceTrip") {
+    cmd.payload = {
+      resource: "sheep",
+      tripOverrideSec: BO_DEFAULT_TRIP.sheep
+    };
+    cmd.autoCost = false;
+    cmd.autoTime = false;
+  } else if (cmd.type === "vizierChoice") {
+    cmd.payload = {
+      choiceId: "fieldWork"
+    };
+    cmd.autoCost = false;
+    cmd.autoTime = false;
   } else if (cmd.type === "rally") {
     cmd.payload = { target: "idle", travelDelaySec: 0, tripOverrideSec: null };
     cmd.autoCost = false;
@@ -1308,9 +1559,10 @@ function getBoBuildSteps(payload) {
   return normalizeBoBuildPayload(payload).steps;
 }
 
-function getBoBuildStepCost(step, civ, civBonus) {
+function getBoBuildStepCost(step, civ, civBonus, options = {}) {
   const def = getBoBuildingDefaults(step.building) || null;
   let cost = { ...(step.cost || def?.cost || { food: 0, wood: 0, gold: 0, stone: 0 }) };
+  const ottomanSettings = options.ottomanSettings || getBoOttomanSettingsFromInputs();
   if (step.autoCost && def?.cost) {
     cost = { ...def.cost };
     if (BO_ENGLISH_FARM_BONUS_CIVS.has(civ) && step.building === "Farm") {
@@ -1332,6 +1584,14 @@ function getBoBuildStepCost(step, civ, civBonus) {
         wood: Math.round((cost.wood || 0) * mult),
         gold: Math.round((cost.gold || 0) * mult),
         stone: Math.round((cost.stone || 0) * mult)
+      };
+    }
+    if (civ === "Ottomans" && ottomanSettings?.extensiveFortifications && BO_OTTOMAN_DEFENSIVE_BUILDINGS.has(step.building)) {
+      cost = {
+        food: Math.round((cost.food || 0) * 0.8),
+        wood: Math.round((cost.wood || 0) * 0.8),
+        gold: Math.round((cost.gold || 0) * 0.8),
+        stone: Math.round((cost.stone || 0) * 0.8)
       };
     }
   }
@@ -1400,6 +1660,23 @@ function normalizeBoCommands(commands = boCommands) {
       const before = JSON.stringify(cmd.payload || {});
       cmd.payload = normalizeBoBuildPayload(cmd.payload);
       if (before !== JSON.stringify(cmd.payload || {})) changed = true;
+    }
+    if (cmd?.type === "resourceTrip") {
+      const resource = BO_RESOURCE_KEYS.includes(cmd.payload?.resource) ? cmd.payload.resource : "sheep";
+      const nextTrip = Number.isFinite(cmd.payload?.tripOverrideSec)
+        ? Math.max(0, cmd.payload.tripOverrideSec)
+        : (BO_DEFAULT_TRIP[resource] || 0);
+      if (cmd.payload?.resource !== resource || cmd.payload?.tripOverrideSec !== nextTrip) {
+        cmd.payload = { resource, tripOverrideSec: nextTrip };
+        changed = true;
+      }
+    }
+    if (cmd?.type === "vizierChoice") {
+      const nextChoiceId = getBoOttomanChoiceDef(cmd.payload?.choiceId) ? cmd.payload.choiceId : "fieldWork";
+      if (cmd.payload?.choiceId !== nextChoiceId) {
+        cmd.payload = { choiceId: nextChoiceId };
+        changed = true;
+      }
     }
     if (!cmd || cmd.type !== "autoQueue") return;
     if (!cmd.payload?.buildingId) return;
@@ -1618,7 +1895,9 @@ function applyBoLaneCaptionSelection() {
     const label = block.dataset.fullLabel || block.textContent || "";
     setBoLaneCaption(laneKey, label);
   } else if (boSelectedBuilding?.id) {
-    const laneKey = boSelectedBuilding.id.startsWith("TC ") ? "tc" : `building:${boSelectedBuilding.id}`;
+    const laneKey = boSelectedBuilding.type === BO_OTTOMAN_IMPERIAL_COUNCIL_BUILDING
+      ? "imperialCouncil"
+      : (boSelectedBuilding.id.startsWith("TC ") ? "tc" : `building:${boSelectedBuilding.id}`);
     setBoLaneCaption(laneKey, `${boSelectedBuilding.type} - ${boSelectedBuilding.id}`);
   } else {
     const lastAssign = [...boCommands].reverse().find((cmd) => cmd.type === "assign");
@@ -1724,6 +2003,7 @@ function getBoPreviewTrainSpec(unitName, buildingType, civ, options = {}) {
   if (!base) return null;
   let cost = { ...(base.cost || { food: 0, wood: 0, gold: 0, stone: 0 }) };
   let time = base.time || 0;
+  const ottomanSettings = options.ottomanSettings || getBoOttomanSettingsFromInputs();
   if (civ === "Mongols" && /horseman/i.test(resolveBoUnitName(unitName))) {
     const civBonus = BO_CIV_BONUSES?.[civ] || {};
     time *= civBonus.horsemenTrainTimeMult || 0.75;
@@ -1736,13 +2016,16 @@ function getBoPreviewTrainSpec(unitName, buildingType, civ, options = {}) {
       time = applyBoWorkRateToDuration(
         time,
         getBoMilitaryProductionSpeedPct(civ, buildingType, options.age || (parseInt(document.getElementById("boStartAge")?.value, 10) || 1), {
-          ottomanSettings: options.ottomanSettings || getBoOttomanSettingsFromInputs(),
+          ottomanSettings,
           hasInfluenceSource: !!options.hasInfluenceSource
         })
       );
     }
   } else if (buildingType === "Town Center") {
     time = applyBoWorkRateToDuration(time, getBoPreviewTownCenterWorkRatePct(civ, options.age));
+  }
+  if (civ === "Ottomans" && resolveBoUnitName(unitName) === "Villager" && ottomanSettings?.paxOttomana) {
+    time = applyBoWorkRateToDuration(time, 75);
   }
   return {
     cost,
@@ -1865,6 +2148,8 @@ function inferBoBuildingTypeFromId(id) {
 function getBoCommandDuration(cmd, startTime = 0, simEndOverride = null) {
   if (!cmd) return 0;
   if (cmd.type === "assign") return cmd.payload.travelDelaySec || 0;
+  if (cmd.type === "resourceTrip") return 0;
+  if (cmd.type === "vizierChoice") return 0;
   if (cmd.type === "buildBuilding") {
     const segments = getBoBuildQueueSegments(cmd.payload, startTime);
     if (!segments.length) return 0;
@@ -1912,6 +2197,8 @@ function getBoCommandLabel(cmd) {
   if (cmd.type === "buildBuilding") return `Build ${getBoBuildQueueSummary(cmd.payload)}`;
   if (cmd.type === "tech") return `Tech: ${cmd.payload.techType}`;
   if (cmd.type === "ageUp") return `Age Up to ${cmd.payload.targetAge}`;
+  if (cmd.type === "resourceTrip") return `${getBoResourceLabel(cmd.payload?.resource)} trip ${formatBoTripOverrideValue(cmd.payload?.tripOverrideSec || 0)}`;
+  if (cmd.type === "vizierChoice") return `Imperial Council: ${getBoOttomanChoiceDef(cmd.payload?.choiceId)?.label || "Vizier Choice"}`;
   if (cmd.type === "rally") return `Rally -> ${cmd.payload.target}`;
   if (cmd.type === "trainUnit") {
     const isTownCenterVillager =
@@ -1955,6 +2242,8 @@ function formatBoAssignmentLabel(payload) {
 function boLaneForCommand(cmd) {
   if (!cmd) return "General";
   if (cmd.type === "assign") return "Assignments";
+  if (cmd.type === "resourceTrip") return getBoResourceLabel(cmd.payload?.resource);
+  if (cmd.type === "vizierChoice") return BO_OTTOMAN_IMPERIAL_COUNCIL_BUILDING;
   if (cmd.type === "buildBuilding") return "Construction";
   if (cmd.type === "tech") return "Tech";
   if (cmd.type === "rally") return "TC #1";
@@ -1977,6 +2266,7 @@ function getBoBuildingAnchorTime(cmd, buildById) {
 }
 
 function getBoCommandStart(cmd, prevEnd, plannedById, buildById) {
+  if (cmd.timeMode === "atPin") return Math.max(0, cmd.atTime ?? boPinnedTime ?? 0);
   if (cmd.timeMode === "atTime") return Math.max(0, cmd.atTime ?? 0);
   if (cmd.timeMode === "afterPrev") {
     const buildingAnchor = getBoBuildingAnchorTime(cmd, buildById);
@@ -1989,7 +2279,8 @@ function getBoCommandStart(cmd, prevEnd, plannedById, buildById) {
 function getBoCommandExecutionPriority(cmd) {
   if (!cmd) return 99;
   if (cmd.type === "assign") return 0;
-  if (cmd.type === "buildBuilding") return 1;
+  if (cmd.type === "resourceTrip" || cmd.type === "vizierChoice") return 1;
+  if (cmd.type === "buildBuilding") return 2;
   return 2;
 }
 
@@ -2081,7 +2372,7 @@ function getBoBuildReadyMap(planned) {
       const instanceId = name === "Town Center"
         ? `TC #${buildCounts[name]}`
         : `${name} #${buildCounts[name]}`;
-      if (name === "Farm") return;
+      if (isBoTimelineCounterBuilding(name)) return;
       buildById.set(instanceId, {
         buildingType: name,
         buildingId: instanceId,
@@ -2162,6 +2453,12 @@ function getBoBlockFamilyClass(cmd, row) {
 }
 
 function getBoLaneActionBadges(lane) {
+  if (lane?.type === "resource") {
+    return [{ label: "Trip", className: "trip", icon: "bi-signpost-split-fill" }];
+  }
+  if (lane?.buildingType === BO_OTTOMAN_IMPERIAL_COUNCIL_BUILDING || lane?.key === "imperialCouncil") {
+    return [{ label: "Vizier", className: "vizier", icon: "bi-diagram-3-fill" }];
+  }
   const buildingType = lane?.type === "building"
     ? lane.buildingType
     : (lane?.key === "tc" ? "Town Center" : null);
@@ -2187,6 +2484,7 @@ function renderBoTimelineEditor() {
   const baseRows = boLastResults?.timeline?.length
     ? boLastResults.timeline.filter((row) => row.commandId)
     : buildBoPreviewTimelineRows();
+  const civ = getBoSelectedCiv();
   const total = getBoTimelineTotal(baseRows);
   const timelineTotal = Math.max(total, 240);
 
@@ -2216,7 +2514,7 @@ function renderBoTimelineEditor() {
         buildingId: instanceId,
         sourceCommandId: row.commandId
       };
-      if (name !== "Farm") {
+      if (!isBoTimelineCounterBuilding(name)) {
         buildInstances.push({
           buildingType: name,
           buildingId: instanceId,
@@ -2228,17 +2526,6 @@ function renderBoTimelineEditor() {
     });
 
   const resourceOrder = ["sheep", "berries", "deer", "boar", "farm", "wood", "gold", "stone"];
-  const resourceLabels = {
-    sheep: "Sheep",
-    berries: "Berries",
-    deer: "Deer",
-    boar: "Boar",
-    farm: "Farm",
-    wood: "Wood",
-    gold: "Gold",
-    stone: "Stone"
-  };
-
   const usedResources = new Set();
   const gatherSegments = boLastResults?.gatherSegments || [];
   const villagerMarkers = boLastResults?.villagerMarkers || [];
@@ -2248,6 +2535,11 @@ function renderBoTimelineEditor() {
     resourceOrder.forEach((res) => {
       if ((cmd.payload?.[res] || 0) > 0) usedResources.add(res);
     });
+  });
+  boCommands.forEach((cmd) => {
+    if (cmd?.type === "resourceTrip" && BO_RESOURCE_KEYS.includes(cmd.payload?.resource)) {
+      usedResources.add(cmd.payload.resource);
+    }
   });
   gatherSegments.forEach((seg) => {
     if ((seg?.count || 0) > 0 && seg.resource) usedResources.add(seg.resource);
@@ -2266,10 +2558,19 @@ function renderBoTimelineEditor() {
   };
 
   addLane("tc", "Town Center", { type: "tc" });
+  if (civ === "Ottomans") {
+    addLane("imperialCouncil", BO_OTTOMAN_IMPERIAL_COUNCIL_BUILDING, {
+      type: "building",
+      buildingId: BO_OTTOMAN_IMPERIAL_COUNCIL_BUILDING,
+      buildingType: BO_OTTOMAN_IMPERIAL_COUNCIL_BUILDING,
+      readyAt: 0,
+      sourceCommandId: BO_CAPITAL_TC_ANCHOR
+    });
+  }
   if (hasAssign) addLane("assignments", "Assignments", { type: "assignments", blockHeight: BO_ASSIGN_BLOCK_HEIGHT });
   addLane("construction", "Construction", { type: "construction" });
   resourceOrder.forEach((res) => {
-    if (usedResources.has(res)) addLane(`res:${res}`, resourceLabels[res], { type: "resource", resource: res });
+    if (usedResources.has(res)) addLane(`res:${res}`, getBoResourceLabel(res), { type: "resource", resource: res });
   });
 
   const buildingLaneSet = new Set();
@@ -2323,9 +2624,9 @@ function renderBoTimelineEditor() {
       start: seg.start,
       end: seg.end,
       laneKey: `res:${seg.resource}`,
-      label: `${resourceLabels[seg.resource]} x${seg.count || 0}`,
+      label: `${getBoResourceLabel(seg.resource)} x${seg.count || 0}`,
       shortLabel: `x${seg.count || 0}`,
-      fullLabel: `${resourceLabels[seg.resource]} x${seg.count || 0}`,
+      fullLabel: `${getBoResourceLabel(seg.resource)} x${seg.count || 0}`,
       displayDuration: Math.max(dur, MIN_VISUAL_SECONDS),
       gatherSegment: true
     });
@@ -2361,7 +2662,7 @@ function renderBoTimelineEditor() {
       laneKey,
       label: markerLabel,
       shortLabel: markerLabel,
-      fullLabel: `Villager completion -> ${resourceLabels[marker.target] || marker.target} (+${marker.count}) | click to change rally from this point`,
+      fullLabel: `Villager completion -> ${getBoResourceLabel(marker.target)} (+${marker.count}) | click to change rally from this point`,
       displayDuration: MIN_VISUAL_SECONDS,
       villagerMarker: true,
       minWidthPx: 54,
@@ -2402,6 +2703,10 @@ function renderBoTimelineEditor() {
     let laneKey = "global";
     if (cmd.type === "rally") {
       laneKey = "tc";
+    } else if (cmd.type === "vizierChoice") {
+      laneKey = "imperialCouncil";
+    } else if (cmd.type === "resourceTrip") {
+      laneKey = BO_RESOURCE_KEYS.includes(cmd.payload?.resource) ? `res:${cmd.payload.resource}` : "global";
     } else if (cmd.type === "buildBuilding") {
       laneKey = "construction";
     } else if (cmd.type === "trainUnit" || cmd.type === "autoQueue" || cmd.type === "tech") {
@@ -2417,6 +2722,8 @@ function renderBoTimelineEditor() {
     let shortLabel = row.action;
     if (cmd.type === "buildBuilding") shortLabel = row.shortLabel || "Build";
     if (cmd.type === "tech") shortLabel = "Tech";
+    if (cmd.type === "resourceTrip") shortLabel = `Trip ${formatBoTripOverrideValue(cmd.payload?.tripOverrideSec || 0)}`;
+    if (cmd.type === "vizierChoice") shortLabel = getBoOttomanChoiceDef(cmd.payload?.choiceId)?.label || "Vizier";
     if (cmd.type === "trainUnit") {
       const isTownCenterVillager =
         cmd.payload?.building === "Town Center" &&
@@ -2437,7 +2744,7 @@ function renderBoTimelineEditor() {
       displayDuration,
       commandId: row.commandId,
       highlight: meta?.highlight,
-      minWidthPx: cmd.type === "buildBuilding" || cmd.type === "trainUnit" || cmd.type === "autoQueue" ? 54 : undefined
+      minWidthPx: cmd.type === "buildBuilding" || cmd.type === "trainUnit" || cmd.type === "autoQueue" || cmd.type === "resourceTrip" || cmd.type === "vizierChoice" ? 54 : undefined
     });
   });
 
@@ -2797,9 +3104,14 @@ function renderBoGatherRates(timeOverride = null) {
   const actualIncome = currentRateInfo.actualIncome || {};
   const liveResources = getBoLiveResourceSnapshot(sample, settings);
   let farmBuilt = sample?.farmCount;
+  let houseBuilt = sample?.houseCount;
   if (!Number.isFinite(farmBuilt)) {
     const info = estimateBoVillagerState(boSelectedCommandId);
     farmBuilt = info?.farmCount ?? 0;
+    houseBuilt = info?.houseCount ?? 0;
+  } else if (!Number.isFinite(houseBuilt)) {
+    const info = estimateBoVillagerState(boSelectedCommandId);
+    houseBuilt = info?.houseCount ?? 0;
   }
   const gatherLabels = [
     { key: "sheep", label: "Sheep" },
@@ -2834,6 +3146,7 @@ function renderBoGatherRates(timeOverride = null) {
   if ((liveResources.oliveOil || 0) > 0) resourcePills.push(["Olive", liveResources.oliveOil || 0]);
   if ((liveResources.silver || 0) > 0) resourcePills.push(["Silver", liveResources.silver || 0]);
   resourcePills.push(["Farms built", Math.max(0, Math.floor(farmBuilt || 0))]);
+  resourcePills.push(["Houses built", Math.max(0, Math.floor(houseBuilt || 0))]);
   const resourceHtml = resourcePills
     .map(([label, value]) => buildBoLiveValuePill(label, value))
     .join("");
@@ -2864,11 +3177,13 @@ function renderBoGatherRates(timeOverride = null) {
   const labelEls = document.querySelectorAll(".bo-lane-label-row[data-resource]");
   labelEls.forEach((el) => {
     const key = el.dataset.resource;
-    const base = el.dataset.baseLabel || el.textContent;
+    const base = el.dataset.baseLabel || "";
     if (!key) return;
     const val = Number.isFinite(gatherSpeeds[key]) ? gatherSpeeds[key] : 0;
-    el.textContent = `${base} (${val.toFixed(3)}/s)`;
+    const nameEl = el.querySelector(".bo-lane-label-name");
+    if (nameEl) nameEl.textContent = `${base} (${val.toFixed(3)}/s)`;
   });
+  updateBoOttomanPanel(civ, time);
   renderBoTimelineFooter(time);
   if (boLastResults) renderBoSummary(boLastResults, time);
 }
@@ -2983,6 +3298,7 @@ function getBoEstimateBaseStateAtTime(time) {
       busy,
       counts,
       farmCount: Math.max(0, sample.farmCount || 0),
+      houseCount: Math.max(0, sample.houseCount || 0),
       fromSample: true
     };
   }
@@ -2992,6 +3308,7 @@ function getBoEstimateBaseStateAtTime(time) {
   const startVills = Math.max(0, parseInt(document.getElementById("boStartVills")?.value, 10) || 0);
   let total = startVills;
   let farmCount = 0;
+  let houseCount = 0;
 
   execution.forEach((p) => {
     if (p.start >= time - epsilon) return;
@@ -3008,8 +3325,9 @@ function getBoEstimateBaseStateAtTime(time) {
   });
 
   buildRows.forEach((row) => {
-    if (row.buildingType !== "Farm") return;
-    if (row.end < time - epsilon || Math.abs(row.end - (time - epsilon)) <= epsilon) farmCount += 1;
+    if (row.end >= time - epsilon && Math.abs(row.end - (time - epsilon)) > epsilon) return;
+    if (row.buildingType === "Farm") farmCount += 1;
+    if (row.buildingType === "House") houseCount += 1;
   });
 
   const counts = {
@@ -3025,7 +3343,7 @@ function getBoEstimateBaseStateAtTime(time) {
   const assigned = 0;
   const idle = total;
   const busy = 0;
-  return { total, assigned, idle, busy, counts, farmCount, fromSample: false };
+  return { total, assigned, idle, busy, counts, farmCount, houseCount, fromSample: false };
 }
 
 function previewCountAvailableBuilders(source, counts, idle, farmCount) {
@@ -3180,6 +3498,76 @@ function insertBoCommandAtTime(cmd, time) {
   boCommands.splice(insertIdx, 0, cmd);
 }
 
+function showBoPinHint(message) {
+  const status = document.getElementById("boPinStatus");
+  if (status) {
+    status.textContent = message;
+    status.classList.remove("is-pinned");
+  }
+}
+
+function getBoResourceTripSeed(resource, time = 0) {
+  const settingsTrip = readBoSettings().trip?.[resource];
+  let value = Number.isFinite(settingsTrip) ? Math.max(0, settingsTrip) : Math.max(0, BO_DEFAULT_TRIP[resource] || 0);
+  const planned = sortBoExecutionEntries(buildBoPlannedCommands(boCommands));
+  planned.forEach((entry) => {
+    if ((entry.start || 0) > time + 0.0001) return;
+    const cmd = entry.cmd;
+    if (!cmd) return;
+    if (cmd.type === "resourceTrip" && cmd.payload?.resource === resource && Number.isFinite(cmd.payload?.tripOverrideSec)) {
+      value = Math.max(0, cmd.payload.tripOverrideSec);
+      return;
+    }
+    if (cmd.type === "assign" && Number.isFinite(cmd.payload?.tripOverrides?.[resource])) {
+      value = Math.max(0, cmd.payload.tripOverrides[resource]);
+    }
+  });
+  return value;
+}
+
+function findBoResourceTripCommand(resource, time) {
+  if (!BO_RESOURCE_KEYS.includes(resource) || !Number.isFinite(time)) return null;
+  const planned = buildBoPlannedCommands(boCommands);
+  const matches = planned
+    .filter((entry) => (
+      entry.cmd?.type === "resourceTrip" &&
+      entry.cmd.payload?.resource === resource &&
+      Math.abs((entry.start || 0) - time) <= 0.0001
+    ))
+    .map((entry) => entry.cmd);
+  return matches.length ? matches[matches.length - 1] : null;
+}
+
+function selectOrCreateBoResourceTripCommand(resource) {
+  if (!BO_RESOURCE_KEYS.includes(resource)) return null;
+  if (!Number.isFinite(boPinnedTime)) {
+    showBoPinHint(`Set a pin first to edit ${getBoResourceLabel(resource)} trip time.`);
+    return null;
+  }
+  const targetTime = Math.max(0, boPinnedTime || 0);
+  const existing = findBoResourceTripCommand(resource, targetTime);
+  if (existing) {
+    selectBoCommand(existing.id, { scrollToEditor: true });
+    return existing;
+  }
+  discardBoMarkerDraft(false);
+  const cmd = createBoCommand("resourceTrip");
+  cmd.payload.resource = resource;
+  cmd.payload.tripOverrideSec = getBoResourceTripSeed(resource, targetTime);
+  insertBoCommandAtTime(cmd, targetTime);
+  boSelectedBuilding = null;
+  setBoTargetBuilding(null);
+  boSelectedCommandId = cmd.id;
+  boLastCommandType = "resourceTrip";
+  boLastResults = null;
+  renderBoTimelineEditor();
+  renderBoCommandEditor(cmd);
+  renderBoGatherRates();
+  scrollBoEditorIntoView();
+  scheduleRunBuildOrder();
+  return cmd;
+}
+
 function createBoVillagerMarkerDraft(marker) {
   const civ = document.getElementById("boCiv")?.value || "";
   const sourceCmd = boCommands.find((cmd) => cmd.id === marker?.sourceCommandId);
@@ -3266,7 +3654,7 @@ function updateAssignSummary(editor, cmd) {
   const currentEl = editor.querySelector('[data-role="assignCurrent"]');
   const info = estimateBoVillagerState(cmd.id);
   if (summaryEl) {
-    summaryEl.textContent = `Assigned ${info.assigned} / Idle ${info.idle} / Busy ${info.busy || 0} / Total ${info.total} / Farms built ${info.farmCount || 0}`;
+    summaryEl.textContent = `Assigned ${info.assigned} / Idle ${info.idle} / Busy ${info.busy || 0} / Total ${info.total} / Farms built ${info.farmCount || 0} / Houses built ${info.houseCount || 0}`;
   }
   if (currentEl) {
     const c = info.counts;
@@ -3425,7 +3813,7 @@ function escapeBoAttr(value) {
 }
 
 function getBoAvailableTechs(civ) {
-  const fallbackTechs = ["Wheelbarrow", "Food Upgrade", "Survival Techniques", "Sanctity", "Enlistment Incentives", "Dome of the Faith"];
+  const fallbackTechs = ["Wheelbarrow", "Horticulture", "Survival Techniques", "Sanctity", "Enlistment Incentives", "Dome of the Faith"];
   const delhiOnlyTechs = new Set(["Sanctity", "Dome of the Faith"]);
   const isDelhi = civ === "Delhi Sultanate";
   const techKeys = Object.keys(BO_TECH_DEFAULTS || {}).length ? Object.keys(BO_TECH_DEFAULTS || {}) : fallbackTechs;
@@ -3668,8 +4056,9 @@ function renderBoCommandEditor(cmd) {
     <option value="idle">Idle</option>
   `;
   const tripOverrides = cmd.payload.tripOverrides || {};
-  const tripValue = (key) => (tripOverrides[key] === undefined || tripOverrides[key] === null ? "" : tripOverrides[key]);
+  const legacyAssignTripSummary = formatBoLegacyTripOverrides(tripOverrides);
   const showRallyFields = isTcTarget && (cmd.payload?.unitName === "Villager");
+  const hasLegacyRallyTripOverride = Number.isFinite(cmd.payload?.rallyTripOverrideSec);
 
   const costInputs = (cost) => `
     <div class="row g-2 mt-2">
@@ -3702,19 +4091,7 @@ function renderBoCommandEditor(cmd) {
           <input type="number" class="form-control form-control-sm" data-field="assignTravelDelay" value="${cmd.payload.travelDelaySec || 0}" min="0" step="0.1" title="One-time travel before this assignment starts.">
         </div>
       </div>
-      <div class="mt-2">
-        <small class="text-muted">Trip Overrides (s) - leave blank to keep current defaults</small>
-        <div class="row g-2 mt-1">
-          <div class="col-md-3 col-sm-6"><input type="number" class="form-control form-control-sm" data-field="tripSheep" placeholder="Sheep" value="${tripValue("sheep")}" min="0" step="0.1" title="Override one-way trip time for sheep."></div>
-          <div class="col-md-3 col-sm-6"><input type="number" class="form-control form-control-sm" data-field="tripBerries" placeholder="Berries" value="${tripValue("berries")}" min="0" step="0.1" title="Override one-way trip time for berries."></div>
-          <div class="col-md-3 col-sm-6"><input type="number" class="form-control form-control-sm" data-field="tripDeer" placeholder="Deer" value="${tripValue("deer")}" min="0" step="0.1" title="Override one-way trip time for deer."></div>
-          <div class="col-md-3 col-sm-6"><input type="number" class="form-control form-control-sm" data-field="tripBoar" placeholder="Boar" value="${tripValue("boar")}" min="0" step="0.1" title="Override one-way trip time for boar." ${isMuslim ? "disabled" : ""}></div>
-          <div class="col-md-3 col-sm-6"><input type="number" class="form-control form-control-sm" data-field="tripFarm" placeholder="Farm" value="${tripValue("farm")}" min="0" step="0.1" title="Override one-way trip time for farms." ${farmsDisabled ? "disabled" : ""}></div>
-          <div class="col-md-3 col-sm-6"><input type="number" class="form-control form-control-sm" data-field="tripWood" placeholder="Wood" value="${tripValue("wood")}" min="0" step="0.1" title="Override one-way trip time for wood."></div>
-          <div class="col-md-3 col-sm-6"><input type="number" class="form-control form-control-sm" data-field="tripGold" placeholder="Gold" value="${tripValue("gold")}" min="0" step="0.1" title="Override one-way trip time for gold."></div>
-          <div class="col-md-3 col-sm-6"><input type="number" class="form-control form-control-sm" data-field="tripStone" placeholder="Stone" value="${tripValue("stone")}" min="0" step="0.1" title="Override one-way trip time for stone."></div>
-        </div>
-      </div>
+      ${legacyAssignTripSummary ? `<div class="bo-target-note text-muted">Legacy trip overrides: ${legacyAssignTripSummary}. New trip changes should be created from the resource lane.</div>` : ""}
     `;
     typeFields = `
       <div class="bo-editor-stack">
@@ -3873,15 +4250,12 @@ function renderBoCommandEditor(cmd) {
           <small class="text-muted">Rally Target</small>
           <select class="form-select form-select-sm" data-field="rallyTarget">${rallyOptions}</select>
         </div>
-        <div class="col-4">
+        <div class="col-8">
           <small class="text-muted">Travel delay (s)</small>
           <input type="number" class="form-control form-control-sm" data-field="rallyTravelDelay" value="${cmd.payload.rallyTravelDelaySec || 0}" min="0" step="0.1">
         </div>
-        <div class="col-4">
-          <small class="text-muted">Trip override (s)</small>
-          <input type="number" class="form-control form-control-sm" data-field="rallyTripOverride" value="${cmd.payload.rallyTripOverrideSec ?? ""}" min="0" step="0.1">
-        </div>
       </div>
+      ${hasLegacyRallyTripOverride ? `<div class="bo-target-note text-muted">Legacy trip override: ${formatBoTripOverrideValue(cmd.payload.rallyTripOverrideSec)}. New trip changes should be created from the ${getBoResourceLabel(cmd.payload.rallyTarget || "resource").toLowerCase()} lane.</div>` : ""}
     ` : "";
     const basics = `
       <div class="row g-2">
@@ -3979,12 +4353,56 @@ function renderBoCommandEditor(cmd) {
         `)}
       </div>
     `;
+  } else if (cmd.type === "resourceTrip") {
+    typeFields = `
+      <div class="bo-editor-stack">
+        ${renderBoEditorSection("Basics", `
+          <div class="row g-2">
+            <div class="col-md-6">
+              <small class="text-muted">Resource</small>
+              <select class="form-select form-select-sm" data-field="resourceTripResource">
+                ${BO_RESOURCE_KEYS.map((resource) => `<option value="${resource}">${getBoResourceLabel(resource)}</option>`).join("")}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <small class="text-muted">Trip time (one-way)</small>
+              <input type="number" class="form-control form-control-sm" data-field="resourceTripValue" value="${cmd.payload.tripOverrideSec ?? ""}" min="0" step="0.1">
+            </div>
+          </div>
+        `, { muted: "Applies to this resource from the command time onward. Use the resource lane label to create new trip settings at the current pin." })}
+      </div>
+    `;
+  } else if (cmd.type === "vizierChoice") {
+    const previewState = getBoOttomanPreviewState(cmd.atTime || 0);
+    const options = Object.values(BO_OTTOMAN_VIZIER_CHOICES).map((choice) => `
+      <option value="${choice.id}" ${choice.modeled === false ? "disabled" : ""}>Level ${choice.level}: ${choice.label}${choice.modeled === false ? " (unmodeled)" : ""}</option>
+    `).join("");
+    typeFields = `
+      <div class="bo-editor-stack">
+        ${renderBoEditorSection("Imperial Council", `
+          <div class="row g-2">
+            <div class="col-md-6">
+              <small class="text-muted">Choice</small>
+              <select class="form-select form-select-sm" data-field="vizierChoiceId">
+                ${options}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <small class="text-muted">Current status</small>
+              <div class="bo-vizier-note">XP ${Math.floor(previewState.xp || 0)} | Points ${previewState.pointsSpent}/${previewState.pointsEarned} spent</div>
+            </div>
+          </div>
+        `, { muted: "Vizier choices are authored from the Imperial Council lane. Trade Bags remains visible for reference but is not modeled." })}
+      </div>
+    `;
   }
 
   const typeOptions = [
     { value: "assign", label: "Assign Villagers" },
     { value: "buildBuilding", label: "Build Building" },
     { value: "tech", label: "Research Tech" },
+    { value: "resourceTrip", label: "Resource Trip", includeIf: cmd.type === "resourceTrip" },
+    { value: "vizierChoice", label: "Imperial Council", includeIf: cmd.type === "vizierChoice" },
     { value: "trainUnit", label: "Queue Unit", includeIf: cmd.type === "trainUnit" },
     { value: "sacredSite", label: "Sacred Sites" },
     { value: "garrisonScholars", label: "Garrison Scholars", delhiOnly: true }
@@ -4012,8 +4430,7 @@ function renderBoCommandEditor(cmd) {
           <div class="col-md-4">
             <label class="form-label fw-bold">Timing</label>
             <select class="form-select form-select-sm" data-field="timeMode">
-              <option value="afterPrev">After previous</option>
-              <option value="atTime">At time</option>
+              ${renderBoTimingModeOptions(cmd.timeMode)}
             </select>
           </div>
           <div class="col-md-4">
@@ -4029,7 +4446,7 @@ function renderBoCommandEditor(cmd) {
   const typeEl = editor.querySelector('[data-field="type"]');
   if (typeEl) typeEl.value = cmd.type;
   const timeModeEl = editor.querySelector('[data-field="timeMode"]');
-  if (timeModeEl) timeModeEl.value = cmd.timeMode;
+  if (timeModeEl) timeModeEl.value = cmd.timeMode === "atPin" ? "atPin" : cmd.timeMode;
   updateBoTimeMode(editor, cmd.timeMode);
 
   if (cmd.type === "buildBuilding") {
@@ -4049,6 +4466,14 @@ function renderBoCommandEditor(cmd) {
   }
   if (cmd.type === "tech") {
     applyBoTechButtonSelection(editor, "techType", cmd.payload.techType || "Wheelbarrow");
+  }
+  if (cmd.type === "resourceTrip") {
+    const resourceSel = editor.querySelector('[data-field="resourceTripResource"]');
+    if (resourceSel) resourceSel.value = BO_RESOURCE_KEYS.includes(cmd.payload?.resource) ? cmd.payload.resource : "sheep";
+  }
+  if (cmd.type === "vizierChoice") {
+    const choiceSel = editor.querySelector('[data-field="vizierChoiceId"]');
+    if (choiceSel) choiceSel.value = getBoOttomanChoiceDef(cmd.payload?.choiceId) ? cmd.payload.choiceId : "fieldWork";
   }
   if (cmd.type === "rally") {
     const rally = editor.querySelector('[data-field="rallyTarget"]');
@@ -4215,9 +4640,17 @@ function renderBoCommandEditor(cmd) {
       return;
     }
     if (field === "timeMode") {
-      cmd.timeMode = e.target.value;
+      const selectedMode = e.target.value;
       const hasBuildingAnchor = !!cmd.payload?.buildingId;
-      if (cmd.timeMode === "atTime") {
+      const resolvedTiming = resolveBoTimingModeSelection(selectedMode, cmd.atTime);
+      cmd.timeMode = resolvedTiming.timeMode;
+      if (selectedMode === "atPin") {
+        cmd.atTime = resolvedTiming.atTime;
+        cmd.afterId = null;
+        const atEl = editor.querySelector('[data-field="atTime"]');
+        if (atEl) atEl.value = String(Math.round(cmd.atTime));
+        e.target.value = "atTime";
+      } else if (cmd.timeMode === "atTime") {
         cmd.afterId = null;
         if (!Number.isFinite(cmd.atTime)) cmd.atTime = 0;
         const atEl = editor.querySelector('[data-field="atTime"]');
@@ -4258,8 +4691,9 @@ function renderBoCommandEditor(cmd) {
 function syncBoCommandFromEditor(editor, cmd) {
   const getVal = (field) => editor.querySelector(`[data-field="${field}"]`)?.value;
   const getNum = (field) => parseFloat(getVal(field)) || 0;
-  cmd.atTime = getNum("atTime");
-  cmd.timeMode = getVal("timeMode") || cmd.timeMode;
+  const timing = resolveBoTimingModeSelection(getVal("timeMode") || cmd.timeMode, getNum("atTime"));
+  cmd.atTime = timing.atTime;
+  cmd.timeMode = timing.timeMode;
   const hasBuildingAnchor = !!cmd.payload?.buildingId;
   if (cmd.timeMode === "atTime") {
     cmd.afterId = null;
@@ -4336,6 +4770,17 @@ function syncBoCommandFromEditor(editor, cmd) {
       tripOverrides: overrides
     };
     updateAssignSummary(editor, cmd);
+  } else if (cmd.type === "resourceTrip") {
+    const resource = getVal("resourceTripResource") || cmd.payload.resource || "sheep";
+    cmd.payload = {
+      resource: BO_RESOURCE_KEYS.includes(resource) ? resource : "sheep",
+      tripOverrideSec: Math.max(0, getNum("resourceTripValue"))
+    };
+  } else if (cmd.type === "vizierChoice") {
+    const choiceId = getVal("vizierChoiceId") || cmd.payload.choiceId || "fieldWork";
+    cmd.payload = {
+      choiceId: getBoOttomanChoiceDef(choiceId) ? choiceId : "fieldWork"
+    };
   } else if (cmd.type === "buildBuilding") {
     const returnTargetRaw = getVal("buildReturnTarget");
     const returnTarget = returnTargetRaw === "" || returnTargetRaw === undefined ? null : returnTargetRaw;
@@ -4382,12 +4827,10 @@ function syncBoCommandFromEditor(editor, cmd) {
       : !!editor.querySelector('[data-field="trainRepeatUntilEnd"]')?.checked;
     const rallyTarget = editor.querySelector('[data-field="rallyTarget"]')?.value;
     const rallyTravelDelay = parseFloat(editor.querySelector('[data-field="rallyTravelDelay"]')?.value);
-    const tripRaw = editor.querySelector('[data-field="rallyTripOverride"]')?.value;
-    const tripOverride = tripRaw === "" || tripRaw === null || tripRaw === undefined ? null : parseFloat(tripRaw);
     const rallyPayload = (selectedBuilding === "Town Center" && unitName === "Villager") ? {
       rallyTarget: rallyTarget || "idle",
       rallyTravelDelaySec: Math.max(0, Number.isFinite(rallyTravelDelay) ? rallyTravelDelay : 0),
-      rallyTripOverrideSec: Number.isFinite(tripOverride) ? Math.max(0, tripOverride) : null
+      rallyTripOverrideSec: Number.isFinite(cmd.payload.rallyTripOverrideSec) ? cmd.payload.rallyTripOverrideSec : null
     } : {
       rallyTarget: null,
       rallyTravelDelaySec: 0,
@@ -4433,6 +4876,102 @@ function renderBoBuildingPanel(editor, building) {
     editor.innerHTML = "<span class='text-muted'>Select a civilization to begin.</span>";
     return;
   }
+  if (building?.type === BO_OTTOMAN_IMPERIAL_COUNCIL_BUILDING) {
+    const anchorTime = getBoAnchorTime();
+    const state = getBoOttomanPreviewState(anchorTime);
+    const summaryItems = [
+      ["Vizier XP", Math.floor(state.xp || 0)],
+      ["Points earned", `${state.pointsEarned}/${state.cap}`],
+      ["Spent / available", `${state.pointsSpent} / ${state.pointsAvailable}`],
+      ["Next threshold", Number.isFinite(state.nextThreshold) ? state.nextThreshold : "Cap reached"]
+    ];
+    const summaryHtml = summaryItems.map(([label, value]) => `
+      <div class="bo-vizier-summary-pill">
+        <span class="bo-vizier-summary-pill-label">${label}</span>
+        <span class="bo-vizier-summary-pill-value">${value}</span>
+      </div>
+    `).join("");
+    const sectionsHtml = BO_OTTOMAN_VIZIER_LEVELS.map((levelDef) => {
+      const choiceButtons = levelDef.choices.map((choiceId) => {
+        const choice = getBoOttomanChoiceDef(choiceId);
+        const uiState = getBoOttomanChoiceUiState(choiceId, state);
+        return `
+          <button class="bo-vizier-choice-btn${uiState.disabled ? " is-disabled" : ""}" type="button" data-choice-id="${choiceId}" ${uiState.disabled ? "disabled" : ""}>
+            <div class="bo-vizier-choice-title">
+              <span>${choice.label}</span>
+              <span class="bo-vizier-choice-level">Level ${choice.level}</span>
+            </div>
+            <div class="bo-vizier-choice-body">${choice.description}</div>
+            <div class="bo-vizier-choice-state">${uiState.reason}</div>
+          </button>
+        `;
+      }).join("");
+      return `
+        <div class="bo-action-block">
+          <div class="bo-action-title">Level ${levelDef.level}</div>
+          <div class="bo-vizier-choice-grid">${choiceButtons}</div>
+        </div>
+      `;
+    }).join("");
+    editor.innerHTML = `
+      <div class="bo-card-header">
+        <div class="bo-card-title">Imperial Council</div>
+      </div>
+      <div class="bo-building-meta"><strong>Selected:</strong> ${BO_OTTOMAN_IMPERIAL_COUNCIL_BUILDING} <span class="text-muted">Always available from 0:00</span></div>
+      ${boOttomanLegacyWarning ? `<div class="bo-vizier-warning">${boOttomanLegacyWarning}</div>` : ""}
+      <div class="bo-vizier-note">Spend Vizier points here. Trade-only choices stay visible for reference but remain disabled.</div>
+      <div class="bo-vizier-summary-grid">${summaryHtml}</div>
+      <div class="bo-action-block">
+        <div class="bo-action-title">Add Vizier Choice</div>
+        <div class="row g-2">
+          <div class="col-md-4 col-sm-4">
+            <small class="text-muted">Timing</small>
+            <select class="form-select form-select-sm" data-field="vizierTimeMode">
+              ${renderBoTimingModeOptions("afterPrev")}
+            </select>
+          </div>
+          <div class="col-md-4 col-sm-4">
+            <small class="text-muted">Time (s)</small>
+            <input type="number" class="form-control form-control-sm" data-field="vizierAtTime" value="${Math.round(anchorTime)}" min="0" step="1">
+          </div>
+          <div class="col-md-4 col-sm-4 d-flex align-items-end">
+            <div class="bo-vizier-note">Use a timeline pin for exact Vizier timing.</div>
+          </div>
+        </div>
+      </div>
+      ${sectionsHtml}
+    `;
+    const queueVizierChoice = (choiceId) => {
+      const mode = editor.querySelector('[data-field="vizierTimeMode"]')?.value || "afterPrev";
+      const atTime = parseFloat(editor.querySelector('[data-field="vizierAtTime"]')?.value) || 0;
+      const timing = resolveBoTimingModeSelection(mode, atTime);
+      const cmd = createBoCommand("vizierChoice");
+      cmd.payload.choiceId = choiceId;
+      if (timing.timeMode === "atTime") {
+        insertBoCommandAtTime(cmd, timing.atTime);
+      } else {
+        cmd.timeMode = "afterPrev";
+        cmd.afterId = getPrevBoCommandId(cmd.id);
+        boCommands.push(cmd);
+      }
+      boSelectedCommandId = cmd.id;
+      boSelectedBuilding = null;
+      setBoTargetBuilding(null);
+      boLastCommandType = "vizierChoice";
+      boLastResults = null;
+      renderBoTimelineEditor();
+      renderBoCommandEditor(cmd);
+      renderBoGatherRates();
+      scheduleRunBuildOrder();
+    };
+    editor.querySelectorAll("[data-choice-id]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const choiceId = btn.dataset.choiceId;
+        if (choiceId) queueVizierChoice(choiceId);
+      });
+    });
+    return;
+  }
   const isDelhi = civ === "Delhi Sultanate";
   const isMuslim = BO_MUSLIM_CIVS.has(civ);
   const delhiOnlyTechs = new Set(["Sanctity", "Dome of the Faith"]);
@@ -4465,13 +5004,9 @@ function renderBoBuildingPanel(editor, building) {
           <small class="text-muted">Rally Target</small>
           <select class="form-select form-select-sm" data-field="queueRallyTarget">${rallyOptions}</select>
         </div>
-        <div class="col-4">
+        <div class="col-8">
           <small class="text-muted">Travel delay (s)</small>
           <input type="number" class="form-control form-control-sm" data-field="queueRallyTravel" value="0" min="0" step="0.1">
-        </div>
-        <div class="col-4">
-          <small class="text-muted">Trip override (s)</small>
-          <input type="number" class="form-control form-control-sm" data-field="queueRallyTrip" value="" min="0" step="0.1">
         </div>
       </div>
   ` : "";
@@ -4492,8 +5027,7 @@ function renderBoBuildingPanel(editor, building) {
         <div class="col-4">
           <small class="text-muted">Timing</small>
           <select class="form-select form-select-sm" data-field="queueTimeMode">
-            <option value="afterPrev">After previous</option>
-            <option value="atTime">At time</option>
+            ${renderBoTimingModeOptions("afterPrev")}
           </select>
         </div>
       </div>
@@ -4530,8 +5064,7 @@ function renderBoBuildingPanel(editor, building) {
         <div class="col-md-3 col-sm-4">
           <small class="text-muted">Timing</small>
           <select class="form-select form-select-sm" data-field="techTimeMode">
-            <option value="afterPrev">After previous</option>
-            <option value="atTime">At time</option>
+            ${renderBoTimingModeOptions("afterPrev")}
           </select>
         </div>
         <div class="col-md-3 col-sm-4">
@@ -4599,9 +5132,10 @@ function renderBoBuildingPanel(editor, building) {
   const anchorId = building.sourceCommandId || null;
 
   const applyTimingToCommand = (cmd, mode, atTime) => {
-    cmd.timeMode = mode;
-    if (mode === "atTime") {
-      cmd.atTime = Math.max(0, atTime || 0);
+    const timing = resolveBoTimingModeSelection(mode, atTime);
+    cmd.timeMode = timing.timeMode;
+    if (cmd.timeMode === "atTime") {
+      cmd.atTime = timing.atTime;
       cmd.afterId = null;
     } else {
       if (anchorId) {
@@ -4621,8 +5155,6 @@ function renderBoBuildingPanel(editor, building) {
     const atTime = parseFloat(editor.querySelector('[data-field="queueAtTime"]')?.value) || 0;
     const rallyTarget = editor.querySelector('[data-field="queueRallyTarget"]')?.value || "idle";
     const rallyTravel = parseFloat(editor.querySelector('[data-field="queueRallyTravel"]')?.value);
-    const tripRaw = editor.querySelector('[data-field="queueRallyTrip"]')?.value;
-    const tripOverride = tripRaw === "" || tripRaw === null || tripRaw === undefined ? null : parseFloat(tripRaw);
     const cmd = addBoCommand("trainUnit", mode === "afterPrev" ? anchorId : null);
     cmd.payload.building = building.type;
     cmd.payload.buildingId = building.id;
@@ -4632,7 +5164,7 @@ function renderBoBuildingPanel(editor, building) {
     if (isTownCenter && unitName === "Villager") {
       cmd.payload.rallyTarget = rallyTarget || "idle";
       cmd.payload.rallyTravelDelaySec = Math.max(0, Number.isFinite(rallyTravel) ? rallyTravel : 0);
-      cmd.payload.rallyTripOverrideSec = Number.isFinite(tripOverride) ? Math.max(0, tripOverride) : null;
+      cmd.payload.rallyTripOverrideSec = null;
     } else {
       cmd.payload.rallyTarget = null;
       cmd.payload.rallyTravelDelaySec = 0;
@@ -4837,7 +5369,14 @@ function attachBoCardListeners(card, cmd) {
       return;
     }
     if (field === "timeMode") {
-      cmd.timeMode = e.target.value;
+      const resolvedTiming = resolveBoTimingModeSelection(e.target.value, cmd.atTime);
+      cmd.timeMode = resolvedTiming.timeMode;
+      if (e.target.value === "atPin") {
+        cmd.atTime = resolvedTiming.atTime;
+        const atEl = card.querySelector('[data-field="atTime"]');
+        if (atEl) atEl.value = String(Math.round(cmd.atTime));
+        e.target.value = "atTime";
+      }
       updateBoTimeMode(card, cmd.timeMode);
       return;
     }
@@ -4854,8 +5393,9 @@ function attachBoCardListeners(card, cmd) {
 function syncBoCommandFromCard(card, cmd) {
   const getVal = (field) => card.querySelector(`[data-field="${field}"]`)?.value;
   const getNum = (field) => parseFloat(getVal(field)) || 0;
-  cmd.timeMode = getVal("timeMode") || cmd.timeMode;
-  cmd.atTime = getNum("atTime");
+  const timing = resolveBoTimingModeSelection(getVal("timeMode") || cmd.timeMode, getNum("atTime"));
+  cmd.timeMode = timing.timeMode;
+  cmd.atTime = timing.atTime;
   cmd.type = getVal("type") || cmd.type;
 
   if (cmd.type === "assign") {
@@ -4917,6 +5457,48 @@ function formatTimeMMSS(seconds) {
   const m = Math.floor(total / 60);
   const s = total % 60;
   return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function getBoResourceLabel(resource) {
+  return BO_RESOURCE_LABELS[resource] || resource || "Resource";
+}
+
+function formatBoTripOverrideValue(value) {
+  return `${(Math.round((Math.max(0, value || 0)) * 10) / 10).toFixed(1)}s`;
+}
+
+function formatBoLegacyTripOverrides(overrides = {}) {
+  return Object.entries(overrides)
+    .filter(([key, value]) => BO_RESOURCE_KEYS.includes(key) && Number.isFinite(value))
+    .map(([key, value]) => `${getBoResourceLabel(key)} ${formatBoTripOverrideValue(value)}`)
+    .join(" | ");
+}
+
+function isBoTimelineCounterBuilding(name) {
+  return name === "Farm" || name === "House";
+}
+
+function renderBoTimingModeOptions(selectedMode = "afterPrev") {
+  const hasPin = Number.isFinite(boPinnedTime);
+  const pinLabel = hasPin ? `At pin (${formatTimeMMSS(boPinnedTime)})` : "At pin (set a pin first)";
+  return `
+    <option value="afterPrev"${selectedMode === "afterPrev" ? " selected" : ""}>After previous</option>
+    <option value="atTime"${selectedMode === "atTime" ? " selected" : ""}>At time</option>
+    <option value="atPin"${selectedMode === "atPin" ? " selected" : ""}${hasPin ? "" : " disabled"}>${pinLabel}</option>
+  `;
+}
+
+function resolveBoTimingModeSelection(mode, fallbackAtTime = 0) {
+  if (mode === "atPin") {
+    return {
+      timeMode: "atTime",
+      atTime: Number.isFinite(boPinnedTime) ? Math.max(0, boPinnedTime) : Math.max(0, fallbackAtTime || 0)
+    };
+  }
+  return {
+    timeMode: mode === "atTime" ? "atTime" : "afterPrev",
+    atTime: Math.max(0, fallbackAtTime || 0)
+  };
 }
 
 function readBoSettings() {
@@ -4985,7 +5567,6 @@ function readBoSettings() {
       gold: BO_DEFAULT_TRIP.gold,
       stone: BO_DEFAULT_TRIP.stone
     },
-    ottomanBonuses: getBoOttomanSettingsFromInputs(),
     bonusData: {
       civBonuses: BO_CIV_BONUSES,
       muslimCivs: BO_MUSLIM_CIVS,
@@ -5011,7 +5592,6 @@ function simulateBuildOrder(commands, config) {
   let time = 0;
   let age = config.startAge;
   const civ = config.civ || "";
-  const ottomanBonuses = config.ottomanBonuses || { militaryCampus: false, advancedAcademy: false };
   const bonusData = config.bonusData || {};
   const civBonus = bonusData.civBonuses?.[civ] || BO_CIV_BONUSES?.[civ] || {};
   const muslimCiv = bonusData.muslimCivs ? bonusData.muslimCivs.has(civ) : BO_MUSLIM_CIVS.has(civ);
@@ -5090,6 +5670,131 @@ function simulateBuildOrder(commands, config) {
   const dropoffCohorts = Object.fromEntries(BO_RESOURCE_KEYS.map((res) => [res, []]));
   let nextDropoffCohortId = 1;
   let advanceFiniteReservation = null;
+  let vizierXp = 0;
+  const vizierChoices = [];
+  const vizierChoiceSet = new Set();
+  let imperialPalaceCompleted = false;
+  let paxOttomanaUntil = 0;
+  let greatBombardNeedsImperialUpgrade = false;
+
+  function getOttomanActiveEffects(now = time) {
+    const effects = {
+      militaryCampus: vizierChoiceSet.has("militaryCampus"),
+      advancedAcademy: vizierChoiceSet.has("advancedAcademy"),
+      anatolianHills: vizierChoiceSet.has("anatolianHills"),
+      akinjiSystem: vizierChoiceSet.has("akinjiSystem"),
+      extensiveFortifications: vizierChoiceSet.has("extensiveFortifications"),
+      fieldWork: vizierChoiceSet.has("fieldWork"),
+      mehterDrums: vizierChoiceSet.has("mehterDrums"),
+      janissaryCompany: vizierChoiceSet.has("janissaryCompany"),
+      siegeCrews: vizierChoiceSet.has("siegeCrews"),
+      greatBombard: vizierChoiceSet.has("greatBombard"),
+      paxOttomana: now <= paxOttomanaUntil + 0.0001,
+      imperialPalace: imperialPalaceCompleted
+    };
+    return effects;
+  }
+
+  function getOttomanVizierCap() {
+    return imperialPalaceCompleted ? 8 : 5;
+  }
+
+  function getOttomanVizierPointsEarned() {
+    return getBoOttomanVizierPointsEarned(vizierXp, getOttomanVizierCap());
+  }
+
+  function getOttomanVizierPointsAvailable() {
+    return Math.max(0, getOttomanVizierPointsEarned() - vizierChoices.length);
+  }
+
+  function getOttomanVizierNextThreshold() {
+    const earned = getOttomanVizierPointsEarned();
+    if (earned >= getOttomanVizierCap()) return null;
+    return BO_OTTOMAN_VIZIER_THRESHOLDS[earned] ?? null;
+  }
+
+  function addOttomanVizierXp(amount, options = {}) {
+    if (civ !== "Ottomans") return;
+    const gain = Math.max(0, amount || 0);
+    if (!gain) return;
+    const doubled = options.allowImperialPalaceDouble && imperialPalaceCompleted;
+    vizierXp += doubled ? gain * 2 : gain;
+  }
+
+  function getOttomanVizierChoiceIssue(choiceId) {
+    const choice = getBoOttomanChoiceDef(choiceId);
+    if (civ !== "Ottomans") return "Blocked (Ottomans only)";
+    if (!choice) return "Blocked (unknown Vizier choice)";
+    if (choice.modeled === false) return choice.effectNote || "Blocked (not modeled)";
+    if (vizierChoiceSet.has(choiceId)) return "Blocked (already chosen)";
+    if (getOttomanVizierPointsAvailable() <= 0) return "Blocked (no Vizier point available)";
+    if (choice.level > 1) {
+      const previousLevel = choice.level - 1;
+      const hasPreviousChoice = vizierChoices.some((entry) => getBoOttomanChoiceDef(entry.id)?.level === previousLevel);
+      if (!hasPreviousChoice) return `Blocked (choose a Level ${previousLevel} Vizier point first)`;
+    }
+    return null;
+  }
+
+  function getOttomanVizierSpawnNote(choiceId) {
+    if (choiceId === "fieldWork") return "Spawn 2 Imams at the Capital Town Center";
+    if (choiceId === "mehterDrums") return "Spawn 2 Mehters at the Capital Town Center";
+    if (choiceId === "akinjiSystem") return "Spawn 3 Akinji at the Capital Town Center";
+    if (choiceId === "janissaryCompany") {
+      const total = 2 + ((buildingCounts[BO_OTTOMAN_MILITARY_SCHOOL_BUILDING] || 0) * 2);
+      return `Spawn ${total} Janissaries at the Capital Town Center`;
+    }
+    if (choiceId === "greatBombard") {
+      return age >= 4
+        ? "Spawn 1 Great Bombard at the Capital Town Center"
+        : "Spawn 1 Great Bombard at the Capital Town Center (weaker before Imperial Age)";
+    }
+    return null;
+  }
+
+  function getManualDropoffSnapshot(now) {
+    const heldResources = { food: 0, wood: 0, gold: 0, stone: 0, oliveOil: 0, silver: 0 };
+    const arrivalMap = new Map();
+    const addArrival = (timeVal, key, amount) => {
+      if (!Number.isFinite(timeVal) || !Number.isFinite(amount) || amount <= 0) return;
+      const roundedTime = Math.round(timeVal * 1000) / 1000;
+      const mapKey = roundedTime.toFixed(3);
+      if (!arrivalMap.has(mapKey)) {
+        arrivalMap.set(mapKey, { time: roundedTime, food: 0, wood: 0, gold: 0, stone: 0 });
+      }
+      arrivalMap.get(mapKey)[key] += amount;
+    };
+
+    BO_RESOURCE_KEYS.forEach((res) => {
+      const bankKey = isFood(res) ? "food" : res;
+      getResourceCohorts(res).forEach((cohort) => {
+        if (!cohort || (cohort.count || 0) <= 0 || cohort.phase === "toResource") return;
+        const carryPerVill = cohort.phase === "toDropoff"
+          ? Math.max(0, cohort.phaseStartCarry || cohort.phaseEndCarry || 0)
+          : Math.max(0, getCohortCarryNow(cohort, now));
+        const totalCarry = carryPerVill * Math.max(0, cohort.count || 0);
+        if (totalCarry <= 0.0001) return;
+        heldResources[bankKey] += totalCarry;
+        const arrivalTime = cohort.phase === "toDropoff"
+          ? Math.max(now, cohort.phaseEndsAt || now)
+          : now + effectiveTrip(res);
+        addArrival(arrivalTime, bankKey, totalCarry);
+      });
+
+      const legacyHeld = Math.max(0, held[res] || 0);
+      if (legacyHeld > 0) {
+        heldResources[bankKey] += legacyHeld;
+        if (dropoffAvailable(res)) {
+          addArrival(now + effectiveTrip(res), bankKey, legacyHeld);
+        }
+      }
+    });
+
+    return {
+      heldResources,
+      manualDropoffEvents: Array.from(arrivalMap.values()).sort((a, b) => a.time - b.time)
+    };
+  }
 
   function pushSample(t, res) {
     const rounded = Math.round(t * 1000) / 1000;
@@ -5099,6 +5804,11 @@ function simulateBuildOrder(commands, config) {
       gatherSpeedSnapshot[key] = gatherRate(key);
     });
     const actualIncomeRates = getIncomeRates();
+    const manualDropoffSnapshot = getManualDropoffSnapshot(rounded);
+    const ottomanEffects = getOttomanActiveEffects(rounded);
+    const vizierCap = getOttomanVizierCap();
+    const vizierPointsEarned = getOttomanVizierPointsEarned();
+    const vizierPointsSpent = vizierChoices.length;
     const payload = {
       time: rounded,
       food: res.food,
@@ -5118,8 +5828,22 @@ function simulateBuildOrder(commands, config) {
         silver: 0
       },
       farmCount,
+      houseCount: Math.max(0, buildingCounts["House"] || 0),
       villagers,
-      assignments: { ...assignments }
+      assignments: { ...assignments },
+      heldResources: manualDropoffSnapshot.heldResources,
+      manualDropoffEvents: manualDropoffSnapshot.manualDropoffEvents,
+      vizier: {
+        xp: vizierXp,
+        cap: vizierCap,
+        pointsEarned: vizierPointsEarned,
+        pointsSpent: vizierPointsSpent,
+        pointsAvailable: Math.max(0, vizierPointsEarned - vizierPointsSpent),
+        nextThreshold: getOttomanVizierNextThreshold(),
+        imperialPalace: imperialPalaceCompleted,
+        choices: vizierChoices.map((entry) => entry.id),
+        effects: ottomanEffects
+      }
     };
     if (existing) Object.assign(existing, payload);
     else samples.push(payload);
@@ -5180,6 +5904,8 @@ function simulateBuildOrder(commands, config) {
 
   function laneFor(cmd) {
     if (cmd.type === "assign") return "Assignments";
+    if (cmd.type === "resourceTrip") return getBoResourceLabel(cmd.payload?.resource);
+    if (cmd.type === "vizierChoice") return BO_OTTOMAN_IMPERIAL_COUNCIL_BUILDING;
     if (cmd.type === "buildBuilding") return "Construction";
     if (cmd.type === "tech") return "Tech";
     if (cmd.type === "rally") return "TC #1";
@@ -5250,6 +5976,7 @@ function simulateBuildOrder(commands, config) {
   function gatherRate(res) {
     const base = config.gatherRates[res] || 0;
     let rate = isFood(res) ? base * foodMult() : base;
+    const ottomanEffects = getOttomanActiveEffects();
     if (res === "farm" && (buildingCounts["Mill"] || 0) > 0 && BO_ENGLISH_FARM_BONUS_CIVS.has(civ)) {
       const pct = (civBonus.farmBonusByAge || BO_ENGLISH_FARM_BONUS_BY_AGE)[age] || 0;
       rate *= 1 + pct / 100;
@@ -5258,6 +5985,9 @@ function simulateBuildOrder(commands, config) {
       rate *= 1 + (muslimBerryBonus.gatherBonusPct || 0) / 100;
     }
     if ((res === "deer" || res === "boar") && survivalTechActive) {
+      rate *= 1.15;
+    }
+    if (civ === "Ottomans" && ottomanEffects.anatolianHills && (res === "gold" || res === "stone")) {
       rate *= 1.15;
     }
     return rate;
@@ -5556,8 +6286,9 @@ function simulateBuildOrder(commands, config) {
       scholarComplete: 2,
       builder: 3,
       trainVill: 4,
-      rallyDelay: 5,
-      assignDelay: 6
+      unitComplete: 5,
+      rallyDelay: 6,
+      assignDelay: 7
     };
     const releasing = busy
       .filter((b) => b.endTime <= endTime + 0.0001)
@@ -5574,7 +6305,7 @@ function simulateBuildOrder(commands, config) {
         const instanceId = name === "Town Center"
           ? `TC #${buildingCounts[name]}`
           : `${name} #${buildingCounts[name]}`;
-        if (name !== "Farm") {
+        if (!isBoTimelineCounterBuilding(name)) {
           if (!buildingInstances[name]) buildingInstances[name] = [];
           buildingInstances[name].push(instanceId);
         }
@@ -5585,6 +6316,16 @@ function simulateBuildOrder(commands, config) {
         if (landmarkAge && age < landmarkAge) {
           age = landmarkAge;
           milestones[`Age ${age} complete`] = endTime;
+          if (civ === "Ottomans") {
+            addOttomanVizierXp(BO_OTTOMAN_VIZIER_AGE_XP[age] || 0);
+          }
+          if (age >= 4 && greatBombardNeedsImperialUpgrade) {
+            greatBombardNeedsImperialUpgrade = false;
+            pushEvent("Great Bombard upgraded", "Upgraded automatically on reaching Imperial Age", BO_OTTOMAN_IMPERIAL_COUNCIL_BUILDING);
+          }
+        }
+        if (name === "Istanbul Imperial Palace") {
+          imperialPalaceCompleted = true;
         }
         if (name === "Mill" && muslimCiv && !berryCapacityBonusApplied) {
           const bonus = (muslimBerryBonus.capacityBonusPerNode || 0) * (foodNodes.berries?.count || 0);
@@ -5614,7 +6355,7 @@ function simulateBuildOrder(commands, config) {
       } else if (b.kind === "techComplete") {
         needsGlobalDropoffSync = true;
         if (b.techType === "Wheelbarrow") wheelbarrowActive = true;
-        if (b.techType === "Food Upgrade") foodTechLevel += 1;
+        if (b.techType === "Food Upgrade" || b.techType === "Horticulture") foodTechLevel += 1;
         if (b.techType === "Survival Techniques") survivalTechActive = true;
         if (b.techType === "Sanctity") sanctityActive = true;
         if (b.techType === "Enlistment Incentives") enlistmentActive = true;
@@ -5626,6 +6367,7 @@ function simulateBuildOrder(commands, config) {
         needsGlobalDropoffSync = true;
         returnBuildersToTarget(b.source, b.count, b.returnTarget);
       } else if (b.kind === "trainVill") {
+        if (civ === "Ottomans") addOttomanVizierXp(BO_OTTOMAN_VIZIER_UNIT_XP.Villager || 0, { allowImperialPalaceDouble: true });
         villagers += 1;
         const rally = b.rallyTarget || "idle";
         if (Number.isFinite(b.rallyTripOverrideSec) && BO_RESOURCE_KEYS.includes(rally)) {
@@ -5667,6 +6409,12 @@ function simulateBuildOrder(commands, config) {
           });
         }
         pushEvent("Villager complete", "", b.tcId || "TC #1");
+      } else if (b.kind === "unitComplete") {
+        if (civ === "Ottomans") {
+          addOttomanVizierXp(BO_OTTOMAN_VIZIER_UNIT_XP[b.unitName] || BO_OTTOMAN_VIZIER_UNIT_XP[resolveBoUnitName(b.unitName)] || 0, {
+            allowImperialPalaceDouble: true
+          });
+        }
       } else if (b.kind === "rallyDelay") {
         const target = b.target || "idle";
         const count = Math.max(1, b.count || 1);
@@ -5967,20 +6715,21 @@ function simulateBuildOrder(commands, config) {
   function getOttomanMilitarySchoolCap() {
     const school = civBonus.militarySchool || {};
     const basePerAge = school.baseLimitPerAge || 1;
-    const bonus = ottomanBonuses.militaryCampus ? (school.militaryCampusBonus || 1) : 0;
+    const bonus = getOttomanActiveEffects().militaryCampus ? (school.militaryCampusBonus || 1) : 0;
     return (Math.max(1, age) * basePerAge) + bonus;
   }
 
   function getUnitAvailabilityIssue(unitName, buildingType) {
+    const ottomanEffects = getOttomanActiveEffects();
     if (
       civ === "Ottomans" &&
       buildingType === BO_OTTOMAN_MILITARY_SCHOOL_BUILDING &&
       (civBonus.militarySchool?.advancedAcademyUnits || []).includes(unitName) &&
-      !ottomanBonuses.advancedAcademy
+      !ottomanEffects.advancedAcademy
     ) {
       return { type: "blocked", message: "Blocked (requires Advanced Academy)" };
     }
-    if (!isBoUnitTrainableAtBuilding(unitName, buildingType, civ, ottomanBonuses)) {
+    if (!isBoUnitTrainableAtBuilding(unitName, buildingType, civ, ottomanEffects)) {
       return { type: "blocked", message: `Blocked (${unitName} unavailable at ${buildingType})` };
     }
     const minAge = getBoUnitMinAge(unitName, civ);
@@ -6016,6 +6765,7 @@ function simulateBuildOrder(commands, config) {
     const unitDef = getBoUnitDefaults(unitName, civ);
     const baseCost = unitDef?.cost || { food: 0, wood: 0, gold: 0, stone: 0 };
     const baseTime = unitDef?.time || 0;
+    const ottomanEffects = getOttomanActiveEffects();
     let cost = {
       food: (baseCost.food || 0) * count,
       wood: (baseCost.wood || 0) * count,
@@ -6036,11 +6786,14 @@ function simulateBuildOrder(commands, config) {
       timePerUnit *= school.trainTimeMult || 4.75;
     }
     const militarySpeedPct = getBoMilitaryProductionSpeedPct(civ, buildingType, age, {
-      ottomanSettings: ottomanBonuses,
+      ottomanSettings: ottomanEffects,
       hasInfluenceSource: hasOttomanInfluenceSource()
     });
     if (militarySpeedPct) {
       timePerUnit = applyBoWorkRateToDuration(timePerUnit, militarySpeedPct);
+    }
+    if (civ === "Ottomans" && resolveBoUnitName(unitName) === "Villager" && ottomanEffects.paxOttomana) {
+      timePerUnit = applyBoWorkRateToDuration(timePerUnit, 75);
     }
     const duration = timePerUnit * count;
     return { unitDef, cost, duration, timePerUnit };
@@ -6255,6 +7008,15 @@ function simulateBuildOrder(commands, config) {
           rallyTravelDelaySec: Math.max(0, cmd.payload.rallyTravelDelaySec || 0),
           rallyTripOverrideSec: Number.isFinite(cmd.payload.rallyTripOverrideSec) ? cmd.payload.rallyTripOverrideSec : null,
           tcId: queue.id
+        });
+      } else {
+        busy.push({
+          endTime: end,
+          kind: "unitComplete",
+          unitName,
+          buildingId: queue.id,
+          buildingType,
+          label: `${unitName} complete`
         });
       }
       const rallyLabel = unitName === "Villager" ? (cmd.payload.rallyTarget || "idle") : null;
@@ -6474,6 +7236,74 @@ function simulateBuildOrder(commands, config) {
       pushSample(time, resBefore);
       pushSample(time, resources);
       return;
+    } else if (cmd.type === "resourceTrip") {
+      const resource = BO_RESOURCE_KEYS.includes(cmd.payload?.resource) ? cmd.payload.resource : null;
+      const nextTrip = Number.isFinite(cmd.payload?.tripOverrideSec) ? Math.max(0, cmd.payload.tripOverrideSec) : null;
+      if (!resource || nextTrip === null) {
+        warnings.push("Blocked: Resource trip (invalid resource)");
+        pushEvent("Resource trip", "Blocked (invalid resource)", laneFor(cmd), cmd.id);
+        return;
+      }
+      const resBefore = { ...resources };
+      syncDropoffCohorts([resource], time);
+      tripOverrides[resource] = nextTrip;
+      syncDropoffCohorts([resource], time);
+      actionLabel = getBoCommandLabel(cmd);
+      timeline.push({
+        start: time,
+        end: time,
+        action: actionLabel,
+        notes: "",
+        lane: laneFor(cmd),
+        commandId: cmd.id,
+        before: resBefore,
+        after: { ...resources }
+      });
+      pushSample(time, resBefore);
+      pushSample(time, resources);
+      return;
+    } else if (cmd.type === "vizierChoice") {
+      const choice = getBoOttomanChoiceDef(cmd.payload?.choiceId);
+      const issue = getOttomanVizierChoiceIssue(cmd.payload?.choiceId);
+      if (!choice || issue) {
+        const reason = issue || "Blocked (invalid Vizier choice)";
+        warnings.push(`${getBoCommandLabel(cmd)}: ${reason}`);
+        pushEvent(getBoCommandLabel(cmd), reason, laneFor(cmd), cmd.id);
+        return;
+      }
+      const resBefore = { ...resources };
+      vizierChoices.push({ id: choice.id, time });
+      vizierChoiceSet.add(choice.id);
+      let choiceNotes = [];
+      if (choice.id === "anatolianHills") {
+        const addedSheepFood = 10 * Math.max(0, foodNodes.sheep?.amount || BO_NODE_AMOUNTS.sheep || 200);
+        foodRemaining.sheep += addedSheepFood;
+        choiceNotes.push("Spawn 10 Sheep at the Capital Town Center");
+      }
+      if (choice.id === "paxOttomana") {
+        paxOttomanaUntil = Math.max(paxOttomanaUntil, time + 240);
+      }
+      if (choice.id === "greatBombard" && age < 4) {
+        greatBombardNeedsImperialUpgrade = true;
+      }
+      const spawnNote = getOttomanVizierSpawnNote(choice.id);
+      if (spawnNote) choiceNotes.push(spawnNote);
+      if (choice.id === "siegeCrews") choiceNotes.push("Combat effect tracked as unlocked only");
+      if (choice.id === "extensiveFortifications") choiceNotes.push("Town Centers, Outposts, and Keeps cost 20% less from now on");
+      actionLabel = getBoCommandLabel(cmd);
+      timeline.push({
+        start: time,
+        end: time,
+        action: actionLabel,
+        notes: choiceNotes.join(", "),
+        lane: laneFor(cmd),
+        commandId: cmd.id,
+        before: resBefore,
+        after: { ...resources }
+      });
+      pushSample(time, resBefore);
+      pushSample(time, resources);
+      return;
     } else if (cmd.type === "buildBuilding") {
       const buildSteps = getBoBuildSteps(cmd.payload);
       const buildingName = buildSteps[0]?.building || "Building";
@@ -6666,7 +7496,7 @@ function simulateBuildOrder(commands, config) {
 
     if (cmd.type === "tech") {
       const techType = cmd.payload.techType;
-      const millTechs = new Set(["Wheelbarrow", "Food Upgrade", "Survival Techniques"]);
+      const millTechs = new Set(["Wheelbarrow", "Horticulture", "Survival Techniques"]);
       const targetBuildingType = cmd.payload.building || (millTechs.has(techType) ? "Mill" : null);
       const targetBuildingId = cmd.payload.buildingId || null;
       if (targetBuildingType || targetBuildingId) {
@@ -6841,7 +7671,9 @@ function simulateBuildOrder(commands, config) {
           if (age === 1 && civBonus.darkAgeBuildSpeedMult) mult *= civBonus.darkAgeBuildSpeedMult;
           if (mult > 1) durationPerBuilding = durationPerBuilding / mult;
         }
-        const costForStep = getBoBuildStepCost(step, civ, civBonus);
+        const costForStep = getBoBuildStepCost(step, civ, civBonus, {
+          ottomanSettings: getOttomanActiveEffects()
+        });
         for (let i = 0; i < Math.max(1, step.count || 1); i++) {
           const stepSuffix = Math.max(1, step.count || 1) > 1 ? ` (${i + 1}/${Math.max(1, step.count || 1)})` : "";
           queueSteps.push({
@@ -6926,6 +7758,20 @@ function simulateBuildOrder(commands, config) {
         });
       }
     }
+    if (cmd.type === "trainUnit" && queuedBuilding?.id && cmd.payload.unitName !== "Villager") {
+      const perUnit = Math.max(0, effectiveTrainTimePerUnit || cmd.payload.timePerUnit || 0.1);
+      const count = Math.max(1, cmd.payload.count || 1);
+      for (let i = 1; i <= count; i++) {
+        busy.push({
+          endTime: start + perUnit * i,
+          kind: "unitComplete",
+          unitName: cmd.payload.unitName,
+          buildingId: queuedBuilding.id,
+          buildingType: cmd.payload.building || inferBoBuildingTypeFromId(queuedBuilding.id) || "Production",
+          label: `${cmd.payload.unitName} complete`
+        });
+      }
+    }
 
     if (cmd.type === "ageUp") {
       tcBusyUntil = Math.max(tcBusyUntil, end);
@@ -6994,10 +7840,42 @@ function getBoEarliestAffordTime(samples, cost) {
   return null;
 }
 
+function meetsBoCost(resourceState, cost) {
+  return (resourceState.food || 0) >= (cost.food || 0) &&
+    (resourceState.wood || 0) >= (cost.wood || 0) &&
+    (resourceState.gold || 0) >= (cost.gold || 0) &&
+    (resourceState.stone || 0) >= (cost.stone || 0);
+}
+
+function getBoEarliestManualDropoffAffordTime(samples, cost) {
+  if (!samples?.length) return null;
+  for (const sample of samples) {
+    const banked = {
+      food: sample.food || 0,
+      wood: sample.wood || 0,
+      gold: sample.gold || 0,
+      stone: sample.stone || 0
+    };
+    if (meetsBoCost(banked, cost)) return sample.time;
+    const events = Array.isArray(sample.manualDropoffEvents) ? sample.manualDropoffEvents : [];
+    for (const event of events) {
+      banked.food += event.food || 0;
+      banked.wood += event.wood || 0;
+      banked.gold += event.gold || 0;
+      banked.stone += event.stone || 0;
+      if (meetsBoCost(banked, cost)) return event.time;
+    }
+  }
+  return null;
+}
+
 function getBoMetrics(results) {
   const samples = results?.samples || [];
   const simEnd = Math.max(1, results?.simEnd || 1);
   const gathered = results?.gatheredTotals || { food: 0, wood: 0, gold: 0, stone: 0, oliveOil: 0, silver: 0 };
+  const age2Cost = { food: 400, wood: 0, gold: 200, stone: 0 };
+  const age3Cost = { food: 1200, wood: 0, gold: 600, stone: 0 };
+  const age4Cost = { food: 2400, wood: 0, gold: 1200, stone: 0 };
   return {
     gathered,
     perMin: {
@@ -7007,9 +7885,18 @@ function getBoMetrics(results) {
       stone: (gathered.stone || 0) * 60 / simEnd
     },
     afford: {
-      age2: getBoEarliestAffordTime(samples, { food: 400, wood: 0, gold: 200, stone: 0 }),
-      age3: getBoEarliestAffordTime(samples, { food: 1200, wood: 0, gold: 600, stone: 0 }),
-      age4: getBoEarliestAffordTime(samples, { food: 2400, wood: 0, gold: 1200, stone: 0 })
+      age2: {
+        normal: getBoEarliestAffordTime(samples, age2Cost),
+        manual: getBoEarliestManualDropoffAffordTime(samples, age2Cost)
+      },
+      age3: {
+        normal: getBoEarliestAffordTime(samples, age3Cost),
+        manual: getBoEarliestManualDropoffAffordTime(samples, age3Cost)
+      },
+      age4: {
+        normal: getBoEarliestAffordTime(samples, age4Cost),
+        manual: getBoEarliestManualDropoffAffordTime(samples, age4Cost)
+      }
     }
   };
 }
@@ -7112,12 +7999,18 @@ function renderBoSummary(results, timeOverride = null) {
     ["Age II", metrics.afford.age2],
     ["Age III", metrics.afford.age3],
     ["Age IV", metrics.afford.age4]
-  ].map(([label, timeVal]) => `
+  ].map(([label, affordInfo]) => {
+    const normalTime = affordInfo?.normal ?? null;
+    const manualTime = affordInfo?.manual ?? null;
+    const showManual = manualTime !== null && (normalTime === null || manualTime < normalTime - 0.0001);
+    return `
     <div class="bo-afford-pill">
-      <span>${label}</span>
-      <strong>${timeVal === null ? "Not reached" : formatTimeMMSS(timeVal)}</strong>
+      <span class="bo-afford-label">${label}</span>
+      <strong class="bo-afford-time">${normalTime === null ? "Not reached" : formatTimeMMSS(normalTime)}</strong>
+      ${showManual ? `<div class="bo-afford-manual">Manual dropoff: ${formatTimeMMSS(manualTime)}</div>` : ""}
     </div>
-  `).join("");
+  `;
+  }).join("");
 
   let summaryHtml = `
     <div class="bo-afford-strip">
@@ -9033,15 +9926,6 @@ document.getElementById("boResetTimelineBtn")?.addEventListener("click", () => {
   resetBoTimeline();
 });
 
-["boOttomanMilitaryCampus", "boOttomanAdvancedAcademy"].forEach((id) => {
-  document.getElementById(id)?.addEventListener("change", () => {
-    const civ = getBoSelectedCiv();
-    renderBoCivBonuses(civ);
-    renderBoCommandEditor(getSelectedBoCommand());
-    scheduleRunBuildOrder();
-  });
-});
-
 document.getElementById("buildOrderRow")?.addEventListener("input", (e) => {
   if (!e.target?.id?.startsWith("bo")) return;
   if (e.target.closest("#boCommandEditor")) return;
@@ -9126,6 +10010,7 @@ document.getElementById("boLaneLabels")?.addEventListener("click", (e) => {
   const buildingType = label.dataset?.buildingType;
   const buildingReady = parseFloat(label.dataset?.buildingReady || "0");
   const buildingSource = label.dataset?.buildingSource || null;
+  const resource = label.dataset?.resource || null;
   if (laneKey === "tc") {
     if (boSelectedBuilding?.id === "TC #1") {
       boSelectedBuilding = null;
@@ -9137,6 +10022,10 @@ document.getElementById("boLaneLabels")?.addEventListener("click", (e) => {
       return;
     }
     selectBoBuilding({ id: "TC #1", type: "Town Center", sourceCommandId: BO_CAPITAL_TC_ANCHOR, readyAt: 0 }, { scrollToEditor: true });
+    return;
+  }
+  if (resource) {
+    selectOrCreateBoResourceTripCommand(resource);
     return;
   }
   if (buildingId && buildingType) {

@@ -893,22 +893,16 @@
               <div id="boCivBonuses" class="bo-civ-bonuses mb-2"></div>
 
               <div class="stat-box mb-3 bo-ottoman-panel" id="boOttomanPanel" style="display:none;">
-                <h6 class="fw-bold mb-2">Ottoman Options</h6>
-                <div class="bo-ottoman-toggle-grid">
-                  <label class="bo-ottoman-toggle" for="boOttomanMilitaryCampus">
-                    <input id="boOttomanMilitaryCampus" type="checkbox" class="form-check-input">
-                    <span class="bo-ottoman-toggle-body">
-                      <span class="bo-ottoman-toggle-title">Military Campus</span>
-                      <span class="bo-ottoman-toggle-note">Increase the Military School cap by +1.</span>
-                    </span>
-                  </label>
-                  <label class="bo-ottoman-toggle" for="boOttomanAdvancedAcademy">
-                    <input id="boOttomanAdvancedAcademy" type="checkbox" class="form-check-input">
-                    <span class="bo-ottoman-toggle-body">
-                      <span class="bo-ottoman-toggle-title">Advanced Academy</span>
-                      <span class="bo-ottoman-toggle-note">+25% military production speed and unlocks Lancer + Janissary in Military Schools from Age III.</span>
-                    </span>
-                  </label>
+                <div class="bo-vizier-summary-panel">
+                  <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-2">
+                    <div>
+                      <h6 class="fw-bold mb-1">Imperial Council</h6>
+                      <div class="bo-vizier-note">Vizier choices are now made from the Imperial Council lane on the timeline.</div>
+                    </div>
+                    <div id="boOttomanVizierAnchor" class="bo-vizier-anchor text-muted">Timeline start 0:00</div>
+                  </div>
+                  <div id="boOttomanVizierWarning" class="bo-vizier-warning" hidden></div>
+                  <div id="boOttomanVizierSummary" class="bo-vizier-summary-grid"></div>
                 </div>
               </div>
 
