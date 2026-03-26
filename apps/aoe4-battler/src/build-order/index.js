@@ -62,9 +62,6 @@ let BO_BASE_RATES = {
 };
 
 let BO_CIV_RATE_OVERRIDES = {
-  "Abbasid Dynasty": { berries: 0.8625 },
-  "Ayyubids": { berries: 0.8625 },
-  "Delhi Sultanate": { berries: 0.8625 },
   "House of Lancaster": { sheep: 0.9 },
   "Knights Templar": { wood: 0.6 }
 };
@@ -80,10 +77,12 @@ const BO_DEFAULT_CARRY = { sheep: 10, berries: 10, deer: 25, boar: 25, farm: 10,
 const BO_DEFAULT_TRIP = { sheep: 0.1, berries: 1.1, deer: 1.7, boar: 1.7, farm: 1.1, wood: 1.7, gold: 1.1, stone: 1.1 };
 const BO_WHEEL_CARRY_BONUS = 5;
 const BO_WHEEL_TRIP_MULT = 1 / 1.15;
+const BO_DROPOFF_ANIMATION_SEC = 0.5;
 const BO_FOOD_UPGRADE_MULT = 1.1;
 const BO_SPECIAL_RES_KEYS = ["oliveOil", "silver"];
 const BO_CAPITAL_TC_ANCHOR = "__bo_tc1__";
 const BO_OTTOMAN_IMPERIAL_COUNCIL_BUILDING = "Imperial Council";
+const BO_HOUSE_OF_WISDOM_BUILDING = "House of Wisdom";
 const BO_TIMELINE_BUILDING_SET = new Set([
   "Barracks",
   "Archery Range",
@@ -98,6 +97,7 @@ const BO_TIMELINE_BUILDING_SET = new Set([
   "Prayer Tent",
   "Town Center",
   "Imperial Council",
+  "House of Wisdom",
   "Landmark (Age II)",
   "Landmark (Age III)",
   "Landmark (Age IV)",
@@ -176,6 +176,20 @@ const BO_ENGLISH_FARM_GOLD_PER_SEC = 1 / 6;
 const BO_ENGLISH_FARM_COST_MULT = 0.5;
 const BO_AGE_UP_TIME_DEFAULTS = { 2: 190, 3: 220 };
 const BO_OTTOMAN_MILITARY_SCHOOL_BUILDING = "Military School";
+const BO_HOUSE_OF_WISDOM_CIVS = new Set(["Abbasid Dynasty", "Ayyubids"]);
+const BO_SUPPORTED_CIVS = new Set([
+  "Abbasid Dynasty",
+  "Ayyubids",
+  "Delhi Sultanate",
+  "English",
+  "French",
+  "House of Lancaster",
+  "Jeanne d'Arc",
+  "Knights Templar",
+  "Mongols",
+  "Ottomans",
+  "Tughlaq Dynasty"
+]);
 const BO_OTTOMAN_UNIT_ALIASES = {
   "Crossbowman": "Crossbow",
   "Man-at-Arms": "MAA",
@@ -224,6 +238,149 @@ const BO_OTTOMAN_VIZIER_UNIT_XP = {
   "Great Bombard": 31
 };
 const BO_OTTOMAN_DEFENSIVE_BUILDINGS = new Set(["Town Center", "Outpost", "Keep"]);
+const BO_ABBASID_HOW_WINGS = {
+  culture: {
+    label: "Culture Wing",
+    choicesByAge: {
+      2: ["preservationOfKnowledge"],
+      3: ["medicalCenters"],
+      4: ["publicLibraries"]
+    }
+  },
+  economic: {
+    label: "Economic Wing",
+    choicesByAge: {
+      2: ["fertileCrescent"],
+      3: ["agriculture"],
+      4: ["improvedProcessing"]
+    }
+  },
+  military: {
+    label: "Military Wing",
+    choicesByAge: {
+      2: ["bootCamp"],
+      3: ["compositeBows"],
+      4: ["camelSupport"]
+    },
+    spawnByAge: {
+      2: "Spawn 2 Spearmen and 2 Archers",
+      3: "Spawn 2 Camel Riders",
+      4: "Spawn 3 Handcannoneers"
+    }
+  },
+  trade: {
+    label: "Trade Wing",
+    choicesByAge: {
+      2: ["armoredCaravans"],
+      3: ["grandBazaar"],
+      4: ["spiceRoads"]
+    },
+    spawnByAge: {
+      2: "Spawn 4 Trade Caravans",
+      3: "Spawn 5 Trade Caravans",
+      4: "Spawn 6 Trade Caravans"
+    }
+  }
+};
+const BO_ABBASID_HOW_CHOICE_DEFS = {
+  preservationOfKnowledge: {
+    id: "preservationOfKnowledge",
+    label: "Preservation of Knowledge",
+    effectNote: "Techs and future House of Wisdom wings cost 20% less."
+  },
+  medicalCenters: {
+    id: "medicalCenters",
+    label: "Medical Centers",
+    effectNote: "Keeps and Town Centers heal nearby units (tracked only)."
+  },
+  publicLibraries: {
+    id: "publicLibraries",
+    label: "Public Libraries",
+    effectNote: "Villagers and Trade Caravans gain +2 HP per economic technology (tracked only)."
+  },
+  fertileCrescent: {
+    id: "fertileCrescent",
+    label: "Fertile Crescent",
+    effectNote: "Economic buildings and Houses cost 30% less."
+  },
+  agriculture: {
+    id: "agriculture",
+    label: "Agriculture",
+    effectNote: "Farms gather 15% faster."
+  },
+  improvedProcessing: {
+    id: "improvedProcessing",
+    label: "Improved Processing",
+    effectNote: "Villager dropoffs return 8% more resources."
+  },
+  bootCamp: {
+    id: "bootCamp",
+    label: "Boot Camp",
+    effectNote: "Infantry +15% hit points (tracked only)."
+  },
+  compositeBows: {
+    id: "compositeBows",
+    label: "Composite Bows",
+    effectNote: "Archers +30% attack speed (tracked only)."
+  },
+  camelSupport: {
+    id: "camelSupport",
+    label: "Camel Support",
+    effectNote: "Camels grant nearby infantry +2 armor (tracked only)."
+  },
+  armoredCaravans: {
+    id: "armoredCaravans",
+    label: "Armored Caravans",
+    effectNote: "Trade armor bonus unlocked (trade tracked only)."
+  },
+  grandBazaar: {
+    id: "grandBazaar",
+    label: "Grand Bazaar",
+    effectNote: "Trade bonus unlocked (tracked only)."
+  },
+  spiceRoads: {
+    id: "spiceRoads",
+    label: "Spice Roads",
+    effectNote: "Trade units generate +30% gold (tracked only)."
+  }
+};
+const BO_AYYUBID_HOW_BRANCHES = {
+  culture: {
+    label: "Culture Wing",
+    branches: {
+      advancement: { label: "Advancement" },
+      logistics: { label: "Logistics" }
+    }
+  },
+  economic: {
+    label: "Economic Wing",
+    branches: {
+      growth: { label: "Growth" },
+      industry: { label: "Industry" }
+    }
+  },
+  military: {
+    label: "Military Wing",
+    branches: {
+      masterSmiths: { label: "Master Smiths" },
+      reinforcement: { label: "Reinforcement" }
+    }
+  },
+  trade: {
+    label: "Trade Wing",
+    branches: {
+      advisors: { label: "Advisors" },
+      bazaar: { label: "Bazaar" }
+    }
+  }
+};
+const BO_HOUSE_OF_WISDOM_GOLDEN_AGE_LABELS = {
+  gatherPct: "Gather",
+  researchPct: "Research",
+  productionPct: "Production",
+  siegeCostMult: "Siege cost",
+  camelAttackSpeedPct: "Camel attack"
+};
 const BO_OTTOMAN_VIZIER_CHOICES = {
   fieldWork: {
     id: "fieldWork",
@@ -478,6 +635,116 @@ function getBoOttomanMilitarySchoolConfig(civ) {
   return civ === "Ottomans" ? (BO_CIV_BONUSES?.[civ]?.militarySchool || null) : null;
 }
 
+function isBoHouseOfWisdomCiv(civ) {
+  return BO_HOUSE_OF_WISDOM_CIVS.has((civ || "").trim());
+}
+
+function getBoNoBoarCivSet() {
+  if (BO_BOAR_RESTRICTED_CIVS?.size) return BO_BOAR_RESTRICTED_CIVS;
+  const derived = Object.entries(BO_CIV_BONUSES || {})
+    .filter(([, bonus]) => bonus?.noBoar)
+    .map(([civ]) => civ);
+  if (derived.length) {
+    BO_BOAR_RESTRICTED_CIVS = new Set(derived);
+    return BO_BOAR_RESTRICTED_CIVS;
+  }
+  return BO_MUSLIM_CIVS;
+}
+
+function isBoNoBoarCiv(civ) {
+  return getBoNoBoarCivSet().has((civ || "").trim());
+}
+
+function getBoBerryBonusConfig(civ) {
+  const civBonus = BO_CIV_BONUSES?.[civ] || {};
+  if (civBonus.berryBonus) return civBonus.berryBonus;
+  if (civBonus.grandOrchards) {
+    return {
+      label: "Grand Orchards",
+      requiresMill: true,
+      ...civBonus.grandOrchards
+    };
+  }
+  return null;
+}
+
+function getBoHouseOfWisdomConfig(civ) {
+  return BO_CIV_BONUSES?.[civ]?.houseOfWisdom || null;
+}
+
+function getBoHouseOfWisdomWingLabel(civ, wing, branch = null) {
+  if (civ === "Ayyubids") {
+    const wingDef = BO_AYYUBID_HOW_BRANCHES[wing];
+    const branchDef = wingDef?.branches?.[branch];
+    if (wingDef && branchDef) return `${wingDef.label} / ${branchDef.label}`;
+  }
+  return BO_ABBASID_HOW_WINGS[wing]?.label || wing || "Wing";
+}
+
+function getBoHouseOfWisdomStateFromSample(sample = null) {
+  const fallback = {
+    wings: [],
+    effects: {},
+    goldenAge: {
+      count: 0,
+      tier: 0,
+      bonuses: {}
+    }
+  };
+  if (!sample?.houseOfWisdom) return fallback;
+  return {
+    wings: Array.isArray(sample.houseOfWisdom.wings) ? sample.houseOfWisdom.wings.map((entry) => ({ ...entry })) : [],
+    effects: { ...(sample.houseOfWisdom.effects || {}) },
+    goldenAge: {
+      count: Math.max(0, sample.houseOfWisdom.goldenAge?.count || 0),
+      tier: Math.max(0, sample.houseOfWisdom.goldenAge?.tier || 0),
+      bonuses: { ...(sample.houseOfWisdom.goldenAge?.bonuses || {}) }
+    }
+  };
+}
+
+function getBoPlannedHouseOfWisdomWings(civ, commands = boCommands) {
+  if (!isBoHouseOfWisdomCiv(civ) || !Array.isArray(commands)) return [];
+  const wings = [];
+  const seen = new Set();
+  commands.forEach((cmd) => {
+    if (cmd?.type !== "houseOfWisdomWing") return;
+    const wing = cmd.payload?.wing || "culture";
+    if (!wing || seen.has(wing)) return;
+    seen.add(wing);
+    const branch = civ === "Ayyubids"
+      ? (cmd.payload?.branch || Object.keys(BO_AYYUBID_HOW_BRANCHES[wing]?.branches || {})[0] || null)
+      : null;
+    wings.push({
+      wing,
+      branch,
+      targetAge: getBoHouseOfWisdomChoiceAgeFromCount(wings.length)
+    });
+  });
+  return wings;
+}
+
+function getBoHouseOfWisdomPreviewState(timeOverride = null) {
+  const civ = (document.getElementById("boCiv")?.value || "").trim();
+  if (!isBoHouseOfWisdomCiv(civ)) return getBoHouseOfWisdomStateFromSample(null);
+  const sample = getBoSampleAtTimeFromSamples(
+    Number.isFinite(timeOverride) ? timeOverride : getBoAnchorTime(),
+    boLastResults?.samples || []
+  );
+  return getBoHouseOfWisdomStateFromSample(sample);
+}
+
+function formatBoGoldenAgeBonuses(bonuses = {}) {
+  const parts = [];
+  Object.entries(BO_HOUSE_OF_WISDOM_GOLDEN_AGE_LABELS).forEach(([key, label]) => {
+    const value = bonuses?.[key];
+    if (!Number.isFinite(value) || value <= 0) return;
+    if (key === "siegeCostMult") parts.push(`${label} -${Math.round((1 - value) * 100)}%`);
+    else parts.push(`${label} +${Math.round(value)}%`);
+  });
+  return parts.join(" | ");
+}
+
 function getBoLandmarkChoicesForCiv(civ) {
   return BO_CIV_BONUSES?.[civ]?.landmarksByAge || {};
 }
@@ -516,6 +783,7 @@ function getBoBuildableBuildingsForCiv(civ) {
     next.push(name);
   };
   buildingKeys.forEach((name) => {
+    if (isBoHouseOfWisdomCiv(civ) && name.startsWith("Landmark (Age")) return;
     if (name === BO_OTTOMAN_MILITARY_SCHOOL_BUILDING && civ !== "Ottomans") return;
     if (name === "Landmark (Age II)" && landmarkChoices?.["2"]?.length) {
       landmarkChoices["2"].forEach(push);
@@ -534,6 +802,125 @@ function getBoBuildableBuildingsForCiv(civ) {
     push(name);
   });
   return next;
+}
+
+function getBoHouseOfWisdomGoldenAgeState(civ, buildingCount = 0) {
+  const tiers = getBoHouseOfWisdomConfig(civ)?.goldenAgeTiers || [];
+  let tier = 0;
+  const bonuses = {};
+  tiers.forEach((entry, idx) => {
+    if ((buildingCount || 0) < (entry.threshold || 0)) return;
+    tier = idx + 1;
+    Object.entries(entry).forEach(([key, value]) => {
+      if (key === "threshold" || !Number.isFinite(value)) return;
+      bonuses[key] = value;
+    });
+  });
+  return { count: Math.max(0, buildingCount || 0), tier, bonuses };
+}
+
+function getBoLandmarkAgeCost(targetAge = 2) {
+  const key = `Landmark (Age ${targetAge})`;
+  const def = getBoBuildingDefaults(key) || {};
+  return {
+    food: def.cost?.food || 0,
+    wood: def.cost?.wood || 0,
+    gold: def.cost?.gold || 0,
+    stone: def.cost?.stone || 0
+  };
+}
+
+function getBoHouseOfWisdomChoiceAgeFromCount(completedCount = 0) {
+  return Math.min(4, 2 + Math.max(0, completedCount || 0));
+}
+
+function getBoHouseOfWisdomCompletedCountBefore(cmd, commands = boCommands) {
+  const idx = commands.findIndex((entry) => entry.id === cmd?.id);
+  const source = idx >= 0 ? commands.slice(0, idx) : commands.slice();
+  return source.filter((entry) => entry?.type === "houseOfWisdomWing").length;
+}
+
+function getBoHouseOfWisdomCommandSpec(cmd, civ, options = {}) {
+  const howConfig = getBoHouseOfWisdomConfig(civ) || {};
+  const completedCount = options.completedCount ?? getBoHouseOfWisdomCompletedCountBefore(cmd);
+  const targetAge = getBoHouseOfWisdomChoiceAgeFromCount(completedCount);
+  const effects = options.effects || {};
+  let cost = getBoLandmarkAgeCost(targetAge);
+  let time = howConfig.baseAgeUpTime || (civ === "Ayyubids" ? 120 : 100);
+  if (civ === "Ayyubids" && cmd?.payload?.branch === "advancement") {
+    const advancement = howConfig.advancementByAge || {};
+    const advancementDef = advancement[targetAge] || advancement[String(targetAge)] || {};
+    cost = {
+      food: advancementDef.cost?.food || cost.food,
+      wood: advancementDef.cost?.wood || 0,
+      gold: advancementDef.cost?.gold || cost.gold,
+      stone: advancementDef.cost?.stone || 0
+    };
+    time = advancementDef.time || 96;
+  }
+  if (effects.preservationOfKnowledge) {
+    cost = {
+      food: Math.round((cost.food || 0) * 0.8),
+      wood: Math.round((cost.wood || 0) * 0.8),
+      gold: Math.round((cost.gold || 0) * 0.8),
+      stone: Math.round((cost.stone || 0) * 0.8)
+    };
+  }
+  if (Number.isFinite(options.researchPct) && options.researchPct > 0) {
+    time = applyBoWorkRateToDuration(time, options.researchPct);
+  }
+  return { targetAge, cost, time };
+}
+
+function getBoHouseOfWisdomWingDescription(civ, wing, branch = null, targetAge = 2) {
+  if (civ === "Ayyubids") {
+    const ageName = targetAge === 2 ? "Feudal" : targetAge === 3 ? "Castle" : "Imperial";
+    if (wing === "culture" && branch === "advancement") return `${ageName} discount age-up`;
+    if (wing === "culture" && branch === "logistics") return `Spawn ${targetAge === 2 ? 2 : targetAge === 3 ? 3 : 4} Dervishes`;
+    if (wing === "economic" && branch === "growth") return targetAge === 2 ? "Spawn 3 Villagers, Orchards +50" : targetAge === 3 ? "Spawn 7 Villagers, Orchards +100" : "Spawn 10 Villagers, +10% villager work";
+    if (wing === "economic" && branch === "industry") return targetAge === 2 ? "Grant 400 wood, +30% build speed" : targetAge === 3 ? "Grant 900 wood + 400 stone, +40% build speed" : "Grant 2000 wood + 1000 stone, +50% build speed";
+    if (wing === "military" && branch === "masterSmiths") return "Grant free Blacksmith techs / Military Academy";
+    if (wing === "military" && branch === "reinforcement") return targetAge === 2 ? "Desert Raider trickle" : targetAge === 3 ? "Spawn 3 Desert Raiders, then trickle" : "Spawn 7 Desert Raiders, then trickle";
+    if (wing === "trade" && branch === "advisors") return `Spawn ${targetAge === 2 ? 3 : targetAge === 3 ? 5 : 7} Atabegs`;
+    if (wing === "trade" && branch === "bazaar") return "Track Bazaar caravan bonus";
+  }
+  const wingDef = BO_ABBASID_HOW_WINGS[wing];
+  if (!wingDef) return "";
+  const unlocks = Object.keys(wingDef.choicesByAge || {})
+    .map((ageKey) => parseInt(ageKey, 10))
+    .filter((ageKey) => ageKey <= targetAge)
+    .sort((a, b) => a - b)
+    .flatMap((ageKey) => wingDef.choicesByAge[ageKey] || [])
+    .map((choiceId) => BO_ABBASID_HOW_CHOICE_DEFS[choiceId]?.label || choiceId);
+  const spawn = wingDef.spawnByAge?.[targetAge] || null;
+  return [unlocks.length ? unlocks.join(", ") : "", spawn].filter(Boolean).join(" | ");
+}
+
+function getBoHouseOfWisdomActionChoices(civ, state = null) {
+  const currentState = state || getBoHouseOfWisdomPreviewState();
+  const effectiveWings = (currentState.wings || []).length
+    ? currentState.wings
+    : getBoPlannedHouseOfWisdomWings(civ);
+  const usedWings = new Set(effectiveWings.map((entry) => entry.wing));
+  const targetAge = getBoHouseOfWisdomChoiceAgeFromCount(effectiveWings.length);
+  if (civ === "Ayyubids") {
+    return Object.entries(BO_AYYUBID_HOW_BRANCHES)
+      .filter(([wing]) => !usedWings.has(wing))
+      .flatMap(([wing, wingDef]) => Object.entries(wingDef.branches || {}).map(([branch, branchDef]) => ({
+        wing,
+        branch,
+        label: `${wingDef.label} / ${branchDef.label}`,
+        description: getBoHouseOfWisdomWingDescription(civ, wing, branch, targetAge)
+      })));
+  }
+  return Object.entries(BO_ABBASID_HOW_WINGS)
+    .filter(([wing]) => !usedWings.has(wing))
+    .map(([wing, wingDef]) => ({
+      wing,
+      branch: null,
+      label: wingDef.label,
+      description: getBoHouseOfWisdomWingDescription(civ, wing, null, targetAge)
+    }));
 }
 
 function resolveBoUnitName(unitName) {
@@ -612,15 +999,23 @@ function getBoPreviewTownCenterWorkRatePct(civ, ageOverride = null) {
   const age = Number.isFinite(ageOverride)
     ? ageOverride
     : (parseInt(document.getElementById("boStartAge")?.value, 10) || 1);
-  return getBoAgeBonusValue(civBonus.townCenterWorkRateByAge, age);
+  let pct = getBoAgeBonusValue(civBonus.townCenterWorkRateByAge, age);
+  if (isBoHouseOfWisdomCiv(civ)) {
+    pct += getBoHouseOfWisdomPreviewState().goldenAge?.bonuses?.productionPct || 0;
+  }
+  return pct;
 }
 
 function renderBoCivBonuses(civ) {
   const box = document.getElementById("boCivBonuses");
   if (!box) return;
-  updateBoOttomanPanel(civ);
+  updateBoOttomanPanel(isBoSupportedCiv(civ) ? civ : "");
   if (!civ) {
     box.innerHTML = `<span class="text-muted">Select a civilization to apply civ bonuses.</span>`;
+    return;
+  }
+  if (!isBoSupportedCiv(civ)) {
+    box.innerHTML = `<span class="text-muted">${civ} is not modeled in Build Order yet.</span>`;
     return;
   }
   const parts = [];
@@ -629,10 +1024,48 @@ function renderBoCivBonuses(civ) {
     const gatherParts = Object.entries(overrides).map(([res, rate]) => `${res.toUpperCase()}: ${rate.toFixed(3)}/s`);
     if (gatherParts.length) parts.push(`Gather: ${gatherParts.join(" | ")}`);
   }
-  if (BO_MUSLIM_CIVS.has(civ)) {
-    parts.push("Muslim berries: +100/node, +25% with Mill bonus, +3 carry; no boar");
+  const berryBonus = getBoBerryBonusConfig(civ);
+  if (berryBonus) {
+    const label = berryBonus.label || "Berry bonus";
+    const bonusParts = [];
+    if ((berryBonus.capacityBonusPerNode || 0) > 0) {
+      bonusParts.push(`+${berryBonus.capacityBonusPerNode}/berry node${berryBonus.requiresMill === false ? "" : " with Mill"}`);
+    }
+    if ((berryBonus.gatherBonusPct || 0) > 0) {
+      bonusParts.push(`+${berryBonus.gatherBonusPct}% berry gather`);
+    }
+    if ((berryBonus.carryBonus || 0) > 0) {
+      bonusParts.push(`+${berryBonus.carryBonus} carry`);
+    }
+    if (bonusParts.length) parts.push(`${label}: ${bonusParts.join(", ")}`);
+  }
+  if (isBoNoBoarCiv(civ)) {
+    parts.push("Cannot harvest boar");
   }
   const civBonus = BO_CIV_BONUSES?.[civ] || {};
+  if (isBoHouseOfWisdomCiv(civ)) {
+    const previewState = getBoHouseOfWisdomPreviewState();
+    const howConfig = getBoHouseOfWisdomConfig(civ) || {};
+    const goldenAge = previewState.goldenAge || {};
+    const hasLegacyLandmarks = boCommands.some((cmd) => cmd?.type === "buildBuilding" && getBoBuildSteps(cmd.payload).some((step) => /^Landmark \(Age /.test(step.building || "")));
+    const previewWings = (previewState.wings || []).length
+      ? previewState.wings
+      : getBoPlannedHouseOfWisdomWings(civ);
+    const wingSummary = previewWings
+      .map((entry) => getBoHouseOfWisdomWingLabel(civ, entry.wing, entry.branch))
+      .join(" -> ");
+    parts.push(`House of Wisdom: ${civ === "Ayyubids" ? "Branches" : "Wings"} age up in ${howConfig.baseAgeUpTime || (civ === "Ayyubids" ? 120 : 100)}s`);
+    parts.push(`Golden Age: ${goldenAge.count || 0} buildings${goldenAge.tier ? `, Tier ${goldenAge.tier}` : ""}${formatBoGoldenAgeBonuses(goldenAge.bonuses) ? ` (${formatBoGoldenAgeBonuses(goldenAge.bonuses)})` : ""}`);
+    if (hasLegacyLandmarks) parts.push("Legacy landmarks detected: replace them with House of Wisdom wings");
+    if (wingSummary) parts.push(`Chosen ${civ === "Ayyubids" ? "branches" : "wings"}: ${wingSummary}`);
+    if (previewState.effects?.preservationOfKnowledge) parts.push("Preservation of Knowledge active: techs and future wings cost 20% less");
+    if (previewState.effects?.fertileCrescent) parts.push("Fertile Crescent active: economic buildings and Houses cost 30% less");
+    if (previewState.effects?.agriculture) parts.push("Agriculture active: farms gather 15% faster");
+    if (previewState.effects?.improvedProcessing) parts.push("Improved Processing active: villager dropoff +8%");
+    if (previewState.effects?.villagerWorkRatePct) parts.push(`Growth active: villagers +${previewState.effects.villagerWorkRatePct}% work rate`);
+    if (previewState.effects?.buildSpeedPct) parts.push(`Industry active: villagers build +${previewState.effects.buildSpeedPct}% faster`);
+    if (previewState.effects?.militaryAcademy) parts.push("Master Smiths active: Military Academy granted for free");
+  }
   if (civBonus.farmGoldPerSec) parts.push("Farms generate gold (English/HoL)");
   if (civBonus.dropoffCostMult) parts.push("Dropoffs cheaper (French)");
   if (civBonus.ecoTechCostMult) parts.push("Eco techs cheaper (French/Jeanne)");
@@ -713,7 +1146,7 @@ function applyBoStartingVillagers(civ) {
 }
 
 function applyBoBoarRestriction(civ) {
-  const restricted = BO_BOAR_RESTRICTED_CIVS.has(civ);
+  const restricted = isBoNoBoarCiv(civ);
   const boarCount = document.getElementById("boBoarCount");
   const boarFood = document.getElementById("boBoarFood");
   const boarRate = document.getElementById("boRateBoar");
@@ -745,7 +1178,7 @@ function applyBoCivRestrictions(civ) {
 }
 
 function applyBoDefaults() {
-  const civ = document.getElementById("boCiv")?.value || "";
+  const civ = getBoSelectedCiv();
   applyBoStartingResources(civ);
   applyBoStartingVillagers(civ);
   updateBoOttomanPanel(civ);
@@ -805,11 +1238,21 @@ function resetBoTimeline() {
   setBoSaveStatus("Timeline reset. Current draft cleared.");
 }
 
-function getBoSelectedCiv() {
+function isBoSupportedCiv(civ) {
+  return BO_SUPPORTED_CIVS.has((civ || "").trim());
+}
+
+function getBoRawSelectedCiv() {
   return (document.getElementById("boCiv")?.value || "").trim();
 }
 
-function updateBoCivGate(forceOpen = false, message = "Select a civilization to begin.") {
+function getBoSelectedCiv() {
+  const civ = getBoRawSelectedCiv();
+  return isBoSupportedCiv(civ) ? civ : "";
+}
+
+function updateBoCivGate(forceOpen = false, message = "Select a modeled civilization to begin.") {
+  const rawCiv = getBoRawSelectedCiv();
   const civ = getBoSelectedCiv();
   const addBtn = document.getElementById("boAddCommand");
   const runBtn = document.getElementById("boRunBtn");
@@ -821,7 +1264,11 @@ function updateBoCivGate(forceOpen = false, message = "Select a civilization to 
   if (shell) shell.classList.toggle("bo-gated", !civ);
   if (overlay) overlay.style.display = civ ? "none" : "flex";
   if (!civ) {
-    if (msg) msg.textContent = message;
+    if (msg) {
+      msg.textContent = rawCiv && !isBoSupportedCiv(rawCiv)
+        ? "This civilization is not modeled in Build Order yet."
+        : message;
+    }
     if (forceOpen) {
       const setup = document.getElementById("boSetupCollapse");
       const toggle = document.querySelector('[data-bs-target="#boSetupCollapse"]');
@@ -1008,7 +1455,30 @@ function refreshBoSaveUi(selectedId = null) {
 
 function applyBoSnapshot(snapshot, options = {}) {
   const civ = (snapshot?.civ || "").trim();
-  if (!civ) return false;
+  if (!civ || !isBoSupportedCiv(civ)) {
+    const civSelect = document.getElementById("boCiv");
+    if (civSelect) civSelect.value = "";
+    boCommands = [];
+    boSelectedCommandId = null;
+    boSelectedBuilding = null;
+    setBoTargetBuilding(null);
+    boPinnedTime = null;
+    boHoverTime = null;
+    boLastResults = null;
+    boOttomanLegacyWarning = "";
+    updateBoCivFlags("");
+    renderBoCivBonuses(civ);
+    updateBoCivGate(false, civ ? "This civilization is not modeled in Build Order yet." : "Select a modeled civilization to begin.");
+    renderBoTimelineEditor();
+    renderBoCommandEditor(null);
+    renderBoGatherRates();
+    renderBoTimelineFooter();
+    refreshBoSaveUi(options.selectedId || BO_SAVE_DRAFT_ID);
+    if (civ && options.statusText !== false) {
+      setBoSaveStatus(`${civ} is not modeled in Build Order yet.`);
+    }
+    return false;
+  }
 
   const civSelect = document.getElementById("boCiv");
   if (civSelect) civSelect.value = civ;
@@ -1093,6 +1563,7 @@ function applyBoSnapshot(snapshot, options = {}) {
   applyAutoDefaultsForAllCommands();
   boIdCounter = Math.max(1, getBoNextIdCounter(boCommands));
   boLastCommandType = snapshot.lastCommandType || "assign";
+  renderBoCivBonuses(civ);
 
   updateBoCivGate(false);
   renderBoTimelineEditor();
@@ -1120,7 +1591,7 @@ function scheduleBoDraftSave(delayMs = 220) {
 }
 
 function loadBoDraftForCiv(civ, options = {}) {
-  if (!civ) return false;
+  if (!civ || !isBoSupportedCiv(civ)) return false;
   const storage = readBoSaveStorage();
   const draft = storage.drafts?.[civ];
   if (!draft) return false;
@@ -1211,7 +1682,7 @@ function restoreBoSavedStateOnInit() {
     return false;
   }
   const hasOption = Array.from(civSelect.options).some((opt) => opt.value === civ);
-  if (!hasOption) {
+  if (!hasOption || !isBoSupportedCiv(civ)) {
     refreshBoSaveUi();
     return false;
   }
@@ -1290,8 +1761,13 @@ async function loadBoCivBonusData() {
     }
     if (Array.isArray(data.muslimCivs)) {
       BO_MUSLIM_CIVS = new Set(data.muslimCivs);
-      BO_BOAR_RESTRICTED_CIVS = BO_MUSLIM_CIVS;
     }
+    BO_BOAR_RESTRICTED_CIVS = new Set(
+      Object.entries(BO_CIV_BONUSES || {})
+        .filter(([, bonus]) => bonus?.noBoar)
+        .map(([civ]) => civ)
+    );
+    if (!BO_BOAR_RESTRICTED_CIVS.size) BO_BOAR_RESTRICTED_CIVS = BO_MUSLIM_CIVS;
     if (data.muslimBerryBonus) BO_MUSLIM_BERRY_BONUS = data.muslimBerryBonus;
     if (typeof data.sacredSiteGoldPerMin === "number") BO_SACRED_SITE_GOLD_PER_MIN = data.sacredSiteGoldPerMin;
     if (typeof data.pastureSheepSeconds === "number") BO_PASTURE_SHEEP_SECONDS = data.pastureSheepSeconds;
@@ -1317,13 +1793,16 @@ function initBuildOrderUI() {
     CIV_ORDER.filter((c) => c !== "Common").forEach((civ) => {
       const opt = document.createElement("option");
       opt.value = civ;
-      opt.textContent = civ;
+      const supported = isBoSupportedCiv(civ);
+      opt.textContent = supported ? civ : `${civ} (unmodeled)`;
+      opt.disabled = !supported;
       civSelect.appendChild(opt);
     });
   }
   if (civSelect) {
     civSelect.addEventListener("change", () => {
-      const civ = civSelect.value;
+      const rawCiv = getBoRawSelectedCiv();
+      const civ = getBoSelectedCiv();
       boSelectedBuilding = null;
       clearBoTargetBuilding();
       if (loadBoDraftForCiv(civ, { statusText: false })) {
@@ -1336,7 +1815,7 @@ function initBuildOrderUI() {
       applyBoCivRates(civ);
       applyBoCivRestrictions(civ);
       applyBoBoarRestriction(civ);
-      renderBoCivBonuses(civ);
+      renderBoCivBonuses(rawCiv || civ);
       updateBoCivFlags(civ);
       applyAutoDefaultsForAllCommands();
       boLastResults = null;
@@ -1442,6 +1921,16 @@ function setBoDefaults(cmd) {
     cmd.payload = {
       targetAge: 2,
       time: BO_AGE_UP_TIME_DEFAULTS[2] || 120,
+      cost: { food: 400, wood: 0, gold: 200, stone: 0 }
+    };
+  } else if (cmd.type === "houseOfWisdomWing") {
+    cmd.payload = {
+      wing: "culture",
+      branch: null,
+      building: BO_HOUSE_OF_WISDOM_BUILDING,
+      buildingId: BO_HOUSE_OF_WISDOM_BUILDING,
+      targetAge: 2,
+      time: 100,
       cost: { food: 400, wood: 0, gold: 200, stone: 0 }
     };
   } else if (cmd.type === "resourceTrip") {
@@ -1563,10 +2052,20 @@ function getBoBuildStepCost(step, civ, civBonus, options = {}) {
   const def = getBoBuildingDefaults(step.building) || null;
   let cost = { ...(step.cost || def?.cost || { food: 0, wood: 0, gold: 0, stone: 0 }) };
   const ottomanSettings = options.ottomanSettings || getBoOttomanSettingsFromInputs();
+  const howEffects = options.houseOfWisdomEffects || getBoHouseOfWisdomPreviewState().effects || {};
+  const isEconomicBuild = def?.type === "economic" || def?.type === "dropoff" || def?.type === "house";
   if (step.autoCost && def?.cost) {
     cost = { ...def.cost };
     if (BO_ENGLISH_FARM_BONUS_CIVS.has(civ) && step.building === "Farm") {
       cost.wood = Math.round((cost.wood || 0) * (civBonus?.farmCostMult || BO_ENGLISH_FARM_COST_MULT));
+    }
+    if (howEffects.fertileCrescent && isEconomicBuild) {
+      cost = {
+        food: Math.round((cost.food || 0) * 0.7),
+        wood: Math.round((cost.wood || 0) * 0.7),
+        gold: Math.round((cost.gold || 0) * 0.7),
+        stone: Math.round((cost.stone || 0) * 0.7)
+      };
     }
     if (civ === "French" && def?.type === "dropoff") {
       const mult = civBonus?.dropoffCostMult || 0.5;
@@ -1616,11 +2115,20 @@ function getBoBuildQueueSegments(payload, startTime = 0, options = {}) {
   const normalized = normalizeBoBuildPayload(payload);
   const builders = Math.max(1, normalized.builders || 1);
   const summary = getBoBuildQueueSummary(normalized);
+  const civ = getBoSelectedCiv();
+  const civBonus = BO_CIV_BONUSES?.[civ] || {};
+  const howEffects = isBoHouseOfWisdomCiv(civ) ? getBoHouseOfWisdomPreviewState(startTime).effects || {} : {};
   const segments = [];
   let cursor = startTime;
   let segmentIndex = 0;
   normalized.steps.forEach((step, stepIndex) => {
-    const perBuildDuration = getBuildDurationSeconds(getBoBuildStepTime(step), builders);
+    let perBuildDuration = getBuildDurationSeconds(getBoBuildStepTime(step), builders);
+    if (civ === "Jeanne d'Arc" && (parseInt(document.getElementById("boStartAge")?.value, 10) || 1) === 1 && civBonus.darkAgeBuildSpeedMult) {
+      perBuildDuration = perBuildDuration / civBonus.darkAgeBuildSpeedMult;
+    }
+    if (howEffects.buildSpeedPct > 0) {
+      perBuildDuration = applyBoWorkRateToDuration(perBuildDuration, howEffects.buildSpeedPct);
+    }
     for (let repeatIndex = 0; repeatIndex < Math.max(1, step.count || 1); repeatIndex++) {
       const duration = perBuildDuration + (segmentIndex === 0 ? Math.max(0, normalized.travelDelaySec || 0) : 0);
       const segStart = cursor;
@@ -1668,6 +2176,24 @@ function normalizeBoCommands(commands = boCommands) {
         : (BO_DEFAULT_TRIP[resource] || 0);
       if (cmd.payload?.resource !== resource || cmd.payload?.tripOverrideSec !== nextTrip) {
         cmd.payload = { resource, tripOverrideSec: nextTrip };
+        changed = true;
+      }
+    }
+    if (cmd?.type === "houseOfWisdomWing") {
+      const civ = getBoSelectedCiv();
+      const wing = cmd.payload?.wing || "culture";
+      const branch = civ === "Ayyubids"
+        ? (cmd.payload?.branch || Object.keys(BO_AYYUBID_HOW_BRANCHES[wing]?.branches || {})[0] || null)
+        : null;
+      const nextPayload = {
+        ...(cmd.payload || {}),
+        wing,
+        branch,
+        building: BO_HOUSE_OF_WISDOM_BUILDING,
+        buildingId: BO_HOUSE_OF_WISDOM_BUILDING
+      };
+      if (JSON.stringify(nextPayload) !== JSON.stringify(cmd.payload || {})) {
+        cmd.payload = nextPayload;
         changed = true;
       }
     }
@@ -2004,9 +2530,19 @@ function getBoPreviewTrainSpec(unitName, buildingType, civ, options = {}) {
   let cost = { ...(base.cost || { food: 0, wood: 0, gold: 0, stone: 0 }) };
   let time = base.time || 0;
   const ottomanSettings = options.ottomanSettings || getBoOttomanSettingsFromInputs();
+  const howState = isBoHouseOfWisdomCiv(civ) ? getBoHouseOfWisdomPreviewState(options.timeOverride) : null;
   if (civ === "Mongols" && /horseman/i.test(resolveBoUnitName(unitName))) {
     const civBonus = BO_CIV_BONUSES?.[civ] || {};
     time *= civBonus.horsemenTrainTimeMult || 0.75;
+  }
+  if (isSiegeUnit(unitName) && Number.isFinite(howState?.goldenAge?.bonuses?.siegeCostMult) && howState.goldenAge.bonuses.siegeCostMult > 0) {
+    const mult = howState.goldenAge.bonuses.siegeCostMult;
+    cost = {
+      food: Math.round((cost.food || 0) * mult),
+      wood: Math.round((cost.wood || 0) * mult),
+      gold: Math.round((cost.gold || 0) * mult),
+      stone: Math.round((cost.stone || 0) * mult)
+    };
   }
   if (buildingType === BO_OTTOMAN_MILITARY_SCHOOL_BUILDING) {
     const school = getBoOttomanMilitarySchoolConfig(civ);
@@ -2023,6 +2559,9 @@ function getBoPreviewTrainSpec(unitName, buildingType, civ, options = {}) {
     }
   } else if (buildingType === "Town Center") {
     time = applyBoWorkRateToDuration(time, getBoPreviewTownCenterWorkRatePct(civ, options.age));
+  }
+  if (howState?.goldenAge?.bonuses?.productionPct && BO_PRODUCTION_BUILDINGS.has(buildingType) && buildingType !== "Town Center") {
+    time = applyBoWorkRateToDuration(time, howState.goldenAge.bonuses.productionPct);
   }
   if (civ === "Ottomans" && resolveBoUnitName(unitName) === "Villager" && ottomanSettings?.paxOttomana) {
     time = applyBoWorkRateToDuration(time, 75);
@@ -2051,29 +2590,10 @@ function applyAutoDefaultsForCommand(cmd, civ) {
     }
   }
   if (cmd.type === "tech") {
-    const def = getBoTechDefaults(cmd.payload.techType) || null;
-    if (cmd.autoTime && def?.time != null) cmd.payload.time = def.time;
-    if (cmd.autoTime) {
-      const techBuildingType = cmd.payload.building || inferBoBuildingTypeFromId(cmd.payload.buildingId);
-      if (techBuildingType === "Town Center") {
-        const tcPct = getBoPreviewTownCenterWorkRatePct(civ);
-        cmd.payload.time = applyBoWorkRateToDuration(cmd.payload.time, tcPct);
-      }
-    }
-    if (cmd.autoCost && def?.cost) {
-      cmd.payload.cost = { ...def.cost };
-      if (civ === "Delhi Sultanate") {
-        cmd.payload.cost = { food: 0, wood: 0, gold: 0, stone: 0 };
-      } else if ((civ === "French" || civ === "Jeanne d'Arc") && def?.category === "eco") {
-        const mult = civBonus.ecoTechCostMult || 0.65;
-        cmd.payload.cost = {
-          food: Math.round((cmd.payload.cost.food || 0) * mult),
-          wood: Math.round((cmd.payload.cost.wood || 0) * mult),
-          gold: Math.round((cmd.payload.cost.gold || 0) * mult),
-          stone: Math.round((cmd.payload.cost.stone || 0) * mult)
-        };
-      }
-    }
+    const techBuildingType = cmd.payload.building || inferBoBuildingTypeFromId(cmd.payload.buildingId);
+    const info = getBoTechDisplayInfo(cmd.payload.techType, civ, techBuildingType);
+    if (cmd.autoTime) cmd.payload.time = info.time;
+    if (cmd.autoCost) cmd.payload.cost = { ...info.cost };
   }
   if (cmd.type === "trainUnit") {
     const trainingBuilding = cmd.payload.building || inferBoBuildingTypeFromId(cmd.payload.buildingId);
@@ -2102,6 +2622,14 @@ function applyAutoDefaultsForCommand(cmd, civ) {
   if (cmd.type === "garrisonScholars") {
     if (cmd.autoTime) cmd.payload.timePerScholar = BO_SCHOLAR.time;
     if (cmd.autoCost) cmd.payload.costGold = BO_SCHOLAR.costGold;
+  }
+  if (cmd.type === "houseOfWisdomWing") {
+    const spec = getBoHouseOfWisdomCommandSpec(cmd, civ);
+    cmd.payload.building = BO_HOUSE_OF_WISDOM_BUILDING;
+    cmd.payload.buildingId = BO_HOUSE_OF_WISDOM_BUILDING;
+    if (cmd.autoTime) cmd.payload.time = spec.time;
+    if (cmd.autoCost) cmd.payload.cost = { ...spec.cost };
+    cmd.payload.targetAge = spec.targetAge;
   }
   if (cmd.type === "ageUp") {
     const ageTimes = civBonus.ageUpTimeByTarget || BO_AGE_UP_TIME_DEFAULTS;
@@ -2148,6 +2676,7 @@ function inferBoBuildingTypeFromId(id) {
 function getBoCommandDuration(cmd, startTime = 0, simEndOverride = null) {
   if (!cmd) return 0;
   if (cmd.type === "assign") return cmd.payload.travelDelaySec || 0;
+  if (cmd.type === "houseOfWisdomWing") return Math.max(0, cmd.payload.time || 0);
   if (cmd.type === "resourceTrip") return 0;
   if (cmd.type === "vizierChoice") return 0;
   if (cmd.type === "buildBuilding") {
@@ -2197,6 +2726,10 @@ function getBoCommandLabel(cmd) {
   if (cmd.type === "buildBuilding") return `Build ${getBoBuildQueueSummary(cmd.payload)}`;
   if (cmd.type === "tech") return `Tech: ${cmd.payload.techType}`;
   if (cmd.type === "ageUp") return `Age Up to ${cmd.payload.targetAge}`;
+  if (cmd.type === "houseOfWisdomWing") {
+    const civ = getBoSelectedCiv();
+    return `House of Wisdom: ${getBoHouseOfWisdomWingLabel(civ, cmd.payload?.wing, cmd.payload?.branch)}`;
+  }
   if (cmd.type === "resourceTrip") return `${getBoResourceLabel(cmd.payload?.resource)} trip ${formatBoTripOverrideValue(cmd.payload?.tripOverrideSec || 0)}`;
   if (cmd.type === "vizierChoice") return `Imperial Council: ${getBoOttomanChoiceDef(cmd.payload?.choiceId)?.label || "Vizier Choice"}`;
   if (cmd.type === "rally") return `Rally -> ${cmd.payload.target}`;
@@ -2242,6 +2775,7 @@ function formatBoAssignmentLabel(payload) {
 function boLaneForCommand(cmd) {
   if (!cmd) return "General";
   if (cmd.type === "assign") return "Assignments";
+  if (cmd.type === "houseOfWisdomWing") return BO_HOUSE_OF_WISDOM_BUILDING;
   if (cmd.type === "resourceTrip") return getBoResourceLabel(cmd.payload?.resource);
   if (cmd.type === "vizierChoice") return BO_OTTOMAN_IMPERIAL_COUNCIL_BUILDING;
   if (cmd.type === "buildBuilding") return "Construction";
@@ -2280,6 +2814,7 @@ function getBoCommandExecutionPriority(cmd) {
   if (!cmd) return 99;
   if (cmd.type === "assign") return 0;
   if (cmd.type === "resourceTrip" || cmd.type === "vizierChoice") return 1;
+  if (cmd.type === "houseOfWisdomWing") return 2;
   if (cmd.type === "buildBuilding") return 2;
   return 2;
 }
@@ -2343,6 +2878,7 @@ function buildBoPreviewTimelineRows() {
 }
 
 function getBoBuildReadyMap(planned) {
+  const civ = getBoSelectedCiv();
   const buildCounts = { "Town Center": 1 };
   const buildById = new Map();
   buildById.set("TC #1", {
@@ -2351,6 +2887,15 @@ function getBoBuildReadyMap(planned) {
       readyAt: 0,
       sourceCommandId: BO_CAPITAL_TC_ANCHOR
   });
+  if (isBoHouseOfWisdomCiv(civ)) {
+    buildCounts[BO_HOUSE_OF_WISDOM_BUILDING] = 1;
+    buildById.set(BO_HOUSE_OF_WISDOM_BUILDING, {
+      buildingType: BO_HOUSE_OF_WISDOM_BUILDING,
+      buildingId: BO_HOUSE_OF_WISDOM_BUILDING,
+      readyAt: 0,
+      sourceCommandId: BO_CAPITAL_TC_ANCHOR
+    });
+  }
   const segments = [];
   planned
     .filter((p) => p.cmd?.type === "buildBuilding")
@@ -2446,6 +2991,7 @@ function getBoBlockFamilyClass(cmd, row) {
   if (!cmd) return "bo-family-generic";
   if (cmd.type === "assign") return "bo-family-assign";
   if (cmd.type === "buildBuilding") return "bo-family-build";
+  if (cmd.type === "houseOfWisdomWing") return "bo-family-build";
   if (cmd.type === "tech") return "bo-family-tech";
   if (cmd.type === "trainUnit") return cmd.payload?.repeatUntilEnd ? "bo-family-repeat" : "bo-family-queue";
   if (cmd.type === "autoQueue") return "bo-family-repeat";
@@ -2455,6 +3001,9 @@ function getBoBlockFamilyClass(cmd, row) {
 function getBoLaneActionBadges(lane) {
   if (lane?.type === "resource") {
     return [{ label: "Trip", className: "trip", icon: "bi-signpost-split-fill" }];
+  }
+  if (lane?.buildingType === BO_HOUSE_OF_WISDOM_BUILDING || lane?.key === "houseOfWisdom") {
+    return [{ label: "Wings", className: "tech", icon: "bi-building-fill-gear" }];
   }
   if (lane?.buildingType === BO_OTTOMAN_IMPERIAL_COUNCIL_BUILDING || lane?.key === "imperialCouncil") {
     return [{ label: "Vizier", className: "vizier", icon: "bi-diagram-3-fill" }];
@@ -2558,6 +3107,15 @@ function renderBoTimelineEditor() {
   };
 
   addLane("tc", "Town Center", { type: "tc" });
+  if (isBoHouseOfWisdomCiv(civ)) {
+    addLane("houseOfWisdom", BO_HOUSE_OF_WISDOM_BUILDING, {
+      type: "building",
+      buildingId: BO_HOUSE_OF_WISDOM_BUILDING,
+      buildingType: BO_HOUSE_OF_WISDOM_BUILDING,
+      readyAt: 0,
+      sourceCommandId: BO_CAPITAL_TC_ANCHOR
+    });
+  }
   if (civ === "Ottomans") {
     addLane("imperialCouncil", BO_OTTOMAN_IMPERIAL_COUNCIL_BUILDING, {
       type: "building",
@@ -3831,6 +4389,7 @@ function formatBoCompactCost(cost = {}) {
 
 function getBoTechDisplayInfo(techType, civ, buildingType = null) {
   const civBonus = BO_CIV_BONUSES?.[civ] || {};
+  const howState = isBoHouseOfWisdomCiv(civ) ? getBoHouseOfWisdomPreviewState() : null;
   const def = getBoTechDefaults(techType) || {};
   let time = Number(def.time) || 0;
   let cost = def.cost
@@ -3844,6 +4403,9 @@ function getBoTechDisplayInfo(techType, civ, buildingType = null) {
   if (buildingType === "Town Center") {
     time = applyBoWorkRateToDuration(time, getBoPreviewTownCenterWorkRatePct(civ));
   }
+  if (howState?.goldenAge?.bonuses?.researchPct) {
+    time = applyBoWorkRateToDuration(time, howState.goldenAge.bonuses.researchPct);
+  }
   if (civ === "Delhi Sultanate" && civBonus.techCostFree) {
     cost = { food: 0, wood: 0, gold: 0, stone: 0 };
   } else if ((civ === "French" || civ === "Jeanne d'Arc") && def.category === "eco") {
@@ -3853,6 +4415,14 @@ function getBoTechDisplayInfo(techType, civ, buildingType = null) {
       wood: Math.round((cost.wood || 0) * mult),
       gold: Math.round((cost.gold || 0) * mult),
       stone: Math.round((cost.stone || 0) * mult)
+    };
+  }
+  if (howState?.effects?.preservationOfKnowledge) {
+    cost = {
+      food: Math.round((cost.food || 0) * 0.8),
+      wood: Math.round((cost.wood || 0) * 0.8),
+      gold: Math.round((cost.gold || 0) * 0.8),
+      stone: Math.round((cost.stone || 0) * 0.8)
     };
   }
   return { time, cost };
@@ -3911,6 +4481,7 @@ function renderBoCommandEditor(cmd) {
   }
   const isMarkerDraft = isBoMarkerDraftCommand(cmd);
   const civ = document.getElementById("boCiv")?.value || "";
+  const isHowCiv = isBoHouseOfWisdomCiv(civ);
   if (!civ) {
     editor.innerHTML = "<span class='text-muted'>Select a civilization to begin.</span>";
     return;
@@ -3993,7 +4564,7 @@ function renderBoCommandEditor(cmd) {
   }
 
   const isDelhi = civ === "Delhi Sultanate";
-  const isMuslim = BO_MUSLIM_CIVS.has(civ);
+  const noBoarCiv = isBoNoBoarCiv(civ);
   const delhiOnlyTechs = new Set(["Sanctity", "Dome of the Faith"]);
   const isDelhiOnly = (!isDelhi) && (cmd.type === "garrisonScholars" || (cmd.type === "tech" && delhiOnlyTechs.has(cmd.payload?.techType)));
   if (isDelhiOnly) {
@@ -4048,7 +4619,7 @@ function renderBoCommandEditor(cmd) {
     <option value="sheep">Sheep</option>
     <option value="berries">Berries</option>
     <option value="deer">Deer</option>
-    <option value="boar" ${isMuslim ? "disabled" : ""}>Boar</option>
+    <option value="boar" ${noBoarCiv ? "disabled" : ""}>Boar</option>
     <option value="farm">Farm</option>
     <option value="wood">Wood</option>
     <option value="gold">Gold</option>
@@ -4076,7 +4647,7 @@ function renderBoCommandEditor(cmd) {
       <div class="row g-2">
         <div class="col-md-3 col-6"><small class="text-muted">Berries</small><input type="number" class="form-control form-control-sm" data-field="assignBerries" value="${cmd.payload.berries}" min="0" step="1"></div>
         <div class="col-md-3 col-6"><small class="text-muted">Deer</small><input type="number" class="form-control form-control-sm" data-field="assignDeer" value="${cmd.payload.deer}" min="0" step="1"></div>
-        <div class="col-md-3 col-6"><small class="text-muted">Boar</small><input type="number" class="form-control form-control-sm" data-field="assignBoar" value="${cmd.payload.boar}" min="0" step="1" ${isMuslim ? "disabled" : ""}></div>
+        <div class="col-md-3 col-6"><small class="text-muted">Boar</small><input type="number" class="form-control form-control-sm" data-field="assignBoar" value="${cmd.payload.boar}" min="0" step="1" ${noBoarCiv ? "disabled" : ""}></div>
         <div class="col-md-3 col-6"><small class="text-muted">Sheep</small><input type="number" class="form-control form-control-sm" data-field="assignSheep" value="${cmd.payload.sheep}" min="0" step="1"></div>
         <div class="col-md-3 col-6"><small class="text-muted">Farms</small><input type="number" class="form-control form-control-sm" data-field="assignFarm" value="${cmd.payload.farm}" min="0" step="1" ${farmsDisabled ? "disabled" : ""}></div>
         <div class="col-md-3 col-6"><small class="text-muted">Wood</small><input type="number" class="form-control form-control-sm" data-field="assignWood" value="${cmd.payload.wood}" min="0" step="1"></div>
@@ -4135,7 +4706,7 @@ function renderBoCommandEditor(cmd) {
             <button type="button" class="bo-builder-btn bo-return-btn" data-return="sheep">Sheep</button>
             <button type="button" class="bo-builder-btn bo-return-btn" data-return="berries">Berries</button>
             <button type="button" class="bo-builder-btn bo-return-btn" data-return="deer">Deer</button>
-            <button type="button" class="bo-builder-btn bo-return-btn" data-return="boar" ${isMuslim ? "disabled" : ""}>Boar</button>
+            <button type="button" class="bo-builder-btn bo-return-btn" data-return="boar" ${noBoarCiv ? "disabled" : ""}>Boar</button>
             <button type="button" class="bo-builder-btn bo-return-btn" data-return="farm" ${farmsDisabled ? "disabled" : ""}>Farm</button>
             <button type="button" class="bo-builder-btn bo-return-btn" data-return="wood">Wood</button>
             <button type="button" class="bo-builder-btn bo-return-btn" data-return="gold">Gold</button>
@@ -4220,6 +4791,70 @@ function renderBoCommandEditor(cmd) {
       </div>
       ${costInputs(cmd.payload.cost)}
     `;
+  } else if (cmd.type === "houseOfWisdomWing") {
+    const previewState = getBoHouseOfWisdomPreviewState(cmd.atTime || 0);
+    const spec = getBoHouseOfWisdomCommandSpec(cmd, civ, {
+      effects: previewState.effects,
+      researchPct: previewState.goldenAge?.bonuses?.researchPct || 0
+    });
+    const currentWing = cmd.payload?.wing || "culture";
+    const wingEntries = civ === "Ayyubids"
+      ? Object.entries(BO_AYYUBID_HOW_BRANCHES)
+      : Object.entries(BO_ABBASID_HOW_WINGS);
+    const wingOptions = wingEntries
+      .map(([wingKey, wingDef]) => `<option value="${wingKey}">${wingDef.label}</option>`)
+      .join("");
+    const branchOptions = civ === "Ayyubids"
+      ? Object.entries(BO_AYYUBID_HOW_BRANCHES[currentWing]?.branches || {})
+        .map(([branchKey, branchDef]) => `<option value="${branchKey}">${branchDef.label}</option>`)
+        .join("")
+      : "";
+    const selectedLabel = getBoHouseOfWisdomWingLabel(civ, cmd.payload?.wing, cmd.payload?.branch);
+    const description = getBoHouseOfWisdomWingDescription(civ, cmd.payload?.wing, cmd.payload?.branch, spec.targetAge);
+    const goldenAgeText = formatBoGoldenAgeBonuses(previewState.goldenAge?.bonuses || {});
+    typeFields = `
+      <div class="bo-editor-stack">
+        ${renderBoEditorSection("House of Wisdom", `
+          <div class="row g-2">
+            <div class="col-md-5">
+              <small class="text-muted">Wing</small>
+              <select class="form-select form-select-sm" data-field="howWing">${wingOptions}</select>
+            </div>
+            ${civ === "Ayyubids" ? `
+              <div class="col-md-4">
+                <small class="text-muted">Branch</small>
+                <select class="form-select form-select-sm" data-field="howBranch">${branchOptions}</select>
+              </div>
+            ` : ""}
+            <div class="col-md-${civ === "Ayyubids" ? "3" : "7"}">
+              <small class="text-muted">Target Age</small>
+              <input type="text" class="form-control form-control-sm" value="Age ${spec.targetAge}" disabled>
+            </div>
+          </div>
+          <div class="bo-target-note text-muted mt-2">Selected: ${selectedLabel}. ${description || "Choose one unused House of Wisdom wing."}</div>
+          <div class="bo-target-note text-muted">Golden Age count ${previewState.goldenAge?.count || 0} • Tier ${previewState.goldenAge?.tier || 0}${goldenAgeText ? ` • ${goldenAgeText}` : ""}</div>
+        `)}
+        ${renderBoEditorSection("Timing", `
+          <div class="row g-2">
+            <div class="col-md-3">
+              <small class="text-muted">Time (s)</small>
+              <input type="number" class="form-control form-control-sm" data-field="howTime" value="${cmd.payload.time}" min="0">
+            </div>
+            <div class="col-md-9 d-flex align-items-end justify-content-end">
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" data-field="autoTime" ${cmd.autoTime ? "checked" : ""}>
+                <label class="form-check-label">Auto time</label>
+              </div>
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" data-field="autoCost" ${cmd.autoCost ? "checked" : ""}>
+                <label class="form-check-label">Auto cost</label>
+              </div>
+            </div>
+          </div>
+          ${costInputs(cmd.payload.cost)}
+        `, { muted: "House of Wisdom wings replace landmark age-ups for Abbasid Dynasty and Ayyubids." })}
+      </div>
+    `;
   } else if (cmd.type === "rally") {
     typeFields = `
       <div class="row g-2">
@@ -4229,7 +4864,7 @@ function renderBoCommandEditor(cmd) {
             <option value="sheep">Sheep</option>
             <option value="berries">Berries</option>
             <option value="deer">Deer</option>
-            <option value="boar" ${isMuslim ? "disabled" : ""}>Boar</option>
+            <option value="boar" ${noBoarCiv ? "disabled" : ""}>Boar</option>
             <option value="farm">Farm</option>
             <option value="wood">Wood</option>
             <option value="gold">Gold</option>
@@ -4401,6 +5036,7 @@ function renderBoCommandEditor(cmd) {
     { value: "assign", label: "Assign Villagers" },
     { value: "buildBuilding", label: "Build Building" },
     { value: "tech", label: "Research Tech" },
+    { value: "houseOfWisdomWing", label: "House of Wisdom", includeIf: cmd.type === "houseOfWisdomWing" },
     { value: "resourceTrip", label: "Resource Trip", includeIf: cmd.type === "resourceTrip" },
     { value: "vizierChoice", label: "Imperial Council", includeIf: cmd.type === "vizierChoice" },
     { value: "trainUnit", label: "Queue Unit", includeIf: cmd.type === "trainUnit" },
@@ -4470,6 +5106,15 @@ function renderBoCommandEditor(cmd) {
   if (cmd.type === "resourceTrip") {
     const resourceSel = editor.querySelector('[data-field="resourceTripResource"]');
     if (resourceSel) resourceSel.value = BO_RESOURCE_KEYS.includes(cmd.payload?.resource) ? cmd.payload.resource : "sheep";
+  }
+  if (cmd.type === "houseOfWisdomWing") {
+    const wingSel = editor.querySelector('[data-field="howWing"]');
+    if (wingSel) wingSel.value = cmd.payload?.wing || "culture";
+    const branchSel = editor.querySelector('[data-field="howBranch"]');
+    if (branchSel) {
+      const fallbackBranch = Object.keys(BO_AYYUBID_HOW_BRANCHES[cmd.payload?.wing || "culture"]?.branches || {})[0] || "";
+      branchSel.value = cmd.payload?.branch || fallbackBranch;
+    }
   }
   if (cmd.type === "vizierChoice") {
     const choiceSel = editor.querySelector('[data-field="vizierChoiceId"]');
@@ -4666,7 +5311,7 @@ function renderBoCommandEditor(cmd) {
       return;
     }
     syncBoCommandFromEditor(editor, cmd);
-    if (["buildBuilding", "techType", "trainUnit", "trainBuilding", "trainRepeatUntilEnd", "autoTime", "autoCost"].includes(field)) {
+    if (["buildBuilding", "techType", "trainUnit", "trainBuilding", "trainRepeatUntilEnd", "autoTime", "autoCost", "howWing", "howBranch"].includes(field)) {
       renderBoCommandEditor(cmd);
     }
     scheduleRunBuildOrder();
@@ -4708,7 +5353,7 @@ function syncBoCommandFromEditor(editor, cmd) {
 
   if (cmd.type === "assign") {
     const civ = document.getElementById("boCiv")?.value || "";
-    const isMuslim = BO_MUSLIM_CIVS.has(civ);
+    const noBoarCiv = isBoNoBoarCiv(civ);
     const farmsDisabled = (BO_CIV_BONUSES?.[civ]?.farmsDisabled || civ === "Mongols");
     const overrides = { ...(cmd.payload.tripOverrides || {}) };
     const applyOverride = (field, key, allow = true) => {
@@ -4722,7 +5367,7 @@ function syncBoCommandFromEditor(editor, cmd) {
     applyOverride("tripSheep", "sheep");
     applyOverride("tripBerries", "berries");
     applyOverride("tripDeer", "deer");
-    applyOverride("tripBoar", "boar", !isMuslim);
+    applyOverride("tripBoar", "boar", !noBoarCiv);
     applyOverride("tripFarm", "farm", !farmsDisabled);
     applyOverride("tripWood", "wood");
     applyOverride("tripGold", "gold");
@@ -4730,7 +5375,7 @@ function syncBoCommandFromEditor(editor, cmd) {
     let counts = {
       berries: getNum("assignBerries"),
       deer: getNum("assignDeer"),
-      boar: isMuslim ? 0 : getNum("assignBoar"),
+      boar: noBoarCiv ? 0 : getNum("assignBoar"),
       sheep: getNum("assignSheep"),
       farm: farmsDisabled ? 0 : getNum("assignFarm"),
       wood: getNum("assignWood"),
@@ -4770,6 +5415,27 @@ function syncBoCommandFromEditor(editor, cmd) {
       tripOverrides: overrides
     };
     updateAssignSummary(editor, cmd);
+  } else if (cmd.type === "houseOfWisdomWing") {
+    updateAuto();
+    const wing = getVal("howWing") || cmd.payload?.wing || "culture";
+    const branch = (document.getElementById("boCiv")?.value || "") === "Ayyubids"
+      ? (getVal("howBranch") || Object.keys(BO_AYYUBID_HOW_BRANCHES[wing]?.branches || {})[0] || null)
+      : null;
+    cmd.payload = {
+      ...cmd.payload,
+      wing,
+      branch,
+      building: BO_HOUSE_OF_WISDOM_BUILDING,
+      buildingId: BO_HOUSE_OF_WISDOM_BUILDING,
+      time: Math.max(0, getNum("howTime")),
+      cost: {
+        food: getNum("costFood"),
+        wood: getNum("costWood"),
+        gold: getNum("costGold"),
+        stone: getNum("costStone")
+      }
+    };
+    applyAutoDefaultsForCommand(cmd, document.getElementById("boCiv")?.value || "");
   } else if (cmd.type === "resourceTrip") {
     const resource = getVal("resourceTripResource") || cmd.payload.resource || "sheep";
     cmd.payload = {
@@ -4809,12 +5475,12 @@ function syncBoCommandFromEditor(editor, cmd) {
     applyAutoDefaultsForCommand(cmd, document.getElementById("boCiv")?.value || "");
   } else if (cmd.type === "rally") {
     const civ = document.getElementById("boCiv")?.value || "";
-    const isMuslim = BO_MUSLIM_CIVS.has(civ);
+    const noBoarCiv = isBoNoBoarCiv(civ);
     const target = getVal("rallyTarget") || "idle";
     const tripRaw = editor.querySelector('[data-field="rallyTripOverride"]')?.value;
     const tripOverride = tripRaw === "" || tripRaw === null || tripRaw === undefined ? null : parseFloat(tripRaw);
     cmd.payload = {
-      target: isMuslim && target === "boar" ? "idle" : target,
+      target: noBoarCiv && target === "boar" ? "idle" : target,
       travelDelaySec: Math.max(0, getNum("rallyTravelDelay")),
       tripOverrideSec: Number.isFinite(tripOverride) ? Math.max(0, tripOverride) : null
     };
@@ -4874,6 +5540,102 @@ function renderBoBuildingPanel(editor, building) {
   const civ = getBoSelectedCiv();
   if (!civ) {
     editor.innerHTML = "<span class='text-muted'>Select a civilization to begin.</span>";
+    return;
+  }
+  if (building?.type === BO_HOUSE_OF_WISDOM_BUILDING && isBoHouseOfWisdomCiv(civ)) {
+    const anchorTime = getBoAnchorTime();
+    const state = getBoHouseOfWisdomPreviewState(anchorTime);
+    const displayWings = (state.wings || []).length
+      ? state.wings
+      : getBoPlannedHouseOfWisdomWings(civ);
+    const choices = getBoHouseOfWisdomActionChoices(civ, state);
+    const goldenAgeText = formatBoGoldenAgeBonuses(state.goldenAge?.bonuses || {});
+    const wingSummary = displayWings.length
+      ? displayWings.map((entry) => {
+        const label = getBoHouseOfWisdomWingLabel(civ, entry.wing, entry.branch);
+        return `${label} (Age ${entry.targetAge || getBoHouseOfWisdomChoiceAgeFromCount(0)})`;
+      }).join(" • ")
+      : "No wings chosen yet";
+    const summaryItems = [
+      ["Golden Age", `Tier ${state.goldenAge?.tier || 0}`],
+      ["Counted buildings", state.goldenAge?.count || 0],
+      ["Active bonuses", goldenAgeText || "None yet"],
+      ["Chosen wings", wingSummary]
+    ];
+    const summaryHtml = summaryItems.map(([label, value]) => `
+      <div class="bo-vizier-summary-pill">
+        <span class="bo-vizier-summary-pill-label">${label}</span>
+        <span class="bo-vizier-summary-pill-value">${value}</span>
+      </div>
+    `).join("");
+    const actionsHtml = choices.length
+      ? choices.map((choice) => `
+        <button class="bo-vizier-choice-btn" type="button" data-how-wing="${choice.wing}" data-how-branch="${choice.branch || ""}">
+          <div class="bo-vizier-choice-title">
+            <span>${choice.label}</span>
+            <span class="bo-vizier-choice-level">Age ${getBoHouseOfWisdomChoiceAgeFromCount(displayWings.length)}</span>
+          </div>
+          <div class="bo-vizier-choice-body">${choice.description || "Choose this wing from the House of Wisdom."}</div>
+        </button>
+      `).join("")
+      : `<div class="bo-target-note text-muted">All House of Wisdom wings are already chosen.</div>`;
+    editor.innerHTML = `
+      <div class="bo-card-header">
+        <div class="bo-card-title">House of Wisdom</div>
+      </div>
+      <div class="bo-building-meta"><strong>Selected:</strong> ${BO_HOUSE_OF_WISDOM_BUILDING} <span class="text-muted">Always available from 0:00</span></div>
+      <div class="bo-vizier-note">Age up through House of Wisdom wings instead of generic landmarks.</div>
+      <div class="bo-vizier-summary-grid">${summaryHtml}</div>
+      <div class="bo-action-block">
+        <div class="bo-action-title">Add Wing</div>
+        <div class="row g-2">
+          <div class="col-md-4 col-sm-4">
+            <small class="text-muted">Timing</small>
+            <select class="form-select form-select-sm" data-field="howTimeMode">
+              ${renderBoTimingModeOptions("afterPrev")}
+            </select>
+          </div>
+          <div class="col-md-4 col-sm-4">
+            <small class="text-muted">Time (s)</small>
+            <input type="number" class="form-control form-control-sm" data-field="howAtTime" value="${Math.round(anchorTime)}" min="0" step="1">
+          </div>
+          <div class="col-md-4 col-sm-4 d-flex align-items-end">
+            <div class="bo-vizier-note">Use a timeline pin for exact House of Wisdom timing.</div>
+          </div>
+        </div>
+      </div>
+      <div class="bo-vizier-choice-grid">${actionsHtml}</div>
+    `;
+    const queueHowChoice = (wing, branch) => {
+      const mode = editor.querySelector('[data-field="howTimeMode"]')?.value || "afterPrev";
+      const atTime = parseFloat(editor.querySelector('[data-field="howAtTime"]')?.value) || 0;
+      const timing = resolveBoTimingModeSelection(mode, atTime);
+      const cmd = createBoCommand("houseOfWisdomWing");
+      cmd.payload.wing = wing;
+      cmd.payload.branch = branch || null;
+      applyAutoDefaultsForCommand(cmd, civ);
+      if (timing.timeMode === "atTime") {
+        insertBoCommandAtTime(cmd, timing.atTime);
+      } else {
+        cmd.timeMode = "afterPrev";
+        cmd.afterId = getPrevBoCommandId(cmd.id);
+        boCommands.push(cmd);
+      }
+      boSelectedCommandId = cmd.id;
+      boSelectedBuilding = null;
+      setBoTargetBuilding(null);
+      boLastCommandType = "houseOfWisdomWing";
+      boLastResults = null;
+      renderBoTimelineEditor();
+      renderBoCommandEditor(cmd);
+      renderBoGatherRates();
+      scheduleRunBuildOrder();
+    };
+    editor.querySelectorAll("[data-how-wing]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        queueHowChoice(btn.dataset.howWing, btn.dataset.howBranch || null);
+      });
+    });
     return;
   }
   if (building?.type === BO_OTTOMAN_IMPERIAL_COUNCIL_BUILDING) {
@@ -4972,8 +5734,26 @@ function renderBoBuildingPanel(editor, building) {
     });
     return;
   }
+  if (cmd.type === "buildBuilding" && isHowCiv && getBoBuildSteps(cmd.payload).some((step) => /^Landmark \(Age /.test(step.building || ""))) {
+    editor.innerHTML = `
+      <div class="bo-warning">Legacy landmark steps are blocked for ${civ}. Replace them with House of Wisdom wings from the House of Wisdom lane.</div>
+      <button class="bo-remove-btn mt-2" data-action="remove" type="button">Remove</button>
+    `;
+    editor.addEventListener("click", (e) => {
+      const action = e.target.closest("button")?.dataset.action;
+      if (action === "remove") {
+        boCommands = boCommands.filter((c) => c.id !== cmd.id);
+        boSelectedCommandId = boCommands[0]?.id || null;
+        boLastResults = null;
+        renderBoTimelineEditor();
+        renderBoCommandEditor(getSelectedBoCommand());
+        scheduleRunBuildOrder();
+      }
+    });
+    return;
+  }
   const isDelhi = civ === "Delhi Sultanate";
-  const isMuslim = BO_MUSLIM_CIVS.has(civ);
+  const noBoarCiv = isBoNoBoarCiv(civ);
   const delhiOnlyTechs = new Set(["Sanctity", "Dome of the Faith"]);
   const isProduction = BO_PRODUCTION_BUILDINGS.has(building.type);
   const isTech = BO_TECH_BUILDINGS.has(building.type);
@@ -4990,7 +5770,7 @@ function renderBoBuildingPanel(editor, building) {
     <option value="sheep">Sheep</option>
     <option value="berries">Berries</option>
     <option value="deer">Deer</option>
-    <option value="boar" ${isMuslim ? "disabled" : ""}>Boar</option>
+    <option value="boar" ${noBoarCiv ? "disabled" : ""}>Boar</option>
     <option value="farm">Farm</option>
     <option value="wood">Wood</option>
     <option value="gold">Gold</option>
@@ -5504,8 +6284,8 @@ function resolveBoTimingModeSelection(mode, fallbackAtTime = 0) {
 function readBoSettings() {
   const getNum = (id, def = 0) => parseFloat(document.getElementById(id)?.value) || def;
   const start = BO_STARTING?.resources || {};
-  const civ = document.getElementById("boCiv")?.value || "";
-  const boarRestricted = BO_BOAR_RESTRICTED_CIVS.has(civ);
+  const civ = getBoSelectedCiv();
+  const boarRestricted = isBoNoBoarCiv(civ);
   return {
     civ,
     startAge: parseInt(document.getElementById("boStartAge")?.value, 10) || 1,
@@ -5569,8 +6349,7 @@ function readBoSettings() {
     },
     bonusData: {
       civBonuses: BO_CIV_BONUSES,
-      muslimCivs: BO_MUSLIM_CIVS,
-      muslimBerryBonus: BO_MUSLIM_BERRY_BONUS,
+      noBoarCivs: getBoNoBoarCivSet(),
       sacredSiteGoldPerMin: BO_SACRED_SITE_GOLD_PER_MIN,
       pastureSheepSeconds: BO_PASTURE_SHEEP_SECONDS,
       ovooStonePerMinByAge: BO_OVOO_STONE_PER_MIN_BY_AGE,
@@ -5594,8 +6373,10 @@ function simulateBuildOrder(commands, config) {
   const civ = config.civ || "";
   const bonusData = config.bonusData || {};
   const civBonus = bonusData.civBonuses?.[civ] || BO_CIV_BONUSES?.[civ] || {};
-  const muslimCiv = bonusData.muslimCivs ? bonusData.muslimCivs.has(civ) : BO_MUSLIM_CIVS.has(civ);
-  const muslimBerryBonus = bonusData.muslimBerryBonus || BO_MUSLIM_BERRY_BONUS;
+  const noBoarCiv = bonusData.noBoarCivs ? bonusData.noBoarCivs.has(civ) : isBoNoBoarCiv(civ);
+  const berryBonus = getBoBerryBonusConfig(civ);
+  const howCiv = isBoHouseOfWisdomCiv(civ);
+  const howConfig = civBonus.houseOfWisdom || getBoHouseOfWisdomConfig(civ) || null;
   const sacredSiteGoldPerMin = bonusData.sacredSiteGoldPerMin ?? BO_SACRED_SITE_GOLD_PER_MIN;
   const pastureSheepSeconds = bonusData.pastureSheepSeconds ?? BO_PASTURE_SHEEP_SECONDS;
   const ovooStonePerMinByAge = bonusData.ovooStonePerMinByAge || BO_OVOO_STONE_PER_MIN_BY_AGE;
@@ -5610,17 +6391,19 @@ function simulateBuildOrder(commands, config) {
     deer: Math.max(0, (foodNodes.deer?.count || 0) * (foodNodes.deer?.amount || 0)),
     boar: Math.max(0, (foodNodes.boar?.count || 0) * (foodNodes.boar?.amount || 0))
   };
-  let berryCapacityBonusApplied = false;
+  let berryCapacityBonusApplied = 0;
   const held = { sheep: 0, berries: 0, deer: 0, boar: 0, farm: 0, wood: 0, gold: 0, stone: 0 };
   let tripOverrides = {};
   const buildingCounts = {
     "Town Center": 1,
+    [BO_HOUSE_OF_WISDOM_BUILDING]: howCiv ? 1 : 0,
     "Mill": 0,
     "Lumber Camp": 0,
     "Mining Camp": 0,
     "Barracks": 0,
     "Archery Range": 0,
     "Stable": 0,
+    "Siege Workshop": 0,
     "Keep": 0,
     "University": 0,
     "Military School": 0,
@@ -5628,7 +6411,11 @@ function simulateBuildOrder(commands, config) {
     "Farm": 0,
     "Pasture": 0,
     "Ger": 0,
-    "Ovoo": 0
+    "Ovoo": 0,
+    "House": 0,
+    "Market": 0,
+    "Outpost": 0,
+    "Blacksmith": 0
   };
   const productionQueues = {
     "Town Center": [{ id: "TC #1", busyUntil: 0 }],
@@ -5640,7 +6427,9 @@ function simulateBuildOrder(commands, config) {
   };
   const buildingInstances = {};
   Object.keys(buildingCounts).forEach((name) => {
-    buildingInstances[name] = name === "Town Center" ? ["TC #1"] : [];
+    if (name === "Town Center") buildingInstances[name] = ["TC #1"];
+    else if (name === BO_HOUSE_OF_WISDOM_BUILDING && howCiv) buildingInstances[name] = [BO_HOUSE_OF_WISDOM_BUILDING];
+    else buildingInstances[name] = [];
   });
   let farmCount = 0;
   let pastureCount = 0;
@@ -5676,6 +6465,33 @@ function simulateBuildOrder(commands, config) {
   let imperialPalaceCompleted = false;
   let paxOttomanaUntil = 0;
   let greatBombardNeedsImperialUpgrade = false;
+  let houseOfWisdomBusyUntil = 0;
+  const houseOfWisdomState = {
+    wings: [],
+    effects: {
+      preservationOfKnowledge: false,
+      fertileCrescent: false,
+      agriculture: false,
+      improvedProcessing: false,
+      medicalCenters: false,
+      publicLibraries: false,
+      bootCamp: false,
+      compositeBows: false,
+      camelSupport: false,
+      armoredCaravans: false,
+      grandBazaar: false,
+      spiceRoads: false,
+      villagerWorkRatePct: 0,
+      orchardExtraPerNode: 0,
+      buildSpeedPct: 0,
+      masterSmiths: false,
+      militaryAcademy: false,
+      logistics: false,
+      reinforcementCount: 0,
+      advisors: false,
+      bazaar: false
+    }
+  };
 
   function getOttomanActiveEffects(now = time) {
     const effects = {
@@ -5752,6 +6568,77 @@ function simulateBuildOrder(commands, config) {
     return null;
   }
 
+  function countGoldenAgeBuildings() {
+    if (!howCiv) return 0;
+    return Object.entries(buildingCounts).reduce((sum, [name, count]) => {
+      const safeCount = Math.max(0, count || 0);
+      if (!safeCount) return sum;
+      if (name === "Farm") return sum;
+      if (/wall/i.test(name)) return sum;
+      return sum + safeCount;
+    }, 0);
+  }
+
+  function getHouseOfWisdomGoldenAgeNow() {
+    return howCiv ? getBoHouseOfWisdomGoldenAgeState(civ, countGoldenAgeBuildings()) : { count: 0, tier: 0, bonuses: {} };
+  }
+
+  function getHouseOfWisdomEffects() {
+    const goldenAge = getHouseOfWisdomGoldenAgeNow();
+    return {
+      ...houseOfWisdomState.effects,
+      goldenAge
+    };
+  }
+
+  function getHouseOfWisdomResearchPct() {
+    return getHouseOfWisdomEffects().goldenAge?.bonuses?.researchPct || 0;
+  }
+
+  function getHouseOfWisdomProductionPct() {
+    return getHouseOfWisdomEffects().goldenAge?.bonuses?.productionPct || 0;
+  }
+
+  function getDropoffReturnMult() {
+    return houseOfWisdomState.effects.improvedProcessing ? 1.08 : 1;
+  }
+
+  function hasActiveBerryBonus() {
+    if (!berryBonus) return false;
+    if (berryBonus.requiresMill === false) return true;
+    return (buildingCounts["Mill"] || 0) > 0;
+  }
+
+  function getBerryCapacityBonusPerNode() {
+    if (!hasActiveBerryBonus()) return 0;
+    return Math.max(0, berryBonus.capacityBonusPerNode || 0) + Math.max(0, houseOfWisdomState.effects.orchardExtraPerNode || 0);
+  }
+
+  function syncBerryCapacityBonus() {
+    const desired = getBerryCapacityBonusPerNode() * Math.max(0, foodNodes.berries?.count || 0);
+    if (Math.abs(desired - berryCapacityBonusApplied) <= 0.0001) return;
+    foodRemaining.berries = Math.max(0, (foodRemaining.berries || 0) + (desired - berryCapacityBonusApplied));
+    berryCapacityBonusApplied = desired;
+  }
+
+  function isSiegeUnit(unitName) {
+    const resolved = resolveBoUnitName(unitName);
+    const direct = new Set(["Battering Ram", "Ram", "Springald", "Mangonel", "Counterweight Trebuchet", "Trebuchet", "Ribauldequin", "Great Bombard"]);
+    if (direct.has(unitName) || direct.has(resolved)) return true;
+    const unitMeta = getUnitMeta(resolved);
+    return Array.isArray(unitMeta?.tags) ? unitMeta.tags.includes("Siege") : false;
+  }
+
+  function getHouseOfWisdomSampleState() {
+    const goldenAge = getHouseOfWisdomGoldenAgeNow();
+    const effects = { ...houseOfWisdomState.effects };
+    return {
+      wings: houseOfWisdomState.wings.map((entry) => ({ ...entry })),
+      effects,
+      goldenAge
+    };
+  }
+
   function getManualDropoffSnapshot(now) {
     const heldResources = { food: 0, wood: 0, gold: 0, stone: 0, oliveOil: 0, silver: 0 };
     const arrivalMap = new Map();
@@ -5767,25 +6654,29 @@ function simulateBuildOrder(commands, config) {
 
     BO_RESOURCE_KEYS.forEach((res) => {
       const bankKey = isFood(res) ? "food" : res;
+      const dropoffMult = getDropoffReturnMult();
       getResourceCohorts(res).forEach((cohort) => {
         if (!cohort || (cohort.count || 0) <= 0 || cohort.phase === "toResource") return;
-        const carryPerVill = cohort.phase === "toDropoff"
+        const carryPerVill = (cohort.phase === "toDropoff" || cohort.phase === "dropoff")
           ? Math.max(0, cohort.phaseStartCarry || cohort.phaseEndCarry || 0)
           : Math.max(0, getCohortCarryNow(cohort, now));
-        const totalCarry = carryPerVill * Math.max(0, cohort.count || 0);
+        const totalCarry = carryPerVill * Math.max(0, cohort.count || 0) * dropoffMult;
         if (totalCarry <= 0.0001) return;
         heldResources[bankKey] += totalCarry;
         const arrivalTime = cohort.phase === "toDropoff"
-          ? Math.max(now, cohort.phaseEndsAt || now)
-          : now + effectiveTrip(res);
+          ? Math.max(now, cohort.phaseEndsAt || now) + BO_DROPOFF_ANIMATION_SEC
+          : cohort.phase === "dropoff"
+            ? Math.max(now, cohort.phaseEndsAt || now)
+            : now + effectiveTrip(res) + BO_DROPOFF_ANIMATION_SEC;
         addArrival(arrivalTime, bankKey, totalCarry);
       });
 
       const legacyHeld = Math.max(0, held[res] || 0);
       if (legacyHeld > 0) {
-        heldResources[bankKey] += legacyHeld;
+        const totalHeld = legacyHeld * dropoffMult;
+        heldResources[bankKey] += totalHeld;
         if (dropoffAvailable(res)) {
-          addArrival(now + effectiveTrip(res), bankKey, legacyHeld);
+          addArrival(now + effectiveTrip(res) + BO_DROPOFF_ANIMATION_SEC, bankKey, totalHeld);
         }
       }
     });
@@ -5833,6 +6724,7 @@ function simulateBuildOrder(commands, config) {
       assignments: { ...assignments },
       heldResources: manualDropoffSnapshot.heldResources,
       manualDropoffEvents: manualDropoffSnapshot.manualDropoffEvents,
+      houseOfWisdom: getHouseOfWisdomSampleState(),
       vizier: {
         xp: vizierXp,
         cap: vizierCap,
@@ -5904,6 +6796,7 @@ function simulateBuildOrder(commands, config) {
 
   function laneFor(cmd) {
     if (cmd.type === "assign") return "Assignments";
+    if (cmd.type === "houseOfWisdomWing") return BO_HOUSE_OF_WISDOM_BUILDING;
     if (cmd.type === "resourceTrip") return getBoResourceLabel(cmd.payload?.resource);
     if (cmd.type === "vizierChoice") return BO_OTTOMAN_IMPERIAL_COUNCIL_BUILDING;
     if (cmd.type === "buildBuilding") return "Construction";
@@ -5932,6 +6825,131 @@ function simulateBuildOrder(commands, config) {
     pushSample(time, resources);
   }
 
+  function addHouseOfWisdomWingEntry(wing, branch, targetAge, completedAt) {
+    houseOfWisdomState.wings.push({
+      wing,
+      branch: branch || null,
+      targetAge,
+      completedAt
+    });
+  }
+
+  function applyHouseOfWisdomCompletion(entry, completedAt) {
+    if (!howCiv || !entry) return;
+    const targetAge = Math.max(2, entry.targetAge || age);
+    addHouseOfWisdomWingEntry(entry.wing, entry.branch, targetAge, completedAt);
+    const label = getBoHouseOfWisdomWingLabel(civ, entry.wing, entry.branch);
+    const notes = [];
+
+    if (age < targetAge) {
+      age = targetAge;
+      milestones[`Age ${age} complete`] = completedAt;
+    }
+
+    if (civ === "Abbasid Dynasty") {
+      const wingDef = BO_ABBASID_HOW_WINGS[entry.wing];
+      const unlocked = Object.keys(wingDef?.choicesByAge || {})
+        .map((ageKey) => parseInt(ageKey, 10))
+        .filter((ageKey) => ageKey <= targetAge)
+        .sort((a, b) => a - b)
+        .flatMap((ageKey) => wingDef?.choicesByAge?.[ageKey] || []);
+      unlocked.forEach((choiceId) => {
+        if (choiceId === "preservationOfKnowledge") houseOfWisdomState.effects.preservationOfKnowledge = true;
+        if (choiceId === "fertileCrescent") houseOfWisdomState.effects.fertileCrescent = true;
+        if (choiceId === "agriculture") houseOfWisdomState.effects.agriculture = true;
+        if (choiceId === "improvedProcessing") houseOfWisdomState.effects.improvedProcessing = true;
+        if (choiceId === "medicalCenters") houseOfWisdomState.effects.medicalCenters = true;
+        if (choiceId === "publicLibraries") houseOfWisdomState.effects.publicLibraries = true;
+        if (choiceId === "bootCamp") houseOfWisdomState.effects.bootCamp = true;
+        if (choiceId === "compositeBows") houseOfWisdomState.effects.compositeBows = true;
+        if (choiceId === "camelSupport") houseOfWisdomState.effects.camelSupport = true;
+        if (choiceId === "armoredCaravans") houseOfWisdomState.effects.armoredCaravans = true;
+        if (choiceId === "grandBazaar") houseOfWisdomState.effects.grandBazaar = true;
+        if (choiceId === "spiceRoads") houseOfWisdomState.effects.spiceRoads = true;
+      });
+      if (wingDef?.spawnByAge?.[targetAge]) notes.push(wingDef.spawnByAge[targetAge]);
+      if (unlocked.length) {
+        notes.push(unlocked.map((choiceId) => BO_ABBASID_HOW_CHOICE_DEFS[choiceId]?.label || choiceId).join(" | "));
+      }
+    } else if (civ === "Ayyubids") {
+      if (entry.wing === "culture" && entry.branch === "logistics") {
+        houseOfWisdomState.effects.logistics = true;
+        notes.push(targetAge === 2 ? "Spawn 2 Dervishes" : targetAge === 3 ? "Spawn 3 Dervishes" : "Spawn 4 Dervishes");
+      }
+      if (entry.wing === "economic" && entry.branch === "growth") {
+        const villagerSpawns = targetAge === 2 ? 3 : targetAge === 3 ? 7 : 10;
+        villagers += villagerSpawns;
+        assignments.idle += villagerSpawns;
+        if (targetAge === 2) houseOfWisdomState.effects.orchardExtraPerNode = 50;
+        if (targetAge === 3) houseOfWisdomState.effects.orchardExtraPerNode = 100;
+        if (targetAge === 4) houseOfWisdomState.effects.villagerWorkRatePct = 10;
+        syncBerryCapacityBonus();
+        notes.push(`Spawn ${villagerSpawns} Villagers`);
+        if (targetAge === 2) notes.push("Orchards +50 food per berry bush");
+        if (targetAge === 3) notes.push("Orchards +100 food per berry bush");
+        if (targetAge === 4) notes.push("Villagers +10% work rate");
+      }
+      if (entry.wing === "economic" && entry.branch === "industry") {
+        if (targetAge === 2) {
+          resources.wood += 400;
+          houseOfWisdomState.effects.buildSpeedPct = 30;
+          notes.push("Grant 400 wood");
+        } else if (targetAge === 3) {
+          resources.wood += 900;
+          resources.stone += 400;
+          houseOfWisdomState.effects.buildSpeedPct = 40;
+          notes.push("Grant 900 wood and 400 stone");
+        } else {
+          resources.wood += 2000;
+          resources.stone += 1000;
+          houseOfWisdomState.effects.buildSpeedPct = 50;
+          notes.push("Grant 2000 wood and 1000 stone");
+        }
+        notes.push(`Villagers build +${houseOfWisdomState.effects.buildSpeedPct}% faster`);
+      }
+      if (entry.wing === "military" && entry.branch === "masterSmiths") {
+        houseOfWisdomState.effects.masterSmiths = true;
+        if (targetAge >= 3) houseOfWisdomState.effects.militaryAcademy = true;
+        notes.push("Free Blacksmith upgrades unlocked");
+        if (houseOfWisdomState.effects.militaryAcademy) notes.push("Military Academy granted");
+      }
+      if (entry.wing === "military" && entry.branch === "reinforcement") {
+        const waveCount = targetAge === 2 ? 1 : targetAge === 3 ? 3 : 7;
+        houseOfWisdomState.effects.reinforcementCount = waveCount;
+        if (targetAge === 2) {
+          busy.push({
+            endTime: completedAt + 15,
+            kind: "houseOfWisdomReinforcement",
+            count: waveCount,
+            repeatEvery: 120
+          });
+          notes.push("Spawn 1 Desert Raider after 15s, then every 120s");
+        } else {
+          pushEvent("Desert Raiders arrive", `Spawn ${waveCount} Desert Raiders`, BO_HOUSE_OF_WISDOM_BUILDING);
+          busy.push({
+            endTime: completedAt + 120,
+            kind: "houseOfWisdomReinforcement",
+            count: waveCount,
+            repeatEvery: 120
+          });
+          notes.push(`Spawn ${waveCount} Desert Raiders now, then every 120s`);
+        }
+      }
+      if (entry.wing === "trade" && entry.branch === "advisors") {
+        houseOfWisdomState.effects.advisors = true;
+        notes.push(targetAge === 2 ? "Spawn 3 Atabegs" : targetAge === 3 ? "Spawn 5 Atabegs" : "Spawn 7 Atabegs");
+      }
+      if (entry.wing === "trade" && entry.branch === "bazaar") {
+        houseOfWisdomState.effects.bazaar = true;
+        notes.push("Bazaar trade effect tracked only");
+      }
+    }
+
+    pushEvent(`House of Wisdom complete: ${label}`, notes.join(", "), BO_HOUSE_OF_WISDOM_BUILDING);
+    syncBerryCapacityBonus();
+    pushSample(completedAt, resources);
+  }
+
   pushSample(0, resources);
   syncGatherSegments(0);
   syncDropoffCohorts(BO_RESOURCE_KEYS, 0);
@@ -5955,8 +6973,8 @@ function simulateBuildOrder(commands, config) {
 
   function effectiveCarry(res) {
     let base = config.carry[res] || 0;
-    if (res === "berries" && muslimCiv && (buildingCounts["Mill"] || 0) > 0) {
-      base += muslimBerryBonus.carryBonus || 0;
+    if (res === "berries" && hasActiveBerryBonus()) {
+      base += berryBonus.carryBonus || 0;
     }
     if (wheelbarrowActive) base += (config.techEffects.wheelCarryBonus || BO_WHEEL_CARRY_BONUS);
     return base;
@@ -5977,14 +6995,25 @@ function simulateBuildOrder(commands, config) {
     const base = config.gatherRates[res] || 0;
     let rate = isFood(res) ? base * foodMult() : base;
     const ottomanEffects = getOttomanActiveEffects();
+    const howEffects = getHouseOfWisdomEffects();
+    const goldenAgeGatherPct = howEffects.goldenAge?.bonuses?.gatherPct || 0;
     if (res === "farm" && (buildingCounts["Mill"] || 0) > 0 && BO_ENGLISH_FARM_BONUS_CIVS.has(civ)) {
       const pct = (civBonus.farmBonusByAge || BO_ENGLISH_FARM_BONUS_BY_AGE)[age] || 0;
       rate *= 1 + pct / 100;
     }
-    if (res === "berries" && muslimCiv && (buildingCounts["Mill"] || 0) > 0) {
-      rate *= 1 + (muslimBerryBonus.gatherBonusPct || 0) / 100;
+    if (res === "berries" && hasActiveBerryBonus()) {
+      rate *= 1 + (berryBonus.gatherBonusPct || 0) / 100;
     }
     if ((res === "deer" || res === "boar") && survivalTechActive) {
+      rate *= 1.15;
+    }
+    if (goldenAgeGatherPct > 0) {
+      rate *= 1 + goldenAgeGatherPct / 100;
+    }
+    if (houseOfWisdomState.effects.villagerWorkRatePct > 0) {
+      rate *= 1 + houseOfWisdomState.effects.villagerWorkRatePct / 100;
+    }
+    if (houseOfWisdomState.effects.agriculture && res === "farm") {
       rate *= 1.15;
     }
     if (civ === "Ottomans" && ottomanEffects.anatolianHills && (res === "gold" || res === "stone")) {
@@ -6004,7 +7033,9 @@ function simulateBuildOrder(commands, config) {
     if (rate <= 0) return 0;
     const carry = effectiveCarry(res);
     const trip = effectiveTrip(res);
-    const perVill = carry / (carry / rate + trip);
+    const cycleTime = (carry / rate) + trip + BO_DROPOFF_ANIMATION_SEC + trip;
+    if (cycleTime <= 0) return 0;
+    const perVill = (carry * getDropoffReturnMult()) / cycleTime;
     return perVill * vills;
   }
 
@@ -6074,6 +7105,17 @@ function simulateBuildOrder(commands, config) {
     cohort.phaseEndsAt = cohort.phaseStartedAt + trip;
   }
 
+  function scheduleCohortDropoff(cohort, now, progress = 0, carryAmount = 0) {
+    const duration = Math.max(0, BO_DROPOFF_ANIMATION_SEC);
+    const clampedProgress = clamp01(progress);
+    const load = Math.max(0, carryAmount);
+    cohort.phase = "dropoff";
+    cohort.phaseStartCarry = load;
+    cohort.phaseEndCarry = load;
+    cohort.phaseStartedAt = now - (duration * clampedProgress);
+    cohort.phaseEndsAt = cohort.phaseStartedAt + duration;
+  }
+
   function rebaseResourceCohorts(res, now) {
     const cohorts = getResourceCohorts(res);
     if (!cohorts.length) return;
@@ -6084,6 +7126,8 @@ function simulateBuildOrder(commands, config) {
         scheduleCohortGather(res, cohort, now, getCohortCarryNow(cohort, now));
       } else if (cohort.phase === "toDropoff") {
         scheduleCohortMove(res, cohort, "toDropoff", now, progress, cohort.phaseStartCarry || cohort.phaseEndCarry || 0);
+      } else if (cohort.phase === "dropoff") {
+        scheduleCohortDropoff(cohort, now, progress, cohort.phaseStartCarry || cohort.phaseEndCarry || 0);
       } else if (cohort.phase === "toResource") {
         scheduleCohortMove(res, cohort, "toResource", now, progress, 0);
       } else {
@@ -6168,12 +7212,19 @@ function simulateBuildOrder(commands, config) {
       return;
     }
     if (cohort.phase === "toDropoff") {
-      let gain = Math.max(0, (cohort.phaseStartCarry || cohort.phaseEndCarry || 0) * Math.max(0, cohort.count || 0));
+      const carried = Math.max(0, cohort.phaseStartCarry || cohort.phaseEndCarry || 0);
+      scheduleCohortDropoff(cohort, now, 0, carried);
+      return;
+    }
+    if (cohort.phase === "dropoff") {
+      const rawHarvest = Math.max(0, (cohort.phaseStartCarry || cohort.phaseEndCarry || 0) * Math.max(0, cohort.count || 0));
+      let harvested = rawHarvest;
       if (BO_FINITE_FOOD_SOURCES.includes(res)) {
         const remaining = foodRemaining[res] || 0;
-        gain = Math.min(gain, remaining);
-        foodRemaining[res] = Math.max(0, remaining - gain);
+        harvested = Math.min(harvested, remaining);
+        foodRemaining[res] = Math.max(0, remaining - harvested);
       }
+      const gain = harvested * getDropoffReturnMult();
       if (gain > 0) {
         if (isFood(res)) resources.food += gain;
         else resources[res] += gain;
@@ -6254,7 +7305,7 @@ function simulateBuildOrder(commands, config) {
       : rawReturnTarget;
     const target = rawTarget || "idle";
     let valid = true;
-    if (target === "boar" && muslimCiv) valid = false;
+    if (target === "boar" && noBoarCiv) valid = false;
     if (target === "farm" && farmCount <= 0) valid = false;
     if (target !== "idle" && assignments[target] === undefined) valid = false;
     if (!valid) {
@@ -6282,11 +7333,13 @@ function simulateBuildOrder(commands, config) {
   function releaseBusy(endTime) {
     const priority = {
       buildComplete: 0,
+      houseOfWisdomComplete: 0,
       techComplete: 1,
       scholarComplete: 2,
       builder: 3,
       trainVill: 4,
       unitComplete: 5,
+      houseOfWisdomReinforcement: 5,
       rallyDelay: 6,
       assignDelay: 7
     };
@@ -6327,13 +7380,7 @@ function simulateBuildOrder(commands, config) {
         if (name === "Istanbul Imperial Palace") {
           imperialPalaceCompleted = true;
         }
-        if (name === "Mill" && muslimCiv && !berryCapacityBonusApplied) {
-          const bonus = (muslimBerryBonus.capacityBonusPerNode || 0) * (foodNodes.berries?.count || 0);
-          if (bonus > 0) {
-            foodRemaining.berries += bonus;
-            berryCapacityBonusApplied = true;
-          }
-        }
+        syncBerryCapacityBonus();
         if (name === "Barracks" || name === "Archery Range" || name === "Stable" || name === "Siege Workshop" || name === "Town Center" || name === BO_OTTOMAN_MILITARY_SCHOOL_BUILDING) {
           const list = productionQueues[name] || [];
           list.push({ id: instanceId, busyUntil: endTime });
@@ -6352,6 +7399,10 @@ function simulateBuildOrder(commands, config) {
             }
           }
         }
+      } else if (b.kind === "houseOfWisdomComplete") {
+        needsGlobalDropoffSync = true;
+        houseOfWisdomBusyUntil = endTime;
+        applyHouseOfWisdomCompletion(b, endTime);
       } else if (b.kind === "techComplete") {
         needsGlobalDropoffSync = true;
         if (b.techType === "Wheelbarrow") wheelbarrowActive = true;
@@ -6413,6 +7464,18 @@ function simulateBuildOrder(commands, config) {
         if (civ === "Ottomans") {
           addOttomanVizierXp(BO_OTTOMAN_VIZIER_UNIT_XP[b.unitName] || BO_OTTOMAN_VIZIER_UNIT_XP[resolveBoUnitName(b.unitName)] || 0, {
             allowImperialPalaceDouble: true
+          });
+        }
+      } else if (b.kind === "houseOfWisdomReinforcement") {
+        const waveCount = Math.max(1, b.count || 1);
+        pushEvent("Desert Raiders arrive", `Spawn ${waveCount} Desert Raiders`, BO_HOUSE_OF_WISDOM_BUILDING);
+        const nextWaveTime = endTime + Math.max(1, b.repeatEvery || 120);
+        if (nextWaveTime <= (config.simEnd || 0) + 0.0001) {
+          busy.push({
+            endTime: nextWaveTime,
+            kind: "houseOfWisdomReinforcement",
+            count: waveCount,
+            repeatEvery: b.repeatEvery || 120
           });
         }
       } else if (b.kind === "rallyDelay") {
@@ -6613,7 +7676,7 @@ function simulateBuildOrder(commands, config) {
     }, 0);
     const availableVillagers = Math.max(0, villagers - busyBuilders);
     const next = { ...desired };
-    if (muslimCiv && next.boar > 0) {
+    if (noBoarCiv && next.boar > 0) {
       next.boar = 0;
       notes.push("Boar unavailable for this civ");
     }
@@ -6691,9 +7754,10 @@ function simulateBuildOrder(commands, config) {
   function depositHeldIfAvailable(res) {
     if (!dropoffAvailable(res)) return;
     if (held[res] > 0) {
-      if (isFood(res)) resources.food += held[res];
-      else resources[res] += held[res];
-      addGathered(isFood(res) ? "food" : res, held[res]);
+      const deposit = held[res] * getDropoffReturnMult();
+      if (isFood(res)) resources.food += deposit;
+      else resources[res] += deposit;
+      addGathered(isFood(res) ? "food" : res, deposit);
       held[res] = 0;
     }
   }
@@ -6766,6 +7830,7 @@ function simulateBuildOrder(commands, config) {
     const baseCost = unitDef?.cost || { food: 0, wood: 0, gold: 0, stone: 0 };
     const baseTime = unitDef?.time || 0;
     const ottomanEffects = getOttomanActiveEffects();
+    const howEffects = getHouseOfWisdomEffects();
     let cost = {
       food: (baseCost.food || 0) * count,
       wood: (baseCost.wood || 0) * count,
@@ -6780,10 +7845,23 @@ function simulateBuildOrder(commands, config) {
       const tcWorkRatePct = getBoAgeBonusValue(civBonus.townCenterWorkRateByAge, age);
       timePerUnit = applyBoWorkRateToDuration(timePerUnit, tcWorkRatePct);
     }
+    if (isSiegeUnit(unitName) && Number.isFinite(howEffects.goldenAge?.bonuses?.siegeCostMult) && howEffects.goldenAge.bonuses.siegeCostMult > 0) {
+      const mult = howEffects.goldenAge.bonuses.siegeCostMult;
+      cost = {
+        food: Math.round((cost.food || 0) * mult),
+        wood: Math.round((cost.wood || 0) * mult),
+        gold: Math.round((cost.gold || 0) * mult),
+        stone: Math.round((cost.stone || 0) * mult)
+      };
+    }
     if (buildingType === BO_OTTOMAN_MILITARY_SCHOOL_BUILDING && civ === "Ottomans") {
       const school = civBonus.militarySchool || {};
       cost = { food: 0, wood: 0, gold: 0, stone: 0 };
       timePerUnit *= school.trainTimeMult || 4.75;
+    }
+    const houseProductionPct = getHouseOfWisdomProductionPct();
+    if (BO_PRODUCTION_BUILDINGS.has(buildingType) && houseProductionPct > 0) {
+      timePerUnit = applyBoWorkRateToDuration(timePerUnit, houseProductionPct);
     }
     const militarySpeedPct = getBoMilitaryProductionSpeedPct(civ, buildingType, age, {
       ottomanSettings: ottomanEffects,
@@ -7304,8 +8382,49 @@ function simulateBuildOrder(commands, config) {
       pushSample(time, resBefore);
       pushSample(time, resources);
       return;
+    } else if (cmd.type === "houseOfWisdomWing") {
+      if (!howCiv) {
+        warnings.push("Blocked: House of Wisdom (civ not supported)");
+        pushEvent(getBoCommandLabel(cmd), "Blocked (House of Wisdom not used by this civ)", laneFor(cmd), cmd.id);
+        return;
+      }
+      const wing = cmd.payload?.wing || "culture";
+      const branch = cmd.payload?.branch || null;
+      if (houseOfWisdomState.wings.some((entry) => entry.wing === wing)) {
+        warnings.push(`Blocked: ${getBoCommandLabel(cmd)} (wing already chosen)`);
+        pushEvent(getBoCommandLabel(cmd), "Blocked (wing already chosen)", laneFor(cmd), cmd.id);
+        return;
+      }
+      if (civ === "Ayyubids" && !BO_AYYUBID_HOW_BRANCHES[wing]?.branches?.[branch]) {
+        warnings.push(`Blocked: ${getBoCommandLabel(cmd)} (invalid branch)`);
+        pushEvent(getBoCommandLabel(cmd), "Blocked (invalid branch)", laneFor(cmd), cmd.id);
+        return;
+      }
+      const spec = getBoHouseOfWisdomCommandSpec(cmd, civ, {
+        completedCount: houseOfWisdomState.wings.length,
+        effects: houseOfWisdomState.effects,
+        researchPct: getHouseOfWisdomResearchPct()
+      });
+      if (cmd.autoCost) cmd.payload.cost = { ...spec.cost };
+      if (cmd.autoTime) cmd.payload.time = spec.time;
+      cmd.payload.targetAge = spec.targetAge;
+      cmd.payload.building = BO_HOUSE_OF_WISDOM_BUILDING;
+      cmd.payload.buildingId = BO_HOUSE_OF_WISDOM_BUILDING;
+      cost = { ...(cmd.payload.cost || spec.cost) };
+      duration = Math.max(0, cmd.payload.time || spec.time || 0);
+      actionLabel = getBoCommandLabel(cmd);
+      if (time + 0.0001 < houseOfWisdomBusyUntil) {
+        notes.push("Delayed (House of Wisdom)");
+        advanceTo(houseOfWisdomBusyUntil);
+      }
     } else if (cmd.type === "buildBuilding") {
       const buildSteps = getBoBuildSteps(cmd.payload);
+      const legacyLandmarkStep = howCiv ? buildSteps.find((step) => /^Landmark \(Age /.test(step.building || "")) : null;
+      if (legacyLandmarkStep) {
+        warnings.push(`Blocked: ${legacyLandmarkStep.building} (use House of Wisdom)`);
+        pushEvent(`Build ${legacyLandmarkStep.building}`, "Blocked (replace with House of Wisdom wing)", laneFor(cmd), cmd.id);
+        return;
+      }
       const buildingName = buildSteps[0]?.building || "Building";
       const def = getBoBuildingDefaults(buildingName) || {};
       let minAge = def.minAge || 1;
@@ -7343,6 +8462,9 @@ function simulateBuildOrder(commands, config) {
         const maxN = civBonus.scholarFormula.maxScholars || 53;
         const n = Math.min(maxN, Math.max(0, scholarGarrison));
         duration = Math.floor((base - min) * Math.pow(ratio, n) + min);
+      }
+      if (getHouseOfWisdomResearchPct() > 0) {
+        duration = applyBoWorkRateToDuration(duration, getHouseOfWisdomResearchPct());
       }
     } else if (cmd.type === "rally") {
       actionLabel = `Set Rally -> ${cmd.payload.target}`;
@@ -7671,8 +8793,12 @@ function simulateBuildOrder(commands, config) {
           if (age === 1 && civBonus.darkAgeBuildSpeedMult) mult *= civBonus.darkAgeBuildSpeedMult;
           if (mult > 1) durationPerBuilding = durationPerBuilding / mult;
         }
+        if (houseOfWisdomState.effects.buildSpeedPct > 0) {
+          durationPerBuilding = applyBoWorkRateToDuration(durationPerBuilding, houseOfWisdomState.effects.buildSpeedPct);
+        }
         const costForStep = getBoBuildStepCost(step, civ, civBonus, {
-          ottomanSettings: getOttomanActiveEffects()
+          ottomanSettings: getOttomanActiveEffects(),
+          houseOfWisdomEffects: getHouseOfWisdomEffects()
         });
         for (let i = 0; i < Math.max(1, step.count || 1); i++) {
           const stepSuffix = Math.max(1, step.count || 1) > 1 ? ` (${i + 1}/${Math.max(1, step.count || 1)})` : "";
@@ -7777,6 +8903,17 @@ function simulateBuildOrder(commands, config) {
       tcBusyUntil = Math.max(tcBusyUntil, end);
       const queue = (productionQueues["Town Center"] || []).find((q) => q.id === "TC #1");
       if (queue) queue.busyUntil = Math.max(queue.busyUntil, end);
+    }
+
+    if (cmd.type === "houseOfWisdomWing") {
+      houseOfWisdomBusyUntil = Math.max(houseOfWisdomBusyUntil, end);
+      busy.push({
+        endTime: end,
+        kind: "houseOfWisdomComplete",
+        wing: cmd.payload?.wing || "culture",
+        branch: cmd.payload?.branch || null,
+        targetAge: cmd.payload?.targetAge || 2
+      });
     }
 
     if (cmd.type === "tech") {

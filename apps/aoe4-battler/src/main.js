@@ -7,9 +7,6 @@ window.switchPage = switchPage;
 window.showUnitDetail = showUnitDetail;
 window.filterByCiv = filterByCiv;
 
-document.getElementById("titleA")?.addEventListener("click", () => showUnitDetail("A"));
-document.getElementById("titleB")?.addEventListener("click", () => showUnitDetail("B"));
-
 try {
   await initUnitBattlerApp();
 } catch (error) {

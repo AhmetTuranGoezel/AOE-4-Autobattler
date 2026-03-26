@@ -90,6 +90,37 @@
       "farmCostMult": 0.5,
       "ageUpTimeByTarget": { "2": 190, "3": 220 }
     },
+    "Abbasid Dynasty": {
+      "noBoar": true,
+      "grandOrchards": { "capacityBonusPerNode": 100, "gatherBonusPct": 25, "carryBonus": 3 },
+      "houseOfWisdom": {
+        "baseAgeUpTime": 100,
+        "goldenAgeTiers": [
+          { "threshold": 10, "gatherPct": 15 },
+          { "threshold": 30, "gatherPct": 15, "researchPct": 20 },
+          { "threshold": 60, "gatherPct": 20, "researchPct": 20, "productionPct": 20 }
+        ]
+      }
+    },
+    "Ayyubids": {
+      "noBoar": true,
+      "grandOrchards": { "capacityBonusPerNode": 100, "gatherBonusPct": 25, "carryBonus": 3 },
+      "houseOfWisdom": {
+        "baseAgeUpTime": 120,
+        "advancementByAge": {
+          "2": { "time": 96, "cost": { "food": 225, "wood": 0, "gold": 125, "stone": 0 } },
+          "3": { "time": 96, "cost": { "food": 900, "wood": 0, "gold": 500, "stone": 0 } },
+          "4": { "time": 96, "cost": { "food": 1500, "wood": 0, "gold": 750, "stone": 0 } }
+        },
+        "goldenAgeTiers": [
+          { "threshold": 10, "gatherPct": 10 },
+          { "threshold": 20, "gatherPct": 10, "researchPct": 25 },
+          { "threshold": 30, "gatherPct": 10, "researchPct": 25, "productionPct": 20 },
+          { "threshold": 50, "gatherPct": 10, "researchPct": 25, "productionPct": 20, "siegeCostMult": 0.8 },
+          { "threshold": 75, "gatherPct": 10, "researchPct": 25, "productionPct": 20, "siegeCostMult": 0.8, "camelAttackSpeedPct": 20 }
+        ]
+      }
+    },
     "House of Lancaster": {
       "farmBonusByAge": { "1": 20, "2": 25, "3": 30, "4": 30 },
       "farmGoldPerSec": 0.1666667,
@@ -110,6 +141,14 @@
       "feudalBuildAuraMult": 1.33
     },
     "Delhi Sultanate": {
+      "noBoar": true,
+      "berryBonus": {
+        "label": "Garden Bounty",
+        "requiresMill": true,
+        "capacityBonusPerNode": 100,
+        "gatherBonusPct": 25,
+        "carryBonus": 3
+      },
       "techCostFree": true,
       "sanctityGoldMult": 1.25,
       "scholarFormula": { "minFraction": 0.0666667, "ratio": 0.8780845, "maxScholars": 53 }
@@ -121,6 +160,7 @@
       "stablesMinAge": 1
     },
     "Ottomans": {
+      "noBoar": true,
       "militaryInducementCostMult": 0.6,
       "militaryInducementBuildings": [
         "Barracks",
@@ -153,6 +193,16 @@
         "2": ["Twin Minaret Medrese"],
         "3": ["Mehmed Imperial Armory", "Istanbul Imperial Palace"],
         "4": ["Istanbul Observatory"]
+      }
+    },
+    "Tughlaq Dynasty": {
+      "noBoar": true,
+      "berryBonus": {
+        "label": "Basketry",
+        "requiresMill": false,
+        "capacityBonusPerNode": 0,
+        "gatherBonusPct": 30,
+        "carryBonus": 3
       }
     }
   }
