@@ -510,6 +510,159 @@ function getAttackLogLabel(unitData, firedPrimary, firedSecondary) {
   return "—";
 }
 
+const KIPCHAK_TRIPLE_SHOT = Object.freeze({
+  extraArrows: 2,
+  damageMultiplier: 0.3,
+  extraBleedDpsPerArrow: 0.6,
+  tickInterval: 1,
+});
+
+function isKipchakArcher(unitData) {
+  return unitData?.name === "Kipchak Archer";
+}
+
+function hasKipchakTripleShot(unitData) {
+  return isKipchakArcher(unitData) && !!unitData?.effects?.tripleShot;
+}
+
+function getKipchakBleedProfile(unitData) {
+  const bleed = unitData?.effects?.bleed;
+  if (!bleed) return null;
+  let dps = bleed.dps || 0;
+  if (hasKipchakTripleShot(unitData)) {
+    dps +=
+      KIPCHAK_TRIPLE_SHOT.extraArrows *
+      KIPCHAK_TRIPLE_SHOT.extraBleedDpsPerArrow;
+  }
+  return {
+    dps,
+    duration: bleed.duration || 0,
+  };
+}
+
+function getBleedSlotCap(targetUnits, attackerUnits, splitEnabled, splitTargets) {
+  if (!(targetUnits > 0) || !(attackerUnits > 0)) return 0;
+  if (!splitEnabled) return 1;
+  return Math.max(1, Math.min(splitTargets || 1, targetUnits, attackerUnits));
+}
+
+function trimBleedSlots(team, maxSlots, time = Infinity) {
+  if (!team) return;
+  const slots = Array.isArray(team.bleedSlots) ? team.bleedSlots : [];
+  const enforceTime = Number.isFinite(time);
+  const kept = slots.filter((slot) => {
+    if (!slot) return false;
+    if (enforceTime && !(slot.expiresAt > time - 0.0001)) return false;
+    return slot.nextTickAt <= slot.expiresAt + 0.0001;
+  });
+  team.bleedSlots = kept.slice(0, Math.max(0, maxSlots));
+}
+
+function getNextBleedTick(team) {
+  if (!team?.bleedSlots?.length) return Infinity;
+  let nextTick = Infinity;
+  for (const slot of team.bleedSlots) {
+    if (!slot) continue;
+    if (slot.nextTickAt <= slot.expiresAt + 0.0001) {
+      nextTick = Math.min(nextTick, slot.nextTickAt);
+    }
+  }
+  return nextTick;
+}
+
+function applyKipchakBleed(attacker, target, time, splitEnabled, splitTargets) {
+  const bleed = getKipchakBleedProfile(attacker?.unitData);
+  if (!bleed || !(bleed.dps > 0) || !(bleed.duration > 0) || target.units <= 0) {
+    return 0;
+  }
+  const slotCap = getBleedSlotCap(
+    target.units,
+    attacker.units,
+    splitEnabled,
+    splitTargets,
+  );
+  if (slotCap <= 0) {
+    target.bleedSlots = [];
+    return 0;
+  }
+
+  trimBleedSlots(target, slotCap, time);
+  target.bleedSlots = target.bleedSlots || [];
+  for (let i = 0; i < slotCap; i++) {
+    const slot = target.bleedSlots[i];
+    if (slot) {
+      slot.dps = bleed.dps;
+      slot.expiresAt = time + bleed.duration;
+      slot.sourceId = attacker.groupId || attacker.side || "?";
+      slot.sourceSide = attacker.side || null;
+    } else {
+      target.bleedSlots.push({
+        dps: bleed.dps,
+        nextTickAt: time + KIPCHAK_TRIPLE_SHOT.tickInterval,
+        expiresAt: time + bleed.duration,
+        sourceId: attacker.groupId || attacker.side || "?",
+        sourceSide: attacker.side || null,
+      });
+    }
+  }
+  return slotCap;
+}
+
+function collectBleedTickEvents(target, time, EPSILON) {
+  if (!target?.bleedSlots?.length || target.units <= 0) return [];
+  const grouped = new Map();
+  const kept = [];
+
+  for (const slot of target.bleedSlots) {
+    if (!slot) continue;
+    if (
+      slot.nextTickAt <= time + EPSILON &&
+      slot.nextTickAt <= slot.expiresAt + EPSILON
+    ) {
+      const key = `${slot.sourceSide || "?"}:${slot.sourceId || "?"}`;
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          sourceId: slot.sourceId || "?",
+          sourceSide: slot.sourceSide || null,
+          damage: 0,
+        });
+      }
+      grouped.get(key).damage += slot.dps;
+      slot.nextTickAt += KIPCHAK_TRIPLE_SHOT.tickInterval;
+    }
+    if (
+      slot.expiresAt > time + EPSILON &&
+      slot.nextTickAt <= slot.expiresAt + EPSILON
+    ) {
+      kept.push(slot);
+    }
+  }
+
+  target.bleedSlots = kept;
+  return Array.from(grouped.values()).filter((entry) => entry.damage > 0);
+}
+
+function applyDamageToTeam(team, damage) {
+  if (!team || !(damage > 0) || team.units <= 0) return 0;
+  team.totalHp -= damage;
+  if (team.totalHp <= 0) {
+    const lost = team.units;
+    team.totalHp = 0;
+    team.units = 0;
+    team.bleedSlots = [];
+    return lost;
+  }
+
+  const unitsLost = Math.floor(
+    (team.stats.hp * team.units - team.totalHp) / team.stats.hp,
+  );
+  if (unitsLost > 0) {
+    team.units = Math.max(0, team.units - unitsLost);
+  }
+  trimBleedSlots(team, team.units, Infinity);
+  return unitsLost;
+}
+
 /**
  * 1. DATA LOADING
  * Fetches the JSON file and extracts all unique tags from all units.
@@ -1575,6 +1728,11 @@ function renderEffects(side, effects) {
             <small class="text-muted" style="font-size:0.7rem;">Duration (s)</small>
           </div>
         </div>`;
+    } else if (effectId === "tripleShot") {
+      valueHtml = `
+        <div class="ms-4 mt-1">
+          <small class="text-muted" style="font-size:0.72rem;">Adds 2 extra arrows at 30% damage each and upgrades bleed to 3.2 DPS for 6s.</small>
+        </div>`;
     } else if (effectId === "armorAura") {
       valueHtml = `
         <div class="ms-4 mt-1">
@@ -1849,6 +2007,8 @@ function collectEffects(side) {
       };
     } else if (effectId === "bleed") {
       effects.bleed = { dps: getVal("dps"), duration: getVal("duration") };
+    } else if (effectId === "tripleShot") {
+      effects.tripleShot = true;
     } else if (effectId === "armorAura") {
       effects.armorAura = { armorBonus: getVal("armorBonus") };
     } else if (effectId === "trample") {
@@ -2714,6 +2874,7 @@ function calcWeaponDamage(
   enemyTags,
   enemyStats,
   armorPen = 0,
+  damageMultiplier = 1,
 ) {
   let damage = weaponAttack;
 
@@ -2723,6 +2884,8 @@ function calcWeaponDamage(
       damage += weaponBonus[tag];
     }
   }
+
+  damage *= damageMultiplier;
 
   // Subtract armor (minimum 1 damage), reduced by armor penetration
   let armor =
@@ -2886,6 +3049,7 @@ function runBattle() {
     closingDelayB;
 
   let teamA = {
+    side: "A",
     units: unitA.count,
     totalHp: 0,
     stats: applyBuffs(unitA, 0),
@@ -2900,9 +3064,11 @@ function runBattle() {
     trampleTick: unitA.effects.trample ? 0 : Infinity,
     trampleActive: false,
     trampleEnd: -1,
+    bleedSlots: [],
   };
 
   let teamB = {
+    side: "B",
     units: unitB.count,
     totalHp: 0,
     stats: applyBuffs(unitB, 0),
@@ -2917,6 +3083,7 @@ function runBattle() {
     trampleTick: unitB.effects.trample ? 0 : Infinity,
     trampleActive: false,
     trampleEnd: -1,
+    bleedSlots: [],
   };
 
   // Brotherhood HP: track base hp separately, effective hp includes brotherhood bonus
@@ -3167,12 +3334,45 @@ function runBattle() {
       teamB.nextSecondaryAttack,
       teamA.trampleTick,
       teamB.trampleTick,
+      getNextBleedTick(teamA),
+      getNextBleedTick(teamB),
     );
     time = nextEventTime;
 
     // Refresh buffs at current time
     teamA.stats = applyBuffs(unitA, time);
     teamB.stats = applyBuffs(unitB, time);
+
+    const bleedFromB = collectBleedTickEvents(teamA, time, EPSILON);
+    const bleedFromA = collectBleedTickEvents(teamB, time, EPSILON);
+    const bleedDamageToA = bleedFromB.reduce((sum, entry) => sum + entry.damage, 0);
+    const bleedDamageToB = bleedFromA.reduce((sum, entry) => sum + entry.damage, 0);
+
+    if (bleedDamageToA > 0) {
+      applyDamageToTeam(teamA, bleedDamageToA);
+    }
+    if (bleedDamageToB > 0) {
+      applyDamageToTeam(teamB, bleedDamageToB);
+    }
+    if (bleedDamageToA > 0 || bleedDamageToB > 0) {
+      battleLog.push({
+        time: time.toFixed(2),
+        aWeapon: bleedDamageToB > 0 ? "Bleed" : "—",
+        aDmg: bleedDamageToB.toFixed(1),
+        aWaste: "0.0",
+        aUnits: teamA.units,
+        aHp: Math.round(teamA.totalHp),
+        aKills: 0,
+        bWeapon: bleedDamageToA > 0 ? "Bleed" : "—",
+        bDmg: bleedDamageToA.toFixed(1),
+        bWaste: "0.0",
+        bUnits: teamB.units,
+        bHp: Math.round(teamB.totalHp),
+        bKills: 0,
+        notes: "Bleed Tick",
+      });
+    }
+    if (teamA.units <= 0 || teamB.units <= 0) break;
 
     // Apply unique effect stat modifiers
     const atkSpeedA = getEffectiveAttackSpeed(
@@ -3215,6 +3415,8 @@ function runBattle() {
       aFiredSecondary = false;
     let bFiredPrimary = false,
       bFiredSecondary = false;
+    let aCanApplyBleed = false;
+    let bCanApplyBleed = false;
 
     // === TEAM A PRIMARY WEAPON ===
     if (teamA.nextPrimaryAttack <= time + EPSILON && teamA.units > 0) {
@@ -3263,9 +3465,26 @@ function runBattle() {
         );
         splashA = (totalTargetsA + 1) / 2;
       }
-      damageToB += dmg * teamA.units * splashA * (unitA.weaponProjectiles || 1);
+      let primaryDamage =
+        dmg * teamA.units * splashA * (unitA.weaponProjectiles || 1);
+      if (hasKipchakTripleShot(unitA)) {
+        const extraArrowDmg = calcWeaponDamage(
+          unitA.weaponType,
+          attackValue,
+          teamA.originalStats.bonus,
+          teamB.tags,
+          effectiveStatsB,
+          armorPenA,
+          KIPCHAK_TRIPLE_SHOT.damageMultiplier,
+        );
+        primaryDamage +=
+          extraArrowDmg * teamA.units * KIPCHAK_TRIPLE_SHOT.extraArrows;
+        logNotesA.push("Triple Shot");
+      }
+      damageToB += primaryDamage;
       teamA.nextPrimaryAttack = time + atkSpeedA;
       aFiredPrimary = true;
+      aCanApplyBleed = true;
       if (
         unitA.chargeDamage > 0 &&
         (!teamA.hasCharged || time <= teamA.chargeTime + EPSILON)
@@ -3358,9 +3577,26 @@ function runBattle() {
         );
         splashB = (totalTargetsB + 1) / 2;
       }
-      damageToA += dmg * teamB.units * splashB * (unitB.weaponProjectiles || 1);
+      let primaryDamage =
+        dmg * teamB.units * splashB * (unitB.weaponProjectiles || 1);
+      if (hasKipchakTripleShot(unitB)) {
+        const extraArrowDmg = calcWeaponDamage(
+          unitB.weaponType,
+          attackValue,
+          teamB.originalStats.bonus,
+          teamA.tags,
+          effectiveStatsA,
+          armorPenB,
+          KIPCHAK_TRIPLE_SHOT.damageMultiplier,
+        );
+        primaryDamage +=
+          extraArrowDmg * teamB.units * KIPCHAK_TRIPLE_SHOT.extraArrows;
+        logNotesB.push("Triple Shot");
+      }
+      damageToA += primaryDamage;
       teamB.nextPrimaryAttack = time + atkSpeedB;
       bFiredPrimary = true;
+      bCanApplyBleed = true;
       if (
         unitB.chargeDamage > 0 &&
         (!teamB.hasCharged || time <= teamB.chargeTime + EPSILON)
@@ -3486,16 +3722,6 @@ function runBattle() {
         teamB.units;
     }
 
-    // === APPLY BLEED (Kipchak Archer): total bleed = dps * duration per attacking unit, ignores armor ===
-    if (unitA.effects.bleed && damageToB > 0) {
-      const bleed = unitA.effects.bleed;
-      damageToB += bleed.dps * bleed.duration * teamA.units;
-    }
-    if (unitB.effects.bleed && damageToA > 0) {
-      const bleed = unitB.effects.bleed;
-      damageToA += bleed.dps * bleed.duration * teamB.units;
-    }
-
     // === APPLY TRAMPLE (Raider Elephant): Periodic AoE ticks over duration ===
     const TRAMPLE_TICK = 0.5; // 0.5s between ticks
     if (
@@ -3537,6 +3763,13 @@ function runBattle() {
         teamB.trampleActive = false;
         teamB.trampleTick = teamB.trampleEnd + t.cooldown;
       }
+    }
+
+    if (aCanApplyBleed && unitA.effects.bleed && damageToB > 0) {
+      applyKipchakBleed(teamA, teamB, time, splitA, splitTargetsA);
+    }
+    if (bCanApplyBleed && unitB.effects.bleed && damageToA > 0) {
+      applyKipchakBleed(teamB, teamA, time, splitB, splitTargetsB);
     }
 
     // === APPLY OVERKILL WASTE: each attacker can only kill its target, excess is lost ===
@@ -3792,12 +4025,10 @@ function runBattle() {
     }
 
     // --- Build log notes for effects ---
-    if (unitA.effects.bleed && damageToB > 0) logNotesA.push("Bleed");
     if (unitA.effects.percentDamage && damageToB > 0) logNotesA.push("%HP");
     if (unitA.effects.trample && teamA.trampleActive) logNotesA.push("Trample");
     if (unitA.effects.deflectiveArmor && teamA.hasBlocked && damageToA === 0)
       logNotesA.push("Blocked");
-    if (unitB.effects.bleed && damageToA > 0) logNotesB.push("Bleed");
     if (unitB.effects.percentDamage && damageToA > 0) logNotesB.push("%HP");
     if (unitB.effects.trample && teamB.trampleActive) logNotesB.push("Trample");
     if (unitB.effects.deflectiveArmor && teamB.hasBlocked && damageToB === 0)
@@ -5206,6 +5437,11 @@ function renderEffectsMulti(card, effects, groupId, selectedCiv) {
             <small class="text-muted" style="font-size:0.7rem;">Duration (s)</small>
           </div>
         </div>`;
+    } else if (effectId === "tripleShot") {
+      valueHtml = `
+        <div class="ms-4 mt-1">
+          <small class="text-muted" style="font-size:0.72rem;">Adds 2 extra arrows at 30% damage each and upgrades bleed to 3.2 DPS for 6s.</small>
+        </div>`;
     } else if (effectId === "armorAura") {
       valueHtml = `
         <div class="ms-4 mt-1">
@@ -5475,6 +5711,8 @@ function collectEffectsFromCard(card) {
       };
     } else if (effectId === "bleed") {
       effects.bleed = { dps: getVal("dps"), duration: getVal("duration") };
+    } else if (effectId === "tripleShot") {
+      effects.tripleShot = true;
     } else if (effectId === "armorAura") {
       effects.armorAura = { armorBonus: getVal("armorBonus") };
     } else if (effectId === "trample") {
@@ -6123,6 +6361,7 @@ function createTeamState(group) {
     trampleTick: unitData.effects.trample ? 0 : Infinity,
     trampleActive: false,
     trampleEnd: -1,
+    bleedSlots: [],
     closingDelay: 0,
     currentTargetId: null,
     baseHp: stats.hp,
@@ -6306,6 +6545,7 @@ function computeTeamAttack(attacker, target, time, config) {
   let logNotes = [];
   let firedPrimary = false;
   let firedSecondary = false;
+  let canApplyBleed = false;
 
   const atkSpeedA = calcEffectiveAttackSpeed(
     unitA,
@@ -6363,9 +6603,26 @@ function computeTeamAttack(attacker, target, time, config) {
       totalTargetsA = Math.min(unitA.effects.aoeFalloff.unitsHit, target.units);
       splashA = (totalTargetsA + 1) / 2;
     }
-    damageToB += dmg * attacker.units * splashA * (unitA.weaponProjectiles || 1);
+    let primaryDamage =
+      dmg * attacker.units * splashA * (unitA.weaponProjectiles || 1);
+    if (hasKipchakTripleShot(unitA)) {
+      const extraArrowDmg = calcWeaponDamage(
+        unitA.weaponType,
+        attackValue,
+        attacker.originalStats.bonus,
+        target.tags,
+        effectiveStatsB,
+        armorPenA,
+        KIPCHAK_TRIPLE_SHOT.damageMultiplier,
+      );
+      primaryDamage +=
+        extraArrowDmg * attacker.units * KIPCHAK_TRIPLE_SHOT.extraArrows;
+      logNotes.push("Triple Shot");
+    }
+    damageToB += primaryDamage;
     attacker.nextPrimaryAttack = time + atkSpeedA;
     firedPrimary = true;
+    canApplyBleed = true;
     if (
       unitA.chargeDamage > 0 &&
       (!attacker.hasCharged || time <= attacker.chargeTime + EPSILON)
@@ -6477,10 +6734,8 @@ function computeTeamAttack(attacker, target, time, config) {
       attacker.units;
     logNotes.push("%HP");
   }
-  if (unitA.effects.bleed && damageToB > 0) {
-    const bleed = unitA.effects.bleed;
-    damageToB += bleed.dps * bleed.duration * attacker.units;
-    logNotes.push("Bleed");
+  if (canApplyBleed && unitA.effects.bleed && damageToB > 0) {
+    applyKipchakBleed(attacker, target, time, splitEnabled, splitTargets);
   }
 
   // Overkill waste
@@ -6661,6 +6916,7 @@ function runMultiBattle() {
         t.nextPrimaryAttack,
         t.nextSecondaryAttack,
         t.trampleTick,
+        getNextBleedTick(t),
       );
       if (next < nextEventTime) nextEventTime = next;
     });
@@ -6669,6 +6925,30 @@ function runMultiBattle() {
 
     allTeams.forEach((t) => {
       if (t.units > 0) t.stats = applyBuffs(t.unitData, time);
+    });
+
+    allTeams.forEach((target) => {
+      if (target.units <= 0) return;
+      const bleedEntries = collectBleedTickEvents(target, time, EPSILON);
+      bleedEntries.forEach((entry) => {
+        applyDamageToTeam(target, entry.damage);
+        const sourceTeam = entry.sourceId ? teamById[entry.sourceId] : null;
+        battleLog.push({
+          time: time.toFixed(2),
+          attacker: entry.sourceId || entry.sourceSide || "?",
+          attackerId: entry.sourceId || entry.sourceSide || "?",
+          attackerSide: entry.sourceSide || sourceTeam?.side || null,
+          target: target.groupId,
+          weapon: "Bleed",
+          dmg: entry.damage.toFixed(1),
+          waste: "0.0",
+          atkUnits: sourceTeam?.units || 0,
+          tgtUnits: target.units,
+          killsA: 0,
+          killsB: 0,
+          notes: "Bleed Tick",
+        });
+      });
     });
 
     const incoming = new Map();

@@ -11693,7 +11693,11 @@
         "name": "Bleed",
         "dps": 2,
         "duration": 6,
-        "description": "Each attack inflicts 2 dmg/s bleed for 6s (ignores armor)"
+        "description": "Each attack inflicts 2 dmg/s bleed for 6s (ignores armor, refreshes on re-hit)"
+      },
+      "tripleShot": {
+        "name": "Triple Shot",
+        "description": "Fire 2 extra arrows at 30% damage each and upgrade bleed to 3.2 dmg/s for 6s. No splash."
       }
     },
     "weapons": {
@@ -11752,7 +11756,7 @@
       },
       {
         "name": "Triple Shot",
-        "description": "Shoot +2 arrows that deal 0.3x damage",
+        "description": "Shoot +2 extra arrows at 30% damage each and add +1.2 bleed DPS for 6s. No splash.",
         "category": "range"
       },
       {

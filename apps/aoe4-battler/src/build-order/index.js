@@ -104,7 +104,40 @@ const BO_TIMELINE_BUILDING_SET = new Set([
   "Twin Minaret Medrese",
   "Mehmed Imperial Armory",
   "Istanbul Imperial Palace",
-  "Istanbul Observatory"
+  "Istanbul Observatory",
+  "Aachen Chapel",
+  "Meinwerk Palace",
+  "Burgrave Palace",
+  "Regnitz Cathedral",
+  "Elzbach Palace",
+  "Palace of Swabia",
+  "Hunting Cabin",
+  "Wooden Fortress",
+  "Golden Gate",
+  "Kremlin",
+  "Abbey of the Trinity",
+  "High Trade House",
+  "High Armory",
+  "Spasskaya Tower",
+  "Farmhouse",
+  "Forge",
+  "Pit Mine",
+  "Cattle Ranch",
+  "Toll Outpost",
+  "Saharan Trade Network",
+  "Mansa Quarry",
+  "Grand Fulani Corral",
+  "Farimba Garrison",
+  "Fort of the Huntress",
+  "Griot Bara",
+  "Buddhist Temple",
+  "Shinto Shrine",
+  "Kura Storehouse",
+  "Temple of Equality",
+  "Floating Gate",
+  "Koka Township",
+  "Castle of the Crow",
+  "Tanegashima Gunsmith"
 ]);
 const BO_TRAINING_BUILDING_SET = new Set([
   "Town Center",
@@ -112,7 +145,12 @@ const BO_TRAINING_BUILDING_SET = new Set([
   "Archery Range",
   "Stable",
   "Siege Workshop",
-  "Military School"
+  "Military School",
+  "Hunting Cabin",
+  "Buddhist Temple",
+  "Shinto Shrine",
+  "Koka Township",
+  "Tanegashima Gunsmith"
 ]);
 const BO_PRODUCTION_BUILDINGS = new Set([
   "Town Center",
@@ -120,7 +158,12 @@ const BO_PRODUCTION_BUILDINGS = new Set([
   "Archery Range",
   "Stable",
   "Siege Workshop",
-  "Military School"
+  "Military School",
+  "Hunting Cabin",
+  "Buddhist Temple",
+  "Shinto Shrine",
+  "Koka Township",
+  "Tanegashima Gunsmith"
 ]);
 const BO_TECH_BUILDINGS = new Set([
   "Mill",
@@ -128,6 +171,34 @@ const BO_TECH_BUILDINGS = new Set([
   "Mosque",
   "Monastery",
   "Prayer Tent"
+]);
+const BO_BASE_TECH_BUILDINGS = ["Mill", "Blacksmith", "Mosque", "Monastery", "Prayer Tent"];
+const BO_TECHS_REQUIRING_UNMODELED_EXACT_SITE = new Set([
+  "Ajmer Benefactor",
+  "Burgundian Imports",
+  "Carrying Frame",
+  "Collateral Damage",
+  "Collar of Esses",
+  "Curse of Auliya",
+  "Dome of the Faith",
+  "Elephant Caretakers",
+  "Elephant Harness",
+  "Field Repair Site",
+  "Hearty Rations",
+  "Hill Training",
+  "Honed Blades",
+  "Khanda Drills",
+  "Mahouts",
+  "Military Tactics Training",
+  "Neza Training",
+  "Paiks",
+  "Red Brick Bastions",
+  "Reinforced Foundations",
+  "Shahi Walls",
+  "Ships of the Crown",
+  "Tranquil Venue",
+  "Warwolf Trebuchet",
+  "Woven Baskets"
 ]);
 let BO_BUILD_TIME_MULT_BY_VILLAGERS = { 1: 1 };
 let BO_BUILDING_DEFAULTS = {};
@@ -163,7 +234,7 @@ const BO_CIV_STARTING_RESOURCES = {
   "French": { food: 200, wood: 150, gold: 100, stone: 0 },
   "Knights Templar": { food: 200, wood: 100, gold: 100, stone: 0 },
   "Zhu Xi's Legacy": { food: 150, wood: 200, gold: 100, stone: 0 },
-  "Holy Roman Empire": { food: 200, wood: 100, gold: 0, stone: 0 },
+  "Holy Roman Empire": { food: 200, wood: 150, gold: 0, stone: 0 },
   "Ottomans": { food: 200, wood: 200, gold: 100, stone: 50 },
   "Golden Horde": { food: 200, wood: 225, gold: 150, stone: 50 },
   "Byzantines": { food: 200, wood: 150, gold: 100, stone: 100, oliveOil: 100 },
@@ -183,19 +254,23 @@ const BO_SUPPORTED_CIVS = new Set([
   "Delhi Sultanate",
   "English",
   "French",
+  "Holy Roman Empire",
   "House of Lancaster",
+  "Japanese",
   "Jeanne d'Arc",
   "Knights Templar",
+  "Malians",
   "Mongols",
   "Ottomans",
+  "Rus",
   "Tughlaq Dynasty"
 ]);
-const BO_OTTOMAN_UNIT_ALIASES = {
+const BO_UNIT_ALIASES = {
   "Crossbowman": "Crossbow",
   "Man-at-Arms": "MAA",
   "Lancer": "Knight/Lancer"
 };
-const BO_OTTOMAN_EXTRA_UNIT_SPECS = {
+const BO_EXTRA_UNIT_SPECS = {
   "Mehter": {
     civs: ["Ottomans"],
     cost: { food: 100, wood: 0, gold: 80, stone: 0 },
@@ -209,6 +284,50 @@ const BO_OTTOMAN_EXTRA_UNIT_SPECS = {
     time: 24,
     ages: [3, 4],
     buildings: ["Archery Range", BO_OTTOMAN_MILITARY_SCHOOL_BUILDING]
+  },
+  "Worker Elephant": {
+    civs: ["Tughlaq Dynasty"],
+    cost: { food: 25, wood: 50, gold: 0, stone: 0 },
+    time: 0.1,
+    ages: [1, 2, 3, 4],
+    buildings: ["Town Center"],
+    population: 0
+  },
+  "Buddhist Monk": {
+    civs: ["Japanese"],
+    cost: { food: 0, wood: 0, gold: 80, stone: 0 },
+    time: 30,
+    ages: [3, 4],
+    buildings: ["Buddhist Temple", "Temple of Equality"]
+  },
+  "Shinto Priest": {
+    civs: ["Japanese"],
+    cost: { food: 0, wood: 0, gold: 150, stone: 0 },
+    time: 30,
+    ages: [3, 4],
+    buildings: ["Shinto Shrine", "Floating Gate"]
+  },
+  "Shinobi": {
+    civs: ["Japanese"],
+    cost: { food: 50, wood: 0, gold: 50, stone: 0 },
+    time: 20,
+    ages: [2, 3, 4],
+    buildings: ["Koka Township"]
+  },
+  "Ozutsu": {
+    civs: ["Japanese"],
+    cost: { food: 85, wood: 0, gold: 155, stone: 0 },
+    time: 35,
+    ages: [4],
+    buildings: ["Tanegashima Gunsmith"]
+  },
+  "Cattle": {
+    civs: ["Malians"],
+    cost: { food: 0, wood: 0, gold: 90, stone: 0 },
+    time: 15,
+    ages: [1, 2, 3, 4],
+    buildings: ["Mill"],
+    population: 0
   }
 };
 const BO_OTTOMAN_VIZIER_THRESHOLDS = [60, 160, 310, 550, 870, 1190, 1510, 1830];
@@ -749,6 +868,188 @@ function getBoLandmarkChoicesForCiv(civ) {
   return BO_CIV_BONUSES?.[civ]?.landmarksByAge || {};
 }
 
+function getBoRusBountyConfig(civ) {
+  return BO_CIV_BONUSES?.[civ]?.bounty || null;
+}
+
+function getBoRusBountyState(civ, total = 0) {
+  const config = getBoRusBountyConfig(civ);
+  const thresholds = Array.isArray(config?.thresholds) ? config.thresholds : [];
+  let tier = 0;
+  let foodGatherPct = 0;
+  thresholds.forEach((entry, idx) => {
+    if (!Number.isFinite(entry?.bounty) || total < entry.bounty) return;
+    tier = idx + 1;
+    foodGatherPct = Math.max(foodGatherPct, entry.foodGatherPct || 0);
+  });
+  return {
+    total: Math.max(0, total || 0),
+    tier,
+    foodGatherPct,
+    goldPerFood: Number.isFinite(config?.goldPerFood) ? config.goldPerFood : 0,
+    foodResources: Array.isArray(config?.foodResources) ? config.foodResources.slice() : []
+  };
+}
+
+function getBoJapanesePreviewState(timeOverride = null) {
+  const anchorTime = Number.isFinite(timeOverride) ? timeOverride : getBoAnchorTime();
+  const sample = getBoSampleAtTimeFromSamples(anchorTime, boLastResults?.samples || []);
+  const researched = new Set(sample?.researchedTechs || []);
+  let farmhouseTechLevel = 0;
+  if (researched.has("Tawara")) farmhouseTechLevel = 1;
+  if (researched.has("Takezaiku")) farmhouseTechLevel = 2;
+  if (researched.has("Fudasashi")) farmhouseTechLevel = 3;
+  let daimyoTier = 0;
+  if (researched.has("Daimyo Manor")) daimyoTier = 1;
+  if (researched.has("Daimyo Palace")) daimyoTier = 2;
+  if (researched.has("Shogunate Castle")) daimyoTier = 3;
+  return {
+    researched,
+    farmhouseTechLevel,
+    daimyoTier,
+    kuraStorehouseCount: Math.max(0, sample?.japanese?.kuraStorehouseCount || 0),
+    kuraGeneratedFarms: Math.max(0, sample?.japanese?.kuraGeneratedFarms || 0),
+    buddhistMonkCount: Math.max(0, sample?.japanese?.buddhistMonkCount || 0),
+    zenGoldPerSec: Math.max(0, sample?.japanese?.zenGoldPerSec || 0)
+  };
+}
+
+function getBoMalianPreviewState(timeOverride = null) {
+  const anchorTime = Number.isFinite(timeOverride) ? timeOverride : getBoAnchorTime();
+  const sample = getBoSampleAtTimeFromSamples(anchorTime, boLastResults?.samples || []);
+  return {
+    pitMineCount: Math.max(0, sample?.malians?.pitMineCount || 0),
+    pitMineSupportBuildings: Math.max(0, sample?.malians?.pitMineSupportBuildings || 0),
+    pitMineGoldPerSec: Math.max(0, sample?.malians?.pitMineGoldPerSec || 0),
+    cattleCount: Math.max(0, sample?.malians?.cattleCount || 0),
+    garrisonedCattle: Math.max(0, sample?.malians?.garrisonedCattle || 0),
+    cattleRanchCount: Math.max(0, sample?.malians?.cattleRanchCount || 0),
+    cattleFoodPerSec: Math.max(0, sample?.malians?.cattleFoodPerSec || 0),
+    grandFulaniCorralCount: Math.max(0, sample?.malians?.grandFulaniCorralCount || 0),
+    grandFulaniFoodPerSec: Math.max(0, sample?.malians?.grandFulaniFoodPerSec || 0),
+    mansaQuarryCount: Math.max(0, sample?.malians?.mansaQuarryCount || 0),
+    mansaQuarryGoldPerSec: Math.max(0, sample?.malians?.mansaQuarryGoldPerSec || 0)
+  };
+}
+
+function getBoBuildingSurfaceConfig(buildingType, civ) {
+  if (!buildingType) return {};
+  return BO_CIV_BONUSES?.[civ]?.landmarkSurfaces?.[buildingType] || {};
+}
+
+function getBoTrainingSurface(buildingType, civ) {
+  if (!buildingType) return null;
+  return getBoBuildingSurfaceConfig(buildingType, civ).trainAs || buildingType;
+}
+
+function getBoTechSurface(buildingType, civ) {
+  if (!buildingType) return null;
+  return getBoBuildingSurfaceConfig(buildingType, civ).techAs || buildingType;
+}
+
+function isBoTownCenterSurface(buildingType, civ) {
+  return getBoTrainingSurface(buildingType, civ) === "Town Center";
+}
+
+function isBoProductionSurface(buildingType, civ) {
+  const surface = getBoTrainingSurface(buildingType, civ);
+  if (civ === "Malians" && buildingType === "Mill") return true;
+  return !!surface && BO_PRODUCTION_BUILDINGS.has(surface);
+}
+
+function getBoUnitTrainModifier(buildingType, civ, unitName) {
+  const config = getBoBuildingSurfaceConfig(buildingType, civ);
+  const unitMods = config.unitTrainMods?.[resolveBoUnitName(unitName)] || config.unitTrainMods?.[unitName] || {};
+  return {
+    costMult: Number.isFinite(unitMods.costMult) ? unitMods.costMult : 1,
+    timePct: Number.isFinite(unitMods.timePct) ? unitMods.timePct : 0
+  };
+}
+
+function doesBoTechMatchBuilding(techType, buildingType, civ) {
+  if (!buildingType) return false;
+  const sites = getBoTechResearchSites(techType);
+  if (!sites.length) return false;
+  if (sites.includes(buildingType)) return true;
+  const techSurface = getBoTechSurface(buildingType, civ);
+  return !!techSurface && techSurface !== buildingType && sites.includes(techSurface);
+}
+
+function refreshBoTechBuildings() {
+  BO_TECH_BUILDINGS.clear();
+  BO_BASE_TECH_BUILDINGS.forEach((name) => BO_TECH_BUILDINGS.add(name));
+  Object.entries(BO_TECH_DEFAULTS || {}).forEach(([techName, def]) => {
+    const sites = Array.isArray(def?.researchedAt) ? def.researchedAt : [];
+    sites.forEach((site) => {
+      if (isBoExactResearchSiteSupported(site, techName)) BO_TECH_BUILDINGS.add(site);
+    });
+  });
+}
+
+function isBoExactResearchSiteSupported(site, techType = "") {
+  if (!site) return false;
+  if (BO_TECHS_REQUIRING_UNMODELED_EXACT_SITE.has(techType)) return false;
+  if (site === BO_HOUSE_OF_WISDOM_BUILDING || site === BO_OTTOMAN_IMPERIAL_COUNCIL_BUILDING) return true;
+  if (/^Landmark \(Age /.test(site)) return false;
+  if (site === "Worker Elephant") return false;
+  return !!BO_BUILDING_DEFAULTS?.[site];
+}
+
+function getBoTechResearchSites(techType) {
+  const def = getBoTechDefaults(techType) || {};
+  const sites = Array.isArray(def.researchedAt)
+    ? def.researchedAt.filter((site) => isBoExactResearchSiteSupported(site, techType))
+    : [];
+  if (sites.length) return Array.from(new Set(sites));
+  const millTechs = new Set(["Wheelbarrow", "Horticulture", "Survival Techniques"]);
+  if (millTechs.has(techType) && isBoExactResearchSiteSupported("Mill", techType)) return ["Mill"];
+  return [];
+}
+
+function getBoTechPreviewState(civ, timeOverride = null) {
+  const anchorTime = Number.isFinite(timeOverride) ? timeOverride : getBoAnchorTime();
+  const sample = getBoSampleAtTimeFromSamples(anchorTime, boLastResults?.samples || []);
+  const fallbackAge = parseInt(document.getElementById("boStartAge")?.value, 10) || 1;
+  const howState = getBoHouseOfWisdomStateFromSample(sample);
+  if (!sample && isBoHouseOfWisdomCiv(civ)) {
+    howState.wings = getBoPlannedHouseOfWisdomWings(civ);
+  }
+  return {
+    age: Math.max(1, sample?.age || fallbackAge),
+    researchedTechs: new Set(sample?.researchedTechs || []),
+    houseOfWisdom: howState,
+    buildingCounts: { ...(sample?.buildingCounts || {}) }
+  };
+}
+
+function isBoTechNoteOnly(techType) {
+  return !!getBoTechDefaults(techType)?.noteOnly;
+}
+
+function getBoTechNoteText(techType) {
+  if (!isBoTechNoteOnly(techType)) return "";
+  return "No Build Order eco effect; tracked for timing only.";
+}
+
+function doesBoPreviewMeetTechRequirements(def, previewState) {
+  if (!def) return true;
+  const minAge = Math.max(1, def.minAge || 1);
+  if ((previewState?.age || 1) < minAge) return false;
+  const researched = previewState?.researchedTechs || new Set();
+  if (researched.has(def.name || "")) return false;
+  const reqs = Array.isArray(def.requiresTechs) ? def.requiresTechs : [];
+  if (reqs.some((name) => !researched.has(name))) return false;
+  const reqBuildings = Array.isArray(def.requiresBuildings) ? def.requiresBuildings : [];
+  const buildingCounts = previewState?.buildingCounts || {};
+  if (reqBuildings.some((name) => (buildingCounts[name] || 0) <= 0)) return false;
+  const reqWing = def.requiresHouseOfWisdomWing || null;
+  if (reqWing) {
+    const wings = previewState?.houseOfWisdom?.wings || [];
+    if (!wings.some((entry) => entry?.wing === reqWing)) return false;
+  }
+  return true;
+}
+
 function getBoBuildableBuildingsForCiv(civ) {
   const fallbackBuildings = [
     "Farm",
@@ -784,6 +1085,9 @@ function getBoBuildableBuildingsForCiv(civ) {
   };
   buildingKeys.forEach((name) => {
     if (isBoHouseOfWisdomCiv(civ) && name.startsWith("Landmark (Age")) return;
+    if (civ === "Rus" && (name === "Mill" || name === "Outpost")) return;
+    if (civ === "Malians" && name === "Outpost") return;
+    if (civ === "Japanese" && ["House", "Mill", "Mining Camp", "Blacksmith", "Keep", "Monastery"].includes(name)) return;
     if (name === BO_OTTOMAN_MILITARY_SCHOOL_BUILDING && civ !== "Ottomans") return;
     if (name === "Landmark (Age II)" && landmarkChoices?.["2"]?.length) {
       landmarkChoices["2"].forEach(push);
@@ -798,6 +1102,8 @@ function getBoBuildableBuildingsForCiv(civ) {
       return;
     }
     const def = BO_BUILDING_DEFAULTS?.[name];
+    if (Array.isArray(def?.civs) && civ && !def.civs.includes(civ)) return;
+    if (def?.buildable === false) return;
     if (def?.landmarkAge && civ !== "Ottomans") return;
     push(name);
   });
@@ -924,11 +1230,11 @@ function getBoHouseOfWisdomActionChoices(civ, state = null) {
 }
 
 function resolveBoUnitName(unitName) {
-  return BO_OTTOMAN_UNIT_ALIASES[unitName] || unitName;
+  return BO_UNIT_ALIASES[unitName] || unitName;
 }
 
 function getBoExtraUnitSpec(unitName, civ) {
-  const direct = BO_OTTOMAN_EXTRA_UNIT_SPECS[unitName] || BO_OTTOMAN_EXTRA_UNIT_SPECS[resolveBoUnitName(unitName)];
+  const direct = BO_EXTRA_UNIT_SPECS[unitName] || BO_EXTRA_UNIT_SPECS[resolveBoUnitName(unitName)];
   if (!direct) return null;
   if (Array.isArray(direct.civs) && civ && !direct.civs.includes(civ)) return null;
   return direct;
@@ -939,6 +1245,9 @@ function getBoUnitAgeList(unitName, civ) {
   if (extra?.ages?.length) return extra.ages.slice();
   const resolved = resolveBoUnitName(unitName);
   if (resolved === "Villager" || resolved === "Scout") return [1, 2, 3, 4];
+  if (civ === "Holy Roman Empire" && resolved === "MAA") return [2, 3, 4];
+  if (civ === "Japanese" && resolved === "Samurai") return [1, 2, 3, 4];
+  if (civ === "Rus" && resolved === "Knight/Lancer") return [2, 3, 4];
   const unit = getUnitMeta(resolved);
   if (Array.isArray(unit?.ages) && unit.ages.length) return unit.ages.slice();
   return [1, 2, 3, 4];
@@ -950,8 +1259,12 @@ function getBoUnitMinAge(unitName, civ) {
 }
 
 function isBoUnitTrainableAtBuilding(unitName, buildingType, civ, ottomanSettings = null) {
+  const trainingSurface = getBoTrainingSurface(buildingType, civ);
   const resolved = resolveBoUnitName(unitName);
-  if (buildingType === "Town Center") {
+  if (trainingSurface === "Hunting Cabin") {
+    return resolved === "Scout";
+  }
+  if (trainingSurface === "Town Center") {
     return resolved === "Villager" || resolved === "Scout";
   }
   if (buildingType === BO_OTTOMAN_MILITARY_SCHOOL_BUILDING) {
@@ -968,16 +1281,16 @@ function isBoUnitTrainableAtBuilding(unitName, buildingType, civ, ottomanSetting
   }
   const extra = getBoExtraUnitSpec(unitName, civ);
   if (extra?.buildings?.length) {
-    return extra.buildings.includes(buildingType);
+    return extra.buildings.includes(buildingType) || extra.buildings.includes(trainingSurface);
   }
   const unit = getUnitMeta(resolved);
   if (!unit) return false;
   const tags = Array.isArray(unit.tags) ? unit.tags : [];
   const category = String(unit.category || "");
-  if (buildingType === "Siege Workshop") return tags.includes("Siege") || category === "Siege";
-  if (buildingType === "Stable") return tags.includes("Cavalry") && !tags.includes("Ranged");
-  if (buildingType === "Archery Range") return !tags.includes("Siege") && (tags.includes("Ranged") || category.includes("Ranged"));
-  if (buildingType === "Barracks") return tags.includes("Infantry") && !tags.includes("Ranged") && !tags.includes("Siege");
+  if (trainingSurface === "Siege Workshop") return tags.includes("Siege") || category === "Siege";
+  if (trainingSurface === "Stable") return tags.includes("Cavalry") && !tags.includes("Ranged");
+  if (trainingSurface === "Archery Range") return !tags.includes("Siege") && (tags.includes("Ranged") || category.includes("Ranged"));
+  if (trainingSurface === "Barracks") return tags.includes("Infantry") && !tags.includes("Ranged") && !tags.includes("Siege");
   return false;
 }
 
@@ -1070,6 +1383,72 @@ function renderBoCivBonuses(civ) {
   if (civBonus.dropoffCostMult) parts.push("Dropoffs cheaper (French)");
   if (civBonus.ecoTechCostMult) parts.push("Eco techs cheaper (French/Jeanne)");
   if (civBonus.townCenterWorkRateByAge) parts.push("Town Center works faster by age (15/15/20/25%)");
+  if (civ === "Holy Roman Empire") {
+    parts.push("Pushcarts: villagers carry 40% more");
+    parts.push("Army of the Empire: Man-at-Arms available in Feudal Age");
+    parts.push("Landmarks: Aachen dropoff, Meinwerk Blacksmith techs 50% cheaper/faster, Burgrave Barracks x5 speed, Regnitz Monastery, Elzbach Keep, Swabia Town Center");
+  }
+  if (civ === "Rus") {
+    const sample = getBoSampleAtTimeFromSamples(getBoAnchorTime(), boLastResults?.samples || []);
+    const bountyState = getBoRusBountyState(civ, sample?.rus?.bountyTotal || 0);
+    parts.push("Hunter Princes: Hunting Cabin replaces Mill, trains Scouts, and Early Knight is available in Feudal Age");
+    parts.push("Woodland Federation: Wooden Fortress replaces Outpost; wood dropoff +20% once a Wooden Fortress or Kremlin is online (global no-position simplification)");
+    parts.push("Bounty: +1 gold per 10 food from sheep, deer, and boar; 100/400/1000 bounty grants +5/+10/+15% food gather");
+    parts.push("High Trade House: deer trickle every 60s");
+    parts.push("Hunting Cabin tree-based passive gold is not modeled yet in the no-position sim");
+    if (bountyState.total > 0) {
+      parts.push(`Current bounty: ${Math.round(bountyState.total)}${bountyState.tier ? ` (Tier ${bountyState.tier}, +${bountyState.foodGatherPct}% food gather)` : ""}`);
+    }
+  }
+  if (civ === "Japanese") {
+    const preview = getBoJapanesePreviewState();
+    parts.push("Samurai Districts: Barracks cost 50% less wood");
+    parts.push("Calm of Mind: Barracks and Samurai available in Dark Age");
+    parts.push("Buildings: Farmhouse replaces House + Mill, Forge replaces Mining Camp + Blacksmith");
+    parts.push("Silver Mining: +20% dropped-off gold as stone and dropped-off stone as gold");
+    parts.push("Kura Storehouse: acts as Farmhouse/Forge/Lumber Camp, grants 1 free Farm on completion, then 1 Farm every 50s up to 12, then 38 wood every 50s");
+    parts.push("Temple of Equality: trains Buddhist Monks, spawns 4 on completion, unlocks Zen gold trickle");
+    parts.push("Floating Gate: trains Shinto Priests");
+    if (preview.farmhouseTechLevel > 0) {
+      parts.push(`Farmhouse techs active: level ${preview.farmhouseTechLevel} (+${preview.farmhouseTechLevel * 3} carry, +${preview.farmhouseTechLevel * 7}% move, +${preview.farmhouseTechLevel * 25}% berry gather)`);
+    }
+    if (preview.daimyoTier > 0) {
+      parts.push(`Town Center upgraded: Daimyo tier ${preview.daimyoTier} (+${preview.daimyoTier * 20}% farm gather, +${preview.daimyoTier} Villager granted)`);
+    }
+    if (preview.kuraStorehouseCount > 0) {
+      parts.push(`Current Kura: ${preview.kuraStorehouseCount} storehouse(s), ${preview.kuraGeneratedFarms} free farm(s) generated`);
+    }
+    if (preview.zenGoldPerSec > 0) {
+      parts.push(`Zen active: +${(preview.zenGoldPerSec * 60).toFixed(0)} gold/min from ${preview.buddhistMonkCount} Buddhist Monk(s)`);
+    }
+  }
+  if (civ === "Malians") {
+    const preview = getBoMalianPreviewState();
+    parts.push("Houses are half cost and build 2x faster");
+    parts.push("Town Centers cost 400 wood / 400 gold");
+    parts.push("Buildings: Toll Outpost replaces Outpost, Pit Mine from Dark Age (1 per Age), Cattle Ranch from Feudal");
+    parts.push("Pit Mine: 36 gold/min base, +25% per House/Mining Camp support (no-position cap: 8 support buildings per mine)");
+    parts.push("Cattle: 90 gold / 15s at Mill, up to 20; Cattle Ranches hold 3 and generate 25 food/min per garrisoned Cattle");
+    parts.push("Grand Fulani Corral: +18 food/min per garrisoned Cattle");
+    parts.push("Mansa Quarry: modeled as 75 gold/min passive income (stone mode deferred)");
+    parts.push("Manuscript Trade and Farari veteran-upgrade bonus are deferred until trade gold / upgrade techs are modeled");
+    if (preview.pitMineCount > 0 || preview.cattleCount > 0 || preview.mansaQuarryCount > 0) {
+      const liveParts = [];
+      if (preview.pitMineCount > 0) {
+        liveParts.push(`Pit Mines ${preview.pitMineCount} (${preview.pitMineSupportBuildings} support, ${(preview.pitMineGoldPerSec * 60).toFixed(0)} gold/min)`);
+      }
+      if (preview.cattleCount > 0) {
+        liveParts.push(`Cattle ${preview.cattleCount} (${preview.garrisonedCattle} garrisoned, ${(preview.cattleFoodPerSec * 60).toFixed(0)} food/min)`);
+      }
+      if (preview.grandFulaniCorralCount > 0 && preview.grandFulaniFoodPerSec > 0) {
+        liveParts.push(`Grand Fulani ${(preview.grandFulaniFoodPerSec * 60).toFixed(0)} food/min`);
+      }
+      if (preview.mansaQuarryCount > 0) {
+        liveParts.push(`Mansa Quarry ${preview.mansaQuarryCount} (${(preview.mansaQuarryGoldPerSec * 60).toFixed(0)} gold/min)`);
+      }
+      if (liveParts.length) parts.push(`Current Malians eco: ${liveParts.join(" | ")}`);
+    }
+  }
   if (civ === "Mongols") parts.push("Pasture/Ovoo/Ger rules apply; farms disabled");
   if (civ === "Ottomans") {
     const school = civBonus.militarySchool || {};
@@ -1773,9 +2152,11 @@ async function loadBoCivBonusData() {
     if (typeof data.pastureSheepSeconds === "number") BO_PASTURE_SHEEP_SECONDS = data.pastureSheepSeconds;
     if (data.ovooStonePerMinByAge) BO_OVOO_STONE_PER_MIN_BY_AGE = data.ovooStonePerMinByAge;
     if (data.scholar) BO_SCHOLAR = { ...BO_SCHOLAR, ...data.scholar };
+    refreshBoTechBuildings();
   } catch (err) {
     console.warn("Build Order: failed to load bo_civ_bonuses.json, using defaults.", err);
   }
+  refreshBoTechBuildings();
   applyBoDefaults();
 }
 
@@ -2056,6 +2437,15 @@ function getBoBuildStepCost(step, civ, civBonus, options = {}) {
   const isEconomicBuild = def?.type === "economic" || def?.type === "dropoff" || def?.type === "house";
   if (step.autoCost && def?.cost) {
     cost = { ...def.cost };
+    if (civ === "Malians" && step.building === "House") {
+      cost.wood = Math.round((cost.wood || 0) * (civBonus?.houseWoodCostMult || 0.5));
+    }
+    if (civ === "Malians" && step.building === "Town Center" && civBonus?.townCenterCostOverride) {
+      cost = { ...civBonus.townCenterCostOverride };
+    }
+    if (civ === "Japanese" && step.building === "Barracks") {
+      cost.wood = Math.round((cost.wood || 0) * (civBonus?.barracksWoodCostMult || 0.5));
+    }
     if (BO_ENGLISH_FARM_BONUS_CIVS.has(civ) && step.building === "Farm") {
       cost.wood = Math.round((cost.wood || 0) * (civBonus?.farmCostMult || BO_ENGLISH_FARM_COST_MULT));
     }
@@ -2093,6 +2483,14 @@ function getBoBuildStepCost(step, civ, civBonus, options = {}) {
         stone: Math.round((cost.stone || 0) * 0.8)
       };
     }
+    if (civ === "Holy Roman Empire" && step.building === "Palace of Swabia") {
+      cost = {
+        food: Math.round((cost.food || 0) * 0.9),
+        wood: Math.round((cost.wood || 0) * 0.9),
+        gold: Math.round((cost.gold || 0) * 0.9),
+        stone: Math.round((cost.stone || 0) * 0.9)
+      };
+    }
   }
   return cost;
 }
@@ -2123,6 +2521,9 @@ function getBoBuildQueueSegments(payload, startTime = 0, options = {}) {
   let segmentIndex = 0;
   normalized.steps.forEach((step, stepIndex) => {
     let perBuildDuration = getBuildDurationSeconds(getBoBuildStepTime(step), builders);
+    if (civ === "Malians" && step.building === "House" && civBonus?.houseBuildTimeMult) {
+      perBuildDuration *= civBonus.houseBuildTimeMult;
+    }
     if (civ === "Jeanne d'Arc" && (parseInt(document.getElementById("boStartAge")?.value, 10) || 1) === 1 && civBonus.darkAgeBuildSpeedMult) {
       perBuildDuration = perBuildDuration / civBonus.darkAgeBuildSpeedMult;
     }
@@ -2505,7 +2906,10 @@ function getBoUnitOptions(civ) {
       return (civs.includes("Common") || civs.includes(civ)) && !exceptCivs.includes(civ);
     })
     : base.slice();
-  const list = ["Villager", "Scout", ...pool];
+  const extraUnits = Object.entries(BO_EXTRA_UNIT_SPECS)
+    .filter(([, spec]) => !civ || !Array.isArray(spec?.civs) || spec.civs.includes(civ))
+    .map(([name]) => name);
+  const list = ["Villager", "Scout", ...pool, ...extraUnits];
   return Array.from(new Set(list)).sort((a, b) => a.localeCompare(b));
 }
 
@@ -2527,10 +2931,17 @@ function getBoMilitaryProductionSpeedPct(civ, buildingType, age, options = {}) {
 function getBoPreviewTrainSpec(unitName, buildingType, civ, options = {}) {
   const base = getBoUnitDefaults(unitName, civ);
   if (!base) return null;
+  const surfaceConfig = getBoBuildingSurfaceConfig(buildingType, civ);
+  const trainingSurface = getBoTrainingSurface(buildingType, civ);
+  const unitTrainMod = getBoUnitTrainModifier(buildingType, civ, unitName);
   let cost = { ...(base.cost || { food: 0, wood: 0, gold: 0, stone: 0 }) };
   let time = base.time || 0;
   const ottomanSettings = options.ottomanSettings || getBoOttomanSettingsFromInputs();
   const howState = isBoHouseOfWisdomCiv(civ) ? getBoHouseOfWisdomPreviewState(options.timeOverride) : null;
+  const previewTechState = getBoTechPreviewState(civ, options.timeOverride);
+  if (civ === "Abbasid Dynasty" && resolveBoUnitName(unitName) === "Villager" && previewTechState.researchedTechs.has("Fresh Foodstuffs")) {
+    cost.food = Math.round((cost.food || 0) * 0.6);
+  }
   if (civ === "Mongols" && /horseman/i.test(resolveBoUnitName(unitName))) {
     const civBonus = BO_CIV_BONUSES?.[civ] || {};
     time *= civBonus.horsemenTrainTimeMult || 0.75;
@@ -2557,10 +2968,24 @@ function getBoPreviewTrainSpec(unitName, buildingType, civ, options = {}) {
         })
       );
     }
-  } else if (buildingType === "Town Center") {
+  } else if (trainingSurface === "Town Center") {
     time = applyBoWorkRateToDuration(time, getBoPreviewTownCenterWorkRatePct(civ, options.age));
   }
-  if (howState?.goldenAge?.bonuses?.productionPct && BO_PRODUCTION_BUILDINGS.has(buildingType) && buildingType !== "Town Center") {
+  if (Number.isFinite(unitTrainMod.costMult) && unitTrainMod.costMult > 0 && unitTrainMod.costMult !== 1) {
+    cost = {
+      food: Math.round((cost.food || 0) * unitTrainMod.costMult),
+      wood: Math.round((cost.wood || 0) * unitTrainMod.costMult),
+      gold: Math.round((cost.gold || 0) * unitTrainMod.costMult),
+      stone: Math.round((cost.stone || 0) * unitTrainMod.costMult)
+    };
+  }
+  if (Number.isFinite(unitTrainMod.timePct) && unitTrainMod.timePct > 0) {
+    time = applyBoWorkRateToDuration(time, unitTrainMod.timePct);
+  }
+  if (Number.isFinite(surfaceConfig.trainTimePct) && surfaceConfig.trainTimePct > 0) {
+    time = applyBoWorkRateToDuration(time, surfaceConfig.trainTimePct);
+  }
+  if (howState?.goldenAge?.bonuses?.productionPct && BO_PRODUCTION_BUILDINGS.has(trainingSurface) && trainingSurface !== "Town Center") {
     time = applyBoWorkRateToDuration(time, howState.goldenAge.bonuses.productionPct);
   }
   if (civ === "Ottomans" && resolveBoUnitName(unitName) === "Villager" && ottomanSettings?.paxOttomana) {
@@ -2590,7 +3015,12 @@ function applyAutoDefaultsForCommand(cmd, civ) {
     }
   }
   if (cmd.type === "tech") {
-    const techBuildingType = cmd.payload.building || inferBoBuildingTypeFromId(cmd.payload.buildingId);
+    const inferredBuilding = cmd.payload.building || inferBoBuildingTypeFromId(cmd.payload.buildingId) || null;
+    const techBuildingType = inferredBuilding && doesBoTechMatchBuilding(cmd.payload.techType, inferredBuilding, civ) ? inferredBuilding : null;
+    cmd.payload.building = techBuildingType;
+    if (cmd.payload.buildingId && inferBoBuildingTypeFromId(cmd.payload.buildingId) !== techBuildingType) {
+      cmd.payload.buildingId = null;
+    }
     const info = getBoTechDisplayInfo(cmd.payload.techType, civ, techBuildingType);
     if (cmd.autoTime) cmd.payload.time = info.time;
     if (cmd.autoCost) cmd.payload.cost = { ...info.cost };
@@ -2689,7 +3119,7 @@ function getBoCommandDuration(cmd, startTime = 0, simEndOverride = null) {
     if (cmd.autoTime) {
       const civ = document.getElementById("boCiv")?.value || "";
       const techBuildingType = cmd.payload.building || inferBoBuildingTypeFromId(cmd.payload.buildingId);
-      if (techBuildingType === "Town Center") {
+      if (getBoTechSurface(techBuildingType, civ) === "Town Center") {
         duration = applyBoWorkRateToDuration(duration, getBoPreviewTownCenterWorkRatePct(civ));
       }
     }
@@ -2701,7 +3131,7 @@ function getBoCommandDuration(cmd, startTime = 0, simEndOverride = null) {
     if (cmd.autoTime) {
       const civ = document.getElementById("boCiv")?.value || "";
       const trainingBuilding = cmd.payload.building || inferBoBuildingTypeFromId(cmd.payload.buildingId);
-      if (trainingBuilding === "Town Center") {
+      if (getBoTrainingSurface(trainingBuilding, civ) === "Town Center") {
         perUnit = applyBoWorkRateToDuration(perUnit, getBoPreviewTownCenterWorkRatePct(civ));
       }
     }
@@ -2734,8 +3164,9 @@ function getBoCommandLabel(cmd) {
   if (cmd.type === "vizierChoice") return `Imperial Council: ${getBoOttomanChoiceDef(cmd.payload?.choiceId)?.label || "Vizier Choice"}`;
   if (cmd.type === "rally") return `Rally -> ${cmd.payload.target}`;
   if (cmd.type === "trainUnit") {
+    const civ = getBoSelectedCiv();
     const isTownCenterVillager =
-      cmd.payload?.building === "Town Center" &&
+      isBoTownCenterSurface(cmd.payload?.building || inferBoBuildingTypeFromId(cmd.payload?.buildingId) || null, civ) &&
       cmd.payload?.unitName === "Villager";
     if (cmd.payload?.repeatUntilEnd) {
       if (cmd.payload.unitName === "Villager" && cmd.payload.rallyTarget) {
@@ -3012,11 +3443,12 @@ function getBoLaneActionBadges(lane) {
     ? lane.buildingType
     : (lane?.key === "tc" ? "Town Center" : null);
   if (!buildingType) return [];
+  const civ = getBoSelectedCiv();
   const badges = [];
-  if (buildingType === "Town Center" || BO_PRODUCTION_BUILDINGS.has(buildingType)) {
+  if (isBoProductionSurface(buildingType, civ)) {
     badges.push({ label: "Queue", className: "queue", icon: "bi-people-fill" });
   }
-  if (BO_TECH_BUILDINGS.has(buildingType)) {
+  if (getBoAvailableTechs(civ, buildingType, { ignoreAvailability: true }).length) {
     badges.push({ label: "Research", className: "tech", icon: "bi-stars" });
   }
   return badges;
@@ -3283,8 +3715,9 @@ function renderBoTimelineEditor() {
     if (cmd.type === "resourceTrip") shortLabel = `Trip ${formatBoTripOverrideValue(cmd.payload?.tripOverrideSec || 0)}`;
     if (cmd.type === "vizierChoice") shortLabel = getBoOttomanChoiceDef(cmd.payload?.choiceId)?.label || "Vizier";
     if (cmd.type === "trainUnit") {
+      const civ = getBoSelectedCiv();
       const isTownCenterVillager =
-        cmd.payload?.building === "Town Center" &&
+        isBoTownCenterSurface(cmd.payload?.building || inferBoBuildingTypeFromId(cmd.payload?.buildingId) || null, civ) &&
         cmd.payload?.unitName === "Villager";
       shortLabel = isTownCenterVillager
         ? "Rally"
@@ -3885,7 +4318,7 @@ function getBoEstimateBaseStateAtTime(time) {
   buildRows.forEach((row) => {
     if (row.end >= time - epsilon && Math.abs(row.end - (time - epsilon)) > epsilon) return;
     if (row.buildingType === "Farm") farmCount += 1;
-    if (row.buildingType === "House") houseCount += 1;
+    if (row.buildingType === "House" || row.buildingType === "Farmhouse") houseCount += 1;
   });
 
   const counts = {
@@ -4370,12 +4803,18 @@ function escapeBoAttr(value) {
   return escapeBoHtml(value).replace(/"/g, "&quot;");
 }
 
-function getBoAvailableTechs(civ) {
+function getBoAvailableTechs(civ, buildingType = null, options = {}) {
   const fallbackTechs = ["Wheelbarrow", "Horticulture", "Survival Techniques", "Sanctity", "Enlistment Incentives", "Dome of the Faith"];
-  const delhiOnlyTechs = new Set(["Sanctity", "Dome of the Faith"]);
-  const isDelhi = civ === "Delhi Sultanate";
   const techKeys = Object.keys(BO_TECH_DEFAULTS || {}).length ? Object.keys(BO_TECH_DEFAULTS || {}) : fallbackTechs;
-  return isDelhi ? techKeys : techKeys.filter((name) => !delhiOnlyTechs.has(name));
+  if (!buildingType) return [];
+  const previewState = getBoTechPreviewState(civ, options.timeOverride);
+  return techKeys.filter((name) => {
+    const def = getBoTechDefaults(name) || {};
+    if (Array.isArray(def.civs) && civ && !def.civs.includes(civ)) return false;
+    if (buildingType && !doesBoTechMatchBuilding(name, buildingType, civ)) return false;
+    if (options.ignoreAvailability) return true;
+    return doesBoPreviewMeetTechRequirements({ ...def, name }, previewState);
+  });
 }
 
 function formatBoCompactCost(cost = {}) {
@@ -4391,6 +4830,8 @@ function getBoTechDisplayInfo(techType, civ, buildingType = null) {
   const civBonus = BO_CIV_BONUSES?.[civ] || {};
   const howState = isBoHouseOfWisdomCiv(civ) ? getBoHouseOfWisdomPreviewState() : null;
   const def = getBoTechDefaults(techType) || {};
+  const surfaceConfig = getBoBuildingSurfaceConfig(buildingType, civ);
+  const techSurface = getBoTechSurface(buildingType, civ);
   let time = Number(def.time) || 0;
   let cost = def.cost
     ? {
@@ -4400,7 +4841,7 @@ function getBoTechDisplayInfo(techType, civ, buildingType = null) {
       stone: def.cost.stone || 0
     }
     : { food: 0, wood: 0, gold: 0, stone: 0 };
-  if (buildingType === "Town Center") {
+  if (techSurface === "Town Center") {
     time = applyBoWorkRateToDuration(time, getBoPreviewTownCenterWorkRatePct(civ));
   }
   if (howState?.goldenAge?.bonuses?.researchPct) {
@@ -4425,6 +4866,26 @@ function getBoTechDisplayInfo(techType, civ, buildingType = null) {
       stone: Math.round((cost.stone || 0) * 0.8)
     };
   }
+  if (Number.isFinite(surfaceConfig.techCostMult) && surfaceConfig.techCostMult > 0) {
+    cost = {
+      food: Math.round((cost.food || 0) * surfaceConfig.techCostMult),
+      wood: Math.round((cost.wood || 0) * surfaceConfig.techCostMult),
+      gold: Math.round((cost.gold || 0) * surfaceConfig.techCostMult),
+      stone: Math.round((cost.stone || 0) * surfaceConfig.techCostMult)
+    };
+  }
+  if (Number.isFinite(surfaceConfig.techTimePct) && surfaceConfig.techTimePct > 0) {
+    time = applyBoWorkRateToDuration(time, surfaceConfig.techTimePct);
+  }
+  if (civ === "Tughlaq Dynasty" && def.category !== "emplacement") {
+    time = 5;
+    cost = {
+      food: Math.round((cost.food || 0) * 1.2),
+      wood: Math.round((cost.wood || 0) * 1.2),
+      gold: Math.round((cost.gold || 0) * 1.2),
+      stone: Math.round((cost.stone || 0) * 1.2)
+    };
+  }
   return { time, cost };
 }
 
@@ -4440,6 +4901,7 @@ function renderBoTechButtonGrid(fieldName, selectedTech, techChoices, civ, build
         if (info.time > 0) metaParts.push(`${Math.round(info.time)}s`);
         const costText = formatBoCompactCost(info.cost);
         metaParts.push(costText || "Free");
+        if (isBoTechNoteOnly(techName)) metaParts.push("Tracked only");
         return `
           <button type="button" class="bo-tech-btn${selected === techName ? " selected" : ""}" data-tech-field="${fieldName}" data-tech-value="${escapeBoAttr(techName)}">
             <span class="bo-tech-btn-label">${escapeBoHtml(techName)}</span>
@@ -4590,7 +5052,7 @@ function renderBoCommandEditor(cmd) {
   const trainBuildingTarget = (cmd.type === "trainUnit")
     ? (cmd.payload?.building || inferBoBuildingTypeFromId(cmd.payload?.buildingId) || "Barracks")
     : "Barracks";
-  const isTcTarget = cmd.type === "trainUnit" && trainBuildingTarget === "Town Center";
+  const isTcTarget = cmd.type === "trainUnit" && isBoTownCenterSurface(trainBuildingTarget, civ);
   const isMilitarySchoolTarget = cmd.type === "trainUnit" && trainBuildingTarget === BO_OTTOMAN_MILITARY_SCHOOL_BUILDING;
   const unitPool = cmd.type === "trainUnit"
     ? Array.from(new Set([
@@ -4611,10 +5073,6 @@ function renderBoCommandEditor(cmd) {
     ...((civ === "Ottomans" || isMilitarySchoolTarget) ? [BO_OTTOMAN_MILITARY_SCHOOL_BUILDING] : []),
     "Town Center"
   ];
-  const trainBuildingOptions = trainBuildingChoices
-    .map((name) => `<option value="${name}">${name}</option>`)
-    .join("");
-  const filteredTechs = getBoAvailableTechs(civ);
   const rallyOptions = `
     <option value="sheep">Sheep</option>
     <option value="berries">Berries</option>
@@ -4732,19 +5190,33 @@ function renderBoCommandEditor(cmd) {
       </div>
     `;
   } else if (cmd.type === "tech") {
-    const techTargetInfo = cmd.payload.buildingId ? `<div class="bo-target-note text-muted">Targeted: ${cmd.payload.buildingId}</div>` : "";
-    const techBuildingType = cmd.payload.building || inferBoBuildingTypeFromId(cmd.payload.buildingId);
+    const selectedTechType = cmd.payload.techType || "Wheelbarrow";
+    const anchoredTechBuilding = cmd.payload.building || inferBoBuildingTypeFromId(cmd.payload.buildingId) || null;
+    const techBuildingSites = getBoTechResearchSites(selectedTechType);
+    const techBuildingType = anchoredTechBuilding && techBuildingSites.includes(anchoredTechBuilding)
+      ? anchoredTechBuilding
+      : null;
+    const techChoices = Array.from(new Set([
+      ...getBoAvailableTechs(civ, techBuildingType, { ignoreAvailability: true }),
+      selectedTechType
+    ])).filter(Boolean);
+    const techNoteText = getBoTechNoteText(selectedTechType);
+    const techTargetLabel = cmd.payload.buildingId || techBuildingType || "Missing exact research site";
     const basics = `
       <div class="row g-2">
         <div class="col-12">
           <small class="text-muted">Tech</small>
-          ${renderBoTechButtonGrid("techType", cmd.payload.techType || "Wheelbarrow", filteredTechs, civ, techBuildingType)}
+          ${renderBoTechButtonGrid("techType", cmd.payload.techType || "Wheelbarrow", techChoices, civ, techBuildingType)}
+        </div>
+        <div class="col-md-5 col-sm-6">
+          <small class="text-muted">Research Site</small>
+          <input type="text" class="form-control form-control-sm" value="${escapeBoAttr(techTargetLabel)}" disabled>
         </div>
         <div class="col-md-3 col-sm-4">
           <small class="text-muted">Time (s)</small>
           <input type="number" class="form-control form-control-sm" data-field="techTime" value="${cmd.payload.time}" min="0">
         </div>
-        <div class="col-md-9 col-sm-8 d-flex align-items-end justify-content-end">
+        <div class="col-md-4 col-sm-6 d-flex align-items-end justify-content-end">
           <div class="form-check form-check-inline">
             <input class="form-check-input" type="checkbox" data-field="autoTime" title="Use default time for this item." ${cmd.autoTime ? "checked" : ""}>
             <label class="form-check-label" title="Use default time for this item.">Auto time</label>
@@ -4755,7 +5227,8 @@ function renderBoCommandEditor(cmd) {
           </div>
         </div>
       </div>
-      ${techTargetInfo}
+      <div class="bo-target-note text-muted">Anchored to the selected building or civ lane.${!techBuildingType ? " This command is blocked until the exact research site is modeled." : ""}</div>
+      ${techNoteText ? `<div class="bo-target-note text-muted">${escapeBoHtml(techNoteText)}</div>` : ""}
     `;
     typeFields = `
       <div class="bo-editor-stack">
@@ -4878,7 +5351,7 @@ function renderBoCommandEditor(cmd) {
     const militarySchoolNote = isMilitarySchoolTarget
       ? `<div class="bo-target-note text-muted">Military Schools continuously produce one selected unit for free. Output speed uses the Ottoman school multiplier and bonuses.</div>`
       : "";
-    const targetInfo = cmd.payload.buildingId ? `<div class="bo-target-note text-muted">Targeted: ${cmd.payload.buildingId}</div>` : "";
+    const targetInfo = `<div class="bo-target-note text-muted">Anchored to: ${escapeBoHtml(cmd.payload.buildingId || trainBuildingTarget)}</div>`;
     const rallyFields = showRallyFields ? `
       <div class="row g-2 mt-2">
         <div class="col-4">
@@ -4904,9 +5377,7 @@ function renderBoCommandEditor(cmd) {
         </div>
         <div class="col-3">
           <small class="text-muted">Building</small>
-          <select class="form-select form-select-sm" data-field="trainBuilding">
-            ${trainBuildingOptions}
-          </select>
+          <input type="text" class="form-control form-control-sm" value="${escapeBoAttr(trainBuildingTarget)}" disabled>
         </div>
       </div>
       ${targetInfo}
@@ -5035,7 +5506,7 @@ function renderBoCommandEditor(cmd) {
   const typeOptions = [
     { value: "assign", label: "Assign Villagers" },
     { value: "buildBuilding", label: "Build Building" },
-    { value: "tech", label: "Research Tech" },
+    { value: "tech", label: "Research Tech", includeIf: cmd.type === "tech" },
     { value: "houseOfWisdomWing", label: "House of Wisdom", includeIf: cmd.type === "houseOfWisdomWing" },
     { value: "resourceTrip", label: "Resource Trip", includeIf: cmd.type === "resourceTrip" },
     { value: "vizierChoice", label: "Imperial Council", includeIf: cmd.type === "vizierChoice" },
@@ -5043,7 +5514,7 @@ function renderBoCommandEditor(cmd) {
     { value: "sacredSite", label: "Sacred Sites" },
     { value: "garrisonScholars", label: "Garrison Scholars", delhiOnly: true }
   ]
-    .filter((opt) => (opt.includeIf ? opt.includeIf : true))
+    .filter((opt) => (Object.prototype.hasOwnProperty.call(opt, "includeIf") ? opt.includeIf : true))
     .filter((opt) => isDelhi || !opt.delhiOnly)
     .map((opt) => `<option value="${opt.value}">${opt.label}</option>`)
     .join("");
@@ -5127,15 +5598,13 @@ function renderBoCommandEditor(cmd) {
   if (cmd.type === "trainUnit") {
     const unitSel = editor.querySelector('[data-field="trainUnit"]');
     if (unitSel) unitSel.value = cmd.payload.unitName || "";
-    const buildSel = editor.querySelector('[data-field="trainBuilding"]');
-    if (buildSel) buildSel.value = cmd.payload.building || "Barracks";
     const rallySel = editor.querySelector('[data-field="rallyTarget"]');
     if (rallySel) rallySel.value = cmd.payload.rallyTarget || "idle";
     const repeatToggle = editor.querySelector('[data-field="trainRepeatUntilEnd"]');
     const countWrap = editor.querySelector('[data-role="trainCountWrap"]');
     const repeatNote = editor.querySelector('[data-role="trainRepeatNote"]');
     const syncRepeatUi = () => {
-      const selectedBuilding = buildSel?.value || cmd.payload.building || "Barracks";
+      const selectedBuilding = cmd.payload.building || inferBoBuildingTypeFromId(cmd.payload.buildingId) || "Barracks";
       const isMilitarySchool = selectedBuilding === BO_OTTOMAN_MILITARY_SCHOOL_BUILDING;
       if (repeatToggle) {
         repeatToggle.checked = isMilitarySchool ? true : repeatToggle.checked;
@@ -5147,7 +5616,6 @@ function renderBoCommandEditor(cmd) {
     };
     syncRepeatUi();
     repeatToggle?.addEventListener("change", syncRepeatUi);
-    buildSel?.addEventListener("change", syncRepeatUi);
   }
   if (cmd.type === "sacredSite") {
     const count = editor.querySelector('[data-field="sacredCount"]');
@@ -5460,8 +5928,11 @@ function syncBoCommandFromEditor(editor, cmd) {
     applyAutoDefaultsForCommand(cmd, document.getElementById("boCiv")?.value || "");
   } else if (cmd.type === "tech") {
     updateAuto();
+    const techType = getVal("techType") || "Wheelbarrow";
+    const sites = getBoTechResearchSites(techType);
+    const anchoredBuilding = cmd.payload.building || inferBoBuildingTypeFromId(cmd.payload.buildingId) || null;
     cmd.payload = {
-      techType: getVal("techType") || "Wheelbarrow",
+      techType,
       time: getNum("techTime"),
       cost: {
         food: getNum("costFood"),
@@ -5469,8 +5940,8 @@ function syncBoCommandFromEditor(editor, cmd) {
         gold: getNum("costGold"),
         stone: getNum("costStone")
       },
-      building: cmd.payload.building || null,
-      buildingId: cmd.payload.buildingId || null
+      building: anchoredBuilding && sites.includes(anchoredBuilding) ? anchoredBuilding : null,
+      buildingId: (cmd.payload.buildingId && sites.includes(inferBoBuildingTypeFromId(cmd.payload.buildingId))) ? cmd.payload.buildingId : null
     };
     applyAutoDefaultsForCommand(cmd, document.getElementById("boCiv")?.value || "");
   } else if (cmd.type === "rally") {
@@ -5486,14 +5957,15 @@ function syncBoCommandFromEditor(editor, cmd) {
     };
   } else if (cmd.type === "trainUnit") {
     updateAuto();
-    const selectedBuilding = getVal("trainBuilding") || cmd.payload.building || "Barracks";
+    const selectedBuilding = cmd.payload.building || inferBoBuildingTypeFromId(cmd.payload.buildingId) || "Barracks";
+    const selectedSurface = getBoTrainingSurface(selectedBuilding, civ);
     const unitName = getVal("trainUnit") || cmd.payload.unitName;
     const repeatUntilEnd = selectedBuilding === BO_OTTOMAN_MILITARY_SCHOOL_BUILDING
       ? true
       : !!editor.querySelector('[data-field="trainRepeatUntilEnd"]')?.checked;
     const rallyTarget = editor.querySelector('[data-field="rallyTarget"]')?.value;
     const rallyTravelDelay = parseFloat(editor.querySelector('[data-field="rallyTravelDelay"]')?.value);
-    const rallyPayload = (selectedBuilding === "Town Center" && unitName === "Villager") ? {
+    const rallyPayload = (selectedSurface === "Town Center" && unitName === "Villager") ? {
       rallyTarget: rallyTarget || "idle",
       rallyTravelDelaySec: Math.max(0, Number.isFinite(rallyTravelDelay) ? rallyTravelDelay : 0),
       rallyTripOverrideSec: Number.isFinite(cmd.payload.rallyTripOverrideSec) ? cmd.payload.rallyTripOverrideSec : null
@@ -5545,6 +6017,7 @@ function renderBoBuildingPanel(editor, building) {
   if (building?.type === BO_HOUSE_OF_WISDOM_BUILDING && isBoHouseOfWisdomCiv(civ)) {
     const anchorTime = getBoAnchorTime();
     const state = getBoHouseOfWisdomPreviewState(anchorTime);
+    const howTechs = getBoAvailableTechs(civ, BO_HOUSE_OF_WISDOM_BUILDING, { timeOverride: anchorTime });
     const displayWings = (state.wings || []).length
       ? state.wings
       : getBoPlannedHouseOfWisdomWings(civ);
@@ -5579,6 +6052,31 @@ function renderBoBuildingPanel(editor, building) {
         </button>
       `).join("")
       : `<div class="bo-target-note text-muted">All House of Wisdom wings are already chosen.</div>`;
+    const howTechBlock = howTechs.length ? `
+      <div class="bo-action-block">
+        <div class="bo-action-title">Research Tech</div>
+        <div class="row g-2">
+          <div class="col-12">
+            <small class="text-muted">Tech</small>
+            ${renderBoTechButtonGrid("howTechSelect", howTechs[0], howTechs, civ, BO_HOUSE_OF_WISDOM_BUILDING)}
+          </div>
+          <div class="col-md-4 col-sm-5">
+            <small class="text-muted">Timing</small>
+            <select class="form-select form-select-sm" data-field="howTechTimeMode">
+              ${renderBoTimingModeOptions("afterPrev")}
+            </select>
+          </div>
+          <div class="col-md-4 col-sm-4">
+            <small class="text-muted">Time (s)</small>
+            <input type="number" class="form-control form-control-sm" data-field="howTechAtTime" value="${Math.round(anchorTime)}" min="0" step="1">
+          </div>
+          <div class="col-md-4 col-sm-3 d-flex align-items-end justify-content-end">
+            <button class="btn btn-outline-secondary btn-sm" type="button" data-action="queueHowTech">Add Research</button>
+          </div>
+        </div>
+        <div class="bo-target-note text-muted" data-role="howTechNote">${escapeBoHtml(getBoTechNoteText(howTechs[0]))}</div>
+      </div>
+    ` : "";
     editor.innerHTML = `
       <div class="bo-card-header">
         <div class="bo-card-title">House of Wisdom</div>
@@ -5605,6 +6103,7 @@ function renderBoBuildingPanel(editor, building) {
         </div>
       </div>
       <div class="bo-vizier-choice-grid">${actionsHtml}</div>
+      ${howTechBlock}
     `;
     const queueHowChoice = (wing, branch) => {
       const mode = editor.querySelector('[data-field="howTimeMode"]')?.value || "afterPrev";
@@ -5635,6 +6134,40 @@ function renderBoBuildingPanel(editor, building) {
       btn.addEventListener("click", () => {
         queueHowChoice(btn.dataset.howWing, btn.dataset.howBranch || null);
       });
+    });
+    applyBoTechButtonSelection(editor, "howTechSelect", howTechs[0] || "");
+    editor.addEventListener("click", (e) => {
+      const techBtn = e.target.closest('.bo-tech-btn[data-tech-field="howTechSelect"]');
+      if (!techBtn) return;
+      const nextTech = techBtn.dataset.techValue || "";
+      applyBoTechButtonSelection(editor, "howTechSelect", nextTech);
+      const noteEl = editor.querySelector('[data-role="howTechNote"]');
+      if (noteEl) noteEl.textContent = getBoTechNoteText(nextTech);
+    });
+    editor.querySelector('[data-action="queueHowTech"]')?.addEventListener("click", () => {
+      const techType = editor.querySelector('[data-field="howTechSelect"]')?.value || howTechs[0];
+      const mode = editor.querySelector('[data-field="howTechTimeMode"]')?.value || "afterPrev";
+      const atTime = parseFloat(editor.querySelector('[data-field="howTechAtTime"]')?.value) || 0;
+      const cmd = addBoCommand("tech", mode === "afterPrev" ? building.sourceCommandId : null);
+      cmd.payload.techType = techType;
+      cmd.payload.building = BO_HOUSE_OF_WISDOM_BUILDING;
+      cmd.payload.buildingId = BO_HOUSE_OF_WISDOM_BUILDING;
+      applyAutoDefaultsForCommand(cmd, civ);
+      const timing = resolveBoTimingModeSelection(mode, atTime);
+      if (timing.timeMode === "atTime") {
+        insertBoCommandAtTime(cmd, timing.atTime);
+      } else {
+        cmd.timeMode = "afterPrev";
+        cmd.afterId = getPrevBoCommandId(cmd.id);
+      }
+      boSelectedCommandId = cmd.id;
+      boSelectedBuilding = null;
+      setBoTargetBuilding(null);
+      boLastResults = null;
+      renderBoTimelineEditor();
+      renderBoCommandEditor(cmd);
+      renderBoGatherRates();
+      scheduleRunBuildOrder();
     });
     return;
   }
@@ -5734,37 +6267,20 @@ function renderBoBuildingPanel(editor, building) {
     });
     return;
   }
-  if (cmd.type === "buildBuilding" && isHowCiv && getBoBuildSteps(cmd.payload).some((step) => /^Landmark \(Age /.test(step.building || ""))) {
-    editor.innerHTML = `
-      <div class="bo-warning">Legacy landmark steps are blocked for ${civ}. Replace them with House of Wisdom wings from the House of Wisdom lane.</div>
-      <button class="bo-remove-btn mt-2" data-action="remove" type="button">Remove</button>
-    `;
-    editor.addEventListener("click", (e) => {
-      const action = e.target.closest("button")?.dataset.action;
-      if (action === "remove") {
-        boCommands = boCommands.filter((c) => c.id !== cmd.id);
-        boSelectedCommandId = boCommands[0]?.id || null;
-        boLastResults = null;
-        renderBoTimelineEditor();
-        renderBoCommandEditor(getSelectedBoCommand());
-        scheduleRunBuildOrder();
-      }
-    });
-    return;
-  }
   const isDelhi = civ === "Delhi Sultanate";
   const noBoarCiv = isBoNoBoarCiv(civ);
   const delhiOnlyTechs = new Set(["Sanctity", "Dome of the Faith"]);
-  const isProduction = BO_PRODUCTION_BUILDINGS.has(building.type);
-  const isTech = BO_TECH_BUILDINGS.has(building.type);
-  const isTownCenter = building.type === "Town Center";
-  const isMilitarySchool = building.type === BO_OTTOMAN_MILITARY_SCHOOL_BUILDING;
   const readyAt = Number.isFinite(building.readyAt) ? formatTimeMMSS(building.readyAt) : "0:00";
 
   const ottomanSettings = getBoOttomanSettingsFromInputs();
   const unitPool = getBoUnitOptionsForBuilding(building.type, civ, ottomanSettings);
   const unitOptions = unitPool.map((name) => `<option value="${name}">${name}</option>`).join("");
-  const filteredTechs = getBoAvailableTechs(civ);
+  const techTimeOverride = Math.max(getBoAnchorTime(), Number.isFinite(building.readyAt) ? building.readyAt : 0);
+  const filteredTechs = getBoAvailableTechs(civ, building.type, { timeOverride: techTimeOverride });
+  const isProduction = isBoProductionSurface(building.type, civ);
+  const isTech = filteredTechs.length > 0;
+  const isTownCenter = isBoTownCenterSurface(building.type, civ);
+  const isMilitarySchool = building.type === BO_OTTOMAN_MILITARY_SCHOOL_BUILDING;
 
   const rallyOptions = `
     <option value="sheep">Sheep</option>
@@ -5833,7 +6349,7 @@ function renderBoBuildingPanel(editor, building) {
     ? `<div class="bo-target-note text-muted">Tip: click a Vill marker on the resource lane to reroute villagers from that time.</div>`
     : "";
 
-  const techBlock = isTech ? `
+  const techBlock = isTech && filteredTechs.length ? `
     <div class="bo-action-block">
       <div class="bo-action-title">Research Tech</div>
       <div class="row g-2">
@@ -6394,6 +6910,7 @@ function simulateBuildOrder(commands, config) {
   let berryCapacityBonusApplied = 0;
   const held = { sheep: 0, berries: 0, deer: 0, boar: 0, farm: 0, wood: 0, gold: 0, stone: 0 };
   let tripOverrides = {};
+  const researchedTechs = new Set();
   const buildingCounts = {
     "Town Center": 1,
     [BO_HOUSE_OF_WISDOM_BUILDING]: howCiv ? 1 : 0,
@@ -6413,9 +6930,21 @@ function simulateBuildOrder(commands, config) {
     "Ger": 0,
     "Ovoo": 0,
     "House": 0,
+    "Manor": 0,
+    "Dock": 0,
     "Market": 0,
     "Outpost": 0,
-    "Blacksmith": 0
+    "Blacksmith": 0,
+    "Farmhouse": 0,
+    "Forge": 0,
+    "Buddhist Temple": 0,
+    "Shinto Shrine": 0,
+    "Kura Storehouse": 0,
+    "Temple of Equality": 0,
+    "Floating Gate": 0,
+    "Koka Township": 0,
+    "Castle of the Crow": 0,
+    "Tanegashima Gunsmith": 0
   };
   const productionQueues = {
     "Town Center": [{ id: "TC #1", busyUntil: 0 }],
@@ -6435,6 +6964,13 @@ function simulateBuildOrder(commands, config) {
   let pastureCount = 0;
   let ovooCount = 0;
   let gerCount = 0;
+  let workerElephantCount = 0;
+  let highTradeHouseCount = 0;
+  let kuraStorehouseCount = 0;
+  let kuraGeneratedFarms = 0;
+  let kuraPassiveSeconds = 0;
+  let japaneseBuddhistMonkCount = 0;
+  let malianCattleCount = 0;
   let sacredSites = 0;
   let scholarGarrison = 0;
   let sanctityActive = false;
@@ -6459,6 +6995,7 @@ function simulateBuildOrder(commands, config) {
   const dropoffCohorts = Object.fromEntries(BO_RESOURCE_KEYS.map((res) => [res, []]));
   let nextDropoffCohortId = 1;
   let advanceFiniteReservation = null;
+  let rusBountyTotal = 0;
   let vizierXp = 0;
   const vizierChoices = [];
   const vizierChoiceSet = new Set();
@@ -6599,8 +7136,173 @@ function simulateBuildOrder(commands, config) {
     return getHouseOfWisdomEffects().goldenAge?.bonuses?.productionPct || 0;
   }
 
-  function getDropoffReturnMult() {
-    return houseOfWisdomState.effects.improvedProcessing ? 1.08 : 1;
+  function getSimTechDef(techType) {
+    const def = getBoTechDefaults(techType) || {};
+    return { ...def, name: techType };
+  }
+
+  function isTechResearched(techType) {
+    return researchedTechs.has(techType);
+  }
+
+  function isHouseOfWisdomWingChosen(wing) {
+    return houseOfWisdomState.wings.some((entry) => entry?.wing === wing);
+  }
+
+  function getTughlaqWorkerElephantBonusLevel() {
+    let level = 0;
+    if (isTechResearched("Woven Baskets")) level += 1;
+    if (isTechResearched("Carrying Frame")) level += 1;
+    if (isTechResearched("Elephant Harness")) level += 1;
+    return level;
+  }
+
+  function getJapaneseFarmhouseTechLevel() {
+    let level = 0;
+    if (isTechResearched("Tawara")) level = 1;
+    if (isTechResearched("Takezaiku")) level = 2;
+    if (isTechResearched("Fudasashi")) level = 3;
+    return level;
+  }
+
+  function getJapaneseDaimyoTier() {
+    let tier = 0;
+    if (isTechResearched("Daimyo Manor")) tier = 1;
+    if (isTechResearched("Daimyo Palace")) tier = 2;
+    if (isTechResearched("Shogunate Castle")) tier = 3;
+    return tier;
+  }
+
+  function getJapaneseSilverMiningPct() {
+    return civ === "Japanese" ? Math.max(0, civBonus.silverMiningPct || 0) : 0;
+  }
+
+  function getJapaneseZenGoldPerSec() {
+    if (civ !== "Japanese" || !isTechResearched("Zen")) return 0;
+    return japaneseBuddhistMonkCount * ((civBonus.zenGoldPerMinPerMonk || 25) / 60);
+  }
+
+  function addJapaneseSilverMiningBonus(res, droppedAmount) {
+    if (civ !== "Japanese") return 0;
+    const pct = getJapaneseSilverMiningPct();
+    if (!pct || !Number.isFinite(droppedAmount) || droppedAmount <= 0) return 0;
+    const bonus = droppedAmount * (pct / 100);
+    if (res === "gold") {
+      resources.stone += bonus;
+      addGathered("stone", bonus);
+      return bonus;
+    }
+    if (res === "stone") {
+      resources.gold += bonus;
+      addGathered("gold", bonus);
+      return bonus;
+    }
+    return 0;
+  }
+
+  function addJapaneseSilverMiningArrival(arrivalMap, timeVal, res, droppedAmount) {
+    if (civ !== "Japanese") return;
+    const pct = getJapaneseSilverMiningPct();
+    if (!pct || !Number.isFinite(timeVal) || !Number.isFinite(droppedAmount) || droppedAmount <= 0) return;
+    const roundedTime = Math.round(timeVal * 1000) / 1000;
+    const mapKey = roundedTime.toFixed(3);
+    if (!arrivalMap.has(mapKey)) {
+      arrivalMap.set(mapKey, { time: roundedTime, food: 0, wood: 0, gold: 0, stone: 0 });
+    }
+    if (res === "gold") arrivalMap.get(mapKey).stone += droppedAmount * (pct / 100);
+    if (res === "stone") arrivalMap.get(mapKey).gold += droppedAmount * (pct / 100);
+  }
+
+  function grantJapaneseKuraTick(now, count = 1) {
+    const ticks = Math.max(0, Math.floor(count || 0));
+    if (ticks <= 0) return;
+    for (let i = 0; i < ticks; i++) {
+      const farmCap = Math.max(0, kuraStorehouseCount * (civBonus.kuraFarmCapPerStorehouse || 12));
+      if (kuraGeneratedFarms < farmCap) {
+        kuraGeneratedFarms += 1;
+        farmCount += 1;
+        if ((assignments.farm || 0) > 0) syncDropoffCohorts(["farm"], now);
+      } else {
+        const woodGain = civBonus.kuraOverflowWood || 38;
+        resources.wood += woodGain;
+        addGathered("wood", woodGain);
+      }
+    }
+  }
+
+  function getMalianPitMineSupportBuildings() {
+    if (civ !== "Malians") return 0;
+    const pitMines = Math.max(0, buildingCounts["Pit Mine"] || 0);
+    if (pitMines <= 0) return 0;
+    const supportPool = Math.max(0, (buildingCounts["House"] || 0) + (buildingCounts["Mining Camp"] || 0));
+    const supportCap = Math.max(0, pitMines * (civBonus.pitMineSupportCapPerMine || 8));
+    return Math.min(supportPool, supportCap);
+  }
+
+  function getMalianPitMineGoldPerSec() {
+    if (civ !== "Malians") return 0;
+    const pitMines = Math.max(0, buildingCounts["Pit Mine"] || 0);
+    if (pitMines <= 0) return 0;
+    const basePerSec = (civBonus.pitMineGoldPerMin || 36) / 60;
+    const supportPct = (civBonus.pitMineSupportPct || 25) / 100;
+    return (pitMines * basePerSec) + (getMalianPitMineSupportBuildings() * basePerSec * supportPct);
+  }
+
+  function getMalianGarrisonedCattleCount() {
+    if (civ !== "Malians") return 0;
+    const ranchCapacity = Math.max(0, (buildingCounts["Cattle Ranch"] || 0) * (civBonus.cattleRanchCapacity || 3));
+    return Math.min(Math.max(0, malianCattleCount || 0), ranchCapacity);
+  }
+
+  function getMalianCattleFoodPerSec() {
+    if (civ !== "Malians") return 0;
+    const garrisoned = getMalianGarrisonedCattleCount();
+    if (garrisoned <= 0) return 0;
+    return garrisoned * ((civBonus.cattleRanchFoodPerMinPerCattle || 25) / 60) * foodMult();
+  }
+
+  function getMalianGrandFulaniFoodPerSec() {
+    if (civ !== "Malians" || (buildingCounts["Grand Fulani Corral"] || 0) <= 0) return 0;
+    const garrisoned = getMalianGarrisonedCattleCount();
+    if (garrisoned <= 0) return 0;
+    return garrisoned * ((civBonus.grandFulaniFoodPerMinPerCattle || 18) / 60);
+  }
+
+  function getMalianMansaQuarryGoldPerSec() {
+    if (civ !== "Malians") return 0;
+    const quarries = Math.max(0, buildingCounts["Mansa Quarry"] || 0);
+    if (quarries <= 0) return 0;
+    return quarries * ((civBonus.mansaQuarryGoldPerMin || 75) / 60);
+  }
+
+  function getRusBountyStateNow() {
+    return getBoRusBountyState(civ, rusBountyTotal);
+  }
+
+  function getRusBountyGoldFromHarvest(res, harvestedAmount) {
+    const bountyState = getRusBountyStateNow();
+    if (!bountyState.goldPerFood || !bountyState.foodResources.includes(res)) return 0;
+    return harvestedAmount * bountyState.goldPerFood;
+  }
+
+  function addRusBountyGold(res, harvestedAmount) {
+    const bonusGold = getRusBountyGoldFromHarvest(res, harvestedAmount);
+    if (bonusGold <= 0) return 0;
+    resources.gold += bonusGold;
+    rusBountyTotal += bonusGold;
+    addGathered("gold", bonusGold);
+    return bonusGold;
+  }
+
+  function getDropoffReturnMult(res = null) {
+    let mult = houseOfWisdomState.effects.improvedProcessing ? 1.08 : 1;
+    if (civ === "Tughlaq Dynasty") {
+      mult *= 1 + (getTughlaqWorkerElephantBonusLevel() * 0.05);
+    }
+    if (civ === "Rus" && res === "wood" && ((buildingCounts["Wooden Fortress"] || 0) > 0 || (buildingCounts["Kremlin"] || 0) > 0)) {
+      mult *= 1 + ((civBonus.woodDropoffPct || 0) / 100);
+    }
+    return mult;
   }
 
   function hasActiveBerryBonus() {
@@ -6654,7 +7356,7 @@ function simulateBuildOrder(commands, config) {
 
     BO_RESOURCE_KEYS.forEach((res) => {
       const bankKey = isFood(res) ? "food" : res;
-      const dropoffMult = getDropoffReturnMult();
+      const dropoffMult = getDropoffReturnMult(res);
       getResourceCohorts(res).forEach((cohort) => {
         if (!cohort || (cohort.count || 0) <= 0 || cohort.phase === "toResource") return;
         const carryPerVill = (cohort.phase === "toDropoff" || cohort.phase === "dropoff")
@@ -6663,20 +7365,30 @@ function simulateBuildOrder(commands, config) {
         const totalCarry = carryPerVill * Math.max(0, cohort.count || 0) * dropoffMult;
         if (totalCarry <= 0.0001) return;
         heldResources[bankKey] += totalCarry;
+        const rawFoodCarry = carryPerVill * Math.max(0, cohort.count || 0);
+        const bountyGold = getRusBountyGoldFromHarvest(res, rawFoodCarry);
+        if (bountyGold > 0) heldResources.gold += bountyGold;
         const arrivalTime = cohort.phase === "toDropoff"
           ? Math.max(now, cohort.phaseEndsAt || now) + BO_DROPOFF_ANIMATION_SEC
           : cohort.phase === "dropoff"
             ? Math.max(now, cohort.phaseEndsAt || now)
             : now + effectiveTrip(res) + BO_DROPOFF_ANIMATION_SEC;
         addArrival(arrivalTime, bankKey, totalCarry);
+        addJapaneseSilverMiningArrival(arrivalMap, arrivalTime, res, totalCarry);
+        if (bountyGold > 0) addArrival(arrivalTime, "gold", bountyGold);
       });
 
       const legacyHeld = Math.max(0, held[res] || 0);
       if (legacyHeld > 0) {
         const totalHeld = legacyHeld * dropoffMult;
         heldResources[bankKey] += totalHeld;
+        const bountyGold = getRusBountyGoldFromHarvest(res, legacyHeld);
+        if (bountyGold > 0) heldResources.gold += bountyGold;
         if (dropoffAvailable(res)) {
-          addArrival(now + effectiveTrip(res) + BO_DROPOFF_ANIMATION_SEC, bankKey, totalHeld);
+          const arrivalTime = now + effectiveTrip(res) + BO_DROPOFF_ANIMATION_SEC;
+          addArrival(arrivalTime, bankKey, totalHeld);
+          addJapaneseSilverMiningArrival(arrivalMap, arrivalTime, res, totalHeld);
+          if (bountyGold > 0) addArrival(arrivalTime, "gold", bountyGold);
         }
       }
     });
@@ -6702,6 +7414,7 @@ function simulateBuildOrder(commands, config) {
     const vizierPointsSpent = vizierChoices.length;
     const payload = {
       time: rounded,
+      age,
       food: res.food,
       wood: res.wood,
       gold: res.gold,
@@ -6718,13 +7431,43 @@ function simulateBuildOrder(commands, config) {
         oliveOil: 0,
         silver: 0
       },
+      buildingCounts: { ...buildingCounts },
       farmCount,
-      houseCount: Math.max(0, buildingCounts["House"] || 0),
+      houseCount: Math.max(0, (buildingCounts["House"] || 0) + (buildingCounts["Farmhouse"] || 0)),
+      manorCount: Math.max(0, buildingCounts["Manor"] || 0),
+      workerElephantCount,
       villagers,
       assignments: { ...assignments },
+      researchedTechs: Array.from(researchedTechs).sort(),
       heldResources: manualDropoffSnapshot.heldResources,
       manualDropoffEvents: manualDropoffSnapshot.manualDropoffEvents,
       houseOfWisdom: getHouseOfWisdomSampleState(),
+      rus: {
+        bountyTotal: rusBountyTotal,
+        bountyTier: getRusBountyStateNow().tier,
+        foodGatherPct: getRusBountyStateNow().foodGatherPct
+      },
+      japanese: {
+        farmhouseTechLevel: getJapaneseFarmhouseTechLevel(),
+        daimyoTier: getJapaneseDaimyoTier(),
+        kuraStorehouseCount,
+        kuraGeneratedFarms,
+        buddhistMonkCount: japaneseBuddhistMonkCount,
+        zenGoldPerSec: getJapaneseZenGoldPerSec()
+      },
+      malians: {
+        pitMineCount: Math.max(0, buildingCounts["Pit Mine"] || 0),
+        pitMineSupportBuildings: getMalianPitMineSupportBuildings(),
+        pitMineGoldPerSec: getMalianPitMineGoldPerSec(),
+        cattleCount: Math.max(0, malianCattleCount || 0),
+        garrisonedCattle: getMalianGarrisonedCattleCount(),
+        cattleRanchCount: Math.max(0, buildingCounts["Cattle Ranch"] || 0),
+        cattleFoodPerSec: getMalianCattleFoodPerSec(),
+        grandFulaniCorralCount: Math.max(0, buildingCounts["Grand Fulani Corral"] || 0),
+        grandFulaniFoodPerSec: getMalianGrandFulaniFoodPerSec(),
+        mansaQuarryCount: Math.max(0, buildingCounts["Mansa Quarry"] || 0),
+        mansaQuarryGoldPerSec: getMalianMansaQuarryGoldPerSec()
+      },
       vizier: {
         xp: vizierXp,
         cap: vizierCap,
@@ -6800,7 +7543,7 @@ function simulateBuildOrder(commands, config) {
     if (cmd.type === "resourceTrip") return getBoResourceLabel(cmd.payload?.resource);
     if (cmd.type === "vizierChoice") return BO_OTTOMAN_IMPERIAL_COUNCIL_BUILDING;
     if (cmd.type === "buildBuilding") return "Construction";
-    if (cmd.type === "tech") return "Tech";
+    if (cmd.type === "tech") return cmd.payload?.buildingId || cmd.payload?.building || "Tech";
     if (cmd.type === "rally") return "TC #1";
     if (cmd.type === "trainUnit") return cmd.payload.buildingId || cmd.payload.building || "Production";
     if (cmd.type === "autoQueue") return cmd.payload.buildingId || cmd.payload.building || "Production";
@@ -6853,23 +7596,9 @@ function simulateBuildOrder(commands, config) {
         .filter((ageKey) => ageKey <= targetAge)
         .sort((a, b) => a - b)
         .flatMap((ageKey) => wingDef?.choicesByAge?.[ageKey] || []);
-      unlocked.forEach((choiceId) => {
-        if (choiceId === "preservationOfKnowledge") houseOfWisdomState.effects.preservationOfKnowledge = true;
-        if (choiceId === "fertileCrescent") houseOfWisdomState.effects.fertileCrescent = true;
-        if (choiceId === "agriculture") houseOfWisdomState.effects.agriculture = true;
-        if (choiceId === "improvedProcessing") houseOfWisdomState.effects.improvedProcessing = true;
-        if (choiceId === "medicalCenters") houseOfWisdomState.effects.medicalCenters = true;
-        if (choiceId === "publicLibraries") houseOfWisdomState.effects.publicLibraries = true;
-        if (choiceId === "bootCamp") houseOfWisdomState.effects.bootCamp = true;
-        if (choiceId === "compositeBows") houseOfWisdomState.effects.compositeBows = true;
-        if (choiceId === "camelSupport") houseOfWisdomState.effects.camelSupport = true;
-        if (choiceId === "armoredCaravans") houseOfWisdomState.effects.armoredCaravans = true;
-        if (choiceId === "grandBazaar") houseOfWisdomState.effects.grandBazaar = true;
-        if (choiceId === "spiceRoads") houseOfWisdomState.effects.spiceRoads = true;
-      });
       if (wingDef?.spawnByAge?.[targetAge]) notes.push(wingDef.spawnByAge[targetAge]);
       if (unlocked.length) {
-        notes.push(unlocked.map((choiceId) => BO_ABBASID_HOW_CHOICE_DEFS[choiceId]?.label || choiceId).join(" | "));
+        notes.push(`Unlocks: ${unlocked.map((choiceId) => BO_ABBASID_HOW_CHOICE_DEFS[choiceId]?.label || choiceId).join(" | ")}`);
       }
     } else if (civ === "Ayyubids") {
       if (entry.wing === "culture" && entry.branch === "logistics") {
@@ -6965,7 +7694,13 @@ function simulateBuildOrder(commands, config) {
   function dropoffAvailable(res) {
     if (buildingCounts["Town Center"] > 0) return true;
     if (gerCount > 0) return true;
-    if (isFood(res)) return buildingCounts["Mill"] > 0;
+    if (workerElephantCount > 0) return true;
+    if ((buildingCounts["Manor"] || 0) > 0) return true;
+    if ((buildingCounts["Aachen Chapel"] || 0) > 0) return true;
+    if (isTechResearched("Cistercian Churches") && ((buildingCounts["Monastery"] || 0) > 0 || (buildingCounts["Regnitz Cathedral"] || 0) > 0)) {
+      return true;
+    }
+    if (isFood(res)) return buildingCounts["Mill"] > 0 || (buildingCounts["Hunting Cabin"] || 0) > 0 || (buildingCounts["High Trade House"] || 0) > 0;
     if (res === "wood") return buildingCounts["Lumber Camp"] > 0;
     if (res === "gold" || res === "stone") return buildingCounts["Mining Camp"] > 0;
     return false;
@@ -6973,8 +7708,14 @@ function simulateBuildOrder(commands, config) {
 
   function effectiveCarry(res) {
     let base = config.carry[res] || 0;
+    if (Number.isFinite(civBonus.carryMult) && civBonus.carryMult > 0) {
+      base *= civBonus.carryMult;
+    }
     if (res === "berries" && hasActiveBerryBonus()) {
       base += berryBonus.carryBonus || 0;
+    }
+    if (civ === "Japanese") {
+      base += getJapaneseFarmhouseTechLevel() * 3;
     }
     if (wheelbarrowActive) base += (config.techEffects.wheelCarryBonus || BO_WHEEL_CARRY_BONUS);
     return base;
@@ -6982,13 +7723,18 @@ function simulateBuildOrder(commands, config) {
 
   function effectiveTrip(res) {
     const override = tripOverrides[res];
-    const base = Number.isFinite(override) ? override : (config.trip[res] || 0);
+    let base = Number.isFinite(override) ? override : (config.trip[res] || 0);
+    if (!Number.isFinite(override)) {
+      if (civ === "Mongols" && gerCount > 0) base *= 0.3;
+      if (civ === "Tughlaq Dynasty" && workerElephantCount > 0) base *= 0.3;
+    }
     return effectiveMoveTime(base);
   }
 
   function effectiveMoveTime(baseTime) {
     const base = Math.max(0, baseTime || 0);
-    return base * (wheelbarrowActive ? (config.techEffects.wheelTripMult || BO_WHEEL_TRIP_MULT) : 1);
+    const japaneseMoveMult = civ === "Japanese" ? (1 / (1 + (getJapaneseFarmhouseTechLevel() * 0.07))) : 1;
+    return base * japaneseMoveMult * (wheelbarrowActive ? (config.techEffects.wheelTripMult || BO_WHEEL_TRIP_MULT) : 1);
   }
 
   function gatherRate(res) {
@@ -7004,8 +7750,14 @@ function simulateBuildOrder(commands, config) {
     if (res === "berries" && hasActiveBerryBonus()) {
       rate *= 1 + (berryBonus.gatherBonusPct || 0) / 100;
     }
+    if (civ === "Japanese" && res === "berries") {
+      rate *= 1 + (getJapaneseFarmhouseTechLevel() * 0.25);
+    }
     if ((res === "deer" || res === "boar") && survivalTechActive) {
       rate *= 1.15;
+    }
+    if (civ === "Rus" && isFood(res)) {
+      rate *= 1 + (getRusBountyStateNow().foodGatherPct / 100);
     }
     if (goldenAgeGatherPct > 0) {
       rate *= 1 + goldenAgeGatherPct / 100;
@@ -7016,8 +7768,14 @@ function simulateBuildOrder(commands, config) {
     if (houseOfWisdomState.effects.agriculture && res === "farm") {
       rate *= 1.15;
     }
+    if (civ === "Japanese" && res === "farm") {
+      rate *= 1 + (getJapaneseDaimyoTier() * 0.2);
+    }
     if (civ === "Ottomans" && ottomanEffects.anatolianHills && (res === "gold" || res === "stone")) {
       rate *= 1.15;
+    }
+    if (civ === "Tughlaq Dynasty") {
+      rate *= 1 + (getTughlaqWorkerElephantBonusLevel() * 0.05);
     }
     return rate;
   }
@@ -7035,7 +7793,7 @@ function simulateBuildOrder(commands, config) {
     const trip = effectiveTrip(res);
     const cycleTime = (carry / rate) + trip + BO_DROPOFF_ANIMATION_SEC + trip;
     if (cycleTime <= 0) return 0;
-    const perVill = (carry * getDropoffReturnMult()) / cycleTime;
+    const perVill = (carry * getDropoffReturnMult(res)) / cycleTime;
     return perVill * vills;
   }
 
@@ -7224,11 +7982,13 @@ function simulateBuildOrder(commands, config) {
         harvested = Math.min(harvested, remaining);
         foodRemaining[res] = Math.max(0, remaining - harvested);
       }
-      const gain = harvested * getDropoffReturnMult();
+      const gain = harvested * getDropoffReturnMult(res);
       if (gain > 0) {
         if (isFood(res)) resources.food += gain;
         else resources[res] += gain;
         addGathered(isFood(res) ? "food" : res, gain);
+        addJapaneseSilverMiningBonus(res, gain);
+        addRusBountyGold(res, harvested);
         pushSample(now, resources);
       }
       if (BO_FINITE_FOOD_SOURCES.includes(res) && (foodRemaining[res] || 0) <= 0) {
@@ -7286,7 +8046,59 @@ function simulateBuildOrder(commands, config) {
     if (pastureCount > 0) {
       const sheepFood = BO_NODE_AMOUNTS?.sheep ?? 200;
       const perSec = sheepFood / Math.max(1, pastureSheepSeconds);
+      const sheepBefore = foodRemaining.sheep || 0;
       foodRemaining.sheep += pastureCount * perSec * dt;
+      if (sheepBefore <= 0 && foodRemaining.sheep > 0 && (assignments.sheep || 0) > 0) {
+        syncDropoffCohorts(["sheep"], time);
+      }
+    }
+    if (highTradeHouseCount > 0) {
+      const deerFood = BO_NODE_AMOUNTS?.deer ?? 350;
+      const perSec = deerFood / Math.max(1, civBonus.highTradeHouseDeerSeconds || 60);
+      const deerBefore = foodRemaining.deer || 0;
+      foodRemaining.deer += highTradeHouseCount * perSec * dt;
+      if (deerBefore <= 0 && foodRemaining.deer > 0 && (assignments.deer || 0) > 0) {
+        syncDropoffCohorts(["deer"], time);
+      }
+    }
+    if (kuraStorehouseCount > 0) {
+      kuraPassiveSeconds += dt * kuraStorehouseCount;
+      const cycle = Math.max(1, civBonus.kuraCycleSeconds || 50);
+      if (kuraPassiveSeconds >= cycle) {
+        const ticks = Math.floor(kuraPassiveSeconds / cycle);
+        kuraPassiveSeconds -= ticks * cycle;
+        grantJapaneseKuraTick(time, ticks);
+      }
+    }
+    const zenGoldPerSec = getJapaneseZenGoldPerSec();
+    if (zenGoldPerSec > 0) {
+      const gain = zenGoldPerSec * dt;
+      resources.gold += gain;
+      addGathered("gold", gain);
+    }
+    const malianPitMineGoldPerSec = getMalianPitMineGoldPerSec();
+    if (malianPitMineGoldPerSec > 0) {
+      const gain = malianPitMineGoldPerSec * dt;
+      resources.gold += gain;
+      addGathered("gold", gain);
+    }
+    const malianMansaQuarryGoldPerSec = getMalianMansaQuarryGoldPerSec();
+    if (malianMansaQuarryGoldPerSec > 0) {
+      const gain = malianMansaQuarryGoldPerSec * dt;
+      resources.gold += gain;
+      addGathered("gold", gain);
+    }
+    const malianCattleFoodPerSec = getMalianCattleFoodPerSec();
+    if (malianCattleFoodPerSec > 0) {
+      const gain = malianCattleFoodPerSec * dt;
+      resources.food += gain;
+      addGathered("food", gain);
+    }
+    const malianGrandFulaniFoodPerSec = getMalianGrandFulaniFoodPerSec();
+    if (malianGrandFulaniFoodPerSec > 0) {
+      const gain = malianGrandFulaniFoodPerSec * dt;
+      resources.food += gain;
+      addGathered("food", gain);
     }
   }
 
@@ -7365,6 +8177,15 @@ function simulateBuildOrder(commands, config) {
         if (name === "Pasture") pastureCount += 1;
         if (name === "Ger") gerCount += 1;
         if (name === "Ovoo") ovooCount += 1;
+        if (name === "High Trade House") highTradeHouseCount += 1;
+        if (name === "Kura Storehouse") {
+          kuraStorehouseCount += 1;
+          grantJapaneseKuraTick(endTime, 1);
+        }
+        if (name === "Temple of Equality") {
+          japaneseBuddhistMonkCount += 4;
+          pushEvent("Buddhist Monks arrive", "Spawn 4 Buddhist Monks", instanceId);
+        }
         const landmarkAge = getLandmarkTargetAge(name);
         if (landmarkAge && age < landmarkAge) {
           age = landmarkAge;
@@ -7381,7 +8202,7 @@ function simulateBuildOrder(commands, config) {
           imperialPalaceCompleted = true;
         }
         syncBerryCapacityBonus();
-        if (name === "Barracks" || name === "Archery Range" || name === "Stable" || name === "Siege Workshop" || name === "Town Center" || name === BO_OTTOMAN_MILITARY_SCHOOL_BUILDING) {
+        if (isBoProductionSurface(name, civ)) {
           const list = productionQueues[name] || [];
           list.push({ id: instanceId, busyUntil: endTime });
           productionQueues[name] = list;
@@ -7405,12 +8226,30 @@ function simulateBuildOrder(commands, config) {
         applyHouseOfWisdomCompletion(b, endTime);
       } else if (b.kind === "techComplete") {
         needsGlobalDropoffSync = true;
+        researchedTechs.add(b.techType);
         if (b.techType === "Wheelbarrow") wheelbarrowActive = true;
         if (b.techType === "Food Upgrade" || b.techType === "Horticulture") foodTechLevel += 1;
         if (b.techType === "Survival Techniques") survivalTechActive = true;
         if (b.techType === "Sanctity") sanctityActive = true;
         if (b.techType === "Enlistment Incentives") enlistmentActive = true;
         if (b.techType === "Dome of the Faith") domeActive = true;
+        if (b.techType === "Preservation of Knowledge") houseOfWisdomState.effects.preservationOfKnowledge = true;
+        if (b.techType === "Fertile Crescent") houseOfWisdomState.effects.fertileCrescent = true;
+        if (b.techType === "Agriculture") houseOfWisdomState.effects.agriculture = true;
+        if (b.techType === "Improved Processing") houseOfWisdomState.effects.improvedProcessing = true;
+        if (b.techType === "Medical Centers") houseOfWisdomState.effects.medicalCenters = true;
+        if (b.techType === "Public Libraries") houseOfWisdomState.effects.publicLibraries = true;
+        if (b.techType === "Boot Camp") houseOfWisdomState.effects.bootCamp = true;
+        if (b.techType === "Composite Bows") houseOfWisdomState.effects.compositeBows = true;
+        if (b.techType === "Camel Support") houseOfWisdomState.effects.camelSupport = true;
+        if (b.techType === "Armored Caravans") houseOfWisdomState.effects.armoredCaravans = true;
+        if (b.techType === "Grand Bazaar") houseOfWisdomState.effects.grandBazaar = true;
+        if (b.techType === "Spice Roads") houseOfWisdomState.effects.spiceRoads = true;
+        if (civ === "Japanese" && ["Daimyo Manor", "Daimyo Palace", "Shogunate Castle"].includes(b.techType)) {
+          villagers += 1;
+          assignments.idle += 1;
+          pushEvent("Villager granted", `${b.techType} grants 1 Villager`, b.buildingId || "TC #1");
+        }
         if (b.milestoneLabel) milestones[b.milestoneLabel] = endTime;
       } else if (b.kind === "scholarComplete") {
         scholarGarrison = Math.max(0, b.count || 0);
@@ -7465,6 +8304,16 @@ function simulateBuildOrder(commands, config) {
           addOttomanVizierXp(BO_OTTOMAN_VIZIER_UNIT_XP[b.unitName] || BO_OTTOMAN_VIZIER_UNIT_XP[resolveBoUnitName(b.unitName)] || 0, {
             allowImperialPalaceDouble: true
           });
+        }
+        if (resolveBoUnitName(b.unitName) === "Worker Elephant") {
+          workerElephantCount += 1;
+          pushEvent("Worker Elephant ready", "Movable dropoff active", b.buildingId || b.tcId || "TC #1");
+        }
+        if (b.unitName === "Cattle") {
+          malianCattleCount += Math.max(1, b.count || 1);
+        }
+        if (b.unitName === "Buddhist Monk") {
+          japaneseBuddhistMonkCount += Math.max(1, b.count || 1);
         }
       } else if (b.kind === "houseOfWisdomReinforcement") {
         const waveCount = Math.max(1, b.count || 1);
@@ -7539,6 +8388,11 @@ function simulateBuildOrder(commands, config) {
         const perSec = sheepFood / Math.max(1, pastureSheepSeconds);
         rate = rate - pastureCount * perSec;
       }
+      if (res === "deer" && highTradeHouseCount > 0) {
+        const deerFood = BO_NODE_AMOUNTS?.deer ?? 350;
+        const perSec = deerFood / Math.max(1, civBonus.highTradeHouseDeerSeconds || 60);
+        rate = rate - highTradeHouseCount * perSec;
+      }
       if (rate <= 0) return;
       const t = time + remaining / rate;
       if (soonest === null || t < soonest.time) soonest = { time: t, res };
@@ -7607,11 +8461,25 @@ function simulateBuildOrder(commands, config) {
     const farmGoldRate = (BO_ENGLISH_FARM_BONUS_CIVS.has(civ) ? (civBonus.farmGoldPerSec || BO_ENGLISH_FARM_GOLD_PER_SEC) * (assignments.farm || 0) : 0);
     const sacredGoldRate = sacredSites > 0 ? (sacredSiteGoldPerMin / 60) * sacredSites * (civ === "Delhi Sultanate" && sanctityActive ? (civBonus.sanctityGoldMult || 1.25) : 1) : 0;
     const ovooStoneRate = ovooCount > 0 ? ((ovooStonePerMinByAge?.[age] || 0) / 60) * ovooCount : 0;
+    const rusBountyGoldRate = civ === "Rus"
+      ? (depositRate("sheep") + depositRate("deer") + depositRate("boar")) * (getRusBountyStateNow().goldPerFood || 0)
+      : 0;
+    const japaneseSilverPct = getJapaneseSilverMiningPct() / 100;
+    const japaneseGoldStoneBonus = depositRate("stone") * japaneseSilverPct;
+    const japaneseStoneGoldBonus = depositRate("gold") * japaneseSilverPct;
+    const japaneseZenGoldRate = getJapaneseZenGoldPerSec();
+    const kuraWoodRate = kuraStorehouseCount > 0 && kuraGeneratedFarms >= (kuraStorehouseCount * (civBonus.kuraFarmCapPerStorehouse || 12))
+      ? (kuraStorehouseCount * (civBonus.kuraOverflowWood || 38) / Math.max(1, civBonus.kuraCycleSeconds || 50))
+      : 0;
+    const malianPitMineGoldRate = getMalianPitMineGoldPerSec();
+    const malianMansaQuarryGoldRate = getMalianMansaQuarryGoldPerSec();
+    const malianCattleFoodRate = getMalianCattleFoodPerSec();
+    const malianGrandFulaniFoodRate = getMalianGrandFulaniFoodPerSec();
     return {
-      food: depositRate("sheep") + depositRate("berries") + depositRate("deer") + depositRate("boar") + depositRate("farm"),
-      wood: depositRate("wood"),
-      gold: depositRate("gold") + farmGoldRate + sacredGoldRate,
-      stone: depositRate("stone") + ovooStoneRate
+      food: depositRate("sheep") + depositRate("berries") + depositRate("deer") + depositRate("boar") + depositRate("farm") + malianCattleFoodRate + malianGrandFulaniFoodRate,
+      wood: depositRate("wood") + kuraWoodRate,
+      gold: depositRate("gold") + farmGoldRate + sacredGoldRate + rusBountyGoldRate + japaneseGoldStoneBonus + japaneseZenGoldRate + malianPitMineGoldRate + malianMansaQuarryGoldRate,
+      stone: depositRate("stone") + ovooStoneRate + japaneseStoneGoldBonus
     };
   }
 
@@ -7754,10 +8622,13 @@ function simulateBuildOrder(commands, config) {
   function depositHeldIfAvailable(res) {
     if (!dropoffAvailable(res)) return;
     if (held[res] > 0) {
-      const deposit = held[res] * getDropoffReturnMult();
+      const harvested = held[res];
+      const deposit = harvested * getDropoffReturnMult(res);
       if (isFood(res)) resources.food += deposit;
       else resources[res] += deposit;
       addGathered(isFood(res) ? "food" : res, deposit);
+      addJapaneseSilverMiningBonus(res, deposit);
+      addRusBountyGold(res, harvested);
       held[res] = 0;
     }
   }
@@ -7785,6 +8656,9 @@ function simulateBuildOrder(commands, config) {
 
   function getUnitAvailabilityIssue(unitName, buildingType) {
     const ottomanEffects = getOttomanActiveEffects();
+    if (civ === "Malians" && unitName === "Cattle" && malianCattleCount >= 20) {
+      return { type: "blocked", message: "Blocked (Cattle limit reached)" };
+    }
     if (
       civ === "Ottomans" &&
       buildingType === BO_OTTOMAN_MILITARY_SCHOOL_BUILDING &&
@@ -7829,6 +8703,9 @@ function simulateBuildOrder(commands, config) {
     const unitDef = getBoUnitDefaults(unitName, civ);
     const baseCost = unitDef?.cost || { food: 0, wood: 0, gold: 0, stone: 0 };
     const baseTime = unitDef?.time || 0;
+    const trainingSurface = getBoTrainingSurface(buildingType, civ);
+    const surfaceConfig = getBoBuildingSurfaceConfig(buildingType, civ);
+    const unitTrainMod = getBoUnitTrainModifier(buildingType, civ, unitName);
     const ottomanEffects = getOttomanActiveEffects();
     const howEffects = getHouseOfWisdomEffects();
     let cost = {
@@ -7838,10 +8715,13 @@ function simulateBuildOrder(commands, config) {
       stone: (baseCost.stone || 0) * count
     };
     let timePerUnit = baseTime;
+    if (civ === "Abbasid Dynasty" && resolveBoUnitName(unitName) === "Villager" && isTechResearched("Fresh Foodstuffs")) {
+      cost.food = Math.round((cost.food || 0) * 0.6);
+    }
     if (civ === "Mongols" && /horseman/i.test(unitName)) {
       timePerUnit *= civBonus.horsemenTrainTimeMult || 0.75;
     }
-    if (buildingType === "Town Center") {
+    if (trainingSurface === "Town Center") {
       const tcWorkRatePct = getBoAgeBonusValue(civBonus.townCenterWorkRateByAge, age);
       timePerUnit = applyBoWorkRateToDuration(timePerUnit, tcWorkRatePct);
     }
@@ -7859,11 +8739,25 @@ function simulateBuildOrder(commands, config) {
       cost = { food: 0, wood: 0, gold: 0, stone: 0 };
       timePerUnit *= school.trainTimeMult || 4.75;
     }
+    if (Number.isFinite(unitTrainMod.costMult) && unitTrainMod.costMult > 0 && unitTrainMod.costMult !== 1) {
+      cost = {
+        food: Math.round((cost.food || 0) * unitTrainMod.costMult),
+        wood: Math.round((cost.wood || 0) * unitTrainMod.costMult),
+        gold: Math.round((cost.gold || 0) * unitTrainMod.costMult),
+        stone: Math.round((cost.stone || 0) * unitTrainMod.costMult)
+      };
+    }
+    if (Number.isFinite(unitTrainMod.timePct) && unitTrainMod.timePct > 0) {
+      timePerUnit = applyBoWorkRateToDuration(timePerUnit, unitTrainMod.timePct);
+    }
+    if (Number.isFinite(surfaceConfig.trainTimePct) && surfaceConfig.trainTimePct > 0) {
+      timePerUnit = applyBoWorkRateToDuration(timePerUnit, surfaceConfig.trainTimePct);
+    }
     const houseProductionPct = getHouseOfWisdomProductionPct();
-    if (BO_PRODUCTION_BUILDINGS.has(buildingType) && houseProductionPct > 0) {
+    if (BO_PRODUCTION_BUILDINGS.has(trainingSurface) && houseProductionPct > 0) {
       timePerUnit = applyBoWorkRateToDuration(timePerUnit, houseProductionPct);
     }
-    const militarySpeedPct = getBoMilitaryProductionSpeedPct(civ, buildingType, age, {
+    const militarySpeedPct = getBoMilitaryProductionSpeedPct(civ, trainingSurface, age, {
       ottomanSettings: ottomanEffects,
       hasInfluenceSource: hasOttomanInfluenceSource()
     });
@@ -7900,6 +8794,34 @@ function simulateBuildOrder(commands, config) {
     return list.includes(id);
   }
 
+  function meetsSimTechRequirements(def) {
+    if (!def) return true;
+    if ((age || 1) < Math.max(1, def.minAge || 1)) return false;
+    if (isTechResearched(def.name)) return false;
+    const requiresTechs = Array.isArray(def.requiresTechs) ? def.requiresTechs : [];
+    if (requiresTechs.some((name) => !isTechResearched(name))) return false;
+    const requiresBuildings = Array.isArray(def.requiresBuildings) ? def.requiresBuildings : [];
+    if (requiresBuildings.some((name) => (buildingCounts[name] || 0) <= 0)) return false;
+    if (def.requiresHouseOfWisdomWing && !isHouseOfWisdomWingChosen(def.requiresHouseOfWisdomWing)) return false;
+    return true;
+  }
+
+  function getTechWaitReason(def) {
+    if (!def) return null;
+    if ((age || 1) < Math.max(1, def.minAge || 1)) return `Age ${def.minAge}`;
+    const requiresTechs = Array.isArray(def.requiresTechs) ? def.requiresTechs : [];
+    const missingTech = requiresTechs.find((name) => !isTechResearched(name));
+    if (missingTech) return missingTech;
+    const requiresBuildings = Array.isArray(def.requiresBuildings) ? def.requiresBuildings : [];
+    const missingBuilding = requiresBuildings.find((name) => (buildingCounts[name] || 0) <= 0);
+    if (missingBuilding) return missingBuilding;
+    if (def.requiresHouseOfWisdomWing && !isHouseOfWisdomWingChosen(def.requiresHouseOfWisdomWing)) {
+      return `${getBoHouseOfWisdomWingLabel(civ, def.requiresHouseOfWisdomWing)} Wing`;
+    }
+    if (isTechResearched(def.name)) return def.name;
+    return null;
+  }
+
   function waitForBuildingAvailable(type, id, actionLabel, notes) {
     const resolvedType = type || inferBuildingTypeFromId(id);
     if (!resolvedType) return true;
@@ -7909,6 +8831,19 @@ function simulateBuildOrder(commands, config) {
         return false;
       }
       notes?.push(`Waiting for ${id || resolvedType}`);
+      advanceTo(nextBusy);
+    }
+    return true;
+  }
+
+  function waitForTechAvailable(def, actionLabel, notes) {
+    if (!def) return true;
+    while (!meetsSimTechRequirements(def)) {
+      const waitFor = getTechWaitReason(def);
+      if (isTechResearched(def.name)) return false;
+      const nextBusy = nextBusyTime();
+      if (nextBusy === null) return false;
+      if (waitFor) notes?.push(`Waiting for ${waitFor}`);
       advanceTo(nextBusy);
     }
     return true;
@@ -8031,7 +8966,7 @@ function simulateBuildOrder(commands, config) {
       const queue = getQueueForAutoQueue(buildingType, buildingId);
       if (!queue) return;
       const unitName = cmd.payload.unitName;
-      const isTc = buildingType === "Town Center";
+      const isTc = isBoTownCenterSurface(buildingType, civ);
       if (isTc && !(unitName === "Villager" || unitName === "Scout")) return;
       if (!isTc && (unitName === "Villager" || unitName === "Scout")) return;
       const unitIssue = getUnitAvailabilityIssue(unitName, buildingType);
@@ -8064,8 +8999,8 @@ function simulateBuildOrder(commands, config) {
       const queue = getQueueForAutoQueue(buildingType, buildingId);
       if (!queue || queue.busyUntil > time + 0.0001) return;
       if (hasBlockingFiniteQueueAtTime(buildingType, buildingId, time)) return;
-      if (buildingType === "Town Center" && !(cmd.payload.unitName === "Villager" || cmd.payload.unitName === "Scout")) return;
-      if (buildingType !== "Town Center" && (cmd.payload.unitName === "Villager" || cmd.payload.unitName === "Scout")) return;
+      if (isBoTownCenterSurface(buildingType, civ) && !(cmd.payload.unitName === "Villager" || cmd.payload.unitName === "Scout")) return;
+      if (!isBoTownCenterSurface(buildingType, civ) && (cmd.payload.unitName === "Villager" || cmd.payload.unitName === "Scout")) return;
       if (getUnitAvailabilityIssue(cmd.payload.unitName, buildingType)) return;
       const { unitName, cost, timePerUnit } = getAutoQueueSpec(cmd, buildingType);
       if (!hasResources(cost)) return;
@@ -8101,7 +9036,7 @@ function simulateBuildOrder(commands, config) {
       timeline.push({
         start,
         end: start,
-        action: unitName === "Villager" && buildingType === "Town Center"
+        action: unitName === "Villager" && isBoTownCenterSurface(buildingType, civ)
           ? `Rally Villagers -> ${rallyLabel}`
           : (rallyLabel ? `Repeat Villager -> ${rallyLabel}` : `Repeat ${unitName}`),
         notes: buildingId ? `(${buildingId})` : "",
@@ -8208,10 +9143,10 @@ function simulateBuildOrder(commands, config) {
       cmd?.type === "trainUnit" &&
       !cmd.payload?.repeatUntilEnd &&
       cmd.payload?.unitName === "Villager" &&
-      (cmd.payload?.building || inferBuildingTypeFromId(cmd.payload?.buildingId) || "Barracks") === "Town Center" &&
+      isBoTownCenterSurface(cmd.payload?.building || inferBuildingTypeFromId(cmd.payload?.buildingId) || "Barracks", civ) &&
       !!cmd.payload?.buildingId
         ? {
-            buildingType: "Town Center",
+            buildingType: cmd.payload?.building || inferBuildingTypeFromId(cmd.payload?.buildingId) || "Town Center",
             buildingId: cmd.payload.buildingId,
             startTime: earliest
           }
@@ -8429,10 +9364,31 @@ function simulateBuildOrder(commands, config) {
       const def = getBoBuildingDefaults(buildingName) || {};
       let minAge = def.minAge || 1;
       if (civ === "Mongols" && buildingName === "Stable") minAge = 1;
+      if (civ === "Japanese" && buildingName === "Barracks") minAge = 1;
       const blockedFarm = buildSteps.find((step) => civBonus.farmsDisabled && step.building === "Farm");
       if (blockedFarm) {
         warnings.push(`Blocked: Build ${blockedFarm.building} (farms disabled)`);
         pushEvent(`Build ${blockedFarm.building}`, "Blocked (farms disabled)", laneFor(cmd), cmd.id);
+        return;
+      }
+      const blockedShintoShrine = civ === "Japanese" && buildSteps.find((step) => step.building === "Shinto Shrine") && (buildingCounts["Floating Gate"] || 0) <= 0;
+      if (blockedShintoShrine) {
+        warnings.push("Blocked: Build Shinto Shrine (requires Floating Gate)");
+        pushEvent("Build Shinto Shrine", "Blocked (requires Floating Gate)", laneFor(cmd), cmd.id);
+        return;
+      }
+      const blockedBuddhistTemple = civ === "Japanese" && buildSteps.find((step) => step.building === "Buddhist Temple") && (buildingCounts["Temple of Equality"] || 0) <= 0;
+      if (blockedBuddhistTemple) {
+        warnings.push("Blocked: Build Buddhist Temple (requires Temple of Equality)");
+        pushEvent("Build Buddhist Temple", "Blocked (requires Temple of Equality)", laneFor(cmd), cmd.id);
+        return;
+      }
+      const requestedPitMines = civ === "Malians"
+        ? buildSteps.reduce((sum, step) => step.building === "Pit Mine" ? sum + Math.max(1, step.count || 1) : sum, 0)
+        : 0;
+      if (civ === "Malians" && requestedPitMines > 0 && ((buildingCounts["Pit Mine"] || 0) + requestedPitMines) > age) {
+        warnings.push("Blocked: Build Pit Mine (limit 1 per Age)");
+        pushEvent("Build Pit Mine", "Blocked (limit 1 per Age)", laneFor(cmd), cmd.id);
         return;
       }
       if (age < minAge) {
@@ -8446,7 +9402,7 @@ function simulateBuildOrder(commands, config) {
       duration = cmd.payload.time || 0;
       if (cmd.autoTime) {
         const techBuildingType = cmd.payload.building || inferBuildingTypeFromId(cmd.payload.buildingId);
-        if (techBuildingType === "Town Center") {
+        if (getBoTechSurface(techBuildingType, civ) === "Town Center") {
           const tcWorkRatePct = getBoAgeBonusValue(civBonus.townCenterWorkRateByAge, age);
           duration = applyBoWorkRateToDuration(duration, tcWorkRatePct);
         }
@@ -8485,7 +9441,7 @@ function simulateBuildOrder(commands, config) {
         pushEvent(`Train ${unitName}`, "Blocked (select a building)", laneFor(cmd), cmd.id);
         return;
       }
-      const isTc = buildingType === "Town Center";
+      const isTc = isBoTownCenterSurface(buildingType, civ);
       if (isTc && !(unitName === "Villager" || unitName === "Scout")) {
         warnings.push(`Blocked: Train ${unitName} (Town Center trains Villager/Scout only)`);
         pushEvent(`Train ${unitName}`, "Blocked (Town Center trains Villager/Scout only)", laneFor(cmd), cmd.id);
@@ -8532,7 +9488,7 @@ function simulateBuildOrder(commands, config) {
       duration = Math.max(0, plannedEnd - time);
       if (unitName === "Villager") {
         const rallyLabel = cmd.payload.rallyTarget || "idle";
-        actionLabel = buildingType === "Town Center"
+        actionLabel = isBoTownCenterSurface(buildingType, civ)
           ? `Rally Villagers -> ${rallyLabel}`
           : `Repeat Villager -> ${rallyLabel}`;
       } else {
@@ -8574,7 +9530,7 @@ function simulateBuildOrder(commands, config) {
         pushEvent(actionLabel, "Blocked (select a building)", laneFor(cmd), cmd.id);
         return;
       }
-      const isTc = buildingType === "Town Center";
+      const isTc = isBoTownCenterSurface(buildingType, civ);
       const unitName = cmd.payload.unitName;
       if (isTc && !(unitName === "Villager" || unitName === "Scout")) {
         warnings.push(`Blocked: ${actionLabel} (Town Center trains Villager/Scout only)`);
@@ -8618,9 +9574,25 @@ function simulateBuildOrder(commands, config) {
 
     if (cmd.type === "tech") {
       const techType = cmd.payload.techType;
-      const millTechs = new Set(["Wheelbarrow", "Horticulture", "Survival Techniques"]);
-      const targetBuildingType = cmd.payload.building || (millTechs.has(techType) ? "Mill" : null);
+      const techDef = getSimTechDef(techType);
+      const targetBuildingType = cmd.payload.building || inferBoBuildingTypeFromId(cmd.payload.buildingId) || null;
       const targetBuildingId = cmd.payload.buildingId || null;
+      if (isTechResearched(techType)) {
+        warnings.push(`Blocked: ${actionLabel} (already researched)`);
+        pushEvent(actionLabel, "Blocked (already researched)", laneFor(cmd), cmd.id);
+        return;
+      }
+      if (!targetBuildingType || !doesBoTechMatchBuilding(techType, targetBuildingType, civ)) {
+        warnings.push(`Blocked: ${actionLabel} (missing exact research site)`);
+        pushEvent(actionLabel, "Blocked (missing exact research site)", laneFor(cmd), cmd.id);
+        return;
+      }
+      const available = waitForTechAvailable(techDef, actionLabel, notes);
+      if (!available) {
+        warnings.push(`Blocked: ${actionLabel} (requirements not met)`);
+        pushEvent(actionLabel, "Blocked (requirements not met)", laneFor(cmd), cmd.id);
+        return;
+      }
       if (targetBuildingType || targetBuildingId) {
         const ok = waitForBuildingAvailable(targetBuildingType, targetBuildingId, actionLabel, notes);
         if (!ok) {
@@ -8628,6 +9600,9 @@ function simulateBuildOrder(commands, config) {
           pushEvent(actionLabel, `Blocked (missing ${targetBuildingId || targetBuildingType})`, laneFor(cmd), cmd.id);
           return;
         }
+      }
+      if (techDef.noteOnly) {
+        notes.push("Tracked only");
       }
     }
 
@@ -8648,7 +9623,7 @@ function simulateBuildOrder(commands, config) {
     if (cmd.type === "trainUnit") {
       const buildingType = cmd.payload.building || "Barracks";
       const buildingId = cmd.payload.buildingId || null;
-      if (cmd.payload.unitName === "Villager" && buildingType !== "Town Center") {
+      if (cmd.payload.unitName === "Villager" && !isBoTownCenterSurface(buildingType, civ)) {
         warnings.push(`Blocked: ${actionLabel} (Villagers require Town Center)`);
         pushEvent(actionLabel, "Blocked (Villagers require Town Center)", laneFor(cmd), cmd.id);
         return;
@@ -8712,11 +9687,11 @@ function simulateBuildOrder(commands, config) {
       cmd.type === "trainUnit" &&
       !cmd.payload?.repeatUntilEnd &&
       cmd.payload?.unitName === "Villager" &&
-      (cmd.payload?.building || "Barracks") === "Town Center" &&
+      isBoTownCenterSurface(cmd.payload?.building || "Barracks", civ) &&
       !!queuedBuilding?.id;
 
     if (isFiniteTownCenterVillagerQueue) {
-      const spec = getAutoQueueSpec(cmd, "Town Center");
+      const spec = getAutoQueueSpec(cmd, cmd.payload?.building || inferBuildingTypeFromId(cmd.payload?.buildingId) || "Town Center");
       if (!spec.unitDef && !notes.includes("Unit data not found (manual values)")) {
         notes.push("Unit data not found (manual values)");
       }
@@ -8788,6 +9763,9 @@ function simulateBuildOrder(commands, config) {
         if (civ === "Mongols" && step.building === "Stable") minAge = 1;
         const baseDuration = getBuildDurationSeconds(getBoBuildStepTime(step), requestedBuilders);
         let durationPerBuilding = baseDuration;
+        if (civ === "Malians" && step.building === "House" && civBonus?.houseBuildTimeMult) {
+          durationPerBuilding *= civBonus.houseBuildTimeMult;
+        }
         if (civ === "Jeanne d'Arc") {
           let mult = 1;
           if (age === 1 && civBonus.darkAgeBuildSpeedMult) mult *= civBonus.darkAgeBuildSpeedMult;
@@ -10930,13 +11908,10 @@ const boAddPickerEl = document.getElementById("boAddPicker");
 const boAddCommandBtn = document.getElementById("boAddCommand");
 
 function getBoPickerDefaultType() {
-  if (boSelectedBuilding) {
-    return BO_TECH_BUILDINGS.has(boSelectedBuilding.type) ? "tech" : "assign";
-  }
   if (boSelectedCommandId) {
     const cmd = boCommands.find((c) => c.id === boSelectedCommandId);
     const type = cmd?.type || boLastCommandType || "assign";
-    const allowed = ["assign", "buildBuilding", "tech"];
+    const allowed = ["assign", "buildBuilding"];
     if (allowed.includes(type)) return type;
     return allowed.includes(boLastCommandType) ? boLastCommandType : "assign";
   }
@@ -10970,19 +11945,11 @@ boAddPickerEl?.addEventListener("click", (e) => {
   const type = btn.dataset.type || "assign";
   if (!updateBoCivGate(true, "Select a civilization before adding commands.")) return;
   const hadSelectedCommand = !!boSelectedCommandId;
-  const buildingTargetedType = !!boSelectedBuilding
-    && ((type === "tech" && BO_TECH_BUILDINGS.has(boSelectedBuilding.type)));
-  const insertAfter = buildingTargetedType
-    ? (boSelectedBuilding?.sourceCommandId || null)
-    : (boSelectedCommandId || null);
+  const insertAfter = boSelectedCommandId || null;
   const cmd = addBoCommand(type, insertAfter);
   if (!cmd) return;
 
-  if (boSelectedBuilding && type === "tech" && BO_TECH_BUILDINGS.has(boSelectedBuilding.type)) {
-    cmd.payload.building = boSelectedBuilding.type;
-    cmd.payload.buildingId = boSelectedBuilding.id;
-  }
-  if (!hadSelectedCommand && !buildingTargetedType) {
+  if (!hadSelectedCommand) {
     setBoCommandToTimelineStart(cmd);
   }
   applyAutoDefaultsForCommand(cmd, document.getElementById("boCiv")?.value || "");
