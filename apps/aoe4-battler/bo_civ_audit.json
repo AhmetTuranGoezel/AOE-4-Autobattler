@@ -1,0 +1,227 @@
+{
+  "supportedCivs": [
+    "Abbasid Dynasty",
+    "Ayyubids",
+    "Delhi Sultanate",
+    "English",
+    "French",
+    "Golden Horde",
+    "Holy Roman Empire",
+    "Order of the Dragon",
+    "House of Lancaster",
+    "Japanese",
+    "Jeanne d'Arc",
+    "Knights Templar",
+    "Malians",
+    "Mongols",
+    "Ottomans",
+    "Rus",
+    "Tughlaq Dynasty"
+  ],
+  "civs": {
+    "Abbasid Dynasty": {
+      "summary": "House of Wisdom is in the sim, but Abbasid still needs a broader verification pass before it can be considered fully modeled.",
+      "items": [
+        { "id": "starting_state", "group": "Starting State", "label": "Starting resources and House of Wisdom opener", "status": "partial", "note": "Abbasid uses House of Wisdom flow, but overall civ setup still needs verification." },
+        { "id": "base_bonuses", "group": "Base Bonuses", "label": "Grand Orchards and baseline eco bonuses", "status": "partial", "note": "Berry package is modeled; broader civ eco validation is still pending." },
+        { "id": "unique_buildings", "group": "Unique Buildings / Lanes", "label": "House of Wisdom lane and Golden Age", "status": "partial", "note": "House of Wisdom and Golden Age exist, but position-based influence is simplified globally." },
+        { "id": "trainables_spawns", "group": "Trainables / Spawns", "label": "Wing unit spawns", "status": "partial", "note": "Immediate wing spawns are tracked, but not every military-side interaction is fully verified." },
+        { "id": "unique_techs", "group": "Unique Techs", "label": "Abbasid unique tech catalog", "status": "partial", "note": "Core eco techs are wired; remaining unique techs are mostly timing-only entries and need exact-site review." },
+        { "id": "local_effects", "group": "Local Eco Effects", "label": "Influence / local eco handling", "status": "missing", "note": "No positional/local villager coverage controls are applied for Abbasid-specific placement effects yet." },
+        { "id": "known_gaps", "group": "Known Gaps", "label": "Known simplifications", "status": "partial", "note": "Golden Age connectivity and several non-eco Abbasid systems are still simplified." }
+      ]
+    },
+    "Ayyubids": {
+      "summary": "Ayyubid House of Wisdom branches are present, but the civ still needs a branch-by-branch verification pass.",
+      "items": [
+        { "id": "starting_state", "group": "Starting State", "label": "Starting resources and House of Wisdom opener", "status": "partial", "note": "Ayyubids use House of Wisdom flow, but the overall starting-state behavior still needs validation." },
+        { "id": "base_bonuses", "group": "Base Bonuses", "label": "Grand Orchards and civ economy", "status": "partial", "note": "Berry package is modeled, but the broader civ economy is not fully checked." },
+        { "id": "unique_buildings", "group": "Unique Buildings / Lanes", "label": "House of Wisdom branches and Golden Age", "status": "partial", "note": "Branch choices and cumulative Golden Age exist, but the simplification model needs confirmation." },
+        { "id": "trainables_spawns", "group": "Trainables / Spawns", "label": "Ayyubid branch spawns", "status": "partial", "note": "Growth, Logistics, Advisors, and Reinforcement spawns are present, but need a civ pass for correctness." },
+        { "id": "unique_techs", "group": "Unique Techs", "label": "Ayyubid unique techs", "status": "partial", "note": "Ayyubid branch-related effects are partially modeled; tech-site fidelity still needs review." },
+        { "id": "local_effects", "group": "Local Eco Effects", "label": "Local influence coverage", "status": "missing", "note": "No manual villager-count control exists for local Ayyubid placement effects yet." },
+        { "id": "known_gaps", "group": "Known Gaps", "label": "Known simplifications", "status": "partial", "note": "Trade-side and military-side branch nuances remain simplified." }
+      ]
+    },
+    "Delhi Sultanate": {
+      "summary": "Delhi has its main eco identity in the sim and now has named landmark authoring, but exact unique-building and scholar interactions still need review.",
+      "items": [
+        { "id": "starting_state", "group": "Starting State", "label": "Starting resources and boar restriction", "status": "modeled", "note": "Starting bank and no-boar baseline are present." },
+        { "id": "base_bonuses", "group": "Base Bonuses", "label": "Garden Bounty, free techs, Sanctity", "status": "partial", "note": "Garden Bounty and core research economy are modeled, but the full civ package is not audited yet." },
+        { "id": "unique_buildings", "group": "Unique Buildings / Lanes", "label": "Delhi landmarks and research surfaces", "status": "partial", "note": "Named Delhi landmark authoring is now wired, but landmark surfaces and scholar-side interactions still need review." },
+        { "id": "trainables_spawns", "group": "Trainables / Spawns", "label": "Scholars and religious flow", "status": "partial", "note": "Scholar timing is modeled, but broader scholar positioning and coverage remain simplified." },
+        { "id": "unique_techs", "group": "Unique Techs", "label": "Delhi unique tech catalog", "status": "partial", "note": "Unique techs are present for timing, but exact-site coverage still needs a Delhi pass." },
+        { "id": "local_effects", "group": "Local Eco Effects", "label": "Scholar / local influence coverage", "status": "missing", "note": "No manual local-villager coverage control exists for Delhi-style local effects." },
+        { "id": "known_gaps", "group": "Known Gaps", "label": "Known simplifications", "status": "partial", "note": "Scholar placement and several non-eco civ mechanics are simplified." }
+      ]
+    },
+    "English": {
+      "summary": "English core eco rules are present and named landmark authoring is now in place, but exact landmark-side effects still need review.",
+      "items": [
+        { "id": "starting_state", "group": "Starting State", "label": "Starting resources", "status": "modeled", "note": "Starting bank is aligned with the current supported civ defaults." },
+        { "id": "base_bonuses", "group": "Base Bonuses", "label": "Farm gather, farm gold, cheaper farms", "status": "partial", "note": "Main eco package is modeled, but the farm-gold timing assumptions still need confirmation." },
+        { "id": "unique_buildings", "group": "Unique Buildings / Lanes", "label": "English building / landmark fidelity", "status": "partial", "note": "Named English landmark authoring is now wired, but landmark-side effects still need a civ pass." },
+        { "id": "trainables_spawns", "group": "Trainables / Spawns", "label": "Unique spawn behavior", "status": "partial", "note": "Core production works, but civ-specific spawn behavior still needs review." },
+        { "id": "unique_techs", "group": "Unique Techs", "label": "English unique tech catalog", "status": "partial", "note": "Unique techs are available for timing, but exact-site fidelity still needs verification." },
+        { "id": "local_effects", "group": "Local Eco Effects", "label": "Local influence coverage", "status": "missing", "note": "No manual local-villager coverage control is wired for English placement effects." },
+        { "id": "known_gaps", "group": "Known Gaps", "label": "Known simplifications", "status": "partial", "note": "The civ is usable, but it should not be treated as fully audited yet." }
+      ]
+    },
+    "French": {
+      "summary": "French has its main eco identity wired and named landmark authoring is now in place, but keep-influence and landmark-side behavior are still incomplete.",
+      "items": [
+        { "id": "starting_state", "group": "Starting State", "label": "Starting resources", "status": "modeled", "note": "Starting bank is modeled." },
+        { "id": "base_bonuses", "group": "Base Bonuses", "label": "Dropoff discount, eco-tech discount, TC speed", "status": "partial", "note": "Core economy modifiers are modeled, but the civ still needs a fidelity pass." },
+        { "id": "unique_buildings", "group": "Unique Buildings / Lanes", "label": "French landmark / surface fidelity", "status": "partial", "note": "Named French landmark authoring is wired, with trade landmarks omitted from authoring, but landmark-side effects still need review." },
+        { "id": "trainables_spawns", "group": "Trainables / Spawns", "label": "French unit timing", "status": "partial", "note": "Production timing works, but not every unique French interaction is confirmed." },
+        { "id": "unique_techs", "group": "Unique Techs", "label": "French unique tech catalog", "status": "partial", "note": "Unique techs are present for timing, but exact-site fidelity and discounts still need review." },
+        { "id": "local_effects", "group": "Local Eco Effects", "label": "Keep aura economics", "status": "missing", "note": "Keep-influence unit discount is still not modeled as a real local effect." },
+        { "id": "known_gaps", "group": "Known Gaps", "label": "Known simplifications", "status": "partial", "note": "French is usable, but the civ still has missing local aura logic." }
+      ]
+    },
+    "Golden Horde": {
+      "summary": "Golden Horde is selectable, but it is still in active recovery and should not be treated as fully modeled.",
+      "items": [
+        { "id": "starting_state", "group": "Starting State", "label": "Starting resources, Ovoo baseline, and TC behavior", "status": "wrong", "note": "Golden Horde starting-state behavior is still being corrected and re-verified." },
+        { "id": "base_bonuses", "group": "Base Bonuses", "label": "Horde batching, movable dropoff, civ economy", "status": "wrong", "note": "Some Golden Horde core bonuses were implemented with wrong assumptions and still need a focused civ pass." },
+        { "id": "unique_buildings", "group": "Unique Buildings / Lanes", "label": "Golden Tent, Stockyard, Fortified Outpost, Prayer Tent", "status": "wrong", "note": "Golden Tent and related surfaces were previously modeled incorrectly; this civ still needs a structural cleanup pass." },
+        { "id": "trainables_spawns", "group": "Trainables / Spawns", "label": "Villager batches, Tent trainables, Rus Tribute", "status": "wrong", "note": "TC batch production was fixed, but the broader Golden Horde training flow still needs full verification." },
+        { "id": "unique_techs", "group": "Unique Techs", "label": "Golden Horde tech catalog", "status": "partial", "note": "Unique tech entries exist, but several still need correctness and site validation." },
+        { "id": "local_effects", "group": "Local Eco Effects", "label": "Fortified Outpost / edict local coverage", "status": "wrong", "note": "Local influence is still over-simplified globally in several Golden Horde systems." },
+        { "id": "known_gaps", "group": "Known Gaps", "label": "Known wrong behavior", "status": "wrong", "note": "Golden Horde should be treated as in-progress, not fully modeled." }
+      ]
+    },
+    "Holy Roman Empire": {
+      "summary": "HRE has named landmarks and key techs in Build Order, but its local influence economy is still only partially modeled.",
+      "items": [
+        { "id": "starting_state", "group": "Starting State", "label": "Starting resources and baseline civ state", "status": "modeled", "note": "Starting bank and carry multiplier baseline are present." },
+        { "id": "base_bonuses", "group": "Base Bonuses", "label": "Carry bonus and Feudal MAA availability", "status": "partial", "note": "Core civ bonuses are modeled, but the full HRE economy needs verification." },
+        { "id": "unique_buildings", "group": "Unique Buildings / Lanes", "label": "Aachen, Meinwerk, Burgrave, Regnitz, Elzbach, Swabia", "status": "partial", "note": "Named landmark surfaces exist, but their full civ interactions still need review." },
+        { "id": "trainables_spawns", "group": "Trainables / Spawns", "label": "Landmark train and research behavior", "status": "partial", "note": "Key surfaces exist, but the broader HRE production identity is not fully audited." },
+        { "id": "unique_techs", "group": "Unique Techs", "label": "HRE unique tech catalog", "status": "partial", "note": "Unique techs are available for timing and some effects, but not fully validated." },
+        { "id": "local_effects", "group": "Local Eco Effects", "label": "Aachen / inspiration local coverage", "status": "partial", "note": "Aachen Chapel now has manual villager-count coverage, but Prelate/inspiration local economy is still incomplete." },
+        { "id": "known_gaps", "group": "Known Gaps", "label": "Known simplifications", "status": "partial", "note": "Prelate/inspiration and other local HRE economy systems remain incomplete." }
+      ]
+    },
+    "Order of the Dragon": {
+      "summary": "Order of the Dragon is now selectable in Build Order with exact landmark authoring, but it still needs a broader civ pass before it can be treated as complete.",
+      "items": [
+        { "id": "starting_state", "group": "Starting State", "label": "Starting resources and 5-villager opener", "status": "partial", "note": "Starting bank, 5 villagers, and villager training overrides are wired, but the civ still needs a full opening-pass verification." },
+        { "id": "base_bonuses", "group": "Base Bonuses", "label": "Efficient Villagers, Pushcarts, and civ economy", "status": "partial", "note": "Villager gather/build/carry bonuses are modeled, but the broader civ package still needs review." },
+        { "id": "unique_buildings", "group": "Unique Buildings / Lanes", "label": "Aachen, Meinwerk, Burgrave, Regnitz, Elzbach, Swabia", "status": "partial", "note": "Named landmark authoring exists, with OotD-specific Burgrave behavior wired, but the civ still needs verification landmark by landmark." },
+        { "id": "trainables_spawns", "group": "Trainables / Spawns", "label": "Gilded unit roster and trainable differences", "status": "partial", "note": "Gilded military units are available through the existing unit roster, but monastery/prelate-side fidelity still needs work." },
+        { "id": "unique_techs", "group": "Unique Techs", "label": "Order of the Dragon unique tech catalog", "status": "partial", "note": "The civ's shared and exclusive landmark tech sites are wired for timing, but the full catalog still needs a civ pass for exactness." },
+        { "id": "local_effects", "group": "Local Eco Effects", "label": "Aachen Chapel local coverage", "status": "partial", "note": "A manual villager-count control exists for Aachen Chapel, but other local OotD/HRE systems remain simplified." },
+        { "id": "known_gaps", "group": "Known Gaps", "label": "Known simplifications", "status": "partial", "note": "Order of the Dragon is supported, but it should still be treated as a partial civ until the remaining monastery and civ-side details are checked." }
+      ]
+    },
+    "House of Lancaster": {
+      "summary": "House of Lancaster now has exact landmark pairs in Build Order, but its Manor economy is still not trustworthy enough to call complete.",
+      "items": [
+        { "id": "starting_state", "group": "Starting State", "label": "Starting resources and sheep opener", "status": "partial", "note": "Starting-state pieces exist, but the civ still needs a dedicated accuracy pass." },
+        { "id": "base_bonuses", "group": "Base Bonuses", "label": "English farm inheritance and Wool Industries", "status": "partial", "note": "Inherited farm economy is in, but timing and civ-specific details still need review." },
+        { "id": "unique_buildings", "group": "Unique Buildings / Lanes", "label": "Manor and landmark fidelity", "status": "wrong", "note": "Named landmark authoring exists now, but the Manor economy and landmark-side effects still need a proper implementation pass." },
+        { "id": "trainables_spawns", "group": "Trainables / Spawns", "label": "Town Center sheep spawns and civ-specific outputs", "status": "partial", "note": "Some spawn rules are present, but the civ is not fully checked." },
+        { "id": "unique_techs", "group": "Unique Techs", "label": "House of Lancaster unique techs", "status": "partial", "note": "Unique techs are in the catalog, but Manor-side tech effects are still incomplete." },
+        { "id": "local_effects", "group": "Local Eco Effects", "label": "Manor villager coverage", "status": "wrong", "note": "Manor influence is not modeled as a reliable local villager effect yet." },
+        { "id": "known_gaps", "group": "Known Gaps", "label": "Known wrong behavior", "status": "wrong", "note": "House of Lancaster should be treated as still under construction." }
+      ]
+    },
+    "Japanese": {
+      "summary": "Japanese has substantial coverage, but several civ systems remain simplified or deferred.",
+      "items": [
+        { "id": "starting_state", "group": "Starting State", "label": "Starting resources and Dark Age setup", "status": "partial", "note": "Core Japanese opening rules are present, but still need a civ-wide verification pass." },
+        { "id": "base_bonuses", "group": "Base Bonuses", "label": "Barracks discount and Silver Mining", "status": "partial", "note": "The main economy modifiers are modeled, but they have not been fully audited." },
+        { "id": "unique_buildings", "group": "Unique Buildings / Lanes", "label": "Farmhouse, Forge, Kura, Temple surfaces", "status": "partial", "note": "Key building replacements and landmarks are present, but some landmark systems are deferred." },
+        { "id": "trainables_spawns", "group": "Trainables / Spawns", "label": "Monks, Priests, Shinobi, Ozutsu", "status": "partial", "note": "Core unique trainables exist, but some passive-output systems remain deferred." },
+        { "id": "unique_techs", "group": "Unique Techs", "label": "Japanese unique tech catalog", "status": "partial", "note": "Several Japanese techs are modeled or timing-only, but exact fidelity still needs review." },
+        { "id": "local_effects", "group": "Local Eco Effects", "label": "Local aura / placement effects", "status": "partial", "note": "Some local Japanese effects remain simplified into no-position rules." },
+        { "id": "known_gaps", "group": "Known Gaps", "label": "Known simplifications", "status": "partial", "note": "Floating Gate and several advanced Japanese systems are still deferred." }
+      ]
+    },
+    "Jeanne d'Arc": {
+      "summary": "Jeanne d'Arc is lightly modeled on the economy side; named landmark authoring is now present, but the variant still needs broader civ-specific work.",
+      "items": [
+        { "id": "starting_state", "group": "Starting State", "label": "Starting resources", "status": "modeled", "note": "Starting bank is modeled." },
+        { "id": "base_bonuses", "group": "Base Bonuses", "label": "Eco-tech discount and build-speed bonuses", "status": "partial", "note": "The small current eco package exists, but the civ needs a fuller variant pass." },
+        { "id": "unique_buildings", "group": "Unique Buildings / Lanes", "label": "Jeanne variant-specific buildings / lanes", "status": "partial", "note": "French-style named landmark authoring is now wired, but broader Jeanne-specific building/lane behavior is still incomplete." },
+        { "id": "trainables_spawns", "group": "Trainables / Spawns", "label": "Unique Jeanne outputs", "status": "missing", "note": "Variant-specific trainables and spawns are not comprehensively modeled." },
+        { "id": "unique_techs", "group": "Unique Techs", "label": "Jeanne unique tech catalog", "status": "partial", "note": "Some timing coverage exists, but the civ remains incomplete." },
+        { "id": "local_effects", "group": "Local Eco Effects", "label": "Local aura coverage", "status": "missing", "note": "Jeanne-specific local economy auras are not exposed as controllable local effects." },
+        { "id": "known_gaps", "group": "Known Gaps", "label": "Known simplifications", "status": "partial", "note": "This civ is supported only in a limited, partial form." }
+      ]
+    },
+    "Knights Templar": {
+      "summary": "Knights Templar currently has very light coverage and still contains questionable civ assumptions.",
+      "items": [
+        { "id": "starting_state", "group": "Starting State", "label": "Starting resources", "status": "partial", "note": "Starting bank is present, but the civ has not had a full correctness pass." },
+        { "id": "base_bonuses", "group": "Base Bonuses", "label": "Current civ-bonus handling", "status": "wrong", "note": "The current wood-rate override is not a trustworthy representation of the civ." },
+        { "id": "unique_buildings", "group": "Unique Buildings / Lanes", "label": "Unique buildings and civ lanes", "status": "missing", "note": "Knights Templar unique structures are not properly modeled yet." },
+        { "id": "trainables_spawns", "group": "Trainables / Spawns", "label": "Variant trainables and spawns", "status": "missing", "note": "Variant-specific production has not been implemented properly." },
+        { "id": "unique_techs", "group": "Unique Techs", "label": "Knights Templar unique tech catalog", "status": "partial", "note": "Timing entries exist, but the civ is still structurally incomplete." },
+        { "id": "local_effects", "group": "Local Eco Effects", "label": "Local effect coverage", "status": "missing", "note": "No local effect coverage controls exist for the civ because the core civ model is not there yet." },
+        { "id": "known_gaps", "group": "Known Gaps", "label": "Known wrong behavior", "status": "wrong", "note": "Knights Templar should be treated as not fully modeled." }
+      ]
+    },
+    "Malians": {
+      "summary": "Malians has good economic scaffolding, but several systems still use simplifications or deferred logic.",
+      "items": [
+        { "id": "starting_state", "group": "Starting State", "label": "Starting resources and house economy", "status": "partial", "note": "Core start-state changes exist, but the civ still needs a full pass." },
+        { "id": "base_bonuses", "group": "Base Bonuses", "label": "House cost/build and TC cost changes", "status": "partial", "note": "Main civ modifiers are modeled, but they still need review." },
+        { "id": "unique_buildings", "group": "Unique Buildings / Lanes", "label": "Pit Mine, Ranch, Toll Outpost, landmarks", "status": "partial", "note": "Key buildings exist, but some landmark/stone-mode behavior is deferred." },
+        { "id": "trainables_spawns", "group": "Trainables / Spawns", "label": "Cattle and civ-specific outputs", "status": "partial", "note": "Cattle flow is modeled, but some civ-side production interactions remain simplified." },
+        { "id": "unique_techs", "group": "Unique Techs", "label": "Malian unique tech catalog", "status": "partial", "note": "Core timing entries exist, but several civ systems still need a correctness pass." },
+        { "id": "local_effects", "group": "Local Eco Effects", "label": "Pit Mine support and local economy", "status": "partial", "note": "Pit Mine support is modeled with a no-position simplification rather than exact placement." },
+        { "id": "known_gaps", "group": "Known Gaps", "label": "Known simplifications", "status": "partial", "note": "Mansa Quarry stone mode, Griot systems, and some trade/upgrade logic are still deferred." }
+      ]
+    },
+    "Mongols": {
+      "summary": "Mongols has its core economic identity and named landmark authoring now omits trade landmarks, but several civ systems remain simplified rather than exact.",
+      "items": [
+        { "id": "starting_state", "group": "Starting State", "label": "Starting resources and baseline nomad economy", "status": "modeled", "note": "Core starting-state overrides are present." },
+        { "id": "base_bonuses", "group": "Base Bonuses", "label": "No farms, Ger dropoff, Ovoo, Dark Age stable", "status": "partial", "note": "Core baseline is modeled, but the civ still needs a broader verification pass." },
+        { "id": "unique_buildings", "group": "Unique Buildings / Lanes", "label": "Ger, Ovoo, Pasture and landmark fidelity", "status": "partial", "note": "Main unique buildings are modeled, and named Mongol landmark authoring now exists with Silver Tree omitted from authoring, but the civ still needs a broader landmark pass." },
+        { "id": "trainables_spawns", "group": "Trainables / Spawns", "label": "Mongol training flow", "status": "partial", "note": "Core production works, but unique civ interactions still need review." },
+        { "id": "unique_techs", "group": "Unique Techs", "label": "Mongol unique tech catalog", "status": "partial", "note": "Timing coverage exists, but tech fidelity still needs a civ pass." },
+        { "id": "local_effects", "group": "Local Eco Effects", "label": "Movable dropoff and local placement", "status": "partial", "note": "Movable dropoff is modeled as a simplified trip reduction rather than real repositioning." },
+        { "id": "known_gaps", "group": "Known Gaps", "label": "Known simplifications", "status": "partial", "note": "The civ is usable, but still relies on no-position simplifications." }
+      ]
+    },
+    "Ottomans": {
+      "summary": "Ottomans has the broadest current special-system coverage, and named landmark authoring now omits trade landmarks, but some systems are still simplified or incomplete.",
+      "items": [
+        { "id": "starting_state", "group": "Starting State", "label": "Starting resources and baseline civ setup", "status": "modeled", "note": "Starting bank and base civ setup are modeled." },
+        { "id": "base_bonuses", "group": "Base Bonuses", "label": "Military Inducement, production influence, berry rules", "status": "partial", "note": "Major civ bonuses are modeled, but exact local influence is still simplified." },
+        { "id": "unique_buildings", "group": "Unique Buildings / Lanes", "label": "Military School, Imperial Council, and landmark fidelity", "status": "partial", "note": "Core Ottoman structures/lane exist, and named landmark authoring now omits trade landmarks, but some civ systems still need exact validation." },
+        { "id": "trainables_spawns", "group": "Trainables / Spawns", "label": "Military School, Vizier spawns, special units", "status": "partial", "note": "Free-production and Vizier outputs are modeled, but broader civ fidelity still needs review." },
+        { "id": "unique_techs", "group": "Unique Techs", "label": "Ottoman unique tech catalog", "status": "partial", "note": "Timing coverage exists with several real effects, but the civ is not fully audited yet." },
+        { "id": "local_effects", "group": "Local Eco Effects", "label": "Influence coverage", "status": "partial", "note": "Production influence is still simplified globally once the source exists." },
+        { "id": "known_gaps", "group": "Known Gaps", "label": "Known simplifications", "status": "partial", "note": "Trade-side and some unique-building edge cases remain incomplete." }
+      ]
+    },
+    "Rus": {
+      "summary": "Rus is usable and now exposes a local villager-count control for Woodland Federation, but the civ still needs a full audit pass.",
+      "items": [
+        { "id": "starting_state", "group": "Starting State", "label": "Starting resources and baseline civ setup", "status": "modeled", "note": "Starting bank and baseline setup are modeled." },
+        { "id": "base_bonuses", "group": "Base Bonuses", "label": "Bounty and early knight baseline", "status": "partial", "note": "Core Bounty behavior is modeled, but broader civ validation is still pending." },
+        { "id": "unique_buildings", "group": "Unique Buildings / Lanes", "label": "Hunting Cabin, Wooden Fortress, landmarks", "status": "partial", "note": "Main Rus structures are modeled, but some exact civ interactions are still pending." },
+        { "id": "trainables_spawns", "group": "Trainables / Spawns", "label": "Scout flow and High Trade House deer", "status": "partial", "note": "Key outputs exist, but the civ is not fully audited yet." },
+        { "id": "unique_techs", "group": "Unique Techs", "label": "Rus unique tech catalog", "status": "partial", "note": "Timing coverage exists, but exact-site correctness and effects still need review." },
+        { "id": "local_effects", "group": "Local Eco Effects", "label": "Woodland Federation villager coverage", "status": "partial", "note": "A manual villager-count control now exists for the wood dropoff bonus, but the rest of Rus local economy is still simplified." },
+        { "id": "known_gaps", "group": "Known Gaps", "label": "Known simplifications", "status": "partial", "note": "Hunting Cabin tree-based gold remains deferred in the no-position model." }
+      ]
+    },
+    "Tughlaq Dynasty": {
+      "summary": "Tughlaq has some civ systems in place and now has named landmark authoring, but it still needs a broad accuracy pass to trust the whole variant.",
+      "items": [
+        { "id": "starting_state", "group": "Starting State", "label": "Starting resources and berry rules", "status": "partial", "note": "Starting state and Basketry behavior are only partially verified." },
+        { "id": "base_bonuses", "group": "Base Bonuses", "label": "Erudition and worker-based economy", "status": "partial", "note": "Core civ rules are partially modeled, but need a correctness pass." },
+        { "id": "unique_buildings", "group": "Unique Buildings / Lanes", "label": "Worker Elephant, Tughlaqabad Fort, landmarks", "status": "partial", "note": "The civ has structural support and named landmark authoring, but exact unique-building behavior still needs review." },
+        { "id": "trainables_spawns", "group": "Trainables / Spawns", "label": "Worker Elephant and governor-side outputs", "status": "partial", "note": "Main outputs exist in the model, but the civ is not fully audited yet." },
+        { "id": "unique_techs", "group": "Unique Techs", "label": "Tughlaq unique tech catalog", "status": "partial", "note": "Timing coverage exists for many unique techs, but full fidelity is still pending." },
+        { "id": "local_effects", "group": "Local Eco Effects", "label": "Worker Elephant / governor local coverage", "status": "partial", "note": "Some local behavior is simplified, and no general villager-count control exists for all Tughlaq local systems." },
+        { "id": "known_gaps", "group": "Known Gaps", "label": "Known simplifications", "status": "partial", "note": "Several fort/governor and worker-placement details remain simplified." }
+      ]
+    }
+  }
+}
