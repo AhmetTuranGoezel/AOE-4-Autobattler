@@ -89,6 +89,20 @@
       "minAge": 1,
       "type": "dropoff"
     },
+    "Golden Tent": {
+      "cost": {
+        "food": 0,
+        "wood": 0,
+        "gold": 50,
+        "stone": 0
+      },
+      "time": 30,
+      "minAge": 1,
+      "type": "landmark",
+      "civs": [
+        "Golden Horde"
+      ]
+    },
     "House": {
       "cost": {
         "food": 0,
@@ -156,7 +170,24 @@
       "type": "landmark",
       "landmarkAge": 2,
       "civs": [
-        "Holy Roman Empire"
+        "Holy Roman Empire",
+        "Order of the Dragon"
+      ]
+    },
+    "Abbey of Kings": {
+      "cost": {
+        "food": 400,
+        "wood": 0,
+        "gold": 200,
+        "stone": 0
+      },
+      "time": 190,
+      "minAge": 1,
+      "type": "landmark",
+      "landmarkAge": 2,
+      "civs": [
+        "English",
+        "House of Lancaster"
       ]
     },
     "Abbey of the Trinity": {
@@ -172,6 +203,54 @@
       "landmarkAge": 3,
       "civs": [
         "Rus"
+      ]
+    },
+    "Council Hall": {
+      "cost": {
+        "food": 400,
+        "wood": 0,
+        "gold": 200,
+        "stone": 0
+      },
+      "time": 190,
+      "minAge": 1,
+      "type": "landmark",
+      "landmarkAge": 2,
+      "civs": [
+        "English"
+      ]
+    },
+    "School of Cavalry": {
+      "cost": {
+        "food": 400,
+        "wood": 0,
+        "gold": 200,
+        "stone": 0
+      },
+      "time": 190,
+      "minAge": 1,
+      "type": "landmark",
+      "landmarkAge": 2,
+      "civs": [
+        "French",
+        "Jeanne d'Arc"
+      ]
+    },
+    "Chamber of Commerce": {
+      "cost": {
+        "food": 400,
+        "wood": 0,
+        "gold": 200,
+        "stone": 0
+      },
+      "time": 190,
+      "minAge": 1,
+      "type": "landmark",
+      "landmarkAge": 2,
+      "tradeLandmark": true,
+      "civs": [
+        "French",
+        "Jeanne d'Arc"
       ]
     },
     "Istanbul Imperial Palace": {
@@ -197,6 +276,21 @@
       "minAge": 3,
       "type": "landmark",
       "landmarkAge": 4
+    },
+    "Sea Gate Castle": {
+      "cost": {
+        "food": 2400,
+        "wood": 0,
+        "gold": 1200,
+        "stone": 0
+      },
+      "time": 240,
+      "minAge": 3,
+      "type": "landmark",
+      "landmarkAge": 4,
+      "civs": [
+        "Ottomans"
+      ]
     },
     "Keep": {
       "cost": {
@@ -237,6 +331,37 @@
       "landmarkAge": 2,
       "civs": [
         "Rus"
+      ]
+    },
+    "Deer Stones": {
+      "cost": {
+        "food": 400,
+        "wood": 0,
+        "gold": 200,
+        "stone": 0
+      },
+      "time": 190,
+      "minAge": 1,
+      "type": "landmark",
+      "landmarkAge": 2,
+      "civs": [
+        "Mongols"
+      ]
+    },
+    "Silver Tree": {
+      "cost": {
+        "food": 400,
+        "wood": 0,
+        "gold": 200,
+        "stone": 0
+      },
+      "time": 190,
+      "minAge": 1,
+      "type": "landmark",
+      "landmarkAge": 2,
+      "tradeLandmark": true,
+      "civs": [
+        "Mongols"
       ]
     },
     "Landmark (Age II)": {
@@ -284,7 +409,56 @@
       "type": "landmark",
       "landmarkAge": 3,
       "civs": [
-        "Holy Roman Empire"
+        "Holy Roman Empire",
+        "Order of the Dragon"
+      ]
+    },
+    "Compound of the Defender": {
+      "cost": {
+        "food": 1200,
+        "wood": 0,
+        "gold": 600,
+        "stone": 0
+      },
+      "time": 220,
+      "minAge": 2,
+      "type": "landmark",
+      "landmarkAge": 3,
+      "civs": [
+        "Delhi Sultanate",
+        "Tughlaq Dynasty"
+      ]
+    },
+    "Berkshire Palace": {
+      "cost": {
+        "food": 2400,
+        "wood": 0,
+        "gold": 1200,
+        "stone": 0
+      },
+      "time": 240,
+      "minAge": 3,
+      "type": "landmark",
+      "landmarkAge": 4,
+      "civs": [
+        "English",
+        "House of Lancaster"
+      ]
+    },
+    "College of Artillery": {
+      "cost": {
+        "food": 2400,
+        "wood": 0,
+        "gold": 1200,
+        "stone": 0
+      },
+      "time": 240,
+      "minAge": 3,
+      "type": "landmark",
+      "landmarkAge": 4,
+      "civs": [
+        "French",
+        "Jeanne d'Arc"
       ]
     },
     "Elzbach Palace": {
@@ -299,7 +473,8 @@
       "type": "landmark",
       "landmarkAge": 4,
       "civs": [
-        "Holy Roman Empire"
+        "Holy Roman Empire",
+        "Order of the Dragon"
       ]
     },
     "Lumber Camp": {
@@ -340,6 +515,22 @@
       "landmarkAge": 3,
       "civs": [
         "Japanese"
+      ]
+    },
+    "Guild Hall": {
+      "cost": {
+        "food": 1200,
+        "wood": 0,
+        "gold": 600,
+        "stone": 0
+      },
+      "time": 220,
+      "minAge": 2,
+      "type": "landmark",
+      "landmarkAge": 3,
+      "civs": [
+        "French",
+        "Jeanne d'Arc"
       ]
     },
     "Forge": {
@@ -392,6 +583,22 @@
       "minAge": 2,
       "type": "landmark",
       "landmarkAge": 3
+    },
+    "Sultanhani Trade Network": {
+      "cost": {
+        "food": 1200,
+        "wood": 0,
+        "gold": 600,
+        "stone": 0
+      },
+      "time": 220,
+      "minAge": 2,
+      "type": "landmark",
+      "landmarkAge": 3,
+      "tradeLandmark": true,
+      "civs": [
+        "Ottomans"
+      ]
     },
     "Military School": {
       "cost": {
@@ -463,7 +670,69 @@
       "type": "landmark",
       "landmarkAge": 2,
       "civs": [
-        "Holy Roman Empire"
+        "Holy Roman Empire",
+        "Order of the Dragon"
+      ]
+    },
+    "King's College": {
+      "cost": {
+        "food": 1200,
+        "wood": 0,
+        "gold": 600,
+        "stone": 0
+      },
+      "time": 220,
+      "minAge": 2,
+      "type": "landmark",
+      "landmarkAge": 3,
+      "civs": [
+        "House of Lancaster"
+      ]
+    },
+    "Lancaster Castle": {
+      "cost": {
+        "food": 400,
+        "wood": 0,
+        "gold": 200,
+        "stone": 0
+      },
+      "time": 190,
+      "minAge": 1,
+      "type": "landmark",
+      "landmarkAge": 2,
+      "civs": [
+        "House of Lancaster"
+      ]
+    },
+    "King's Palace": {
+      "cost": {
+        "food": 1200,
+        "wood": 0,
+        "gold": 600,
+        "stone": 0
+      },
+      "time": 220,
+      "minAge": 2,
+      "type": "landmark",
+      "landmarkAge": 3,
+      "civs": [
+        "English"
+      ]
+    },
+    "House of Learning": {
+      "cost": {
+        "food": 1200,
+        "wood": 0,
+        "gold": 600,
+        "stone": 0
+      },
+      "time": 220,
+      "minAge": 2,
+      "type": "landmark",
+      "landmarkAge": 3,
+      "civs": [
+        "Delhi Sultanate",
+        "Tughlaq Dynasty"
       ]
     },
     "Mosque": {
@@ -487,6 +756,20 @@
       "time": 60,
       "minAge": 1,
       "type": "military"
+    },
+    "Fortified Outpost": {
+      "cost": {
+        "food": 0,
+        "wood": 150,
+        "gold": 0,
+        "stone": 50
+      },
+      "time": 60,
+      "minAge": 1,
+      "type": "military",
+      "civs": [
+        "Golden Horde"
+      ]
     },
     "Toll Outpost": {
       "cost": {
@@ -524,7 +807,7 @@
         "gold": 0,
         "stone": 0
       },
-      "time": 60,
+      "time": 15,
       "minAge": 1,
       "type": "special"
     },
@@ -535,7 +818,7 @@
         "gold": 0,
         "stone": 0
       },
-      "time": 45,
+      "time": 20,
       "minAge": 1,
       "type": "economic"
     },
@@ -575,8 +858,22 @@
         "stone": 0
       },
       "time": 25,
-      "minAge": 1,
+      "minAge": 3,
       "type": "religious"
+    },
+    "Stockyard": {
+      "cost": {
+        "food": 0,
+        "wood": 250,
+        "gold": 0,
+        "stone": 0
+      },
+      "time": 20,
+      "minAge": 2,
+      "type": "economic",
+      "civs": [
+        "Golden Horde"
+      ]
     },
     "Kura Storehouse": {
       "cost": {
@@ -605,7 +902,8 @@
       "type": "landmark",
       "landmarkAge": 3,
       "civs": [
-        "Holy Roman Empire"
+        "Holy Roman Empire",
+        "Order of the Dragon"
       ]
     },
     "Palace of Swabia": {
@@ -620,7 +918,38 @@
       "type": "landmark",
       "landmarkAge": 4,
       "civs": [
-        "Holy Roman Empire"
+        "Holy Roman Empire",
+        "Order of the Dragon"
+      ]
+    },
+    "The White Tower": {
+      "cost": {
+        "food": 1200,
+        "wood": 0,
+        "gold": 600,
+        "stone": 0
+      },
+      "time": 220,
+      "minAge": 2,
+      "type": "landmark",
+      "landmarkAge": 3,
+      "civs": [
+        "House of Lancaster"
+      ]
+    },
+    "White Tower": {
+      "cost": {
+        "food": 1200,
+        "wood": 0,
+        "gold": 600,
+        "stone": 0
+      },
+      "time": 220,
+      "minAge": 2,
+      "type": "landmark",
+      "landmarkAge": 3,
+      "civs": [
+        "English"
       ]
     },
     "Siege Workshop": {
@@ -649,6 +978,36 @@
         "Rus"
       ]
     },
+    "Steppe Redoubt": {
+      "cost": {
+        "food": 1200,
+        "wood": 0,
+        "gold": 600,
+        "stone": 0
+      },
+      "time": 220,
+      "minAge": 2,
+      "type": "landmark",
+      "landmarkAge": 3,
+      "civs": [
+        "Mongols"
+      ]
+    },
+    "Kurultai": {
+      "cost": {
+        "food": 1200,
+        "wood": 0,
+        "gold": 600,
+        "stone": 0
+      },
+      "time": 220,
+      "minAge": 2,
+      "type": "landmark",
+      "landmarkAge": 3,
+      "civs": [
+        "Mongols"
+      ]
+    },
     "Stable": {
       "cost": {
         "food": 0,
@@ -659,6 +1018,22 @@
       "time": 30,
       "minAge": 2,
       "type": "production"
+    },
+    "Wynguard Palace": {
+      "cost": {
+        "food": 2400,
+        "wood": 0,
+        "gold": 1200,
+        "stone": 0
+      },
+      "time": 240,
+      "minAge": 3,
+      "type": "landmark",
+      "landmarkAge": 4,
+      "civs": [
+        "English",
+        "House of Lancaster"
+      ]
     },
     "Town Center": {
       "cost": {
@@ -701,6 +1076,38 @@
         "Japanese"
       ]
     },
+    "Tower of Victory": {
+      "cost": {
+        "food": 400,
+        "wood": 0,
+        "gold": 200,
+        "stone": 0
+      },
+      "time": 190,
+      "minAge": 1,
+      "type": "landmark",
+      "landmarkAge": 2,
+      "civs": [
+        "Delhi Sultanate",
+        "Tughlaq Dynasty"
+      ]
+    },
+    "Dome of the Faith": {
+      "cost": {
+        "food": 400,
+        "wood": 0,
+        "gold": 200,
+        "stone": 0
+      },
+      "time": 190,
+      "minAge": 1,
+      "type": "landmark",
+      "landmarkAge": 2,
+      "civs": [
+        "Delhi Sultanate",
+        "Tughlaq Dynasty"
+      ]
+    },
     "Twin Minaret Medrese": {
       "cost": {
         "food": 400,
@@ -712,6 +1119,38 @@
       "minAge": 1,
       "type": "landmark",
       "landmarkAge": 2
+    },
+    "Hisar Academy": {
+      "cost": {
+        "food": 2400,
+        "wood": 0,
+        "gold": 1200,
+        "stone": 0
+      },
+      "time": 240,
+      "minAge": 3,
+      "type": "landmark",
+      "landmarkAge": 4,
+      "civs": [
+        "Delhi Sultanate",
+        "Tughlaq Dynasty"
+      ]
+    },
+    "Palace of the Sultan": {
+      "cost": {
+        "food": 2400,
+        "wood": 0,
+        "gold": 1200,
+        "stone": 0
+      },
+      "time": 240,
+      "minAge": 3,
+      "type": "landmark",
+      "landmarkAge": 4,
+      "civs": [
+        "Delhi Sultanate",
+        "Tughlaq Dynasty"
+      ]
     },
     "Saharan Trade Network": {
       "cost": {
@@ -801,6 +1240,68 @@
       "landmarkAge": 4,
       "civs": [
         "Malians"
+      ]
+    },
+    "Royal Institute": {
+      "cost": {
+        "food": 1200,
+        "wood": 0,
+        "gold": 600,
+        "stone": 0
+      },
+      "time": 220,
+      "minAge": 2,
+      "type": "landmark",
+      "landmarkAge": 3,
+      "civs": [
+        "French",
+        "Jeanne d'Arc"
+      ]
+    },
+    "Red Palace": {
+      "cost": {
+        "food": 2400,
+        "wood": 0,
+        "gold": 1200,
+        "stone": 0
+      },
+      "time": 240,
+      "minAge": 3,
+      "type": "landmark",
+      "landmarkAge": 4,
+      "civs": [
+        "French",
+        "Jeanne d'Arc"
+      ]
+    },
+    "White Stupa": {
+      "cost": {
+        "food": 2400,
+        "wood": 0,
+        "gold": 1200,
+        "stone": 0
+      },
+      "time": 240,
+      "minAge": 3,
+      "type": "landmark",
+      "landmarkAge": 4,
+      "civs": [
+        "Mongols"
+      ]
+    },
+    "Khaganate Palace": {
+      "cost": {
+        "food": 2400,
+        "wood": 0,
+        "gold": 1200,
+        "stone": 0
+      },
+      "time": 240,
+      "minAge": 3,
+      "type": "landmark",
+      "landmarkAge": 4,
+      "civs": [
+        "Mongols"
       ]
     },
     "University": {
@@ -2305,7 +2806,8 @@
         "Dock"
       ],
       "civs": [
-        "Mongols"
+        "Mongols",
+        "Golden Horde"
       ],
       "noteOnly": true
     },
@@ -2782,9 +3284,472 @@
         "Market"
       ],
       "civs": [
-        "Mongols"
+        "Mongols",
+        "Golden Horde"
       ],
       "noteOnly": true
+    },
+    "Battlefield Salvage": {
+      "cost": {
+        "food": 0,
+        "wood": 0,
+        "gold": 0,
+        "stone": 300
+      },
+      "time": 45,
+      "minAge": 3,
+      "category": "military",
+      "researchedAt": [
+        "Barracks"
+      ],
+      "civs": [
+        "Golden Horde"
+      ],
+      "noteOnly": true
+    },
+    "Barracks Reinforcements": {
+      "cost": {
+        "food": 0,
+        "wood": 0,
+        "gold": 0,
+        "stone": 1100
+      },
+      "time": 30,
+      "minAge": 3,
+      "category": "military",
+      "researchedAt": [
+        "Barracks"
+      ],
+      "civs": [
+        "Golden Horde"
+      ],
+      "noteOnly": false
+    },
+    "Archery Range Reinforcements": {
+      "cost": {
+        "food": 0,
+        "wood": 0,
+        "gold": 0,
+        "stone": 1100
+      },
+      "time": 30,
+      "minAge": 3,
+      "category": "military",
+      "researchedAt": [
+        "Archery Range"
+      ],
+      "civs": [
+        "Golden Horde"
+      ],
+      "noteOnly": false
+    },
+    "Beachhead": {
+      "cost": {
+        "food": 0,
+        "wood": 0,
+        "gold": 0,
+        "stone": 400
+      },
+      "time": 45,
+      "minAge": 3,
+      "category": "military",
+      "researchedAt": [
+        "Siege Workshop"
+      ],
+      "civs": [
+        "Golden Horde"
+      ],
+      "noteOnly": true
+    },
+    "Earthen Core Walls": {
+      "cost": {
+        "food": 0,
+        "wood": 0,
+        "gold": 0,
+        "stone": 500
+      },
+      "time": 45,
+      "minAge": 3,
+      "category": "military",
+      "researchedAt": [
+        "Fortified Outpost"
+      ],
+      "civs": [
+        "Golden Horde"
+      ],
+      "noteOnly": true
+    },
+    "Glorious Charge": {
+      "cost": {
+        "food": 0,
+        "wood": 0,
+        "gold": 0,
+        "stone": 400
+      },
+      "time": 45,
+      "minAge": 3,
+      "category": "military",
+      "researchedAt": [
+        "Fortified Outpost"
+      ],
+      "civs": [
+        "Golden Horde"
+      ],
+      "noteOnly": true
+    },
+    "Increased Supplies": {
+      "cost": {
+        "food": 0,
+        "wood": 0,
+        "gold": 0,
+        "stone": 400
+      },
+      "time": 45,
+      "minAge": 2,
+      "category": "military",
+      "researchedAt": [
+        "Blacksmith"
+      ],
+      "civs": [
+        "Golden Horde"
+      ],
+      "noteOnly": false
+    },
+    "Khan Debuff Arrow": {
+      "cost": {
+        "food": 0,
+        "wood": 0,
+        "gold": 0,
+        "stone": 300
+      },
+      "time": 45,
+      "minAge": 2,
+      "category": "military",
+      "researchedAt": [
+        "Golden Tent"
+      ],
+      "civs": [
+        "Golden Horde"
+      ],
+      "noteOnly": true
+    },
+    "Khan and Torguuds": {
+      "cost": {
+        "food": 400,
+        "wood": 0,
+        "gold": 200,
+        "stone": 0
+      },
+      "time": 110,
+      "minAge": 1,
+      "category": "civic",
+      "researchedAt": [
+        "Golden Tent"
+      ],
+      "civs": [
+        "Golden Horde"
+      ],
+      "noteOnly": false,
+      "advancesToAge": 2
+    },
+    "Building Carts": {
+      "cost": {
+        "food": 400,
+        "wood": 0,
+        "gold": 200,
+        "stone": 0
+      },
+      "time": 110,
+      "minAge": 1,
+      "category": "civic",
+      "researchedAt": [
+        "Golden Tent"
+      ],
+      "civs": [
+        "Golden Horde"
+      ],
+      "noteOnly": false,
+      "advancesToAge": 2
+    },
+    "Muscovy Yasak": {
+      "cost": {
+        "food": 1200,
+        "wood": 0,
+        "gold": 600,
+        "stone": 0
+      },
+      "time": 110,
+      "minAge": 2,
+      "category": "civic",
+      "researchedAt": [
+        "Golden Tent"
+      ],
+      "civs": [
+        "Golden Horde"
+      ],
+      "noteOnly": false,
+      "advancesToAge": 3
+    },
+    "Relic Ovoos": {
+      "cost": {
+        "food": 1200,
+        "wood": 0,
+        "gold": 600,
+        "stone": 0
+      },
+      "time": 110,
+      "minAge": 2,
+      "category": "civic",
+      "researchedAt": [
+        "Golden Tent"
+      ],
+      "civs": [
+        "Golden Horde"
+      ],
+      "noteOnly": false,
+      "advancesToAge": 3
+    },
+    "Stone Armies": {
+      "cost": {
+        "food": 2400,
+        "wood": 0,
+        "gold": 1200,
+        "stone": 0
+      },
+      "time": 110,
+      "minAge": 3,
+      "category": "civic",
+      "researchedAt": [
+        "Golden Tent"
+      ],
+      "civs": [
+        "Golden Horde"
+      ],
+      "noteOnly": false,
+      "advancesToAge": 4
+    },
+    "Yam Network Trade": {
+      "cost": {
+        "food": 2400,
+        "wood": 0,
+        "gold": 1200,
+        "stone": 0
+      },
+      "time": 110,
+      "minAge": 3,
+      "category": "civic",
+      "researchedAt": [
+        "Golden Tent"
+      ],
+      "civs": [
+        "Golden Horde"
+      ],
+      "noteOnly": false,
+      "advancesToAge": 4
+    },
+    "Over Grazing": {
+      "cost": {
+        "food": 0,
+        "wood": 0,
+        "gold": 0,
+        "stone": 400
+      },
+      "time": 45,
+      "minAge": 3,
+      "category": "eco",
+      "researchedAt": [
+        "Ger"
+      ],
+      "civs": [
+        "Golden Horde"
+      ],
+      "noteOnly": false,
+      "requiresTechs": [
+        "Rotation Grazing"
+      ]
+    },
+    "Ovoo Ceremony": {
+      "cost": {
+        "food": 0,
+        "wood": 250,
+        "gold": 500,
+        "stone": 0
+      },
+      "time": 45,
+      "minAge": 4,
+      "category": "eco",
+      "researchedAt": [
+        "Ger"
+      ],
+      "civs": [
+        "Golden Horde"
+      ],
+      "noteOnly": false,
+      "requiresTechs": [
+        "Ovoo Offering"
+      ]
+    },
+    "Ovoo Offering": {
+      "cost": {
+        "food": 0,
+        "wood": 100,
+        "gold": 250,
+        "stone": 0
+      },
+      "time": 45,
+      "minAge": 3,
+      "category": "eco",
+      "researchedAt": [
+        "Ger"
+      ],
+      "civs": [
+        "Golden Horde"
+      ],
+      "noteOnly": false
+    },
+    "Ovoo Tithe": {
+      "cost": {
+        "food": 0,
+        "wood": 0,
+        "gold": 0,
+        "stone": 500
+      },
+      "time": 45,
+      "minAge": 4,
+      "category": "eco",
+      "researchedAt": [
+        "Prayer Tent"
+      ],
+      "civs": [
+        "Golden Horde"
+      ],
+      "noteOnly": false
+    },
+    "Padded Armor": {
+      "cost": {
+        "food": 0,
+        "wood": 0,
+        "gold": 0,
+        "stone": 800
+      },
+      "time": 45,
+      "minAge": 3,
+      "category": "military",
+      "researchedAt": [
+        "Stable"
+      ],
+      "civs": [
+        "Golden Horde"
+      ],
+      "noteOnly": true
+    },
+    "Rotation Grazing": {
+      "cost": {
+        "food": 0,
+        "wood": 0,
+        "gold": 0,
+        "stone": 200
+      },
+      "time": 45,
+      "minAge": 2,
+      "category": "eco",
+      "researchedAt": [
+        "Ger"
+      ],
+      "civs": [
+        "Golden Horde"
+      ],
+      "noteOnly": false
+    },
+    "Sarai Lancers": {
+      "cost": {
+        "food": 0,
+        "wood": 0,
+        "gold": 0,
+        "stone": 400
+      },
+      "time": 45,
+      "minAge": 3,
+      "category": "military",
+      "researchedAt": [
+        "Stable"
+      ],
+      "civs": [
+        "Golden Horde"
+      ],
+      "noteOnly": true
+    },
+    "Stables Reinforcements": {
+      "cost": {
+        "food": 0,
+        "wood": 0,
+        "gold": 0,
+        "stone": 1100
+      },
+      "time": 30,
+      "minAge": 3,
+      "category": "military",
+      "researchedAt": [
+        "Stable"
+      ],
+      "civs": [
+        "Golden Horde"
+      ],
+      "noteOnly": false
+    },
+    "Triple Shot": {
+      "cost": {
+        "food": 0,
+        "wood": 0,
+        "gold": 0,
+        "stone": 800
+      },
+      "time": 45,
+      "minAge": 3,
+      "category": "military",
+      "researchedAt": [
+        "Archery Range"
+      ],
+      "civs": [
+        "Golden Horde"
+      ],
+      "noteOnly": true
+    },
+    "Unlock Kharash Edict": {
+      "cost": {
+        "food": 0,
+        "wood": 0,
+        "gold": 0,
+        "stone": 600
+      },
+      "time": 45,
+      "minAge": 1,
+      "category": "civic",
+      "researchedAt": [
+        "Golden Tent"
+      ],
+      "civs": [
+        "Golden Horde"
+      ],
+      "noteOnly": false
+    },
+    "Unlock Stockyard Edict": {
+      "cost": {
+        "food": 0,
+        "wood": 0,
+        "gold": 0,
+        "stone": 800
+      },
+      "time": 45,
+      "minAge": 1,
+      "category": "civic",
+      "researchedAt": [
+        "Golden Tent"
+      ],
+      "civs": [
+        "Golden Horde"
+      ],
+      "noteOnly": false
     },
     "Sultan's Mamluks": {
       "cost": {
@@ -3189,7 +4154,8 @@
         "Dock"
       ],
       "civs": [
-        "Holy Roman Empire"
+        "Holy Roman Empire",
+        "Order of the Dragon"
       ],
       "noteOnly": true
     },
@@ -3227,7 +4193,8 @@
         "Regnitz Cathedral"
       ],
       "civs": [
-        "Holy Roman Empire"
+        "Holy Roman Empire",
+        "Order of the Dragon"
       ],
       "noteOnly": true
     },
@@ -3246,7 +4213,8 @@
         "Elzbach Palace"
       ],
       "civs": [
-        "Holy Roman Empire"
+        "Holy Roman Empire",
+        "Order of the Dragon"
       ],
       "noteOnly": true
     },
@@ -3265,7 +4233,8 @@
         "Elzbach Palace"
       ],
       "civs": [
-        "Holy Roman Empire"
+        "Holy Roman Empire",
+        "Order of the Dragon"
       ],
       "noteOnly": true
     },
@@ -3303,6 +4272,115 @@
       ],
       "civs": [
         "Holy Roman Empire"
+      ],
+      "noteOnly": true
+    },
+    "War Horses": {
+      "cost": {
+        "food": 200,
+        "wood": 0,
+        "gold": 500,
+        "stone": 0
+      },
+      "time": 90,
+      "minAge": 4,
+      "category": "military",
+      "researchedAt": [
+        "Stable"
+      ],
+      "civs": [
+        "Order of the Dragon"
+      ],
+      "noteOnly": true
+    },
+    "Heavy Torches": {
+      "cost": {
+        "food": 50,
+        "wood": 0,
+        "gold": 125,
+        "stone": 0
+      },
+      "time": 30,
+      "minAge": 2,
+      "category": "military",
+      "researchedAt": [
+        "Barracks",
+        "Burgrave Palace"
+      ],
+      "civs": [
+        "Order of the Dragon"
+      ],
+      "noteOnly": true
+    },
+    "Scale Armor": {
+      "cost": {
+        "food": 100,
+        "wood": 0,
+        "gold": 250,
+        "stone": 0
+      },
+      "time": 60,
+      "minAge": 3,
+      "category": "military",
+      "researchedAt": [
+        "Archery Range"
+      ],
+      "civs": [
+        "Order of the Dragon"
+      ],
+      "noteOnly": true
+    },
+    "Golden Cuirass": {
+      "cost": {
+        "food": 75,
+        "wood": 0,
+        "gold": 125,
+        "stone": 0
+      },
+      "time": 40,
+      "minAge": 2,
+      "category": "military",
+      "researchedAt": [
+        "Meinwerk Palace"
+      ],
+      "civs": [
+        "Order of the Dragon"
+      ],
+      "noteOnly": true
+    },
+    "Zornhau": {
+      "cost": {
+        "food": 75,
+        "wood": 0,
+        "gold": 175,
+        "stone": 0
+      },
+      "time": 40,
+      "minAge": 3,
+      "category": "military",
+      "researchedAt": [
+        "Meinwerk Palace"
+      ],
+      "civs": [
+        "Order of the Dragon"
+      ],
+      "noteOnly": true
+    },
+    "Bodkin Bolts": {
+      "cost": {
+        "food": 150,
+        "wood": 0,
+        "gold": 350,
+        "stone": 0
+      },
+      "time": 60,
+      "minAge": 4,
+      "category": "military",
+      "researchedAt": [
+        "Meinwerk Palace"
+      ],
+      "civs": [
+        "Order of the Dragon"
       ],
       "noteOnly": true
     },
@@ -3867,6 +4945,76 @@
     "gatherBonusPct": 25,
     "carryBonus": 3
   },
+  "landmarkAuthoring": {
+    "notes": [
+      "Named-landmark civs do not use generic Landmark (Age II/III/IV) placeholders in authoring.",
+      "Landmarks whose gameplay is primarily trade are omitted from named landmark authoring.",
+      "House of Wisdom, Golden Tent, and Imperial Council civs stay on their own civ-lane systems."
+    ],
+    "civModes": {
+      "Abbasid Dynasty": {
+        "mode": "houseOfWisdom"
+      },
+      "Ayyubids": {
+        "mode": "houseOfWisdom"
+      },
+      "Delhi Sultanate": {
+        "mode": "named",
+        "hideTradeLandmarks": true
+      },
+      "English": {
+        "mode": "named",
+        "hideTradeLandmarks": true
+      },
+      "French": {
+        "mode": "named",
+        "hideTradeLandmarks": true
+      },
+      "Golden Horde": {
+        "mode": "goldenTent"
+      },
+      "Holy Roman Empire": {
+        "mode": "named",
+        "hideTradeLandmarks": true
+      },
+      "Order of the Dragon": {
+        "mode": "named",
+        "hideTradeLandmarks": true
+      },
+      "House of Lancaster": {
+        "mode": "named",
+        "hideTradeLandmarks": true
+      },
+      "Japanese": {
+        "mode": "named",
+        "hideTradeLandmarks": true
+      },
+      "Jeanne d'Arc": {
+        "mode": "named",
+        "hideTradeLandmarks": true
+      },
+      "Malians": {
+        "mode": "named",
+        "hideTradeLandmarks": true
+      },
+      "Mongols": {
+        "mode": "named",
+        "hideTradeLandmarks": true
+      },
+      "Ottomans": {
+        "mode": "imperialCouncil+named",
+        "hideTradeLandmarks": true
+      },
+      "Rus": {
+        "mode": "named",
+        "hideTradeLandmarks": true
+      },
+      "Tughlaq Dynasty": {
+        "mode": "named",
+        "hideTradeLandmarks": true
+      }
+    }
+  },
   "civs": {
     "English": {
       "farmBonusByAge": {
@@ -3880,6 +5028,20 @@
       "ageUpTimeByTarget": {
         "2": 190,
         "3": 220
+      },
+      "landmarksByAge": {
+        "2": [
+          "Council Hall",
+          "Abbey of Kings"
+        ],
+        "3": [
+          "King's Palace",
+          "White Tower"
+        ],
+        "4": [
+          "Berkshire Palace",
+          "Wynguard Palace"
+        ]
       }
     },
     "Abbasid Dynasty": {
@@ -3994,6 +5156,20 @@
       "ageUpTimeByTarget": {
         "2": 190,
         "3": 220
+      },
+      "landmarksByAge": {
+        "2": [
+          "Abbey of Kings",
+          "Lancaster Castle"
+        ],
+        "3": [
+          "King's College",
+          "The White Tower"
+        ],
+        "4": [
+          "Berkshire Palace",
+          "Wynguard Palace"
+        ]
       }
     },
     "French": {
@@ -4006,10 +5182,35 @@
         "4": 25
       },
       "keepAuraUnitCostMult": 0.8,
-      "keepAuraUnitCostMultEnlistment": 0.75
+      "keepAuraUnitCostMultEnlistment": 0.75,
+      "landmarksByAge": {
+        "2": [
+          "School of Cavalry",
+          "Chamber of Commerce"
+        ],
+        "3": [
+          "Royal Institute",
+          "Guild Hall"
+        ],
+        "4": [
+          "College of Artillery",
+          "Red Palace"
+        ]
+      }
     },
     "Holy Roman Empire": {
       "carryMult": 1.4,
+      "aachenChapelGatherPct": 15,
+      "localEffects": [
+        {
+          "effectId": "aachenChapelGatherAura",
+          "scope": "local",
+          "label": "Aachen Chapel Aura",
+          "domain": "gatherers",
+          "effectType": "gatherRate",
+          "help": "Set how many gathering villagers are covered by Aachen Chapel. Leave blank to use all currently gathering villagers."
+        }
+      ],
       "landmarkSurfaces": {
         "Aachen Chapel": {
           "universalDropoff": true
@@ -4024,6 +5225,75 @@
           "techAs": "Barracks",
           "trainTimePct": 400,
           "techTimePct": 400
+        },
+        "Regnitz Cathedral": {
+          "techAs": "Monastery"
+        },
+        "Elzbach Palace": {
+          "techAs": "Keep"
+        },
+        "Palace of Swabia": {
+          "trainAs": "Town Center",
+          "unitTrainMods": {
+            "Villager": {
+              "costMult": 0.34,
+              "timePct": 200
+            }
+          }
+        }
+      },
+      "landmarksByAge": {
+        "2": [
+          "Aachen Chapel",
+          "Meinwerk Palace"
+        ],
+        "3": [
+          "Burgrave Palace",
+          "Regnitz Cathedral"
+        ],
+        "4": [
+          "Elzbach Palace",
+          "Palace of Swabia"
+        ]
+      }
+    },
+    "Order of the Dragon": {
+      "startVillagers": 5,
+      "carryMult": 1.4,
+      "villagerGatherRatePct": 28,
+      "villagerBuildSpeedPct": 20,
+      "aachenChapelGatherPct": 15,
+      "unitTrainOverrides": {
+        "Villager": {
+          "costMult": 1.2,
+          "timeOverride": 23
+        }
+      },
+      "localEffects": [
+        {
+          "effectId": "aachenChapelGatherAura",
+          "scope": "local",
+          "label": "Aachen Chapel Aura",
+          "domain": "gatherers",
+          "effectType": "gatherRate",
+          "help": "Set how many gathering villagers are covered by Aachen Chapel. Leave blank to use all currently gathering villagers."
+        }
+      ],
+      "landmarkSurfaces": {
+        "Aachen Chapel": {
+          "universalDropoff": true
+        },
+        "Meinwerk Palace": {
+          "techAs": "Blacksmith",
+          "techTimePct": 100,
+          "techCostMult": 0.5
+        },
+        "Burgrave Palace": {
+          "trainAs": "Barracks",
+          "techAs": "Barracks",
+          "trainTimePct": 35,
+          "trainCostMult": 0.65,
+          "techTimePct": 35
         },
         "Regnitz Cathedral": {
           "techAs": "Monastery"
@@ -4128,7 +5398,21 @@
       "ecoTechCostMult": 0.65,
       "consecrationFoodCostMult": 0.75,
       "darkAgeBuildSpeedMult": 1.33,
-      "feudalBuildAuraMult": 1.33
+      "feudalBuildAuraMult": 1.33,
+      "landmarksByAge": {
+        "2": [
+          "School of Cavalry",
+          "Chamber of Commerce"
+        ],
+        "3": [
+          "Royal Institute",
+          "Guild Hall"
+        ],
+        "4": [
+          "College of Artillery",
+          "Red Palace"
+        ]
+      }
     },
     "Delhi Sultanate": {
       "noBoar": true,
@@ -4145,13 +5429,202 @@
         "minFraction": 0.0666667,
         "ratio": 0.8780845,
         "maxScholars": 53
+      },
+      "landmarksByAge": {
+        "2": [
+          "Tower of Victory",
+          "Dome of the Faith"
+        ],
+        "3": [
+          "Compound of the Defender",
+          "House of Learning"
+        ],
+        "4": [
+          "Hisar Academy",
+          "Palace of the Sultan"
+        ]
       }
     },
     "Mongols": {
       "farmsDisabled": true,
       "gerDropoff": true,
       "horsemenTrainTimeMult": 0.75,
-      "stablesMinAge": 1
+      "stablesMinAge": 1,
+      "landmarksByAge": {
+        "2": [
+          "Deer Stones",
+          "Silver Tree"
+        ],
+        "3": [
+          "Steppe Redoubt",
+          "Kurultai"
+        ],
+        "4": [
+          "White Stupa",
+          "Khaganate Palace"
+        ]
+      }
+    },
+    "Golden Horde": {
+      "farmsDisabled": true,
+      "gerDropoff": true,
+      "horsemenTrainTimeMult": 0.75,
+      "stablesMinAge": 1,
+      "ovooStonePerMinByAge": {
+        "1": 60,
+        "2": 60,
+        "3": 60,
+        "4": 60
+      },
+      "townCenterCostOverride": {
+        "food": 0,
+        "wood": 850,
+        "gold": 0,
+        "stone": 0
+      },
+      "fortifiedOutpostInfluenceGlobal": true,
+      "stockyardWorkerCap": 4,
+      "buildingCartUnpackSec": 15,
+      "hordeBatchSize": 2,
+      "hordeVillagerBatchTime": 37,
+      "hordeExcludedUnits": [
+        "Batu Khan",
+        "Shaman",
+        "Scout",
+        "Battering Ram",
+        "Ram",
+        "Springald",
+        "Mangonel",
+        "Counterweight Trebuchet",
+        "Trebuchet",
+        "Traction Trebuchet",
+        "Ribauldequin",
+        "Great Bombard"
+      ],
+      "khanAndTorguudsHpBonus": 30,
+      "khanAndTorguudsStoneCostMult": 0.8,
+      "muscovyYasakWoodPerMin": 200,
+      "muscovyYasakWoodPenaltyPerHeavyUnit": 2,
+      "yamNetworkTradeGoldPerMinPerOutpost": 60,
+      "yamNetworkTradeOutpostCap": 6,
+      "stockyardEdictGoldPerWorkerPerMin": 10,
+      "stockyardEdictGoldCapPerStockyardPerMin": 40,
+      "productionSpeedEdictPct": 20,
+      "rusTributeBaseStone": 350,
+      "rusTributeBatchCount": 4,
+      "rusTributeTickSeconds": 30,
+      "rusTributeTickBaseReduction": 10,
+      "rusTributeTickPerMilitaryBuilding": 5,
+      "rusTributeTickMaxReduction": 70,
+      "rusTributeManualCostIncrease": 300,
+      "edicts": {
+        "productionSpeed": {
+          "label": "Production Speed Edict",
+          "description": "+20% production speed for the Golden Tent and military buildings"
+        },
+        "defensiveAura": {
+          "label": "Defensive Aura Edict",
+          "description": "Tracked only",
+          "modeled": false
+        },
+        "kharash": {
+          "label": "Kharash Edict",
+          "description": "Each eligible influenced unit completion spawns 1 free Kharash",
+          "requiresTech": "Unlock Kharash Edict"
+        },
+        "stockyard": {
+          "label": "Stockyard Edict",
+          "description": "Worked Stockyards generate gold per worker",
+          "requiresTech": "Unlock Stockyard Edict"
+        }
+      },
+      "goldenTent": {
+        "choicesByAge": {
+          "2": [
+            {
+              "id": "khanAndTorguuds",
+              "label": "Khan and Torguuds",
+              "cost": {
+                "food": 400,
+                "wood": 0,
+                "gold": 200,
+                "stone": 0
+              },
+              "time": 110
+            },
+            {
+              "id": "buildingCarts",
+              "label": "Building Carts",
+              "cost": {
+                "food": 400,
+                "wood": 0,
+                "gold": 200,
+                "stone": 0
+              },
+              "time": 110
+            }
+          ],
+          "3": [
+            {
+              "id": "muscovyYasak",
+              "label": "Muscovy Yasak",
+              "cost": {
+                "food": 1200,
+                "wood": 0,
+                "gold": 600,
+                "stone": 0
+              },
+              "time": 110
+            },
+            {
+              "id": "relicOvoos",
+              "label": "Relic Ovoos",
+              "cost": {
+                "food": 1200,
+                "wood": 0,
+                "gold": 600,
+                "stone": 0
+              },
+              "time": 110
+            }
+          ],
+          "4": [
+            {
+              "id": "stoneArmies",
+              "label": "Stone Armies",
+              "cost": {
+                "food": 2400,
+                "wood": 0,
+                "gold": 1200,
+                "stone": 0
+              },
+              "time": 110
+            },
+            {
+              "id": "yamNetworkTrade",
+              "label": "Yam Network Trade",
+              "cost": {
+                "food": 2400,
+                "wood": 0,
+                "gold": 1200,
+                "stone": 0
+              },
+              "time": 110
+            }
+          ]
+        },
+        "buildingCartCreditsByAge": {
+          "2": 2,
+          "3": 1,
+          "4": 1
+        },
+        "stoneArmiesUnits": [
+          "Kharash",
+          "Keshik",
+          "Kipchak Archer",
+          "Traction Trebuchet"
+        ]
+      }
     },
     "Rus": {
       "bounty": {
@@ -4177,6 +5650,17 @@
         ]
       },
       "woodDropoffPct": 20,
+      "localEffects": [
+        {
+          "effectId": "woodlandFederationWoodDropoff",
+          "scope": "local",
+          "label": "Woodland Federation",
+          "domain": "assignment",
+          "resource": "wood",
+          "effectType": "dropoffBonus",
+          "help": "Set how many wood villagers are covered by Wooden Fortress or Kremlin influence. Leave blank to use all eligible wood villagers."
+        }
+      ],
       "highTradeHouseDeerSeconds": 60,
       "landmarkSurfaces": {
         "Abbey of the Trinity": {
@@ -4237,10 +5721,12 @@
           "Twin Minaret Medrese"
         ],
         "3": [
+          "Sultanhani Trade Network",
           "Mehmed Imperial Armory",
           "Istanbul Imperial Palace"
         ],
         "4": [
+          "Sea Gate Castle",
           "Istanbul Observatory"
         ]
       }
@@ -4253,6 +5739,20 @@
         "capacityBonusPerNode": 0,
         "gatherBonusPct": 30,
         "carryBonus": 3
+      },
+      "landmarksByAge": {
+        "2": [
+          "Tower of Victory",
+          "Dome of the Faith"
+        ],
+        "3": [
+          "Compound of the Defender",
+          "House of Learning"
+        ],
+        "4": [
+          "Hisar Academy",
+          "Palace of the Sultan"
+        ]
       }
     }
   }

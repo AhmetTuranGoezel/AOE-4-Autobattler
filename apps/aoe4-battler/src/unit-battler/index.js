@@ -546,121 +546,330 @@ function getBleedSlotCap(targetUnits, attackerUnits, splitEnabled, splitTargets)
   return Math.max(1, Math.min(splitTargets || 1, targetUnits, attackerUnits));
 }
 
-function trimBleedSlots(team, maxSlots, time = Infinity) {
+function createTrackedUnitRecord(hp) {
+  return { hp, bleed: null };
+}
+
+function createTrackedTeamHealth(count, hp) {
+  const frontUnits = [];
+  const reserveUnits = [];
+  if (count > 0) {
+    frontUnits.push(createTrackedUnitRecord(hp));
+    for (let i = 1; i < count; i++) reserveUnits.push(createTrackedUnitRecord(hp));
+  }
+  return { frontUnits, reserveUnits };
+}
+
+function getAllTrackedUnits(team) {
+  return [...(team?.frontUnits || []), ...(team?.reserveUnits || [])];
+}
+
+function sumTrackedTeamHp(team) {
+  return getAllTrackedUnits(team).reduce((sum, unit) => sum + (unit?.hp || 0), 0);
+}
+
+function syncTrackedTeamState(team) {
   if (!team) return;
-  const slots = Array.isArray(team.bleedSlots) ? team.bleedSlots : [];
-  const enforceTime = Number.isFinite(time);
-  const kept = slots.filter((slot) => {
-    if (!slot) return false;
-    if (enforceTime && !(slot.expiresAt > time - 0.0001)) return false;
-    return slot.nextTickAt <= slot.expiresAt + 0.0001;
+  team.units = (team.frontUnits?.length || 0) + (team.reserveUnits?.length || 0);
+  team.totalHp = sumTrackedTeamHp(team);
+  if (team.units <= 0) {
+    team.frontUnits = [];
+    team.reserveUnits = [];
+    team.totalHp = 0;
+  }
+}
+
+function ensureFrontUnitCount(team, desiredCount) {
+  if (!team) return;
+  desiredCount = Math.max(0, Math.min(desiredCount, team.units || 0));
+  team.frontUnits = team.frontUnits || [];
+  team.reserveUnits = team.reserveUnits || [];
+  while (team.frontUnits.length < desiredCount && team.reserveUnits.length > 0) {
+    team.frontUnits.push(team.reserveUnits.shift());
+  }
+  while (team.frontUnits.length > desiredCount) {
+    team.reserveUnits.unshift(team.frontUnits.pop());
+  }
+  syncTrackedTeamState(team);
+}
+
+function removeTrackedUnitAt(team, laneIndex, fromReserve = false) {
+  if (!team) return false;
+  if (fromReserve) {
+    if (laneIndex < 0 || laneIndex >= (team.reserveUnits?.length || 0)) return false;
+    team.reserveUnits.splice(laneIndex, 1);
+  } else {
+    if (laneIndex < 0 || laneIndex >= (team.frontUnits?.length || 0)) return false;
+    if (team.reserveUnits?.length) {
+      team.frontUnits[laneIndex] = team.reserveUnits.shift();
+    } else {
+      team.frontUnits.splice(laneIndex, 1);
+    }
+  }
+  syncTrackedTeamState(team);
+  return true;
+}
+
+function applyHpDeltaToTeam(team, delta) {
+  if (!team || !delta) return;
+  getAllTrackedUnits(team).forEach((unit) => {
+    unit.hp = Math.max(1, unit.hp + delta);
   });
-  team.bleedSlots = kept.slice(0, Math.max(0, maxSlots));
+  syncTrackedTeamState(team);
+}
+
+function healTrackedTeam(team, totalHeal) {
+  if (!team || !(totalHeal > 0) || team.units <= 0) return 0;
+  const maxHp = team.stats.hp;
+  const damaged = getAllTrackedUnits(team)
+    .filter((unit) => unit.hp < maxHp - 0.0001)
+    .sort((a, b) => a.hp - b.hp);
+  let remaining = totalHeal;
+  for (const unit of damaged) {
+    if (remaining <= 0) break;
+    const missing = maxHp - unit.hp;
+    const healed = Math.min(missing, remaining);
+    unit.hp += healed;
+    remaining -= healed;
+  }
+  syncTrackedTeamState(team);
+  return totalHeal - remaining;
+}
+
+function cloneBleedState(bleed) {
+  return bleed ? { ...bleed } : null;
+}
+
+function cloneTrackedTeamHealth(team) {
+  return {
+    frontUnits: (team.frontUnits || []).map((unit) => ({
+      hp: unit.hp,
+      bleed: cloneBleedState(unit.bleed),
+    })),
+    reserveUnits: (team.reserveUnits || []).map((unit) => ({
+      hp: unit.hp,
+      bleed: cloneBleedState(unit.bleed),
+    })),
+  };
+}
+
+function restoreTrackedTeamHealth(team, snapshot) {
+  team.frontUnits = snapshot.frontUnits.map((unit) => ({
+    hp: unit.hp,
+    bleed: cloneBleedState(unit.bleed),
+  }));
+  team.reserveUnits = snapshot.reserveUnits.map((unit) => ({
+    hp: unit.hp,
+    bleed: cloneBleedState(unit.bleed),
+  }));
+  syncTrackedTeamState(team);
 }
 
 function getNextBleedTick(team) {
-  if (!team?.bleedSlots?.length) return Infinity;
   let nextTick = Infinity;
-  for (const slot of team.bleedSlots) {
-    if (!slot) continue;
-    if (slot.nextTickAt <= slot.expiresAt + 0.0001) {
-      nextTick = Math.min(nextTick, slot.nextTickAt);
+  for (const unit of getAllTrackedUnits(team)) {
+    const bleed = unit?.bleed;
+    if (!bleed) continue;
+    if (bleed.nextTickAt <= bleed.expiresAt + 0.0001) {
+      nextTick = Math.min(nextTick, bleed.nextTickAt);
     }
   }
   return nextTick;
 }
 
-function applyKipchakBleed(attacker, target, time, splitEnabled, splitTargets) {
+function applyKipchakBleed(
+  attacker,
+  target,
+  time,
+  splitEnabled,
+  splitTargets,
+  attackerUnitsOverride,
+) {
   const bleed = getKipchakBleedProfile(attacker?.unitData);
   if (!bleed || !(bleed.dps > 0) || !(bleed.duration > 0) || target.units <= 0) {
     return 0;
   }
+  const attackerUnits =
+    attackerUnitsOverride != null ? attackerUnitsOverride : attacker.units;
   const slotCap = getBleedSlotCap(
     target.units,
-    attacker.units,
+    attackerUnits,
     splitEnabled,
     splitTargets,
   );
   if (slotCap <= 0) {
-    target.bleedSlots = [];
     return 0;
   }
 
-  trimBleedSlots(target, slotCap, time);
-  target.bleedSlots = target.bleedSlots || [];
+  ensureFrontUnitCount(target, slotCap);
   for (let i = 0; i < slotCap; i++) {
-    const slot = target.bleedSlots[i];
-    if (slot) {
-      slot.dps = bleed.dps;
-      slot.expiresAt = time + bleed.duration;
-      slot.sourceId = attacker.groupId || attacker.side || "?";
-      slot.sourceSide = attacker.side || null;
+    const unit = target.frontUnits[i];
+    if (!unit) break;
+    if (unit.bleed) {
+      unit.bleed.dps = bleed.dps;
+      unit.bleed.expiresAt = time + bleed.duration;
+      unit.bleed.sourceId = attacker.groupId || attacker.side || "?";
+      unit.bleed.sourceSide = attacker.side || null;
     } else {
-      target.bleedSlots.push({
+      unit.bleed = {
         dps: bleed.dps,
         nextTickAt: time + KIPCHAK_TRIPLE_SHOT.tickInterval,
         expiresAt: time + bleed.duration,
         sourceId: attacker.groupId || attacker.side || "?",
         sourceSide: attacker.side || null,
-      });
+      };
     }
   }
   return slotCap;
 }
 
 function collectBleedTickEvents(target, time, EPSILON) {
-  if (!target?.bleedSlots?.length || target.units <= 0) return [];
+  if (!target || target.units <= 0) return [];
   const grouped = new Map();
-  const kept = [];
-
-  for (const slot of target.bleedSlots) {
-    if (!slot) continue;
-    if (
-      slot.nextTickAt <= time + EPSILON &&
-      slot.nextTickAt <= slot.expiresAt + EPSILON
-    ) {
-      const key = `${slot.sourceSide || "?"}:${slot.sourceId || "?"}`;
-      if (!grouped.has(key)) {
-        grouped.set(key, {
-          sourceId: slot.sourceId || "?",
-          sourceSide: slot.sourceSide || null,
-          damage: 0,
-        });
+  const frontUnits = target.frontUnits || [];
+  const reserveUnits = target.reserveUnits || [];
+  const collectFrom = (units, fromReserve = false) => {
+    for (let index = units.length - 1; index >= 0; index--) {
+      const unit = units[index];
+      const bleed = unit?.bleed;
+      if (!bleed) continue;
+      if (
+        bleed.nextTickAt <= time + EPSILON &&
+        bleed.nextTickAt <= bleed.expiresAt + EPSILON
+      ) {
+        const applied = Math.min(bleed.dps, unit.hp);
+        const waste = Math.max(0, bleed.dps - applied);
+        unit.hp -= applied;
+        const key = `${bleed.sourceSide || "?"}:${bleed.sourceId || "?"}`;
+        let unitsDied = 0;
+        if (unit.hp <= EPSILON) {
+          unitsDied = removeTrackedUnitAt(target, index, fromReserve) ? 1 : 0;
+        } else {
+          bleed.nextTickAt += KIPCHAK_TRIPLE_SHOT.tickInterval;
+          if (
+            !(bleed.expiresAt > time + EPSILON) ||
+            bleed.nextTickAt > bleed.expiresAt + EPSILON
+          ) {
+            unit.bleed = null;
+          }
+        }
+        syncTrackedTeamState(target);
+        if (!grouped.has(key)) {
+          grouped.set(key, {
+            sourceId: bleed.sourceId || "?",
+            sourceSide: bleed.sourceSide || null,
+            damage: 0,
+            waste: 0,
+            kills: 0,
+          });
+        }
+        const entry = grouped.get(key);
+        entry.damage += applied;
+        entry.waste += waste;
+        entry.kills += unitsDied;
+      } else if (
+        !(bleed.expiresAt > time + EPSILON) ||
+        bleed.nextTickAt > bleed.expiresAt + EPSILON
+      ) {
+        unit.bleed = null;
       }
-      grouped.get(key).damage += slot.dps;
-      slot.nextTickAt += KIPCHAK_TRIPLE_SHOT.tickInterval;
     }
-    if (
-      slot.expiresAt > time + EPSILON &&
-      slot.nextTickAt <= slot.expiresAt + EPSILON
-    ) {
-      kept.push(slot);
-    }
-  }
-
-  target.bleedSlots = kept;
-  return Array.from(grouped.values()).filter((entry) => entry.damage > 0);
+  };
+  collectFrom(reserveUnits, true);
+  collectFrom(frontUnits, false);
+  return Array.from(grouped.values()).filter(
+    (entry) => entry.damage > 0 || entry.kills > 0,
+  );
 }
 
 function applyDamageToTeam(team, damage) {
   if (!team || !(damage > 0) || team.units <= 0) return 0;
-  team.totalHp -= damage;
-  if (team.totalHp <= 0) {
-    const lost = team.units;
-    team.totalHp = 0;
-    team.units = 0;
-    team.bleedSlots = [];
-    return lost;
+  ensureFrontUnitCount(team, team.frontUnits?.length || Math.min(1, team.units));
+  let kills = 0;
+  let remaining = damage;
+  while (remaining > 0.0001 && team.units > 0) {
+    const target = team.frontUnits[0];
+    if (!target) break;
+    const applied = Math.min(remaining, target.hp);
+    target.hp -= applied;
+    remaining -= applied;
+    if (target.hp <= 0.0001) {
+      target.bleed = null;
+      if (removeTrackedUnitAt(team, 0, false)) kills++;
+    }
   }
+  syncTrackedTeamState(team);
+  return kills;
+}
 
-  const unitsLost = Math.floor(
-    (team.stats.hp * team.units - team.totalHp) / team.stats.hp,
-  );
-  if (unitsLost > 0) {
-    team.units = Math.max(0, team.units - unitsLost);
+function applyBundledDamageToTeam(
+  team,
+  totalDamage,
+  attackerUnits,
+  splitEnabled,
+  splitTargets,
+  overkillEnabled,
+) {
+  if (!team || !(totalDamage > 0) || !(attackerUnits > 0) || team.units <= 0) {
+    return { dealt: 0, waste: 0, kills: 0 };
   }
-  trimBleedSlots(team, team.units, Infinity);
-  return unitsLost;
+  const laneCount = getBleedSlotCap(
+    team.units,
+    attackerUnits,
+    splitEnabled,
+    splitTargets,
+  );
+  if (laneCount <= 0) return { dealt: 0, waste: 0, kills: 0 };
+  ensureFrontUnitCount(team, laneCount);
+  const bundleDamage = totalDamage / attackerUnits;
+  const perLane = Math.floor(attackerUnits / laneCount);
+  const extra = attackerUnits % laneCount;
+  let dealt = 0;
+  let waste = 0;
+  let kills = 0;
+
+  for (let lane = laneCount - 1; lane >= 0; lane--) {
+    const bundleCount = perLane + (lane < extra ? 1 : 0);
+    for (let i = 0; i < bundleCount; i++) {
+      let remaining = bundleDamage;
+      while (remaining > 0.0001) {
+        const target = team.frontUnits[lane];
+        if (!target) {
+          if (overkillEnabled) waste += remaining;
+          remaining = 0;
+          break;
+        }
+        const applied = Math.min(remaining, target.hp);
+        target.hp -= applied;
+        dealt += applied;
+        remaining -= applied;
+        if (target.hp <= 0.0001) {
+          target.bleed = null;
+          if (removeTrackedUnitAt(team, lane, false)) kills++;
+          if (overkillEnabled) {
+            waste += remaining;
+            remaining = 0;
+          }
+        } else {
+          if (overkillEnabled) {
+            waste += remaining;
+            remaining = 0;
+          }
+        }
+      }
+    }
+  }
+  syncTrackedTeamState(team);
+  return { dealt, waste, kills };
+}
+
+function setTrackedTeamHpPerUnit(team, newHp) {
+  if (!team || !Number.isFinite(newHp)) return;
+  const oldHp = team.stats.hp;
+  if (Math.abs(newHp - oldHp) <= 0.0001) return;
+  applyHpDeltaToTeam(team, newHp - oldHp);
+  team.stats.hp = newHp;
+  syncTrackedTeamState(team);
 }
 
 /**
@@ -3048,6 +3257,9 @@ function runBattle() {
     (unitB.firstHitEnabled ? -unitB.freeHits * unitB.stats.attackSpeed : 0) +
     closingDelayB;
 
+  const trackedA = createTrackedTeamHealth(unitA.count, applyBuffs(unitA, 0).hp);
+  const trackedB = createTrackedTeamHealth(unitB.count, applyBuffs(unitB, 0).hp);
+
   let teamA = {
     side: "A",
     units: unitA.count,
@@ -3064,7 +3276,8 @@ function runBattle() {
     trampleTick: unitA.effects.trample ? 0 : Infinity,
     trampleActive: false,
     trampleEnd: -1,
-    bleedSlots: [],
+    frontUnits: trackedA.frontUnits,
+    reserveUnits: trackedA.reserveUnits,
   };
 
   let teamB = {
@@ -3083,7 +3296,8 @@ function runBattle() {
     trampleTick: unitB.effects.trample ? 0 : Infinity,
     trampleActive: false,
     trampleEnd: -1,
-    bleedSlots: [],
+    frontUnits: trackedB.frontUnits,
+    reserveUnits: trackedB.reserveUnits,
   };
 
   // Brotherhood HP: track base hp separately, effective hp includes brotherhood bonus
@@ -3098,8 +3312,14 @@ function runBattle() {
       teamB.baseHp + unitB.effects.brotherhoodHP.hpPerUnit * (teamB.units - 1);
   }
 
-  teamA.totalHp = teamA.stats.hp * teamA.units;
-  teamB.totalHp = teamB.stats.hp * teamB.units;
+  if (Math.abs(teamA.stats.hp - teamA.baseHp) > 0.0001) {
+    applyHpDeltaToTeam(teamA, teamA.stats.hp - teamA.baseHp);
+  }
+  if (Math.abs(teamB.stats.hp - teamB.baseHp) > 0.0001) {
+    applyHpDeltaToTeam(teamB, teamB.stats.hp - teamB.baseHp);
+  }
+  syncTrackedTeamState(teamA);
+  syncTrackedTeamState(teamB);
 
   // --- PRE-BATTLE: Opening attacks (Donso javelin, Earl's Guard dagger) ---
   function applyOpeningAttack(
@@ -3113,14 +3333,14 @@ function runBattle() {
     const armor = defenderStats.rangedArmor || 0;
     const dmgPerUnit = Math.max(1, oa.damage - armor);
     const totalDmg = dmgPerUnit * attackerTeam.units;
-    defenderTeam.totalHp -= totalDmg;
-    if (totalDmg > 0) {
-      const unitsLost = Math.floor(
-        (defenderTeam.stats.hp * defenderTeam.units - defenderTeam.totalHp) /
-          defenderTeam.stats.hp,
-      );
-      defenderTeam.units = Math.max(0, defenderTeam.units - unitsLost);
-    }
+    applyBundledDamageToTeam(
+      defenderTeam,
+      totalDmg,
+      attackerTeam.units,
+      false,
+      1,
+      false,
+    );
   }
   applyOpeningAttack(unitA, teamA, teamB, teamB.stats);
   applyOpeningAttack(unitB, teamB, teamA, teamA.stats);
@@ -3144,14 +3364,14 @@ function runBattle() {
       attackerUnit.chargeDamage = 0; // cancel charge
       // Deal palings damage
       const totalDmg = palings.damage * defenderTeam.units;
-      attackerTeam.totalHp -= totalDmg;
-      if (totalDmg > 0) {
-        const unitsLost = Math.floor(
-          (attackerTeam.stats.hp * attackerTeam.units - attackerTeam.totalHp) /
-            attackerTeam.stats.hp,
-        );
-        attackerTeam.units = Math.max(0, attackerTeam.units - unitsLost);
-      }
+      applyBundledDamageToTeam(
+        attackerTeam,
+        totalDmg,
+        defenderTeam.units,
+        false,
+        1,
+        false,
+      );
       return;
     }
     // Spearwall
@@ -3347,28 +3567,43 @@ function runBattle() {
     const bleedFromA = collectBleedTickEvents(teamB, time, EPSILON);
     const bleedDamageToA = bleedFromB.reduce((sum, entry) => sum + entry.damage, 0);
     const bleedDamageToB = bleedFromA.reduce((sum, entry) => sum + entry.damage, 0);
+    const bleedWasteToA = bleedFromB.reduce(
+      (sum, entry) => sum + (entry.waste || 0),
+      0,
+    );
+    const bleedWasteToB = bleedFromA.reduce(
+      (sum, entry) => sum + (entry.waste || 0),
+      0,
+    );
+    const bleedKillsByB = bleedFromB.reduce(
+      (sum, entry) => sum + (entry.kills || 0),
+      0,
+    );
+    const bleedKillsByA = bleedFromA.reduce(
+      (sum, entry) => sum + (entry.kills || 0),
+      0,
+    );
 
-    if (bleedDamageToA > 0) {
-      applyDamageToTeam(teamA, bleedDamageToA);
-    }
-    if (bleedDamageToB > 0) {
-      applyDamageToTeam(teamB, bleedDamageToB);
-    }
-    if (bleedDamageToA > 0 || bleedDamageToB > 0) {
+    if (
+      bleedDamageToA > 0 ||
+      bleedDamageToB > 0 ||
+      bleedKillsByA > 0 ||
+      bleedKillsByB > 0
+    ) {
       battleLog.push({
         time: time.toFixed(2),
         aWeapon: bleedDamageToB > 0 ? "Bleed" : "—",
         aDmg: bleedDamageToB.toFixed(1),
-        aWaste: "0.0",
+        aWaste: bleedWasteToB.toFixed(1),
         aUnits: teamA.units,
         aHp: Math.round(teamA.totalHp),
-        aKills: 0,
+        aKills: bleedKillsByA,
         bWeapon: bleedDamageToA > 0 ? "Bleed" : "—",
         bDmg: bleedDamageToA.toFixed(1),
-        bWaste: "0.0",
+        bWaste: bleedWasteToA.toFixed(1),
         bUnits: teamB.units,
         bHp: Math.round(teamB.totalHp),
-        bKills: 0,
+        bKills: bleedKillsByB,
         notes: "Bleed Tick",
       });
     }
@@ -3765,263 +4000,133 @@ function runBattle() {
       }
     }
 
+    const startUnitsA = teamA.units;
+    const startUnitsB = teamB.units;
+
+    const resultToB = applyBundledDamageToTeam(
+      {
+        ...teamB,
+        frontUnits: teamB.frontUnits.map((unit) => ({
+          hp: unit.hp,
+          bleed: cloneBleedState(unit.bleed),
+        })),
+        reserveUnits: teamB.reserveUnits.map((unit) => ({
+          hp: unit.hp,
+          bleed: cloneBleedState(unit.bleed),
+        })),
+      },
+      damageToB,
+      startUnitsA,
+      splitA,
+      splitTargetsA,
+      overkillEnabled,
+    );
+    const resultToA = applyBundledDamageToTeam(
+      {
+        ...teamA,
+        frontUnits: teamA.frontUnits.map((unit) => ({
+          hp: unit.hp,
+          bleed: cloneBleedState(unit.bleed),
+        })),
+        reserveUnits: teamA.reserveUnits.map((unit) => ({
+          hp: unit.hp,
+          bleed: cloneBleedState(unit.bleed),
+        })),
+      },
+      damageToA,
+      startUnitsB,
+      splitB,
+      splitTargetsB,
+      overkillEnabled,
+    );
+
+    let wasteA = resultToB.waste,
+      wasteB = resultToA.waste;
+    damageToB = resultToB.dealt;
+    damageToA = resultToA.dealt;
+    const killsByA = resultToB.kills;
+    const killsByB = resultToA.kills;
+
+    if (damageToB > 0) {
+      applyBundledDamageToTeam(
+        teamB,
+        damageToB,
+        startUnitsA,
+        splitA,
+        splitTargetsA,
+        overkillEnabled,
+      );
+    }
+    if (damageToA > 0) {
+      applyBundledDamageToTeam(
+        teamA,
+        damageToA,
+        startUnitsB,
+        splitB,
+        splitTargetsB,
+        overkillEnabled,
+      );
+    }
+
     if (aCanApplyBleed && unitA.effects.bleed && damageToB > 0) {
-      applyKipchakBleed(teamA, teamB, time, splitA, splitTargetsA);
+      applyKipchakBleed(teamA, teamB, time, splitA, splitTargetsA, startUnitsA);
     }
     if (bCanApplyBleed && unitB.effects.bleed && damageToA > 0) {
-      applyKipchakBleed(teamB, teamA, time, splitB, splitTargetsB);
+      applyKipchakBleed(teamB, teamA, time, splitB, splitTargetsB, startUnitsB);
     }
 
-    // === APPLY OVERKILL WASTE: each attacker can only kill its target, excess is lost ===
-    // Split-aware: when split is enabled, attackers are divided into groups per split target
-    let wasteA = 0,
-      wasteB = 0;
-    if (overkillEnabled) {
-      const rawDmgToB = damageToB,
-        rawDmgToA = damageToA;
-      if (damageToB > 0 && teamA.units > 0) {
-        const dmgPer = damageToB / teamA.units;
-        const hpPer = teamB.stats.hp;
-        const frontHpRaw = teamB.totalHp - (teamB.units - 1) * hpPer;
-        const frontHp = Math.min(hpPer, Math.max(EPSILON, frontHpRaw));
-        const targets =
-          splitA && teamB.units > 1
-            ? Math.min(splitTargetsA, teamB.units, teamA.units)
-            : 1;
-        let eff = 0;
-        if (targets > 1) {
-          const perGroup = Math.floor(teamA.units / targets);
-          const extra = teamA.units % targets;
-          for (let g = 0; g < targets; g++) {
-            const groupSize = perGroup + (g < extra ? 1 : 0);
-            let tgtHp = g === 0 ? frontHp : hpPer;
-            for (let i = 0; i < groupSize; i++) {
-              if (tgtHp <= 0) break;
-              const dealt = Math.min(dmgPer, tgtHp);
-              eff += dealt;
-              tgtHp -= dealt;
-              if (tgtHp <= 0) tgtHp = hpPer;
-            }
-          }
-        } else {
-          let fHp = frontHp;
-          for (let i = 0; i < teamA.units; i++) {
-            if (fHp <= 0) break;
-            const dealt = Math.min(dmgPer, fHp);
-            eff += dealt;
-            fHp -= dealt;
-            if (fHp <= 0) fHp = hpPer;
-          }
-        }
-        damageToB = eff;
-      }
-      if (damageToA > 0 && teamB.units > 0) {
-        const dmgPer = damageToA / teamB.units;
-        const hpPer = teamA.stats.hp;
-        const frontHpRaw = teamA.totalHp - (teamA.units - 1) * hpPer;
-        const frontHp = Math.min(hpPer, Math.max(EPSILON, frontHpRaw));
-        const targets =
-          splitB && teamA.units > 1
-            ? Math.min(splitTargetsB, teamA.units, teamB.units)
-            : 1;
-        let eff = 0;
-        if (targets > 1) {
-          const perGroup = Math.floor(teamB.units / targets);
-          const extra = teamB.units % targets;
-          for (let g = 0; g < targets; g++) {
-            const groupSize = perGroup + (g < extra ? 1 : 0);
-            let tgtHp = g === 0 ? frontHp : hpPer;
-            for (let i = 0; i < groupSize; i++) {
-              if (tgtHp <= 0) break;
-              const dealt = Math.min(dmgPer, tgtHp);
-              eff += dealt;
-              tgtHp -= dealt;
-              if (tgtHp <= 0) tgtHp = hpPer;
-            }
-          }
-        } else {
-          let fHp = frontHp;
-          for (let i = 0; i < teamB.units; i++) {
-            if (fHp <= 0) break;
-            const dealt = Math.min(dmgPer, fHp);
-            eff += dealt;
-            fHp -= dealt;
-            if (fHp <= 0) fHp = hpPer;
-          }
-        }
-        damageToA = eff;
-      }
-      wasteA = rawDmgToB - damageToB;
-      wasteB = rawDmgToA - damageToA;
-    }
-
-    // Apply damage SIMULTANEOUSLY
-    teamB.totalHp -= damageToB;
-    teamA.totalHp -= damageToA;
-
-    // Apply heal-per-attack effects (e.g. Keshik Battle Veteran)
     const healA = unitA.effects.healPerAttack;
     if (healA && damageToB > 0) {
-      const maxHpA = teamA.stats.hp * teamA.units;
-      teamA.totalHp = Math.min(
-        maxHpA,
-        teamA.totalHp + healA.value * teamA.units,
-      );
+      healTrackedTeam(teamA, healA.value * teamA.units);
     }
     const healB = unitB.effects.healPerAttack;
     if (healB && damageToA > 0) {
-      const maxHpB = teamB.stats.hp * teamB.units;
-      teamB.totalHp = Math.min(
-        maxHpB,
-        teamB.totalHp + healB.value * teamB.units,
-      );
+      healTrackedTeam(teamB, healB.value * teamB.units);
     }
 
-    // Heal Aura: passive HP/s regen for all friendly units (e.g. Hospitaller Knight)
     if (unitA.effects.healAura && teamA.units > 0) {
       const dt = time - (teamA.lastHealAuraTime || 0);
       if (dt > 0) {
-        const maxHpA = teamA.stats.hp * teamA.units;
-        teamA.totalHp = Math.min(
-          maxHpA,
-          teamA.totalHp + unitA.effects.healAura.hps * teamA.units * dt,
-        );
+        healTrackedTeam(teamA, unitA.effects.healAura.hps * teamA.units * dt);
       }
     }
     if (unitB.effects.healAura && teamB.units > 0) {
       const dt = time - (teamB.lastHealAuraTime || 0);
       if (dt > 0) {
-        const maxHpB = teamB.stats.hp * teamB.units;
-        teamB.totalHp = Math.min(
-          maxHpB,
-          teamB.totalHp + unitB.effects.healAura.hps * teamB.units * dt,
-        );
+        healTrackedTeam(teamB, unitB.effects.healAura.hps * teamB.units * dt);
       }
     }
     teamA.lastHealAuraTime = time;
     teamB.lastHealAuraTime = time;
 
-    // Update unit counts after both damages are applied
-    const prevUnitsB = teamB.units;
-    const prevUnitsA = teamA.units;
-    if (damageToB > 0) {
-      const unitsLost = Math.floor(
-        (teamB.stats.hp * teamB.units - teamB.totalHp) / teamB.stats.hp,
-      );
-      teamB.units = Math.max(0, teamB.units - unitsLost);
-    }
-
-    if (damageToA > 0) {
-      const unitsLost = Math.floor(
-        (teamA.stats.hp * teamA.units - teamA.totalHp) / teamA.stats.hp,
-      );
-      teamA.units = Math.max(0, teamA.units - unitsLost);
-    }
-
-    // === SPLIT DAMAGE CORRECTION: fewer units die when damage is spread ===
-    // Split requires >1 attacker and >1 defender; targets capped at both counts
-    if (
-      splitA &&
-      damageToB > 0 &&
-      prevUnitsA > 1 &&
-      prevUnitsB > 1 &&
-      teamB.units < prevUnitsB
-    ) {
-      const targets = Math.min(splitTargetsA, prevUnitsB, prevUnitsA);
-      if (targets > 1) {
-        const dmgPerTarget = damageToB / targets;
-        const hpPer = teamB.stats.hp;
-        const prevTotalHp = teamB.totalHp + damageToB;
-        const frontHpBefore = prevTotalHp - (prevUnitsB - 1) * hpPer;
-        let kills = 0,
-          tgtHp = frontHpBefore;
-        for (let t = 0; t < targets; t++) {
-          if (dmgPerTarget >= tgtHp) {
-            kills++;
-            tgtHp = hpPer;
-          } else break;
-        }
-        const poolKills = prevUnitsB - teamB.units;
-        if (kills < poolKills) {
-          teamB.units = prevUnitsB - kills;
-          const minHp = (teamB.units - 1) * hpPer + 1;
-          if (teamB.totalHp < minHp) teamB.totalHp = minHp;
-        }
-      }
-    }
-    if (
-      splitB &&
-      damageToA > 0 &&
-      prevUnitsB > 1 &&
-      prevUnitsA > 1 &&
-      teamA.units < prevUnitsA
-    ) {
-      const targets = Math.min(splitTargetsB, prevUnitsA, prevUnitsB);
-      if (targets > 1) {
-        const dmgPerTarget = damageToA / targets;
-        const hpPer = teamA.stats.hp;
-        const prevTotalHp = teamA.totalHp + damageToA;
-        const frontHpBefore = prevTotalHp - (prevUnitsA - 1) * hpPer;
-        let kills = 0,
-          tgtHp = frontHpBefore;
-        for (let t = 0; t < targets; t++) {
-          if (dmgPerTarget >= tgtHp) {
-            kills++;
-            tgtHp = hpPer;
-          } else break;
-        }
-        const poolKills = prevUnitsA - teamA.units;
-        if (kills < poolKills) {
-          teamA.units = prevUnitsA - kills;
-          const minHp = (teamA.units - 1) * hpPer + 1;
-          if (teamA.totalHp < minHp) teamA.totalHp = minHp;
-        }
-      }
-    }
-
     // Battle Glory: +HP and +attack per kill (e.g. Teutonic Knight)
-    const killsByA = prevUnitsB - teamB.units;
-    const killsByB = prevUnitsA - teamA.units;
     if (unitA.effects.battleGlory && killsByA > 0 && teamA.units > 0) {
       const bg = unitA.effects.battleGlory;
       teamA.gloryBonusHp = (teamA.gloryBonusHp || 0) + bg.hpPerKill * killsByA;
       teamA.gloryBonusAtk =
         (teamA.gloryBonusAtk || 0) + bg.attackPerKill * killsByA;
-      teamA.stats.hp = teamA.baseHp + teamA.gloryBonusHp;
-      teamA.totalHp += bg.hpPerKill * killsByA * teamA.units;
+      setTrackedTeamHpPerUnit(teamA, teamA.baseHp + teamA.gloryBonusHp);
     }
     if (unitB.effects.battleGlory && killsByB > 0 && teamB.units > 0) {
       const bg = unitB.effects.battleGlory;
       teamB.gloryBonusHp = (teamB.gloryBonusHp || 0) + bg.hpPerKill * killsByB;
       teamB.gloryBonusAtk =
         (teamB.gloryBonusAtk || 0) + bg.attackPerKill * killsByB;
-      teamB.stats.hp = teamB.baseHp + teamB.gloryBonusHp;
-      teamB.totalHp += bg.hpPerKill * killsByB * teamB.units;
+      setTrackedTeamHpPerUnit(teamB, teamB.baseHp + teamB.gloryBonusHp);
     }
 
     // Brotherhood HP: recalculate effective HP per unit as allies die
     if (unitA.effects.brotherhoodHP && teamA.units > 0) {
-      const oldHpPer = teamA.stats.hp;
       const newHpPer =
         teamA.baseHp +
         unitA.effects.brotherhoodHP.hpPerUnit * (teamA.units - 1);
-      if (newHpPer !== oldHpPer) {
-        // Reduce totalHp proportionally: each surviving unit loses the difference
-        teamA.totalHp -= (oldHpPer - newHpPer) * teamA.units;
-        teamA.totalHp = Math.max(teamA.units, teamA.totalHp); // at least 1 hp per unit
-        teamA.stats.hp = newHpPer;
-      }
+      setTrackedTeamHpPerUnit(teamA, newHpPer);
     }
     if (unitB.effects.brotherhoodHP && teamB.units > 0) {
-      const oldHpPer = teamB.stats.hp;
       const newHpPer =
         teamB.baseHp +
         unitB.effects.brotherhoodHP.hpPerUnit * (teamB.units - 1);
-      if (newHpPer !== oldHpPer) {
-        teamB.totalHp -= (oldHpPer - newHpPer) * teamB.units;
-        teamB.totalHp = Math.max(teamB.units, teamB.totalHp);
-        teamB.stats.hp = newHpPer;
-      }
+      setTrackedTeamHpPerUnit(teamB, newHpPer);
     }
 
     // --- Build log notes for effects ---
@@ -4103,22 +4208,37 @@ function runBattle() {
     // --- Push battle log entry ---
     const aWeapon = getAttackLogLabel(unitA, aFiredPrimary, aFiredSecondary);
     const bWeapon = getAttackLogLabel(unitB, bFiredPrimary, bFiredSecondary);
-    battleLog.push({
-      time: time.toFixed(2),
-      aWeapon,
-      aDmg: damageToB.toFixed(1),
-      aWaste: wasteA.toFixed(1),
-      aUnits: teamA.units,
-      aHp: Math.round(teamA.totalHp),
-      aKills: killsByA,
-      bWeapon,
-      bDmg: damageToA.toFixed(1),
-      bWaste: wasteB.toFixed(1),
-      bUnits: teamB.units,
-      bHp: Math.round(teamB.totalHp),
-      bKills: killsByB,
-      notes: [...logNotesA, ...logNotesB].join(", "),
-    });
+    if (
+      aFiredPrimary ||
+      aFiredSecondary ||
+      bFiredPrimary ||
+      bFiredSecondary ||
+      (unitA.effects.trample && teamA.trampleActive) ||
+      (unitB.effects.trample && teamB.trampleActive) ||
+      damageToA > 0 ||
+      damageToB > 0 ||
+      wasteA > 0 ||
+      wasteB > 0 ||
+      killsByA > 0 ||
+      killsByB > 0
+    ) {
+      battleLog.push({
+        time: time.toFixed(2),
+        aWeapon,
+        aDmg: damageToB.toFixed(1),
+        aWaste: wasteA.toFixed(1),
+        aUnits: teamA.units,
+        aHp: Math.round(teamA.totalHp),
+        aKills: killsByA,
+        bWeapon,
+        bDmg: damageToA.toFixed(1),
+        bWaste: wasteB.toFixed(1),
+        bUnits: teamB.units,
+        bHp: Math.round(teamB.totalHp),
+        bKills: killsByB,
+        notes: [...logNotesA, ...logNotesB].join(", "),
+      });
+    }
   }
 
   // --- RESULTS DISPLAY ---
@@ -6344,6 +6464,7 @@ function syncAllGroupsFromCards() {
 function createTeamState(group) {
   const unitData = group.unitData;
   const stats = applyBuffs(unitData, 0);
+  const tracked = createTrackedTeamHealth(unitData.count, stats.hp);
   const team = {
     groupId: group.id,
     side: group.side,
@@ -6361,7 +6482,8 @@ function createTeamState(group) {
     trampleTick: unitData.effects.trample ? 0 : Infinity,
     trampleActive: false,
     trampleEnd: -1,
-    bleedSlots: [],
+    frontUnits: tracked.frontUnits,
+    reserveUnits: tracked.reserveUnits,
     closingDelay: 0,
     currentTargetId: null,
     baseHp: stats.hp,
@@ -6373,7 +6495,10 @@ function createTeamState(group) {
     team.stats.hp =
       team.baseHp + unitData.effects.brotherhoodHP.hpPerUnit * (team.units - 1);
   }
-  team.totalHp = team.stats.hp * team.units;
+  if (Math.abs(team.stats.hp - team.baseHp) > 0.0001) {
+    applyHpDeltaToTeam(team, team.stats.hp - team.baseHp);
+  }
+  syncTrackedTeamState(team);
   return team;
 }
 
@@ -6419,8 +6544,7 @@ function applyBattleGlory(team, kills) {
   const bg = team.unitData.effects.battleGlory;
   team.gloryBonusHp = (team.gloryBonusHp || 0) + bg.hpPerKill * kills;
   team.gloryBonusAtk = (team.gloryBonusAtk || 0) + bg.attackPerKill * kills;
-  team.stats.hp = team.baseHp + team.gloryBonusHp;
-  team.totalHp += bg.hpPerKill * kills * team.units;
+  setTrackedTeamHpPerUnit(team, team.baseHp + team.gloryBonusHp);
 }
 
 function applyOpeningAttacks(attackerTeams, teamById, battleLog) {
@@ -6433,15 +6557,14 @@ function applyOpeningAttacks(attackerTeams, teamById, battleLog) {
     const armor = defender.stats.rangedArmor || 0;
     const dmgPerUnit = Math.max(1, oa.damage - armor);
     const totalDmg = dmgPerUnit * attacker.units;
-    defender.totalHp -= totalDmg;
-    let unitsLost = 0;
-    if (totalDmg > 0) {
-      unitsLost = Math.floor(
-        (defender.stats.hp * defender.units - defender.totalHp) /
-          defender.stats.hp,
-      );
-      defender.units = Math.max(0, defender.units - unitsLost);
-    }
+    const result = applyBundledDamageToTeam(
+      defender,
+      totalDmg,
+      attacker.units,
+      false,
+      1,
+      false,
+    );
     battleLog.push({
       time: "Pre",
       attacker: attacker.groupId,
@@ -6449,13 +6572,13 @@ function applyOpeningAttacks(attackerTeams, teamById, battleLog) {
       attackerSide: attacker.side,
       target: defender.groupId,
       weapon: "Opening",
-      dmg: totalDmg.toFixed(1),
-      waste: "0.0",
+      dmg: result.dealt.toFixed(1),
+      waste: result.waste.toFixed(1),
       atkUnits: attacker.units,
       tgtUnits: defender.units,
-      unitsDied: unitsLost,
-      killsA: attacker.side === "A" ? unitsLost : 0,
-      killsB: attacker.side === "B" ? unitsLost : 0,
+      unitsDied: result.kills,
+      killsA: attacker.side === "A" ? result.kills : 0,
+      killsB: attacker.side === "B" ? result.kills : 0,
       notes: attacker.unitData.name,
     });
   });
@@ -6481,15 +6604,14 @@ function applyAntiCavEffects(allTeams, teamById, battleLog) {
       );
       attacker.unitData.chargeDamage = 0;
       const totalDmg = palings.damage * target.units;
-      attacker.totalHp -= totalDmg;
-      let unitsLost = 0;
-      if (totalDmg > 0) {
-        unitsLost = Math.floor(
-          (attacker.stats.hp * attacker.units - attacker.totalHp) /
-            attacker.stats.hp,
-        );
-        attacker.units = Math.max(0, attacker.units - unitsLost);
-      }
+      const result = applyBundledDamageToTeam(
+        attacker,
+        totalDmg,
+        target.units,
+        false,
+        1,
+        false,
+      );
       if (battleLog) {
         battleLog.push({
           time: "Pre",
@@ -6498,13 +6620,13 @@ function applyAntiCavEffects(allTeams, teamById, battleLog) {
           attackerSide: target.side,
           target: attacker.groupId,
           weapon: "Palings",
-          dmg: totalDmg.toFixed(1),
-          waste: "0.0",
+          dmg: result.dealt.toFixed(1),
+          waste: result.waste.toFixed(1),
           atkUnits: target.units,
           tgtUnits: attacker.units,
-          unitsDied: unitsLost,
-          killsA: target.side === "A" ? unitsLost : 0,
-          killsB: target.side === "B" ? unitsLost : 0,
+          unitsDied: result.kills,
+          killsA: target.side === "A" ? result.kills : 0,
+          killsB: target.side === "B" ? result.kills : 0,
           notes: `Stun ${formatSeconds(palings.stunDuration)}s`,
         });
       }
@@ -6537,7 +6659,7 @@ function applyAntiCavEffects(allTeams, teamById, battleLog) {
 }
 
 function computeTeamAttack(attacker, target, time, config) {
-  const { overkillEnabled, splitEnabled, splitTargets, EPSILON } = config;
+  const { splitEnabled, splitTargets, EPSILON } = config;
   const unitA = attacker.unitData;
   const unitB = target.unitData;
 
@@ -6546,6 +6668,8 @@ function computeTeamAttack(attacker, target, time, config) {
   let firedPrimary = false;
   let firedSecondary = false;
   let canApplyBleed = false;
+  let appliesAtkSpeedDebuff = false;
+  let appliesDamageDebuff = false;
 
   const atkSpeedA = calcEffectiveAttackSpeed(
     unitA,
@@ -6632,14 +6756,8 @@ function computeTeamAttack(attacker, target, time, config) {
       logNotes.push(`AoE×${totalTargetsA}`);
     if (unitA.effects.aoeFalloff && totalTargetsA > 1)
       logNotes.push(`AoE×${totalTargetsA}(falloff)`);
-    if (unitA.effects.atkSpeedDebuff) {
-      target.atkSpeedDebuffUntil = time + unitA.effects.atkSpeedDebuff.duration;
-      target.atkSpeedDebuffReduction = unitA.effects.atkSpeedDebuff.reduction;
-    }
-    if (unitA.effects.dmgDebuffOnHit) {
-      target.dmgDebuffUntil = time + unitA.effects.dmgDebuffOnHit.duration;
-      target.dmgDebuffReduction = unitA.effects.dmgDebuffOnHit.reduction;
-    }
+    appliesAtkSpeedDebuff = !!unitA.effects.atkSpeedDebuff;
+    appliesDamageDebuff = !!unitA.effects.dmgDebuffOnHit;
   }
 
   if (
@@ -6734,53 +6852,6 @@ function computeTeamAttack(attacker, target, time, config) {
       attacker.units;
     logNotes.push("%HP");
   }
-  if (canApplyBleed && unitA.effects.bleed && damageToB > 0) {
-    applyKipchakBleed(attacker, target, time, splitEnabled, splitTargets);
-  }
-
-  // Overkill waste
-  let waste = 0;
-  if (overkillEnabled) {
-    const rawDmg = damageToB;
-    if (damageToB > 0 && attacker.units > 0) {
-      const dmgPer = damageToB / attacker.units;
-      const hpPer = target.stats.hp;
-      const frontHpRaw = target.totalHp - (target.units - 1) * hpPer;
-      const frontHp = Math.min(hpPer, Math.max(EPSILON, frontHpRaw));
-      const targets =
-        splitEnabled && target.units > 1
-          ? Math.min(splitTargets, target.units, attacker.units)
-          : 1;
-      let eff = 0;
-      if (targets > 1) {
-        const perGroup = Math.floor(attacker.units / targets);
-        const extra = attacker.units % targets;
-        for (let g = 0; g < targets; g++) {
-          const groupSize = perGroup + (g < extra ? 1 : 0);
-          let tgtHp = g === 0 ? frontHp : hpPer;
-          for (let i = 0; i < groupSize; i++) {
-            if (tgtHp <= 0) break;
-            const dealt = Math.min(dmgPer, tgtHp);
-            eff += dealt;
-            tgtHp -= dealt;
-            if (tgtHp <= 0) tgtHp = hpPer;
-          }
-        }
-      } else {
-        let fHp = frontHp;
-        for (let i = 0; i < attacker.units; i++) {
-          if (fHp <= 0) break;
-          const dealt = Math.min(dmgPer, fHp);
-          eff += dealt;
-          fHp -= dealt;
-          if (fHp <= 0) fHp = hpPer;
-        }
-      }
-      damageToB = eff;
-    }
-    waste = rawDmg - damageToB;
-  }
-
   if (unitA.effects.armorPenetration && (firedPrimary || firedSecondary))
     logNotes.push("ArmorPen");
   if (unitA.effects.atkSpeedDebuff && firedPrimary) logNotes.push("Slow");
@@ -6827,7 +6898,7 @@ function computeTeamAttack(attacker, target, time, config) {
           target: target.groupId,
           weapon,
           dmg: damageToB.toFixed(1),
-          waste: waste.toFixed(1),
+          waste: "0.0",
           atkUnits: attacker.units,
           tgtUnits: target.units,
           killsA: 0,
@@ -6836,7 +6907,15 @@ function computeTeamAttack(attacker, target, time, config) {
         }
       : null;
 
-  return { damage: damageToB, log };
+  return {
+    damage: damageToB,
+    log,
+    appliesBleed: canApplyBleed && !!unitA.effects.bleed && damageToB > 0,
+    splitEnabled,
+    splitTargets,
+    appliesAtkSpeedDebuff,
+    appliesDamageDebuff,
+  };
 }
 
 function runMultiBattle() {
@@ -6931,7 +7010,6 @@ function runMultiBattle() {
       if (target.units <= 0) return;
       const bleedEntries = collectBleedTickEvents(target, time, EPSILON);
       bleedEntries.forEach((entry) => {
-        applyDamageToTeam(target, entry.damage);
         const sourceTeam = entry.sourceId ? teamById[entry.sourceId] : null;
         battleLog.push({
           time: time.toFixed(2),
@@ -6941,18 +7019,20 @@ function runMultiBattle() {
           target: target.groupId,
           weapon: "Bleed",
           dmg: entry.damage.toFixed(1),
-          waste: "0.0",
+          waste: (entry.waste || 0).toFixed(1),
           atkUnits: sourceTeam?.units || 0,
           tgtUnits: target.units,
-          killsA: 0,
-          killsB: 0,
+          killsA:
+            (entry.sourceSide || sourceTeam?.side) === "A" ? entry.kills || 0 : 0,
+          killsB:
+            (entry.sourceSide || sourceTeam?.side) === "B" ? entry.kills || 0 : 0,
+          unitsDied: entry.kills || 0,
           notes: "Bleed Tick",
         });
       });
     });
 
     const incoming = new Map();
-    const stepLogs = [];
 
     allTeams.forEach((attacker) => {
       if (attacker.units <= 0) return;
@@ -6978,30 +7058,84 @@ function runMultiBattle() {
 
       if (atkResult.log) {
         battleLog.push(atkResult.log);
-        stepLogs.push(atkResult.log);
       }
       if (atkResult.damage > 0) {
         if (!incoming.has(targetId))
-          incoming.set(targetId, { total: 0, details: [] });
+          incoming.set(targetId, { details: [] });
         const entry = incoming.get(targetId);
-        entry.total += atkResult.damage;
-        entry.details.push({ attacker, damage: atkResult.damage });
-      }
-
-      const healA = attacker.unitData.effects.healPerAttack;
-      if (healA && atkResult.damage > 0) {
-        const maxHp = attacker.stats.hp * attacker.units;
-        attacker.totalHp = Math.min(
-          maxHp,
-          attacker.totalHp + healA.value * attacker.units,
-        );
+        entry.details.push({
+          attacker,
+          attackerUnits: attacker.units,
+          damage: atkResult.damage,
+          log: atkResult.log,
+          splitEnabled: atkResult.splitEnabled,
+          splitTargets: atkResult.splitTargets,
+          appliesBleed: atkResult.appliesBleed,
+          appliesAtkSpeedDebuff: atkResult.appliesAtkSpeedDebuff,
+          appliesDamageDebuff: atkResult.appliesDamageDebuff,
+        });
       }
     });
 
     incoming.forEach((entry, targetId) => {
       const target = teamById[targetId];
       if (!target || target.units <= 0) return;
-      target.totalHp -= entry.total;
+      entry.details.forEach((detail) => {
+        if (!target || target.units <= 0) return;
+        const result = applyBundledDamageToTeam(
+          target,
+          detail.damage,
+          detail.attackerUnits,
+          detail.splitEnabled,
+          detail.splitTargets,
+          overkillEnabled,
+        );
+        if (detail.log) {
+          detail.log.dmg = result.dealt.toFixed(1);
+          detail.log.waste = result.waste.toFixed(1);
+          detail.log.tgtUnits = target.units;
+          if (detail.attacker.side === "A") {
+            detail.log.killsA = result.kills;
+            detail.log.killsB = 0;
+          } else {
+            detail.log.killsA = 0;
+            detail.log.killsB = result.kills;
+          }
+          detail.log.unitsDied = result.kills;
+        }
+        if (result.kills > 0) {
+          applyBattleGlory(detail.attacker, result.kills);
+        }
+        if (detail.appliesBleed && result.dealt > 0) {
+          applyKipchakBleed(
+            detail.attacker,
+            target,
+            time,
+            detail.splitEnabled,
+            detail.splitTargets,
+            detail.attackerUnits,
+          );
+        }
+        if (detail.appliesAtkSpeedDebuff && result.dealt > 0) {
+          target.atkSpeedDebuffUntil =
+            time + detail.attacker.unitData.effects.atkSpeedDebuff.duration;
+          target.atkSpeedDebuffReduction =
+            detail.attacker.unitData.effects.atkSpeedDebuff.reduction;
+        }
+        if (detail.appliesDamageDebuff && result.dealt > 0) {
+          target.dmgDebuffUntil =
+            time + detail.attacker.unitData.effects.dmgDebuffOnHit.duration;
+          target.dmgDebuffReduction =
+            detail.attacker.unitData.effects.dmgDebuffOnHit.reduction;
+        }
+        const healA = detail.attacker.unitData.effects.healPerAttack;
+        if (healA && result.dealt > 0) {
+          healTrackedTeam(
+            detail.attacker,
+            healA.value * detail.attacker.units,
+          );
+        }
+      });
     });
 
     allTeams.forEach((t) => {
@@ -7009,81 +7143,17 @@ function runMultiBattle() {
       if (t.unitData.effects.healAura) {
         const dt = time - (t.lastHealAuraTime || 0);
         if (dt > 0) {
-          const maxHp = t.stats.hp * t.units;
-          t.totalHp = Math.min(
-            maxHp,
-            t.totalHp + t.unitData.effects.healAura.hps * t.units * dt,
-          );
+          healTrackedTeam(t, t.unitData.effects.healAura.hps * t.units * dt);
         }
       }
       t.lastHealAuraTime = time;
     });
 
-    const prevUnits = new Map(allTeams.map((t) => [t.groupId, t.units]));
-    allTeams.forEach((t) => {
-      if (t.units <= 0) return;
-      const unitsLost = Math.floor(
-        (t.stats.hp * t.units - t.totalHp) / t.stats.hp,
-      );
-      if (unitsLost > 0) {
-        t.units = Math.max(0, t.units - unitsLost);
-      }
-    });
-
-    const killsByAttacker = new Map();
-    incoming.forEach((entry, targetId) => {
-      const target = teamById[targetId];
-      if (!target) return;
-      const lost = (prevUnits.get(targetId) || 0) - target.units;
-      if (lost <= 0) return;
-      const totalDmg = entry.details.reduce((s, d) => s + d.damage, 0);
-      if (totalDmg <= 0) return;
-      const allocations = entry.details.map((d) => {
-        const share = d.damage / totalDmg;
-        return {
-          attacker: d.attacker,
-          base: Math.floor(lost * share),
-          frac: (lost * share) % 1,
-        };
-      });
-      let allocated = allocations.reduce((s, a) => s + a.base, 0);
-      allocations.sort((a, b) => b.frac - a.frac);
-      for (let i = 0; i < lost - allocated; i++) {
-        allocations[i % allocations.length].base += 1;
-      }
-      allocations.forEach((a) => {
-        if (a.base > 0) applyBattleGlory(a.attacker, a.base);
-        if (a.base > 0) {
-          killsByAttacker.set(
-            a.attacker.groupId,
-            (killsByAttacker.get(a.attacker.groupId) || 0) + a.base,
-          );
-        }
-      });
-    });
-
-    stepLogs.forEach((log) => {
-      const kills = killsByAttacker.get(log.attackerId) || 0;
-      if (log.attackerSide === "A") {
-        log.killsA = kills;
-        log.killsB = 0;
-      } else if (log.attackerSide === "B") {
-        log.killsA = 0;
-        log.killsB = kills;
-      }
-      log.unitsDied = kills;
-    });
-
     allTeams.forEach((t) => {
       if (t.unitData.effects.brotherhoodHP && t.units > 0) {
-        const oldHpPer = t.stats.hp;
         const newHpPer =
           t.baseHp + t.unitData.effects.brotherhoodHP.hpPerUnit * (t.units - 1);
-        if (newHpPer !== oldHpPer) {
-          t.totalHp -= (oldHpPer - newHpPer) * t.units;
-          t.totalHp = Math.max(t.units, t.totalHp);
-          t.stats.hp = newHpPer;
-        }
+        setTrackedTeamHpPerUnit(t, newHpPer);
       }
     });
 

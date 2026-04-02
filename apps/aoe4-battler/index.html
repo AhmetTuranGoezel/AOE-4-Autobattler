@@ -763,11 +763,48 @@
                   <button class="btn btn-outline-secondary btn-sm bo-overlay-toggle" id="boOverlayToggle" type="button" aria-pressed="true" title="Hide the resources lane">
                     <i class="bi bi-bar-chart-line-fill" aria-hidden="true"></i><span>Resources lane: On</span>
                   </button>
+                  <button class="btn btn-outline-secondary btn-sm bo-footer-toggle" id="boCoverageToggle" type="button" data-bs-toggle="collapse" data-bs-target="#boCoverageCollapse" aria-expanded="false">
+                    Coverage Checklist
+                  </button>
+                  <button class="btn btn-outline-secondary btn-sm bo-footer-toggle" id="boCompareToggle" type="button" data-bs-toggle="collapse" data-bs-target="#boCompareCollapse" aria-expanded="false">
+                    Compare Builds
+                  </button>
                 </div>
               </div>
 
               <div class="bo-gather-rates" id="boGatherRates"></div>
               <div id="boSummary" class="bo-summary mb-3"></div>
+              <div class="collapse mb-3" id="boCoverageCollapse">
+                <div class="stat-box bo-coverage-panel">
+                  <div class="bo-section-header">
+                    <div>
+                      <h6 class="fw-bold mb-1">Coverage Checklist</h6>
+                      <div class="text-muted bo-section-subtitle" id="boCoverageSubtitle">Select a modeled civilization to review its current Build Order coverage.</div>
+                    </div>
+                    <div id="boCoverageStatus"></div>
+                  </div>
+                  <div id="boCoverageChecklist" class="bo-coverage-list">
+                    <span class="text-muted">No civilization selected.</span>
+                  </div>
+                </div>
+              </div>
+              <div class="collapse mb-3" id="boCompareCollapse">
+                <div class="stat-box bo-compare-panel">
+                  <div class="bo-section-header">
+                    <div>
+                      <h6 class="fw-bold mb-1">Compare Builds</h6>
+                      <div class="text-muted bo-section-subtitle">Named saves are re-simulated live at one shared compare duration so different builds stay directly comparable.</div>
+                    </div>
+                    <div class="bo-compare-controls">
+                      <label class="form-label fw-bold mb-1" for="boCompareDuration">Compare Duration (s)</label>
+                      <input id="boCompareDuration" type="number" class="form-control form-control-sm" value="420" min="0" step="5">
+                    </div>
+                  </div>
+                  <div id="boCompareBuilds" class="bo-compare-wrap">
+                    <span class="text-muted">No named saves yet.</span>
+                  </div>
+                </div>
+              </div>
 
               <div class="bo-editor-panel" id="boCommandEditor">
                 <span class="text-muted">Select a command in the timeline to edit.</span>
@@ -920,6 +957,7 @@
               </div>
 
               <div id="boCivBonuses" class="bo-civ-bonuses mb-2"></div>
+              <div id="boLocalEffects" class="stat-box mb-3 bo-local-effects" style="display:none;"></div>
 
               <div class="stat-box mb-3 bo-ottoman-panel" id="boOttomanPanel" style="display:none;">
                 <div class="bo-vizier-summary-panel">
