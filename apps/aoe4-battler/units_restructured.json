@@ -1300,12 +1300,18 @@
       {
         "name": "Improved Biology",
         "description": "+30%",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Mongols"
+        ]
       },
       {
         "name": "Boyar's Fortitude",
         "description": "+25, granted free",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Rus"
+        ]
       }
     ]
   },
@@ -1562,7 +1568,8 @@
         "description": "+15%, grants Camel Handling",
         "category": "moveSpeed",
         "civs": [
-          "Ayyubids"
+          "Byzantines",
+          "Macedonian Dynasty"
         ]
       },
       {
@@ -1822,7 +1829,7 @@
         "name": "Advanced Academy",
         "description": "+25% at Military School",
         "category": "creationSpeed",
-          "civs": [
+        "civs": [
           "Ottomans"
         ]
       },
@@ -2428,17 +2435,26 @@
       {
         "name": "Improved Biology",
         "description": "+30%",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Mongols"
+        ]
       },
       {
         "name": "Boyar's Fortitude",
         "description": "+25, granted free",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Rus"
+        ]
       },
       {
         "name": "Knight Poleaxes",
         "description": "+4, granted free",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Rus"
+        ]
       },
       {
         "name": "Kurultai Aura",
@@ -2659,7 +2675,8 @@
         "description": "+35%, grants Royal Bloodlines, does not stack with Biology",
         "category": "hitpoints",
         "civs": [
-          "Ayyubids"
+          "Byzantines",
+          "Macedonian Dynasty"
         ]
       },
       {
@@ -2683,7 +2700,8 @@
         "description": "+1 HP/second, grants Chivalry",
         "category": "hitpoints",
         "civs": [
-          "Ayyubids"
+          "Byzantines",
+          "Macedonian Dynasty"
         ]
       },
       {
@@ -2707,7 +2725,8 @@
         "description": "+7 bonus after charge, grants Cantled Saddles",
         "category": "attack",
         "civs": [
-          "Ayyubids"
+          "Byzantines",
+          "Macedonian Dynasty"
         ]
       },
       {
@@ -2945,7 +2964,8 @@
         "description": "+25%, grants Armored Beasts",
         "category": "hitpoints",
         "civs": [
-          "Ayyubids"
+          "Byzantines",
+          "Macedonian Dynasty"
         ]
       },
       {
@@ -2977,7 +2997,8 @@
         "description": "+4 ranged, grants Armored Beasts",
         "category": "armor",
         "civs": [
-          "Ayyubids"
+          "Byzantines",
+          "Macedonian Dynasty"
         ]
       },
       {
@@ -3219,11 +3240,19 @@
         ]
       },
       {
-        "name": "Sarai / Steppe Lancers",
+        "name": "Steppe Lancers",
         "description": "+1 HP per attack); Improved: (+2 HP per attack, Mongols",
         "category": "hitpoints",
         "civs": [
           "Mongols"
+        ]
+      },
+      {
+        "name": "Sarai Lancers",
+        "description": "+1 HP per attack",
+        "category": "hitpoints",
+        "civs": [
+          "Golden Horde"
         ]
       },
       {
@@ -3289,11 +3318,19 @@
         ]
       },
       {
-        "name": "Sarai / Steppe Lancers",
+        "name": "Steppe Lancers",
         "description": "+10%); Improved (+15%, Mongols",
         "category": "attackSpeed",
         "civs": [
           "Mongols"
+        ]
+      },
+      {
+        "name": "Sarai Lancers",
+        "description": "+10%",
+        "category": "attackSpeed",
+        "civs": [
+          "Golden Horde"
         ]
       },
       {
@@ -3424,7 +3461,8 @@
         "description": "+10%, grants Improved Biology extra health",
         "category": "hitpoints",
         "civs": [
-          "Ayyubids"
+          "Byzantines",
+          "Macedonian Dynasty"
         ]
       },
       {
@@ -3446,7 +3484,11 @@
       {
         "name": "Foreign Engineering Company:",
         "description": "+2 hp per attack, grants Improved Steppe Lancers",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Byzantines",
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Triumph",
@@ -4339,7 +4381,10 @@
       {
         "name": "Network of Castles",
         "description": "+20%, or +30% with Network of Citadels",
-        "category": "attackSpeed"
+        "category": "attackSpeed",
+        "civs": [
+          "English"
+        ]
       },
       {
         "name": "Arrow Volley",
@@ -4507,7 +4552,10 @@
       {
         "name": "Network of Castles",
         "description": "+20%, or +30% with Network of Citadels",
-        "category": "attackSpeed"
+        "category": "attackSpeed",
+        "civs": [
+          "English"
+        ]
       },
       {
         "name": "Arrow Volley",
@@ -4541,7 +4589,9 @@
       "deflectiveArmor": {
         "name": "Deflective Armor",
         "description": "Blocks the first incoming attack",
-        "civs": ["Sengoku Daimyo"]
+        "civs": [
+          "Sengoku Daimyo"
+        ]
       }
     },
     "weapons": {
@@ -4996,7 +5046,11 @@
       {
         "name": "Oda Tactics",
         "description": "+15% melee and torch damage",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Bloomery",
@@ -7176,7 +7230,8 @@
         "description": "+15%, grants Boot Camp",
         "category": "hitpoints",
         "civs": [
-          "Ayyubids"
+          "Byzantines",
+          "Macedonian Dynasty"
         ]
       },
       {
@@ -7418,12 +7473,18 @@
       {
         "name": "Improved Elite Army Tactics",
         "description": "+20%",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Mongols"
+        ]
       },
       {
         "name": "Improved Elite Army Tactics",
         "description": "+20%",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Mongols"
+        ]
       },
       {
         "name": "Additional Torches",
@@ -7433,7 +7494,10 @@
       {
         "name": "Improved Siege Engineering",
         "description": "can construct Springalds, Mangonels, and Traction Trebuchets",
-        "category": "ability"
+        "category": "ability",
+        "civs": [
+          "Mongols"
+        ]
       },
       {
         "name": "Khaganate Palace",
@@ -7857,7 +7921,11 @@
       {
         "name": "Oda Tactics",
         "description": "+15%",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Tatara",
@@ -7898,7 +7966,11 @@
       {
         "name": "Oda Tactics",
         "description": "+15% melee and torch",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Odachi",
@@ -9193,7 +9265,7 @@
       {
         "name": "Keep influence",
         "description": "-20%, or -25% with Enlistment Incentives, French",
-        "category": "attackSpeed",
+        "category": "nonCombat",
         "civs": [
           "French"
         ]
@@ -9219,7 +9291,8 @@
         "description": "+5 melee, grants Gambesons",
         "category": "armor",
         "civs": [
-          "Ayyubids"
+          "Byzantines",
+          "Macedonian Dynasty"
         ]
       },
       {
@@ -9235,7 +9308,8 @@
         "description": "+25%, grants Crossbow Stirrups",
         "category": "attackSpeed",
         "civs": [
-          "Ayyubids"
+          "Byzantines",
+          "Macedonian Dynasty"
         ]
       },
       {
@@ -9574,7 +9648,11 @@
       {
         "name": "Foreign Engineering Company :",
         "description": "+10%, grants extra Improved Biology health",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Byzantines",
+          "Macedonian Dynasty"
+        ]
       },
       {
         "name": "Triumph",
@@ -9605,7 +9683,8 @@
         "description": "+2, grants Improved Siha Bow Limbs",
         "category": "attack",
         "civs": [
-          "Ayyubids"
+          "Byzantines",
+          "Macedonian Dynasty"
         ]
       },
       {
@@ -9741,10 +9820,10 @@
         "category": "armor"
       },
       {
-         "name": "Advanced Academy",
+        "name": "Advanced Academy",
         "description": "+25% at Military School",
         "category": "creationSpeed",
-          "civs": [
+        "civs": [
           "Ottomans"
         ]
       },
@@ -9775,7 +9854,6 @@
       }
     ],
     "auras": []
-    
   },
   "Tower Elephant": {
     "civs": [
@@ -10363,7 +10441,8 @@
         "description": "+15%, grants Camel Handling",
         "category": "moveSpeed",
         "civs": [
-          "Ayyubids"
+          "Byzantines",
+          "Macedonian Dynasty"
         ]
       },
       {
@@ -10379,7 +10458,8 @@
         "description": "Grants Camel Support ability",
         "category": "ability",
         "civs": [
-          "Ayyubids"
+          "Byzantines",
+          "Macedonian Dynasty"
         ]
       }
     ]
@@ -10530,7 +10610,8 @@
         "description": "+25, grants Boyar's Fortitude",
         "category": "hitpoints",
         "civs": [
-          "Ayyubids"
+          "Byzantines",
+          "Macedonian Dynasty"
         ]
       },
       {
@@ -10562,7 +10643,8 @@
         "description": "+1, grants Mounted Training",
         "category": "range",
         "civs": [
-          "Ayyubids"
+          "Byzantines",
+          "Macedonian Dynasty"
         ]
       },
       {
@@ -10604,13 +10686,17 @@
         "description": "Grants Gallop ability",
         "category": "ability",
         "civs": [
-          "Ayyubids"
+          "Byzantines",
+          "Macedonian Dynasty"
         ]
       },
       {
         "name": "Biology Improved:",
         "description": "+30%",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Mongols"
+        ]
       },
       {
         "name": "Khaganate Palace",
@@ -12145,7 +12231,7 @@
       {
         "name": "Stone Armies",
         "description": "-20% stone",
-        "category": "attackSpeed"
+        "category": "nonCombat"
       },
       {
         "name": "Stone Armies",
@@ -12913,7 +12999,9 @@
       "deflectiveArmor": {
         "name": "Deflective Armor",
         "description": "Blocks the first incoming attack",
-        "civs": ["Sengoku Daimyo"]
+        "civs": [
+          "Sengoku Daimyo"
+        ]
       }
     },
     "weapons": {
@@ -12950,7 +13038,11 @@
       {
         "name": "Oda Tactics",
         "description": "+15%",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Tatara",
@@ -12991,7 +13083,11 @@
       {
         "name": "Oda Tactics",
         "description": "+15% melee and torch",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Fitted Leatherwork",
@@ -13093,7 +13189,9 @@
       "deflectiveArmor": {
         "name": "Deflective Armor",
         "description": "Blocks the first incoming attack",
-        "civs": ["Sengoku Daimyo"]
+        "civs": [
+          "Sengoku Daimyo"
+        ]
       }
     },
     "weapons": {
@@ -13130,7 +13228,11 @@
       {
         "name": "Oda Tactics",
         "description": "+15%",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Tatara",
@@ -13171,7 +13273,11 @@
       {
         "name": "Oda Tactics",
         "description": "+15% melee and torch",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Samurai Bow",
@@ -13277,7 +13383,9 @@
       "deflectiveArmor": {
         "name": "Deflective Armor",
         "description": "Blocks the first incoming attack",
-        "civs": ["Sengoku Daimyo"]
+        "civs": [
+          "Sengoku Daimyo"
+        ]
       }
     },
     "weapons": {
@@ -13421,7 +13529,9 @@
       "deflectiveArmor": {
         "name": "Deflective Armor",
         "description": "Blocks the first incoming attack",
-        "civs": ["Sengoku Daimyo"]
+        "civs": [
+          "Sengoku Daimyo"
+        ]
       }
     },
     "weapons": {
@@ -13761,7 +13871,8 @@
         "description": "+5 melee, +3 ranged, grants Camel Rider Shields and Camel Rider Barding",
         "category": "armor",
         "civs": [
-          "Ayyubids"
+          "Byzantines",
+          "Macedonian Dynasty"
         ]
       },
       {
@@ -13785,7 +13896,8 @@
         "description": "+15%, grants Camel Handling",
         "category": "moveSpeed",
         "civs": [
-          "Ayyubids"
+          "Byzantines",
+          "Macedonian Dynasty"
         ]
       },
       {
@@ -13809,7 +13921,8 @@
         "description": "Grants Camel Support ability",
         "category": "ability",
         "civs": [
-          "Ayyubids"
+          "Byzantines",
+          "Macedonian Dynasty"
         ]
       }
     ]
@@ -14151,7 +14264,11 @@
       {
         "name": "Oda Tactics",
         "description": "+15%",
-        "category": "hitpoints"
+        "category": "hitpoints",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Tatara",
@@ -14192,7 +14309,11 @@
       {
         "name": "Oda Tactics",
         "description": "+15% melee and torch",
-        "category": "attack"
+        "category": "attack",
+        "civs": [
+          "Japanese",
+          "Sengoku Daimyo"
+        ]
       },
       {
         "name": "Fitted Leatherwork",
@@ -15443,7 +15564,8 @@
         "description": "+3, grants Precision Training",
         "category": "attack",
         "civs": [
-          "Ayyubids"
+          "Byzantines",
+          "Macedonian Dynasty"
         ]
       },
       {
@@ -15696,7 +15818,8 @@
         "description": "Heal 5 HP per attack for 5 seconds when leaving stealth, grants Local Knowledge",
         "category": "ability",
         "civs": [
-          "Ayyubids"
+          "Byzantines",
+          "Macedonian Dynasty"
         ]
       }
     ],
@@ -17649,7 +17772,8 @@
         "description": "+10%",
         "category": "moveSpeed",
         "civs": [
-          "Ayyubids"
+          "Byzantines",
+          "Macedonian Dynasty"
         ]
       },
       {
@@ -18042,7 +18166,10 @@
       {
         "name": "Network of Castles",
         "description": "+20%, or +30% with Network of Citadels",
-        "category": "attackSpeed"
+        "category": "attackSpeed",
+        "civs": [
+          "English"
+        ]
       },
       {
         "name": "Arrow Volley",
@@ -18181,7 +18308,10 @@
       {
         "name": "Network of Castles",
         "description": "+20%, or +30% with Network of Citadels",
-        "category": "attackSpeed"
+        "category": "attackSpeed",
+        "civs": [
+          "English"
+        ]
       },
       {
         "name": "Set up Camp",
