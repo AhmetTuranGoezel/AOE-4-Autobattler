@@ -504,8 +504,8 @@ small.text-muted,
   background: rgba(212, 164, 74, 0.15);
 }
 .tech-btn.non-combat {
-  opacity: 0.2;
-  pointer-events: none;
+  opacity: 0.35;
+  cursor: default;
   filter: grayscale(100%);
 }
 .tech-btn img {
