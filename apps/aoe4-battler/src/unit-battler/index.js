@@ -1062,9 +1062,9 @@ const TECH_EFFECTS = {
   "Serpentine Powder|attack": { attackAbs: 5 },
   "Bodkin Bolts|attack": { attackAbs: 20 },
   "Bolt Magazines|attack": { attackAbs: 1 },
-  "Additional Torches|attack": { attackAbs: 3 },
-  "Additional Torches Improved:|attack": { attackAbs: 5 },
-  "(Improved) Additional Torches|attack": { attackAbs: 5 },
+  "Additional Torches|attack": { torchAbs: 3 },
+  "Additional Torches Improved:|attack": { torchAbs: 5 },
+  "(Improved) Additional Torches|attack": { torchAbs: 5 },
 
   // Pattern Welding / Blade Inlaying / Sharpening Stones (tiered, Macedonian Dynasty)
   "Blade Inlaying|attack": {
@@ -1103,7 +1103,7 @@ const TECH_EFFECTS = {
   "Khanda Drills|attack": { attackPct: 100 },
 
   // Charge-related attack buffs (mapped to attackAbs as bonus)
-  "Cantled Saddles|attack": { attackAbs: 7 },
+  // Cantled Saddles is a charge-duration buff, not permanent flat attack — not modeled here
   "Odachi|attack": { attackAbs: 4 },
   "Improved Yari|attack": { attackAbs: 2 },
   "Mounted Samurai Odachi|attack": { attackAbs: 4 },
@@ -1213,14 +1213,14 @@ const TECH_EFFECTS = {
   "Static Deployment|attackSpeed": { speedPct: 30 },
   "Tower of Victory|attackSpeed": { speedPct: 20 },
   "Zeal|attackSpeed": { speedPct: 50 },
-  "Sarai / Steppe Lancers|attackSpeed": {
+  "Steppe Lancers|attackSpeed": {
     speedPct: [10, 15],
     labels: ["Standard (+10%)", "Improved (+15%)"],
   },
   "Sarai Lancers|attackSpeed": { speedPct: 10 },
   "3 units|attackSpeed": {},
   "Khan and Torguuds|attackSpeed": { speedPct: -20 },
-  "Stone Armies|attackSpeed": { speedPct: -20 },
+  // Stone Armies is a cost/training unlock, not attack speed — not modeled here
   "Stronger Together|attackSpeed": { speedPct: 5 },
 
   // === RANGE ===
@@ -1341,7 +1341,7 @@ const TECH_IMAGE_MAP = {
   "Mehter Ranged Armor Drums": "assets/images/technologies/mehter-drums-1.png",
   "Tower of Victory": "assets/images/abilities/ability-tower-of-victory-aura-1.png",
   "Sarai Lancers": "assets/images/technologies/sarai-lancers-3.png",
-  "Sarai / Steppe Lancers": "assets/images/technologies/steppe-lancers-3.png",
+  "Steppe Lancers": "assets/images/technologies/steppe-lancers-3.png",
   "Stone Armies": "assets/images/technologies/stone-armies-3.png",
   "Stronger Together": "assets/images/technologies/inspired-warriors-3.png",
   "Khan and Torguuds": "assets/images/technologies/khan-and-torguuds-1.png",
@@ -1480,12 +1480,14 @@ function renderTechButtons(side, unitName, unit) {
       const effects = TECH_EFFECTS[key];
       const isCombat = isCombatCategory(item.category);
       const isActive = activeTechs[side].has(key);
+      const isUnmodeled = isCombat && !effects;
       const hasLevels = effects && Object.values(effects).some((v) => Array.isArray(v) && !["labels"].includes(v));
       const labels = effects?.labels;
       const imgSrc = getTechImage(item.name);
       const activeClass = isActive ? " active" : "";
-      const nonCombatClass = !isCombat ? " non-combat" : "";
-      const tooltip = `${item.name}: ${item.description || ""}`.replace(/"/g, "&quot;");
+      const nonCombatClass = (!isCombat || isUnmodeled) ? " non-combat" : "";
+      const tooltipSuffix = isUnmodeled ? " (not modeled)" : "";
+      const tooltip = `${item.name}: ${item.description || ""}${tooltipSuffix}`.replace(/"/g, "&quot;");
 
       if (hasLevels && labels && isCombat) {
         const currentLevel = activeTechs[side].get(key)?.level || 0;
@@ -1548,6 +1550,8 @@ function toggleTech(side, techKey, btnEl) {
   syncTechBuffsToInputs(side);
 }
 
+const prevTechMins = { A: {}, B: {} };
+
 function syncTechBuffsToInputs(side) {
   const totals = {
     attackAbs: 0,
@@ -1557,6 +1561,7 @@ function syncTechBuffsToInputs(side) {
     attackPct: 0,
     hpPct: 0,
     speedPct: 0,
+    torchAbs: 0,
   };
 
   for (const [key, state] of activeTechs[side]) {
@@ -1578,17 +1583,22 @@ function syncTechBuffsToInputs(side) {
     attackPct: `${side}_buffAttackPct`,
     hpPct: `${side}_buffHPpct`,
     speedPct: `${side}_buffSpeedPct`,
+    torchAbs: `${side}_torchDamage`,
   };
 
   for (const [prop, fieldId] of Object.entries(fieldMap)) {
     const input = document.getElementById(fieldId);
     if (!input) continue;
     const techMin = totals[prop];
-    input.min = techMin;
+    const prevMin = prevTechMins[side][prop] || 0;
     const current = parseFloat(input.value) || 0;
-    if (current < techMin) {
+    if (techMin < prevMin) {
+      input.value = Math.max(techMin, current - (prevMin - techMin));
+    } else if (current < techMin) {
       input.value = techMin;
     }
+    prevTechMins[side][prop] = techMin;
+    input.min = techMin;
     // Visual indicator when tech-driven
     if (techMin > 0) {
       input.style.borderColor = "rgba(212, 164, 74, 0.4)";
@@ -2147,8 +2157,9 @@ function onCivChange(side) {
     if (!available.includes(currentUnit)) {
       unitWrapper.dataset.value = available[0] || "Horseman";
       updateSelectHeader(unitWrapper);
-      updateUnitStats(side);
     }
+    // Always refresh stats and tech buttons for the new civ
+    updateUnitStats(side);
   }
 
   // Re-render unit dropdown if open
