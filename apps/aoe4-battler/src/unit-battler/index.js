@@ -925,7 +925,7 @@ const GLOBAL_UPGRADE_TECHS = [
     category: "hitpoints",
     appliesToUnit(unit) {
       const tags = unit.tags || [];
-      return tags.includes("Infantry");
+      return tags.includes("Infantry") && !tags.includes("Ranged");
     },
   },
   {
@@ -935,7 +935,7 @@ const GLOBAL_UPGRADE_TECHS = [
     category: "attack",
     appliesToUnit(unit) {
       const tags = unit.tags || [];
-      return tags.includes("Infantry");
+      return tags.includes("Infantry") && !tags.includes("Ranged");
     },
   },
   {
@@ -946,7 +946,7 @@ const GLOBAL_UPGRADE_TECHS = [
     civs: ["Mongols"],
     appliesToUnit(unit) {
       const tags = unit.tags || [];
-      return tags.includes("Infantry");
+      return tags.includes("Infantry") && !tags.includes("Ranged");
     },
   },
   {
@@ -957,7 +957,7 @@ const GLOBAL_UPGRADE_TECHS = [
     civs: ["Mongols"],
     appliesToUnit(unit) {
       const tags = unit.tags || [];
-      return tags.includes("Infantry");
+      return tags.includes("Infantry") && !tags.includes("Ranged");
     },
   },
   {
@@ -1086,10 +1086,8 @@ const TECH_EFFECTS = {
     attackPct: [10, 30],
     labels: ["Below 50% HP (+10%)", "Below 25% HP (+30%)"],
   },
-  "Elite Army Tactics|attack": {
-    attackPct: [15, 20],
-    labels: ["Standard (+15%)", "Improved (+20%)"],
-  },
+  "Elite Army Tactics|attack": { attackPct: 15 },
+  "Improved Elite Army Tactics|attack": { attackPct: 5 },
   "Inspiration Bonus|attack": { attackPct: 15 },
   "Khan Warcry|attack": {
     attackPct: [10, 20, 30],
@@ -1175,10 +1173,8 @@ const TECH_EFFECTS = {
   "Armored Beasts|hitpoints": { hpPct: 20 },
   "Howdahs|hitpoints": { hpPct: 25 },
   "Oda Tactics|hitpoints": { hpPct: 15 },
-  "Elite Army Tactics|hitpoints": {
-    hpPct: [15, 20],
-    labels: ["Standard (+15%)", "Improved (+20%)"],
-  },
+  "Elite Army Tactics|hitpoints": { hpPct: 15 },
+  "Improved Elite Army Tactics|hitpoints": { hpPct: 5 },
   "Battlefield Salvage|hitpoints": { hpAbs: 25 },
   "Padded Armor|hitpoints": { hpAbs: 20 },
   "Khan and Torguuds|hitpoints": { hpAbs: 30 },
