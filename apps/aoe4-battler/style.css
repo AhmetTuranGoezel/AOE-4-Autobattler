@@ -447,6 +447,90 @@ small.text-muted,
   box-shadow: 0 0 8px rgba(212, 164, 74, 0.15), inset 0 0 12px rgba(212, 164, 74, 0.04);
 }
 
+/* --- TECHNOLOGIES & AURAS BOX --- */
+.tech-box {
+  background: rgba(166, 124, 54, 0.06);
+  border: 1px solid rgba(166, 124, 54, 0.15);
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 10px;
+  color: #e0d6c2;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+.tech-box h6 { color: #e0d6c2; }
+.tech-box.section-active {
+  border-color: rgba(212, 164, 74, 0.4);
+  box-shadow: 0 0 8px rgba(212, 164, 74, 0.15), inset 0 0 12px rgba(212, 164, 74, 0.05);
+}
+.tech-group-label {
+  font-size: 0.72rem;
+  color: #8a8270;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 8px;
+  margin-bottom: 4px;
+}
+.tech-group-label:first-child { margin-top: 0; }
+.tech-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+.tech-btn {
+  width: 40px;
+  height: 40px;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 2px;
+  cursor: pointer;
+  opacity: 0.45;
+  transition: all 0.2s;
+  background: rgba(0, 0, 0, 0.2);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.tech-btn:hover {
+  opacity: 0.8;
+  border-color: rgba(212, 164, 74, 0.5);
+  background: rgba(212, 164, 74, 0.1);
+}
+.tech-btn.active {
+  opacity: 1;
+  border-color: #d4a44a;
+  box-shadow: 0 0 8px rgba(212, 164, 74, 0.4);
+  background: rgba(212, 164, 74, 0.15);
+}
+.tech-btn.non-combat {
+  opacity: 0.2;
+  pointer-events: none;
+  filter: grayscale(100%);
+}
+.tech-btn img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 3px;
+}
+.tech-level-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: 4px;
+}
+.tech-level-select {
+  font-size: 0.65rem;
+  width: 55px;
+  height: 24px;
+  padding: 0 2px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  color: #e0d6c2;
+}
+
 /* --- WEAPON MODE BUTTON GROUP --- */
 .weapon-mode-group .btn-outline-primary {
   color: #8a8270;
