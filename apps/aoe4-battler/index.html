@@ -166,32 +166,47 @@
               </div>
             </div>
 
-            <!-- Split Damage Toggle -->
+            <!-- Split Damage Toggle (Collapsible, collapsed by default) -->
             <div class="stat-box">
-              <div class="form-check d-flex align-items-center gap-2">
-                <input class="form-check-input" type="checkbox" id="A_splitDamage">
-                <label class="form-check-label" for="A_splitDamage" style="font-size:0.85rem;">
-                  Split damage across
-                </label>
-                <input type="number" id="A_splitTargets" class="form-control form-control-sm"
-                       value="1" min="1" style="width:60px;font-size:0.8rem;display:inline-block;">
-                <span style="font-size:0.85rem;">targets</span>
+              <h6 class="fw-bold mb-0 section-toggle" data-bs-toggle="collapse" data-bs-target="#collapseA_splitDmg" aria-expanded="false">
+                <span>Split Damage</span>
+                <i class="bi bi-chevron-down toggle-arrow" style="transform: rotate(-90deg)"></i>
+              </h6>
+              <div class="collapse" id="collapseA_splitDmg">
+                <div class="pt-2">
+                  <div class="form-check d-flex align-items-center gap-2">
+                    <input class="form-check-input" type="checkbox" id="A_splitDamage">
+                    <label class="form-check-label" for="A_splitDamage" style="font-size:0.85rem;">
+                      Split damage across
+                    </label>
+                    <input type="number" id="A_splitTargets" class="form-control form-control-sm"
+                           value="1" min="1" style="width:60px;font-size:0.8rem;display:inline-block;">
+                    <span style="font-size:0.85rem;">targets</span>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <!-- Tags Section with Pill Checkboxes -->
+            <!-- Tags Section (Collapsible, collapsed by default) -->
             <div class="stat-box">
-              <h6 class="fw-bold mb-2">Tags</h6>
-              <div id="A_tagsContainer" class="tag-pill-group mb-2"></div>
+              <h6 class="fw-bold mb-0 section-toggle" data-bs-toggle="collapse" data-bs-target="#collapseA_tags" aria-expanded="false">
+                <span>Tags</span>
+                <i class="bi bi-chevron-down toggle-arrow" style="transform: rotate(-90deg)"></i>
+              </h6>
+              <div class="collapse" id="collapseA_tags">
+                <div class="pt-2">
+                  <div id="A_tagsContainer" class="tag-pill-group mb-2"></div>
+                </div>
+              </div>
             </div>
 
-            <!-- Bonus Damage Section (Collapsible, open by default) -->
+            <!-- Bonus Damage Section (Collapsible, collapsed by default) -->
             <div class="stat-box">
-              <h6 class="fw-bold mb-0 section-toggle" data-bs-toggle="collapse" data-bs-target="#collapseA_bonusDmg" aria-expanded="true">
+              <h6 class="fw-bold mb-0 section-toggle" data-bs-toggle="collapse" data-bs-target="#collapseA_bonusDmg" aria-expanded="false">
                 <span>Bonus Damage</span>
-                <i class="bi bi-chevron-down toggle-arrow"></i>
+                <i class="bi bi-chevron-down toggle-arrow" style="transform: rotate(-90deg)"></i>
               </h6>
-              <div class="collapse show" id="collapseA_bonusDmg">
+              <div class="collapse" id="collapseA_bonusDmg">
                 <div class="pt-2" id="A_bonusesContainer"></div>
               </div>
             </div>
@@ -402,13 +417,18 @@
               </div>
 
               <div class="stat-box">
-                <h6 class="fw-bold mb-2">Technologies</h6>
+                <h6 class="fw-bold mb-2">Building Technologies</h6>
                 <div class="building-tech-grid">
                   <button type="button" class="building-tech-btn" id="techCourtArchitects" title="+30% HP">Court Architects</button>
                   <button type="button" class="building-tech-btn" id="techArrowUpgrades" data-level="0" title="+1 arrow damage per level">Arrow Upgrades: 0</button>
                   <button type="button" class="building-tech-btn" id="techFortifyOutpost" title="+1000 HP, +5 Fire Armor" style="display:none;">Fortify Outpost</button>
                   <button type="button" class="building-tech-btn" id="techCastleTurret" title="+2 Arrow Damage (Rus)" style="display:none;">Castle Turret</button>
                 </div>
+              </div>
+
+              <div class="tech-box" id="A_buildingUnitTechBox" style="display:none;">
+                <h6 class="fw-bold mb-2">Unit Technologies (Siege/Torch)</h6>
+                <div id="A_buildingUnitTechContainer"></div>
               </div>
             </div>
 
@@ -514,32 +534,47 @@
               </div>
             </div>
 
-            <!-- Split Damage Toggle -->
+            <!-- Split Damage Toggle (Collapsible, collapsed by default) -->
             <div class="stat-box">
-              <div class="form-check d-flex align-items-center gap-2">
-                <input class="form-check-input" type="checkbox" id="B_splitDamage">
-                <label class="form-check-label" for="B_splitDamage" style="font-size:0.85rem;">
-                  Split damage across
-                </label>
-                <input type="number" id="B_splitTargets" class="form-control form-control-sm"
-                       value="1" min="1" style="width:60px;font-size:0.8rem;display:inline-block;">
-                <span style="font-size:0.85rem;">targets</span>
+              <h6 class="fw-bold mb-0 section-toggle" data-bs-toggle="collapse" data-bs-target="#collapseB_splitDmg" aria-expanded="false">
+                <span>Split Damage</span>
+                <i class="bi bi-chevron-down toggle-arrow" style="transform: rotate(-90deg)"></i>
+              </h6>
+              <div class="collapse" id="collapseB_splitDmg">
+                <div class="pt-2">
+                  <div class="form-check d-flex align-items-center gap-2">
+                    <input class="form-check-input" type="checkbox" id="B_splitDamage">
+                    <label class="form-check-label" for="B_splitDamage" style="font-size:0.85rem;">
+                      Split damage across
+                    </label>
+                    <input type="number" id="B_splitTargets" class="form-control form-control-sm"
+                           value="1" min="1" style="width:60px;font-size:0.8rem;display:inline-block;">
+                    <span style="font-size:0.85rem;">targets</span>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <!-- Tags Section with Pill Checkboxes -->
+            <!-- Tags Section (Collapsible, collapsed by default) -->
             <div class="stat-box">
-              <h6 class="fw-bold mb-2">Tags</h6>
-              <div id="B_tagsContainer" class="tag-pill-group mb-2"></div>
+              <h6 class="fw-bold mb-0 section-toggle" data-bs-toggle="collapse" data-bs-target="#collapseB_tags" aria-expanded="false">
+                <span>Tags</span>
+                <i class="bi bi-chevron-down toggle-arrow" style="transform: rotate(-90deg)"></i>
+              </h6>
+              <div class="collapse" id="collapseB_tags">
+                <div class="pt-2">
+                  <div id="B_tagsContainer" class="tag-pill-group mb-2"></div>
+                </div>
+              </div>
             </div>
 
-            <!-- Bonus Damage Section (Collapsible, open by default) -->
+            <!-- Bonus Damage Section (Collapsible, collapsed by default) -->
             <div class="stat-box">
-              <h6 class="fw-bold mb-0 section-toggle" data-bs-toggle="collapse" data-bs-target="#collapseB_bonusDmg" aria-expanded="true">
+              <h6 class="fw-bold mb-0 section-toggle" data-bs-toggle="collapse" data-bs-target="#collapseB_bonusDmg" aria-expanded="false">
                 <span>Bonus Damage</span>
-                <i class="bi bi-chevron-down toggle-arrow"></i>
+                <i class="bi bi-chevron-down toggle-arrow" style="transform: rotate(-90deg)"></i>
               </h6>
-              <div class="collapse show" id="collapseB_bonusDmg">
+              <div class="collapse" id="collapseB_bonusDmg">
                 <div class="pt-2" id="B_bonusesContainer"></div>
               </div>
             </div>
