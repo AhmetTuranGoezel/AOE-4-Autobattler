@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-03-20T08:06:18.200753+00:00",
+  "generatedAt": "2026-04-04T13:15:23.365838+00:00",
   "generatedFrom": "units_restructured.json",
   "civOrder": [
     "Common",
@@ -75,8 +75,7 @@
       ],
       "category": "Ranged Cavalry",
       "weaponModes": [
-        "primary",
-        "secondary"
+        "primary"
       ],
       "ages": [
         2,
@@ -151,7 +150,7 @@
         4
       ],
       "hasAuras": true,
-      "hasEffects": false
+      "hasEffects": true
     },
     "Atgeirma\u00f0r": {
       "name": "Atgeirma\u00f0r",
@@ -204,9 +203,7 @@
       ],
       "category": "Elephants",
       "weaponModes": [
-        "primary",
-        "secondary",
-        "both"
+        "primary"
       ],
       "ages": [
         3,
@@ -504,7 +501,8 @@
       ],
       "category": "Ranged Cavalry",
       "weaponModes": [
-        "primary"
+        "primary",
+        "secondary"
       ],
       "ages": [
         2,
@@ -927,6 +925,37 @@
         4
       ],
       "hasAuras": false,
+      "hasEffects": true
+    },
+    "Grenadier": {
+      "name": "Grenadier",
+      "civs": [
+        "Chinese",
+        "Zhu Xi's Legacy"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 100,
+        "wood": 60,
+        "gold": 60
+      },
+      "trainingTime": 30.0,
+      "population": 1,
+      "speed": 1.125,
+      "tags": [
+        "Infantry",
+        "Ranged",
+        "Gunpowder"
+      ],
+      "category": "Ranged Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        3,
+        4
+      ],
+      "hasAuras": true,
       "hasEffects": true
     },
     "Handcannoneer": {
@@ -1795,9 +1824,7 @@
       ],
       "category": "Elephants",
       "weaponModes": [
-        "primary",
-        "secondary",
-        "both"
+        "primary"
       ],
       "ages": [
         2,
@@ -2124,7 +2151,8 @@
       ],
       "category": "Elephants",
       "weaponModes": [
-        "primary"
+        "primary",
+        "secondary"
       ],
       "ages": [
         3,
@@ -2298,7 +2326,8 @@
       ],
       "category": "Elephants",
       "weaponModes": [
-        "primary"
+        "primary",
+        "secondary"
       ],
       "ages": [
         3,
@@ -2362,8 +2391,7 @@
       "category": "Elephants",
       "weaponModes": [
         "primary",
-        "secondary",
-        "both"
+        "secondary"
       ],
       "ages": [
         3,
@@ -2608,6 +2636,7 @@
       "Gilded Landsknecht",
       "Gilded MAA",
       "Gilded Spearman",
+      "Grenadier",
       "Handcannoneer",
       "Heavy Spearman",
       "Hobelar",
@@ -2773,6 +2802,7 @@
     "Chinese": [
       "Archer",
       "Fire Lancer",
+      "Grenadier",
       "Handcannoneer",
       "Horseman",
       "Knight/Lancer",
@@ -2870,6 +2900,7 @@
     ],
     "Zhu Xi's Legacy": [
       "Crossbow",
+      "Grenadier",
       "Horseman",
       "Imperial Guard",
       "Knight/Lancer",
