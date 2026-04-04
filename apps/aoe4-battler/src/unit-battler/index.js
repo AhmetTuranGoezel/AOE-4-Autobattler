@@ -1157,12 +1157,12 @@ const TECH_EFFECTS = {
   "Cranequins|attack": { attackAbs: 2 },
   "Throwing Dagger Drills|attack": { attackAbs: 2 },
   "Honed Blades|attack": { attackAbs: 3 },
-  "Heavy Maces|attack": { attackAbs: 6 },
+  "Heavy Maces|attack": { bonusVs: { "Heavy": 6 } },
   "Knight Poleaxes|attack": { attackAbs: 4 },
   "Janissary Guns|attack": { attackAbs: 4 },
-  "Collar of Esses|attack": { attackAbs: 5 },
-  "Rhomphaia|attack": { attackAbs: 3 },
-  "Serpentine Powder|attack": { attackAbs: 5 },
+  "Collar of Esses|attack": { bonusVs: { "Heavy": 5 } },
+  "Rhomphaia|attack": { bonusVs: { "Light Infantry": 3 } },
+  "Serpentine Powder|attack": { bonusVs: { "Melee Infantry": 5 } },
   "Bodkin Bolts|attack": { attackAbs: 20 },
   "Bolt Magazines|attack": { attackAbs: 1 },
 
@@ -1202,10 +1202,10 @@ const TECH_EFFECTS = {
 
   // Charge-related attack buffs (mapped to attackAbs as bonus)
   // Cantled Saddles is a charge-duration buff, not permanent flat attack — not modeled here
-  "Odachi|attack": { attackAbs: 4 },
-  "Improved Yari|attack": { attackAbs: 2 },
-  "Mounted Samurai Odachi|attack": { attackAbs: 4 },
-  "Lightweight Blades|attack": { attackAbs: 5 },
+  "Odachi|attack": { bonusVs: { "Infantry": 4 } },
+  "Improved Yari|attack": { bonusVs: { "Cavalry": 2 } },
+  "Mounted Samurai Odachi|attack": { bonusVs: { "Infantry": 4 } },
+  "Lightweight Blades|attack": {},  // +5 vs workers — no Workers tag in battler
   "Nagae Yari|attack": { attackPct: 15 },
   "Siha Bow Limbs|attack": { attackAbs: [1, 2], labels: ["Standard (+1)", "Improved (+2)"] },
   "Poisoned Arrows|attack": {},
@@ -1860,6 +1860,47 @@ function syncTechBuffsToInputs(side) {
     } else {
       input.style.borderColor = "";
     }
+  }
+
+  // Sum bonus damage from techs (bonusVs: { "Heavy": 5 })
+  const bonusTotals = {};
+  for (const [key, state] of activeTechs[side]) {
+    const fx = TECH_EFFECTS[key];
+    if (!fx?.bonusVs) continue;
+    for (const [tag, val] of Object.entries(fx.bonusVs)) {
+      const v = Array.isArray(val) ? (val[state.level] ?? 0) : val;
+      bonusTotals[tag] = (bonusTotals[tag] || 0) + v;
+    }
+  }
+
+  // Apply tech-provided bonus minimums to bonus input fields
+  for (const [tag, techMin] of Object.entries(bonusTotals)) {
+    const safeTag = tag.replace(/\s+/g, "_");
+    const input = document.getElementById(`${side}_bonus_${safeTag}`);
+    if (!input) continue;
+    const prevKey = `bonus_${safeTag}`;
+    const prevMin = prevTechMins[side][prevKey] || 0;
+    const current = parseFloat(input.value) || 0;
+    if (techMin < prevMin) {
+      input.value = Math.max(techMin, current - (prevMin - techMin));
+    } else if (current < techMin) {
+      input.value = techMin;
+    }
+    prevTechMins[side][prevKey] = techMin;
+    input.min = techMin;
+    input.style.borderColor = techMin > 0 ? "rgba(212, 164, 74, 0.4)" : "";
+  }
+
+  // Reset bonus inputs that no longer have tech minimums
+  for (const key of Object.keys(prevTechMins[side])) {
+    if (!key.startsWith("bonus_")) continue;
+    const tag = key.slice(6);
+    if (bonusTotals[tag.replace(/_/g, " ")] > 0) continue;
+    const input = document.getElementById(`${side}_bonus_${tag}`);
+    if (!input) continue;
+    prevTechMins[side][key] = 0;
+    input.min = 0;
+    input.style.borderColor = "";
   }
 }
 
