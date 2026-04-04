@@ -797,8 +797,8 @@ function applyPoison(attacker, target, time, splitEnabled, splitTargets, attacke
     if (!unit) break;
     if (!unit.poisons) unit.poisons = [];
 
-    // Each attacker unit applies poison to each front unit, stacking per source index
-    for (let srcIdx = 0; srcIdx < Math.min(attackerUnits, slotCap); srcIdx++) {
+    // Each attacker unit applies its own poison stack (5 archers = 5 stacks)
+    for (let srcIdx = 0; srcIdx < attackerUnits; srcIdx++) {
       const sourceKey = `${attackerGroupId}:${srcIdx}`;
       const existing = unit.poisons.find(p => p.sourceKey === sourceKey);
       if (existing) {
@@ -1207,6 +1207,7 @@ const TECH_EFFECTS = {
   "Mounted Samurai Odachi|attack": { attackAbs: 4 },
   "Lightweight Blades|attack": { attackAbs: 5 },
   "Nagae Yari|attack": { attackPct: 15 },
+  "Siha Bow Limbs|attack": { attackAbs: [1, 2], labels: ["Standard (+1)", "Improved (+2)"] },
   "Poisoned Arrows|attack": {},
   "Enlist Mansa Javelineers|attack": { attackAbs: 3 },
 
@@ -1476,6 +1477,7 @@ const TECH_IMAGE_MAP = {
   "Arrow Volley": "assets/images/technologies/arrow-volley-4.png",
   "Forced March": "assets/images/technologies/forced-march-3.png",
   "Siege Engineering": "assets/images/technologies/siege-engineering-2.png",
+  "Siha Bow Limbs": "assets/images/technologies/siha-bow-limbs-3.png",
   "Samurai Bow": "assets/images/technologies/samurai-bow-1.png",
   "Chivalry": "assets/images/technologies/chivalry-3.png",
   "Triple Shot": "assets/images/technologies/triple-shot-3.png",
@@ -5053,11 +5055,19 @@ function runBattle() {
 
     const healA = unitA.effects.healPerAttack;
     if (healA && damageToB > 0) {
-      healTrackedTeam(teamA, healA.value * teamA.units);
+      const maxHpA = teamA.stats.hp;
+      const injuredA = getAllTrackedUnits(teamA).filter(u => u.hp < maxHpA - 0.0001).length;
+      if (injuredA > 0) {
+        healTrackedTeam(teamA, healA.value * Math.min(teamA.units, injuredA));
+      }
     }
     const healB = unitB.effects.healPerAttack;
     if (healB && damageToA > 0) {
-      healTrackedTeam(teamB, healB.value * teamB.units);
+      const maxHpB = teamB.stats.hp;
+      const injuredB = getAllTrackedUnits(teamB).filter(u => u.hp < maxHpB - 0.0001).length;
+      if (injuredB > 0) {
+        healTrackedTeam(teamB, healB.value * Math.min(teamB.units, injuredB));
+      }
     }
 
     if (unitA.effects.healAura && teamA.units > 0) {
@@ -8235,12 +8245,16 @@ function runMultiBattle() {
           target.dmgDebuffReduction =
             detail.attacker.unitData.effects.dmgDebuffOnHit.reduction;
         }
-        const healA = detail.attacker.unitData.effects.healPerAttack;
-        if (healA && result.dealt > 0) {
-          healTrackedTeam(
-            detail.attacker,
-            healA.value * detail.attacker.units,
-          );
+        const healEffect = detail.attacker.unitData.effects.healPerAttack;
+        if (healEffect && result.dealt > 0) {
+          const maxHp = detail.attacker.stats.hp;
+          const injured = getAllTrackedUnits(detail.attacker).filter(u => u.hp < maxHp - 0.0001).length;
+          if (injured > 0) {
+            healTrackedTeam(
+              detail.attacker,
+              healEffect.value * Math.min(detail.attacker.units, injured),
+            );
+          }
         }
       });
     });
