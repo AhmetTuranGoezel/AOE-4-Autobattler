@@ -640,28 +640,24 @@ function cloneBleedState(bleed) {
   return bleed ? { ...bleed } : null;
 }
 
+function cloneUnitState(unit) {
+  return {
+    hp: unit.hp,
+    bleed: cloneBleedState(unit.bleed),
+    poisons: clonePoisonState(unit.poisons),
+  };
+}
+
 function cloneTrackedTeamHealth(team) {
   return {
-    frontUnits: (team.frontUnits || []).map((unit) => ({
-      hp: unit.hp,
-      bleed: cloneBleedState(unit.bleed),
-    })),
-    reserveUnits: (team.reserveUnits || []).map((unit) => ({
-      hp: unit.hp,
-      bleed: cloneBleedState(unit.bleed),
-    })),
+    frontUnits: (team.frontUnits || []).map((unit) => cloneUnitState(unit)),
+    reserveUnits: (team.reserveUnits || []).map((unit) => cloneUnitState(unit)),
   };
 }
 
 function restoreTrackedTeamHealth(team, snapshot) {
-  team.frontUnits = snapshot.frontUnits.map((unit) => ({
-    hp: unit.hp,
-    bleed: cloneBleedState(unit.bleed),
-  }));
-  team.reserveUnits = snapshot.reserveUnits.map((unit) => ({
-    hp: unit.hp,
-    bleed: cloneBleedState(unit.bleed),
-  }));
+  team.frontUnits = snapshot.frontUnits.map((unit) => cloneUnitState(unit));
+  team.reserveUnits = snapshot.reserveUnits.map((unit) => cloneUnitState(unit));
   syncTrackedTeamState(team);
 }
 
@@ -780,6 +776,118 @@ function collectBleedTickEvents(target, time, EPSILON) {
   return Array.from(grouped.values()).filter(
     (entry) => entry.damage > 0 || entry.kills > 0,
   );
+}
+
+// === Poisoned Arrows DoT ===
+const POISON_TICK_INTERVAL = 1; // 1 second ticks, same as bleed
+
+function applyPoison(attacker, target, time, splitEnabled, splitTargets, attackerUnitsOverride) {
+  const poison = attacker?.unitData?.effects?.poisonedArrows;
+  if (!poison || !(poison.totalDamage > 0) || !(poison.duration > 0) || target.units <= 0) return 0;
+  const attackerUnits = attackerUnitsOverride != null ? attackerUnitsOverride : attacker.units;
+  const slotCap = getBleedSlotCap(target.units, attackerUnits, splitEnabled, splitTargets);
+  if (slotCap <= 0) return 0;
+
+  const dps = poison.totalDamage / poison.duration;
+  const attackerGroupId = attacker.groupId || attacker.side || "?";
+
+  ensureFrontUnitCount(target, slotCap);
+  for (let i = 0; i < slotCap; i++) {
+    const unit = target.frontUnits[i];
+    if (!unit) break;
+    if (!unit.poisons) unit.poisons = [];
+
+    // Each attacker unit applies poison to each front unit, stacking per source index
+    for (let srcIdx = 0; srcIdx < Math.min(attackerUnits, slotCap); srcIdx++) {
+      const sourceKey = `${attackerGroupId}:${srcIdx}`;
+      const existing = unit.poisons.find(p => p.sourceKey === sourceKey);
+      if (existing) {
+        // Same archer re-hitting: reset timer
+        existing.dps = dps;
+        existing.expiresAt = time + poison.duration;
+        existing.nextTickAt = time + POISON_TICK_INTERVAL;
+      } else {
+        unit.poisons.push({
+          dps,
+          nextTickAt: time + POISON_TICK_INTERVAL,
+          expiresAt: time + poison.duration,
+          sourceKey,
+          sourceSide: attacker.side || null,
+          sourceId: attackerGroupId,
+        });
+      }
+    }
+  }
+  return slotCap;
+}
+
+function getNextPoisonTick(team) {
+  let nextTick = Infinity;
+  for (const unit of getAllTrackedUnits(team)) {
+    if (!unit?.poisons) continue;
+    for (const p of unit.poisons) {
+      if (p.nextTickAt <= p.expiresAt + 0.0001) {
+        nextTick = Math.min(nextTick, p.nextTickAt);
+      }
+    }
+  }
+  return nextTick;
+}
+
+function collectPoisonTickEvents(target, time, EPSILON) {
+  if (!target || target.units <= 0) return [];
+  const grouped = new Map();
+  const collectFrom = (units, fromReserve = false) => {
+    for (let index = units.length - 1; index >= 0; index--) {
+      const unit = units[index];
+      if (!unit?.poisons) continue;
+      for (let pi = unit.poisons.length - 1; pi >= 0; pi--) {
+        const p = unit.poisons[pi];
+        if (p.nextTickAt <= time + EPSILON && p.nextTickAt <= p.expiresAt + EPSILON) {
+          const applied = Math.min(p.dps, unit.hp);
+          const waste = Math.max(0, p.dps - applied);
+          unit.hp -= applied;
+          const key = `${p.sourceSide || "?"}:${p.sourceId || "?"}`;
+          let unitsDied = 0;
+          if (unit.hp <= EPSILON) {
+            unitsDied = removeTrackedUnitAt(target, index, fromReserve) ? 1 : 0;
+            // Unit died - no need to process remaining poisons
+            syncTrackedTeamState(target);
+            if (!grouped.has(key)) {
+              grouped.set(key, { sourceId: p.sourceId || "?", sourceSide: p.sourceSide || null, damage: 0, waste: 0, kills: 0 });
+            }
+            const entry = grouped.get(key);
+            entry.damage += applied;
+            entry.waste += waste;
+            entry.kills += unitsDied;
+            break; // unit is dead, stop processing its poisons
+          } else {
+            p.nextTickAt += POISON_TICK_INTERVAL;
+            if (!(p.expiresAt > time + EPSILON) || p.nextTickAt > p.expiresAt + EPSILON) {
+              unit.poisons.splice(pi, 1);
+            }
+          }
+          syncTrackedTeamState(target);
+          if (!grouped.has(key)) {
+            grouped.set(key, { sourceId: p.sourceId || "?", sourceSide: p.sourceSide || null, damage: 0, waste: 0, kills: 0 });
+          }
+          const entry = grouped.get(key);
+          entry.damage += applied;
+          entry.waste += waste;
+          entry.kills += unitsDied;
+        } else if (!(p.expiresAt > time + EPSILON) || p.nextTickAt > p.expiresAt + EPSILON) {
+          unit.poisons.splice(pi, 1);
+        }
+      }
+    }
+  };
+  collectFrom(target.reserveUnits || [], true);
+  collectFrom(target.frontUnits || [], false);
+  return Array.from(grouped.values()).filter(entry => entry.damage > 0 || entry.kills > 0);
+}
+
+function clonePoisonState(poisons) {
+  return poisons ? poisons.map(p => ({ ...p })) : null;
 }
 
 function applyDamageToTeam(team, damage) {
@@ -1016,7 +1124,14 @@ const TECH_TO_EFFECT = {
   "Knightly Brotherhood": "knightlyBrotherhood",
   "Caracole": "caracole",
   "Kabura-ya Whistling Arrow": "kaburaYaWhistlingArrow",
+  "Poisoned Arrows": "poisonedArrows",
 };
+
+// Inverse mapping: effectId → techName (for rendering tech buttons in effects)
+const EFFECT_TO_TECH = {};
+for (const [techName, effectId] of Object.entries(TECH_TO_EFFECT)) {
+  EFFECT_TO_TECH[effectId] = techName;
+}
 
 // Hardcoded map: "TechName|category" → buff effects
 // Fields: attackAbs, meleeArmor, rangedArmor, hpAbs, hpPct, attackPct, speedPct
@@ -1092,7 +1207,7 @@ const TECH_EFFECTS = {
   "Mounted Samurai Odachi|attack": { attackAbs: 4 },
   "Lightweight Blades|attack": { attackAbs: 5 },
   "Nagae Yari|attack": { attackPct: 15 },
-  "Poisoned Arrows|attack": { attackAbs: 3 },
+  "Poisoned Arrows|attack": {},
   "Enlist Mansa Javelineers|attack": { attackAbs: 3 },
 
   // Saint's Blessing attack
@@ -1233,6 +1348,7 @@ const TECH_EFFECTS = {
   "Caracole|moveSpeed": {},
   "Caracole|other": {},
   "Kabura-ya Whistling Arrow|ability": {},
+  "Hard Cased Bombs|ability": {},
 };
 
 // Image map: tech name → image path (relative to app root)
@@ -1303,6 +1419,7 @@ const TECH_IMAGE_MAP = {
   "Throwing Dagger Drills": "assets/images/technologies/throwing-dagger-drills-4.png",
   "Nagae Yari": "assets/images/technologies/nagae-yari-4.png",
   "Poisoned Arrows": "assets/images/technologies/poisoned-arrows-3.png",
+  "Hard Cased Bombs": "assets/images/technologies/hard-cased-bombs-3.png",
   "Padded Armor": "assets/images/technologies/padded-armor-3.png",
   "Padded Jack": "assets/images/technologies/padded-jack-4.png",
   "Muscovy Yasak": "assets/images/technologies/muscovy-yasak-2.png",
@@ -1660,18 +1777,28 @@ function toggleTech(side, techKey, btnEl) {
   }
   syncTechBuffsToInputs(side);
 
-  // Sync linked effect checkbox
+  // Sync linked effect toggle (tech button or checkbox)
   if (!_syncingTechEffect) {
     _syncingTechEffect = true;
     const techName = techKey.split("|")[0];
     const effectId = TECH_TO_EFFECT[techName];
     if (effectId) {
-      const checkbox = document.querySelector(
-        `#${side}_effectsContainer .effect-checkbox[data-effect="${effectId}"]`
+      const isNowActive = activeTechs[side].has(techKey);
+      // Try tech toggle button first
+      const techToggle = document.querySelector(
+        `#${side}_effectsContainer .effect-tech-toggle[data-effect="${effectId}"]`
       );
-      if (checkbox) {
-        checkbox.checked = activeTechs[side].has(techKey);
-        checkbox.dispatchEvent(new Event("change", { bubbles: true }));
+      if (techToggle) {
+        techToggle.classList.toggle("active", isNowActive);
+      } else {
+        // Fall back to checkbox
+        const checkbox = document.querySelector(
+          `#${side}_effectsContainer .effect-checkbox[data-effect="${effectId}"]`
+        );
+        if (checkbox) {
+          checkbox.checked = isNowActive;
+          checkbox.dispatchEvent(new Event("change", { bubbles: true }));
+        }
       }
     }
     _syncingTechEffect = false;
@@ -2867,26 +2994,88 @@ function renderEffects(side, effects) {
                  value="${effect.speedBonus}" style="font-size:0.8rem;width:80px;display:inline-block;">
           <small class="text-muted" style="font-size:0.7rem;">+Speed % for infantry</small>
         </div>`;
+    } else if (effectId === "poisonedArrows") {
+      valueHtml = `
+        <div class="row g-1 mt-1 ms-4">
+          <div class="col-6">
+            <input type="number" id="${checkId}_totalDamage" class="form-control form-control-sm"
+                   value="${effect.totalDamage}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">Total Damage</small>
+          </div>
+          <div class="col-6">
+            <input type="number" id="${checkId}_duration" class="form-control form-control-sm"
+                   value="${effect.duration}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">Duration (s)</small>
+          </div>
+        </div>`;
     }
 
-    container.innerHTML += `
-      <div class="mb-2">
-        <div class="form-check">
-          <input class="form-check-input effect-checkbox" type="checkbox" id="${checkId}"
-                 data-effect="${effectId}" checked>
-          <label class="form-check-label" for="${checkId}" style="font-size:0.85rem;">
-            <strong>${effect.name}</strong>
-            <span style="font-size:0.75rem; color:#b8ad9e;"> — ${effect.description}</span>
-          </label>
-        </div>
-        ${valueHtml}
-      </div>`;
+    // Use tech button icon for effects that have a linked tech, checkbox otherwise
+    const linkedTech = EFFECT_TO_TECH[effectId];
+    if (linkedTech) {
+      const techImg = getTechImage(linkedTech);
+      container.innerHTML += `
+        <div class="mb-2 effect-row" data-effect="${effectId}">
+          <div class="d-flex align-items-center gap-2">
+            <div class="tech-btn effect-tech-toggle active" data-effect="${effectId}"
+                 style="width:28px;height:28px;min-width:28px;" title="${linkedTech}">
+              <img src="${techImg}" alt="${effect.name}" onerror="this.src='${FALLBACK_TECH_IMG}'">
+            </div>
+            <label class="effect-label" style="font-size:0.85rem;">
+              <strong>${effect.name}</strong>
+              <span style="font-size:0.75rem; color:#b8ad9e;"> — ${effect.description}</span>
+            </label>
+          </div>
+          <div class="effect-value-area">${valueHtml}</div>
+        </div>`;
+    } else {
+      container.innerHTML += `
+        <div class="mb-2 effect-row">
+          <div class="form-check">
+            <input class="form-check-input effect-checkbox" type="checkbox" id="${checkId}"
+                   data-effect="${effectId}" checked>
+            <label class="form-check-label" for="${checkId}" style="font-size:0.85rem;">
+              <strong>${effect.name}</strong>
+              <span style="font-size:0.75rem; color:#b8ad9e;"> — ${effect.description}</span>
+            </label>
+          </div>
+          <div class="effect-value-area">${valueHtml}</div>
+        </div>`;
+    }
   }
 
   // Hide effects box if all effects were filtered out by civ
   if (!container.innerHTML.trim()) {
     box.style.display = "none";
   }
+
+  // Attach click handlers for effect tech toggle buttons
+  container.querySelectorAll(".effect-tech-toggle").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      btn.classList.toggle("active");
+      // Sync with tech button in tech container
+      if (!_syncingTechEffect) {
+        _syncingTechEffect = true;
+        const effectId = btn.dataset.effect;
+        const techName = EFFECT_TO_TECH[effectId];
+        if (techName) {
+          const techContainer = document.getElementById(`${side}_techContainer`);
+          const techBtn = techContainer?.querySelector(
+            `.tech-btn[data-tech-key^="${techName}|"]`,
+          );
+          if (techBtn) {
+            const key = techBtn.dataset.techKey;
+            const isActive = activeTechs[side].has(key);
+            const nowActive = btn.classList.contains("active");
+            if (nowActive !== isActive) {
+              toggleTech(side, key, techBtn);
+            }
+          }
+        }
+        _syncingTechEffect = false;
+      }
+    });
+  });
 }
 
 /**
@@ -2894,14 +3083,20 @@ function renderEffects(side, effects) {
  */
 function collectEffects(side) {
   const effects = {};
-  const checkboxes = document.querySelectorAll(
-    `#${side}_effectsContainer .effect-checkbox`,
-  );
+  const container = document.getElementById(`${side}_effectsContainer`);
+  if (!container) return effects;
 
-  checkboxes.forEach((cb) => {
-    if (!cb.checked) return;
-    const effectId = cb.dataset.effect;
-    const checkId = cb.id;
+  // Collect from both checkbox effects and tech-toggle effects
+  const enabledEffectIds = new Set();
+  container.querySelectorAll(".effect-checkbox").forEach((cb) => {
+    if (cb.checked) enabledEffectIds.add(cb.dataset.effect);
+  });
+  container.querySelectorAll(".effect-tech-toggle.active").forEach((btn) => {
+    enabledEffectIds.add(btn.dataset.effect);
+  });
+
+  enabledEffectIds.forEach((effectId) => {
+    const checkId = `${side}_effect_${effectId}`;
     const getVal = (suffix) =>
       parseFloat(document.getElementById(`${checkId}_${suffix}`)?.value) || 0;
 
@@ -3018,6 +3213,11 @@ function collectEffects(side) {
       };
     } else if (effectId === "infantrySpeedAura") {
       effects.infantrySpeedAura = { speedBonus: getVal("speedBonus") };
+    } else if (effectId === "poisonedArrows") {
+      effects.poisonedArrows = {
+        totalDamage: getVal("totalDamage"),
+        duration: getVal("duration"),
+      };
     }
   });
 
@@ -4304,6 +4504,8 @@ function runBattle() {
       teamB.trampleTick,
       getNextBleedTick(teamA),
       getNextBleedTick(teamB),
+      getNextPoisonTick(teamA),
+      getNextPoisonTick(teamB),
     );
     time = nextEventTime;
 
@@ -4353,6 +4555,36 @@ function runBattle() {
         bHp: Math.round(teamB.totalHp),
         bKills: bleedKillsByB,
         notes: "Bleed Tick",
+      });
+    }
+    if (teamA.units <= 0 || teamB.units <= 0) break;
+
+    // Poison DoT ticks
+    const poisonFromB = collectPoisonTickEvents(teamA, time, EPSILON);
+    const poisonFromA = collectPoisonTickEvents(teamB, time, EPSILON);
+    const poisonDamageToA = poisonFromB.reduce((sum, e) => sum + e.damage, 0);
+    const poisonDamageToB = poisonFromA.reduce((sum, e) => sum + e.damage, 0);
+    const poisonWasteToA = poisonFromB.reduce((sum, e) => sum + (e.waste || 0), 0);
+    const poisonWasteToB = poisonFromA.reduce((sum, e) => sum + (e.waste || 0), 0);
+    const poisonKillsByB = poisonFromB.reduce((sum, e) => sum + (e.kills || 0), 0);
+    const poisonKillsByA = poisonFromA.reduce((sum, e) => sum + (e.kills || 0), 0);
+
+    if (poisonDamageToA > 0 || poisonDamageToB > 0 || poisonKillsByA > 0 || poisonKillsByB > 0) {
+      battleLog.push({
+        time: time.toFixed(2),
+        aWeapon: poisonDamageToB > 0 ? "Poison" : "—",
+        aDmg: poisonDamageToB.toFixed(1),
+        aWaste: poisonWasteToB.toFixed(1),
+        aUnits: teamA.units,
+        aHp: Math.round(teamA.totalHp),
+        aKills: poisonKillsByA,
+        bWeapon: poisonDamageToA > 0 ? "Poison" : "—",
+        bDmg: poisonDamageToA.toFixed(1),
+        bWaste: poisonWasteToA.toFixed(1),
+        bUnits: teamB.units,
+        bHp: Math.round(teamB.totalHp),
+        bKills: poisonKillsByB,
+        notes: "Poison Tick",
       });
     }
     if (teamA.units <= 0 || teamB.units <= 0) break;
@@ -4754,14 +4986,8 @@ function runBattle() {
     const resultToB = applyBundledDamageToTeam(
       {
         ...teamB,
-        frontUnits: teamB.frontUnits.map((unit) => ({
-          hp: unit.hp,
-          bleed: cloneBleedState(unit.bleed),
-        })),
-        reserveUnits: teamB.reserveUnits.map((unit) => ({
-          hp: unit.hp,
-          bleed: cloneBleedState(unit.bleed),
-        })),
+        frontUnits: teamB.frontUnits.map((unit) => cloneUnitState(unit)),
+        reserveUnits: teamB.reserveUnits.map((unit) => cloneUnitState(unit)),
       },
       damageToB,
       startUnitsA,
@@ -4772,14 +4998,8 @@ function runBattle() {
     const resultToA = applyBundledDamageToTeam(
       {
         ...teamA,
-        frontUnits: teamA.frontUnits.map((unit) => ({
-          hp: unit.hp,
-          bleed: cloneBleedState(unit.bleed),
-        })),
-        reserveUnits: teamA.reserveUnits.map((unit) => ({
-          hp: unit.hp,
-          bleed: cloneBleedState(unit.bleed),
-        })),
+        frontUnits: teamA.frontUnits.map((unit) => cloneUnitState(unit)),
+        reserveUnits: teamA.reserveUnits.map((unit) => cloneUnitState(unit)),
       },
       damageToA,
       startUnitsB,
@@ -4821,6 +5041,14 @@ function runBattle() {
     }
     if (bCanApplyBleed && unitB.effects.bleed && damageToA > 0) {
       applyKipchakBleed(teamB, teamA, time, splitB, splitTargetsB, startUnitsB);
+    }
+
+    // Apply Poisoned Arrows DoT
+    if (unitA.effects.poisonedArrows && damageToB > 0) {
+      applyPoison(teamA, teamB, time, splitA, splitTargetsA, startUnitsA);
+    }
+    if (unitB.effects.poisonedArrows && damageToA > 0) {
+      applyPoison(teamB, teamA, time, splitB, splitTargetsB, startUnitsB);
     }
 
     const healA = unitA.effects.healPerAttack;
@@ -6522,32 +6750,80 @@ function renderEffectsMulti(card, effects, groupId, selectedCiv) {
                  value="${effect.speedBonus}" style="font-size:0.8rem;width:80px;display:inline-block;">
           <small class="text-muted" style="font-size:0.7rem;">+Speed % for infantry</small>
         </div>`;
+    } else if (effectId === "poisonedArrows") {
+      valueHtml = `
+        <div class="row g-1 mt-1 ms-4">
+          <div class="col-6">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="totalDamage"
+                   value="${effect.totalDamage}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">Total Damage</small>
+          </div>
+          <div class="col-6">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="duration"
+                   value="${effect.duration}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">Duration (s)</small>
+          </div>
+        </div>`;
     }
 
-    container.innerHTML += `
-      <div class="mb-2">
-        <div class="form-check">
-          <input class="form-check-input effect-checkbox" type="checkbox" id="${checkId}" data-effect="${effectId}" checked>
-          <label class="form-check-label" for="${checkId}" style="font-size:0.85rem;">
-            <strong>${effect.name}</strong>
-            <span style="font-size:0.75rem; color:#b8ad9e;"> - ${effect.description}</span>
-          </label>
-        </div>
-        ${valueHtml}
-      </div>`;
+    // Use tech button icon for effects that have a linked tech, checkbox otherwise
+    const linkedTech = EFFECT_TO_TECH[effectId];
+    if (linkedTech) {
+      const techImg = getTechImage(linkedTech);
+      container.innerHTML += `
+        <div class="mb-2 effect-row" data-effect="${effectId}">
+          <div class="d-flex align-items-center gap-2">
+            <div class="tech-btn effect-tech-toggle active" data-effect="${effectId}"
+                 style="width:28px;height:28px;min-width:28px;" title="${linkedTech}">
+              <img src="${techImg}" alt="${effect.name}" onerror="this.src='${FALLBACK_TECH_IMG}'">
+            </div>
+            <label class="effect-label" style="font-size:0.85rem;">
+              <strong>${effect.name}</strong>
+              <span style="font-size:0.75rem; color:#b8ad9e;"> — ${effect.description}</span>
+            </label>
+          </div>
+          <div class="effect-value-area">${valueHtml}</div>
+        </div>`;
+    } else {
+      container.innerHTML += `
+        <div class="mb-2 effect-row">
+          <div class="form-check">
+            <input class="form-check-input effect-checkbox" type="checkbox" id="${checkId}" data-effect="${effectId}" checked>
+            <label class="form-check-label" for="${checkId}" style="font-size:0.85rem;">
+              <strong>${effect.name}</strong>
+              <span style="font-size:0.75rem; color:#b8ad9e;"> — ${effect.description}</span>
+            </label>
+          </div>
+          <div class="effect-value-area">${valueHtml}</div>
+        </div>`;
+    }
   }
 
   if (!container.innerHTML.trim()) {
     box.style.display = "none";
   }
+
+  // Attach click handlers for effect tech toggle buttons (multi-battler)
+  container.querySelectorAll(".effect-tech-toggle").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      btn.classList.toggle("active");
+    });
+  });
 }
 
 function collectEffectsFromCard(card) {
   const effects = {};
-  const checkboxes = card.querySelectorAll(".effect-checkbox");
-  checkboxes.forEach((cb) => {
-    if (!cb.checked) return;
-    const effectId = cb.dataset.effect;
+
+  // Collect from both checkbox effects and tech-toggle effects
+  const enabledEffectIds = new Set();
+  card.querySelectorAll(".effect-checkbox").forEach((cb) => {
+    if (cb.checked) enabledEffectIds.add(cb.dataset.effect);
+  });
+  card.querySelectorAll(".effect-tech-toggle.active").forEach((btn) => {
+    enabledEffectIds.add(btn.dataset.effect);
+  });
+
+  enabledEffectIds.forEach((effectId) => {
     const getVal = (field) => {
       const input = card.querySelector(
         `[data-effect-id="${effectId}"][data-effect-field="${field}"]`,
@@ -6668,6 +6944,11 @@ function collectEffectsFromCard(card) {
       };
     } else if (effectId === "infantrySpeedAura") {
       effects.infantrySpeedAura = { speedBonus: getVal("speedBonus") };
+    } else if (effectId === "poisonedArrows") {
+      effects.poisonedArrows = {
+        totalDamage: getVal("totalDamage"),
+        duration: getVal("duration"),
+      };
     }
   });
   return effects;
@@ -7161,10 +7442,23 @@ function attachCardListeners(card, group) {
     }
   });
 
+  // Collapsible section toggles (Tags, Bonus Damage)
+  card.querySelectorAll('[data-action="toggleSection"]').forEach((h6) => {
+    h6.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const content = h6.nextElementSibling;
+      const arrow = h6.querySelector(".toggle-arrow");
+      const expanded = content.style.display !== "none";
+      content.style.display = expanded ? "none" : "";
+      if (arrow) arrow.style.transform = expanded ? "rotate(-90deg)" : "";
+      h6.setAttribute("aria-expanded", String(!expanded));
+    });
+  });
+
   card.addEventListener("click", (e) => {
     if (!group.ui?.collapsed) return;
     const interactive = e.target.closest(
-      "input, select, textarea, button, .custom-select-wrapper, .target-actions",
+      "input, select, textarea, button, .custom-select-wrapper, .target-actions, .section-toggle",
     );
     if (interactive) return;
     collapseOtherGroups(group);
@@ -7688,6 +7982,7 @@ function computeTeamAttack(attacker, target, time, config) {
     damage: damageToB,
     log,
     appliesBleed: canApplyBleed && !!unitA.effects.bleed && damageToB > 0,
+    appliesPoison: !!unitA.effects.poisonedArrows && damageToB > 0,
     splitEnabled,
     splitTargets,
     appliesAtkSpeedDebuff,
@@ -7773,6 +8068,7 @@ function runMultiBattle() {
         t.nextSecondaryAttack,
         t.trampleTick,
         getNextBleedTick(t),
+        getNextPoisonTick(t),
       );
       if (next < nextEventTime) nextEventTime = next;
     });
@@ -7805,6 +8101,29 @@ function runMultiBattle() {
             (entry.sourceSide || sourceTeam?.side) === "B" ? entry.kills || 0 : 0,
           unitsDied: entry.kills || 0,
           notes: "Bleed Tick",
+        });
+      });
+      // Poison ticks
+      const poisonEntries = collectPoisonTickEvents(target, time, EPSILON);
+      poisonEntries.forEach((entry) => {
+        const sourceTeam = entry.sourceId ? teamById[entry.sourceId] : null;
+        battleLog.push({
+          time: time.toFixed(2),
+          attacker: entry.sourceId || entry.sourceSide || "?",
+          attackerId: entry.sourceId || entry.sourceSide || "?",
+          attackerSide: entry.sourceSide || sourceTeam?.side || null,
+          target: target.groupId,
+          weapon: "Poison",
+          dmg: entry.damage.toFixed(1),
+          waste: (entry.waste || 0).toFixed(1),
+          atkUnits: sourceTeam?.units || 0,
+          tgtUnits: target.units,
+          killsA:
+            (entry.sourceSide || sourceTeam?.side) === "A" ? entry.kills || 0 : 0,
+          killsB:
+            (entry.sourceSide || sourceTeam?.side) === "B" ? entry.kills || 0 : 0,
+          unitsDied: entry.kills || 0,
+          notes: "Poison Tick",
         });
       });
     });
@@ -7848,6 +8167,7 @@ function runMultiBattle() {
           splitEnabled: atkResult.splitEnabled,
           splitTargets: atkResult.splitTargets,
           appliesBleed: atkResult.appliesBleed,
+          appliesPoison: atkResult.appliesPoison,
           appliesAtkSpeedDebuff: atkResult.appliesAtkSpeedDebuff,
           appliesDamageDebuff: atkResult.appliesDamageDebuff,
         });
@@ -7885,6 +8205,16 @@ function runMultiBattle() {
         }
         if (detail.appliesBleed && result.dealt > 0) {
           applyKipchakBleed(
+            detail.attacker,
+            target,
+            time,
+            detail.splitEnabled,
+            detail.splitTargets,
+            detail.attackerUnits,
+          );
+        }
+        if (detail.appliesPoison && result.dealt > 0) {
+          applyPoison(
             detail.attacker,
             target,
             time,

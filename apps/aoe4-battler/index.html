@@ -1230,12 +1230,22 @@
             <div data-role="effectsContainer"></div>
           </div>
           <div class="stat-box">
-            <h6 class="fw-bold mb-2">Tags</h6>
-            <div class="tag-pill-group mb-2" data-role="tagsContainer"></div>
+            <h6 class="fw-bold mb-0 section-toggle" data-action="toggleSection" aria-expanded="false">
+              <span>Tags</span>
+              <i class="bi bi-chevron-down toggle-arrow" style="transform: rotate(-90deg)"></i>
+            </h6>
+            <div class="pt-2" style="display:none;" data-role="tagsCollapsible">
+              <div class="tag-pill-group mb-2" data-role="tagsContainer"></div>
+            </div>
           </div>
           <div class="stat-box">
-            <h6 class="fw-bold mb-0">Bonus Damage</h6>
-            <div class="pt-2" data-role="bonusesContainer"></div>
+            <h6 class="fw-bold mb-0 section-toggle" data-action="toggleSection" aria-expanded="false">
+              <span>Bonus Damage</span>
+              <i class="bi bi-chevron-down toggle-arrow" style="transform: rotate(-90deg)"></i>
+            </h6>
+            <div class="pt-2" style="display:none;" data-role="bonusCollapsible">
+              <div data-role="bonusesContainer"></div>
+            </div>
           </div>
           <div class="buff-box">
             <h6 class="fw-bold mb-2">Flat Buffs</h6>

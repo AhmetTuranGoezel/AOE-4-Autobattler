@@ -3366,3 +3366,35 @@ small.text-muted,
   background-color: #d4a44a;
   border-color: #d4a44a;
 }
+
+/* Effect rows: dim label + value inputs when effect is disabled */
+.effect-row .effect-tech-toggle:not(.active) ~ .effect-label {
+  opacity: 0.45;
+}
+.effect-row:has(.effect-tech-toggle:not(.active)) .effect-value-area {
+  opacity: 0.35;
+  pointer-events: none;
+}
+.effect-row .form-check-input.effect-checkbox:not(:checked) ~ .form-check-label {
+  opacity: 0.45;
+}
+.effect-row:has(.effect-checkbox:not(:checked)) .effect-value-area {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+/* Section toggle headers for collapsible sections */
+.section-toggle {
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.section-toggle:hover {
+  color: #d4a44a;
+}
+.section-toggle .toggle-arrow {
+  transition: transform 0.2s;
+  font-size: 0.75rem;
+}
