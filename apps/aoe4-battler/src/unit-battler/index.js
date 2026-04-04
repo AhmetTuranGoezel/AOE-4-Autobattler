@@ -960,36 +960,11 @@ const GLOBAL_UPGRADE_TECHS = [
       return tags.includes("Infantry") && !tags.includes("Ranged");
     },
   },
-  {
-    id: "additionalTorches",
-    name: "Additional Torches",
-    description: "+3 torch damage vs buildings.",
-    category: "attack",
-    appliesToUnit(unit) {
-      const tags = unit.tags || [];
-      const mustHave = ["Infantry", "Cavalry"];
-      return tags.some((t) => mustHave.includes(t));
-    },
-  },
-  {
-    id: "additionalTorchesImproved",
-    name: "Additional Torches Improved",
-    description: "+2 more torch damage (stacks for +5 total), Mongols.",
-    category: "attack",
-    civs: ["Mongols"],
-    appliesToUnit(unit) {
-      const tags = unit.tags || [];
-      const mustHave = ["Infantry", "Cavalry"];
-      return tags.some((t) => mustHave.includes(t));
-    },
-  },
 ];
 
 // Names of techs that are driven by GLOBAL_UPGRADE_TECHS instead of per-unit copies
 const GLOBAL_UPGRADE_TECH_NAMES = new Set([
   ...GLOBAL_UPGRADE_TECHS.map((t) => t.name),
-  "Additional Torches Improved",
-  "Additional Torches Improved:", // typo variant in JSON
 ]);
 
 function computeGlobalUpgradesForUnit(unit) {
@@ -1030,6 +1005,19 @@ const COMBAT_CATEGORIES = new Set([
   "range",
 ]);
 
+// Maps tech names to effect IDs for bidirectional sync between tech buttons and effect checkboxes
+const TECH_TO_EFFECT = {
+  "Triple Shot": "tripleShot",
+  "Farima Leadership": "farimaLeadership",
+  "Arrow Volley": "arrowVolley",
+  "Berserking": "berserking",
+  "Static Deployment": "staticDeployment",
+  "Ruinous Blinding": "ruinousBlinding",
+  "Knightly Brotherhood": "knightlyBrotherhood",
+  "Caracole": "caracole",
+  "Kabura-ya Whistling Arrow": "kaburaYaWhistlingArrow",
+};
+
 // Hardcoded map: "TechName|category" → buff effects
 // Fields: attackAbs, meleeArmor, rangedArmor, hpAbs, hpPct, attackPct, speedPct
 // Arrays = variable-level techs with labels
@@ -1062,9 +1050,6 @@ const TECH_EFFECTS = {
   "Serpentine Powder|attack": { attackAbs: 5 },
   "Bodkin Bolts|attack": { attackAbs: 20 },
   "Bolt Magazines|attack": { attackAbs: 1 },
-  "Additional Torches|attack": { torchAbs: 3 },
-  "Additional Torches Improved:|attack": { torchAbs: 5 },
-  "(Improved) Additional Torches|attack": { torchAbs: 5 },
 
   // Pattern Welding / Blade Inlaying / Sharpening Stones (tiered, Macedonian Dynasty)
   "Blade Inlaying|attack": {
@@ -1234,6 +1219,20 @@ const TECH_EFFECTS = {
   // === ARMOR (buff field: melee armor drums) ===
   "Mehter Melee Armor Drums|armor": { meleeArmor: 2 },
   "Mehter Ranged Armor Drums|armor": { rangedArmor: 1 },
+
+  // === EFFECT-LINKED TECHS (toggled via effects system, not stat buffs) ===
+  "Triple Shot|range": {},
+  "Arrow Volley|ability": {},
+  "Arrow Volley|attackSpeed": {},
+  "Berserking|attack": {},
+  "Berserking|moveSpeed": {},
+  "Farima Leadership|ability": {},
+  "Farima Leadership|moveSpeed": {},
+  "Ruinous Blinding|ability": {},
+  "Knightly Brotherhood|hitpoints": {},
+  "Caracole|moveSpeed": {},
+  "Caracole|other": {},
+  "Kabura-ya Whistling Arrow|ability": {},
 };
 
 // Image map: tech name → image path (relative to app root)
@@ -1285,9 +1284,6 @@ const TECH_IMAGE_MAP = {
   "Armored Beasts": "assets/images/technologies/armored-beasts-4.png",
   "Bodkin Bolts": "assets/images/technologies/bodkin-bolts-4.png",
   "Bolt Magazines": "assets/images/technologies/bolt-magazines-3.png",
-  "Additional Torches": "assets/images/technologies/additional-torches-3.png",
-  "Additional Torches Improved:": "assets/images/technologies/additional-torches-improved-3.png",
-  "(Improved) Additional Torches": "assets/images/technologies/additional-torches-improved-3.png",
   "Tatara": "assets/images/technologies/tatara-1.png",
   "Hizukuri": "assets/images/technologies/hizukuri-2.png",
   "Kobuse-gitae": "assets/images/technologies/kobuse-gitae-3.png",
@@ -1529,7 +1525,126 @@ function renderTechButtons(side, unitName, unit) {
       }
     });
   });
+
+  // Reverse sync: effect checkboxes → tech buttons
+  const effectsContainer = document.getElementById(`${side}_effectsContainer`);
+  if (effectsContainer) {
+    effectsContainer.querySelectorAll(".effect-checkbox").forEach((cb) => {
+      cb.addEventListener("change", () => {
+        if (_syncingTechEffect) return;
+        _syncingTechEffect = true;
+        const effectId = cb.dataset.effect;
+        const techName = Object.keys(TECH_TO_EFFECT).find(
+          (k) => TECH_TO_EFFECT[k] === effectId,
+        );
+        if (techName) {
+          // Find any tech button whose key starts with this tech name
+          const techBtn = container.querySelector(
+            `.tech-btn[data-tech-key^="${techName}|"]`,
+          );
+          if (techBtn) {
+            const key = techBtn.dataset.techKey;
+            const isActive = activeTechs[side].has(key);
+            if (cb.checked !== isActive) {
+              toggleTech(side, key, techBtn);
+            }
+          }
+        }
+        _syncingTechEffect = false;
+      });
+    });
+  }
 }
+
+function renderBuildingUnitTechs(side) {
+  const box = document.getElementById(`${side}_buildingUnitTechBox`);
+  const container = document.getElementById(`${side}_buildingUnitTechContainer`);
+  if (!box || !container) return;
+
+  const unitName = document.getElementById(`unit${side}Select`)?.dataset.value;
+  const unit = units[unitName];
+  if (!unit) {
+    box.style.display = "none";
+    return;
+  }
+
+  const selectedCiv = side === "A" ? selectedCivA : selectedCivB;
+  const upgrades = getMergedUpgradesForUnit(unit);
+  const auras = unit.auras || [];
+  const allItems = [...upgrades, ...auras];
+
+  // Filter to siege/torch-relevant techs only
+  const seen = new Set();
+  const filtered = [];
+  for (const item of allItems) {
+    if (!filterTechByCiv(item, selectedCiv)) continue;
+    const key = getTechKey(item);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const desc = (item.description || "").toLowerCase();
+    const name = (item.name || "").toLowerCase();
+    if (
+      desc.includes("siege") ||
+      desc.includes("torch") ||
+      desc.includes("fire") ||
+      name.includes("additional torches") ||
+      name.includes("incendiary arrows")
+    ) {
+      filtered.push(item);
+    }
+  }
+
+  if (filtered.length === 0) {
+    box.style.display = "none";
+    container.innerHTML = "";
+    return;
+  }
+
+  box.style.display = "";
+  let html = '<div class="tech-grid">';
+  for (const item of filtered) {
+    const key = getTechKey(item);
+    const isActive = activeTechs[side].has(key);
+    const imgSrc = getTechImage(item.name);
+    const activeClass = isActive ? " active" : "";
+    const tooltip = `${item.name}: ${item.description || ""}`.replace(
+      /"/g,
+      "&quot;",
+    );
+    html += `<div class="tech-btn${activeClass}" data-tech-key="${key}" data-side="${side}" title="${tooltip}">`;
+    html += `<img src="${imgSrc}" alt="${item.name}" onerror="this.src='${FALLBACK_TECH_IMG}'">`;
+    html += `</div>`;
+  }
+  html += "</div>";
+  container.innerHTML = html;
+
+  // Attach click handlers
+  container.querySelectorAll(".tech-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const key = btn.dataset.techKey;
+      const s = btn.dataset.side;
+      toggleTech(s, key, btn);
+      // Also update the torch damage input
+      const torchDmgEl = document.getElementById(`${s}_torchDamage`);
+      if (torchDmgEl) {
+        let torchBonus = 0;
+        for (const [tk] of activeTechs[s]) {
+          const tn = tk.split("|")[0].toLowerCase();
+          if (tn.includes("additional torches")) {
+            if (tn.includes("improved")) torchBonus += 2;
+            else torchBonus += 3;
+          }
+        }
+        const age =
+          parseInt(document.getElementById(`unit${s}Age`)?.value) || 2;
+        const baseTorch = TORCH_BY_AGE[age] || 13;
+        torchDmgEl.value = baseTorch + torchBonus;
+      }
+    });
+  });
+}
+
+let _syncingTechEffect = false;
 
 function toggleTech(side, techKey, btnEl) {
   if (activeTechs[side].has(techKey)) {
@@ -1544,6 +1659,23 @@ function toggleTech(side, techKey, btnEl) {
     btnEl.classList.add("active");
   }
   syncTechBuffsToInputs(side);
+
+  // Sync linked effect checkbox
+  if (!_syncingTechEffect) {
+    _syncingTechEffect = true;
+    const techName = techKey.split("|")[0];
+    const effectId = TECH_TO_EFFECT[techName];
+    if (effectId) {
+      const checkbox = document.querySelector(
+        `#${side}_effectsContainer .effect-checkbox[data-effect="${effectId}"]`
+      );
+      if (checkbox) {
+        checkbox.checked = activeTechs[side].has(techKey);
+        checkbox.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    }
+    _syncingTechEffect = false;
+  }
 }
 
 const prevTechMins = { A: {}, B: {} };
@@ -1557,7 +1689,6 @@ function syncTechBuffsToInputs(side) {
     attackPct: 0,
     hpPct: 0,
     speedPct: 0,
-    torchAbs: 0,
   };
 
   for (const [key, state] of activeTechs[side]) {
@@ -1579,7 +1710,6 @@ function syncTechBuffsToInputs(side) {
     attackPct: `${side}_buffAttackPct`,
     hpPct: `${side}_buffHPpct`,
     speedPct: `${side}_buffSpeedPct`,
-    torchAbs: `${side}_torchDamage`,
   };
 
   for (const [prop, fieldId] of Object.entries(fieldMap)) {
@@ -2938,6 +3068,11 @@ function updateUnitStats(side) {
   renderTagCheckboxes(side, unit.tags || []);
   renderBonusInputs(side, stats.bonus || {});
   renderTechButtons(side, unitName, unit);
+
+  // Also update building unit techs if in vs-building mode
+  if (document.getElementById("vsBuildingToggle")?.checked && side === "A") {
+    renderBuildingUnitTechs("A");
+  }
 
   // Show charge damage indicator if unit has charge
   const chargeInfo = document.getElementById(`${side}_chargeInfo`);
@@ -5458,6 +5593,8 @@ function serializeGroupFromEditor(side) {
   unitData.age = parseInt(document.getElementById(`unit${side}Age`).value) || 2;
   unitData.civGroup =
     document.getElementById(`unit${side}Select`)?.dataset.civGroup || "";
+  // Save active tech state for this group
+  unitData.activeTechs = Array.from(activeTechs[side].entries());
   return { unitData };
 }
 
@@ -5559,6 +5696,18 @@ function applyUnitDataToEditor(side, unitData) {
 function loadGroupIntoEditor(side, group) {
   if (!group) return;
   applyUnitDataToEditor(side, group.unitData);
+
+  // Restore saved tech state for this group
+  if (group.unitData.activeTechs) {
+    activeTechs[side] = new Map(group.unitData.activeTechs);
+    const unitName = group.unitData.name;
+    const civ = side === "A" ? selectedCivA : selectedCivB;
+    techUnitTracker[side] = `${unitName}|${civ}`;
+    const unit = units[unitName];
+    if (unit) renderTechButtons(side, unitName, unit);
+    syncTechBuffsToInputs(side);
+  }
+
   multiEditing[side] = group.id;
   multiEditorOpen[side] = true;
   updateEditingLabel(side);
@@ -5672,6 +5821,20 @@ function renderRoster(side) {
       });
     }
 
+    // Build active tech icons for this group
+    let techIconsHtml = "";
+    if (g.unitData.activeTechs && g.unitData.activeTechs.length > 0) {
+      techIconsHtml = `<div class="d-flex flex-wrap gap-1 mb-2">`;
+      for (const [key] of g.unitData.activeTechs) {
+        const techName = key.split("|")[0];
+        const img = getTechImage(techName);
+        techIconsHtml += `<div class="tech-btn active" style="width:22px;height:22px;min-width:22px;" title="${techName}">
+          <img src="${img}" alt="${techName}" onerror="this.src='${FALLBACK_TECH_IMG}'">
+        </div>`;
+      }
+      techIconsHtml += `</div>`;
+    }
+
     const card = document.createElement("div");
     card.className = `multi-group-card${isActive ? " is-active" : ""}`;
     card.dataset.groupId = g.id;
@@ -5683,6 +5846,7 @@ function renderRoster(side) {
         </div>
         <button class="btn btn-sm btn-outline-danger" data-action="remove" data-id="${g.id}">Remove</button>
       </div>
+      ${techIconsHtml}
       <div class="d-flex align-items-center gap-2 mb-2">
         <div class="text-muted" style="font-size:0.75rem;">Units</div>
         <input type="number" class="form-control form-control-sm multi-count-input" min="1" data-action="count" data-id="${g.id}" value="${count}">
@@ -8004,6 +8168,8 @@ function switchPage(pageName) {
       if (attackCol) attackCol.style.display = "";
       if (attackSpeedCol) attackSpeedCol.style.display = "";
     }
+    // Render unit siege/torch tech buttons for vs-building mode
+    renderBuildingUnitTechs("A");
     // Update Team B title to show building name
     const bName = document.getElementById("buildingType")?.value || "Building";
     setUnitTitleInteractivity("B", false);
