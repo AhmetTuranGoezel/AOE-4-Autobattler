@@ -2503,6 +2503,14 @@
         "civs": [
           "Mongols"
         ]
+      },
+      {
+        "name": "Network of Castles",
+        "description": "+20%, or +30% with Network of Citadels, English",
+        "category": "attackSpeed",
+        "civs": [
+          "English"
+        ]
       }
     ],
     "exceptCivs": [
@@ -4225,7 +4233,18 @@
       "Order of the Dragon",
       "Sengoku Daimyo",
       "Zhu Xi's Legacy"
-    ]
+    ],
+    "effects": {
+      "poisonedArrows": {
+        "name": "Poisoned Arrows",
+        "description": "3 damage over 6 seconds per archer (stacks from different archers, same archer resets timer)",
+        "civs": [
+          "Malians"
+        ],
+        "totalDamage": 3,
+        "duration": 6
+      }
+    }
   },
   "Longbow": {
     "civs": [
@@ -18466,5 +18485,205 @@
       }
     },
     "upgrades": []
+  },
+  "Grenadier": {
+    "civs": [
+      "Chinese",
+      "Zhu Xi's Legacy"
+    ],
+    "costs": {
+      "food": 100,
+      "wood": 60,
+      "gold": 60
+    },
+    "trainingTime": 30.0,
+    "population": 1,
+    "speed": 1.125,
+    "tags": [
+      "Infantry",
+      "Ranged",
+      "Gunpowder"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 3.5,
+        "attackSpeed": 1.625,
+        "ages": {
+          "3": {
+            "hp": 110,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 10,
+            "bonus": {
+              "Building": 15
+            }
+          },
+          "4": {
+            "hp": 150,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 12,
+            "bonus": {
+              "Building": 20
+            }
+          }
+        }
+      }
+    },
+    "upgrades": [
+      {
+        "name": "Fitted Leatherwork",
+        "description": "+1 melee",
+        "category": "armor"
+      },
+      {
+        "name": "Insulated Helm",
+        "description": "+1 melee",
+        "category": "armor"
+      },
+      {
+        "name": "Master Smiths",
+        "description": "+1 melee",
+        "category": "armor"
+      },
+      {
+        "name": "Iron Undermesh",
+        "description": "+1 ranged",
+        "category": "armor"
+      },
+      {
+        "name": "Wedge Rivets",
+        "description": "+1 ranged",
+        "category": "armor"
+      },
+      {
+        "name": "Angled Surfaces",
+        "description": "+1 ranged",
+        "category": "armor"
+      },
+      {
+        "name": "Military Academy",
+        "description": "+33%",
+        "category": "creationSpeed"
+      },
+      {
+        "name": "Siege Engineering",
+        "description": "Can build Battering Rams and Siege Towers",
+        "category": "ability"
+      },
+      {
+        "name": "Hard Cased Bombs",
+        "description": "Units take +15% melee and ranged damage for 5s after being hit, Zhu Xi's Legacy",
+        "category": "ability",
+        "civs": [
+          "Zhu Xi's Legacy"
+        ]
+      }
+    ],
+    "effects": {
+      "aoeSplash": {
+        "name": "Grenade AoE",
+        "description": "Deals area siege damage in 0.625 radius, falloff to 66% and 33%",
+        "radius": 0.625,
+        "falloff": [
+          1.0,
+          0.66,
+          0.33
+        ]
+      }
+    },
+    "auras": [
+      {
+        "name": "Divine Vitality",
+        "description": "2 hp/s out of combat, Zhu Xi's Legacy",
+        "category": "healing",
+        "civs": [
+          "Zhu Xi's Legacy"
+        ]
+      },
+      {
+        "name": "The Long Wall",
+        "description": "+25%, Chinese",
+        "category": "attack",
+        "civs": [
+          "Chinese"
+        ]
+      },
+      {
+        "name": "Wall Defense",
+        "description": "+1",
+        "category": "range"
+      },
+      {
+        "name": "Divine Defense",
+        "description": "+1, Zhu Xi's Legacy",
+        "category": "range",
+        "civs": [
+          "Zhu Xi's Legacy"
+        ]
+      },
+      {
+        "name": "Wall Defense",
+        "description": "-25% ranged, -50% siege",
+        "category": "damageResistance"
+      },
+      {
+        "name": "Divine Haste",
+        "description": "+15%, Zhu Xi's Legacy",
+        "category": "moveSpeed",
+        "civs": [
+          "Zhu Xi's Legacy"
+        ]
+      },
+      {
+        "name": "Chinese",
+        "description": "+150%",
+        "category": "creationSpeed",
+        "civs": [
+          "Chinese"
+        ]
+      },
+      {
+        "name": "Zhu Xi's Legacy",
+        "description": "+150%, or +300% with Regional Inspection",
+        "category": "creationSpeed",
+        "civs": [
+          "Zhu Xi's Legacy"
+        ]
+      },
+      {
+        "name": "Chinese",
+        "description": "+15% in Ming Dynasty",
+        "category": "hitpoints",
+        "civs": [
+          "Chinese"
+        ]
+      },
+      {
+        "name": "Zhu Xi's Legacy",
+        "description": "+20% in Ming Dynasty",
+        "category": "attack",
+        "civs": [
+          "Zhu Xi's Legacy"
+        ]
+      },
+      {
+        "name": "Chinese",
+        "description": "+15% in Yuan Dynasty",
+        "category": "moveSpeed",
+        "civs": [
+          "Chinese"
+        ]
+      },
+      {
+        "name": "Zhu Xi's Legacy",
+        "description": "-10% in Yuan Dynasty",
+        "category": "cost",
+        "civs": [
+          "Zhu Xi's Legacy"
+        ]
+      }
+    ]
   }
 }
