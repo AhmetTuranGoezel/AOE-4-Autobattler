@@ -4613,12 +4613,14 @@ function runBattle() {
         aDmg: bleedDamageToB.toFixed(1),
         aWaste: bleedWasteToB.toFixed(1),
         aUnits: teamA.units,
+        aInjured: getAllTrackedUnits(teamA).filter(u => u.hp < teamA.stats.hp - 0.0001).length,
         aHp: Math.round(teamA.totalHp),
         aKills: bleedKillsByA,
         bWeapon: bleedDamageToA > 0 ? "Bleed" : "—",
         bDmg: bleedDamageToA.toFixed(1),
         bWaste: bleedWasteToA.toFixed(1),
         bUnits: teamB.units,
+        bInjured: getAllTrackedUnits(teamB).filter(u => u.hp < teamB.stats.hp - 0.0001).length,
         bHp: Math.round(teamB.totalHp),
         bKills: bleedKillsByB,
         notes: "Bleed Tick",
@@ -4643,12 +4645,14 @@ function runBattle() {
         aDmg: poisonDamageToB.toFixed(1),
         aWaste: poisonWasteToB.toFixed(1),
         aUnits: teamA.units,
+        aInjured: getAllTrackedUnits(teamA).filter(u => u.hp < teamA.stats.hp - 0.0001).length,
         aHp: Math.round(teamA.totalHp),
         aKills: poisonKillsByA,
         bWeapon: poisonDamageToA > 0 ? "Poison" : "—",
         bDmg: poisonDamageToA.toFixed(1),
         bWaste: poisonWasteToA.toFixed(1),
         bUnits: teamB.units,
+        bInjured: getAllTrackedUnits(teamB).filter(u => u.hp < teamB.stats.hp - 0.0001).length,
         bHp: Math.round(teamB.totalHp),
         bKills: poisonKillsByB,
         notes: "Poison Tick",
@@ -5353,6 +5357,8 @@ function runBattle() {
     // --- Push battle log entry ---
     const aWeapon = getAttackLogLabel(unitA, aFiredPrimary, aFiredSecondary);
     const bWeapon = getAttackLogLabel(unitB, bFiredPrimary, bFiredSecondary);
+    const aInjured = getAllTrackedUnits(teamA).filter(u => u.hp < teamA.stats.hp - 0.0001).length;
+    const bInjured = getAllTrackedUnits(teamB).filter(u => u.hp < teamB.stats.hp - 0.0001).length;
     if (
       aFiredPrimary ||
       aFiredSecondary ||
@@ -5373,12 +5379,14 @@ function runBattle() {
         aDmg: damageToB.toFixed(1),
         aWaste: wasteA.toFixed(1),
         aUnits: teamA.units,
+        aInjured: aInjured,
         aHp: Math.round(teamA.totalHp),
         aKills: killsByA,
         bWeapon,
         bDmg: damageToA.toFixed(1),
         bWaste: wasteB.toFixed(1),
         bUnits: teamB.units,
+        bInjured: bInjured,
         bHp: Math.round(teamB.totalHp),
         bKills: killsByB,
         notes: [...logNotesA, ...logNotesB].join(", "),
@@ -5578,18 +5586,18 @@ function runBattle() {
       <thead><tr>
         <th>Time</th>
         <th class="team-a-col">Weapon</th><th class="team-a-col">Dmg Dealt</th>${showWaste ? '<th class="team-a-col">Wasted</th>' : ""}
-        <th class="team-a-col">Units</th><th class="team-a-col">Kills</th><th class="team-a-col">Total HP</th>
+        <th class="team-a-col">Units</th><th class="team-a-col">Injured</th><th class="team-a-col">Kills</th><th class="team-a-col">Total HP</th>
         <th class="team-b-col">Weapon</th><th class="team-b-col">Dmg Dealt</th>${showWaste ? '<th class="team-b-col">Wasted</th>' : ""}
-        <th class="team-b-col">Units</th><th class="team-b-col">Kills</th><th class="team-b-col">Total HP</th>
+        <th class="team-b-col">Units</th><th class="team-b-col">Injured</th><th class="team-b-col">Kills</th><th class="team-b-col">Total HP</th>
         <th>Notes</th>
       </tr></thead><tbody>`;
     for (const e of battleLog) {
       html += `<tr>
         <td>${e.time}s</td>
         <td class="team-a-col">${e.aWeapon}</td><td class="team-a-col">${e.aDmg}</td>${showWaste ? `<td class="team-a-col">${e.aWaste || "0.0"}</td>` : ""}
-        <td class="team-a-col">${e.aUnits}</td><td class="team-a-col">${e.aKills ?? 0}</td><td class="team-a-col">${e.aHp}</td>
+        <td class="team-a-col">${e.aUnits}</td><td class="team-a-col">${e.aInjured ?? 0}</td><td class="team-a-col">${e.aKills ?? 0}</td><td class="team-a-col">${e.aHp}</td>
         <td class="team-b-col">${e.bWeapon}</td><td class="team-b-col">${e.bDmg}</td>${showWaste ? `<td class="team-b-col">${e.bWaste || "0.0"}</td>` : ""}
-        <td class="team-b-col">${e.bUnits}</td><td class="team-b-col">${e.bKills ?? 0}</td><td class="team-b-col">${e.bHp}</td>
+        <td class="team-b-col">${e.bUnits}</td><td class="team-b-col">${e.bInjured ?? 0}</td><td class="team-b-col">${e.bKills ?? 0}</td><td class="team-b-col">${e.bHp}</td>
         <td class="log-notes">${e.notes}</td>
       </tr>`;
     }
