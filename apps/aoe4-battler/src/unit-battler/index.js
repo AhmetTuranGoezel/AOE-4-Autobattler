@@ -4119,6 +4119,18 @@ function calcWeaponDamage(
   return Math.max(1, damage - armor);
 }
 
+function calcDirectDamageAfterArmor(baseDamage, armor = 0, damageMultiplier = 1) {
+  const effectiveArmor = Math.max(0, armor || 0);
+  return Math.max(1, baseDamage * damageMultiplier - effectiveArmor);
+}
+
+function getCamelUneaseDamageMultiplier(attackerTags = [], defenderEffects = {}) {
+  if (!defenderEffects?.camelUnease) return 1;
+  if (!Array.isArray(attackerTags) || !attackerTags.includes("Cavalry")) return 1;
+  // Camel Unease reduces the raw cavalry hit before armor is subtracted.
+  return Math.max(0, 1 - defenderEffects.camelUnease.reduction / 100);
+}
+
 /**
  * Set native tooltip on Res Lost showing per-resource breakdown
  */
@@ -4335,6 +4347,14 @@ function runBattle() {
   }
   syncTrackedTeamState(teamA);
   syncTrackedTeamState(teamB);
+  const camelUneaseMultiplierAtoB = getCamelUneaseDamageMultiplier(
+    teamA.tags,
+    unitB.effects,
+  );
+  const camelUneaseMultiplierBtoA = getCamelUneaseDamageMultiplier(
+    teamB.tags,
+    unitA.effects,
+  );
 
   // --- PRE-BATTLE: Opening attacks (Donso javelin, Earl's Guard dagger) ---
   function applyOpeningAttack(
@@ -4346,7 +4366,15 @@ function runBattle() {
     const oa = attackerUnit.effects.openingAttack;
     if (!oa) return;
     const armor = defenderStats.rangedArmor || 0;
-    const dmgPerUnit = Math.max(1, oa.damage - armor);
+    const camelMultiplier = getCamelUneaseDamageMultiplier(
+      attackerTeam.tags,
+      defenderTeam.unitData.effects,
+    );
+    const dmgPerUnit = calcDirectDamageAfterArmor(
+      oa.damage,
+      armor,
+      camelMultiplier,
+    );
     const totalDmg = dmgPerUnit * attackerTeam.units;
     applyBundledDamageToTeam(
       defenderTeam,
@@ -4409,18 +4437,20 @@ function runBattle() {
       time: "Pre",
       aWeapon: unitA.effects.openingAttack ? "Opening" : "—",
       aDmg: unitA.effects.openingAttack
-        ? Math.max(
-            1,
-            unitA.effects.openingAttack.damage - (teamB.stats.rangedArmor || 0),
+        ? calcDirectDamageAfterArmor(
+            unitA.effects.openingAttack.damage,
+            teamB.stats.rangedArmor || 0,
+            camelUneaseMultiplierAtoB,
           ) * teamA.units
         : 0,
       aUnits: teamA.units,
       aHp: Math.round(teamA.totalHp),
       bWeapon: unitB.effects.openingAttack ? "Opening" : "—",
       bDmg: unitB.effects.openingAttack
-        ? Math.max(
-            1,
-            unitB.effects.openingAttack.damage - (teamA.stats.rangedArmor || 0),
+        ? calcDirectDamageAfterArmor(
+            unitB.effects.openingAttack.damage,
+            teamA.stats.rangedArmor || 0,
+            camelUneaseMultiplierBtoA,
           ) * teamB.units
         : 0,
       bUnits: teamB.units,
@@ -4745,6 +4775,7 @@ function runBattle() {
         teamB.tags,
         effectiveStatsB,
         armorPenA,
+        camelUneaseMultiplierAtoB,
       );
       // AoE target count (applied during damage distribution, not as multiplier)
       aoeTargetsA = 1;
@@ -4768,7 +4799,7 @@ function runBattle() {
           teamB.tags,
           effectiveStatsB,
           armorPenA,
-          KIPCHAK_TRIPLE_SHOT.damageMultiplier,
+          camelUneaseMultiplierAtoB * KIPCHAK_TRIPLE_SHOT.damageMultiplier,
         );
         primaryDamage +=
           extraArrowDmg * teamA.units * KIPCHAK_TRIPLE_SHOT.extraArrows;
@@ -4823,6 +4854,7 @@ function runBattle() {
         teamB.tags,
         effectiveStatsB,
         armorPenA2,
+        camelUneaseMultiplierAtoB,
       );
       const secDmgA = dmg * teamA.units * (sec.projectiles || 1);
       if (aIsSimultaneous) {
@@ -4866,6 +4898,7 @@ function runBattle() {
         teamA.tags,
         effectiveStatsA,
         armorPenB,
+        camelUneaseMultiplierBtoA,
       );
       // AoE target count (applied during damage distribution, not as multiplier)
       aoeTargetsB = 1;
@@ -4889,7 +4922,7 @@ function runBattle() {
           teamA.tags,
           effectiveStatsA,
           armorPenB,
-          KIPCHAK_TRIPLE_SHOT.damageMultiplier,
+          camelUneaseMultiplierBtoA * KIPCHAK_TRIPLE_SHOT.damageMultiplier,
         );
         primaryDamage +=
           extraArrowDmg * teamB.units * KIPCHAK_TRIPLE_SHOT.extraArrows;
@@ -4944,6 +4977,7 @@ function runBattle() {
         teamA.tags,
         effectiveStatsA,
         armorPenB2,
+        camelUneaseMultiplierBtoA,
       );
       const secDmgB = dmg * teamB.units * (sec.projectiles || 1);
       if (bIsSimultaneous) {
@@ -4952,14 +4986,6 @@ function runBattle() {
       damageToA += secDmgB;
       teamB.nextSecondaryAttack = time + sec.attackSpeed;
       bFiredSecondary = true;
-    }
-
-    // === APPLY CAMEL UNEASE: reduce enemy cavalry damage ===
-    if (unitA.effects.camelUnease && teamB.tags.includes("Cavalry")) {
-      damageToA *= 1 - unitA.effects.camelUnease.reduction / 100;
-    }
-    if (unitB.effects.camelUnease && teamA.tags.includes("Cavalry")) {
-      damageToB *= 1 - unitB.effects.camelUnease.reduction / 100;
     }
 
     // === APPLY GUNPOWDER RESISTANCE: reduce damage from gunpowder units ===
@@ -5046,7 +5072,7 @@ function runBattle() {
         teamA.trampleActive = true;
         teamA.trampleEnd = time + t.duration;
       }
-      const tickDmg = t.dps * TRAMPLE_TICK;
+      const tickDmg = t.dps * TRAMPLE_TICK * camelUneaseMultiplierAtoB;
       const targets = Math.min(t.unitsHit || 1, teamB.units);
       damageToB += tickDmg * teamA.units * targets;
       if (time + TRAMPLE_TICK < teamA.trampleEnd - EPSILON) {
@@ -5066,7 +5092,7 @@ function runBattle() {
         teamB.trampleActive = true;
         teamB.trampleEnd = time + t.duration;
       }
-      const tickDmg = t.dps * TRAMPLE_TICK;
+      const tickDmg = t.dps * TRAMPLE_TICK * camelUneaseMultiplierBtoA;
       const targets = Math.min(t.unitsHit || 1, teamA.units);
       damageToA += tickDmg * teamB.units * targets;
       if (time + TRAMPLE_TICK < teamB.trampleEnd - EPSILON) {
@@ -7803,7 +7829,15 @@ function applyOpeningAttacks(attackerTeams, teamById, battleLog) {
     if (!defender || defender.units <= 0) return;
     const oa = attacker.unitData.effects.openingAttack;
     const armor = defender.stats.rangedArmor || 0;
-    const dmgPerUnit = Math.max(1, oa.damage - armor);
+    const camelMultiplier = getCamelUneaseDamageMultiplier(
+      attacker.tags,
+      defender.unitData.effects,
+    );
+    const dmgPerUnit = calcDirectDamageAfterArmor(
+      oa.damage,
+      armor,
+      camelMultiplier,
+    );
     const totalDmg = dmgPerUnit * attacker.units;
     const result = applyBundledDamageToTeam(
       defender,
@@ -7928,6 +7962,10 @@ function computeTeamAttack(attacker, target, time, config) {
     time,
     attacker,
   );
+  const camelUneaseMultiplier = getCamelUneaseDamageMultiplier(
+    attacker.tags,
+    unitB.effects,
+  );
   const armorB = calcEffectiveArmor(
     unitB,
     target.stats.meleeArmor,
@@ -7968,6 +8006,7 @@ function computeTeamAttack(attacker, target, time, config) {
       target.tags,
       effectiveStatsB,
       armorPenA,
+      camelUneaseMultiplier,
     );
     mAoeTargets = 1;
     mAoeFalloff = false;
@@ -7987,7 +8026,7 @@ function computeTeamAttack(attacker, target, time, config) {
         target.tags,
         effectiveStatsB,
         armorPenA,
-        KIPCHAK_TRIPLE_SHOT.damageMultiplier,
+        camelUneaseMultiplier * KIPCHAK_TRIPLE_SHOT.damageMultiplier,
       );
       primaryDamage +=
         extraArrowDmg * attacker.units * KIPCHAK_TRIPLE_SHOT.extraArrows;
@@ -8030,6 +8069,7 @@ function computeTeamAttack(attacker, target, time, config) {
       target.tags,
       effectiveStatsB,
       armorPenA2,
+      camelUneaseMultiplier,
     );
     const secDmgM = dmg * attacker.units * (sec.projectiles || 1);
     if (isSimultaneous) mSecondaryDmg += secDmgM;
@@ -8049,7 +8089,7 @@ function computeTeamAttack(attacker, target, time, config) {
       attacker.trampleActive = true;
       attacker.trampleEnd = time + t.duration;
     }
-    const tickDmg = t.dps * 0.5;
+    const tickDmg = t.dps * 0.5 * camelUneaseMultiplier;
     const targets = Math.min(t.unitsHit || 1, target.units);
     damageToB += tickDmg * attacker.units * targets;
     if (time + 0.5 < attacker.trampleEnd - EPSILON) {
@@ -8062,12 +8102,6 @@ function computeTeamAttack(attacker, target, time, config) {
   }
 
   // Defender-based reductions
-  if (
-    target.unitData.effects.camelUnease &&
-    attacker.tags.includes("Cavalry")
-  ) {
-    damageToB *= 1 - target.unitData.effects.camelUnease.reduction / 100;
-  }
   if (
     target.unitData.effects.gunpowderResistance &&
     (attacker.tags.includes("Gunpowder") ||
