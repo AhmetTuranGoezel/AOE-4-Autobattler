@@ -931,7 +931,8 @@ function applyBundledDamageToTeam(
   );
   if (laneCount <= 0) return { dealt: 0, waste: 0, kills: 0 };
   const aoeCount = Math.max(1, aoeTargets || 1);
-  ensureFrontUnitCount(team, Math.max(laneCount, aoeCount));
+  const totalAoeSlots = laneCount * aoeCount;
+  ensureFrontUnitCount(team, totalAoeSlots);
   const bundleDamage = totalDamage / attackerUnits;
   const perLane = Math.floor(attackerUnits / laneCount);
   const extra = attackerUnits % laneCount;
@@ -972,7 +973,10 @@ function applyBundledDamageToTeam(
       // AoE: apply damage to additional front units beyond the primary lane
       if (aoeCount > 1) {
         for (let a = 0; a < aoeCount - 1; a++) {
-          const aoeIdx = lane + 1 + a;
+          let aoeIdx = laneCount + lane * (aoeCount - 1) + a;
+          if (aoeIdx >= team.frontUnits.length && team.frontUnits.length > 0) {
+            aoeIdx = aoeIdx % team.frontUnits.length;
+          }
           // For falloff: linearly decrease damage per additional target
           const falloffMult = aoeFalloff
             ? Math.max(0, 1 - (a + 1) / aoeCount)
@@ -4861,7 +4865,8 @@ function runBattle() {
         secondaryDmgToB += secDmgA;
       }
       damageToB += secDmgA;
-      teamA.nextSecondaryAttack = time + sec.attackSpeed;
+      const secSpeedA = aIsSimultaneous ? sec.attackSpeed * (atkSpeedA / teamA.stats.attackSpeed) : sec.attackSpeed;
+      teamA.nextSecondaryAttack = time + secSpeedA;
       aFiredSecondary = true;
     }
 
@@ -4984,7 +4989,8 @@ function runBattle() {
         secondaryDmgToA += secDmgB;
       }
       damageToA += secDmgB;
-      teamB.nextSecondaryAttack = time + sec.attackSpeed;
+      const secSpeedB = bIsSimultaneous ? sec.attackSpeed * (atkSpeedB / teamB.stats.attackSpeed) : sec.attackSpeed;
+      teamB.nextSecondaryAttack = time + secSpeedB;
       bFiredSecondary = true;
     }
 
@@ -8074,7 +8080,8 @@ function computeTeamAttack(attacker, target, time, config) {
     const secDmgM = dmg * attacker.units * (sec.projectiles || 1);
     if (isSimultaneous) mSecondaryDmg += secDmgM;
     damageToB += secDmgM;
-    attacker.nextSecondaryAttack = time + sec.attackSpeed;
+    const secSpeedM = isSimultaneous ? sec.attackSpeed * (atkSpeedA / attacker.stats.attackSpeed) : sec.attackSpeed;
+    attacker.nextSecondaryAttack = time + secSpeedM;
     firedSecondary = true;
   }
 
