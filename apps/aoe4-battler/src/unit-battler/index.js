@@ -917,6 +917,8 @@ function applyBundledDamageToTeam(
   splitEnabled,
   splitTargets,
   overkillEnabled,
+  aoeTargets,
+  aoeFalloff,
 ) {
   if (!team || !(totalDamage > 0) || !(attackerUnits > 0) || team.units <= 0) {
     return { dealt: 0, waste: 0, kills: 0 };
@@ -928,7 +930,8 @@ function applyBundledDamageToTeam(
     splitTargets,
   );
   if (laneCount <= 0) return { dealt: 0, waste: 0, kills: 0 };
-  ensureFrontUnitCount(team, laneCount);
+  const aoeCount = Math.max(1, aoeTargets || 1);
+  ensureFrontUnitCount(team, Math.max(laneCount, aoeCount));
   const bundleDamage = totalDamage / attackerUnits;
   const perLane = Math.floor(attackerUnits / laneCount);
   const extra = attackerUnits % laneCount;
@@ -939,6 +942,7 @@ function applyBundledDamageToTeam(
   for (let lane = laneCount - 1; lane >= 0; lane--) {
     const bundleCount = perLane + (lane < extra ? 1 : 0);
     for (let i = 0; i < bundleCount; i++) {
+      // Apply damage to primary lane target
       let remaining = bundleDamage;
       while (remaining > 0.0001) {
         const target = team.frontUnits[lane];
@@ -962,6 +966,26 @@ function applyBundledDamageToTeam(
           if (overkillEnabled) {
             waste += remaining;
             remaining = 0;
+          }
+        }
+      }
+      // AoE: apply damage to additional front units beyond the primary lane
+      if (aoeCount > 1) {
+        for (let a = 0; a < aoeCount - 1; a++) {
+          const aoeIdx = lane + 1 + a;
+          // For falloff: linearly decrease damage per additional target
+          const falloffMult = aoeFalloff
+            ? Math.max(0, 1 - (a + 1) / aoeCount)
+            : 1;
+          let aoeDmg = bundleDamage * falloffMult;
+          const aoeTarget = team.frontUnits[aoeIdx];
+          if (!aoeTarget || aoeDmg <= 0.0001) continue;
+          const applied = Math.min(aoeDmg, aoeTarget.hp);
+          aoeTarget.hp -= applied;
+          dealt += applied;
+          if (aoeTarget.hp <= 0.0001) {
+            aoeTarget.bleed = null;
+            if (removeTrackedUnitAt(team, aoeIdx, false)) kills++;
           }
         }
       }
@@ -4672,6 +4696,9 @@ function runBattle() {
     let primaryDmgToA = 0, secondaryDmgToA = 0;
     const aIsSimultaneous = SIMULTANEOUS_WEAPON_UNITS.has(unitA.name);
     const bIsSimultaneous = SIMULTANEOUS_WEAPON_UNITS.has(unitB.name);
+    // AoE tracking (set during primary weapon calc, used during application)
+    let aoeTargetsA = 1, aoeFalloffA = false;
+    let aoeTargetsB = 1, aoeFalloffB = false;
     let logNotesA = [],
       logNotesB = [];
     let aFiredPrimary = false,
@@ -4715,21 +4742,20 @@ function runBattle() {
         effectiveStatsB,
         armorPenA,
       );
-      // AoE: splash (full damage) or falloff (center=full, outer=linear decrease)
-      let splashA = 1;
-      let totalTargetsA = 1;
+      // AoE target count (applied during damage distribution, not as multiplier)
+      aoeTargetsA = 1;
+      aoeFalloffA = false;
       if (unitA.effects.aoeSplash) {
-        splashA = Math.min(unitA.effects.aoeSplash.unitsHit, teamB.units);
-        totalTargetsA = splashA;
+        aoeTargetsA = Math.min(unitA.effects.aoeSplash.unitsHit, teamB.units);
       } else if (unitA.effects.aoeFalloff) {
-        totalTargetsA = Math.min(
+        aoeTargetsA = Math.min(
           unitA.effects.aoeFalloff.unitsHit,
           teamB.units,
         );
-        splashA = (totalTargetsA + 1) / 2;
+        aoeFalloffA = true;
       }
       let primaryDamage =
-        dmg * teamA.units * splashA * (unitA.weaponProjectiles || 1);
+        dmg * teamA.units * (unitA.weaponProjectiles || 1);
       if (hasKipchakTripleShot(unitA)) {
         const extraArrowDmg = calcWeaponDamage(
           unitA.weaponType,
@@ -4756,10 +4782,10 @@ function runBattle() {
         (!teamA.hasCharged || time <= teamA.chargeTime + EPSILON)
       )
         logNotesA.push("Charge");
-      if (unitA.effects.aoeSplash && totalTargetsA > 1)
-        logNotesA.push(`AoE×${totalTargetsA}`);
-      if (unitA.effects.aoeFalloff && totalTargetsA > 1)
-        logNotesA.push(`AoE×${totalTargetsA}(falloff)`);
+      if (unitA.effects.aoeSplash && aoeTargetsA > 1)
+        logNotesA.push(`AoE×${aoeTargetsA}`);
+      if (unitA.effects.aoeFalloff && aoeTargetsA > 1)
+        logNotesA.push(`AoE×${aoeTargetsA}(falloff)`);
       // Atk Speed Debuff: slow enemy on hit
       if (unitA.effects.atkSpeedDebuff) {
         teamB.atkSpeedDebuffUntil =
@@ -4837,21 +4863,20 @@ function runBattle() {
         effectiveStatsA,
         armorPenB,
       );
-      // AoE: splash (full damage) or falloff (center=full, outer=linear decrease)
-      let splashB = 1;
-      let totalTargetsB = 1;
+      // AoE target count (applied during damage distribution, not as multiplier)
+      aoeTargetsB = 1;
+      aoeFalloffB = false;
       if (unitB.effects.aoeSplash) {
-        splashB = Math.min(unitB.effects.aoeSplash.unitsHit, teamA.units);
-        totalTargetsB = splashB;
+        aoeTargetsB = Math.min(unitB.effects.aoeSplash.unitsHit, teamA.units);
       } else if (unitB.effects.aoeFalloff) {
-        totalTargetsB = Math.min(
+        aoeTargetsB = Math.min(
           unitB.effects.aoeFalloff.unitsHit,
           teamA.units,
         );
-        splashB = (totalTargetsB + 1) / 2;
+        aoeFalloffB = true;
       }
       let primaryDamage =
-        dmg * teamB.units * splashB * (unitB.weaponProjectiles || 1);
+        dmg * teamB.units * (unitB.weaponProjectiles || 1);
       if (hasKipchakTripleShot(unitB)) {
         const extraArrowDmg = calcWeaponDamage(
           unitB.weaponType,
@@ -4878,10 +4903,10 @@ function runBattle() {
         (!teamB.hasCharged || time <= teamB.chargeTime + EPSILON)
       )
         logNotesB.push("Charge");
-      if (unitB.effects.aoeSplash && totalTargetsB > 1)
-        logNotesB.push(`AoE×${totalTargetsB}`);
-      if (unitB.effects.aoeFalloff && totalTargetsB > 1)
-        logNotesB.push(`AoE×${totalTargetsB}(falloff)`);
+      if (unitB.effects.aoeSplash && aoeTargetsB > 1)
+        logNotesB.push(`AoE×${aoeTargetsB}`);
+      if (unitB.effects.aoeFalloff && aoeTargetsB > 1)
+        logNotesB.push(`AoE×${aoeTargetsB}(falloff)`);
       // Atk Speed Debuff: slow enemy on hit
       if (unitB.effects.atkSpeedDebuff) {
         teamA.atkSpeedDebuffUntil =
@@ -5052,6 +5077,9 @@ function runBattle() {
     const startUnitsB = teamB.units;
 
     // --- Preview pass (clone to compute waste/kills/dealt) ---
+    // AoE params: only primary weapon has AoE; secondary (spear) is single-target
+    const aoeA = aFiredPrimary ? aoeTargetsA : 1;
+    const aoeB = bFiredPrimary ? aoeTargetsB : 1;
     let wasteA = 0, wasteB = 0, killsByA = 0, killsByB = 0;
 
     if (aIsSimultaneous && aFiredPrimary && aFiredSecondary) {
@@ -5061,7 +5089,7 @@ function runBattle() {
         frontUnits: teamB.frontUnits.map((unit) => cloneUnitState(unit)),
         reserveUnits: teamB.reserveUnits.map((unit) => cloneUnitState(unit)),
       };
-      const r1 = applyBundledDamageToTeam(cloneB1, primaryDmgToB, startUnitsA, splitA, splitTargetsA, overkillEnabled);
+      const r1 = applyBundledDamageToTeam(cloneB1, primaryDmgToB, startUnitsA, splitA, splitTargetsA, overkillEnabled, aoeA, aoeFalloffA);
       const r2 = applyBundledDamageToTeam(cloneB1, secondaryDmgToB, startUnitsA, splitA, splitTargetsA, overkillEnabled);
       wasteA = r1.waste + r2.waste;
       damageToB = r1.dealt + r2.dealt;
@@ -5078,6 +5106,8 @@ function runBattle() {
         splitA,
         splitTargetsA,
         overkillEnabled,
+        aoeA,
+        aoeFalloffA,
       );
       wasteA = resultToB.waste;
       damageToB = resultToB.dealt;
@@ -5090,7 +5120,7 @@ function runBattle() {
         frontUnits: teamA.frontUnits.map((unit) => cloneUnitState(unit)),
         reserveUnits: teamA.reserveUnits.map((unit) => cloneUnitState(unit)),
       };
-      const r1 = applyBundledDamageToTeam(cloneA1, primaryDmgToA, startUnitsB, splitB, splitTargetsB, overkillEnabled);
+      const r1 = applyBundledDamageToTeam(cloneA1, primaryDmgToA, startUnitsB, splitB, splitTargetsB, overkillEnabled, aoeB, aoeFalloffB);
       const r2 = applyBundledDamageToTeam(cloneA1, secondaryDmgToA, startUnitsB, splitB, splitTargetsB, overkillEnabled);
       wasteB = r1.waste + r2.waste;
       damageToA = r1.dealt + r2.dealt;
@@ -5107,6 +5137,8 @@ function runBattle() {
         splitB,
         splitTargetsB,
         overkillEnabled,
+        aoeB,
+        aoeFalloffB,
       );
       wasteB = resultToA.waste;
       damageToA = resultToA.dealt;
@@ -5116,7 +5148,7 @@ function runBattle() {
     // --- Real damage application ---
     if (aIsSimultaneous && aFiredPrimary && aFiredSecondary) {
       if (primaryDmgToB > 0) {
-        applyBundledDamageToTeam(teamB, primaryDmgToB, startUnitsA, splitA, splitTargetsA, overkillEnabled);
+        applyBundledDamageToTeam(teamB, primaryDmgToB, startUnitsA, splitA, splitTargetsA, overkillEnabled, aoeA, aoeFalloffA);
       }
       if (secondaryDmgToB > 0) {
         applyBundledDamageToTeam(teamB, secondaryDmgToB, startUnitsA, splitA, splitTargetsA, overkillEnabled);
@@ -5129,11 +5161,13 @@ function runBattle() {
         splitA,
         splitTargetsA,
         overkillEnabled,
+        aoeA,
+        aoeFalloffA,
       );
     }
     if (bIsSimultaneous && bFiredPrimary && bFiredSecondary) {
       if (primaryDmgToA > 0) {
-        applyBundledDamageToTeam(teamA, primaryDmgToA, startUnitsB, splitB, splitTargetsB, overkillEnabled);
+        applyBundledDamageToTeam(teamA, primaryDmgToA, startUnitsB, splitB, splitTargetsB, overkillEnabled, aoeB, aoeFalloffB);
       }
       if (secondaryDmgToA > 0) {
         applyBundledDamageToTeam(teamA, secondaryDmgToA, startUnitsB, splitB, splitTargetsB, overkillEnabled);
@@ -5146,6 +5180,8 @@ function runBattle() {
         splitB,
         splitTargetsB,
         overkillEnabled,
+        aoeB,
+        aoeFalloffB,
       );
     }
 
@@ -7876,6 +7912,7 @@ function computeTeamAttack(attacker, target, time, config) {
   let appliesDamageDebuff = false;
   const isSimultaneous = SIMULTANEOUS_WEAPON_UNITS.has(unitA.name);
   let mPrimaryDmg = 0, mSecondaryDmg = 0;
+  let mAoeTargets = 1, mAoeFalloff = false;
 
   const atkSpeedA = calcEffectiveAttackSpeed(
     unitA,
@@ -7924,17 +7961,16 @@ function computeTeamAttack(attacker, target, time, config) {
       effectiveStatsB,
       armorPenA,
     );
-    let splashA = 1;
-    let totalTargetsA = 1;
+    mAoeTargets = 1;
+    mAoeFalloff = false;
     if (unitA.effects.aoeSplash) {
-      splashA = Math.min(unitA.effects.aoeSplash.unitsHit, target.units);
-      totalTargetsA = splashA;
+      mAoeTargets = Math.min(unitA.effects.aoeSplash.unitsHit, target.units);
     } else if (unitA.effects.aoeFalloff) {
-      totalTargetsA = Math.min(unitA.effects.aoeFalloff.unitsHit, target.units);
-      splashA = (totalTargetsA + 1) / 2;
+      mAoeTargets = Math.min(unitA.effects.aoeFalloff.unitsHit, target.units);
+      mAoeFalloff = true;
     }
     let primaryDamage =
-      dmg * attacker.units * splashA * (unitA.weaponProjectiles || 1);
+      dmg * attacker.units * (unitA.weaponProjectiles || 1);
     if (hasKipchakTripleShot(unitA)) {
       const extraArrowDmg = calcWeaponDamage(
         unitA.weaponType,
@@ -7959,10 +7995,10 @@ function computeTeamAttack(attacker, target, time, config) {
       (!attacker.hasCharged || time <= attacker.chargeTime + EPSILON)
     )
       logNotes.push("Charge");
-    if (unitA.effects.aoeSplash && totalTargetsA > 1)
-      logNotes.push(`AoE×${totalTargetsA}`);
-    if (unitA.effects.aoeFalloff && totalTargetsA > 1)
-      logNotes.push(`AoE×${totalTargetsA}(falloff)`);
+    if (unitA.effects.aoeSplash && mAoeTargets > 1)
+      logNotes.push(`AoE×${mAoeTargets}`);
+    if (unitA.effects.aoeFalloff && mAoeTargets > 1)
+      logNotes.push(`AoE×${mAoeTargets}(falloff)`);
     appliesAtkSpeedDebuff = !!unitA.effects.atkSpeedDebuff;
     appliesDamageDebuff = !!unitA.effects.dmgDebuffOnHit;
   }
@@ -8139,6 +8175,9 @@ function computeTeamAttack(attacker, target, time, config) {
     isSimultaneous: isSimultaneous && firedPrimary && firedSecondary,
     primaryDamage: mPrimaryDmg,
     secondaryDamage: mSecondaryDmg,
+    // AoE: pass to damage application (only applies to primary weapon)
+    aoeTargets: firedPrimary ? mAoeTargets : 1,
+    aoeFalloff: mAoeFalloff,
   };
 }
 
@@ -8325,6 +8364,8 @@ function runMultiBattle() {
           isSimultaneous: atkResult.isSimultaneous,
           primaryDamage: atkResult.primaryDamage,
           secondaryDamage: atkResult.secondaryDamage,
+          aoeTargets: atkResult.aoeTargets,
+          aoeFalloff: atkResult.aoeFalloff,
         });
       }
     });
@@ -8340,6 +8381,7 @@ function runMultiBattle() {
           const r1 = applyBundledDamageToTeam(
             target, detail.primaryDamage, detail.attackerUnits,
             detail.splitEnabled, detail.splitTargets, overkillEnabled,
+            detail.aoeTargets, detail.aoeFalloff,
           );
           const r2 = applyBundledDamageToTeam(
             target, detail.secondaryDamage, detail.attackerUnits,
@@ -8358,6 +8400,8 @@ function runMultiBattle() {
             detail.splitEnabled,
             detail.splitTargets,
             overkillEnabled,
+            detail.aoeTargets,
+            detail.aoeFalloff,
           );
         }
         if (detail.log) {
