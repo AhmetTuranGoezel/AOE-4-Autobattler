@@ -3417,6 +3417,15 @@ function getPrevBoCommandId(id) {
   return null;
 }
 
+function getBoLatestCommandIdForBuilding(buildingId, fallbackId = null) {
+  if (!buildingId) return fallbackId || null;
+  for (let i = boCommands.length - 1; i >= 0; i--) {
+    const cmd = boCommands[i];
+    if ((cmd?.payload?.buildingId || null) === buildingId) return cmd.id;
+  }
+  return fallbackId || null;
+}
+
 function addBoCommand(type, insertAfterId = null) {
   discardBoMarkerDraft(false);
   const cmd = createBoCommand(type);
@@ -4153,8 +4162,12 @@ function getBoCommandStart(cmd, prevEnd, plannedById, buildById) {
   if (cmd.timeMode === "atPin") return Math.max(0, cmd.atTime ?? boPinnedTime ?? 0);
   if (cmd.timeMode === "atTime") return Math.max(0, cmd.atTime ?? 0);
   if (cmd.timeMode === "afterPrev") {
+    const afterEnd = cmd.afterId && plannedById.has(cmd.afterId)
+      ? plannedById.get(cmd.afterId).end
+      : prevEnd;
     const buildingAnchor = getBoBuildingAnchorTime(cmd, buildById);
-    if (buildingAnchor !== null) return buildingAnchor;
+    if (buildingAnchor !== null) return Math.max(afterEnd, buildingAnchor);
+    return afterEnd;
   }
   if (cmd.afterId && plannedById.has(cmd.afterId)) return plannedById.get(cmd.afterId).end;
   return prevEnd;
@@ -4999,6 +5012,28 @@ function getBoAnchorTime() {
     ? boLastResults.samples[boLastResults.samples.length - 1]?.time
     : null;
   return Number.isFinite(lastSampleTime) ? lastSampleTime : 0;
+}
+
+function getBoPlannedCommandEntryById(commandId, planned = null) {
+  if (!commandId) return null;
+  const entries = Array.isArray(planned) ? planned : buildBoPlannedCommands(boCommands);
+  return entries.find((entry) => entry?.cmd?.id === commandId) || null;
+}
+
+function getBoBuildingQueuePreviewTime(building, planned = null) {
+  const readyAt = Number.isFinite(building?.readyAt) ? building.readyAt : 0;
+  const anchorId = getBoLatestCommandIdForBuilding(building?.id, building?.sourceCommandId || null);
+  const anchorEntry = getBoPlannedCommandEntryById(anchorId, planned);
+  return Number.isFinite(anchorEntry?.end) ? Math.max(readyAt, anchorEntry.end) : readyAt;
+}
+
+function getBoTechCommandPreviewTime(cmd, planned = null) {
+  const entry = getBoPlannedCommandEntryById(cmd?.id, planned);
+  if (Number.isFinite(entry?.start)) return Math.max(0, entry.start);
+  if (cmd?.timeMode === "atTime" || cmd?.timeMode === "atPin") {
+    return Math.max(0, cmd?.atTime ?? 0);
+  }
+  return 0;
 }
 
 function renderBoGatherRates(timeOverride = null) {
@@ -6143,8 +6178,9 @@ function renderBoCommandEditor(cmd) {
     const techBuildingType = anchoredTechBuilding && techBuildingSites.includes(anchoredTechBuilding)
       ? anchoredTechBuilding
       : null;
+    const techPreviewTime = getBoTechCommandPreviewTime(cmd);
     const techChoices = Array.from(new Set([
-      ...getBoAvailableTechs(civ, techBuildingType, { ignoreAvailability: true }),
+      ...getBoAvailableTechs(civ, techBuildingType, { timeOverride: techPreviewTime }),
       selectedTechType
     ])).filter(Boolean);
     const techNoteText = getBoTechNoteText(selectedTechType);
@@ -6964,8 +7000,9 @@ function renderBoBuildingPanel(editor, building) {
     editor.innerHTML = "<span class='text-muted'>Select a civilization to begin.</span>";
     return;
   }
+  const techPreviewTime = getBoBuildingQueuePreviewTime(building);
   if (building?.type === BO_HOUSE_OF_WISDOM_BUILDING && isBoHouseOfWisdomCiv(civ)) {
-    const anchorTime = getBoAnchorTime();
+    const anchorTime = techPreviewTime;
     const state = getBoHouseOfWisdomPreviewState(anchorTime);
     const howTechs = getBoAvailableTechs(civ, BO_HOUSE_OF_WISDOM_BUILDING, { timeOverride: anchorTime });
     const displayWings = (state.wings || []).length
@@ -7098,7 +7135,10 @@ function renderBoBuildingPanel(editor, building) {
       const techType = editor.querySelector('[data-field="howTechSelect"]')?.value || howTechs[0];
       const mode = editor.querySelector('[data-field="howTechTimeMode"]')?.value || "afterPrev";
       const atTime = parseFloat(editor.querySelector('[data-field="howTechAtTime"]')?.value) || 0;
-      const cmd = addBoCommand("tech", mode === "afterPrev" ? building.sourceCommandId : null);
+      const afterPrevId = mode === "afterPrev"
+        ? getBoLatestCommandIdForBuilding(BO_HOUSE_OF_WISDOM_BUILDING, building.sourceCommandId || null)
+        : null;
+      const cmd = addBoCommand("tech", afterPrevId);
       cmd.payload.techType = techType;
       cmd.payload.building = BO_HOUSE_OF_WISDOM_BUILDING;
       cmd.payload.buildingId = BO_HOUSE_OF_WISDOM_BUILDING;
@@ -7108,7 +7148,8 @@ function renderBoBuildingPanel(editor, building) {
         insertBoCommandAtTime(cmd, timing.atTime);
       } else {
         cmd.timeMode = "afterPrev";
-        cmd.afterId = getPrevBoCommandId(cmd.id);
+        cmd.atTime = 0;
+        cmd.afterId = afterPrevId || null;
       }
       boSelectedCommandId = cmd.id;
       boSelectedBuilding = null;
@@ -7225,7 +7266,7 @@ function renderBoBuildingPanel(editor, building) {
   const ottomanSettings = getBoOttomanSettingsFromInputs();
   const unitPool = getBoUnitOptionsForBuilding(building.type, civ, ottomanSettings);
   const unitOptions = unitPool.map((name) => `<option value="${name}">${name}</option>`).join("");
-  const techTimeOverride = Math.max(getBoAnchorTime(), Number.isFinite(building.readyAt) ? building.readyAt : 0);
+  const techTimeOverride = techPreviewTime;
   const filteredTechs = getBoAvailableTechs(civ, building.type, { timeOverride: techTimeOverride });
   const isProduction = isBoProductionSurface(building.type, civ);
   const isTech = filteredTechs.length > 0;
@@ -7292,7 +7333,7 @@ function renderBoBuildingPanel(editor, building) {
       </div>
       <div class="bo-target-note text-muted" data-role="queueRepeatNote" hidden>Uses this building continuously until the sim ends or a newer repeat queue replaces it.</div>
       ${queueRallyFields}
-      <div class="bo-target-note text-muted">${isMilitarySchool ? "Military Schools continuously produce one selected unit for free. The output command uses repeat mode automatically." : "After previous anchors to this building's completion."}</div>
+      <div class="bo-target-note text-muted">${isMilitarySchool ? "Military Schools continuously produce one selected unit for free. The output command uses repeat mode automatically." : "After previous queues after the last command already added to this building."}</div>
     </div>
   ` : "";
   const rallyHint = isTownCenter
@@ -7321,6 +7362,7 @@ function renderBoBuildingPanel(editor, building) {
           <button class="btn btn-outline-secondary btn-sm" type="button" data-action="queueTech">Add</button>
         </div>
       </div>
+      <div class="bo-target-note text-muted mt-2">Tech list reflects this building's next queued start. After previous queues after the last command already added to this building.</div>
     </div>
   ` : "";
   const emptyBlock = (!isProduction && !isTech && !isTownCenter)
@@ -7369,21 +7411,19 @@ function renderBoBuildingPanel(editor, building) {
     applyBoTechButtonSelection(editor, fieldName, value);
   });
 
-  const anchorId = building.sourceCommandId || null;
+  const sourceAnchorId = building.sourceCommandId || null;
+  const getBuildingAfterPrevAnchorId = () =>
+    getBoLatestCommandIdForBuilding(building.id, sourceAnchorId);
 
-  const applyTimingToCommand = (cmd, mode, atTime) => {
+  const applyTimingToCommand = (cmd, mode, atTime, afterPrevId = null) => {
     const timing = resolveBoTimingModeSelection(mode, atTime);
     cmd.timeMode = timing.timeMode;
     if (cmd.timeMode === "atTime") {
       cmd.atTime = timing.atTime;
       cmd.afterId = null;
     } else {
-      if (anchorId) {
-        cmd.atTime = 0;
-        cmd.afterId = anchorId;
-      } else {
-        setBoCommandToTimelineStart(cmd);
-      }
+      cmd.atTime = 0;
+      cmd.afterId = afterPrevId || null;
     }
   };
 
@@ -7395,7 +7435,8 @@ function renderBoBuildingPanel(editor, building) {
     const atTime = parseFloat(editor.querySelector('[data-field="queueAtTime"]')?.value) || 0;
     const rallyTarget = editor.querySelector('[data-field="queueRallyTarget"]')?.value || "idle";
     const rallyTravel = parseFloat(editor.querySelector('[data-field="queueRallyTravel"]')?.value);
-    const cmd = addBoCommand("trainUnit", mode === "afterPrev" ? anchorId : null);
+    const afterPrevId = mode === "afterPrev" ? getBuildingAfterPrevAnchorId() : null;
+    const cmd = addBoCommand("trainUnit", afterPrevId);
     cmd.payload.building = building.type;
     cmd.payload.buildingId = building.id;
     cmd.payload.unitName = unitName;
@@ -7411,7 +7452,7 @@ function renderBoBuildingPanel(editor, building) {
       cmd.payload.rallyTripOverrideSec = null;
     }
     applyAutoDefaultsForCommand(cmd, civ);
-    applyTimingToCommand(cmd, mode, atTime);
+    applyTimingToCommand(cmd, mode, atTime, afterPrevId);
     boLastResults = null;
     renderBoTimelineEditor();
     renderBoCommandEditor(null);
@@ -7422,12 +7463,13 @@ function renderBoBuildingPanel(editor, building) {
     const techType = editor.querySelector('[data-field="techSelect"]')?.value || "Wheelbarrow";
     const mode = editor.querySelector('[data-field="techTimeMode"]')?.value || "afterPrev";
     const atTime = parseFloat(editor.querySelector('[data-field="techAtTime"]')?.value) || 0;
-    const cmd = addBoCommand("tech", mode === "afterPrev" ? anchorId : null);
+    const afterPrevId = mode === "afterPrev" ? getBuildingAfterPrevAnchorId() : null;
+    const cmd = addBoCommand("tech", afterPrevId);
     cmd.payload.techType = techType;
     cmd.payload.building = building.type;
     cmd.payload.buildingId = building.id;
     applyAutoDefaultsForCommand(cmd, civ);
-    applyTimingToCommand(cmd, mode, atTime);
+    applyTimingToCommand(cmd, mode, atTime, afterPrevId);
     boLastResults = null;
     renderBoTimelineEditor();
     renderBoCommandEditor(null);
