@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-04T19:50:37.342215+00:00",
+  "generatedAt": "2026-04-05T14:53:32.533094+00:00",
   "generatedFrom": "units_restructured.json",
   "civOrder": [
     "Common",
@@ -2159,7 +2159,7 @@
         4
       ],
       "hasAuras": true,
-      "hasEffects": false
+      "hasEffects": true
     },
     "Szlachta Cavalry": {
       "name": "Szlachta Cavalry",
@@ -2334,7 +2334,7 @@
         4
       ],
       "hasAuras": true,
-      "hasEffects": false
+      "hasEffects": true
     },
     "Varangian Guard": {
       "name": "Varangian Guard",
