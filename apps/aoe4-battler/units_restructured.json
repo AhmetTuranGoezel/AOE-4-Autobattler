@@ -3045,6 +3045,11 @@
         "civs": [
           "Tughlaq Dynasty"
         ]
+      },
+      "aoeSplash": {
+        "name": "Tusk AoE",
+        "description": "Tusk attack hits multiple nearby enemies",
+        "unitsHit": 2
       }
     }
   },
@@ -10117,7 +10122,14 @@
           "Byzantines"
         ]
       }
-    ]
+    ],
+    "effects": {
+      "aoeSplash": {
+        "name": "Tusk AoE",
+        "description": "Tusk attack hits multiple nearby enemies",
+        "unitsHit": 2
+      }
+    }
   },
   "Sultans Tower Elephant": {
     "civs": [
@@ -10266,7 +10278,14 @@
         "description": "+100%, requires Efficient Production",
         "category": "creationSpeed"
       }
-    ]
+    ],
+    "effects": {
+      "aoeSplash": {
+        "name": "Tusk AoE",
+        "description": "Tusk attack hits multiple nearby enemies",
+        "unitsHit": 2
+      }
+    }
   },
   "Camel Archer": {
     "civs": [
