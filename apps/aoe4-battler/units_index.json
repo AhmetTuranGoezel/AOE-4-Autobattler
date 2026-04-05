@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-04T13:15:23.365838+00:00",
+  "generatedAt": "2026-04-04T19:50:37.342215+00:00",
   "generatedFrom": "units_restructured.json",
   "civOrder": [
     "Common",
@@ -366,8 +366,8 @@
       ],
       "exceptCivs": [],
       "costs": {
-        "food": 160,
-        "gold": 100
+        "food": 180,
+        "gold": 150
       },
       "trainingTime": 35.0,
       "population": 1,
