@@ -1157,12 +1157,12 @@ const TECH_EFFECTS = {
   "Cranequins|attack": { attackAbs: 2 },
   "Throwing Dagger Drills|attack": { attackAbs: 2 },
   "Honed Blades|attack": { attackAbs: 3 },
-  "Heavy Maces|attack": { attackAbs: 6 },
+  "Heavy Maces|attack": { bonusVs: { "Heavy": 6 } },
   "Knight Poleaxes|attack": { attackAbs: 4 },
   "Janissary Guns|attack": { attackAbs: 4 },
-  "Collar of Esses|attack": { attackAbs: 5 },
-  "Rhomphaia|attack": { attackAbs: 3 },
-  "Serpentine Powder|attack": { attackAbs: 5 },
+  "Collar of Esses|attack": { bonusVs: { "Heavy": 5 } },
+  "Rhomphaia|attack": { bonusVs: { "Light Infantry": 3 } },
+  "Serpentine Powder|attack": { bonusVs: { "Melee Infantry": 5 } },
   "Bodkin Bolts|attack": { attackAbs: 20 },
   "Bolt Magazines|attack": { attackAbs: 1 },
 
@@ -1202,10 +1202,10 @@ const TECH_EFFECTS = {
 
   // Charge-related attack buffs (mapped to attackAbs as bonus)
   // Cantled Saddles is a charge-duration buff, not permanent flat attack — not modeled here
-  "Odachi|attack": { attackAbs: 4 },
-  "Improved Yari|attack": { attackAbs: 2 },
-  "Mounted Samurai Odachi|attack": { attackAbs: 4 },
-  "Lightweight Blades|attack": { attackAbs: 5 },
+  "Odachi|attack": { bonusVs: { "Infantry": 4 } },
+  "Improved Yari|attack": { bonusVs: { "Cavalry": 2 } },
+  "Mounted Samurai Odachi|attack": { bonusVs: { "Infantry": 4 } },
+  "Lightweight Blades|attack": {},  // +5 vs workers — no Workers tag in battler
   "Nagae Yari|attack": { attackPct: 15 },
   "Siha Bow Limbs|attack": { attackAbs: [1, 2], labels: ["Standard (+1)", "Improved (+2)"] },
   "Poisoned Arrows|attack": {},
@@ -1860,6 +1860,47 @@ function syncTechBuffsToInputs(side) {
     } else {
       input.style.borderColor = "";
     }
+  }
+
+  // Sum bonus damage from techs (bonusVs: { "Heavy": 5 })
+  const bonusTotals = {};
+  for (const [key, state] of activeTechs[side]) {
+    const fx = TECH_EFFECTS[key];
+    if (!fx?.bonusVs) continue;
+    for (const [tag, val] of Object.entries(fx.bonusVs)) {
+      const v = Array.isArray(val) ? (val[state.level] ?? 0) : val;
+      bonusTotals[tag] = (bonusTotals[tag] || 0) + v;
+    }
+  }
+
+  // Apply tech-provided bonus minimums to bonus input fields
+  for (const [tag, techMin] of Object.entries(bonusTotals)) {
+    const safeTag = tag.replace(/\s+/g, "_");
+    const input = document.getElementById(`${side}_bonus_${safeTag}`);
+    if (!input) continue;
+    const prevKey = `bonus_${safeTag}`;
+    const prevMin = prevTechMins[side][prevKey] || 0;
+    const current = parseFloat(input.value) || 0;
+    if (techMin < prevMin) {
+      input.value = Math.max(techMin, current - (prevMin - techMin));
+    } else if (current < techMin) {
+      input.value = techMin;
+    }
+    prevTechMins[side][prevKey] = techMin;
+    input.min = techMin;
+    input.style.borderColor = techMin > 0 ? "rgba(212, 164, 74, 0.4)" : "";
+  }
+
+  // Reset bonus inputs that no longer have tech minimums
+  for (const key of Object.keys(prevTechMins[side])) {
+    if (!key.startsWith("bonus_")) continue;
+    const tag = key.slice(6);
+    if (bonusTotals[tag.replace(/_/g, " ")] > 0) continue;
+    const input = document.getElementById(`${side}_bonus_${tag}`);
+    if (!input) continue;
+    prevTechMins[side][key] = 0;
+    input.min = 0;
+    input.style.borderColor = "";
   }
 }
 
@@ -4626,6 +4667,11 @@ function runBattle() {
     // Calculate ALL damage BEFORE applying any (simultaneous)
     let damageToB = 0;
     let damageToA = 0;
+    // For simultaneous-weapon units: track primary/secondary damage separately
+    let primaryDmgToB = 0, secondaryDmgToB = 0;
+    let primaryDmgToA = 0, secondaryDmgToA = 0;
+    const aIsSimultaneous = SIMULTANEOUS_WEAPON_UNITS.has(unitA.name);
+    const bIsSimultaneous = SIMULTANEOUS_WEAPON_UNITS.has(unitB.name);
     let logNotesA = [],
       logNotesB = [];
     let aFiredPrimary = false,
@@ -4698,6 +4744,9 @@ function runBattle() {
           extraArrowDmg * teamA.units * KIPCHAK_TRIPLE_SHOT.extraArrows;
         logNotesA.push("Triple Shot");
       }
+      if (aIsSimultaneous) {
+        primaryDmgToB += primaryDamage;
+      }
       damageToB += primaryDamage;
       teamA.nextPrimaryAttack = time + atkSpeedA;
       aFiredPrimary = true;
@@ -4734,15 +4783,22 @@ function runBattle() {
       const armorPenA2 = unitA.effects.armorPenetration
         ? unitA.effects.armorPenetration.penetration
         : 0;
+      // Apply attack buff delta to secondary weapon only if same type as primary
+      const atkBuffDeltaA = (sec.type === unitA.weaponType) ? (teamA.stats.attack - unitA.stats.attack) : 0;
+      const secAttack = (sec.stats.attack || 0) + atkBuffDeltaA;
       const dmg = calcWeaponDamage(
         sec.type,
-        sec.stats.attack || 0,
+        secAttack,
         sec.stats.bonus || {},
         teamB.tags,
         effectiveStatsB,
         armorPenA2,
       );
-      damageToB += dmg * teamA.units * (sec.projectiles || 1);
+      const secDmgA = dmg * teamA.units * (sec.projectiles || 1);
+      if (aIsSimultaneous) {
+        secondaryDmgToB += secDmgA;
+      }
+      damageToB += secDmgA;
       teamA.nextSecondaryAttack = time + sec.attackSpeed;
       aFiredSecondary = true;
     }
@@ -4810,6 +4866,9 @@ function runBattle() {
           extraArrowDmg * teamB.units * KIPCHAK_TRIPLE_SHOT.extraArrows;
         logNotesB.push("Triple Shot");
       }
+      if (bIsSimultaneous) {
+        primaryDmgToA += primaryDamage;
+      }
       damageToA += primaryDamage;
       teamB.nextPrimaryAttack = time + atkSpeedB;
       bFiredPrimary = true;
@@ -4846,15 +4905,22 @@ function runBattle() {
       const armorPenB2 = unitB.effects.armorPenetration
         ? unitB.effects.armorPenetration.penetration
         : 0;
+      // Apply attack buff delta to secondary weapon only if same type as primary
+      const atkBuffDeltaB = (sec.type === unitB.weaponType) ? (teamB.stats.attack - unitB.stats.attack) : 0;
+      const secAttack = (sec.stats.attack || 0) + atkBuffDeltaB;
       const dmg = calcWeaponDamage(
         sec.type,
-        sec.stats.attack || 0,
+        secAttack,
         sec.stats.bonus || {},
         teamA.tags,
         effectiveStatsA,
         armorPenB2,
       );
-      damageToA += dmg * teamB.units * (sec.projectiles || 1);
+      const secDmgB = dmg * teamB.units * (sec.projectiles || 1);
+      if (bIsSimultaneous) {
+        secondaryDmgToA += secDmgB;
+      }
+      damageToA += secDmgB;
       teamB.nextSecondaryAttack = time + sec.attackSpeed;
       bFiredSecondary = true;
     }
@@ -4985,39 +5051,77 @@ function runBattle() {
     const startUnitsA = teamA.units;
     const startUnitsB = teamB.units;
 
-    const resultToB = applyBundledDamageToTeam(
-      {
+    // --- Preview pass (clone to compute waste/kills/dealt) ---
+    let wasteA = 0, wasteB = 0, killsByA = 0, killsByB = 0;
+
+    if (aIsSimultaneous && aFiredPrimary && aFiredSecondary) {
+      // Simultaneous weapon (e.g. War Elephant): apply tusks then spear sequentially
+      const cloneB1 = {
         ...teamB,
         frontUnits: teamB.frontUnits.map((unit) => cloneUnitState(unit)),
         reserveUnits: teamB.reserveUnits.map((unit) => cloneUnitState(unit)),
-      },
-      damageToB,
-      startUnitsA,
-      splitA,
-      splitTargetsA,
-      overkillEnabled,
-    );
-    const resultToA = applyBundledDamageToTeam(
-      {
+      };
+      const r1 = applyBundledDamageToTeam(cloneB1, primaryDmgToB, startUnitsA, splitA, splitTargetsA, overkillEnabled);
+      const r2 = applyBundledDamageToTeam(cloneB1, secondaryDmgToB, startUnitsA, splitA, splitTargetsA, overkillEnabled);
+      wasteA = r1.waste + r2.waste;
+      damageToB = r1.dealt + r2.dealt;
+      killsByA = r1.kills + r2.kills;
+    } else {
+      const resultToB = applyBundledDamageToTeam(
+        {
+          ...teamB,
+          frontUnits: teamB.frontUnits.map((unit) => cloneUnitState(unit)),
+          reserveUnits: teamB.reserveUnits.map((unit) => cloneUnitState(unit)),
+        },
+        damageToB,
+        startUnitsA,
+        splitA,
+        splitTargetsA,
+        overkillEnabled,
+      );
+      wasteA = resultToB.waste;
+      damageToB = resultToB.dealt;
+      killsByA = resultToB.kills;
+    }
+
+    if (bIsSimultaneous && bFiredPrimary && bFiredSecondary) {
+      const cloneA1 = {
         ...teamA,
         frontUnits: teamA.frontUnits.map((unit) => cloneUnitState(unit)),
         reserveUnits: teamA.reserveUnits.map((unit) => cloneUnitState(unit)),
-      },
-      damageToA,
-      startUnitsB,
-      splitB,
-      splitTargetsB,
-      overkillEnabled,
-    );
-
-    let wasteA = resultToB.waste,
+      };
+      const r1 = applyBundledDamageToTeam(cloneA1, primaryDmgToA, startUnitsB, splitB, splitTargetsB, overkillEnabled);
+      const r2 = applyBundledDamageToTeam(cloneA1, secondaryDmgToA, startUnitsB, splitB, splitTargetsB, overkillEnabled);
+      wasteB = r1.waste + r2.waste;
+      damageToA = r1.dealt + r2.dealt;
+      killsByB = r1.kills + r2.kills;
+    } else {
+      const resultToA = applyBundledDamageToTeam(
+        {
+          ...teamA,
+          frontUnits: teamA.frontUnits.map((unit) => cloneUnitState(unit)),
+          reserveUnits: teamA.reserveUnits.map((unit) => cloneUnitState(unit)),
+        },
+        damageToA,
+        startUnitsB,
+        splitB,
+        splitTargetsB,
+        overkillEnabled,
+      );
       wasteB = resultToA.waste;
-    damageToB = resultToB.dealt;
-    damageToA = resultToA.dealt;
-    const killsByA = resultToB.kills;
-    const killsByB = resultToA.kills;
+      damageToA = resultToA.dealt;
+      killsByB = resultToA.kills;
+    }
 
-    if (damageToB > 0) {
+    // --- Real damage application ---
+    if (aIsSimultaneous && aFiredPrimary && aFiredSecondary) {
+      if (primaryDmgToB > 0) {
+        applyBundledDamageToTeam(teamB, primaryDmgToB, startUnitsA, splitA, splitTargetsA, overkillEnabled);
+      }
+      if (secondaryDmgToB > 0) {
+        applyBundledDamageToTeam(teamB, secondaryDmgToB, startUnitsA, splitA, splitTargetsA, overkillEnabled);
+      }
+    } else if (damageToB > 0) {
       applyBundledDamageToTeam(
         teamB,
         damageToB,
@@ -5027,7 +5131,14 @@ function runBattle() {
         overkillEnabled,
       );
     }
-    if (damageToA > 0) {
+    if (bIsSimultaneous && bFiredPrimary && bFiredSecondary) {
+      if (primaryDmgToA > 0) {
+        applyBundledDamageToTeam(teamA, primaryDmgToA, startUnitsB, splitB, splitTargetsB, overkillEnabled);
+      }
+      if (secondaryDmgToA > 0) {
+        applyBundledDamageToTeam(teamA, secondaryDmgToA, startUnitsB, splitB, splitTargetsB, overkillEnabled);
+      }
+    } else if (damageToA > 0) {
       applyBundledDamageToTeam(
         teamA,
         damageToA,
@@ -5190,6 +5301,18 @@ function runBattle() {
       logNotesB.push("SpeedBurst");
     if (unitA.effects.infantrySpeedAura) logNotesA.push("FarimaAura");
     if (unitB.effects.infantrySpeedAura) logNotesB.push("FarimaAura");
+
+    // Simultaneous weapon damage breakdown in log notes
+    if (aIsSimultaneous && aFiredPrimary && aFiredSecondary) {
+      const pLabel = unitA.weaponLabel || "Primary";
+      const sLabel = unitA.secondaryWeapon?.name || "Secondary";
+      logNotesA.push(`${pLabel}:${primaryDmgToB.toFixed(1)} ${sLabel}:${secondaryDmgToB.toFixed(1)}`);
+    }
+    if (bIsSimultaneous && bFiredPrimary && bFiredSecondary) {
+      const pLabel = unitB.weaponLabel || "Primary";
+      const sLabel = unitB.secondaryWeapon?.name || "Secondary";
+      logNotesB.push(`${pLabel}:${primaryDmgToA.toFixed(1)} ${sLabel}:${secondaryDmgToA.toFixed(1)}`);
+    }
 
     // --- Push battle log entry ---
     const aWeapon = getAttackLogLabel(unitA, aFiredPrimary, aFiredSecondary);
@@ -7751,6 +7874,8 @@ function computeTeamAttack(attacker, target, time, config) {
   let canApplyBleed = false;
   let appliesAtkSpeedDebuff = false;
   let appliesDamageDebuff = false;
+  const isSimultaneous = SIMULTANEOUS_WEAPON_UNITS.has(unitA.name);
+  let mPrimaryDmg = 0, mSecondaryDmg = 0;
 
   const atkSpeedA = calcEffectiveAttackSpeed(
     unitA,
@@ -7824,6 +7949,7 @@ function computeTeamAttack(attacker, target, time, config) {
         extraArrowDmg * attacker.units * KIPCHAK_TRIPLE_SHOT.extraArrows;
       logNotes.push("Triple Shot");
     }
+    if (isSimultaneous) mPrimaryDmg += primaryDamage;
     damageToB += primaryDamage;
     attacker.nextPrimaryAttack = time + atkSpeedA;
     firedPrimary = true;
@@ -7850,15 +7976,20 @@ function computeTeamAttack(attacker, target, time, config) {
     const armorPenA2 = unitA.effects.armorPenetration
       ? unitA.effects.armorPenetration.penetration
       : 0;
+    // Apply attack buff delta to secondary weapon only if same type as primary
+    const atkBuffDeltaM = (sec.type === unitA.weaponType) ? (attacker.stats.attack - unitA.stats.attack) : 0;
+    const secAttackM = (sec.stats.attack || 0) + atkBuffDeltaM;
     const dmg = calcWeaponDamage(
       sec.type,
-      sec.stats.attack || 0,
+      secAttackM,
       sec.stats.bonus || {},
       target.tags,
       effectiveStatsB,
       armorPenA2,
     );
-    damageToB += dmg * attacker.units * (sec.projectiles || 1);
+    const secDmgM = dmg * attacker.units * (sec.projectiles || 1);
+    if (isSimultaneous) mSecondaryDmg += secDmgM;
+    damageToB += secDmgM;
     attacker.nextSecondaryAttack = time + sec.attackSpeed;
     firedSecondary = true;
   }
@@ -7966,6 +8097,13 @@ function computeTeamAttack(attacker, target, time, config) {
     logNotes.push("SpeedBurst");
   if (unitA.effects.infantrySpeedAura) logNotes.push("FarimaAura");
 
+  // Simultaneous weapon damage breakdown in log notes
+  if (isSimultaneous && firedPrimary && firedSecondary) {
+    const pLabel = unitA.weaponLabel || "Primary";
+    const sLabel = unitA.secondaryWeapon?.name || "Secondary";
+    logNotes.push(`${pLabel}:${mPrimaryDmg.toFixed(1)} ${sLabel}:${mSecondaryDmg.toFixed(1)}`);
+  }
+
   const weapon = getAttackLogLabel(unitA, firedPrimary, firedSecondary);
   const log =
     firedPrimary ||
@@ -7997,6 +8135,10 @@ function computeTeamAttack(attacker, target, time, config) {
     splitTargets,
     appliesAtkSpeedDebuff,
     appliesDamageDebuff,
+    // Simultaneous weapon split: primary (tusks) applied before secondary (spear)
+    isSimultaneous: isSimultaneous && firedPrimary && firedSecondary,
+    primaryDamage: mPrimaryDmg,
+    secondaryDamage: mSecondaryDmg,
   };
 }
 
@@ -8180,6 +8322,9 @@ function runMultiBattle() {
           appliesPoison: atkResult.appliesPoison,
           appliesAtkSpeedDebuff: atkResult.appliesAtkSpeedDebuff,
           appliesDamageDebuff: atkResult.appliesDamageDebuff,
+          isSimultaneous: atkResult.isSimultaneous,
+          primaryDamage: atkResult.primaryDamage,
+          secondaryDamage: atkResult.secondaryDamage,
         });
       }
     });
@@ -8189,14 +8334,32 @@ function runMultiBattle() {
       if (!target || target.units <= 0) return;
       entry.details.forEach((detail) => {
         if (!target || target.units <= 0) return;
-        const result = applyBundledDamageToTeam(
-          target,
-          detail.damage,
-          detail.attackerUnits,
-          detail.splitEnabled,
-          detail.splitTargets,
-          overkillEnabled,
-        );
+        let result;
+        if (detail.isSimultaneous) {
+          // Apply primary (tusks) then secondary (spear) sequentially
+          const r1 = applyBundledDamageToTeam(
+            target, detail.primaryDamage, detail.attackerUnits,
+            detail.splitEnabled, detail.splitTargets, overkillEnabled,
+          );
+          const r2 = applyBundledDamageToTeam(
+            target, detail.secondaryDamage, detail.attackerUnits,
+            detail.splitEnabled, detail.splitTargets, overkillEnabled,
+          );
+          result = {
+            dealt: r1.dealt + r2.dealt,
+            waste: r1.waste + r2.waste,
+            kills: r1.kills + r2.kills,
+          };
+        } else {
+          result = applyBundledDamageToTeam(
+            target,
+            detail.damage,
+            detail.attackerUnits,
+            detail.splitEnabled,
+            detail.splitTargets,
+            overkillEnabled,
+          );
+        }
         if (detail.log) {
           detail.log.dmg = result.dealt.toFixed(1);
           detail.log.waste = result.waste.toFixed(1);
