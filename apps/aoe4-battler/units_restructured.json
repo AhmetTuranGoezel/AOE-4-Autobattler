@@ -13990,6 +13990,20 @@
         "duration": 1,
         "cooldown": 25,
         "unitsHit": 5
+      },
+      "numeri": {
+        "name": "Numeri",
+        "description": "Trampled units receive +15% damage from all sources for 12s (Byzantines)",
+        "dmgIncrease": 15,
+        "duration": 12
+      },
+      "triumph": {
+        "name": "Triumph",
+        "description": "Boosts cavalry: +4 attack, +2 hp/s regen, +10% speed (variable duration, Byzantines)",
+        "attackBonus": 4,
+        "hps": 2,
+        "speedPct": 10,
+        "duration": 30
       }
     },
     "weapons": {
