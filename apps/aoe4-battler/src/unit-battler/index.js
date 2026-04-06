@@ -1153,6 +1153,8 @@ const TECH_TO_EFFECT = {
   "Caracole": "caracole",
   "Kabura-ya Whistling Arrow": "kaburaYaWhistlingArrow",
   "Poisoned Arrows": "poisonedArrows",
+  "Numeri": "numeri",
+  "Triumph": "triumph",
 };
 
 // Inverse mapping: effectId → techName (for rendering tech buttons in effects)
@@ -1223,6 +1225,7 @@ const TECH_EFFECTS = {
   },
   "Oda Tactics|attack": { attackPct: 15 },
   "Hippodrome Scout Aura|attack": { attackPct: 25 },
+  "Hippodrome Horseman Aura|attack": { attackAbs: 2 },
   "Military Tactics Training|attack": { attackPct: 20 },
   "Collateral Damage|attack": { attackPct: 30 },
   "Neza Training|attack": { attackPct: 35 },
@@ -1378,6 +1381,10 @@ const TECH_EFFECTS = {
   "Caracole|other": {},
   "Kabura-ya Whistling Arrow|ability": {},
   "Hard Cased Bombs|ability": {},
+  "Numeri|ability": {},
+  "Triumph|hitpoints": {},
+  "Triumph|attack": {},
+  "Triumph|moveSpeed": {},
 };
 
 // Image map: tech name → image path (relative to app root)
@@ -1515,6 +1522,9 @@ const TECH_IMAGE_MAP = {
   "Ferocious Speed": "assets/images/technologies/ferocious-speed-4.png",
   "Elephant Caretakers": "assets/images/technologies/elephant-caretakers-2.png",
   "Local Knowledge": "assets/images/technologies/local-knowledge-2.png",
+  "Hippodrome Horseman Aura": "assets/images/units/hippodrome-horseman-1.png",
+  "Numeri": "assets/images/technologies/numeri-4.png",
+  "Triumph": "assets/images/abilities/ability-triumph-1.png",
 };
 
 const FALLBACK_TECH_IMG = "assets/images/technologies/upgrades.png";
@@ -2913,6 +2923,44 @@ function renderEffects(side, effects) {
             <small class="text-muted" style="font-size:0.7rem;">Units Hit</small>
           </div>
         </div>`;
+    } else if (effectId === "numeri") {
+      valueHtml = `
+        <div class="row g-1 mt-1 ms-4">
+          <div class="col-6">
+            <input type="number" id="${checkId}_dmgIncrease" class="form-control form-control-sm"
+                   value="${effect.dmgIncrease}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">+Dmg Taken %</small>
+          </div>
+          <div class="col-6">
+            <input type="number" id="${checkId}_duration" class="form-control form-control-sm"
+                   value="${effect.duration}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">Duration (s)</small>
+          </div>
+        </div>`;
+    } else if (effectId === "triumph") {
+      valueHtml = `
+        <div class="row g-1 mt-1 ms-4">
+          <div class="col-3">
+            <input type="number" id="${checkId}_attackBonus" class="form-control form-control-sm"
+                   value="${effect.attackBonus}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">+Atk</small>
+          </div>
+          <div class="col-3">
+            <input type="number" id="${checkId}_hps" class="form-control form-control-sm"
+                   value="${effect.hps}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">HP/s</small>
+          </div>
+          <div class="col-3">
+            <input type="number" id="${checkId}_speedPct" class="form-control form-control-sm"
+                   value="${effect.speedPct}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">+Spd %</small>
+          </div>
+          <div class="col-3">
+            <input type="number" id="${checkId}_duration" class="form-control form-control-sm"
+                   value="${effect.duration}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">Dur (s)</small>
+          </div>
+        </div>`;
     } else if (effectId === "percentDamage") {
       valueHtml = `
         <div class="ms-4 mt-1">
@@ -3234,6 +3282,18 @@ function collectEffects(side) {
         duration: getVal("duration"),
         cooldown: getVal("cooldown"),
         unitsHit: getVal("unitsHit") || 3,
+      };
+    } else if (effectId === "numeri") {
+      effects.numeri = {
+        dmgIncrease: getVal("dmgIncrease"),
+        duration: getVal("duration"),
+      };
+    } else if (effectId === "triumph") {
+      effects.triumph = {
+        attackBonus: getVal("attackBonus"),
+        hps: getVal("hps"),
+        speedPct: getVal("speedPct"),
+        duration: getVal("duration"),
       };
     } else if (effectId === "percentDamage") {
       effects.percentDamage = { percent: getVal("percent") };
@@ -4048,6 +4108,9 @@ function calcEffectiveAttack(unit, baseAttack, time, team) {
   if (fx.berserking && time <= fx.berserking.duration + EPS) {
     atk += fx.berserking.attackBonus;
   }
+  if (fx.triumph && time <= fx.triumph.duration + EPS) {
+    atk += fx.triumph.attackBonus;
+  }
   if (team && team.gloryBonusAtk) {
     atk += team.gloryBonusAtk;
   }
@@ -4307,6 +4370,7 @@ function runBattle() {
     trampleTick: unitA.effects.trample ? 0 : Infinity,
     trampleActive: false,
     trampleEnd: -1,
+    numeriDebuffEnd: -1,
     frontUnits: trackedA.frontUnits,
     reserveUnits: trackedA.reserveUnits,
   };
@@ -4327,6 +4391,7 @@ function runBattle() {
     trampleTick: unitB.effects.trample ? 0 : Infinity,
     trampleActive: false,
     trampleEnd: -1,
+    numeriDebuffEnd: -1,
     frontUnits: trackedB.frontUnits,
     reserveUnits: trackedB.reserveUnits,
   };
@@ -4552,6 +4617,10 @@ function runBattle() {
     // Berserking: +attackBonus for duration
     if (fx.berserking && time <= fx.berserking.duration + EPSILON) {
       atk += fx.berserking.attackBonus;
+    }
+    // Triumph: +attackBonus for duration
+    if (fx.triumph && time <= fx.triumph.duration + EPSILON) {
+      atk += fx.triumph.attackBonus;
     }
     // Battle Glory: accumulated attack bonus from kills
     if (team && team.gloryBonusAtk) {
@@ -5066,7 +5135,7 @@ function runBattle() {
         teamB.units;
     }
 
-    // === APPLY TRAMPLE (Raider Elephant): Periodic AoE ticks over duration ===
+    // === APPLY TRAMPLE: Periodic AoE ticks over duration ===
     const TRAMPLE_TICK = 0.5; // 0.5s between ticks
     if (
       unitA.effects.trample &&
@@ -5077,10 +5146,18 @@ function runBattle() {
       if (!teamA.trampleActive) {
         teamA.trampleActive = true;
         teamA.trampleEnd = time + t.duration;
+        // Trample delays normal attacks by its duration
+        teamA.nextPrimaryAttack = Math.max(teamA.nextPrimaryAttack, teamA.trampleEnd);
+        if (teamA.nextSecondaryAttack !== Infinity)
+          teamA.nextSecondaryAttack = Math.max(teamA.nextSecondaryAttack, teamA.trampleEnd);
       }
       const tickDmg = t.dps * TRAMPLE_TICK * camelUneaseMultiplierAtoB;
       const targets = Math.min(t.unitsHit || 1, teamB.units);
       damageToB += tickDmg * teamA.units * targets;
+      // Numeri: trampled enemies take +dmgIncrease% from all sources
+      if (unitA.effects.numeri) {
+        teamB.numeriDebuffEnd = time + unitA.effects.numeri.duration;
+      }
       if (time + TRAMPLE_TICK < teamA.trampleEnd - EPSILON) {
         teamA.trampleTick = time + TRAMPLE_TICK;
       } else {
@@ -5097,16 +5174,34 @@ function runBattle() {
       if (!teamB.trampleActive) {
         teamB.trampleActive = true;
         teamB.trampleEnd = time + t.duration;
+        // Trample delays normal attacks by its duration
+        teamB.nextPrimaryAttack = Math.max(teamB.nextPrimaryAttack, teamB.trampleEnd);
+        if (teamB.nextSecondaryAttack !== Infinity)
+          teamB.nextSecondaryAttack = Math.max(teamB.nextSecondaryAttack, teamB.trampleEnd);
       }
       const tickDmg = t.dps * TRAMPLE_TICK * camelUneaseMultiplierBtoA;
       const targets = Math.min(t.unitsHit || 1, teamA.units);
       damageToA += tickDmg * teamB.units * targets;
+      // Numeri: trampled enemies take +dmgIncrease% from all sources
+      if (unitB.effects.numeri) {
+        teamA.numeriDebuffEnd = time + unitB.effects.numeri.duration;
+      }
       if (time + TRAMPLE_TICK < teamB.trampleEnd - EPSILON) {
         teamB.trampleTick = time + TRAMPLE_TICK;
       } else {
         teamB.trampleActive = false;
         teamB.trampleTick = teamB.trampleEnd + t.cooldown;
       }
+    }
+
+    // === NUMERI DEBUFF: Amplify all damage to debuffed teams ===
+    if (teamB.numeriDebuffEnd > time + EPSILON && damageToB > 0) {
+      const numeriPct = unitA.effects.numeri ? unitA.effects.numeri.dmgIncrease : 15;
+      damageToB *= (1 + numeriPct / 100);
+    }
+    if (teamA.numeriDebuffEnd > time + EPSILON && damageToA > 0) {
+      const numeriPct = unitB.effects.numeri ? unitB.effects.numeri.dmgIncrease : 15;
+      damageToA *= (1 + numeriPct / 100);
     }
 
     const startUnitsA = teamA.units;
@@ -5265,6 +5360,19 @@ function runBattle() {
         healTrackedTeam(teamB, unitB.effects.healAura.hps * teamB.units * dt);
       }
     }
+    // Triumph healing: +hps regen for duration (heals even during trample)
+    if (unitA.effects.triumph && time <= unitA.effects.triumph.duration + EPSILON && teamA.units > 0) {
+      const dt = time - (teamA.lastHealAuraTime || 0);
+      if (dt > 0) {
+        healTrackedTeam(teamA, unitA.effects.triumph.hps * teamA.units * dt);
+      }
+    }
+    if (unitB.effects.triumph && time <= unitB.effects.triumph.duration + EPSILON && teamB.units > 0) {
+      const dt = time - (teamB.lastHealAuraTime || 0);
+      if (dt > 0) {
+        healTrackedTeam(teamB, unitB.effects.triumph.hps * teamB.units * dt);
+      }
+    }
     teamA.lastHealAuraTime = time;
     teamB.lastHealAuraTime = time;
 
@@ -5311,6 +5419,10 @@ function runBattle() {
     if (unitB.effects.atkSpeedDebuff && bFiredPrimary) logNotesB.push("Slow");
     if (unitA.effects.healAura) logNotesA.push("Heal");
     if (unitB.effects.healAura) logNotesB.push("Heal");
+    if (unitA.effects.triumph && time <= unitA.effects.triumph.duration + EPSILON) logNotesA.push("Triumph");
+    if (unitB.effects.triumph && time <= unitB.effects.triumph.duration + EPSILON) logNotesB.push("Triumph");
+    if (teamB.numeriDebuffEnd > time + EPSILON && damageToB > 0) logNotesA.push("Numeri");
+    if (teamA.numeriDebuffEnd > time + EPSILON && damageToA > 0) logNotesB.push("Numeri");
     if (unitA.effects.armorPenetration && (aFiredPrimary || aFiredSecondary))
       logNotesA.push("ArmorPen");
     if (unitB.effects.armorPenetration && (bFiredPrimary || bFiredSecondary))
@@ -6807,6 +6919,44 @@ function renderEffectsMulti(card, effects, groupId, selectedCiv) {
             <small class="text-muted" style="font-size:0.7rem;">Units</small>
           </div>
         </div>`;
+    } else if (effectId === "numeri") {
+      valueHtml = `
+        <div class="row g-1 mt-1 ms-4">
+          <div class="col-6">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="dmgIncrease"
+                   value="${effect.dmgIncrease}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">+Dmg Taken %</small>
+          </div>
+          <div class="col-6">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="duration"
+                   value="${effect.duration}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">Duration (s)</small>
+          </div>
+        </div>`;
+    } else if (effectId === "triumph") {
+      valueHtml = `
+        <div class="row g-1 mt-1 ms-4">
+          <div class="col-3">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="attackBonus"
+                   value="${effect.attackBonus}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">+Atk</small>
+          </div>
+          <div class="col-3">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="hps"
+                   value="${effect.hps}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">HP/s</small>
+          </div>
+          <div class="col-3">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="speedPct"
+                   value="${effect.speedPct}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">+Spd %</small>
+          </div>
+          <div class="col-3">
+            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="duration"
+                   value="${effect.duration}" style="font-size:0.8rem;">
+            <small class="text-muted" style="font-size:0.7rem;">Dur (s)</small>
+          </div>
+        </div>`;
     } else if (effectId === "percentDamage") {
       valueHtml = `
         <div class="ms-4 mt-1">
@@ -7103,6 +7253,18 @@ function collectEffectsFromCard(card) {
         duration: getVal("duration"),
         cooldown: getVal("cooldown"),
         unitsHit: getVal("unitsHit") || 3,
+      };
+    } else if (effectId === "numeri") {
+      effects.numeri = {
+        dmgIncrease: getVal("dmgIncrease"),
+        duration: getVal("duration"),
+      };
+    } else if (effectId === "triumph") {
+      effects.triumph = {
+        attackBonus: getVal("attackBonus"),
+        hps: getVal("hps"),
+        speedPct: getVal("speedPct"),
+        duration: getVal("duration"),
       };
     } else if (effectId === "percentDamage") {
       effects.percentDamage = { percent: getVal("percent") };
@@ -7762,6 +7924,7 @@ function createTeamState(group) {
     trampleTick: unitData.effects.trample ? 0 : Infinity,
     trampleActive: false,
     trampleEnd: -1,
+    numeriDebuffEnd: -1,
     frontUnits: tracked.frontUnits,
     reserveUnits: tracked.reserveUnits,
     closingDelay: 0,
@@ -8095,10 +8258,18 @@ function computeTeamAttack(attacker, target, time, config) {
     if (!attacker.trampleActive) {
       attacker.trampleActive = true;
       attacker.trampleEnd = time + t.duration;
+      // Trample delays normal attacks by its duration
+      attacker.nextPrimaryAttack = Math.max(attacker.nextPrimaryAttack, attacker.trampleEnd);
+      if (attacker.nextSecondaryAttack !== Infinity)
+        attacker.nextSecondaryAttack = Math.max(attacker.nextSecondaryAttack, attacker.trampleEnd);
     }
     const tickDmg = t.dps * 0.5 * camelUneaseMultiplier;
     const targets = Math.min(t.unitsHit || 1, target.units);
     damageToB += tickDmg * attacker.units * targets;
+    // Numeri: trampled enemies take +dmgIncrease% from all sources
+    if (unitA.effects.numeri) {
+      target.numeriDebuffEnd = time + unitA.effects.numeri.duration;
+    }
     if (time + 0.5 < attacker.trampleEnd - EPSILON) {
       attacker.trampleTick = time + 0.5;
     } else {
@@ -8106,6 +8277,13 @@ function computeTeamAttack(attacker, target, time, config) {
       attacker.trampleTick = attacker.trampleEnd + t.cooldown;
     }
     logNotes.push("Trample");
+  }
+
+  // Numeri debuff: amplify all damage to debuffed target
+  if (target.numeriDebuffEnd > time + EPSILON && damageToB > 0) {
+    const numeriPct = unitA.effects.numeri ? unitA.effects.numeri.dmgIncrease : 15;
+    damageToB *= (1 + numeriPct / 100);
+    logNotes.push("Numeri");
   }
 
   // Defender-based reductions
@@ -8181,6 +8359,8 @@ function computeTeamAttack(attacker, target, time, config) {
   )
     logNotes.push("SpeedBurst");
   if (unitA.effects.infantrySpeedAura) logNotes.push("FarimaAura");
+  if (unitA.effects.triumph && time <= unitA.effects.triumph.duration + EPSILON)
+    logNotes.push("Triumph");
 
   // Simultaneous weapon damage breakdown in log notes
   if (isSimultaneous && firedPrimary && firedSecondary) {
@@ -8521,6 +8701,13 @@ function runMultiBattle() {
         const dt = time - (t.lastHealAuraTime || 0);
         if (dt > 0) {
           healTrackedTeam(t, t.unitData.effects.healAura.hps * t.units * dt);
+        }
+      }
+      // Triumph healing: +hps regen for duration (heals even during trample)
+      if (t.unitData.effects.triumph && time <= t.unitData.effects.triumph.duration + EPSILON) {
+        const dt = time - (t.lastHealAuraTime || 0);
+        if (dt > 0) {
+          healTrackedTeam(t, t.unitData.effects.triumph.hps * t.units * dt);
         }
       }
       t.lastHealAuraTime = time;
