@@ -1,5 +1,67 @@
 ﻿import { units, unitIndex, getUnitMeta } from "../shared/data.js";
 import { CIV_ORDER, getCivFlagHtml, setFlagBackground } from "../shared/constants.js";
+import {
+  getBoRatesForCiv, getBoStartingResourcesForCiv, getBoAgeBonusValue,
+  applyBoWorkRateToDuration,
+  getBoOttomanChoiceDef, getBoOttomanVizierPointsEarned,
+  getBoOttomanVizierStateFromSample, getBoOttomanLevelStatus,
+  getBoOttomanMilitarySchoolConfig,
+  isBoHouseOfWisdomCiv, getBoNoBoarCivSet, isBoNoBoarCiv,
+  getBoBerryBonusConfig, getBoHouseOfWisdomConfig,
+  getBoHouseOfWisdomWingLabel, getBoHouseOfWisdomStateFromSample,
+  getBoPlannedHouseOfWisdomWings, formatBoGoldenAgeBonuses,
+  getBoRusBountyState, getBoBuildingSurfaceConfig, getBoCivUnitTrainOverride,
+  getBoTrainingSurface, getBoTechSurface,
+  isBoTownCenterSurface, isBoProductionSurface,
+  getBoUnitTrainModifier, doesBoTechMatchBuilding,
+  refreshBoTechBuildings, getBoTechResearchSites,
+  isBoTechNoteOnly, getBoTechNoteText, doesBoPreviewMeetTechRequirements,
+  getBoBuildableBuildingsForCiv, getBoHouseOfWisdomGoldenAgeState,
+  getBoHouseOfWisdomChoiceAgeFromCount, getBoHouseOfWisdomCommandSpec,
+  getBoHouseOfWisdomWingDescription, getBoHouseOfWisdomActionChoices,
+  resolveBoUnitName, getBoExtraUnitSpec, getBoUnitMinAge,
+  isBoUnitTrainableAtBuilding, getBoUnitOptionsForBuilding, getBoUnitOptions,
+} from "./bo-civ-mechanics.js";
+import {
+  BO_SAVE_STORAGE_KEY, BO_SAVE_DRAFT_ID, BO_SAVE_STORAGE_VERSION,
+  BO_AUDIT_CONFIRM_STORAGE_KEY,
+  BO_FOOD_SOURCES, BO_RESOURCE_KEYS, BO_RESOURCE_LABELS,
+  BO_ASSIGN_CAP_ORDER,
+  BO_VILLAGER_TIME, BO_TIMELINE_BLOCK_HEIGHT, BO_ASSIGN_BLOCK_HEIGHT,
+  BO_TIMELINE_ROW_GAP, BO_TIMELINE_HEADER_HEIGHT, BO_LANE_CAPTION_HEIGHT,
+  BO_RESOURCE_MARKER_HEIGHT, BO_RESOURCE_MARKER_GAP, BO_TIMELINE_PADDING,
+  BO_RESOURCE_LANE_HEIGHT, BO_TC_MARKER_DURATION,
+  BO_BASE_RATES, BO_CIV_RATE_OVERRIDES, BO_NODE_AMOUNTS, BO_STARTING,
+  BO_STARTING_VILLAGERS, BO_DEFAULT_NODE_COUNTS, BO_DEFAULT_CARRY, BO_DEFAULT_TRIP,
+  BO_WHEEL_CARRY_BONUS, BO_WHEEL_TRIP_MULT, BO_DROPOFF_ANIMATION_SEC,
+  BO_FOOD_UPGRADE_MULT, BO_SPECIAL_RES_KEYS, BO_VALUE_RESOURCE_KEYS,
+  BO_CAPITAL_TC_ANCHOR,
+  BO_OTTOMAN_IMPERIAL_COUNCIL_BUILDING, BO_HOUSE_OF_WISDOM_BUILDING, BO_GOLDEN_TENT_BUILDING,
+  BO_TIMELINE_BUILDING_SET, BO_TRAINING_BUILDING_SET, BO_PRODUCTION_BUILDINGS,
+  BO_TECH_BUILDINGS,
+  BO_BUILD_TIME_MULT_BY_VILLAGERS, BO_BUILDING_DEFAULTS, BO_TECH_DEFAULTS, BO_CIV_BONUSES,
+  BO_MUSLIM_CIVS,
+  BO_SACRED_SITE_GOLD_PER_MIN, BO_PASTURE_SHEEP_SECONDS,
+  BO_OVOO_STONE_PER_MIN_BY_AGE, BO_SCHOLAR,
+  BO_BOAR_RESTRICTED_CIVS,
+  BO_ENGLISH_FARM_BONUS_CIVS, BO_ENGLISH_FARM_BONUS_BY_AGE,
+  BO_ENGLISH_FARM_GOLD_PER_SEC, BO_ENGLISH_FARM_COST_MULT,
+  BO_AGE_UP_TIME_DEFAULTS,
+  BO_OTTOMAN_MILITARY_SCHOOL_BUILDING, BO_SUPPORTED_CIVS,
+  BO_UNIT_ALIASES, BO_COMPARE_COLUMNS, BO_EXTRA_UNIT_SPECS,
+  BO_OTTOMAN_VIZIER_THRESHOLDS, BO_OTTOMAN_VIZIER_AGE_XP, BO_OTTOMAN_VIZIER_UNIT_XP,
+  BO_OTTOMAN_DEFENSIVE_BUILDINGS,
+  BO_ABBASID_HOW_WINGS,
+  BO_OTTOMAN_VIZIER_CHOICES, BO_OTTOMAN_VIZIER_LEVELS,
+  BO_CIV_AUDIT, BO_LANDMARK_AUTHORING,
+  getBoBuildingDefaults, getBoTechDefaults,
+  setBoBaseRatesMerge, setBoCivRateOverridesMerge, setBoNodeAmounts,
+  setBoStarting, setBoBuildingDefaults, setBoTechDefaults, setBoCivBonuses,
+  setBoLandmarkAuthoring, setBoBuildTimeMultByVillagers, setBoMuslimCivs,
+  setBoBoarRestrictedCivs, setBoMuslimBerryBonus, setBoSacredSiteGoldPerMin,
+  setBoPastureSheepSeconds, setBoOvooStonePerMinByAge, setBoScholar,
+  setBoCivAudit,
+} from "./bo-constants.js";
 
 // ========================================
 // BUILD ORDER (MVP)
@@ -21,830 +83,17 @@ let boMarkerDraft = null;
 let boEditorScrollFrame = null;
 let boOttomanLegacyWarning = "";
 let boLocalEffectAssignments = {};
-let BO_CIV_AUDIT = {};
-let BO_LANDMARK_AUTHORING = { notes: [], civModes: {} };
 let boCompareSortKey = "combinedTotalValue";
 let boCompareSortDir = "desc";
 
-const BO_SAVE_STORAGE_KEY = "aoe4Battler.buildOrder.local.v1";
-const BO_SAVE_DRAFT_ID = "__draft__";
-const BO_SAVE_STORAGE_VERSION = 3;
-const BO_AUDIT_CONFIRM_STORAGE_KEY = "aoe4Battler.buildOrder.auditConfirm.v1";
 
-const BO_FOOD_SOURCES = ["berries", "deer", "boar", "sheep", "farm"];
-const BO_FINITE_FOOD_SOURCES = ["berries", "deer", "boar", "sheep"];
-const BO_RESOURCE_KEYS = [...BO_FOOD_SOURCES, "wood", "gold", "stone"];
-const BO_RESOURCE_LABELS = {
-  sheep: "Sheep",
-  berries: "Berries",
-  deer: "Deer",
-  boar: "Boar",
-  farm: "Farm",
-  wood: "Wood",
-  gold: "Gold",
-  stone: "Stone"
-};
-const BO_ASSIGN_CAP_ORDER = ["stone", "gold", "wood", "farm", "sheep", "boar", "deer", "berries"];
-const BO_VILLAGER_TIME = 20;
-const BO_TIMELINE_BLOCK_HEIGHT = 28;
-const BO_ASSIGN_BLOCK_HEIGHT = 36;
-const BO_TIMELINE_ROW_GAP = 6;
-const BO_TIMELINE_HEADER_HEIGHT = 24;
-const BO_LANE_CAPTION_HEIGHT = 16;
-const BO_RESOURCE_MARKER_HEIGHT = 18;
-const BO_RESOURCE_MARKER_GAP = 6;
-const BO_TIMELINE_PADDING = 12;
-const BO_RESOURCE_LANE_HEIGHT = 150;
-const BO_TC_MARKER_DURATION = 6;
-let BO_BASE_RATES = {
-  berries: 0.69,
-  deer: 0.825,
-  boar: 0.9,
-  sheep: 0.75,
-  farm: 0.75,
-  wood: 0.75,
-  gold: 0.75,
-  stone: 0.75
-};
 
-let BO_CIV_RATE_OVERRIDES = {
-  "House of Lancaster": { sheep: 0.9 },
-  "Knights Templar": { wood: 0.6 }
-};
 
-let BO_NODE_AMOUNTS = { sheep: 200, berries: 250, deer: 350, boar: 2400 };
-let BO_STARTING = {
-  resources: { food: 200, wood: 150, gold: 100, stone: 0 },
-  sheep: 5
-};
-const BO_STARTING_VILLAGERS = 6;
-const BO_DEFAULT_NODE_COUNTS = { sheep: 5, berries: 7, deer: 7, boar: 1 };
-const BO_DEFAULT_CARRY = { sheep: 10, berries: 10, deer: 25, boar: 25, farm: 10, wood: 10, gold: 10, stone: 10 };
-const BO_DEFAULT_TRIP = { sheep: 0.1, berries: 1.1, deer: 1.7, boar: 1.7, farm: 1.1, wood: 1.7, gold: 1.1, stone: 1.1 };
-const BO_WHEEL_CARRY_BONUS = 5;
-const BO_WHEEL_TRIP_MULT = 1 / 1.15;
-const BO_DROPOFF_ANIMATION_SEC = 0.5;
-const BO_FOOD_UPGRADE_MULT = 1.1;
-const BO_SPECIAL_RES_KEYS = ["oliveOil", "silver"];
-const BO_VALUE_RESOURCE_KEYS = ["food", "wood", "gold", "stone", ...BO_SPECIAL_RES_KEYS];
-const BO_CAPITAL_TC_ANCHOR = "__bo_tc1__";
-const BO_OTTOMAN_IMPERIAL_COUNCIL_BUILDING = "Imperial Council";
-const BO_HOUSE_OF_WISDOM_BUILDING = "House of Wisdom";
-const BO_GOLDEN_TENT_BUILDING = "Golden Tent";
-const BO_TIMELINE_BUILDING_SET = new Set([
-  "Barracks",
-  "Archery Range",
-  "Stable",
-  "Siege Workshop",
-  "Military School",
-  "Mill",
-  "Blacksmith",
-  "University",
-  "Mosque",
-  "Monastery",
-  "Prayer Tent",
-  "Town Center",
-  "Imperial Council",
-  "House of Wisdom",
-  "Golden Tent",
-  "Landmark (Age II)",
-  "Landmark (Age III)",
-  "Landmark (Age IV)",
-  "Twin Minaret Medrese",
-  "Sea Gate Castle",
-  "Mehmed Imperial Armory",
-  "Istanbul Imperial Palace",
-  "Istanbul Observatory",
-  "Council Hall",
-  "Abbey of Kings",
-  "King's Palace",
-  "White Tower",
-  "Berkshire Palace",
-  "Wynguard Palace",
-  "School of Cavalry",
-  "Chamber of Commerce",
-  "Royal Institute",
-  "Guild Hall",
-  "College of Artillery",
-  "Red Palace",
-  "Aachen Chapel",
-  "Meinwerk Palace",
-  "Burgrave Palace",
-  "Regnitz Cathedral",
-  "Elzbach Palace",
-  "Palace of Swabia",
-  "Tower of Victory",
-  "Dome of the Faith",
-  "Compound of the Defender",
-  "House of Learning",
-  "Hisar Academy",
-  "Palace of the Sultan",
-  "Hunting Cabin",
-  "Wooden Fortress",
-  "Golden Gate",
-  "Kremlin",
-  "Abbey of the Trinity",
-  "High Trade House",
-  "High Armory",
-  "Spasskaya Tower",
-  "Deer Stones",
-  "Silver Tree",
-  "Steppe Redoubt",
-  "Kurultai",
-  "White Stupa",
-  "Khaganate Palace",
-  "Farmhouse",
-  "Forge",
-  "Pit Mine",
-  "Cattle Ranch",
-  "Toll Outpost",
-  "Fortified Outpost",
-  "Stockyard",
-  "Saharan Trade Network",
-  "Mansa Quarry",
-  "Grand Fulani Corral",
-  "Farimba Garrison",
-  "Fort of the Huntress",
-  "Griot Bara",
-  "Buddhist Temple",
-  "Shinto Shrine",
-  "Kura Storehouse",
-  "Temple of Equality",
-  "Floating Gate",
-  "Koka Township",
-  "Castle of the Crow",
-  "Tanegashima Gunsmith"
-]);
-const BO_TRAINING_BUILDING_SET = new Set([
-  "Town Center",
-  "Barracks",
-  "Archery Range",
-  "Stable",
-  "Siege Workshop",
-  "Military School",
-  "Golden Tent",
-  "Hunting Cabin",
-  "Buddhist Temple",
-  "Shinto Shrine",
-  "Koka Township",
-  "Tanegashima Gunsmith"
-]);
-const BO_PRODUCTION_BUILDINGS = new Set([
-  "Town Center",
-  "Barracks",
-  "Archery Range",
-  "Stable",
-  "Siege Workshop",
-  "Military School",
-  "Golden Tent",
-  "Hunting Cabin",
-  "Buddhist Temple",
-  "Shinto Shrine",
-  "Koka Township",
-  "Tanegashima Gunsmith"
-]);
-const BO_TECH_BUILDINGS = new Set([
-  "Mill",
-  "Blacksmith",
-  "Mosque",
-  "Monastery",
-  "Prayer Tent",
-  "Golden Tent",
-  "Fortified Outpost"
-]);
-const BO_BASE_TECH_BUILDINGS = ["Mill", "Blacksmith", "Mosque", "Monastery", "Prayer Tent", "Golden Tent", "Fortified Outpost"];
-const BO_TECHS_REQUIRING_UNMODELED_EXACT_SITE = new Set([
-  "Ajmer Benefactor",
-  "Burgundian Imports",
-  "Carrying Frame",
-  "Collateral Damage",
-  "Collar of Esses",
-  "Curse of Auliya",
-  "Dome of the Faith",
-  "Elephant Caretakers",
-  "Elephant Harness",
-  "Field Repair Site",
-  "Hearty Rations",
-  "Hill Training",
-  "Honed Blades",
-  "Khanda Drills",
-  "Mahouts",
-  "Military Tactics Training",
-  "Neza Training",
-  "Paiks",
-  "Red Brick Bastions",
-  "Reinforced Foundations",
-  "Shahi Walls",
-  "Ships of the Crown",
-  "Tranquil Venue",
-  "Warwolf Trebuchet",
-  "Woven Baskets"
-]);
-let BO_BUILD_TIME_MULT_BY_VILLAGERS = { 1: 1 };
-let BO_BUILDING_DEFAULTS = {};
-let BO_TECH_DEFAULTS = {};
-let BO_CIV_BONUSES = {};
-let BO_MUSLIM_CIVS = new Set([
-  "Abbasid Dynasty",
-  "Ayyubids",
-  "Delhi Sultanate",
-  "Tughlaq Dynasty",
-  "Ottomans"
-]);
-let BO_MUSLIM_BERRY_BONUS = { capacityBonusPerNode: 100, gatherBonusPct: 25, carryBonus: 3 };
-let BO_SACRED_SITE_GOLD_PER_MIN = 100;
-let BO_PASTURE_SHEEP_SECONDS = 116;
-let BO_OVOO_STONE_PER_MIN_BY_AGE = { 1: 70, 2: 100, 3: 130, 4: 160 };
-let BO_SCHOLAR = { costGold: 135, costGoldDome: 80, time: 30 };
-const BO_CIV_STARTING_RESOURCES = {
-  "English": { food: 200, wood: 200, gold: 100, stone: 0 },
-  "House of Lancaster": { food: 200, wood: 200, gold: 100, stone: 0 },
-  "Rus": { food: 200, wood: 200, gold: 100, stone: 0 },
-  "Delhi Sultanate": { food: 200, wood: 200, gold: 100, stone: 0 },
-  "Order of the Dragon": { food: 200, wood: 200, gold: 100, stone: 0 },
-  "Abbasid Dynasty": { food: 200, wood: 200, gold: 100, stone: 0 },
-  "Ayyubids": { food: 200, wood: 200, gold: 100, stone: 0 },
-  "Tughlaq Dynasty": { food: 200, wood: 150, gold: 100, stone: 0 },
-  "Sengoku Daimyo": { food: 200, wood: 150, gold: 100, stone: 0 },
-  "Malians": { food: 200, wood: 150, gold: 100, stone: 0 },
-  "Mongols": { food: 200, wood: 150, gold: 100, stone: 0 },
-  "Jeanne d'Arc": { food: 200, wood: 150, gold: 100, stone: 0 },
-  "Chinese": { food: 200, wood: 150, gold: 100, stone: 0 },
-  "Japanese": { food: 200, wood: 150, gold: 100, stone: 0 },
-  "French": { food: 200, wood: 150, gold: 100, stone: 0 },
-  "Knights Templar": { food: 200, wood: 100, gold: 100, stone: 0 },
-  "Zhu Xi's Legacy": { food: 150, wood: 200, gold: 100, stone: 0 },
-  "Holy Roman Empire": { food: 200, wood: 150, gold: 0, stone: 0 },
-  "Ottomans": { food: 200, wood: 200, gold: 100, stone: 50 },
-  "Golden Horde": { food: 200, wood: 225, gold: 150, stone: 50 },
-  "Byzantines": { food: 200, wood: 150, gold: 100, stone: 100, oliveOil: 100 },
-  "Macedonian Dynasty": { food: 200, wood: 200, gold: 100, stone: 0, silver: 100 }
-};
-let BO_BOAR_RESTRICTED_CIVS = BO_MUSLIM_CIVS;
-const BO_ENGLISH_FARM_BONUS_CIVS = new Set(["English", "House of Lancaster"]);
-const BO_ENGLISH_FARM_BONUS_BY_AGE = { 1: 20, 2: 25, 3: 30, 4: 30 };
-const BO_ENGLISH_FARM_GOLD_PER_SEC = 1 / 6;
-const BO_ENGLISH_FARM_COST_MULT = 0.5;
-const BO_AGE_UP_TIME_DEFAULTS = { 2: 190, 3: 220 };
-const BO_OTTOMAN_MILITARY_SCHOOL_BUILDING = "Military School";
-const BO_HOUSE_OF_WISDOM_CIVS = new Set(["Abbasid Dynasty", "Ayyubids"]);
-const BO_SUPPORTED_CIVS = new Set([
-  "Abbasid Dynasty",
-  "Ayyubids",
-  "Delhi Sultanate",
-  "English",
-  "French",
-  "Golden Horde",
-  "Holy Roman Empire",
-  "Order of the Dragon",
-  "House of Lancaster",
-  "Japanese",
-  "Jeanne d'Arc",
-  "Knights Templar",
-  "Malians",
-  "Mongols",
-  "Ottomans",
-  "Rus",
-  "Tughlaq Dynasty"
-]);
-const BO_UNIT_ALIASES = {
-  "Crossbowman": "Crossbow",
-  "Man-at-Arms": "MAA",
-  "Lancer": "Knight/Lancer"
-};
-const BO_COMPARE_COLUMNS = [
-  { key: "civ", label: "Civ", sortType: "string" },
-  { key: "saveName", label: "Build", sortType: "string" },
-  { key: "simEnd", label: "Compare End", sortType: "number" },
-  { key: "generatedTotalValue", label: "Generated", sortType: "number", better: "high" },
-  { key: "freeUnitValueTotal", label: "Free Units", sortType: "number", better: "high" },
-  { key: "combinedTotalValue", label: "Total Value", sortType: "number", better: "high" },
-  { key: "bankFood", label: "Bank F", sortType: "number", better: "high" },
-  { key: "bankWood", label: "Bank W", sortType: "number", better: "high" },
-  { key: "bankGold", label: "Bank G", sortType: "number", better: "high" },
-  { key: "bankStone", label: "Bank S", sortType: "number", better: "high" },
-  { key: "incomeFood", label: "Income F", sortType: "number", better: "high" },
-  { key: "incomeWood", label: "Income W", sortType: "number", better: "high" },
-  { key: "incomeGold", label: "Income G", sortType: "number", better: "high" },
-  { key: "incomeStone", label: "Income S", sortType: "number", better: "high" },
-  { key: "villagers", label: "Villagers", sortType: "number", better: "high" },
-  { key: "totalUnits", label: "Units", sortType: "number", better: "high" },
-  { key: "age2", label: "Age II", sortType: "time", better: "low" },
-  { key: "age3", label: "Age III", sortType: "time", better: "low" },
-  { key: "age4", label: "Age IV", sortType: "time", better: "low" }
-];
-const BO_EXTRA_UNIT_SPECS = {
-  "Mehter": {
-    civs: ["Ottomans"],
-    cost: { food: 100, wood: 0, gold: 80, stone: 0 },
-    time: 28,
-    ages: [2, 3, 4],
-    buildings: ["Stable", BO_OTTOMAN_MILITARY_SCHOOL_BUILDING]
-  },
-  "Janissary": {
-    civs: ["Ottomans"],
-    cost: { food: 60, wood: 0, gold: 100, stone: 0 },
-    time: 24,
-    ages: [3, 4],
-    buildings: ["Archery Range", BO_OTTOMAN_MILITARY_SCHOOL_BUILDING]
-  },
-  "Worker Elephant": {
-    civs: ["Tughlaq Dynasty"],
-    cost: { food: 25, wood: 50, gold: 0, stone: 0 },
-    time: 0.1,
-    ages: [1, 2, 3, 4],
-    buildings: ["Town Center"],
-    population: 0
-  },
-  "Buddhist Monk": {
-    civs: ["Japanese"],
-    cost: { food: 0, wood: 0, gold: 80, stone: 0 },
-    time: 30,
-    ages: [3, 4],
-    buildings: ["Buddhist Temple", "Temple of Equality"]
-  },
-  "Shinto Priest": {
-    civs: ["Japanese"],
-    cost: { food: 0, wood: 0, gold: 150, stone: 0 },
-    time: 30,
-    ages: [3, 4],
-    buildings: ["Shinto Shrine", "Floating Gate"]
-  },
-  "Shinobi": {
-    civs: ["Japanese"],
-    cost: { food: 50, wood: 0, gold: 50, stone: 0 },
-    time: 20,
-    ages: [2, 3, 4],
-    buildings: ["Koka Township"]
-  },
-  "Ozutsu": {
-    civs: ["Japanese"],
-    cost: { food: 85, wood: 0, gold: 155, stone: 0 },
-    time: 35,
-    ages: [4],
-    buildings: ["Tanegashima Gunsmith"]
-  },
-  "Cattle": {
-    civs: ["Malians"],
-    cost: { food: 0, wood: 0, gold: 90, stone: 0 },
-    time: 15,
-    ages: [1, 2, 3, 4],
-    buildings: ["Mill"],
-    population: 0
-  },
-  "Batu Khan": {
-    civs: ["Golden Horde"],
-    cost: { food: 0, wood: 0, gold: 0, stone: 140 },
-    time: 22.5,
-    ages: [2, 3, 4],
-    buildings: [BO_GOLDEN_TENT_BUILDING],
-    population: 1
-  },
-  "Rus Tribute": {
-    civs: ["Golden Horde"],
-    cost: { food: 0, wood: 0, gold: 0, stone: 350 },
-    time: 30,
-    ages: [3, 4],
-    buildings: [BO_GOLDEN_TENT_BUILDING],
-    population: 4
-  },
-  "Traction Trebuchet": {
-    civs: ["Golden Horde"],
-    cost: { food: 0, wood: 0, gold: 0, stone: 200 },
-    time: 15,
-    ages: [4],
-    buildings: [BO_GOLDEN_TENT_BUILDING],
-    population: 1
-  }
-};
-const BO_OTTOMAN_VIZIER_THRESHOLDS = [60, 160, 310, 550, 870, 1190, 1510, 1830];
-const BO_OTTOMAN_VIZIER_AGE_XP = { 2: 15, 3: 45, 4: 100 };
-const BO_OTTOMAN_VIZIER_UNIT_XP = {
-  "Villager": 2,
-  "Scout": 2,
-  "Spearman": 2,
-  "Archer": 2,
-  "Sipahi": 4,
-  "Akinji": 5,
-  "Man-at-Arms": 3,
-  "MAA": 3,
-  "Crossbowman": 3,
-  "Crossbow": 3,
-  "Mehter": 5,
-  "Janissary": 4,
-  "Lancer": 6,
-  "Knight/Lancer": 6,
-  "Battering Ram": 5,
-  "Ram": 5,
-  "Springald": 6,
-  "Mangonel": 15,
-  "Counterweight Trebuchet": 14,
-  "Trebuchet": 14,
-  "Ribauldequin": 21,
-  "Great Bombard": 31
-};
-const BO_OTTOMAN_DEFENSIVE_BUILDINGS = new Set(["Town Center", "Outpost", "Keep"]);
-const BO_ABBASID_HOW_WINGS = {
-  culture: {
-    label: "Culture Wing",
-    choicesByAge: {
-      2: ["preservationOfKnowledge"],
-      3: ["medicalCenters"],
-      4: ["publicLibraries"]
-    }
-  },
-  economic: {
-    label: "Economic Wing",
-    choicesByAge: {
-      2: ["fertileCrescent"],
-      3: ["agriculture"],
-      4: ["improvedProcessing"]
-    }
-  },
-  military: {
-    label: "Military Wing",
-    choicesByAge: {
-      2: ["bootCamp"],
-      3: ["compositeBows"],
-      4: ["camelSupport"]
-    },
-    spawnByAge: {
-      2: "Spawn 2 Spearmen and 2 Archers",
-      3: "Spawn 2 Camel Riders",
-      4: "Spawn 3 Handcannoneers"
-    }
-  },
-  trade: {
-    label: "Trade Wing",
-    choicesByAge: {
-      2: ["armoredCaravans"],
-      3: ["grandBazaar"],
-      4: ["spiceRoads"]
-    },
-    spawnByAge: {
-      2: "Spawn 4 Trade Caravans",
-      3: "Spawn 5 Trade Caravans",
-      4: "Spawn 6 Trade Caravans"
-    }
-  }
-};
-const BO_ABBASID_HOW_CHOICE_DEFS = {
-  preservationOfKnowledge: {
-    id: "preservationOfKnowledge",
-    label: "Preservation of Knowledge",
-    effectNote: "Techs and future House of Wisdom wings cost 20% less."
-  },
-  medicalCenters: {
-    id: "medicalCenters",
-    label: "Medical Centers",
-    effectNote: "Keeps and Town Centers heal nearby units (tracked only)."
-  },
-  publicLibraries: {
-    id: "publicLibraries",
-    label: "Public Libraries",
-    effectNote: "Villagers and Trade Caravans gain +2 HP per economic technology (tracked only)."
-  },
-  fertileCrescent: {
-    id: "fertileCrescent",
-    label: "Fertile Crescent",
-    effectNote: "Economic buildings and Houses cost 30% less."
-  },
-  agriculture: {
-    id: "agriculture",
-    label: "Agriculture",
-    effectNote: "Farms gather 15% faster."
-  },
-  improvedProcessing: {
-    id: "improvedProcessing",
-    label: "Improved Processing",
-    effectNote: "Villager dropoffs return 8% more resources."
-  },
-  bootCamp: {
-    id: "bootCamp",
-    label: "Boot Camp",
-    effectNote: "Infantry +15% hit points (tracked only)."
-  },
-  compositeBows: {
-    id: "compositeBows",
-    label: "Composite Bows",
-    effectNote: "Archers +30% attack speed (tracked only)."
-  },
-  camelSupport: {
-    id: "camelSupport",
-    label: "Camel Support",
-    effectNote: "Camels grant nearby infantry +2 armor (tracked only)."
-  },
-  armoredCaravans: {
-    id: "armoredCaravans",
-    label: "Armored Caravans",
-    effectNote: "Trade armor bonus unlocked (trade tracked only)."
-  },
-  grandBazaar: {
-    id: "grandBazaar",
-    label: "Grand Bazaar",
-    effectNote: "Trade bonus unlocked (tracked only)."
-  },
-  spiceRoads: {
-    id: "spiceRoads",
-    label: "Spice Roads",
-    effectNote: "Trade units generate +30% gold (tracked only)."
-  }
-};
-const BO_AYYUBID_HOW_BRANCHES = {
-  culture: {
-    label: "Culture Wing",
-    branches: {
-      advancement: { label: "Advancement" },
-      logistics: { label: "Logistics" }
-    }
-  },
-  economic: {
-    label: "Economic Wing",
-    branches: {
-      growth: { label: "Growth" },
-      industry: { label: "Industry" }
-    }
-  },
-  military: {
-    label: "Military Wing",
-    branches: {
-      masterSmiths: { label: "Master Smiths" },
-      reinforcement: { label: "Reinforcement" }
-    }
-  },
-  trade: {
-    label: "Trade Wing",
-    branches: {
-      advisors: { label: "Advisors" },
-      bazaar: { label: "Bazaar" }
-    }
-  }
-};
-const BO_HOUSE_OF_WISDOM_GOLDEN_AGE_LABELS = {
-  gatherPct: "Gather",
-  researchPct: "Research",
-  productionPct: "Production",
-  siegeCostMult: "Siege cost",
-  camelAttackSpeedPct: "Camel attack"
-};
-const BO_OTTOMAN_VIZIER_CHOICES = {
-  fieldWork: {
-    id: "fieldWork",
-    label: "Field Work",
-    level: 1,
-    description: "Spawn 2 Imams at the Capital Town Center.",
-    effectNote: "Spawns 2 Imams at the Capital Town Center."
-  },
-  mehterDrums: {
-    id: "mehterDrums",
-    label: "Mehter Drums",
-    level: 1,
-    description: "Spawn 2 Mehters at the Capital Town Center.",
-    effectNote: "Spawns 2 Mehters at the Capital Town Center."
-  },
-  anatolianHills: {
-    id: "anatolianHills",
-    label: "Anatolian Hills",
-    level: 1,
-    description: "Spawn 10 Sheep and increase villager gold/stone mining by 15%.",
-    effectNote: "Adds 10 Sheep and +15% villager gold/stone mining."
-  },
-  militaryCampus: {
-    id: "militaryCampus",
-    label: "Military Campus",
-    level: 2,
-    description: "Increase the Military School cap by +1.",
-    effectNote: "Military School cap increased by +1."
-  },
-  akinjiSystem: {
-    id: "akinjiSystem",
-    label: "Akinji System",
-    level: 2,
-    description: "Unlock Akinji at Archery Range and Military School, and spawn 3 Akinji.",
-    effectNote: "Unlocks Akinji and spawns 3 Akinji at the Capital Town Center."
-  },
-  extensiveFortifications: {
-    id: "extensiveFortifications",
-    label: "Extensive Fortifications",
-    level: 2,
-    description: "Town Centers, Outposts, and Keeps cost 20% less.",
-    effectNote: "Town Centers, Outposts, and Keeps cost 20% less."
-  },
-  advancedAcademy: {
-    id: "advancedAcademy",
-    label: "Advanced Academy",
-    level: 3,
-    description: "+25% military production speed; unlock Lancer and Janissary in Military Schools from Age III.",
-    effectNote: "+25% military production speed and Military School unlocks."
-  },
-  janissaryCompany: {
-    id: "janissaryCompany",
-    label: "Janissary Company",
-    level: 3,
-    description: "Spawn 2 Janissaries plus 2 more per Military School.",
-    effectNote: "Spawns Janissaries at the Capital Town Center."
-  },
-  paxOttomana: {
-    id: "paxOttomana",
-    label: "Pax Ottomana",
-    level: 3,
-    description: "Villagers train 75% faster for 4 minutes.",
-    effectNote: "Villagers train 75% faster for 4 minutes."
-  },
-  siegeCrews: {
-    id: "siegeCrews",
-    label: "Siege Crews",
-    level: 4,
-    description: "Track siege garrison/setup bonus as an unlocked effect.",
-    effectNote: "Siege Crews unlocked (combat effect tracked only)."
-  },
-  greatBombard: {
-    id: "greatBombard",
-    label: "Great Bombard",
-    level: 4,
-    description: "Spawn 1 Great Bombard at the Capital Town Center.",
-    effectNote: "Spawns 1 Great Bombard at the Capital Town Center."
-  },
-  tradeBags: {
-    id: "tradeBags",
-    label: "Trade Bags",
-    level: 4,
-    description: "Trade-only bonus. Visible for reference but not modeled in Build Order.",
-    effectNote: "Trade not modeled in Build Order.",
-    modeled: false
-  }
-};
-const BO_OTTOMAN_VIZIER_LEVELS = [1, 2, 3, 4].map((level) => ({
-  level,
-  choices: Object.values(BO_OTTOMAN_VIZIER_CHOICES).filter((choice) => choice.level === level).map((choice) => choice.id)
-}));
-const BO_GOLDEN_HORDE_HEAVY_UNITS = new Set([
-  "Batu Khan",
-  "Torguud",
-  "Keshik",
-  "Knight/Lancer",
-  "Lancer",
-  "Man-at-Arms",
-  "MAA",
-  "Kharash"
-]);
-const BO_GOLDEN_HORDE_STONE_ARMIES_UNITS = {
-  "Kharash": { stone: 10, time: 10, count: 2 },
-  "Kipchak Archer": { stone: 80, time: 24, count: 2 },
-  "Keshik": { stone: 130, time: 30, count: 2 },
-  "Traction Trebuchet": { stone: 200, time: 15, count: 1 }
-};
-const BO_GOLDEN_HORDE_TENT_CHOICES = {
-  khanAndTorguuds: {
-    id: "khanAndTorguuds",
-    label: "Khan and Torguuds",
-    targetAge: 2,
-    description: "+30 HP and -20% stone cost for Batu Khan and Torguud."
-  },
-  buildingCarts: {
-    id: "buildingCarts",
-    label: "Building Carts",
-    targetAge: 2,
-    description: "Gain free building-cart build credits."
-  },
-  muscovyYasak: {
-    id: "muscovyYasak",
-    label: "Muscovy Yasak",
-    targetAge: 3,
-    description: "Golden Tent generates wood income, reduced by active heavy units."
-  },
-  relicOvoos: {
-    id: "relicOvoos",
-    label: "Relic Ovoos",
-    targetAge: 3,
-    description: "Ovoos generate +20% more stone; relic-built extra Ovoos tracked only."
-  },
-  stoneArmies: {
-    id: "stoneArmies",
-    label: "Stone Armies",
-    targetAge: 4,
-    description: "Unlock stone-trained unique units at the Golden Tent and upgrade Rus Tribute."
-  },
-  yamNetworkTrade: {
-    id: "yamNetworkTrade",
-    label: "Yam Network Trade",
-    targetAge: 4,
-    description: "Golden Tent generates gold from Fortified Outposts."
-  }
-};
-const BO_GOLDEN_HORDE_EDICTS = {
-  productionSpeed: {
-    id: "productionSpeed",
-    label: "Production Speed Edict",
-    description: "+20% production speed for Golden Tent and military buildings."
-  },
-  defensiveAura: {
-    id: "defensiveAura",
-    label: "Defensive Aura Edict",
-    description: "Tracked only.",
-    modeled: false
-  },
-  kharash: {
-    id: "kharash",
-    label: "Kharash Edict",
-    description: "Eligible influenced unit completions spawn 1 free Kharash.",
-    requiresTech: "Unlock Kharash Edict"
-  },
-  stockyard: {
-    id: "stockyard",
-    label: "Stockyard Edict",
-    description: "Worked Stockyards generate gold per worker.",
-    requiresTech: "Unlock Stockyard Edict"
-  }
-};
 
-function getBoRatesForCiv(civ) {
-  const base = { ...BO_BASE_RATES };
-  const overrides = BO_CIV_RATE_OVERRIDES[civ] || {};
-  Object.entries(overrides).forEach(([key, val]) => {
-    base[key] = val;
-  });
-  return base;
-}
 
-function getBoStartingResourcesForCiv(civ) {
-  const override = BO_CIV_STARTING_RESOURCES[civ];
-  if (!override) {
-    return {
-      ...BO_STARTING.resources,
-      oliveOil: 0,
-      silver: 0
-    };
-  }
-  return {
-    food: override.food ?? 0,
-    wood: override.wood ?? 0,
-    gold: override.gold ?? 0,
-    stone: override.stone ?? 0,
-    oliveOil: override.oliveOil ?? 0,
-    silver: override.silver ?? 0
-  };
-}
 
-function getBoAgeBonusValue(byAge, age) {
-  if (!byAge) return 0;
-  const direct = byAge[age];
-  if (Number.isFinite(direct)) return direct;
-  const stringVal = byAge[String(age)];
-  return Number.isFinite(stringVal) ? stringVal : 0;
-}
 
-function applyBoWorkRateToDuration(duration, workRatePct) {
-  const base = Math.max(0, duration || 0);
-  const pct = Math.max(0, workRatePct || 0);
-  if (!pct) return base;
-  return base / (1 + (pct / 100));
-}
 
-function getBoOttomanChoiceDef(choiceId) {
-  return BO_OTTOMAN_VIZIER_CHOICES[choiceId] || null;
-}
-
-function getBoOttomanVizierCap(state = null) {
-  if (state?.cap && Number.isFinite(state.cap)) return state.cap;
-  if (state?.imperialPalace) return 8;
-  return 5;
-}
-
-function getBoOttomanVizierPointsEarned(xp = 0, cap = 5) {
-  let points = 0;
-  for (let i = 0; i < BO_OTTOMAN_VIZIER_THRESHOLDS.length && i < cap; i++) {
-    if (xp >= BO_OTTOMAN_VIZIER_THRESHOLDS[i]) points += 1;
-  }
-  return points;
-}
-
-function getBoOttomanVizierStateFromSample(sample = null) {
-  const fallback = {
-    xp: 0,
-    cap: 5,
-    pointsEarned: 0,
-    pointsSpent: 0,
-    pointsAvailable: 0,
-    nextThreshold: BO_OTTOMAN_VIZIER_THRESHOLDS[0],
-    imperialPalace: false,
-    choices: [],
-    effects: {}
-  };
-  if (!sample?.vizier) return fallback;
-  const effects = sample.vizier.effects || {};
-  return {
-    xp: Math.max(0, sample.vizier.xp || 0),
-    cap: getBoOttomanVizierCap(sample.vizier),
-    pointsEarned: Math.max(0, sample.vizier.pointsEarned || 0),
-    pointsSpent: Math.max(0, sample.vizier.pointsSpent || 0),
-    pointsAvailable: Math.max(0, sample.vizier.pointsAvailable || 0),
-    nextThreshold: Number.isFinite(sample.vizier.nextThreshold) ? sample.vizier.nextThreshold : null,
-    imperialPalace: !!sample.vizier.imperialPalace,
-    choices: Array.isArray(sample.vizier.choices) ? sample.vizier.choices.slice() : [],
-    effects: { ...effects }
-  };
-}
 
 function getBoOttomanPreviewState(timeOverride = null) {
   const civ = (document.getElementById("boCiv")?.value || "").trim();
@@ -864,14 +113,6 @@ function applyBoOttomanSettings() {
   boOttomanLegacyWarning = "";
 }
 
-function getBoOttomanLevelStatus(level, state) {
-  const previousLevel = level - 1;
-  if (level <= 1) return { allowed: true, note: "Available immediately" };
-  const hasPreviousChoice = (state?.choices || []).some((choiceId) => getBoOttomanChoiceDef(choiceId)?.level === previousLevel);
-  return hasPreviousChoice
-    ? { allowed: true, note: "Previous level unlocked" }
-    : { allowed: false, note: `Choose a Level ${previousLevel} Vizier point first` };
-}
 
 function getBoOttomanChoiceUiState(choiceId, state = null) {
   const choice = getBoOttomanChoiceDef(choiceId);
@@ -916,98 +157,14 @@ function updateBoOttomanPanel(civ, timeOverride = null) {
   `).join("");
 }
 
-function getBoOttomanMilitarySchoolConfig(civ) {
-  return civ === "Ottomans" ? (BO_CIV_BONUSES?.[civ]?.militarySchool || null) : null;
-}
 
-function isBoHouseOfWisdomCiv(civ) {
-  return BO_HOUSE_OF_WISDOM_CIVS.has((civ || "").trim());
-}
 
-function getBoNoBoarCivSet() {
-  if (BO_BOAR_RESTRICTED_CIVS?.size) return BO_BOAR_RESTRICTED_CIVS;
-  const derived = Object.entries(BO_CIV_BONUSES || {})
-    .filter(([, bonus]) => bonus?.noBoar)
-    .map(([civ]) => civ);
-  if (derived.length) {
-    BO_BOAR_RESTRICTED_CIVS = new Set(derived);
-    return BO_BOAR_RESTRICTED_CIVS;
-  }
-  return BO_MUSLIM_CIVS;
-}
 
-function isBoNoBoarCiv(civ) {
-  return getBoNoBoarCivSet().has((civ || "").trim());
-}
 
-function getBoBerryBonusConfig(civ) {
-  const civBonus = BO_CIV_BONUSES?.[civ] || {};
-  if (civBonus.berryBonus) return civBonus.berryBonus;
-  if (civBonus.grandOrchards) {
-    return {
-      label: "Grand Orchards",
-      requiresMill: true,
-      ...civBonus.grandOrchards
-    };
-  }
-  return null;
-}
 
-function getBoHouseOfWisdomConfig(civ) {
-  return BO_CIV_BONUSES?.[civ]?.houseOfWisdom || null;
-}
 
-function getBoHouseOfWisdomWingLabel(civ, wing, branch = null) {
-  if (civ === "Ayyubids") {
-    const wingDef = BO_AYYUBID_HOW_BRANCHES[wing];
-    const branchDef = wingDef?.branches?.[branch];
-    if (wingDef && branchDef) return `${wingDef.label} / ${branchDef.label}`;
-  }
-  return BO_ABBASID_HOW_WINGS[wing]?.label || wing || "Wing";
-}
 
-function getBoHouseOfWisdomStateFromSample(sample = null) {
-  const fallback = {
-    wings: [],
-    effects: {},
-    goldenAge: {
-      count: 0,
-      tier: 0,
-      bonuses: {}
-    }
-  };
-  if (!sample?.houseOfWisdom) return fallback;
-  return {
-    wings: Array.isArray(sample.houseOfWisdom.wings) ? sample.houseOfWisdom.wings.map((entry) => ({ ...entry })) : [],
-    effects: { ...(sample.houseOfWisdom.effects || {}) },
-    goldenAge: {
-      count: Math.max(0, sample.houseOfWisdom.goldenAge?.count || 0),
-      tier: Math.max(0, sample.houseOfWisdom.goldenAge?.tier || 0),
-      bonuses: { ...(sample.houseOfWisdom.goldenAge?.bonuses || {}) }
-    }
-  };
-}
 
-function getBoPlannedHouseOfWisdomWings(civ, commands = boCommands) {
-  if (!isBoHouseOfWisdomCiv(civ) || !Array.isArray(commands)) return [];
-  const wings = [];
-  const seen = new Set();
-  commands.forEach((cmd) => {
-    if (cmd?.type !== "houseOfWisdomWing") return;
-    const wing = cmd.payload?.wing || "culture";
-    if (!wing || seen.has(wing)) return;
-    seen.add(wing);
-    const branch = civ === "Ayyubids"
-      ? (cmd.payload?.branch || Object.keys(BO_AYYUBID_HOW_BRANCHES[wing]?.branches || {})[0] || null)
-      : null;
-    wings.push({
-      wing,
-      branch,
-      targetAge: getBoHouseOfWisdomChoiceAgeFromCount(wings.length)
-    });
-  });
-  return wings;
-}
 
 function getBoHouseOfWisdomPreviewState(timeOverride = null) {
   const civ = (document.getElementById("boCiv")?.value || "").trim();
@@ -1019,76 +176,13 @@ function getBoHouseOfWisdomPreviewState(timeOverride = null) {
   return getBoHouseOfWisdomStateFromSample(sample);
 }
 
-function formatBoGoldenAgeBonuses(bonuses = {}) {
-  const parts = [];
-  Object.entries(BO_HOUSE_OF_WISDOM_GOLDEN_AGE_LABELS).forEach(([key, label]) => {
-    const value = bonuses?.[key];
-    if (!Number.isFinite(value) || value <= 0) return;
-    if (key === "siegeCostMult") parts.push(`${label} -${Math.round((1 - value) * 100)}%`);
-    else parts.push(`${label} +${Math.round(value)}%`);
-  });
-  return parts.join(" | ");
-}
 
-function getBoLandmarkAuthoringConfig(civ) {
-  const entry = BO_LANDMARK_AUTHORING?.civModes?.[civ] || {};
-  if (entry.mode) return entry;
-  if (isBoHouseOfWisdomCiv(civ)) return { mode: "houseOfWisdom" };
-  if (civ === "Golden Horde") return { mode: "goldenTent" };
-  if (civ === "Ottomans") return { mode: "imperialCouncil+named", hideTradeLandmarks: true };
-  if (BO_CIV_BONUSES?.[civ]?.landmarksByAge) return { mode: "named", hideTradeLandmarks: true };
-  return { mode: "generic" };
-}
 
-function getBoLandmarkAuthoringMode(civ) {
-  return getBoLandmarkAuthoringConfig(civ)?.mode || "generic";
-}
 
-function isBoNamedLandmarkAuthoringMode(mode) {
-  return mode === "named" || mode === "imperialCouncil+named";
-}
 
-function isBoTradeLandmark(name) {
-  return !!BO_BUILDING_DEFAULTS?.[name]?.tradeLandmark;
-}
 
-function getBoLandmarkChoicesForCiv(civ) {
-  const mode = getBoLandmarkAuthoringMode(civ);
-  if (!isBoNamedLandmarkAuthoringMode(mode)) return {};
-  const raw = BO_CIV_BONUSES?.[civ]?.landmarksByAge || {};
-  const hideTradeLandmarks = getBoLandmarkAuthoringConfig(civ)?.hideTradeLandmarks !== false;
-  const filtered = {};
-  Object.entries(raw).forEach(([age, entries]) => {
-    filtered[age] = (Array.isArray(entries) ? entries : []).filter((name) => {
-      if (!name) return false;
-      return !hideTradeLandmarks || !isBoTradeLandmark(name);
-    });
-  });
-  return filtered;
-}
 
-function getBoRusBountyConfig(civ) {
-  return BO_CIV_BONUSES?.[civ]?.bounty || null;
-}
 
-function getBoRusBountyState(civ, total = 0) {
-  const config = getBoRusBountyConfig(civ);
-  const thresholds = Array.isArray(config?.thresholds) ? config.thresholds : [];
-  let tier = 0;
-  let foodGatherPct = 0;
-  thresholds.forEach((entry, idx) => {
-    if (!Number.isFinite(entry?.bounty) || total < entry.bounty) return;
-    tier = idx + 1;
-    foodGatherPct = Math.max(foodGatherPct, entry.foodGatherPct || 0);
-  });
-  return {
-    total: Math.max(0, total || 0),
-    tier,
-    foodGatherPct,
-    goldPerFood: Number.isFinite(config?.goldPerFood) ? config.goldPerFood : 0,
-    foodResources: Array.isArray(config?.foodResources) ? config.foodResources.slice() : []
-  };
-}
 
 function getBoJapanesePreviewState(timeOverride = null) {
   const anchorTime = Number.isFinite(timeOverride) ? timeOverride : getBoAnchorTime();
@@ -1131,85 +225,16 @@ function getBoMalianPreviewState(timeOverride = null) {
   };
 }
 
-function getBoBuildingSurfaceConfig(buildingType, civ) {
-  if (!buildingType) return {};
-  return BO_CIV_BONUSES?.[civ]?.landmarkSurfaces?.[buildingType] || {};
-}
 
-function getBoCivUnitTrainOverride(civ, unitName) {
-  const resolved = resolveBoUnitName(unitName);
-  const overrides = BO_CIV_BONUSES?.[civ]?.unitTrainOverrides || {};
-  return overrides?.[unitName] || overrides?.[resolved] || null;
-}
 
-function getBoTrainingSurface(buildingType, civ) {
-  if (!buildingType) return null;
-  return getBoBuildingSurfaceConfig(buildingType, civ).trainAs || buildingType;
-}
 
-function getBoTechSurface(buildingType, civ) {
-  if (!buildingType) return null;
-  return getBoBuildingSurfaceConfig(buildingType, civ).techAs || buildingType;
-}
 
-function isBoTownCenterSurface(buildingType, civ) {
-  return getBoTrainingSurface(buildingType, civ) === "Town Center";
-}
 
-function isBoProductionSurface(buildingType, civ) {
-  const surface = getBoTrainingSurface(buildingType, civ);
-  if (civ === "Malians" && buildingType === "Mill") return true;
-  return !!surface && BO_PRODUCTION_BUILDINGS.has(surface);
-}
 
-function getBoUnitTrainModifier(buildingType, civ, unitName) {
-  const config = getBoBuildingSurfaceConfig(buildingType, civ);
-  const unitMods = config.unitTrainMods?.[resolveBoUnitName(unitName)] || config.unitTrainMods?.[unitName] || {};
-  return {
-    costMult: Number.isFinite(unitMods.costMult) ? unitMods.costMult : 1,
-    timePct: Number.isFinite(unitMods.timePct) ? unitMods.timePct : 0
-  };
-}
 
-function doesBoTechMatchBuilding(techType, buildingType, civ) {
-  if (!buildingType) return false;
-  const sites = getBoTechResearchSites(techType);
-  if (!sites.length) return false;
-  if (sites.includes(buildingType)) return true;
-  const techSurface = getBoTechSurface(buildingType, civ);
-  return !!techSurface && techSurface !== buildingType && sites.includes(techSurface);
-}
 
-function refreshBoTechBuildings() {
-  BO_TECH_BUILDINGS.clear();
-  BO_BASE_TECH_BUILDINGS.forEach((name) => BO_TECH_BUILDINGS.add(name));
-  Object.entries(BO_TECH_DEFAULTS || {}).forEach(([techName, def]) => {
-    const sites = Array.isArray(def?.researchedAt) ? def.researchedAt : [];
-    sites.forEach((site) => {
-      if (isBoExactResearchSiteSupported(site, techName)) BO_TECH_BUILDINGS.add(site);
-    });
-  });
-}
 
-function isBoExactResearchSiteSupported(site, techType = "") {
-  if (!site) return false;
-  if (BO_TECHS_REQUIRING_UNMODELED_EXACT_SITE.has(techType)) return false;
-  if (site === BO_HOUSE_OF_WISDOM_BUILDING || site === BO_OTTOMAN_IMPERIAL_COUNCIL_BUILDING) return true;
-  if (/^Landmark \(Age /.test(site)) return false;
-  if (site === "Worker Elephant") return false;
-  return !!BO_BUILDING_DEFAULTS?.[site];
-}
 
-function getBoTechResearchSites(techType) {
-  const def = getBoTechDefaults(techType) || {};
-  const sites = Array.isArray(def.researchedAt)
-    ? def.researchedAt.filter((site) => isBoExactResearchSiteSupported(site, techType))
-    : [];
-  if (sites.length) return Array.from(new Set(sites));
-  const millTechs = new Set(["Wheelbarrow", "Horticulture", "Survival Techniques"]);
-  if (millTechs.has(techType) && isBoExactResearchSiteSupported("Mill", techType)) return ["Mill"];
-  return [];
-}
 
 function getBoTechPreviewState(civ, timeOverride = null) {
   const anchorTime = Number.isFinite(timeOverride) ? timeOverride : getBoAnchorTime();
@@ -1217,7 +242,7 @@ function getBoTechPreviewState(civ, timeOverride = null) {
   const fallbackAge = parseInt(document.getElementById("boStartAge")?.value, 10) || 1;
   const howState = getBoHouseOfWisdomStateFromSample(sample);
   if (!sample && isBoHouseOfWisdomCiv(civ)) {
-    howState.wings = getBoPlannedHouseOfWisdomWings(civ);
+    howState.wings = getBoPlannedHouseOfWisdomWings(civ, boCommands);
   }
   return {
     age: Math.max(1, sample?.age || fallbackAge),
@@ -1227,288 +252,22 @@ function getBoTechPreviewState(civ, timeOverride = null) {
   };
 }
 
-function isBoTechNoteOnly(techType) {
-  return !!getBoTechDefaults(techType)?.noteOnly;
-}
 
-function getBoTechNoteText(techType) {
-  if (!isBoTechNoteOnly(techType)) return "";
-  return "No Build Order eco effect; tracked for timing only.";
-}
 
-function doesBoPreviewMeetTechRequirements(def, previewState) {
-  if (!def) return true;
-  const minAge = Math.max(1, def.minAge || 1);
-  if ((previewState?.age || 1) < minAge) return false;
-  if (Number.isFinite(def.advancesToAge) && (previewState?.age || 1) >= def.advancesToAge) return false;
-  const researched = previewState?.researchedTechs || new Set();
-  if (researched.has(def.name || "")) return false;
-  const reqs = Array.isArray(def.requiresTechs) ? def.requiresTechs : [];
-  if (reqs.some((name) => !researched.has(name))) return false;
-  const reqBuildings = Array.isArray(def.requiresBuildings) ? def.requiresBuildings : [];
-  const buildingCounts = previewState?.buildingCounts || {};
-  if (reqBuildings.some((name) => (buildingCounts[name] || 0) <= 0)) return false;
-  const reqWing = def.requiresHouseOfWisdomWing || null;
-  if (reqWing) {
-    const wings = previewState?.houseOfWisdom?.wings || [];
-    if (!wings.some((entry) => entry?.wing === reqWing)) return false;
-  }
-  return true;
-}
 
-function getBoBuildableBuildingsForCiv(civ) {
-  const fallbackBuildings = [
-    "Farm",
-    "Mill",
-    "Lumber Camp",
-    "Mining Camp",
-    "Town Center",
-    "Barracks",
-    "Archery Range",
-    "Stable",
-    "Keep",
-    "Mosque",
-    "Monastery",
-    "Prayer Tent",
-    "Pasture",
-    "Ger",
-    "Ovoo",
-    "Blacksmith",
-    "University",
-    "Military School",
-    "Landmark (Age II)",
-    "Landmark (Age III)",
-    "Landmark (Age IV)"
-  ];
-  const buildingKeys = Object.keys(BO_BUILDING_DEFAULTS || {}).length ? Object.keys(BO_BUILDING_DEFAULTS || {}) : fallbackBuildings;
-  const landmarkChoices = getBoLandmarkChoicesForCiv(civ);
-  const landmarkMode = getBoLandmarkAuthoringMode(civ);
-  const usesNamedLandmarks = isBoNamedLandmarkAuthoringMode(landmarkMode);
-  const next = [];
-  const seen = new Set();
-  const push = (name) => {
-    if (!name || seen.has(name)) return;
-    seen.add(name);
-    next.push(name);
-  };
-  buildingKeys.forEach((name) => {
-    if (name === "Landmark (Age II)" || name === "Landmark (Age III)" || name === "Landmark (Age IV)") {
-      if (usesNamedLandmarks) {
-        const targetAge = name === "Landmark (Age II)" ? "2" : name === "Landmark (Age III)" ? "3" : "4";
-        (landmarkChoices?.[targetAge] || []).forEach(push);
-      }
-      if (usesNamedLandmarks || landmarkMode === "houseOfWisdom" || landmarkMode === "goldenTent") return;
-    }
-    if (civ === "Rus" && (name === "Mill" || name === "Outpost")) return;
-    if (civ === "Malians" && name === "Outpost") return;
-    if (civ === "Japanese" && ["House", "Mill", "Mining Camp", "Blacksmith", "Keep", "Monastery"].includes(name)) return;
-    if (civ === "Golden Horde" && ["House", "Farm", "Pasture", "Keep", "Stone Wall", "Mill", "Lumber Camp", "Mining Camp", "Outpost", "Mosque", "Monastery", "Landmark (Age II)", "Landmark (Age III)", "Landmark (Age IV)"].includes(name)) return;
-    if (name === BO_OTTOMAN_MILITARY_SCHOOL_BUILDING && civ !== "Ottomans") return;
-    const def = BO_BUILDING_DEFAULTS?.[name];
-    if (Array.isArray(def?.civs) && civ && !def.civs.includes(civ)) return;
-    if (def?.buildable === false) return;
-    if (def?.landmarkAge) return;
-    push(name);
-  });
-  return next;
-}
 
-function getBoHouseOfWisdomGoldenAgeState(civ, buildingCount = 0) {
-  const tiers = getBoHouseOfWisdomConfig(civ)?.goldenAgeTiers || [];
-  let tier = 0;
-  const bonuses = {};
-  tiers.forEach((entry, idx) => {
-    if ((buildingCount || 0) < (entry.threshold || 0)) return;
-    tier = idx + 1;
-    Object.entries(entry).forEach(([key, value]) => {
-      if (key === "threshold" || !Number.isFinite(value)) return;
-      bonuses[key] = value;
-    });
-  });
-  return { count: Math.max(0, buildingCount || 0), tier, bonuses };
-}
 
-function getBoLandmarkAgeCost(targetAge = 2) {
-  const key = `Landmark (Age ${targetAge})`;
-  const def = getBoBuildingDefaults(key) || {};
-  return {
-    food: def.cost?.food || 0,
-    wood: def.cost?.wood || 0,
-    gold: def.cost?.gold || 0,
-    stone: def.cost?.stone || 0
-  };
-}
 
-function getBoHouseOfWisdomChoiceAgeFromCount(completedCount = 0) {
-  return Math.min(4, 2 + Math.max(0, completedCount || 0));
-}
 
-function getBoHouseOfWisdomCompletedCountBefore(cmd, commands = boCommands) {
-  const idx = commands.findIndex((entry) => entry.id === cmd?.id);
-  const source = idx >= 0 ? commands.slice(0, idx) : commands.slice();
-  return source.filter((entry) => entry?.type === "houseOfWisdomWing").length;
-}
 
-function getBoHouseOfWisdomCommandSpec(cmd, civ, options = {}) {
-  const howConfig = getBoHouseOfWisdomConfig(civ) || {};
-  const completedCount = options.completedCount ?? getBoHouseOfWisdomCompletedCountBefore(cmd);
-  const targetAge = getBoHouseOfWisdomChoiceAgeFromCount(completedCount);
-  const effects = options.effects || {};
-  let cost = getBoLandmarkAgeCost(targetAge);
-  let time = howConfig.baseAgeUpTime || (civ === "Ayyubids" ? 120 : 100);
-  if (civ === "Ayyubids" && cmd?.payload?.branch === "advancement") {
-    const advancement = howConfig.advancementByAge || {};
-    const advancementDef = advancement[targetAge] || advancement[String(targetAge)] || {};
-    cost = {
-      food: advancementDef.cost?.food || cost.food,
-      wood: advancementDef.cost?.wood || 0,
-      gold: advancementDef.cost?.gold || cost.gold,
-      stone: advancementDef.cost?.stone || 0
-    };
-    time = advancementDef.time || 96;
-  }
-  if (effects.preservationOfKnowledge) {
-    cost = {
-      food: Math.round((cost.food || 0) * 0.8),
-      wood: Math.round((cost.wood || 0) * 0.8),
-      gold: Math.round((cost.gold || 0) * 0.8),
-      stone: Math.round((cost.stone || 0) * 0.8)
-    };
-  }
-  if (Number.isFinite(options.researchPct) && options.researchPct > 0) {
-    time = applyBoWorkRateToDuration(time, options.researchPct);
-  }
-  return { targetAge, cost, time };
-}
 
-function getBoHouseOfWisdomWingDescription(civ, wing, branch = null, targetAge = 2) {
-  if (civ === "Ayyubids") {
-    const ageName = targetAge === 2 ? "Feudal" : targetAge === 3 ? "Castle" : "Imperial";
-    if (wing === "culture" && branch === "advancement") return `${ageName} discount age-up`;
-    if (wing === "culture" && branch === "logistics") return `Spawn ${targetAge === 2 ? 2 : targetAge === 3 ? 3 : 4} Dervishes`;
-    if (wing === "economic" && branch === "growth") return targetAge === 2 ? "Spawn 3 Villagers, Orchards +50" : targetAge === 3 ? "Spawn 7 Villagers, Orchards +100" : "Spawn 10 Villagers, +10% villager work";
-    if (wing === "economic" && branch === "industry") return targetAge === 2 ? "Grant 400 wood, +30% build speed" : targetAge === 3 ? "Grant 900 wood + 400 stone, +40% build speed" : "Grant 2000 wood + 1000 stone, +50% build speed";
-    if (wing === "military" && branch === "masterSmiths") return "Grant free Blacksmith techs / Military Academy";
-    if (wing === "military" && branch === "reinforcement") return targetAge === 2 ? "Desert Raider trickle" : targetAge === 3 ? "Spawn 3 Desert Raiders, then trickle" : "Spawn 7 Desert Raiders, then trickle";
-    if (wing === "trade" && branch === "advisors") return `Spawn ${targetAge === 2 ? 3 : targetAge === 3 ? 5 : 7} Atabegs`;
-    if (wing === "trade" && branch === "bazaar") return "Track Bazaar caravan bonus";
-  }
-  const wingDef = BO_ABBASID_HOW_WINGS[wing];
-  if (!wingDef) return "";
-  const unlocks = Object.keys(wingDef.choicesByAge || {})
-    .map((ageKey) => parseInt(ageKey, 10))
-    .filter((ageKey) => ageKey <= targetAge)
-    .sort((a, b) => a - b)
-    .flatMap((ageKey) => wingDef.choicesByAge[ageKey] || [])
-    .map((choiceId) => BO_ABBASID_HOW_CHOICE_DEFS[choiceId]?.label || choiceId);
-  const spawn = wingDef.spawnByAge?.[targetAge] || null;
-  return [unlocks.length ? unlocks.join(", ") : "", spawn].filter(Boolean).join(" | ");
-}
 
-function getBoHouseOfWisdomActionChoices(civ, state = null) {
-  const currentState = state || getBoHouseOfWisdomPreviewState();
-  const effectiveWings = (currentState.wings || []).length
-    ? currentState.wings
-    : getBoPlannedHouseOfWisdomWings(civ);
-  const usedWings = new Set(effectiveWings.map((entry) => entry.wing));
-  const targetAge = getBoHouseOfWisdomChoiceAgeFromCount(effectiveWings.length);
-  if (civ === "Ayyubids") {
-    return Object.entries(BO_AYYUBID_HOW_BRANCHES)
-      .filter(([wing]) => !usedWings.has(wing))
-      .flatMap(([wing, wingDef]) => Object.entries(wingDef.branches || {}).map(([branch, branchDef]) => ({
-        wing,
-        branch,
-        label: `${wingDef.label} / ${branchDef.label}`,
-        description: getBoHouseOfWisdomWingDescription(civ, wing, branch, targetAge)
-      })));
-  }
-  return Object.entries(BO_ABBASID_HOW_WINGS)
-    .filter(([wing]) => !usedWings.has(wing))
-    .map(([wing, wingDef]) => ({
-      wing,
-      branch: null,
-      label: wingDef.label,
-      description: getBoHouseOfWisdomWingDescription(civ, wing, null, targetAge)
-    }));
-}
 
-function resolveBoUnitName(unitName) {
-  return BO_UNIT_ALIASES[unitName] || unitName;
-}
 
-function getBoExtraUnitSpec(unitName, civ) {
-  const direct = BO_EXTRA_UNIT_SPECS[unitName] || BO_EXTRA_UNIT_SPECS[resolveBoUnitName(unitName)];
-  if (!direct) return null;
-  if (Array.isArray(direct.civs) && civ && !direct.civs.includes(civ)) return null;
-  return direct;
-}
 
-function getBoUnitAgeList(unitName, civ) {
-  const extra = getBoExtraUnitSpec(unitName, civ);
-  if (extra?.ages?.length) return extra.ages.slice();
-  const resolved = resolveBoUnitName(unitName);
-  if (resolved === "Villager" || resolved === "Scout") return [1, 2, 3, 4];
-  if (civ === "Holy Roman Empire" && resolved === "MAA") return [2, 3, 4];
-  if (civ === "Japanese" && resolved === "Samurai") return [1, 2, 3, 4];
-  if (civ === "Rus" && resolved === "Knight/Lancer") return [2, 3, 4];
-  const unit = getUnitMeta(resolved);
-  if (Array.isArray(unit?.ages) && unit.ages.length) return unit.ages.slice();
-  return [1, 2, 3, 4];
-}
 
-function getBoUnitMinAge(unitName, civ) {
-  const ages = getBoUnitAgeList(unitName, civ).filter((age) => Number.isFinite(age));
-  return ages.length ? Math.min(...ages) : 1;
-}
 
-function isBoUnitTrainableAtBuilding(unitName, buildingType, civ, ottomanSettings = null) {
-  const trainingSurface = getBoTrainingSurface(buildingType, civ);
-  const resolved = resolveBoUnitName(unitName);
-  if (trainingSurface === "Hunting Cabin") {
-    return resolved === "Scout";
-  }
-  if (trainingSurface === "Town Center") {
-    return resolved === "Villager" || resolved === "Scout";
-  }
-  if (buildingType === BO_OTTOMAN_MILITARY_SCHOOL_BUILDING) {
-    const school = getBoOttomanMilitarySchoolConfig(civ);
-    if (!school) return false;
-    const baseUnits = school.baseUnits || [];
-    const advancedUnits = school.advancedAcademyUnits || [];
-    if (unitName === "Akinji") return !!ottomanSettings?.akinjiSystem;
-    if (baseUnits.includes(unitName)) return true;
-    return !!ottomanSettings?.advancedAcademy && advancedUnits.includes(unitName);
-  }
-  if (civ === "Ottomans" && buildingType === "Archery Range" && unitName === "Akinji" && !ottomanSettings?.akinjiSystem) {
-    return false;
-  }
-  const extra = getBoExtraUnitSpec(unitName, civ);
-  if (extra?.buildings?.length) {
-    return extra.buildings.includes(buildingType) || extra.buildings.includes(trainingSurface);
-  }
-  const unit = getUnitMeta(resolved);
-  if (!unit) return false;
-  const tags = Array.isArray(unit.tags) ? unit.tags : [];
-  const category = String(unit.category || "");
-  if (trainingSurface === "Siege Workshop") return tags.includes("Siege") || category === "Siege";
-  if (trainingSurface === "Stable") return tags.includes("Cavalry") && !tags.includes("Ranged");
-  if (trainingSurface === "Archery Range") return !tags.includes("Siege") && (tags.includes("Ranged") || category.includes("Ranged"));
-  if (trainingSurface === "Barracks") return tags.includes("Infantry") && !tags.includes("Ranged") && !tags.includes("Siege");
-  return false;
-}
 
-function getBoUnitOptionsForBuilding(buildingType, civ, ottomanSettings = null) {
-  if (!buildingType) return [];
-  if (buildingType === BO_OTTOMAN_MILITARY_SCHOOL_BUILDING) {
-    const school = getBoOttomanMilitarySchoolConfig(civ);
-    if (!school) return [];
-    const choices = [...(school.baseUnits || [])];
-    if (ottomanSettings?.akinjiSystem) choices.push("Akinji");
-    if (ottomanSettings?.advancedAcademy) choices.push(...(school.advancedAcademyUnits || []));
-    return Array.from(new Set(choices));
-  }
-  return getBoUnitOptions(civ).filter((unitName) => isBoUnitTrainableAtBuilding(unitName, buildingType, civ, ottomanSettings));
-}
 
 function getBoPreviewTownCenterWorkRatePct(civ, ageOverride = null) {
   const civBonus = BO_CIV_BONUSES?.[civ] || {};
@@ -1763,7 +522,7 @@ function renderBoCivBonuses(civ) {
     const hasLegacyLandmarks = boCommands.some((cmd) => cmd?.type === "buildBuilding" && getBoBuildSteps(cmd.payload).some((step) => /^Landmark \(Age /.test(step.building || "")));
     const previewWings = (previewState.wings || []).length
       ? previewState.wings
-      : getBoPlannedHouseOfWisdomWings(civ);
+      : getBoPlannedHouseOfWisdomWings(civ, boCommands);
     const wingSummary = previewWings
       .map((entry) => getBoHouseOfWisdomWingLabel(civ, entry.wing, entry.branch))
       .join(" -> ");
@@ -2860,23 +1619,23 @@ async function loadBoResourceData() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     if (data?.baseRates) {
-      BO_BASE_RATES = { ...BO_BASE_RATES, ...data.baseRates };
+      setBoBaseRatesMerge(data.baseRates);
     }
     if (data?.civOverrides) {
-      BO_CIV_RATE_OVERRIDES = { ...BO_CIV_RATE_OVERRIDES, ...data.civOverrides };
+      setBoCivRateOverridesMerge(data.civOverrides);
     }
     if (data?.nodeAmounts) {
-      BO_NODE_AMOUNTS = {
+      setBoNodeAmounts({
         ...BO_NODE_AMOUNTS,
         sheep: data.nodeAmounts.sheep ?? BO_NODE_AMOUNTS.sheep,
         berries: data.nodeAmounts.berries ?? BO_NODE_AMOUNTS.berries,
         deer: data.nodeAmounts.deer ?? BO_NODE_AMOUNTS.deer,
         boar: data.nodeAmounts.boar ?? BO_NODE_AMOUNTS.boar
-      };
+      });
     }
     if (data?.starting) {
       const resStart = data.starting.resources || {};
-      BO_STARTING = {
+      setBoStarting({
         resources: {
           food: resStart.food ?? BO_STARTING.resources.food,
           wood: resStart.wood ?? BO_STARTING.resources.wood,
@@ -2884,7 +1643,7 @@ async function loadBoResourceData() {
           stone: resStart.stone ?? BO_STARTING.resources.stone
         },
         sheep: data.starting.sheep ?? BO_STARTING.sheep
-      };
+      });
     }
   } catch (err) {
     console.warn("Build Order: failed to load bo_resource_data.json, using defaults.", err);
@@ -2897,27 +1656,27 @@ async function loadBoCivBonusData() {
     const res = await fetch("bo_civ_bonuses.json", { cache: "no-store" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    BO_BUILDING_DEFAULTS = data.buildings || BO_BUILDING_DEFAULTS;
-    BO_TECH_DEFAULTS = data.techs || BO_TECH_DEFAULTS;
-    BO_CIV_BONUSES = data.civs || BO_CIV_BONUSES;
-    BO_LANDMARK_AUTHORING = data.landmarkAuthoring || BO_LANDMARK_AUTHORING;
+    setBoBuildingDefaults(data.buildings || BO_BUILDING_DEFAULTS);
+    setBoTechDefaults(data.techs || BO_TECH_DEFAULTS);
+    setBoCivBonuses(data.civs || BO_CIV_BONUSES);
+    setBoLandmarkAuthoring(data.landmarkAuthoring || BO_LANDMARK_AUTHORING);
     if (data.buildTimeMultByVillagers) {
-      BO_BUILD_TIME_MULT_BY_VILLAGERS = data.buildTimeMultByVillagers;
+      setBoBuildTimeMultByVillagers(data.buildTimeMultByVillagers);
     }
     if (Array.isArray(data.muslimCivs)) {
-      BO_MUSLIM_CIVS = new Set(data.muslimCivs);
+      setBoMuslimCivs(new Set(data.muslimCivs));
     }
-    BO_BOAR_RESTRICTED_CIVS = new Set(
+    setBoBoarRestrictedCivs(new Set(
       Object.entries(BO_CIV_BONUSES || {})
         .filter(([, bonus]) => bonus?.noBoar)
         .map(([civ]) => civ)
-    );
-    if (!BO_BOAR_RESTRICTED_CIVS.size) BO_BOAR_RESTRICTED_CIVS = BO_MUSLIM_CIVS;
-    if (data.muslimBerryBonus) BO_MUSLIM_BERRY_BONUS = data.muslimBerryBonus;
-    if (typeof data.sacredSiteGoldPerMin === "number") BO_SACRED_SITE_GOLD_PER_MIN = data.sacredSiteGoldPerMin;
-    if (typeof data.pastureSheepSeconds === "number") BO_PASTURE_SHEEP_SECONDS = data.pastureSheepSeconds;
-    if (data.ovooStonePerMinByAge) BO_OVOO_STONE_PER_MIN_BY_AGE = data.ovooStonePerMinByAge;
-    if (data.scholar) BO_SCHOLAR = { ...BO_SCHOLAR, ...data.scholar };
+    ));
+    if (!BO_BOAR_RESTRICTED_CIVS.size) setBoBoarRestrictedCivs(BO_MUSLIM_CIVS);
+    if (data.muslimBerryBonus) setBoMuslimBerryBonus(data.muslimBerryBonus);
+    if (typeof data.sacredSiteGoldPerMin === "number") setBoSacredSiteGoldPerMin(data.sacredSiteGoldPerMin);
+    if (typeof data.pastureSheepSeconds === "number") setBoPastureSheepSeconds(data.pastureSheepSeconds);
+    if (data.ovooStonePerMinByAge) setBoOvooStonePerMinByAge(data.ovooStonePerMinByAge);
+    if (data.scholar) setBoScholar({ ...BO_SCHOLAR, ...data.scholar });
     refreshBoTechBuildings();
   } catch (err) {
     console.warn("Build Order: failed to load bo_civ_bonuses.json, using defaults.", err);
@@ -2931,10 +1690,10 @@ async function loadBoCivAuditData() {
     const res = await fetch("bo_civ_audit.json", { cache: "no-store" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    BO_CIV_AUDIT = data && typeof data === "object" ? data : {};
+    setBoCivAudit(data && typeof data === "object" ? data : {});
   } catch (err) {
     console.warn("Build Order: failed to load bo_civ_audit.json, using empty coverage data.", err);
-    BO_CIV_AUDIT = {};
+    setBoCivAudit({});
   }
 }
 
@@ -3630,14 +2389,6 @@ function applyAutoDefaultsForAllCommands() {
   boCommands.forEach((cmd) => applyAutoDefaultsForCommand(cmd, civ));
 }
 
-function getBoBuildingDefaults(name) {
-  return BO_BUILDING_DEFAULTS?.[name] || null;
-}
-
-function getBoTechDefaults(name) {
-  return BO_TECH_DEFAULTS?.[name] || null;
-}
-
 function getBoUnitDefaults(unitName, civ) {
   const resolved = resolveBoUnitName(unitName);
   const civOverride = getBoCivUnitTrainOverride(civ, unitName);
@@ -3798,22 +2549,6 @@ function getBoUnitCountTotal(unitCounts) {
   return Object.values(unitCounts).reduce((sum, value) => sum + Math.max(0, Math.floor(value || 0)), 0);
 }
 
-function getBoUnitOptions(civ) {
-  const base = unitIndex?.units ? Object.keys(unitIndex.units) : (units ? Object.keys(units) : []);
-  const pool = civ
-    ? base.filter((name) => {
-      const unit = getUnitMeta(name);
-      const civs = unit.civs || [];
-      const exceptCivs = unit.exceptCivs || [];
-      return (civs.includes("Common") || civs.includes(civ)) && !exceptCivs.includes(civ);
-    })
-    : base.slice();
-  const extraUnits = Object.entries(BO_EXTRA_UNIT_SPECS)
-    .filter(([, spec]) => !civ || !Array.isArray(spec?.civs) || spec.civs.includes(civ))
-    .map(([name]) => name);
-  const list = ["Villager", "Scout", ...pool, ...extraUnits];
-  return Array.from(new Set(list)).sort((a, b) => a.localeCompare(b));
-}
 
 function getBoMilitaryProductionSpeedPct(civ, buildingType, age, options = {}) {
   if (civ !== "Ottomans") return 0;
@@ -3978,7 +2713,7 @@ function applyAutoDefaultsForCommand(cmd, civ) {
     if (cmd.autoCost) cmd.payload.costGold = BO_SCHOLAR.costGold;
   }
   if (cmd.type === "houseOfWisdomWing") {
-    const spec = getBoHouseOfWisdomCommandSpec(cmd, civ);
+    const spec = getBoHouseOfWisdomCommandSpec(cmd, civ, { commands: boCommands });
     cmd.payload.building = BO_HOUSE_OF_WISDOM_BUILDING;
     cmd.payload.buildingId = BO_HOUSE_OF_WISDOM_BUILDING;
     if (cmd.autoTime) cmd.payload.time = spec.time;
@@ -6250,6 +4985,7 @@ function renderBoCommandEditor(cmd) {
   } else if (cmd.type === "houseOfWisdomWing") {
     const previewState = getBoHouseOfWisdomPreviewState(cmd.atTime || 0);
     const spec = getBoHouseOfWisdomCommandSpec(cmd, civ, {
+      commands: boCommands,
       effects: previewState.effects,
       researchPct: previewState.goldenAge?.bonuses?.researchPct || 0
     });
@@ -7007,7 +5743,7 @@ function renderBoBuildingPanel(editor, building) {
     const howTechs = getBoAvailableTechs(civ, BO_HOUSE_OF_WISDOM_BUILDING, { timeOverride: anchorTime });
     const displayWings = (state.wings || []).length
       ? state.wings
-      : getBoPlannedHouseOfWisdomWings(civ);
+      : getBoPlannedHouseOfWisdomWings(civ, boCommands);
     const choices = getBoHouseOfWisdomActionChoices(civ, state);
     const goldenAgeText = formatBoGoldenAgeBonuses(state.goldenAge?.bonuses || {});
     const wingSummary = displayWings.length
