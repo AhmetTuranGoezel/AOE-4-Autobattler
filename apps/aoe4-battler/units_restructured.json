@@ -18617,7 +18617,7 @@
     "effects": {
       "aoeSplash": {
         "name": "Grenade AoE",
-        "description": "Deals area siege damage in 0.625 radius",
+        "description": " Deals area siege damage in 0.625 radius",
         "radius": 0.625,
         "falloff": [
           1.0,

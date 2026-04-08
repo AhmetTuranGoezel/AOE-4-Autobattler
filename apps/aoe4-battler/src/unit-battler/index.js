@@ -120,6 +120,12 @@ function renderTechButtons(side, unitName, unit) {
     syncTechBuffsToInputs(side);
   }
 
+  if (!selectedCiv) {
+    box.style.display = "none";
+    container.innerHTML = "";
+    return;
+  }
+
   // Merge upgrades and auras
   const upgrades = getMergedUpgradesForUnit(unit);
   const auras = unit.auras || [];
@@ -233,7 +239,7 @@ function renderTechButtons(side, unitName, unit) {
     });
   });
 
-  // Reverse sync: effect checkboxes → tech buttons
+  // Reverse sync: effect checkboxes â†’ tech buttons
   const effectsContainer = document.getElementById(`${side}_effectsContainer`);
   if (effectsContainer) {
     effectsContainer.querySelectorAll(".effect-checkbox").forEach((cb) => {
@@ -276,6 +282,11 @@ function renderBuildingUnitTechs(side) {
   }
 
   const selectedCiv = side === "A" ? selectedCivA : selectedCivB;
+  if (!selectedCiv) {
+    box.style.display = "none";
+    container.innerHTML = "";
+    return;
+  }
   const upgrades = getMergedUpgradesForUnit(unit);
   const auras = unit.auras || [];
   const allItems = [...upgrades, ...auras];
@@ -1213,6 +1224,247 @@ function renderTagCheckboxes(side, selectedTags) {
   });
 }
 
+function renderBattlerNumberField({
+  id = "",
+  label = "",
+  value = "",
+  suffix = "",
+  help = "",
+  width = "short",
+  min = null,
+  step = null,
+  inputClass = "",
+  dataAttrs = "",
+}) {
+  const inputClasses = [
+    "form-control",
+    "form-control-sm",
+    "compact-field-input",
+    inputClass,
+  ].filter(Boolean).join(" ");
+  const attrs = [
+    id ? `id="${id}"` : "",
+    `type="number"`,
+    `class="${inputClasses}"`,
+    `value="${value ?? ""}"`,
+    min !== null && min !== undefined ? `min="${min}"` : "",
+    step !== null && step !== undefined ? `step="${step}"` : "",
+    dataAttrs || "",
+  ].filter(Boolean).join(" ");
+  const shellClass = suffix ? "compact-field-shell has-suffix" : "compact-field-shell";
+  return `
+    <div class="compact-field compact-field--${width}">
+      ${label ? `<div class="compact-field-label">${label}</div>` : ""}
+      <div class="${shellClass}">
+        <input ${attrs}>
+        ${suffix ? `<span class="compact-field-suffix">${suffix}</span>` : ""}
+      </div>
+      ${help ? `<div class="compact-field-help">${help}</div>` : ""}
+    </div>
+  `;
+}
+
+function renderBattlerFieldGrid(fields, columns = 2, extraClass = "ms-4 mt-1") {
+  const items = fields.filter(Boolean).join("");
+  if (!items) return "";
+  return `<div class="compact-field-grid compact-field-grid--${columns} ${extraClass}">${items}</div>`;
+}
+
+function getEffectFieldBinding(effectId, fieldName, options = {}) {
+  if (options.mode === "single") {
+    return { id: `${options.checkId}_${fieldName}` };
+  }
+  return {
+    dataAttrs: `data-effect-id="${effectId}" data-effect-field="${fieldName}"`,
+  };
+}
+
+function renderEffectField(effectId, fieldName, fieldOptions, options = {}) {
+  const binding = getEffectFieldBinding(effectId, fieldName, options);
+  return renderBattlerNumberField({
+    ...fieldOptions,
+    ...binding,
+  });
+}
+
+function renderEffectValueEditor(effectId, effect, options = {}) {
+  switch (effectId) {
+    case "postChargeAttackBuff":
+      return renderBattlerFieldGrid([
+        renderEffectField(effectId, "value", { label: "Attack", value: effect.value }, options),
+        renderEffectField(effectId, "duration", { label: "Duration", value: effect.duration, suffix: "s", width: "tiny" }, options),
+      ], 2);
+    case "healPerAttack":
+      return renderBattlerFieldGrid([
+        renderEffectField(effectId, "value", { label: "HP per attack", value: effect.value }, options),
+      ], 1);
+    case "berserking":
+      return renderBattlerFieldGrid([
+        renderEffectField(effectId, "attackBonus", { label: "Attack", value: effect.attackBonus }, options),
+        renderEffectField(effectId, "armorPenalty", { label: "Armor Penalty", value: effect.armorPenalty }, options),
+        renderEffectField(effectId, "duration", { label: "Duration", value: effect.duration, suffix: "s", width: "tiny" }, options),
+      ], 3);
+    case "fortitude":
+      return renderBattlerFieldGrid([
+        renderEffectField(effectId, "atkSpeedBonus", { label: "Attack Speed", value: effect.atkSpeedBonus, suffix: "%" }, options),
+        renderEffectField(effectId, "dmgTakenIncrease", { label: "Damage Taken", value: effect.dmgTakenIncrease, suffix: "%" }, options),
+        renderEffectField(effectId, "duration", { label: "Duration", value: effect.duration, suffix: "s", width: "tiny" }, options),
+      ], 3);
+    case "deployPavise":
+      return renderBattlerFieldGrid([
+        renderEffectField(effectId, "armorBonus", { label: "Ranged Armor", value: effect.armorBonus }, options),
+        renderEffectField(effectId, "duration", { label: "Duration", value: effect.duration, suffix: "s", width: "tiny" }, options),
+      ], 2);
+    case "arrowVolley":
+      return renderBattlerFieldGrid([
+        renderEffectField(effectId, "atkSpeedBonus", { label: "Attack Speed", value: effect.atkSpeedBonus, suffix: "%" }, options),
+        renderEffectField(effectId, "duration", { label: "Duration", value: effect.duration, suffix: "s", width: "tiny" }, options),
+      ], 2);
+    case "staticDeployment":
+      return renderBattlerFieldGrid([
+        renderEffectField(effectId, "atkSpeedBonus", { label: "Attack Speed", value: effect.atkSpeedBonus, suffix: "%" }, options),
+        renderEffectField(effectId, "delay", { label: "Delay", value: effect.delay, suffix: "s", width: "tiny" }, options),
+      ], 2);
+    case "openingAttack":
+      return renderBattlerFieldGrid([
+        renderEffectField(effectId, "damage", { label: "Damage", value: effect.damage }, options),
+      ], 1);
+    case "gunpowderResistance":
+      return renderBattlerFieldGrid([
+        renderEffectField(effectId, "reduction", { label: "Reduction", value: effect.reduction, suffix: "%" }, options),
+      ], 1);
+    case "camelUnease":
+      return renderBattlerFieldGrid([
+        renderEffectField(effectId, "reduction", { label: "Reduction", value: effect.reduction, suffix: "%" }, options),
+      ], 1);
+    case "shieldWall":
+      return renderBattlerFieldGrid([
+        renderEffectField(effectId, "atkSpeedPenalty", { label: "Attack Speed", value: effect.atkSpeedPenalty, suffix: "%" }, options),
+        renderEffectField(effectId, "rangedDmgReduction", { label: "Ranged Damage", value: effect.rangedDmgReduction, suffix: "%" }, options),
+      ], 2);
+    case "bleed":
+      return renderBattlerFieldGrid([
+        renderEffectField(effectId, "dps", { label: "DPS", value: effect.dps }, options),
+        renderEffectField(effectId, "duration", { label: "Duration", value: effect.duration, suffix: "s", width: "tiny" }, options),
+      ], 2);
+    case "tripleShot":
+      return `<div class="compact-field-note ms-4 mt-1">Adds 2 extra arrows at 30% damage each and upgrades bleed to 3.2 DPS for 6s.</div>`;
+    case "armorAura":
+      return renderBattlerFieldGrid([
+        renderEffectField(effectId, "armorBonus", { label: "Armor Bonus", value: effect.armorBonus }, options),
+      ], 1);
+    case "trample":
+      return renderBattlerFieldGrid([
+        renderEffectField(effectId, "dps", { label: "DPS", value: effect.dps, width: "tiny" }, options),
+        renderEffectField(effectId, "duration", { label: "Duration", value: effect.duration, suffix: "s", width: "tiny" }, options),
+        renderEffectField(effectId, "cooldown", { label: "Cooldown", value: effect.cooldown, suffix: "s", width: "tiny" }, options),
+        renderEffectField(effectId, "unitsHit", { label: "Units Hit", value: effect.unitsHit || 3, width: "tiny" }, options),
+      ], 4);
+    case "numeri":
+      return renderBattlerFieldGrid([
+        renderEffectField(effectId, "dmgIncrease", { label: "Damage Taken", value: effect.dmgIncrease, suffix: "%" }, options),
+        renderEffectField(effectId, "duration", { label: "Duration", value: effect.duration, suffix: "s", width: "tiny" }, options),
+      ], 2);
+    case "triumph":
+      return renderBattlerFieldGrid([
+        renderEffectField(effectId, "attackBonus", { label: "Attack", value: effect.attackBonus, width: "tiny" }, options),
+        renderEffectField(effectId, "hps", { label: "HPS", value: effect.hps, width: "tiny" }, options),
+        renderEffectField(effectId, "speedPct", { label: "Speed", value: effect.speedPct, suffix: "%", width: "tiny" }, options),
+        renderEffectField(effectId, "duration", { label: "Duration", value: effect.duration, suffix: "s", width: "tiny" }, options),
+      ], 4);
+    case "percentDamage":
+      return renderBattlerFieldGrid([
+        renderEffectField(effectId, "percent", { label: "Max HP", value: effect.percent, suffix: "%" }, options),
+      ], 1);
+    case "brotherhoodHP":
+      return renderBattlerFieldGrid([
+        renderEffectField(effectId, "hpPerUnit", { label: "HP per ally", value: effect.hpPerUnit }, options),
+      ], 1);
+    case "healAura":
+      return renderBattlerFieldGrid([
+        renderEffectField(effectId, "hps", { label: "HPS", value: effect.hps }, options),
+      ], 1);
+    case "atkSpeedDebuff":
+      return renderBattlerFieldGrid([
+        renderEffectField(effectId, "reduction", { label: "Reduction", value: effect.reduction, suffix: "%" }, options),
+        renderEffectField(effectId, "duration", { label: "Duration", value: effect.duration, suffix: "s", width: "tiny" }, options),
+      ], 2);
+    case "caracole":
+      return renderBattlerFieldGrid([
+        renderEffectField(effectId, "speedBonus", { label: "Speed", value: effect.speedBonus, suffix: "%" }, options),
+        renderEffectField(effectId, "duration", { label: "Duration", value: effect.duration, suffix: "s", width: "tiny" }, options),
+        renderEffectField(effectId, "cooldown", { label: "Cooldown", value: effect.cooldown, suffix: "s", width: "tiny" }, options),
+      ], 3);
+    case "armorDebuffAura":
+      return renderBattlerFieldGrid([
+        renderEffectField(effectId, "armorReduction", { label: "Armor Reduction", value: effect.armorReduction }, options),
+      ], 1);
+    case "battleGlory":
+      return renderBattlerFieldGrid([
+        renderEffectField(effectId, "hpPerKill", { label: "HP per kill", value: effect.hpPerKill }, options),
+        renderEffectField(effectId, "attackPerKill", { label: "Attack per kill", value: effect.attackPerKill }, options),
+      ], 2);
+    case "aoeSplash":
+    case "aoeFalloff":
+      return renderBattlerFieldGrid([
+        renderEffectField(effectId, "unitsHit", { label: "Units Hit", value: effect.unitsHit, width: "tiny" }, options),
+      ], 1);
+    case "armorPenetration":
+      return renderBattlerFieldGrid([
+        renderEffectField(effectId, "penetration", { label: "Armor Ignored", value: effect.penetration }, options),
+      ], 1);
+    case "dmgDebuffOnHit":
+      return renderBattlerFieldGrid([
+        renderEffectField(effectId, "reduction", { label: "Damage Reduction", value: effect.reduction, suffix: "%" }, options),
+        renderEffectField(effectId, "duration", { label: "Duration", value: effect.duration, suffix: "s", width: "tiny" }, options),
+      ], 2);
+    case "spearwall":
+      return renderBattlerFieldGrid([
+        renderEffectField(effectId, "stunDuration", { label: "Stun Duration", value: effect.stunDuration, suffix: "s", width: "tiny", step: 0.1, help: "vs cavalry" }, options),
+      ], 1);
+    case "palings":
+      return renderBattlerFieldGrid([
+        renderEffectField(effectId, "stunDuration", { label: "Stun Duration", value: effect.stunDuration, suffix: "s", width: "tiny", step: 0.1 }, options),
+        renderEffectField(effectId, "damage", { label: "Damage", value: effect.damage, width: "tiny" }, options),
+      ], 2);
+    case "movementBurst":
+      return renderBattlerFieldGrid([
+        renderEffectField(effectId, "speedBonus", { label: "Speed", value: effect.speedBonus, suffix: "%" }, options),
+        renderEffectField(effectId, "duration", { label: "Duration", value: effect.duration, suffix: "s", width: "tiny" }, options),
+      ], 2);
+    case "infantrySpeedAura":
+      return renderBattlerFieldGrid([
+        renderEffectField(effectId, "speedBonus", { label: "Speed", value: effect.speedBonus, suffix: "%", help: "Infantry only" }, options),
+      ], 1);
+    case "poisonedArrows":
+      return renderBattlerFieldGrid([
+        renderEffectField(effectId, "totalDamage", { label: "Total Damage", value: effect.totalDamage }, options),
+        renderEffectField(effectId, "duration", { label: "Duration", value: effect.duration, suffix: "s", width: "tiny" }, options),
+      ], 2);
+    default:
+      return "";
+  }
+}
+
+function renderBattlerBonusRow(inputId, tag, bonusValue, dataTag = "") {
+  return `
+    <div class="battler-bonus-row">
+      <div class="battler-bonus-meta">
+        <div class="battler-bonus-label">vs ${tag}</div>
+        <div class="battler-bonus-subtitle">Bonus damage</div>
+      </div>
+      ${renderBattlerNumberField({
+        id: inputId,
+        label: "Bonus",
+        value: bonusValue,
+        width: "short",
+        inputClass: "bonus-input",
+        dataAttrs: dataTag ? `data-tag="${dataTag}"` : "",
+      })}
+    </div>
+  `;
+}
+
 /**
  * NEW: Render editable bonus damage inputs
  * Only shows inputs for tags that are currently checked
@@ -1227,18 +1479,7 @@ function renderBonusInputs(side, bonuses) {
   sortedTags.forEach((tag) => {
     const bonusValue = bonuses[tag] || 0;
     const inputId = `${side}_bonus_${tag.replace(/\s+/g, "_")}`;
-
-    container.innerHTML += `
-      <div class="row g-2 mb-2">
-        <div class="col-6">
-          <small class="text-muted">vs ${tag}</small>
-        </div>
-        <div class="col-6">
-          <input type="number" id="${inputId}" class="form-control form-control-sm bonus-input" 
-                 data-tag="${tag}" value="${bonusValue}" placeholder="0">
-        </div>
-      </div>
-    `;
+    container.innerHTML += renderBattlerBonusRow(inputId, tag, bonusValue, tag);
   });
 }
 
@@ -1293,391 +1534,13 @@ function renderEffects(side, effects) {
     // Skip effects restricted to specific civs if current civ doesn't match
     if (effect.civs && selectedCiv && !effect.civs.includes(selectedCiv))
       continue;
-    if (effect.civs && !selectedCiv) continue; // "All Civilizations" — skip civ-conditional effects
+    if (effect.civs && !selectedCiv) continue; // "All Civilizations" â€” skip civ-conditional effects
 
     const checkId = `${side}_effect_${effectId}`;
-    let valueHtml = "";
-
-    if (effectId === "postChargeAttackBuff") {
-      valueHtml = `
-        <div class="row g-1 mt-1 ms-4">
-          <div class="col-6">
-            <input type="number" id="${checkId}_value" class="form-control form-control-sm"
-                   value="${effect.value}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">+Attack</small>
-          </div>
-          <div class="col-6">
-            <input type="number" id="${checkId}_duration" class="form-control form-control-sm"
-                   value="${effect.duration}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Duration (s)</small>
-          </div>
-        </div>`;
-    } else if (effectId === "healPerAttack") {
-      valueHtml = `
-        <div class="ms-4 mt-1">
-          <input type="number" id="${checkId}_value" class="form-control form-control-sm"
-                 value="${effect.value}" style="font-size:0.8rem;width:80px;display:inline-block;">
-          <small class="text-muted" style="font-size:0.7rem;">HP per attack</small>
-        </div>`;
-    } else if (effectId === "berserking") {
-      valueHtml = `
-        <div class="row g-1 mt-1 ms-4">
-          <div class="col-4">
-            <input type="number" id="${checkId}_attackBonus" class="form-control form-control-sm"
-                   value="${effect.attackBonus}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">+Attack</small>
-          </div>
-          <div class="col-4">
-            <input type="number" id="${checkId}_armorPenalty" class="form-control form-control-sm"
-                   value="${effect.armorPenalty}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">-Armor</small>
-          </div>
-          <div class="col-4">
-            <input type="number" id="${checkId}_duration" class="form-control form-control-sm"
-                   value="${effect.duration}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Dur (s)</small>
-          </div>
-        </div>`;
-    } else if (effectId === "fortitude") {
-      valueHtml = `
-        <div class="row g-1 mt-1 ms-4">
-          <div class="col-4">
-            <input type="number" id="${checkId}_atkSpeedBonus" class="form-control form-control-sm"
-                   value="${effect.atkSpeedBonus}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Atk Spd %</small>
-          </div>
-          <div class="col-4">
-            <input type="number" id="${checkId}_dmgTakenIncrease" class="form-control form-control-sm"
-                   value="${effect.dmgTakenIncrease}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">+Dmg Taken %</small>
-          </div>
-          <div class="col-4">
-            <input type="number" id="${checkId}_duration" class="form-control form-control-sm"
-                   value="${effect.duration}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Dur (s)</small>
-          </div>
-        </div>`;
-    } else if (effectId === "deployPavise") {
-      valueHtml = `
-        <div class="row g-1 mt-1 ms-4">
-          <div class="col-6">
-            <input type="number" id="${checkId}_armorBonus" class="form-control form-control-sm"
-                   value="${effect.armorBonus}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">+Ranged Armor</small>
-          </div>
-          <div class="col-6">
-            <input type="number" id="${checkId}_duration" class="form-control form-control-sm"
-                   value="${effect.duration}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Duration (s)</small>
-          </div>
-        </div>`;
-    } else if (effectId === "arrowVolley" || effectId === "staticDeployment") {
-      const delayOrDur = effectId === "staticDeployment" ? "delay" : "duration";
-      const delayVal =
-        effectId === "staticDeployment" ? effect.delay : effect.duration;
-      valueHtml = `
-        <div class="row g-1 mt-1 ms-4">
-          <div class="col-6">
-            <input type="number" id="${checkId}_atkSpeedBonus" class="form-control form-control-sm"
-                   value="${effect.atkSpeedBonus}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Atk Spd %</small>
-          </div>
-          <div class="col-6">
-            <input type="number" id="${checkId}_${delayOrDur}" class="form-control form-control-sm"
-                   value="${delayVal}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">${effectId === "staticDeployment" ? "Delay (s)" : "Duration (s)"}</small>
-          </div>
-        </div>`;
-    } else if (effectId === "openingAttack") {
-      valueHtml = `
-        <div class="ms-4 mt-1">
-          <input type="number" id="${checkId}_damage" class="form-control form-control-sm"
-                 value="${effect.damage}" style="font-size:0.8rem;width:80px;display:inline-block;">
-          <small class="text-muted" style="font-size:0.7rem;">Damage</small>
-        </div>`;
-    } else if (effectId === "gunpowderResistance") {
-      valueHtml = `
-        <div class="ms-4 mt-1">
-          <input type="number" id="${checkId}_reduction" class="form-control form-control-sm"
-                 value="${effect.reduction}" style="font-size:0.8rem;width:80px;display:inline-block;">
-          <small class="text-muted" style="font-size:0.7rem;">Reduction % vs Gunpowder</small>
-        </div>`;
-    } else if (effectId === "camelUnease") {
-      valueHtml = `
-        <div class="ms-4 mt-1">
-          <input type="number" id="${checkId}_reduction" class="form-control form-control-sm"
-                 value="${effect.reduction}" style="font-size:0.8rem;width:80px;display:inline-block;">
-          <small class="text-muted" style="font-size:0.7rem;">Reduction %</small>
-        </div>`;
-    } else if (effectId === "shieldWall") {
-      valueHtml = `
-        <div class="row g-1 mt-1 ms-4">
-          <div class="col-6">
-            <input type="number" id="${checkId}_atkSpeedPenalty" class="form-control form-control-sm"
-                   value="${effect.atkSpeedPenalty}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">-Atk Spd %</small>
-          </div>
-          <div class="col-6">
-            <input type="number" id="${checkId}_rangedDmgReduction" class="form-control form-control-sm"
-                   value="${effect.rangedDmgReduction}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">-Ranged Dmg %</small>
-          </div>
-        </div>`;
-    } else if (effectId === "bleed") {
-      valueHtml = `
-        <div class="row g-1 mt-1 ms-4">
-          <div class="col-6">
-            <input type="number" id="${checkId}_dps" class="form-control form-control-sm"
-                   value="${effect.dps}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Dmg/s</small>
-          </div>
-          <div class="col-6">
-            <input type="number" id="${checkId}_duration" class="form-control form-control-sm"
-                   value="${effect.duration}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Duration (s)</small>
-          </div>
-        </div>`;
-    } else if (effectId === "tripleShot") {
-      valueHtml = `
-        <div class="ms-4 mt-1">
-          <small class="text-muted" style="font-size:0.72rem;">Adds 2 extra arrows at 30% damage each and upgrades bleed to 3.2 DPS for 6s.</small>
-        </div>`;
-    } else if (effectId === "armorAura") {
-      valueHtml = `
-        <div class="ms-4 mt-1">
-          <input type="number" id="${checkId}_armorBonus" class="form-control form-control-sm"
-                 value="${effect.armorBonus}" style="font-size:0.8rem;width:80px;display:inline-block;">
-          <small class="text-muted" style="font-size:0.7rem;">+Armor</small>
-        </div>`;
-    } else if (effectId === "trample") {
-      valueHtml = `
-        <div class="row g-1 mt-1 ms-4">
-          <div class="col-3">
-            <input type="number" id="${checkId}_dps" class="form-control form-control-sm"
-                   value="${effect.dps}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Dmg/s</small>
-          </div>
-          <div class="col-3">
-            <input type="number" id="${checkId}_duration" class="form-control form-control-sm"
-                   value="${effect.duration}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Dur (s)</small>
-          </div>
-          <div class="col-3">
-            <input type="number" id="${checkId}_cooldown" class="form-control form-control-sm"
-                   value="${effect.cooldown}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">CD (s)</small>
-          </div>
-          <div class="col-3">
-            <input type="number" id="${checkId}_unitsHit" class="form-control form-control-sm"
-                   value="${effect.unitsHit || 3}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Units Hit</small>
-          </div>
-        </div>`;
-    } else if (effectId === "numeri") {
-      valueHtml = `
-        <div class="row g-1 mt-1 ms-4">
-          <div class="col-6">
-            <input type="number" id="${checkId}_dmgIncrease" class="form-control form-control-sm"
-                   value="${effect.dmgIncrease}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">+Dmg Taken %</small>
-          </div>
-          <div class="col-6">
-            <input type="number" id="${checkId}_duration" class="form-control form-control-sm"
-                   value="${effect.duration}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Duration (s)</small>
-          </div>
-        </div>`;
-    } else if (effectId === "triumph") {
-      valueHtml = `
-        <div class="row g-1 mt-1 ms-4">
-          <div class="col-3">
-            <input type="number" id="${checkId}_attackBonus" class="form-control form-control-sm"
-                   value="${effect.attackBonus}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">+Atk</small>
-          </div>
-          <div class="col-3">
-            <input type="number" id="${checkId}_hps" class="form-control form-control-sm"
-                   value="${effect.hps}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">HP/s</small>
-          </div>
-          <div class="col-3">
-            <input type="number" id="${checkId}_speedPct" class="form-control form-control-sm"
-                   value="${effect.speedPct}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">+Spd %</small>
-          </div>
-          <div class="col-3">
-            <input type="number" id="${checkId}_duration" class="form-control form-control-sm"
-                   value="${effect.duration}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Dur (s)</small>
-          </div>
-        </div>`;
-    } else if (effectId === "percentDamage") {
-      valueHtml = `
-        <div class="ms-4 mt-1">
-          <input type="number" id="${checkId}_percent" class="form-control form-control-sm"
-                 value="${effect.percent}" style="font-size:0.8rem;width:80px;display:inline-block;">
-          <small class="text-muted" style="font-size:0.7rem;">% of Max HP</small>
-        </div>`;
-    } else if (effectId === "brotherhoodHP") {
-      valueHtml = `
-        <div class="ms-4 mt-1">
-          <input type="number" id="${checkId}_hpPerUnit" class="form-control form-control-sm"
-                 value="${effect.hpPerUnit}" style="font-size:0.8rem;width:80px;display:inline-block;">
-          <small class="text-muted" style="font-size:0.7rem;">HP per nearby unit</small>
-        </div>`;
-    } else if (effectId === "healAura") {
-      valueHtml = `
-        <div class="ms-4 mt-1">
-          <input type="number" id="${checkId}_hps" class="form-control form-control-sm"
-                 value="${effect.hps}" style="font-size:0.8rem;width:80px;display:inline-block;">
-          <small class="text-muted" style="font-size:0.7rem;">HP/s healed</small>
-        </div>`;
-    } else if (effectId === "atkSpeedDebuff") {
-      valueHtml = `
-        <div class="row g-1 mt-1 ms-4">
-          <div class="col-6">
-            <input type="number" id="${checkId}_reduction" class="form-control form-control-sm"
-                   value="${effect.reduction}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">-Atk Spd %</small>
-          </div>
-          <div class="col-6">
-            <input type="number" id="${checkId}_duration" class="form-control form-control-sm"
-                   value="${effect.duration}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Duration (s)</small>
-          </div>
-        </div>`;
-    } else if (effectId === "caracole") {
-      valueHtml = `
-        <div class="row g-1 mt-1 ms-4">
-          <div class="col-4">
-            <input type="number" id="${checkId}_speedBonus" class="form-control form-control-sm"
-                   value="${effect.speedBonus}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">+Speed %</small>
-          </div>
-          <div class="col-4">
-            <input type="number" id="${checkId}_duration" class="form-control form-control-sm"
-                   value="${effect.duration}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Duration (s)</small>
-          </div>
-          <div class="col-4">
-            <input type="number" id="${checkId}_cooldown" class="form-control form-control-sm"
-                   value="${effect.cooldown}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">CD (s)</small>
-          </div>
-        </div>`;
-    } else if (effectId === "armorDebuffAura") {
-      valueHtml = `
-        <div class="ms-4 mt-1">
-          <input type="number" id="${checkId}_armorReduction" class="form-control form-control-sm"
-                 value="${effect.armorReduction}" style="font-size:0.8rem;width:80px;display:inline-block;">
-          <small class="text-muted" style="font-size:0.7rem;">-Armor to enemies</small>
-        </div>`;
-    } else if (effectId === "battleGlory") {
-      valueHtml = `
-        <div class="row g-1 mt-1 ms-4">
-          <div class="col-6">
-            <input type="number" id="${checkId}_hpPerKill" class="form-control form-control-sm"
-                   value="${effect.hpPerKill}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">+HP per kill</small>
-          </div>
-          <div class="col-6">
-            <input type="number" id="${checkId}_attackPerKill" class="form-control form-control-sm"
-                   value="${effect.attackPerKill}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">+Atk per kill</small>
-          </div>
-        </div>`;
-    } else if (effectId === "aoeSplash") {
-      valueHtml = `
-        <div class="ms-4 mt-1">
-          <input type="number" id="${checkId}_unitsHit" class="form-control form-control-sm"
-                 value="${effect.unitsHit}" style="font-size:0.8rem;width:80px;display:inline-block;">
-          <small class="text-muted" style="font-size:0.7rem;">Units hit per attack</small>
-        </div>`;
-    } else if (effectId === "aoeFalloff") {
-      valueHtml = `
-        <div class="ms-4 mt-1">
-          <input type="number" id="${checkId}_unitsHit" class="form-control form-control-sm"
-                 value="${effect.unitsHit}" style="font-size:0.8rem;width:80px;display:inline-block;">
-          <small class="text-muted" style="font-size:0.7rem;">Units hit (center=full, outer=falloff)</small>
-        </div>`;
-    } else if (effectId === "armorPenetration") {
-      valueHtml = `
-        <div class="ms-4 mt-1">
-          <input type="number" id="${checkId}_penetration" class="form-control form-control-sm"
-                 value="${effect.penetration}" style="font-size:0.8rem;width:80px;display:inline-block;">
-          <small class="text-muted" style="font-size:0.7rem;">Armor ignored</small>
-        </div>`;
-    } else if (effectId === "dmgDebuffOnHit") {
-      valueHtml = `
-        <div class="ms-4 mt-1 d-flex align-items-center gap-2 flex-wrap">
-          <div>
-            <input type="number" id="${checkId}_reduction" class="form-control form-control-sm"
-                   value="${effect.reduction}" style="font-size:0.8rem;width:80px;display:inline-block;">
-            <small class="text-muted" style="font-size:0.7rem;">% dmg reduction</small>
-          </div>
-          <div>
-            <input type="number" id="${checkId}_duration" class="form-control form-control-sm"
-                   value="${effect.duration}" style="font-size:0.8rem;width:80px;display:inline-block;">
-            <small class="text-muted" style="font-size:0.7rem;">Duration (s)</small>
-          </div>
-        </div>`;
-    } else if (effectId === "spearwall") {
-      valueHtml = `
-        <div class="ms-4 mt-1">
-          <input type="number" id="${checkId}_stunDuration" class="form-control form-control-sm"
-                 value="${effect.stunDuration}" step="0.1" style="font-size:0.8rem;width:80px;display:inline-block;">
-          <small class="text-muted" style="font-size:0.7rem;">Stun duration (s) vs cavalry</small>
-        </div>`;
-    } else if (effectId === "palings") {
-      valueHtml = `
-        <div class="ms-4 mt-1 d-flex align-items-center gap-2 flex-wrap">
-          <div>
-            <input type="number" id="${checkId}_stunDuration" class="form-control form-control-sm"
-                   value="${effect.stunDuration}" step="0.1" style="font-size:0.8rem;width:80px;display:inline-block;">
-            <small class="text-muted" style="font-size:0.7rem;">Stun (s)</small>
-          </div>
-          <div>
-            <input type="number" id="${checkId}_damage" class="form-control form-control-sm"
-                   value="${effect.damage}" style="font-size:0.8rem;width:80px;display:inline-block;">
-            <small class="text-muted" style="font-size:0.7rem;">Damage</small>
-          </div>
-        </div>`;
-    } else if (effectId === "movementBurst") {
-      valueHtml = `
-        <div class="row g-1 mt-1 ms-4">
-          <div class="col-6">
-            <input type="number" id="${checkId}_speedBonus" class="form-control form-control-sm"
-                   value="${effect.speedBonus}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">+Speed %</small>
-          </div>
-          <div class="col-6">
-            <input type="number" id="${checkId}_duration" class="form-control form-control-sm"
-                   value="${effect.duration}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Duration (s)</small>
-          </div>
-        </div>`;
-    } else if (effectId === "infantrySpeedAura") {
-      valueHtml = `
-        <div class="ms-4 mt-1">
-          <input type="number" id="${checkId}_speedBonus" class="form-control form-control-sm"
-                 value="${effect.speedBonus}" style="font-size:0.8rem;width:80px;display:inline-block;">
-          <small class="text-muted" style="font-size:0.7rem;">+Speed % for infantry</small>
-        </div>`;
-    } else if (effectId === "poisonedArrows") {
-      valueHtml = `
-        <div class="row g-1 mt-1 ms-4">
-          <div class="col-6">
-            <input type="number" id="${checkId}_totalDamage" class="form-control form-control-sm"
-                   value="${effect.totalDamage}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Total Damage</small>
-          </div>
-          <div class="col-6">
-            <input type="number" id="${checkId}_duration" class="form-control form-control-sm"
-                   value="${effect.duration}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Duration (s)</small>
-          </div>
-        </div>`;
-    }
+    const valueHtml = renderEffectValueEditor(effectId, effect, {
+      mode: "single",
+      checkId,
+    });
 
     // Use tech button icon for effects that have a linked tech, checkbox otherwise
     const linkedTech = EFFECT_TO_TECH[effectId];
@@ -1692,7 +1555,7 @@ function renderEffects(side, effects) {
             </div>
             <label class="effect-label" style="font-size:0.85rem;">
               <strong>${effect.name}</strong>
-              <span style="font-size:0.75rem; color:#b8ad9e;"> — ${effect.description}</span>
+              <span style="font-size:0.75rem; color:#b8ad9e;"> â€” ${effect.description}</span>
             </label>
           </div>
           <div class="effect-value-area">${valueHtml}</div>
@@ -1705,7 +1568,7 @@ function renderEffects(side, effects) {
                    data-effect="${effectId}" checked>
             <label class="form-check-label" for="${checkId}" style="font-size:0.85rem;">
               <strong>${effect.name}</strong>
-              <span style="font-size:0.75rem; color:#b8ad9e;"> — ${effect.description}</span>
+              <span style="font-size:0.75rem; color:#b8ad9e;"> â€” ${effect.description}</span>
             </label>
           </div>
           <div class="effect-value-area">${valueHtml}</div>
@@ -2122,7 +1985,7 @@ function showUnitDetailWith({ unitName, age, side, selectedCiv }) {
     const weapon = unit.weapons[wKey];
     if (!weapon) continue;
 
-    weaponsHtml += `<h6 style="color:${teamColor}; margin-top:12px; font-family:'Cinzel',serif;">${wLabel} — ${weapon.type.charAt(0).toUpperCase() + weapon.type.slice(1)}</h6>`;
+    weaponsHtml += `<h6 style="color:${teamColor}; margin-top:12px; font-family:'Cinzel',serif;">${wLabel} â€” ${weapon.type.charAt(0).toUpperCase() + weapon.type.slice(1)}</h6>`;
     weaponsHtml += `<div style="font-size:0.8rem; color:#b8ad9e; margin-bottom:8px;">Attack Speed: ${weapon.attackSpeed}s | Range: ${weapon.range}</div>`;
     weaponsHtml += `<div class="table-responsive"><table class="table table-sm" style="color:#e0d6c2; font-size:0.85rem;">`;
     weaponsHtml += `<thead><tr style="border-color:#444;"><th>Age</th><th>HP</th><th>Atk</th><th>M.Arm</th><th>R.Arm</th><th>Charge</th><th>Bonuses</th></tr></thead><tbody>`;
@@ -2132,8 +1995,8 @@ function showUnitDetailWith({ unitName, age, side, selectedCiv }) {
         ? Object.entries(ageStats.bonus)
             .map(([t, v]) => `+${v} vs ${t}`)
             .join(", ")
-        : "—";
-      const charge = ageStats.chargeDamage ? `+${ageStats.chargeDamage}` : "—";
+        : "â€”";
+      const charge = ageStats.chargeDamage ? `+${ageStats.chargeDamage}` : "â€”";
       const isSelected = ageKey === selectedAgeKey;
       const rowStyle = isSelected
         ? `background:rgba(${teamColorRgb},0.15); font-weight:600;`
@@ -2371,8 +2234,8 @@ function showUnitDetailWith({ unitName, age, side, selectedCiv }) {
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px; font-size:0.9rem;">
       <div><span style="color:#b8ad9e;">Civilizations:</span> ${unit.civs.join(", ")}</div>
       <div><span style="color:#b8ad9e;">Cost:</span> ${costDisplay}</div>
-      <div><span style="color:#b8ad9e;">Training Time:</span> ${unit.trainingTime || "—"}s</div>
-      <div><span style="color:#b8ad9e;">Speed:</span> ${unit.speed || "—"}</div>
+      <div><span style="color:#b8ad9e;">Training Time:</span> ${unit.trainingTime || "â€”"}s</div>
+      <div><span style="color:#b8ad9e;">Speed:</span> ${unit.speed || "â€”"}</div>
       <div><span style="color:#b8ad9e;">Population:</span> ${unit.population || 1}</div>
     </div>
     <div style="margin-bottom:12px;">${tags}</div>
@@ -2901,7 +2764,7 @@ function runBattle() {
   if (unitA.effects.openingAttack || unitB.effects.openingAttack) {
     battleLog.push({
       time: "Pre",
-      aWeapon: unitA.effects.openingAttack ? "Opening" : "—",
+      aWeapon: unitA.effects.openingAttack ? "Opening" : "â€”",
       aDmg: unitA.effects.openingAttack
         ? calcDirectDamageAfterArmor(
             unitA.effects.openingAttack.damage,
@@ -2911,7 +2774,7 @@ function runBattle() {
         : 0,
       aUnits: teamA.units,
       aHp: Math.round(teamA.totalHp),
-      bWeapon: unitB.effects.openingAttack ? "Opening" : "—",
+      bWeapon: unitB.effects.openingAttack ? "Opening" : "â€”",
       bDmg: unitB.effects.openingAttack
         ? calcDirectDamageAfterArmor(
             unitB.effects.openingAttack.damage,
@@ -2954,14 +2817,14 @@ function runBattle() {
   if (antiCavNotesA.length || antiCavNotesB.length) {
     battleLog.push({
       time: "Pre",
-      aWeapon: antiCavNotesA[0] || "—",
+      aWeapon: antiCavNotesA[0] || "â€”",
       aDmg:
         unitA.effects.palings && teamB.tags.includes("Cavalry")
           ? unitA.effects.palings.damage * teamA.units
           : 0,
       aUnits: teamA.units,
       aHp: Math.round(teamA.totalHp),
-      bWeapon: antiCavNotesB[0] || "—",
+      bWeapon: antiCavNotesB[0] || "â€”",
       bDmg:
         unitB.effects.palings && teamA.tags.includes("Cavalry")
           ? unitB.effects.palings.damage * teamB.units
@@ -3109,14 +2972,14 @@ function runBattle() {
     ) {
       battleLog.push({
         time: time.toFixed(2),
-        aWeapon: bleedDamageToB > 0 ? "Bleed" : "—",
+        aWeapon: bleedDamageToB > 0 ? "Bleed" : "â€”",
         aDmg: bleedDamageToB.toFixed(1),
         aWaste: bleedWasteToB.toFixed(1),
         aUnits: teamA.units,
         aInjured: getAllTrackedUnits(teamA).filter(u => u.hp < teamA.stats.hp - 0.0001).length,
         aHp: Math.round(teamA.totalHp),
         aKills: bleedKillsByA,
-        bWeapon: bleedDamageToA > 0 ? "Bleed" : "—",
+        bWeapon: bleedDamageToA > 0 ? "Bleed" : "â€”",
         bDmg: bleedDamageToA.toFixed(1),
         bWaste: bleedWasteToA.toFixed(1),
         bUnits: teamB.units,
@@ -3141,14 +3004,14 @@ function runBattle() {
     if (poisonDamageToA > 0 || poisonDamageToB > 0 || poisonKillsByA > 0 || poisonKillsByB > 0) {
       battleLog.push({
         time: time.toFixed(2),
-        aWeapon: poisonDamageToB > 0 ? "Poison" : "—",
+        aWeapon: poisonDamageToB > 0 ? "Poison" : "â€”",
         aDmg: poisonDamageToB.toFixed(1),
         aWaste: poisonWasteToB.toFixed(1),
         aUnits: teamA.units,
         aInjured: getAllTrackedUnits(teamA).filter(u => u.hp < teamA.stats.hp - 0.0001).length,
         aHp: Math.round(teamA.totalHp),
         aKills: poisonKillsByA,
-        bWeapon: poisonDamageToA > 0 ? "Poison" : "—",
+        bWeapon: poisonDamageToA > 0 ? "Poison" : "â€”",
         bDmg: poisonDamageToA.toFixed(1),
         bWaste: poisonWasteToA.toFixed(1),
         bUnits: teamB.units,
@@ -3288,9 +3151,9 @@ function runBattle() {
       )
         logNotesA.push("Charge");
       if (unitA.effects.aoeSplash && aoeTargetsA > 1)
-        logNotesA.push(`AoE×${aoeTargetsA}`);
+        logNotesA.push(`AoEÃ—${aoeTargetsA}`);
       if (unitA.effects.aoeFalloff && aoeTargetsA > 1)
-        logNotesA.push(`AoE×${aoeTargetsA}(falloff)`);
+        logNotesA.push(`AoEÃ—${aoeTargetsA}(falloff)`);
       // Atk Speed Debuff: slow enemy on hit
       if (unitA.effects.atkSpeedDebuff) {
         teamB.atkSpeedDebuffUntil =
@@ -3412,9 +3275,9 @@ function runBattle() {
       )
         logNotesB.push("Charge");
       if (unitB.effects.aoeSplash && aoeTargetsB > 1)
-        logNotesB.push(`AoE×${aoeTargetsB}`);
+        logNotesB.push(`AoEÃ—${aoeTargetsB}`);
       if (unitB.effects.aoeFalloff && aoeTargetsB > 1)
-        logNotesB.push(`AoE×${aoeTargetsB}(falloff)`);
+        logNotesB.push(`AoEÃ—${aoeTargetsB}(falloff)`);
       // Atk Speed Debuff: slow enemy on hit
       if (unitB.effects.atkSpeedDebuff) {
         teamA.atkSpeedDebuffUntil =
@@ -4255,7 +4118,7 @@ function runBuildingBattle() {
       );
       dmgToAttackers += dmgPerArrow * building.baseArrows;
       nextBaseArrow = time + building.baseArrowRate;
-      logNotesB.push(`Base×${building.baseArrows}`);
+      logNotesB.push(`BaseÃ—${building.baseArrows}`);
     }
 
     // Building -> Attackers (garrison arrows)
@@ -4266,7 +4129,7 @@ function runBuildingBattle() {
       );
       dmgToAttackers += dmgPerArrow * building.garrison;
       nextGarrisonArrow = time + building.garrisonArrowRate;
-      logNotesB.push(`Garrison×${building.garrison}`);
+      logNotesB.push(`GarrisonÃ—${building.garrison}`);
     }
 
     // Building -> Attackers (emplacement weapons)
@@ -4298,12 +4161,12 @@ function runBuildingBattle() {
 
     battleLog.push({
       time: time.toFixed(2),
-      aWeapon: logNotesA.join("+") || "—",
+      aWeapon: logNotesA.join("+") || "â€”",
       aDmg: dmgToBuilding.toFixed(1),
       aWaste: "0.0",
       aUnits: teamA.units,
       aHp: Math.round(teamA.totalHp),
-      bWeapon: logNotesB.join("+") || "—",
+      bWeapon: logNotesB.join("+") || "â€”",
       bDmg: dmgToAttackers.toFixed(1),
       bWaste: "0.0",
       bUnits: buildingHp > 0 ? 1 : 0,
@@ -5082,16 +4945,7 @@ function renderBonusInputsMulti(container, bonuses, groupId) {
   sortedTags.forEach((tag) => {
     const bonusValue = bonuses[tag] || 0;
     const inputId = `${groupId}_bonus_${tag.replace(/\s+/g, "_")}`;
-    container.innerHTML += `
-      <div class="row g-2 mb-2">
-        <div class="col-6">
-          <small class="text-muted">vs ${tag}</small>
-        </div>
-        <div class="col-6">
-          <input type="number" id="${inputId}" class="form-control form-control-sm bonus-input" data-tag="${tag}" value="${bonusValue}" placeholder="0">
-        </div>
-      </div>
-    `;
+    container.innerHTML += renderBattlerBonusRow(inputId, tag, bonusValue, tag);
   });
 }
 
@@ -5128,399 +4982,10 @@ function renderEffectsMulti(card, effects, groupId, selectedCiv) {
     if (effect.civs && !selectedCiv) continue;
 
     const checkId = `${groupId}_effect_${effectId}`;
-    let valueHtml = "";
-
-    if (effectId === "postChargeAttackBuff") {
-      valueHtml = `
-        <div class="row g-1 mt-1 ms-4">
-          <div class="col-6">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="value"
-                   value="${effect.value}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">+Attack</small>
-          </div>
-          <div class="col-6">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="duration"
-                   value="${effect.duration}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Duration (s)</small>
-          </div>
-        </div>`;
-    } else if (effectId === "healPerAttack") {
-      valueHtml = `
-        <div class="ms-4 mt-1">
-          <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="value"
-                 value="${effect.value}" style="font-size:0.8rem;width:80px;display:inline-block;">
-          <small class="text-muted" style="font-size:0.7rem;">HP per attack</small>
-        </div>`;
-    } else if (effectId === "berserking") {
-      valueHtml = `
-        <div class="row g-1 mt-1 ms-4">
-          <div class="col-4">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="attackBonus"
-                   value="${effect.attackBonus}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">+Attack</small>
-          </div>
-          <div class="col-4">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="armorPenalty"
-                   value="${effect.armorPenalty}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">-Armor</small>
-          </div>
-          <div class="col-4">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="duration"
-                   value="${effect.duration}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Dur (s)</small>
-          </div>
-        </div>`;
-    } else if (effectId === "fortitude") {
-      valueHtml = `
-        <div class="row g-1 mt-1 ms-4">
-          <div class="col-4">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="atkSpeedBonus"
-                   value="${effect.atkSpeedBonus}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Atk Spd %</small>
-          </div>
-          <div class="col-4">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="dmgTakenIncrease"
-                   value="${effect.dmgTakenIncrease}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Dmg Taken %</small>
-          </div>
-          <div class="col-4">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="duration"
-                   value="${effect.duration}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Dur (s)</small>
-          </div>
-        </div>`;
-    } else if (effectId === "deployPavise") {
-      valueHtml = `
-        <div class="row g-1 mt-1 ms-4">
-          <div class="col-6">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="armorBonus"
-                   value="${effect.armorBonus}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">+Ranged Armor</small>
-          </div>
-          <div class="col-6">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="duration"
-                   value="${effect.duration}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Duration (s)</small>
-          </div>
-        </div>`;
-    } else if (effectId === "arrowVolley") {
-      valueHtml = `
-        <div class="row g-1 mt-1 ms-4">
-          <div class="col-6">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="atkSpeedBonus"
-                   value="${effect.atkSpeedBonus}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Atk Spd %</small>
-          </div>
-          <div class="col-6">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="duration"
-                   value="${effect.duration}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Dur (s)</small>
-          </div>
-        </div>`;
-    } else if (effectId === "staticDeployment") {
-      valueHtml = `
-        <div class="row g-1 mt-1 ms-4">
-          <div class="col-6">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="atkSpeedBonus"
-                   value="${effect.atkSpeedBonus}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Atk Spd %</small>
-          </div>
-          <div class="col-6">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="delay"
-                   value="${effect.delay}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Delay (s)</small>
-          </div>
-        </div>`;
-    } else if (effectId === "openingAttack") {
-      valueHtml = `
-        <div class="ms-4 mt-1">
-          <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="damage"
-                 value="${effect.damage}" style="font-size:0.8rem;width:80px;display:inline-block;">
-          <small class="text-muted" style="font-size:0.7rem;">Damage</small>
-        </div>`;
-    } else if (effectId === "gunpowderResistance") {
-      valueHtml = `
-        <div class="ms-4 mt-1">
-          <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="reduction"
-                 value="${effect.reduction}" style="font-size:0.8rem;width:80px;display:inline-block;">
-          <small class="text-muted" style="font-size:0.7rem;">Damage reduction %</small>
-        </div>`;
-    } else if (effectId === "camelUnease") {
-      valueHtml = `
-        <div class="ms-4 mt-1">
-          <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="reduction"
-                 value="${effect.reduction}" style="font-size:0.8rem;width:80px;display:inline-block;">
-          <small class="text-muted" style="font-size:0.7rem;">Attack reduction %</small>
-        </div>`;
-    } else if (effectId === "shieldWall") {
-      valueHtml = `
-        <div class="row g-1 mt-1 ms-4">
-          <div class="col-6">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="atkSpeedPenalty"
-                   value="${effect.atkSpeedPenalty}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Atk Speed %</small>
-          </div>
-          <div class="col-6">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="rangedDmgReduction"
-                   value="${effect.rangedDmgReduction}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Ranged Dmg %</small>
-          </div>
-        </div>`;
-    } else if (effectId === "bleed") {
-      valueHtml = `
-        <div class="row g-1 mt-1 ms-4">
-          <div class="col-6">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="dps"
-                   value="${effect.dps}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">DPS</small>
-          </div>
-          <div class="col-6">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="duration"
-                   value="${effect.duration}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Duration (s)</small>
-          </div>
-        </div>`;
-    } else if (effectId === "tripleShot") {
-      valueHtml = `
-        <div class="ms-4 mt-1">
-          <small class="text-muted" style="font-size:0.72rem;">Adds 2 extra arrows at 30% damage each and upgrades bleed to 3.2 DPS for 6s.</small>
-        </div>`;
-    } else if (effectId === "armorAura") {
-      valueHtml = `
-        <div class="ms-4 mt-1">
-          <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="armorBonus"
-                 value="${effect.armorBonus}" style="font-size:0.8rem;width:80px;display:inline-block;">
-          <small class="text-muted" style="font-size:0.7rem;">Armor bonus</small>
-        </div>`;
-    } else if (effectId === "trample") {
-      valueHtml = `
-        <div class="row g-1 mt-1 ms-4">
-          <div class="col-3">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="dps"
-                   value="${effect.dps}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">DPS</small>
-          </div>
-          <div class="col-3">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="duration"
-                   value="${effect.duration}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Dur (s)</small>
-          </div>
-          <div class="col-3">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="cooldown"
-                   value="${effect.cooldown}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">CD</small>
-          </div>
-          <div class="col-3">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="unitsHit"
-                   value="${effect.unitsHit || 3}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Units</small>
-          </div>
-        </div>`;
-    } else if (effectId === "numeri") {
-      valueHtml = `
-        <div class="row g-1 mt-1 ms-4">
-          <div class="col-6">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="dmgIncrease"
-                   value="${effect.dmgIncrease}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">+Dmg Taken %</small>
-          </div>
-          <div class="col-6">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="duration"
-                   value="${effect.duration}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Duration (s)</small>
-          </div>
-        </div>`;
-    } else if (effectId === "triumph") {
-      valueHtml = `
-        <div class="row g-1 mt-1 ms-4">
-          <div class="col-3">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="attackBonus"
-                   value="${effect.attackBonus}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">+Atk</small>
-          </div>
-          <div class="col-3">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="hps"
-                   value="${effect.hps}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">HP/s</small>
-          </div>
-          <div class="col-3">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="speedPct"
-                   value="${effect.speedPct}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">+Spd %</small>
-          </div>
-          <div class="col-3">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="duration"
-                   value="${effect.duration}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Dur (s)</small>
-          </div>
-        </div>`;
-    } else if (effectId === "percentDamage") {
-      valueHtml = `
-        <div class="ms-4 mt-1">
-          <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="percent"
-                 value="${effect.percent}" style="font-size:0.8rem;width:80px;display:inline-block;">
-          <small class="text-muted" style="font-size:0.7rem;">% HP damage</small>
-        </div>`;
-    } else if (effectId === "brotherhoodHP") {
-      valueHtml = `
-        <div class="ms-4 mt-1">
-          <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="hpPerUnit"
-                 value="${effect.hpPerUnit}" style="font-size:0.8rem;width:80px;display:inline-block;">
-          <small class="text-muted" style="font-size:0.7rem;">HP per ally</small>
-        </div>`;
-    } else if (effectId === "healAura") {
-      valueHtml = `
-        <div class="ms-4 mt-1">
-          <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="hps"
-                 value="${effect.hps}" style="font-size:0.8rem;width:80px;display:inline-block;">
-          <small class="text-muted" style="font-size:0.7rem;">HP/s</small>
-        </div>`;
-    } else if (effectId === "atkSpeedDebuff") {
-      valueHtml = `
-        <div class="row g-1 mt-1 ms-4">
-          <div class="col-6">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="reduction"
-                   value="${effect.reduction}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Reduction %</small>
-          </div>
-          <div class="col-6">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="duration"
-                   value="${effect.duration}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Duration (s)</small>
-          </div>
-        </div>`;
-    } else if (effectId === "caracole") {
-      valueHtml = `
-        <div class="row g-1 mt-1 ms-4">
-          <div class="col-4">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="speedBonus"
-                   value="${effect.speedBonus}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Speed %</small>
-          </div>
-          <div class="col-4">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="duration"
-                   value="${effect.duration}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Dur (s)</small>
-          </div>
-          <div class="col-4">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="cooldown"
-                   value="${effect.cooldown}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">CD</small>
-          </div>
-        </div>`;
-    } else if (effectId === "armorDebuffAura") {
-      valueHtml = `
-        <div class="ms-4 mt-1">
-          <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="armorReduction"
-                 value="${effect.armorReduction}" style="font-size:0.8rem;width:80px;display:inline-block;">
-          <small class="text-muted" style="font-size:0.7rem;">Armor reduction</small>
-        </div>`;
-    } else if (effectId === "battleGlory") {
-      valueHtml = `
-        <div class="row g-1 mt-1 ms-4">
-          <div class="col-6">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="hpPerKill"
-                   value="${effect.hpPerKill}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">HP per kill</small>
-          </div>
-          <div class="col-6">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="attackPerKill"
-                   value="${effect.attackPerKill}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Attack per kill</small>
-          </div>
-        </div>`;
-    } else if (effectId === "aoeSplash") {
-      valueHtml = `
-        <div class="ms-4 mt-1">
-          <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="unitsHit"
-                 value="${effect.unitsHit}" style="font-size:0.8rem;width:80px;display:inline-block;">
-          <small class="text-muted" style="font-size:0.7rem;">Units hit</small>
-        </div>`;
-    } else if (effectId === "aoeFalloff") {
-      valueHtml = `
-        <div class="ms-4 mt-1">
-          <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="unitsHit"
-                 value="${effect.unitsHit}" style="font-size:0.8rem;width:80px;display:inline-block;">
-          <small class="text-muted" style="font-size:0.7rem;">Units hit</small>
-        </div>`;
-    } else if (effectId === "armorPenetration") {
-      valueHtml = `
-        <div class="ms-4 mt-1">
-          <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="penetration"
-                 value="${effect.penetration}" style="font-size:0.8rem;width:80px;display:inline-block;">
-          <small class="text-muted" style="font-size:0.7rem;">Armor pen</small>
-        </div>`;
-    } else if (effectId === "dmgDebuffOnHit") {
-      valueHtml = `
-        <div class="row g-1 mt-1 ms-4">
-          <div class="col-6">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="reduction"
-                   value="${effect.reduction}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Reduction %</small>
-          </div>
-          <div class="col-6">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="duration"
-                   value="${effect.duration}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Duration (s)</small>
-          </div>
-        </div>`;
-    } else if (effectId === "spearwall") {
-      valueHtml = `
-        <div class="ms-4 mt-1">
-          <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="stunDuration"
-                 value="${effect.stunDuration}" style="font-size:0.8rem;width:80px;display:inline-block;">
-          <small class="text-muted" style="font-size:0.7rem;">Stun (s)</small>
-        </div>`;
-    } else if (effectId === "palings") {
-      valueHtml = `
-        <div class="row g-1 mt-1 ms-4">
-          <div class="col-6">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="stunDuration"
-                   value="${effect.stunDuration}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Stun (s)</small>
-          </div>
-          <div class="col-6">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="damage"
-                   value="${effect.damage}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Damage</small>
-          </div>
-        </div>`;
-    } else if (effectId === "movementBurst") {
-      valueHtml = `
-        <div class="row g-1 mt-1 ms-4">
-          <div class="col-6">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="speedBonus"
-                   value="${effect.speedBonus}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Speed %</small>
-          </div>
-          <div class="col-6">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="duration"
-                   value="${effect.duration}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Duration (s)</small>
-          </div>
-        </div>`;
-    } else if (effectId === "infantrySpeedAura") {
-      valueHtml = `
-        <div class="ms-4 mt-1">
-          <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="speedBonus"
-                 value="${effect.speedBonus}" style="font-size:0.8rem;width:80px;display:inline-block;">
-          <small class="text-muted" style="font-size:0.7rem;">+Speed % for infantry</small>
-        </div>`;
-    } else if (effectId === "poisonedArrows") {
-      valueHtml = `
-        <div class="row g-1 mt-1 ms-4">
-          <div class="col-6">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="totalDamage"
-                   value="${effect.totalDamage}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Total Damage</small>
-          </div>
-          <div class="col-6">
-            <input type="number" class="form-control form-control-sm" data-effect-id="${effectId}" data-effect-field="duration"
-                   value="${effect.duration}" style="font-size:0.8rem;">
-            <small class="text-muted" style="font-size:0.7rem;">Duration (s)</small>
-          </div>
-        </div>`;
-    }
+    const valueHtml = renderEffectValueEditor(effectId, effect, {
+      mode: "multi",
+      checkId,
+    });
 
     // Use tech button icon for effects that have a linked tech, checkbox otherwise
     const linkedTech = EFFECT_TO_TECH[effectId];
@@ -5535,7 +5000,7 @@ function renderEffectsMulti(card, effects, groupId, selectedCiv) {
             </div>
             <label class="effect-label" style="font-size:0.85rem;">
               <strong>${effect.name}</strong>
-              <span style="font-size:0.75rem; color:#b8ad9e;"> — ${effect.description}</span>
+              <span style="font-size:0.75rem; color:#b8ad9e;"> â€” ${effect.description}</span>
             </label>
           </div>
           <div class="effect-value-area">${valueHtml}</div>
@@ -5547,7 +5012,7 @@ function renderEffectsMulti(card, effects, groupId, selectedCiv) {
             <input class="form-check-input effect-checkbox" type="checkbox" id="${checkId}" data-effect="${effectId}" checked>
             <label class="form-check-label" for="${checkId}" style="font-size:0.85rem;">
               <strong>${effect.name}</strong>
-              <span style="font-size:0.75rem; color:#b8ad9e;"> — ${effect.description}</span>
+              <span style="font-size:0.75rem; color:#b8ad9e;"> â€” ${effect.description}</span>
             </label>
           </div>
           <div class="effect-value-area">${valueHtml}</div>
@@ -7017,7 +6482,7 @@ function updateBuildingStats() {
         btn.className = "building-tech-btn";
         btn.dataset.emplacement = name;
         const dmgText =
-          emp.projectiles > 1 ? `${emp.dmg}×${emp.projectiles}` : `${emp.dmg}`;
+          emp.projectiles > 1 ? `${emp.dmg}Ã—${emp.projectiles}` : `${emp.dmg}`;
         btn.title = `${dmgText} dmg, ${emp.rate}s, range ${emp.range}`;
         btn.textContent = name.replace(" Emplacement", "") + civLabel;
         btn.addEventListener("click", function () {
@@ -7053,7 +6518,7 @@ function updateEmplacementSummary() {
     const emp = EMPLACEMENTS[name];
     if (!emp) return;
     const dmgText =
-      emp.projectiles > 1 ? `${emp.dmg}×${emp.projectiles}` : `${emp.dmg}`;
+      emp.projectiles > 1 ? `${emp.dmg}Ã—${emp.projectiles}` : `${emp.dmg}`;
     parts.push(
       `${name.replace(" Emplacement", "")}: ${dmgText} dmg / ${emp.rate}s`,
     );

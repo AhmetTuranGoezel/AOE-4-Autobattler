@@ -32,98 +32,140 @@
   <div class="container">
     <div class="text-center battle-only">
       <div class="auto-balance-toggle">
-        <input type="checkbox" id="autoBalance" checked>
-        <label for="autoBalance" class="ms-2 fw-bold">Auto-balance units by cost</label>
-        <span class="mx-3">|</span>
-        <input type="checkbox" id="overkillEnabled">
-        <label for="overkillEnabled" class="ms-2 fw-bold">Overkill waste</label>
-        <span class="mx-3">|</span>
-        <input type="checkbox" id="rangeSpeedEnabled">
-        <label for="rangeSpeedEnabled" class="ms-2 fw-bold">Consider range & speed</label>
+        <label class="battle-toggle-item" for="autoBalance">
+          <input type="checkbox" id="autoBalance" checked>
+          <span>Auto-balance units by cost</span>
+        </label>
+        <label class="battle-toggle-item" for="overkillEnabled">
+          <input type="checkbox" id="overkillEnabled">
+          <span>Overkill waste</span>
+        </label>
+        <label class="battle-toggle-item" for="rangeSpeedEnabled">
+          <input type="checkbox" id="rangeSpeedEnabled">
+          <span>Consider range & speed</span>
+        </label>
       </div>
     </div>
 
-    <div class="row g-4 single-only" id="singleBattleRow">
+    <div class="row g-3 single-only" id="singleBattleRow">
       <!-- ==================== UNIT A PANEL ==================== -->
       <div class="col-lg-5">
         <div class="card card-team-a">
           <div class="card-body">
             <h3 class="card-title card-title-a" id="titleA" style="cursor:pointer" title="Click for details">Unit A</h3>
 
-            <!-- Civilization Selection -->
-            <div class="mb-2">
-              <div id="civSelectA" class="custom-select-wrapper civ-select-wrapper" data-value=""></div>
-            </div>
-
-            <!-- Unit Selection and Age -->
-            <div class="row g-3 mb-3">
-              <div class="col-8">
-                <label class="form-label fw-bold">Unit</label>
-                <div id="unitASelect" class="custom-select-wrapper" data-value="Horseman"></div>
+            <div class="battler-control-strip">
+              <div class="battler-control-row battler-control-row--primary">
+                <div class="battler-control-cell battler-control-cell--civ">
+                  <div class="compact-field compact-field--fill">
+                    <label class="compact-field-label">Civ</label>
+                    <div id="civSelectA" class="custom-select-wrapper civ-select-wrapper" data-value=""></div>
+                  </div>
+                </div>
+                <div class="battler-control-cell battler-control-cell--unit">
+                  <div class="compact-field compact-field--fill">
+                    <label class="compact-field-label">Unit</label>
+                    <div id="unitASelect" class="custom-select-wrapper" data-value="Horseman"></div>
+                  </div>
+                </div>
+                <div class="battler-control-cell battler-control-cell--age">
+                  <div class="compact-field compact-field--fill">
+                    <label class="compact-field-label" for="unitAAge">Age</label>
+                    <select id="unitAAge" class="form-select compact-select-control battler-top-control"></select>
+                  </div>
+                </div>
+                <div class="battler-control-cell battler-control-cell--count">
+                  <div class="compact-field compact-field--fill">
+                    <label class="compact-field-label" for="countA">Count</label>
+                    <div class="compact-field-shell">
+                      <input id="countA" type="number" class="form-control compact-field-input battler-top-control" value="10" min="1">
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div class="col-4">
-                <label class="form-label fw-bold">Age</label>
-                <select id="unitAAge" class="form-select"></select>
+              <div class="battler-control-row battler-control-row--secondary">
+                <div class="battler-mode-label">Mode</div>
+                <div class="weapon-mode-inline">
+                  <div class="btn-group weapon-mode-group" role="group">
+                    <input type="radio" class="btn-check" name="weaponModeA" id="primaryA" value="primary" checked>
+                    <label class="btn btn-outline-primary btn-sm" for="primaryA">Primary</label>
+
+                    <input type="radio" class="btn-check" name="weaponModeA" id="secondaryA" value="secondary">
+                    <label class="btn btn-outline-primary btn-sm" for="secondaryA">Secondary</label>
+
+                    <input type="radio" class="btn-check" name="weaponModeA" id="bothA" value="both">
+                    <label class="btn btn-outline-primary btn-sm" for="bothA">Both</label>
+                  </div>
+                </div>
+                <div class="weapon-info weapon-info-inline" id="weaponInfoA"></div>
               </div>
-            </div>
-
-            <!-- Weapon Mode Selection -->
-            <div class="mb-3">
-              <label class="form-label fw-bold">Weapon Mode</label>
-              <div class="btn-group w-100 weapon-mode-group" role="group">
-                <input type="radio" class="btn-check" name="weaponModeA" id="primaryA" value="primary" checked>
-                <label class="btn btn-outline-primary btn-sm" for="primaryA">Primary</label>
-
-                <input type="radio" class="btn-check" name="weaponModeA" id="secondaryA" value="secondary">
-                <label class="btn btn-outline-primary btn-sm" for="secondaryA">Secondary</label>
-
-                <input type="radio" class="btn-check" name="weaponModeA" id="bothA" value="both">
-                <label class="btn btn-outline-primary btn-sm" for="bothA">Both</label>
-              </div>
-              <div class="weapon-info" id="weaponInfoA"></div>
-            </div>
-
-            <!-- Unit Count -->
-            <div class="mb-3">
-              <label class="form-label fw-bold">Number of Units</label>
-              <input id="countA" type="number" class="form-control" value="10" min="1">
             </div>
 
             <!-- Base Stats -->
             <div class="stat-box">
-              <h6 class="fw-bold mb-3">Stats</h6>
-              <div class="row g-2">
-                <div class="col-6">
-                  <small class="text-muted">HP</small>
-                  <input id="A_hp" type="number" class="form-control small-input" placeholder="HP">
+              <h6 class="fw-bold mb-2">Stats</h6>
+              <div class="battler-stat-grid">
+                <div class="battler-stat-item">
+                  <div class="compact-field compact-field--short">
+                    <label class="compact-field-label" for="A_hp">HP</label>
+                    <div class="compact-field-shell">
+                      <input id="A_hp" type="number" class="form-control small-input compact-field-input">
+                    </div>
+                  </div>
                 </div>
-                <div class="col-6" id="A_attackCol">
-                  <small class="text-muted">Attack</small>
-                  <input id="A_attack" type="number" class="form-control small-input" placeholder="Attack">
+                <div class="battler-stat-item" id="A_attackCol">
+                  <div class="compact-field compact-field--short">
+                    <label class="compact-field-label" for="A_attack">Attack</label>
+                    <div class="compact-field-shell">
+                      <input id="A_attack" type="number" class="form-control small-input compact-field-input">
+                    </div>
+                  </div>
                 </div>
-                <div class="col-6">
-                  <small class="text-muted">Melee Armor</small>
-                  <input id="A_meleeArmor" type="number" class="form-control small-input" placeholder="Melee Armor">
+                <div class="battler-stat-item">
+                  <div class="compact-field compact-field--short">
+                    <label class="compact-field-label" for="A_meleeArmor">Melee Armor</label>
+                    <div class="compact-field-shell">
+                      <input id="A_meleeArmor" type="number" class="form-control small-input compact-field-input">
+                    </div>
+                  </div>
                 </div>
-                <div class="col-6">
-                  <small class="text-muted">Ranged Armor</small>
-                  <input id="A_rangedArmor" type="number" class="form-control small-input" placeholder="Ranged Armor">
+                <div class="battler-stat-item">
+                  <div class="compact-field compact-field--short">
+                    <label class="compact-field-label" for="A_rangedArmor">Ranged Armor</label>
+                    <div class="compact-field-shell">
+                      <input id="A_rangedArmor" type="number" class="form-control small-input compact-field-input">
+                    </div>
+                  </div>
                 </div>
-                <div class="col-12" id="A_attackSpeedCol">
-                  <small class="text-muted">Attack Speed (s)</small>
-                  <input id="A_attackSpeed" type="number" step="0.01" class="form-control small-input" placeholder="Attack Speed (s)">
+                <div class="battler-stat-item" id="A_attackSpeedCol">
+                  <div class="compact-field compact-field--short">
+                    <label class="compact-field-label" for="A_attackSpeed">Attack Speed</label>
+                    <div class="compact-field-shell has-suffix">
+                      <input id="A_attackSpeed" type="number" step="0.01" class="form-control small-input compact-field-input">
+                      <span class="compact-field-suffix">s</span>
+                    </div>
+                  </div>
                 </div>
-                <div class="col-12" id="A_secondaryWeaponFields" style="display:none;">
+                <div class="battler-stat-item battler-stat-item--span-2" id="A_secondaryWeaponFields" style="display:none;">
                   <div class="dual-weapon-box">
                     <div class="dual-weapon-heading" id="A_secondaryWeaponHeading">Secondary Attack</div>
-                    <div class="row g-2">
+                    <div class="compact-field-grid compact-field-grid--2">
                       <div class="col-6">
-                        <small class="text-muted" id="A_secondaryAttackLabel">Secondary Attack</small>
-                        <input id="A_secondaryAttack" type="number" class="form-control small-input" placeholder="Secondary Attack">
+                        <div class="compact-field compact-field--short">
+                          <label class="compact-field-label" id="A_secondaryAttackLabel" for="A_secondaryAttack">Secondary Attack</label>
+                          <div class="compact-field-shell">
+                            <input id="A_secondaryAttack" type="number" class="form-control small-input compact-field-input">
+                          </div>
+                        </div>
                       </div>
                       <div class="col-6">
-                        <small class="text-muted" id="A_secondaryAttackSpeedLabel">Secondary Speed (s)</small>
-                        <input id="A_secondaryAttackSpeed" type="number" step="0.01" class="form-control small-input" placeholder="Secondary Speed (s)">
+                        <div class="compact-field compact-field--short">
+                          <label class="compact-field-label" id="A_secondaryAttackSpeedLabel" for="A_secondaryAttackSpeed">Secondary Speed</label>
+                          <div class="compact-field-shell has-suffix">
+                            <input id="A_secondaryAttackSpeed" type="number" step="0.01" class="form-control small-input compact-field-input">
+                            <span class="compact-field-suffix">s</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -134,14 +176,23 @@
                 <small id="A_chargeDamage" style="color:#d4a44a;font-weight:600;"></small>
               </div>
               <div id="A_torchInfo" class="mt-2" style="display:none;">
-                <div class="row g-2">
+                <div class="compact-field-grid compact-field-grid--2">
                   <div class="col-6">
-                    <small class="text-muted">Torch Damage</small>
-                    <input id="A_torchDamage" type="number" class="form-control small-input" value="13">
+                    <div class="compact-field compact-field--short">
+                      <label class="compact-field-label" for="A_torchDamage">Torch Damage</label>
+                      <div class="compact-field-shell">
+                        <input id="A_torchDamage" type="number" class="form-control small-input compact-field-input" value="13">
+                      </div>
+                    </div>
                   </div>
                   <div class="col-6">
-                    <small class="text-muted">Torch Speed (s)</small>
-                    <input id="A_torchSpeed" type="number" step="0.01" class="form-control small-input" value="2.15">
+                    <div class="compact-field compact-field--short">
+                      <label class="compact-field-label" for="A_torchSpeed">Torch Speed</label>
+                      <div class="compact-field-shell has-suffix">
+                        <input id="A_torchSpeed" type="number" step="0.01" class="form-control small-input compact-field-input" value="2.15">
+                        <span class="compact-field-suffix">s</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -174,14 +225,20 @@
               </h6>
               <div class="collapse" id="collapseA_splitDmg">
                 <div class="pt-2">
-                  <div class="form-check d-flex align-items-center gap-2">
-                    <input class="form-check-input" type="checkbox" id="A_splitDamage">
-                    <label class="form-check-label" for="A_splitDamage" style="font-size:0.85rem;">
-                      Split damage across
-                    </label>
-                    <input type="number" id="A_splitTargets" class="form-control form-control-sm"
-                           value="1" min="1" style="width:60px;font-size:0.8rem;display:inline-block;">
-                    <span style="font-size:0.85rem;">targets</span>
+                  <div class="battler-inline-control">
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" id="A_splitDamage">
+                      <label class="form-check-label" for="A_splitDamage" style="font-size:0.85rem;">
+                        Enable split damage
+                      </label>
+                    </div>
+                    <div class="compact-field compact-field--tiny compact-field--inline">
+                      <label class="compact-field-label" for="A_splitTargets">Targets</label>
+                      <div class="compact-field-shell">
+                        <input type="number" id="A_splitTargets" class="form-control form-control-sm compact-field-input"
+                               value="1" min="1">
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -222,31 +279,72 @@
                   <div class="row g-2 mb-2">
                     <div class="col-12"><small class="text-muted">Attack Bonus (absolute value)</small></div>
                     <div class="col-6">
-                      <input id="A_buffAttackAbs" type="number" class="form-control small-input" placeholder="+Attack">
+                      <div class="compact-field compact-field--short">
+                        <label class="compact-field-label" for="A_buffAttackAbs">Value</label>
+                        <div class="compact-field-shell">
+                          <input id="A_buffAttackAbs" type="number" class="form-control small-input compact-field-input">
+                        </div>
+                      </div>
                     </div>
                     <div class="col-6">
-                      <input id="A_buffAttackAbsDur" type="number" class="form-control small-input" placeholder="Duration (0=inf)" value="0">
+                      <div class="compact-field compact-field--short">
+                        <label class="compact-field-label" for="A_buffAttackAbsDur">Duration</label>
+                        <div class="compact-field-shell has-suffix">
+                          <input id="A_buffAttackAbsDur" type="number" class="form-control small-input compact-field-input" value="0">
+                          <span class="compact-field-suffix">s</span>
+                        </div>
+                        <div class="compact-field-help">0 = infinite</div>
+                      </div>
                     </div>
                   </div>
                   <div class="row g-2 mb-2">
                     <div class="col-12"><small class="text-muted">HP Bonus (absolute value)</small></div>
                     <div class="col-6">
-                      <input id="A_buffHPabs" type="number" class="form-control small-input" placeholder="+HP">
+                      <div class="compact-field compact-field--short">
+                        <label class="compact-field-label" for="A_buffHPabs">Value</label>
+                        <div class="compact-field-shell">
+                          <input id="A_buffHPabs" type="number" class="form-control small-input compact-field-input">
+                        </div>
+                      </div>
                     </div>
                     <div class="col-6">
-                      <input id="A_buffHPabsDur" type="number" class="form-control small-input" placeholder="Duration (0=inf)" value="0">
+                      <div class="compact-field compact-field--short">
+                        <label class="compact-field-label" for="A_buffHPabsDur">Duration</label>
+                        <div class="compact-field-shell has-suffix">
+                          <input id="A_buffHPabsDur" type="number" class="form-control small-input compact-field-input" value="0">
+                          <span class="compact-field-suffix">s</span>
+                        </div>
+                        <div class="compact-field-help">0 = infinite</div>
+                      </div>
                     </div>
                   </div>
                   <div class="row g-2">
                     <div class="col-12"><small class="text-muted">Armor Bonuses</small></div>
                     <div class="col-6">
-                      <input id="A_buffMeleeArmor" type="number" class="form-control small-input" placeholder="+Melee Armor">
+                      <div class="compact-field compact-field--short">
+                        <label class="compact-field-label" for="A_buffMeleeArmor">Melee Armor</label>
+                        <div class="compact-field-shell">
+                          <input id="A_buffMeleeArmor" type="number" class="form-control small-input compact-field-input">
+                        </div>
+                      </div>
                     </div>
                     <div class="col-6">
-                      <input id="A_buffRangedArmor" type="number" class="form-control small-input" placeholder="+Ranged Armor">
+                      <div class="compact-field compact-field--short">
+                        <label class="compact-field-label" for="A_buffRangedArmor">Ranged Armor</label>
+                        <div class="compact-field-shell">
+                          <input id="A_buffRangedArmor" type="number" class="form-control small-input compact-field-input">
+                        </div>
+                      </div>
                     </div>
                     <div class="col-12">
-                      <input id="A_buffArmorDur" type="number" class="form-control small-input" placeholder="Duration (0=inf)" value="0">
+                      <div class="compact-field compact-field--short">
+                        <label class="compact-field-label" for="A_buffArmorDur">Armor Duration</label>
+                        <div class="compact-field-shell has-suffix">
+                          <input id="A_buffArmorDur" type="number" class="form-control small-input compact-field-input" value="0">
+                          <span class="compact-field-suffix">s</span>
+                        </div>
+                        <div class="compact-field-help">0 = infinite</div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -264,28 +362,67 @@
                   <div class="row g-2 mb-2">
                     <div class="col-12"><small class="text-muted">Attack Multiplier (%)</small></div>
                     <div class="col-6">
-                      <input id="A_buffAttackPct" type="number" class="form-control small-input" placeholder="Attack %">
+                      <div class="compact-field compact-field--short">
+                        <label class="compact-field-label" for="A_buffAttackPct">Value</label>
+                        <div class="compact-field-shell has-suffix">
+                          <input id="A_buffAttackPct" type="number" class="form-control small-input compact-field-input">
+                          <span class="compact-field-suffix">%</span>
+                        </div>
+                      </div>
                     </div>
                     <div class="col-6">
-                      <input id="A_buffAttackPctDur" type="number" class="form-control small-input" placeholder="Duration (0=inf)" value="0">
+                      <div class="compact-field compact-field--short">
+                        <label class="compact-field-label" for="A_buffAttackPctDur">Duration</label>
+                        <div class="compact-field-shell has-suffix">
+                          <input id="A_buffAttackPctDur" type="number" class="form-control small-input compact-field-input" value="0">
+                          <span class="compact-field-suffix">s</span>
+                        </div>
+                        <div class="compact-field-help">0 = infinite</div>
+                      </div>
                     </div>
                   </div>
                   <div class="row g-2 mb-2">
                     <div class="col-12"><small class="text-muted">HP Multiplier (%)</small></div>
                     <div class="col-6">
-                      <input id="A_buffHPpct" type="number" class="form-control small-input" placeholder="HP %">
+                      <div class="compact-field compact-field--short">
+                        <label class="compact-field-label" for="A_buffHPpct">Value</label>
+                        <div class="compact-field-shell has-suffix">
+                          <input id="A_buffHPpct" type="number" class="form-control small-input compact-field-input">
+                          <span class="compact-field-suffix">%</span>
+                        </div>
+                      </div>
                     </div>
                     <div class="col-6">
-                      <input id="A_buffHPpctDur" type="number" class="form-control small-input" placeholder="Duration (0=inf)" value="0">
+                      <div class="compact-field compact-field--short">
+                        <label class="compact-field-label" for="A_buffHPpctDur">Duration</label>
+                        <div class="compact-field-shell has-suffix">
+                          <input id="A_buffHPpctDur" type="number" class="form-control small-input compact-field-input" value="0">
+                          <span class="compact-field-suffix">s</span>
+                        </div>
+                        <div class="compact-field-help">0 = infinite</div>
+                      </div>
                     </div>
                   </div>
                   <div class="row g-2">
                     <div class="col-12"><small class="text-muted">Attack Speed Multiplier (%)</small></div>
                     <div class="col-6">
-                      <input id="A_buffSpeedPct" type="number" class="form-control small-input" placeholder="Speed %">
+                      <div class="compact-field compact-field--short">
+                        <label class="compact-field-label" for="A_buffSpeedPct">Value</label>
+                        <div class="compact-field-shell has-suffix">
+                          <input id="A_buffSpeedPct" type="number" class="form-control small-input compact-field-input">
+                          <span class="compact-field-suffix">%</span>
+                        </div>
+                      </div>
                     </div>
                     <div class="col-6">
-                      <input id="A_buffSpeedPctDur" type="number" class="form-control small-input" placeholder="Duration (0=inf)" value="0">
+                      <div class="compact-field compact-field--short">
+                        <label class="compact-field-label" for="A_buffSpeedPctDur">Duration</label>
+                        <div class="compact-field-shell has-suffix">
+                          <input id="A_buffSpeedPctDur" type="number" class="form-control small-input compact-field-input" value="0">
+                          <span class="compact-field-suffix">s</span>
+                        </div>
+                        <div class="compact-field-help">0 = infinite</div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -304,7 +441,12 @@
                     <input class="form-check-input" type="checkbox" id="A_firstHitEnabled">
                     <label class="form-check-label" for="A_firstHitEnabled">Enable free hits</label>
                   </div>
-                  <input id="A_freeHits" type="number" class="form-control small-input" value="0" min="0" placeholder="Free hits">
+                  <div class="compact-field compact-field--short">
+                    <label class="compact-field-label" for="A_freeHits">Free Hits</label>
+                    <div class="compact-field-shell">
+                      <input id="A_freeHits" type="number" class="form-control small-input compact-field-input" value="0" min="0">
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -435,76 +577,117 @@
             <!-- Normal Team B Content -->
             <div id="teamBNormal">
 
-            <!-- Civilization Selection -->
-            <div class="mb-2">
-              <div id="civSelectB" class="custom-select-wrapper civ-select-wrapper" data-value=""></div>
-            </div>
-
-            <div class="row g-3 mb-3">
-              <div class="col-8">
-                <label class="form-label fw-bold">Unit</label>
-                <div id="unitBSelect" class="custom-select-wrapper" data-value="Horseman"></div>
+            <div class="battler-control-strip">
+              <div class="battler-control-row battler-control-row--primary">
+                <div class="battler-control-cell battler-control-cell--civ">
+                  <div class="compact-field compact-field--fill">
+                    <label class="compact-field-label">Civ</label>
+                    <div id="civSelectB" class="custom-select-wrapper civ-select-wrapper" data-value=""></div>
+                  </div>
+                </div>
+                <div class="battler-control-cell battler-control-cell--unit">
+                  <div class="compact-field compact-field--fill">
+                    <label class="compact-field-label">Unit</label>
+                    <div id="unitBSelect" class="custom-select-wrapper" data-value="Horseman"></div>
+                  </div>
+                </div>
+                <div class="battler-control-cell battler-control-cell--age">
+                  <div class="compact-field compact-field--fill">
+                    <label class="compact-field-label" for="unitBAge">Age</label>
+                    <select id="unitBAge" class="form-select compact-select-control battler-top-control"></select>
+                  </div>
+                </div>
+                <div class="battler-control-cell battler-control-cell--count">
+                  <div class="compact-field compact-field--fill">
+                    <label class="compact-field-label" for="countB">Count</label>
+                    <div class="compact-field-shell">
+                      <input id="countB" type="number" class="form-control compact-field-input battler-top-control" value="10" min="1">
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div class="col-4">
-                <label class="form-label fw-bold">Age</label>
-                <select id="unitBAge" class="form-select"></select>
+              <div class="battler-control-row battler-control-row--secondary">
+                <div class="battler-mode-label">Mode</div>
+                <div class="weapon-mode-inline">
+                  <div class="btn-group weapon-mode-group" role="group">
+                    <input type="radio" class="btn-check" name="weaponModeB" id="primaryB" value="primary" checked>
+                    <label class="btn btn-outline-primary btn-sm" for="primaryB">Primary</label>
+
+                    <input type="radio" class="btn-check" name="weaponModeB" id="secondaryB" value="secondary">
+                    <label class="btn btn-outline-primary btn-sm" for="secondaryB">Secondary</label>
+
+                    <input type="radio" class="btn-check" name="weaponModeB" id="bothB" value="both">
+                    <label class="btn btn-outline-primary btn-sm" for="bothB">Both</label>
+                  </div>
+                </div>
+                <div class="weapon-info weapon-info-inline" id="weaponInfoB"></div>
               </div>
-            </div>
-
-            <div class="mb-3">
-              <label class="form-label fw-bold">Weapon Mode</label>
-              <div class="btn-group w-100 weapon-mode-group" role="group">
-                <input type="radio" class="btn-check" name="weaponModeB" id="primaryB" value="primary" checked>
-                <label class="btn btn-outline-primary btn-sm" for="primaryB">Primary</label>
-
-                <input type="radio" class="btn-check" name="weaponModeB" id="secondaryB" value="secondary">
-                <label class="btn btn-outline-primary btn-sm" for="secondaryB">Secondary</label>
-
-                <input type="radio" class="btn-check" name="weaponModeB" id="bothB" value="both">
-                <label class="btn btn-outline-primary btn-sm" for="bothB">Both</label>
-              </div>
-              <div class="weapon-info" id="weaponInfoB"></div>
-            </div>
-
-            <div class="mb-3">
-              <label class="form-label fw-bold">Number of Units</label>
-              <input id="countB" type="number" class="form-control" value="10" min="1">
             </div>
 
             <div class="stat-box">
-              <h6 class="fw-bold mb-3">Stats</h6>
-              <div class="row g-2">
-                <div class="col-6">
-                  <small class="text-muted">HP</small>
-                  <input id="B_hp" type="number" class="form-control small-input" placeholder="HP">
+              <h6 class="fw-bold mb-2">Stats</h6>
+              <div class="battler-stat-grid">
+                <div class="battler-stat-item">
+                  <div class="compact-field compact-field--short">
+                    <label class="compact-field-label" for="B_hp">HP</label>
+                    <div class="compact-field-shell">
+                      <input id="B_hp" type="number" class="form-control small-input compact-field-input">
+                    </div>
+                  </div>
                 </div>
-                <div class="col-6">
-                  <small class="text-muted">Attack</small>
-                  <input id="B_attack" type="number" class="form-control small-input" placeholder="Attack">
+                <div class="battler-stat-item">
+                  <div class="compact-field compact-field--short">
+                    <label class="compact-field-label" for="B_attack">Attack</label>
+                    <div class="compact-field-shell">
+                      <input id="B_attack" type="number" class="form-control small-input compact-field-input">
+                    </div>
+                  </div>
                 </div>
-                <div class="col-6">
-                  <small class="text-muted">Melee Armor</small>
-                  <input id="B_meleeArmor" type="number" class="form-control small-input" placeholder="Melee Armor">
+                <div class="battler-stat-item">
+                  <div class="compact-field compact-field--short">
+                    <label class="compact-field-label" for="B_meleeArmor">Melee Armor</label>
+                    <div class="compact-field-shell">
+                      <input id="B_meleeArmor" type="number" class="form-control small-input compact-field-input">
+                    </div>
+                  </div>
                 </div>
-                <div class="col-6">
-                  <small class="text-muted">Ranged Armor</small>
-                  <input id="B_rangedArmor" type="number" class="form-control small-input" placeholder="Ranged Armor">
+                <div class="battler-stat-item">
+                  <div class="compact-field compact-field--short">
+                    <label class="compact-field-label" for="B_rangedArmor">Ranged Armor</label>
+                    <div class="compact-field-shell">
+                      <input id="B_rangedArmor" type="number" class="form-control small-input compact-field-input">
+                    </div>
+                  </div>
                 </div>
-                <div class="col-12">
-                  <small class="text-muted">Attack Speed (s)</small>
-                  <input id="B_attackSpeed" type="number" step="0.01" class="form-control small-input" placeholder="Attack Speed (s)">
+                <div class="battler-stat-item">
+                  <div class="compact-field compact-field--short">
+                    <label class="compact-field-label" for="B_attackSpeed">Attack Speed</label>
+                    <div class="compact-field-shell has-suffix">
+                      <input id="B_attackSpeed" type="number" step="0.01" class="form-control small-input compact-field-input">
+                      <span class="compact-field-suffix">s</span>
+                    </div>
+                  </div>
                 </div>
-                <div class="col-12" id="B_secondaryWeaponFields" style="display:none;">
+                <div class="battler-stat-item battler-stat-item--span-2" id="B_secondaryWeaponFields" style="display:none;">
                   <div class="dual-weapon-box">
                     <div class="dual-weapon-heading" id="B_secondaryWeaponHeading">Secondary Attack</div>
-                    <div class="row g-2">
+                    <div class="compact-field-grid compact-field-grid--2">
                       <div class="col-6">
-                        <small class="text-muted" id="B_secondaryAttackLabel">Secondary Attack</small>
-                        <input id="B_secondaryAttack" type="number" class="form-control small-input" placeholder="Secondary Attack">
+                        <div class="compact-field compact-field--short">
+                          <label class="compact-field-label" id="B_secondaryAttackLabel" for="B_secondaryAttack">Secondary Attack</label>
+                          <div class="compact-field-shell">
+                            <input id="B_secondaryAttack" type="number" class="form-control small-input compact-field-input">
+                          </div>
+                        </div>
                       </div>
                       <div class="col-6">
-                        <small class="text-muted" id="B_secondaryAttackSpeedLabel">Secondary Speed (s)</small>
-                        <input id="B_secondaryAttackSpeed" type="number" step="0.01" class="form-control small-input" placeholder="Secondary Speed (s)">
+                        <div class="compact-field compact-field--short">
+                          <label class="compact-field-label" id="B_secondaryAttackSpeedLabel" for="B_secondaryAttackSpeed">Secondary Speed</label>
+                          <div class="compact-field-shell has-suffix">
+                            <input id="B_secondaryAttackSpeed" type="number" step="0.01" class="form-control small-input compact-field-input">
+                            <span class="compact-field-suffix">s</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -513,6 +696,27 @@
               <div id="B_chargeInfo" class="mt-2" style="display:none;">
                 <small class="text-muted">Charge Damage: </small>
                 <small id="B_chargeDamage" style="color:#d4a44a;font-weight:600;"></small>
+              </div>
+              <div id="B_torchInfo" class="mt-2" style="display:none;">
+                <div class="compact-field-grid compact-field-grid--2">
+                  <div class="col-6">
+                    <div class="compact-field compact-field--short">
+                      <label class="compact-field-label" for="B_torchDamage">Torch Damage</label>
+                      <div class="compact-field-shell">
+                        <input id="B_torchDamage" type="number" class="form-control small-input compact-field-input" value="13">
+                      </div>
+                    </div>
+                  </div>
+                  <div class="col-6">
+                    <div class="compact-field compact-field--short">
+                      <label class="compact-field-label" for="B_torchSpeed">Torch Speed</label>
+                      <div class="compact-field-shell has-suffix">
+                        <input id="B_torchSpeed" type="number" step="0.01" class="form-control small-input compact-field-input" value="2.15">
+                        <span class="compact-field-suffix">s</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -542,14 +746,20 @@
               </h6>
               <div class="collapse" id="collapseB_splitDmg">
                 <div class="pt-2">
-                  <div class="form-check d-flex align-items-center gap-2">
-                    <input class="form-check-input" type="checkbox" id="B_splitDamage">
-                    <label class="form-check-label" for="B_splitDamage" style="font-size:0.85rem;">
-                      Split damage across
-                    </label>
-                    <input type="number" id="B_splitTargets" class="form-control form-control-sm"
-                           value="1" min="1" style="width:60px;font-size:0.8rem;display:inline-block;">
-                    <span style="font-size:0.85rem;">targets</span>
+                  <div class="battler-inline-control">
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" id="B_splitDamage">
+                      <label class="form-check-label" for="B_splitDamage" style="font-size:0.85rem;">
+                        Enable split damage
+                      </label>
+                    </div>
+                    <div class="compact-field compact-field--tiny compact-field--inline">
+                      <label class="compact-field-label" for="B_splitTargets">Targets</label>
+                      <div class="compact-field-shell">
+                        <input type="number" id="B_splitTargets" class="form-control form-control-sm compact-field-input"
+                               value="1" min="1">
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -590,31 +800,72 @@
                   <div class="row g-2 mb-2">
                     <div class="col-12"><small class="text-muted">Attack Bonus (absolute value)</small></div>
                     <div class="col-6">
-                      <input id="B_buffAttackAbs" type="number" class="form-control small-input" placeholder="+Attack">
+                      <div class="compact-field compact-field--short">
+                        <label class="compact-field-label" for="B_buffAttackAbs">Value</label>
+                        <div class="compact-field-shell">
+                          <input id="B_buffAttackAbs" type="number" class="form-control small-input compact-field-input">
+                        </div>
+                      </div>
                     </div>
                     <div class="col-6">
-                      <input id="B_buffAttackAbsDur" type="number" class="form-control small-input" placeholder="Duration (0=inf)" value="0">
+                      <div class="compact-field compact-field--short">
+                        <label class="compact-field-label" for="B_buffAttackAbsDur">Duration</label>
+                        <div class="compact-field-shell has-suffix">
+                          <input id="B_buffAttackAbsDur" type="number" class="form-control small-input compact-field-input" value="0">
+                          <span class="compact-field-suffix">s</span>
+                        </div>
+                        <div class="compact-field-help">0 = infinite</div>
+                      </div>
                     </div>
                   </div>
                   <div class="row g-2 mb-2">
                     <div class="col-12"><small class="text-muted">HP Bonus (absolute value)</small></div>
                     <div class="col-6">
-                      <input id="B_buffHPabs" type="number" class="form-control small-input" placeholder="+HP">
+                      <div class="compact-field compact-field--short">
+                        <label class="compact-field-label" for="B_buffHPabs">Value</label>
+                        <div class="compact-field-shell">
+                          <input id="B_buffHPabs" type="number" class="form-control small-input compact-field-input">
+                        </div>
+                      </div>
                     </div>
                     <div class="col-6">
-                      <input id="B_buffHPabsDur" type="number" class="form-control small-input" placeholder="Duration (0=inf)" value="0">
+                      <div class="compact-field compact-field--short">
+                        <label class="compact-field-label" for="B_buffHPabsDur">Duration</label>
+                        <div class="compact-field-shell has-suffix">
+                          <input id="B_buffHPabsDur" type="number" class="form-control small-input compact-field-input" value="0">
+                          <span class="compact-field-suffix">s</span>
+                        </div>
+                        <div class="compact-field-help">0 = infinite</div>
+                      </div>
                     </div>
                   </div>
                   <div class="row g-2">
                     <div class="col-12"><small class="text-muted">Armor Bonuses</small></div>
                     <div class="col-6">
-                      <input id="B_buffMeleeArmor" type="number" class="form-control small-input" placeholder="+Melee Armor">
+                      <div class="compact-field compact-field--short">
+                        <label class="compact-field-label" for="B_buffMeleeArmor">Melee Armor</label>
+                        <div class="compact-field-shell">
+                          <input id="B_buffMeleeArmor" type="number" class="form-control small-input compact-field-input">
+                        </div>
+                      </div>
                     </div>
                     <div class="col-6">
-                      <input id="B_buffRangedArmor" type="number" class="form-control small-input" placeholder="+Ranged Armor">
+                      <div class="compact-field compact-field--short">
+                        <label class="compact-field-label" for="B_buffRangedArmor">Ranged Armor</label>
+                        <div class="compact-field-shell">
+                          <input id="B_buffRangedArmor" type="number" class="form-control small-input compact-field-input">
+                        </div>
+                      </div>
                     </div>
                     <div class="col-12">
-                      <input id="B_buffArmorDur" type="number" class="form-control small-input" placeholder="Duration (0=inf)" value="0">
+                      <div class="compact-field compact-field--short">
+                        <label class="compact-field-label" for="B_buffArmorDur">Armor Duration</label>
+                        <div class="compact-field-shell has-suffix">
+                          <input id="B_buffArmorDur" type="number" class="form-control small-input compact-field-input" value="0">
+                          <span class="compact-field-suffix">s</span>
+                        </div>
+                        <div class="compact-field-help">0 = infinite</div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -632,28 +883,67 @@
                   <div class="row g-2 mb-2">
                     <div class="col-12"><small class="text-muted">Attack Multiplier (%)</small></div>
                     <div class="col-6">
-                      <input id="B_buffAttackPct" type="number" class="form-control small-input" placeholder="Attack %">
+                      <div class="compact-field compact-field--short">
+                        <label class="compact-field-label" for="B_buffAttackPct">Value</label>
+                        <div class="compact-field-shell has-suffix">
+                          <input id="B_buffAttackPct" type="number" class="form-control small-input compact-field-input">
+                          <span class="compact-field-suffix">%</span>
+                        </div>
+                      </div>
                     </div>
                     <div class="col-6">
-                      <input id="B_buffAttackPctDur" type="number" class="form-control small-input" placeholder="Duration (0=inf)" value="0">
+                      <div class="compact-field compact-field--short">
+                        <label class="compact-field-label" for="B_buffAttackPctDur">Duration</label>
+                        <div class="compact-field-shell has-suffix">
+                          <input id="B_buffAttackPctDur" type="number" class="form-control small-input compact-field-input" value="0">
+                          <span class="compact-field-suffix">s</span>
+                        </div>
+                        <div class="compact-field-help">0 = infinite</div>
+                      </div>
                     </div>
                   </div>
                   <div class="row g-2 mb-2">
                     <div class="col-12"><small class="text-muted">HP Multiplier (%)</small></div>
                     <div class="col-6">
-                      <input id="B_buffHPpct" type="number" class="form-control small-input" placeholder="HP %">
+                      <div class="compact-field compact-field--short">
+                        <label class="compact-field-label" for="B_buffHPpct">Value</label>
+                        <div class="compact-field-shell has-suffix">
+                          <input id="B_buffHPpct" type="number" class="form-control small-input compact-field-input">
+                          <span class="compact-field-suffix">%</span>
+                        </div>
+                      </div>
                     </div>
                     <div class="col-6">
-                      <input id="B_buffHPpctDur" type="number" class="form-control small-input" placeholder="Duration (0=inf)" value="0">
+                      <div class="compact-field compact-field--short">
+                        <label class="compact-field-label" for="B_buffHPpctDur">Duration</label>
+                        <div class="compact-field-shell has-suffix">
+                          <input id="B_buffHPpctDur" type="number" class="form-control small-input compact-field-input" value="0">
+                          <span class="compact-field-suffix">s</span>
+                        </div>
+                        <div class="compact-field-help">0 = infinite</div>
+                      </div>
                     </div>
                   </div>
                   <div class="row g-2">
                     <div class="col-12"><small class="text-muted">Attack Speed Multiplier (%)</small></div>
                     <div class="col-6">
-                      <input id="B_buffSpeedPct" type="number" class="form-control small-input" placeholder="Speed %">
+                      <div class="compact-field compact-field--short">
+                        <label class="compact-field-label" for="B_buffSpeedPct">Value</label>
+                        <div class="compact-field-shell has-suffix">
+                          <input id="B_buffSpeedPct" type="number" class="form-control small-input compact-field-input">
+                          <span class="compact-field-suffix">%</span>
+                        </div>
+                      </div>
                     </div>
                     <div class="col-6">
-                      <input id="B_buffSpeedPctDur" type="number" class="form-control small-input" placeholder="Duration (0=inf)" value="0">
+                      <div class="compact-field compact-field--short">
+                        <label class="compact-field-label" for="B_buffSpeedPctDur">Duration</label>
+                        <div class="compact-field-shell has-suffix">
+                          <input id="B_buffSpeedPctDur" type="number" class="form-control small-input compact-field-input" value="0">
+                          <span class="compact-field-suffix">s</span>
+                        </div>
+                        <div class="compact-field-help">0 = infinite</div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -672,7 +962,12 @@
                     <input class="form-check-input" type="checkbox" id="B_firstHitEnabled">
                     <label class="form-check-label" for="B_firstHitEnabled">Enable free hits</label>
                   </div>
-                  <input id="B_freeHits" type="number" class="form-control small-input" value="0" min="0" placeholder="Free hits">
+                  <div class="compact-field compact-field--short">
+                    <label class="compact-field-label" for="B_freeHits">Free Hits</label>
+                    <div class="compact-field-shell">
+                      <input id="B_freeHits" type="number" class="form-control small-input compact-field-input" value="0" min="0">
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -696,14 +991,20 @@
                 <div>Total Pop: <span id="multiTotalPopA">0</span></div>
               </div>
               <div class="multi-stack-split">
-                <div class="form-check d-flex align-items-center gap-2">
-                  <input class="form-check-input" type="checkbox" id="multiSplitA">
-                  <label class="form-check-label" for="multiSplitA" style="font-size:0.85rem;">
-                    Split damage across
-                  </label>
-                  <input type="number" id="multiSplitTargetsA" class="form-control form-control-sm"
-                         value="1" min="1" style="width:60px;font-size:0.8rem;display:inline-block;">
-                  <span style="font-size:0.85rem;">targets</span>
+                <div class="battler-inline-control">
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="multiSplitA">
+                    <label class="form-check-label" for="multiSplitA" style="font-size:0.85rem;">
+                      Enable split damage
+                    </label>
+                  </div>
+                  <div class="compact-field compact-field--tiny compact-field--inline">
+                    <label class="compact-field-label" for="multiSplitTargetsA">Targets</label>
+                    <div class="compact-field-shell">
+                      <input type="number" id="multiSplitTargetsA" class="form-control form-control-sm compact-field-input"
+                             value="1" min="1">
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -729,14 +1030,20 @@
                 <div>Total Pop: <span id="multiTotalPopB">0</span></div>
               </div>
               <div class="multi-stack-split">
-                <div class="form-check d-flex align-items-center gap-2">
-                  <input class="form-check-input" type="checkbox" id="multiSplitB">
-                  <label class="form-check-label" for="multiSplitB" style="font-size:0.85rem;">
-                    Split damage across
-                  </label>
-                  <input type="number" id="multiSplitTargetsB" class="form-control form-control-sm"
-                         value="1" min="1" style="width:60px;font-size:0.8rem;display:inline-block;">
-                  <span style="font-size:0.85rem;">targets</span>
+                <div class="battler-inline-control">
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="multiSplitB">
+                    <label class="form-check-label" for="multiSplitB" style="font-size:0.85rem;">
+                      Enable split damage
+                    </label>
+                  </div>
+                  <div class="compact-field compact-field--tiny compact-field--inline">
+                    <label class="compact-field-label" for="multiSplitTargetsB">Targets</label>
+                    <div class="compact-field-shell">
+                      <input type="number" id="multiSplitTargetsB" class="form-control form-control-sm compact-field-input"
+                             value="1" min="1">
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -780,8 +1087,14 @@
                   </select>
                 </div>
                 <div class="col-lg-3">
-                  <label class="form-label fw-bold">Sim End (s)</label>
-                  <input id="boSimEnd" type="number" class="form-control" value="420" min="0" step="5">
+                  <div class="compact-field compact-field--normal bo-compact-field">
+                    <label class="form-label fw-bold compact-field-label" for="boSimEnd">Sim End</label>
+                    <div class="compact-field-shell has-suffix">
+                      <input id="boSimEnd" type="number" class="form-control compact-field-input" value="420" min="0" step="5">
+                      <span class="compact-field-suffix">s</span>
+                    </div>
+                    <div class="compact-field-help">How long to run the current build.</div>
+                  </div>
                 </div>
               </div>
 
@@ -855,8 +1168,14 @@
                       <div class="text-muted bo-section-subtitle">Named saves are re-simulated live at one shared compare duration so different builds stay directly comparable.</div>
                     </div>
                     <div class="bo-compare-controls">
-                      <label class="form-label fw-bold mb-1" for="boCompareDuration">Compare Duration (s)</label>
-                      <input id="boCompareDuration" type="number" class="form-control form-control-sm" value="420" min="0" step="5">
+                      <div class="compact-field compact-field--normal bo-compact-field">
+                        <label class="form-label fw-bold mb-1 compact-field-label" for="boCompareDuration">Compare Duration</label>
+                        <div class="compact-field-shell has-suffix">
+                          <input id="boCompareDuration" type="number" class="form-control form-control-sm compact-field-input" value="420" min="0" step="5">
+                          <span class="compact-field-suffix">s</span>
+                        </div>
+                        <div class="compact-field-help">All saved builds are re-simulated to this same horizon.</div>
+                      </div>
                     </div>
                   </div>
                   <div id="boCompareBuilds" class="bo-compare-wrap">
@@ -1150,71 +1469,116 @@
           </div>
         </div>
         <div class="multi-card-expanded">
-          <div class="mb-2">
-            <div class="custom-select-wrapper civ-select-wrapper" data-field="civSelect" data-value=""></div>
-          </div>
-          <div class="row g-3 mb-3">
-            <div class="col-8">
-              <label class="form-label fw-bold">Unit</label>
-              <div class="custom-select-wrapper" data-field="unitSelect" data-value="Horseman"></div>
+          <div class="battler-control-strip">
+            <div class="battler-control-row battler-control-row--primary">
+              <div class="battler-control-cell battler-control-cell--civ">
+                <div class="compact-field compact-field--fill">
+                  <label class="compact-field-label">Civ</label>
+                  <div class="custom-select-wrapper civ-select-wrapper" data-field="civSelect" data-value=""></div>
+                </div>
+              </div>
+              <div class="battler-control-cell battler-control-cell--unit">
+                <div class="compact-field compact-field--fill">
+                  <label class="compact-field-label">Unit</label>
+                  <div class="custom-select-wrapper" data-field="unitSelect" data-value="Horseman"></div>
+                </div>
+              </div>
+              <div class="battler-control-cell battler-control-cell--age">
+                <div class="compact-field compact-field--fill">
+                  <label class="compact-field-label">Age</label>
+                  <select class="form-select compact-select-control battler-top-control" data-field="age"></select>
+                </div>
+              </div>
+              <div class="battler-control-cell battler-control-cell--count">
+                <div class="compact-field compact-field--fill">
+                  <label class="compact-field-label">Count</label>
+                  <div class="compact-field-shell">
+                    <input type="number" class="form-control compact-field-input battler-top-control" data-field="count" value="1" min="1">
+                  </div>
+                </div>
+              </div>
             </div>
-            <div class="col-4">
-              <label class="form-label fw-bold">Age</label>
-              <select class="form-select" data-field="age"></select>
-            </div>
-          </div>
-          <div class="mb-3">
-            <label class="form-label fw-bold">Weapon Mode</label>
-            <div class="btn-group w-100 weapon-mode-group" role="group" data-role="weaponModeGroup">
-              <input type="radio" class="btn-check" data-field="weaponMode" value="primary" checked>
-              <label class="btn btn-outline-primary btn-sm">Primary</label>
+            <div class="battler-control-row battler-control-row--secondary">
+              <div class="battler-mode-label">Mode</div>
+              <div class="weapon-mode-inline">
+                <div class="btn-group weapon-mode-group" role="group" data-role="weaponModeGroup">
+                  <input type="radio" class="btn-check" data-field="weaponMode" value="primary" checked>
+                  <label class="btn btn-outline-primary btn-sm">Primary</label>
 
-              <input type="radio" class="btn-check" data-field="weaponMode" value="secondary">
-              <label class="btn btn-outline-primary btn-sm">Secondary</label>
+                  <input type="radio" class="btn-check" data-field="weaponMode" value="secondary">
+                  <label class="btn btn-outline-primary btn-sm">Secondary</label>
 
-              <input type="radio" class="btn-check" data-field="weaponMode" value="both">
-              <label class="btn btn-outline-primary btn-sm">Both</label>
+                  <input type="radio" class="btn-check" data-field="weaponMode" value="both">
+                  <label class="btn btn-outline-primary btn-sm">Both</label>
+                </div>
+              </div>
+              <div class="weapon-info weapon-info-inline" data-role="weaponInfo"></div>
             </div>
-            <div class="weapon-info" data-role="weaponInfo"></div>
-          </div>
-          <div class="mb-3">
-            <label class="form-label fw-bold">Number of Units</label>
-            <input type="number" class="form-control" data-field="count" value="1" min="1">
           </div>
           <div class="stat-box">
-            <h6 class="fw-bold mb-3">Stats</h6>
-            <div class="row g-2">
-              <div class="col-6">
-                <small class="text-muted">HP</small>
-                <input type="number" class="form-control small-input" data-field="hp" placeholder="HP">
+            <h6 class="fw-bold mb-2">Stats</h6>
+            <div class="battler-stat-grid">
+              <div class="battler-stat-item">
+                <div class="compact-field compact-field--short">
+                  <label class="compact-field-label">HP</label>
+                  <div class="compact-field-shell">
+                    <input type="number" class="form-control small-input compact-field-input" data-field="hp">
+                  </div>
+                </div>
               </div>
-              <div class="col-6">
-                <small class="text-muted">Attack</small>
-                <input type="number" class="form-control small-input" data-field="attack" placeholder="Attack">
+              <div class="battler-stat-item">
+                <div class="compact-field compact-field--short">
+                  <label class="compact-field-label">Attack</label>
+                  <div class="compact-field-shell">
+                    <input type="number" class="form-control small-input compact-field-input" data-field="attack">
+                  </div>
+                </div>
               </div>
-              <div class="col-6">
-                <small class="text-muted">Melee Armor</small>
-                <input type="number" class="form-control small-input" data-field="meleeArmor" placeholder="Melee Armor">
+              <div class="battler-stat-item">
+                <div class="compact-field compact-field--short">
+                  <label class="compact-field-label">Melee Armor</label>
+                  <div class="compact-field-shell">
+                    <input type="number" class="form-control small-input compact-field-input" data-field="meleeArmor">
+                  </div>
+                </div>
               </div>
-              <div class="col-6">
-                <small class="text-muted">Ranged Armor</small>
-                <input type="number" class="form-control small-input" data-field="rangedArmor" placeholder="Ranged Armor">
+              <div class="battler-stat-item">
+                <div class="compact-field compact-field--short">
+                  <label class="compact-field-label">Ranged Armor</label>
+                  <div class="compact-field-shell">
+                    <input type="number" class="form-control small-input compact-field-input" data-field="rangedArmor">
+                  </div>
+                </div>
               </div>
-              <div class="col-12">
-                <small class="text-muted">Attack Speed (s)</small>
-                <input type="number" step="0.01" class="form-control small-input" data-field="attackSpeed" placeholder="Attack Speed (s)">
+              <div class="battler-stat-item">
+                <div class="compact-field compact-field--short">
+                  <label class="compact-field-label">Attack Speed</label>
+                  <div class="compact-field-shell has-suffix">
+                    <input type="number" step="0.01" class="form-control small-input compact-field-input" data-field="attackSpeed">
+                    <span class="compact-field-suffix">s</span>
+                  </div>
+                </div>
               </div>
-              <div class="col-12" data-role="secondaryWeaponFields" style="display:none;">
+              <div class="battler-stat-item battler-stat-item--span-2" data-role="secondaryWeaponFields" style="display:none;">
                 <div class="dual-weapon-box">
                   <div class="dual-weapon-heading" data-role="secondaryWeaponHeading">Secondary Attack</div>
-                  <div class="row g-2">
+                  <div class="compact-field-grid compact-field-grid--2">
                     <div class="col-6">
-                      <small class="text-muted" data-role="secondaryAttackLabel">Secondary Attack</small>
-                      <input type="number" class="form-control small-input" data-field="secondaryAttack" placeholder="Secondary Attack">
+                      <div class="compact-field compact-field--short">
+                        <label class="compact-field-label" data-role="secondaryAttackLabel">Secondary Attack</label>
+                        <div class="compact-field-shell">
+                          <input type="number" class="form-control small-input compact-field-input" data-field="secondaryAttack">
+                        </div>
+                      </div>
                     </div>
                     <div class="col-6">
-                      <small class="text-muted" data-role="secondaryAttackSpeedLabel">Secondary Speed (s)</small>
-                      <input type="number" step="0.01" class="form-control small-input" data-field="secondaryAttackSpeed" placeholder="Secondary Speed (s)">
+                      <div class="compact-field compact-field--short">
+                        <label class="compact-field-label" data-role="secondaryAttackSpeedLabel">Secondary Speed</label>
+                        <div class="compact-field-shell has-suffix">
+                          <input type="number" step="0.01" class="form-control small-input compact-field-input" data-field="secondaryAttackSpeed">
+                          <span class="compact-field-suffix">s</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1253,34 +1617,75 @@
               <div class="row g-2 mb-2">
                 <div class="col-12"><small class="text-muted">Attack Bonus (absolute value)</small></div>
                 <div class="col-6">
-                  <input type="number" class="form-control small-input" data-field="buffAttackAbs" placeholder="Attack +">
+                  <div class="compact-field compact-field--short">
+                    <label class="compact-field-label">Value</label>
+                    <div class="compact-field-shell">
+                      <input type="number" class="form-control small-input compact-field-input" data-field="buffAttackAbs">
+                    </div>
+                  </div>
                 </div>
                 <div class="col-6">
-                  <input type="number" class="form-control small-input" data-field="buffAttackAbsDur" placeholder="Duration (0=inf)" value="0">
+                  <div class="compact-field compact-field--short">
+                    <label class="compact-field-label">Duration</label>
+                    <div class="compact-field-shell has-suffix">
+                      <input type="number" class="form-control small-input compact-field-input" data-field="buffAttackAbsDur" value="0">
+                      <span class="compact-field-suffix">s</span>
+                    </div>
+                    <div class="compact-field-help">0 = infinite</div>
+                  </div>
                 </div>
               </div>
               <div class="row g-2 mb-2">
                 <div class="col-12"><small class="text-muted">HP Bonus (absolute value)</small></div>
                 <div class="col-6">
-                  <input type="number" class="form-control small-input" data-field="buffHPabs" placeholder="HP +">
+                  <div class="compact-field compact-field--short">
+                    <label class="compact-field-label">Value</label>
+                    <div class="compact-field-shell">
+                      <input type="number" class="form-control small-input compact-field-input" data-field="buffHPabs">
+                    </div>
+                  </div>
                 </div>
                 <div class="col-6">
-                  <input type="number" class="form-control small-input" data-field="buffHPabsDur" placeholder="Duration (0=inf)" value="0">
+                  <div class="compact-field compact-field--short">
+                    <label class="compact-field-label">Duration</label>
+                    <div class="compact-field-shell has-suffix">
+                      <input type="number" class="form-control small-input compact-field-input" data-field="buffHPabsDur" value="0">
+                      <span class="compact-field-suffix">s</span>
+                    </div>
+                    <div class="compact-field-help">0 = infinite</div>
+                  </div>
                 </div>
               </div>
               <div class="row g-2 mb-2">
                 <div class="col-12"><small class="text-muted">Armor Bonus</small></div>
                 <div class="col-6">
-                  <input type="number" class="form-control small-input" data-field="buffMeleeArmor" placeholder="Melee Armor +">
+                  <div class="compact-field compact-field--short">
+                    <label class="compact-field-label">Melee Armor</label>
+                    <div class="compact-field-shell">
+                      <input type="number" class="form-control small-input compact-field-input" data-field="buffMeleeArmor">
+                    </div>
+                  </div>
                 </div>
                 <div class="col-6">
-                  <input type="number" class="form-control small-input" data-field="buffRangedArmor" placeholder="Ranged Armor +">
+                  <div class="compact-field compact-field--short">
+                    <label class="compact-field-label">Ranged Armor</label>
+                    <div class="compact-field-shell">
+                      <input type="number" class="form-control small-input compact-field-input" data-field="buffRangedArmor">
+                    </div>
+                  </div>
                 </div>
               </div>
               <div class="row g-2">
-                <div class="col-12"><small class="text-muted">Armor Duration (0=inf)</small></div>
+                <div class="col-12"><small class="text-muted">Armor Duration</small></div>
                 <div class="col-6">
-                  <input type="number" class="form-control small-input" data-field="buffArmorDur" placeholder="Duration (0=inf)" value="0">
+                  <div class="compact-field compact-field--short">
+                    <label class="compact-field-label">Duration</label>
+                    <div class="compact-field-shell has-suffix">
+                      <input type="number" class="form-control small-input compact-field-input" data-field="buffArmorDur" value="0">
+                      <span class="compact-field-suffix">s</span>
+                    </div>
+                    <div class="compact-field-help">0 = infinite</div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1291,28 +1696,67 @@
               <div class="row g-2 mb-2">
                 <div class="col-12"><small class="text-muted">Attack Multiplier (%)</small></div>
                 <div class="col-6">
-                  <input type="number" class="form-control small-input" data-field="buffAttackPct" placeholder="Attack %">
+                  <div class="compact-field compact-field--short">
+                    <label class="compact-field-label">Value</label>
+                    <div class="compact-field-shell has-suffix">
+                      <input type="number" class="form-control small-input compact-field-input" data-field="buffAttackPct">
+                      <span class="compact-field-suffix">%</span>
+                    </div>
+                  </div>
                 </div>
                 <div class="col-6">
-                  <input type="number" class="form-control small-input" data-field="buffAttackPctDur" placeholder="Duration (0=inf)" value="0">
+                  <div class="compact-field compact-field--short">
+                    <label class="compact-field-label">Duration</label>
+                    <div class="compact-field-shell has-suffix">
+                      <input type="number" class="form-control small-input compact-field-input" data-field="buffAttackPctDur" value="0">
+                      <span class="compact-field-suffix">s</span>
+                    </div>
+                    <div class="compact-field-help">0 = infinite</div>
+                  </div>
                 </div>
               </div>
               <div class="row g-2 mb-2">
                 <div class="col-12"><small class="text-muted">HP Multiplier (%)</small></div>
                 <div class="col-6">
-                  <input type="number" class="form-control small-input" data-field="buffHPpct" placeholder="HP %">
+                  <div class="compact-field compact-field--short">
+                    <label class="compact-field-label">Value</label>
+                    <div class="compact-field-shell has-suffix">
+                      <input type="number" class="form-control small-input compact-field-input" data-field="buffHPpct">
+                      <span class="compact-field-suffix">%</span>
+                    </div>
+                  </div>
                 </div>
                 <div class="col-6">
-                  <input type="number" class="form-control small-input" data-field="buffHPpctDur" placeholder="Duration (0=inf)" value="0">
+                  <div class="compact-field compact-field--short">
+                    <label class="compact-field-label">Duration</label>
+                    <div class="compact-field-shell has-suffix">
+                      <input type="number" class="form-control small-input compact-field-input" data-field="buffHPpctDur" value="0">
+                      <span class="compact-field-suffix">s</span>
+                    </div>
+                    <div class="compact-field-help">0 = infinite</div>
+                  </div>
                 </div>
               </div>
               <div class="row g-2">
                 <div class="col-12"><small class="text-muted">Attack Speed Multiplier (%)</small></div>
                 <div class="col-6">
-                  <input type="number" class="form-control small-input" data-field="buffSpeedPct" placeholder="Speed %">
+                  <div class="compact-field compact-field--short">
+                    <label class="compact-field-label">Value</label>
+                    <div class="compact-field-shell has-suffix">
+                      <input type="number" class="form-control small-input compact-field-input" data-field="buffSpeedPct">
+                      <span class="compact-field-suffix">%</span>
+                    </div>
+                  </div>
                 </div>
                 <div class="col-6">
-                  <input type="number" class="form-control small-input" data-field="buffSpeedPctDur" placeholder="Duration (0=inf)" value="0">
+                  <div class="compact-field compact-field--short">
+                    <label class="compact-field-label">Duration</label>
+                    <div class="compact-field-shell has-suffix">
+                      <input type="number" class="form-control small-input compact-field-input" data-field="buffSpeedPctDur" value="0">
+                      <span class="compact-field-suffix">s</span>
+                    </div>
+                    <div class="compact-field-help">0 = infinite</div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1324,7 +1768,12 @@
                 <input class="form-check-input" type="checkbox" data-field="firstHitEnabled">
                 <label class="form-check-label">Enable free hits</label>
               </div>
-              <input type="number" class="form-control small-input" data-field="freeHits" value="0" min="0" placeholder="Free hits">
+              <div class="compact-field compact-field--short">
+                <label class="compact-field-label">Free Hits</label>
+                <div class="compact-field-shell">
+                  <input type="number" class="form-control small-input compact-field-input" data-field="freeHits" value="0" min="0">
+                </div>
+              </div>
             </div>
           </div>
           <div class="multi-sticky-footer">
