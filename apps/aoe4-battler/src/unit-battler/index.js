@@ -62,6 +62,8 @@ import {
   EFFECT_TO_TECH,
   TECH_EFFECTS,
   FALLBACK_TECH_IMG,
+  activeTechs,
+  techUnitTracker,
   getTechKey,
   getTechImage,
   isCombatCategory,
@@ -92,9 +94,6 @@ let multiIdCounters = { A: 1, B: 1 };
 let selectedCivA = "";
 let selectedCivB = "";
 
-const activeTechs = { A: new Map(), B: new Map() };
-
-const techUnitTracker = { A: "", B: "" };
 
 /**
  * 1. DATA LOADING
@@ -4100,12 +4099,17 @@ function runBuildingBattle() {
         dmgToBuilding = dmgPerUnit * teamA.units;
         logNotesA.push("Torch");
       } else {
+        // Incendiary Arrows converts ranged attack to siege (bypasses ranged armor)
+        const hasIncendiary = [...activeTechs.A.keys()].some(
+          (k) => k.split("|")[0] === "Incendiary Arrows",
+        );
+        const armor = hasIncendiary ? 0 : building.rangedArmor;
         const dmgPerUnit = Math.max(
           1,
-          teamA.stats.attack - building.rangedArmor,
+          teamA.stats.attack - armor,
         );
         dmgToBuilding = dmgPerUnit * teamA.units;
-        logNotesA.push("Ranged");
+        logNotesA.push(hasIncendiary ? "Siege" : "Ranged");
       }
       nextAttackerHit = time + (isMelee ? torchSpeed : teamA.stats.attackSpeed);
     }
@@ -6587,13 +6591,17 @@ function cycleArrowUpgrades() {
   if (level > 3) level = 0;
   btn.dataset.level = level;
   btn.classList.toggle("active", level > 0);
-  const labels = [
-    "Arrow Upgrades: 0",
-    "Steeled Arrow: +1",
-    "Balanced Arrow: +2",
-    "Platecutter: +3",
+  const labels = ["Arrows: 0", "Steeled: +1", "Balanced: +2", "Platecutter: +3"];
+  const icons = [
+    "assets/images/technologies/steeled-arrow-2.png",
+    "assets/images/technologies/steeled-arrow-2.png",
+    "assets/images/technologies/balanced-projectiles-3.png",
+    "assets/images/technologies/platecutter-point-4.png",
   ];
-  btn.textContent = labels[level];
+  const labelEl = btn.querySelector(".building-tech-label");
+  const imgEl = btn.querySelector("img");
+  if (labelEl) labelEl.textContent = labels[level];
+  if (imgEl) imgEl.src = icons[level];
   updateBuildingStats();
 }
 

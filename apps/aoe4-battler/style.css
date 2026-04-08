@@ -3708,11 +3708,23 @@ small.text-muted,
   color: #8a8070;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 6px;
-  padding: 5px 10px;
-  font-size: 0.78rem;
+  padding: 4px 8px;
+  font-size: 0.75rem;
   font-family: 'Inter', sans-serif;
   cursor: pointer;
   transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.building-tech-btn img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  border-radius: 3px;
+}
+.building-tech-label {
+  white-space: nowrap;
 }
 
 .building-tech-btn:hover {
