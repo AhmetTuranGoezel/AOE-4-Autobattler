@@ -62,6 +62,8 @@ import {
   EFFECT_TO_TECH,
   TECH_EFFECTS,
   FALLBACK_TECH_IMG,
+  activeTechs,
+  techUnitTracker,
   getTechKey,
   getTechImage,
   isCombatCategory,
@@ -92,9 +94,6 @@ let multiIdCounters = { A: 1, B: 1 };
 let selectedCivA = "";
 let selectedCivB = "";
 
-const activeTechs = { A: new Map(), B: new Map() };
-
-const techUnitTracker = { A: "", B: "" };
 
 /**
  * 1. DATA LOADING
