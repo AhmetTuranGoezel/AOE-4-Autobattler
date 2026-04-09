@@ -90,7 +90,7 @@ export function applyBuffs(unitData, time) {
     rangedArmor += unitData.buffs.rangedArmor;
   }
 
-  return { hp, attack, attackSpeed, meleeArmor, rangedArmor };
+  return { hp, attack, attackSpeed, meleeArmor, rangedArmor, rangedResistance: unitData.stats.rangedResistance || 0 };
 }
 
 export function calcEffectiveAttackSpeed(unit, baseAttackSpeed, time, team) {
@@ -179,6 +179,11 @@ export function calcWeaponDamage(
   }
 
   damage *= damageMultiplier;
+
+  // Apply ranged resistance (percentage reduction, before armor)
+  if (weaponType === "ranged" && enemyStats.rangedResistance) {
+    damage *= 1 - enemyStats.rangedResistance / 100;
+  }
 
   let armor =
     weaponType === "ranged" ? enemyStats.rangedArmor : enemyStats.meleeArmor;
