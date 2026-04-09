@@ -2881,6 +2881,7 @@ function getUnitData(side) {
         parseFloat(document.getElementById(`${side}_meleeArmor`).value) || 0,
       rangedArmor:
         parseFloat(document.getElementById(`${side}_rangedArmor`).value) || 0,
+      rangedResistance: ageStats.rangedResistance || 0,
       attackSpeed:
         parseFloat(document.getElementById(`${side}_attackSpeed`).value) || 1,
       bonus: collectBonuses(side), // NEW: Custom bonuses from UI
