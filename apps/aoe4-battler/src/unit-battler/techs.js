@@ -512,9 +512,9 @@ export const TECH_IMAGE_MAP = {
 export const FALLBACK_TECH_IMG = "assets/images/technologies/upgrades.png";
 
 // Per-side state: Map<techKey, { level: number }>
-const activeTechs = { A: new Map(), B: new Map() };
+export const activeTechs = { A: new Map(), B: new Map() };
 // Track which unit is currently loaded per side (to reset on unit change)
-const techUnitTracker = { A: "", B: "" };
+export const techUnitTracker = { A: "", B: "" };
 
 export function getTechKey(item) {
   return `${item.name}|${item.category}`;
