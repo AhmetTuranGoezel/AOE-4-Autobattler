@@ -94,7 +94,6 @@ let multiIdCounters = { A: 1, B: 1 };
 let selectedCivA = "";
 let selectedCivB = "";
 
-
 /**
  * 1. DATA LOADING
  * Fetches the JSON file and extracts all unique tags from all units.
@@ -102,7 +101,6 @@ let selectedCivB = "";
 /**
  * 2. UI POPULATION - Dropdowns (grouped by civilization)
  */
-
 
 function renderTechButtons(side, unitName, unit) {
   const container = document.getElementById(`${side}_techContainer`);
@@ -185,13 +183,21 @@ function renderTechButtons(side, unitName, unit) {
       const isCombat = isCombatCategory(item.category);
       const isActive = activeTechs[side].has(key);
       const isUnmodeled = isCombat && !effects;
-      const hasLevels = effects && Object.values(effects).some((v) => Array.isArray(v) && !["labels"].includes(v));
+      const hasLevels =
+        effects &&
+        Object.values(effects).some(
+          (v) => Array.isArray(v) && !["labels"].includes(v),
+        );
       const labels = effects?.labels;
       const imgSrc = getTechImage(item.name);
       const activeClass = isActive ? " active" : "";
-      const nonCombatClass = (!isCombat || isUnmodeled) ? " non-combat" : "";
+      const nonCombatClass = !isCombat || isUnmodeled ? " non-combat" : "";
       const tooltipSuffix = isUnmodeled ? " (not modeled)" : "";
-      const tooltip = `${item.name}: ${item.description || ""}${tooltipSuffix}`.replace(/"/g, "&quot;");
+      const tooltip =
+        `${item.name}: ${item.description || ""}${tooltipSuffix}`.replace(
+          /"/g,
+          "&quot;",
+        );
 
       if (hasLevels && labels && isCombat) {
         const currentLevel = activeTechs[side].get(key)?.level || 0;
@@ -270,7 +276,9 @@ function renderTechButtons(side, unitName, unit) {
 
 function renderBuildingUnitTechs(side) {
   const box = document.getElementById(`${side}_buildingUnitTechBox`);
-  const container = document.getElementById(`${side}_buildingUnitTechContainer`);
+  const container = document.getElementById(
+    `${side}_buildingUnitTechContainer`,
+  );
   if (!box || !container) return;
 
   const unitName = document.getElementById(`unit${side}Select`)?.dataset.value;
@@ -386,14 +394,14 @@ function toggleTech(side, techKey, btnEl) {
       const isNowActive = activeTechs[side].has(techKey);
       // Try tech toggle button first
       const techToggle = document.querySelector(
-        `#${side}_effectsContainer .effect-tech-toggle[data-effect="${effectId}"]`
+        `#${side}_effectsContainer .effect-tech-toggle[data-effect="${effectId}"]`,
       );
       if (techToggle) {
         techToggle.classList.toggle("active", isNowActive);
       } else {
         // Fall back to checkbox
         const checkbox = document.querySelector(
-          `#${side}_effectsContainer .effect-checkbox[data-effect="${effectId}"]`
+          `#${side}_effectsContainer .effect-checkbox[data-effect="${effectId}"]`,
         );
         if (checkbox) {
           checkbox.checked = isNowActive;
@@ -1156,8 +1164,7 @@ function updateWeaponModeButtons(side) {
     // Show weapon info line
     const priAge = unit.weapons.primary.ages[age] || {};
     const secAge = unit.weapons.secondary.ages[age] || {};
-    weaponInfoEl.textContent =
-      `${getWeaponInfoText(unit.weapons.primary, priAge)} | ${getWeaponInfoText(unit.weapons.secondary, secAge)}`;
+    weaponInfoEl.textContent = `${getWeaponInfoText(unit.weapons.primary, priAge)} | ${getWeaponInfoText(unit.weapons.secondary, secAge)}`;
     weaponInfoEl.style.display = "";
   } else {
     // Single-weapon unit: label as Melee/Ranged
@@ -1240,7 +1247,9 @@ function renderBattlerNumberField({
     "form-control-sm",
     "compact-field-input",
     inputClass,
-  ].filter(Boolean).join(" ");
+  ]
+    .filter(Boolean)
+    .join(" ");
   const attrs = [
     id ? `id="${id}"` : "",
     `type="number"`,
@@ -1249,8 +1258,12 @@ function renderBattlerNumberField({
     min !== null && min !== undefined ? `min="${min}"` : "",
     step !== null && step !== undefined ? `step="${step}"` : "",
     dataAttrs || "",
-  ].filter(Boolean).join(" ");
-  const shellClass = suffix ? "compact-field-shell has-suffix" : "compact-field-shell";
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const shellClass = suffix
+    ? "compact-field-shell has-suffix"
+    : "compact-field-shell";
   return `
     <div class="compact-field compact-field--${width}">
       ${label ? `<div class="compact-field-label">${label}</div>` : ""}
@@ -1289,157 +1302,645 @@ function renderEffectField(effectId, fieldName, fieldOptions, options = {}) {
 function renderEffectValueEditor(effectId, effect, options = {}) {
   switch (effectId) {
     case "postChargeAttackBuff":
-      return renderBattlerFieldGrid([
-        renderEffectField(effectId, "value", { label: "Attack", value: effect.value }, options),
-        renderEffectField(effectId, "duration", { label: "Duration", value: effect.duration, suffix: "s", width: "tiny" }, options),
-      ], 2);
+      return renderBattlerFieldGrid(
+        [
+          renderEffectField(
+            effectId,
+            "value",
+            { label: "Attack", value: effect.value },
+            options,
+          ),
+          renderEffectField(
+            effectId,
+            "duration",
+            {
+              label: "Duration",
+              value: effect.duration,
+              suffix: "s",
+              width: "tiny",
+            },
+            options,
+          ),
+        ],
+        2,
+      );
     case "healPerAttack":
-      return renderBattlerFieldGrid([
-        renderEffectField(effectId, "value", { label: "HP per attack", value: effect.value }, options),
-      ], 1);
+      return renderBattlerFieldGrid(
+        [
+          renderEffectField(
+            effectId,
+            "value",
+            { label: "HP per attack", value: effect.value },
+            options,
+          ),
+        ],
+        1,
+      );
     case "berserking":
-      return renderBattlerFieldGrid([
-        renderEffectField(effectId, "attackBonus", { label: "Attack", value: effect.attackBonus }, options),
-        renderEffectField(effectId, "armorPenalty", { label: "Armor Penalty", value: effect.armorPenalty }, options),
-        renderEffectField(effectId, "duration", { label: "Duration", value: effect.duration, suffix: "s", width: "tiny" }, options),
-      ], 3);
+      return renderBattlerFieldGrid(
+        [
+          renderEffectField(
+            effectId,
+            "attackBonus",
+            { label: "Attack", value: effect.attackBonus },
+            options,
+          ),
+          renderEffectField(
+            effectId,
+            "armorPenalty",
+            { label: "Armor Penalty", value: effect.armorPenalty },
+            options,
+          ),
+          renderEffectField(
+            effectId,
+            "duration",
+            {
+              label: "Duration",
+              value: effect.duration,
+              suffix: "s",
+              width: "tiny",
+            },
+            options,
+          ),
+        ],
+        3,
+      );
     case "fortitude":
-      return renderBattlerFieldGrid([
-        renderEffectField(effectId, "atkSpeedBonus", { label: "Attack Speed", value: effect.atkSpeedBonus, suffix: "%" }, options),
-        renderEffectField(effectId, "dmgTakenIncrease", { label: "Damage Taken", value: effect.dmgTakenIncrease, suffix: "%" }, options),
-        renderEffectField(effectId, "duration", { label: "Duration", value: effect.duration, suffix: "s", width: "tiny" }, options),
-      ], 3);
+      return renderBattlerFieldGrid(
+        [
+          renderEffectField(
+            effectId,
+            "atkSpeedBonus",
+            { label: "Attack Speed", value: effect.atkSpeedBonus, suffix: "%" },
+            options,
+          ),
+          renderEffectField(
+            effectId,
+            "dmgTakenIncrease",
+            {
+              label: "Damage Taken",
+              value: effect.dmgTakenIncrease,
+              suffix: "%",
+            },
+            options,
+          ),
+          renderEffectField(
+            effectId,
+            "duration",
+            {
+              label: "Duration",
+              value: effect.duration,
+              suffix: "s",
+              width: "tiny",
+            },
+            options,
+          ),
+        ],
+        3,
+      );
     case "deployPavise":
-      return renderBattlerFieldGrid([
-        renderEffectField(effectId, "armorBonus", { label: "Ranged Armor", value: effect.armorBonus }, options),
-        renderEffectField(effectId, "duration", { label: "Duration", value: effect.duration, suffix: "s", width: "tiny" }, options),
-      ], 2);
+      return renderBattlerFieldGrid(
+        [
+          renderEffectField(
+            effectId,
+            "armorBonus",
+            { label: "Ranged Armor", value: effect.armorBonus },
+            options,
+          ),
+          renderEffectField(
+            effectId,
+            "duration",
+            {
+              label: "Duration",
+              value: effect.duration,
+              suffix: "s",
+              width: "tiny",
+            },
+            options,
+          ),
+        ],
+        2,
+      );
     case "arrowVolley":
-      return renderBattlerFieldGrid([
-        renderEffectField(effectId, "atkSpeedBonus", { label: "Attack Speed", value: effect.atkSpeedBonus, suffix: "%" }, options),
-        renderEffectField(effectId, "duration", { label: "Duration", value: effect.duration, suffix: "s", width: "tiny" }, options),
-      ], 2);
+      return renderBattlerFieldGrid(
+        [
+          renderEffectField(
+            effectId,
+            "atkSpeedBonus",
+            { label: "Attack Speed", value: effect.atkSpeedBonus, suffix: "%" },
+            options,
+          ),
+          renderEffectField(
+            effectId,
+            "duration",
+            {
+              label: "Duration",
+              value: effect.duration,
+              suffix: "s",
+              width: "tiny",
+            },
+            options,
+          ),
+        ],
+        2,
+      );
     case "staticDeployment":
-      return renderBattlerFieldGrid([
-        renderEffectField(effectId, "atkSpeedBonus", { label: "Attack Speed", value: effect.atkSpeedBonus, suffix: "%" }, options),
-        renderEffectField(effectId, "delay", { label: "Delay", value: effect.delay, suffix: "s", width: "tiny" }, options),
-      ], 2);
+      return renderBattlerFieldGrid(
+        [
+          renderEffectField(
+            effectId,
+            "atkSpeedBonus",
+            { label: "Attack Speed", value: effect.atkSpeedBonus, suffix: "%" },
+            options,
+          ),
+          renderEffectField(
+            effectId,
+            "delay",
+            { label: "Delay", value: effect.delay, suffix: "s", width: "tiny" },
+            options,
+          ),
+        ],
+        2,
+      );
     case "openingAttack":
-      return renderBattlerFieldGrid([
-        renderEffectField(effectId, "damage", { label: "Damage", value: effect.damage }, options),
-      ], 1);
+      return renderBattlerFieldGrid(
+        [
+          renderEffectField(
+            effectId,
+            "damage",
+            { label: "Damage", value: effect.damage },
+            options,
+          ),
+        ],
+        1,
+      );
     case "gunpowderResistance":
-      return renderBattlerFieldGrid([
-        renderEffectField(effectId, "reduction", { label: "Reduction", value: effect.reduction, suffix: "%" }, options),
-      ], 1);
+      return renderBattlerFieldGrid(
+        [
+          renderEffectField(
+            effectId,
+            "reduction",
+            { label: "Reduction", value: effect.reduction, suffix: "%" },
+            options,
+          ),
+        ],
+        1,
+      );
     case "camelUnease":
-      return renderBattlerFieldGrid([
-        renderEffectField(effectId, "reduction", { label: "Reduction", value: effect.reduction, suffix: "%" }, options),
-      ], 1);
+      return renderBattlerFieldGrid(
+        [
+          renderEffectField(
+            effectId,
+            "reduction",
+            { label: "Reduction", value: effect.reduction, suffix: "%" },
+            options,
+          ),
+        ],
+        1,
+      );
     case "shieldWall":
-      return renderBattlerFieldGrid([
-        renderEffectField(effectId, "atkSpeedPenalty", { label: "Attack Speed", value: effect.atkSpeedPenalty, suffix: "%" }, options),
-        renderEffectField(effectId, "rangedDmgReduction", { label: "Ranged Damage", value: effect.rangedDmgReduction, suffix: "%" }, options),
-      ], 2);
+      return renderBattlerFieldGrid(
+        [
+          renderEffectField(
+            effectId,
+            "atkSpeedPenalty",
+            {
+              label: "Attack Speed",
+              value: effect.atkSpeedPenalty,
+              suffix: "%",
+            },
+            options,
+          ),
+          renderEffectField(
+            effectId,
+            "rangedDmgReduction",
+            {
+              label: "Ranged Damage",
+              value: effect.rangedDmgReduction,
+              suffix: "%",
+            },
+            options,
+          ),
+        ],
+        2,
+      );
     case "bleed":
-      return renderBattlerFieldGrid([
-        renderEffectField(effectId, "dps", { label: "DPS", value: effect.dps }, options),
-        renderEffectField(effectId, "duration", { label: "Duration", value: effect.duration, suffix: "s", width: "tiny" }, options),
-      ], 2);
+      return renderBattlerFieldGrid(
+        [
+          renderEffectField(
+            effectId,
+            "dps",
+            { label: "DPS", value: effect.dps },
+            options,
+          ),
+          renderEffectField(
+            effectId,
+            "duration",
+            {
+              label: "Duration",
+              value: effect.duration,
+              suffix: "s",
+              width: "tiny",
+            },
+            options,
+          ),
+        ],
+        2,
+      );
     case "tripleShot":
       return `<div class="compact-field-note ms-4 mt-1">Adds 2 extra arrows at 30% damage each and upgrades bleed to 3.2 DPS for 6s.</div>`;
     case "armorAura":
-      return renderBattlerFieldGrid([
-        renderEffectField(effectId, "armorBonus", { label: "Armor Bonus", value: effect.armorBonus }, options),
-      ], 1);
+      return renderBattlerFieldGrid(
+        [
+          renderEffectField(
+            effectId,
+            "armorBonus",
+            { label: "Armor Bonus", value: effect.armorBonus },
+            options,
+          ),
+        ],
+        1,
+      );
     case "trample":
-      return renderBattlerFieldGrid([
-        renderEffectField(effectId, "dps", { label: "DPS", value: effect.dps, width: "tiny" }, options),
-        renderEffectField(effectId, "duration", { label: "Duration", value: effect.duration, suffix: "s", width: "tiny" }, options),
-        renderEffectField(effectId, "cooldown", { label: "Cooldown", value: effect.cooldown, suffix: "s", width: "tiny" }, options),
-        renderEffectField(effectId, "unitsHit", { label: "Units Hit", value: effect.unitsHit || 3, width: "tiny" }, options),
-      ], 4);
+      return renderBattlerFieldGrid(
+        [
+          renderEffectField(
+            effectId,
+            "dps",
+            { label: "DPS", value: effect.dps, width: "tiny" },
+            options,
+          ),
+          renderEffectField(
+            effectId,
+            "duration",
+            {
+              label: "Duration",
+              value: effect.duration,
+              suffix: "s",
+              width: "tiny",
+            },
+            options,
+          ),
+          renderEffectField(
+            effectId,
+            "cooldown",
+            {
+              label: "Cooldown",
+              value: effect.cooldown,
+              suffix: "s",
+              width: "tiny",
+            },
+            options,
+          ),
+          renderEffectField(
+            effectId,
+            "unitsHit",
+            { label: "Units Hit", value: effect.unitsHit || 3, width: "tiny" },
+            options,
+          ),
+        ],
+        4,
+      );
     case "numeri":
-      return renderBattlerFieldGrid([
-        renderEffectField(effectId, "dmgIncrease", { label: "Damage Taken", value: effect.dmgIncrease, suffix: "%" }, options),
-        renderEffectField(effectId, "duration", { label: "Duration", value: effect.duration, suffix: "s", width: "tiny" }, options),
-      ], 2);
+      return renderBattlerFieldGrid(
+        [
+          renderEffectField(
+            effectId,
+            "dmgIncrease",
+            { label: "Damage Taken", value: effect.dmgIncrease, suffix: "%" },
+            options,
+          ),
+          renderEffectField(
+            effectId,
+            "duration",
+            {
+              label: "Duration",
+              value: effect.duration,
+              suffix: "s",
+              width: "tiny",
+            },
+            options,
+          ),
+        ],
+        2,
+      );
     case "triumph":
-      return renderBattlerFieldGrid([
-        renderEffectField(effectId, "attackBonus", { label: "Attack", value: effect.attackBonus, width: "tiny" }, options),
-        renderEffectField(effectId, "hps", { label: "HPS", value: effect.hps, width: "tiny" }, options),
-        renderEffectField(effectId, "speedPct", { label: "Speed", value: effect.speedPct, suffix: "%", width: "tiny" }, options),
-        renderEffectField(effectId, "duration", { label: "Duration", value: effect.duration, suffix: "s", width: "tiny" }, options),
-      ], 4);
+      return renderBattlerFieldGrid(
+        [
+          renderEffectField(
+            effectId,
+            "attackBonus",
+            { label: "Attack", value: effect.attackBonus, width: "tiny" },
+            options,
+          ),
+          renderEffectField(
+            effectId,
+            "hps",
+            { label: "HPS", value: effect.hps, width: "tiny" },
+            options,
+          ),
+          renderEffectField(
+            effectId,
+            "speedPct",
+            {
+              label: "Speed",
+              value: effect.speedPct,
+              suffix: "%",
+              width: "tiny",
+            },
+            options,
+          ),
+          renderEffectField(
+            effectId,
+            "duration",
+            {
+              label: "Duration",
+              value: effect.duration,
+              suffix: "s",
+              width: "tiny",
+            },
+            options,
+          ),
+        ],
+        4,
+      );
     case "percentDamage":
-      return renderBattlerFieldGrid([
-        renderEffectField(effectId, "percent", { label: "Max HP", value: effect.percent, suffix: "%" }, options),
-      ], 1);
+      return renderBattlerFieldGrid(
+        [
+          renderEffectField(
+            effectId,
+            "percent",
+            { label: "Max HP", value: effect.percent, suffix: "%" },
+            options,
+          ),
+        ],
+        1,
+      );
     case "brotherhoodHP":
-      return renderBattlerFieldGrid([
-        renderEffectField(effectId, "hpPerUnit", { label: "HP per ally", value: effect.hpPerUnit }, options),
-      ], 1);
+      return renderBattlerFieldGrid(
+        [
+          renderEffectField(
+            effectId,
+            "hpPerUnit",
+            { label: "HP per ally", value: effect.hpPerUnit },
+            options,
+          ),
+        ],
+        1,
+      );
     case "healAura":
-      return renderBattlerFieldGrid([
-        renderEffectField(effectId, "hps", { label: "HPS", value: effect.hps }, options),
-      ], 1);
+      return renderBattlerFieldGrid(
+        [
+          renderEffectField(
+            effectId,
+            "hps",
+            { label: "HPS", value: effect.hps },
+            options,
+          ),
+        ],
+        1,
+      );
     case "atkSpeedDebuff":
-      return renderBattlerFieldGrid([
-        renderEffectField(effectId, "reduction", { label: "Reduction", value: effect.reduction, suffix: "%" }, options),
-        renderEffectField(effectId, "duration", { label: "Duration", value: effect.duration, suffix: "s", width: "tiny" }, options),
-      ], 2);
+      return renderBattlerFieldGrid(
+        [
+          renderEffectField(
+            effectId,
+            "reduction",
+            { label: "Reduction", value: effect.reduction, suffix: "%" },
+            options,
+          ),
+          renderEffectField(
+            effectId,
+            "duration",
+            {
+              label: "Duration",
+              value: effect.duration,
+              suffix: "s",
+              width: "tiny",
+            },
+            options,
+          ),
+        ],
+        2,
+      );
     case "caracole":
-      return renderBattlerFieldGrid([
-        renderEffectField(effectId, "speedBonus", { label: "Speed", value: effect.speedBonus, suffix: "%" }, options),
-        renderEffectField(effectId, "duration", { label: "Duration", value: effect.duration, suffix: "s", width: "tiny" }, options),
-        renderEffectField(effectId, "cooldown", { label: "Cooldown", value: effect.cooldown, suffix: "s", width: "tiny" }, options),
-      ], 3);
+      return renderBattlerFieldGrid(
+        [
+          renderEffectField(
+            effectId,
+            "speedBonus",
+            { label: "Speed", value: effect.speedBonus, suffix: "%" },
+            options,
+          ),
+          renderEffectField(
+            effectId,
+            "duration",
+            {
+              label: "Duration",
+              value: effect.duration,
+              suffix: "s",
+              width: "tiny",
+            },
+            options,
+          ),
+          renderEffectField(
+            effectId,
+            "cooldown",
+            {
+              label: "Cooldown",
+              value: effect.cooldown,
+              suffix: "s",
+              width: "tiny",
+            },
+            options,
+          ),
+        ],
+        3,
+      );
     case "armorDebuffAura":
-      return renderBattlerFieldGrid([
-        renderEffectField(effectId, "armorReduction", { label: "Armor Reduction", value: effect.armorReduction }, options),
-      ], 1);
+      return renderBattlerFieldGrid(
+        [
+          renderEffectField(
+            effectId,
+            "armorReduction",
+            { label: "Armor Reduction", value: effect.armorReduction },
+            options,
+          ),
+        ],
+        1,
+      );
     case "battleGlory":
-      return renderBattlerFieldGrid([
-        renderEffectField(effectId, "hpPerKill", { label: "HP per kill", value: effect.hpPerKill }, options),
-        renderEffectField(effectId, "attackPerKill", { label: "Attack per kill", value: effect.attackPerKill }, options),
-      ], 2);
+      return renderBattlerFieldGrid(
+        [
+          renderEffectField(
+            effectId,
+            "hpPerKill",
+            { label: "HP per kill", value: effect.hpPerKill },
+            options,
+          ),
+          renderEffectField(
+            effectId,
+            "attackPerKill",
+            { label: "Attack per kill", value: effect.attackPerKill },
+            options,
+          ),
+        ],
+        2,
+      );
     case "aoeSplash":
     case "aoeFalloff":
-      return renderBattlerFieldGrid([
-        renderEffectField(effectId, "unitsHit", { label: "Units Hit", value: effect.unitsHit, width: "tiny" }, options),
-      ], 1);
+      return renderBattlerFieldGrid(
+        [
+          renderEffectField(
+            effectId,
+            "unitsHit",
+            { label: "Units Hit", value: effect.unitsHit, width: "tiny" },
+            options,
+          ),
+        ],
+        1,
+      );
     case "armorPenetration":
-      return renderBattlerFieldGrid([
-        renderEffectField(effectId, "penetration", { label: "Armor Ignored", value: effect.penetration }, options),
-      ], 1);
+      return renderBattlerFieldGrid(
+        [
+          renderEffectField(
+            effectId,
+            "penetration",
+            { label: "Armor Ignored", value: effect.penetration },
+            options,
+          ),
+        ],
+        1,
+      );
     case "dmgDebuffOnHit":
-      return renderBattlerFieldGrid([
-        renderEffectField(effectId, "reduction", { label: "Damage Reduction", value: effect.reduction, suffix: "%" }, options),
-        renderEffectField(effectId, "duration", { label: "Duration", value: effect.duration, suffix: "s", width: "tiny" }, options),
-      ], 2);
+      return renderBattlerFieldGrid(
+        [
+          renderEffectField(
+            effectId,
+            "reduction",
+            { label: "Damage Reduction", value: effect.reduction, suffix: "%" },
+            options,
+          ),
+          renderEffectField(
+            effectId,
+            "duration",
+            {
+              label: "Duration",
+              value: effect.duration,
+              suffix: "s",
+              width: "tiny",
+            },
+            options,
+          ),
+        ],
+        2,
+      );
     case "spearwall":
-      return renderBattlerFieldGrid([
-        renderEffectField(effectId, "stunDuration", { label: "Stun Duration", value: effect.stunDuration, suffix: "s", width: "tiny", step: 0.1, help: "vs cavalry" }, options),
-      ], 1);
+      return renderBattlerFieldGrid(
+        [
+          renderEffectField(
+            effectId,
+            "stunDuration",
+            {
+              label: "Stun Duration",
+              value: effect.stunDuration,
+              suffix: "s",
+              width: "tiny",
+              step: 0.1,
+              help: "vs cavalry",
+            },
+            options,
+          ),
+        ],
+        1,
+      );
     case "palings":
-      return renderBattlerFieldGrid([
-        renderEffectField(effectId, "stunDuration", { label: "Stun Duration", value: effect.stunDuration, suffix: "s", width: "tiny", step: 0.1 }, options),
-        renderEffectField(effectId, "damage", { label: "Damage", value: effect.damage, width: "tiny" }, options),
-      ], 2);
+      return renderBattlerFieldGrid(
+        [
+          renderEffectField(
+            effectId,
+            "stunDuration",
+            {
+              label: "Stun Duration",
+              value: effect.stunDuration,
+              suffix: "s",
+              width: "tiny",
+              step: 0.1,
+            },
+            options,
+          ),
+          renderEffectField(
+            effectId,
+            "damage",
+            { label: "Damage", value: effect.damage, width: "tiny" },
+            options,
+          ),
+        ],
+        2,
+      );
     case "movementBurst":
-      return renderBattlerFieldGrid([
-        renderEffectField(effectId, "speedBonus", { label: "Speed", value: effect.speedBonus, suffix: "%" }, options),
-        renderEffectField(effectId, "duration", { label: "Duration", value: effect.duration, suffix: "s", width: "tiny" }, options),
-      ], 2);
+      return renderBattlerFieldGrid(
+        [
+          renderEffectField(
+            effectId,
+            "speedBonus",
+            { label: "Speed", value: effect.speedBonus, suffix: "%" },
+            options,
+          ),
+          renderEffectField(
+            effectId,
+            "duration",
+            {
+              label: "Duration",
+              value: effect.duration,
+              suffix: "s",
+              width: "tiny",
+            },
+            options,
+          ),
+        ],
+        2,
+      );
     case "infantrySpeedAura":
-      return renderBattlerFieldGrid([
-        renderEffectField(effectId, "speedBonus", { label: "Speed", value: effect.speedBonus, suffix: "%", help: "Infantry only" }, options),
-      ], 1);
+      return renderBattlerFieldGrid(
+        [
+          renderEffectField(
+            effectId,
+            "speedBonus",
+            {
+              label: "Speed",
+              value: effect.speedBonus,
+              suffix: "%",
+              help: "Infantry only",
+            },
+            options,
+          ),
+        ],
+        1,
+      );
     case "poisonedArrows":
-      return renderBattlerFieldGrid([
-        renderEffectField(effectId, "totalDamage", { label: "Total Damage", value: effect.totalDamage }, options),
-        renderEffectField(effectId, "duration", { label: "Duration", value: effect.duration, suffix: "s", width: "tiny" }, options),
-      ], 2);
+      return renderBattlerFieldGrid(
+        [
+          renderEffectField(
+            effectId,
+            "totalDamage",
+            { label: "Total Damage", value: effect.totalDamage },
+            options,
+          ),
+          renderEffectField(
+            effectId,
+            "duration",
+            {
+              label: "Duration",
+              value: effect.duration,
+              suffix: "s",
+              width: "tiny",
+            },
+            options,
+          ),
+        ],
+        2,
+      );
     default:
       return "";
   }
@@ -1590,7 +2091,9 @@ function renderEffects(side, effects) {
         const effectId = btn.dataset.effect;
         const techName = EFFECT_TO_TECH[effectId];
         if (techName) {
-          const techContainer = document.getElementById(`${side}_techContainer`);
+          const techContainer = document.getElementById(
+            `${side}_techContainer`,
+          );
           const techBtn = techContainer?.querySelector(
             `.tech-btn[data-tech-key^="${techName}|"]`,
           );
@@ -1928,7 +2431,7 @@ function setUnitTitleInteractivity(side, enabled) {
   const titleEl = document.getElementById(`title${side}`);
   if (!titleEl) return;
   titleEl.style.cursor = enabled ? "pointer" : "default";
-  titleEl.onclick = enabled ? (() => showUnitDetail(side)) : null;
+  titleEl.onclick = enabled ? () => showUnitDetail(side) : null;
 }
 
 function showUnitDetailWith({ unitName, age, side, selectedCiv }) {
@@ -1995,7 +2498,9 @@ function showUnitDetailWith({ unitName, age, side, selectedCiv }) {
             .map(([t, v]) => `+${v} vs ${t}`)
             .join(", ")
         : "â€”";
-      const charge = ageStats.chargeDamage ? `+${ageStats.chargeDamage}` : "â€”";
+      const charge = ageStats.chargeDamage
+        ? `+${ageStats.chargeDamage}`
+        : "â€”";
       const isSelected = ageKey === selectedAgeKey;
       const rowStyle = isSelected
         ? `background:rgba(${teamColorRgb},0.15); font-weight:600;`
@@ -2422,30 +2927,31 @@ function getUnitData(side) {
     weaponRange: weaponData.range || 0,
     weaponProjectiles: getWeaponProjectiles(weaponData),
     speed: unit.speed || 1,
-    secondaryWeapon:
-      supportsBoth
-        ? {
-            name: getWeaponDisplayName(unit.weapons.secondary),
-            type: unit.weapons.secondary.type || "melee",
-            attackSpeed:
+    secondaryWeapon: supportsBoth
+      ? {
+          name: getWeaponDisplayName(unit.weapons.secondary),
+          type: unit.weapons.secondary.type || "melee",
+          attackSpeed:
+            parseFloat(
+              document.getElementById(`${side}_secondaryAttackSpeed`).value,
+            ) ||
+            unit.weapons.secondary.attackSpeed ||
+            1,
+          range: unit.weapons.secondary.range || 0,
+          projectiles: getWeaponProjectiles(unit.weapons.secondary),
+          stats: {
+            ...secondaryStats,
+            attack:
               parseFloat(
-                document.getElementById(`${side}_secondaryAttackSpeed`).value,
-              ) || unit.weapons.secondary.attackSpeed || 1,
-            range: unit.weapons.secondary.range || 0,
-            projectiles: getWeaponProjectiles(unit.weapons.secondary),
-            stats: {
-              ...secondaryStats,
-              attack:
-                parseFloat(
-                  document.getElementById(`${side}_secondaryAttack`).value,
-                ) || secondaryStats.attack || 0,
-            },
-          }
-        : null,
+                document.getElementById(`${side}_secondaryAttack`).value,
+              ) ||
+              secondaryStats.attack ||
+              0,
+          },
+        }
+      : null,
   };
 }
-
-
 
 /**
  * 7. SIMULATION ENGINE
@@ -2455,7 +2961,6 @@ function getUnitData(side) {
  * Both teams' damage is calculated BEFORE any is applied (simultaneous).
  * EPSILON ensures floating-point precision doesn't cause fake advantages.
  */
-
 
 /**
  * Set native tooltip on Res Lost showing per-resource breakdown
@@ -2610,8 +3115,14 @@ function runBattle() {
     (unitB.firstHitEnabled ? -unitB.freeHits * unitB.stats.attackSpeed : 0) +
     closingDelayB;
 
-  const trackedA = createTrackedTeamHealth(unitA.count, applyBuffs(unitA, 0).hp);
-  const trackedB = createTrackedTeamHealth(unitB.count, applyBuffs(unitB, 0).hp);
+  const trackedA = createTrackedTeamHealth(
+    unitA.count,
+    applyBuffs(unitA, 0).hp,
+  );
+  const trackedB = createTrackedTeamHealth(
+    unitB.count,
+    applyBuffs(unitB, 0).hp,
+  );
 
   let teamA = {
     side: "A",
@@ -2944,8 +3455,14 @@ function runBattle() {
 
     const bleedFromB = collectBleedTickEvents(teamA, time, EPSILON);
     const bleedFromA = collectBleedTickEvents(teamB, time, EPSILON);
-    const bleedDamageToA = bleedFromB.reduce((sum, entry) => sum + entry.damage, 0);
-    const bleedDamageToB = bleedFromA.reduce((sum, entry) => sum + entry.damage, 0);
+    const bleedDamageToA = bleedFromB.reduce(
+      (sum, entry) => sum + entry.damage,
+      0,
+    );
+    const bleedDamageToB = bleedFromA.reduce(
+      (sum, entry) => sum + entry.damage,
+      0,
+    );
     const bleedWasteToA = bleedFromB.reduce(
       (sum, entry) => sum + (entry.waste || 0),
       0,
@@ -2975,14 +3492,18 @@ function runBattle() {
         aDmg: bleedDamageToB.toFixed(1),
         aWaste: bleedWasteToB.toFixed(1),
         aUnits: teamA.units,
-        aInjured: getAllTrackedUnits(teamA).filter(u => u.hp < teamA.stats.hp - 0.0001).length,
+        aInjured: getAllTrackedUnits(teamA).filter(
+          (u) => u.hp < teamA.stats.hp - 0.0001,
+        ).length,
         aHp: Math.round(teamA.totalHp),
         aKills: bleedKillsByA,
         bWeapon: bleedDamageToA > 0 ? "Bleed" : "â€”",
         bDmg: bleedDamageToA.toFixed(1),
         bWaste: bleedWasteToA.toFixed(1),
         bUnits: teamB.units,
-        bInjured: getAllTrackedUnits(teamB).filter(u => u.hp < teamB.stats.hp - 0.0001).length,
+        bInjured: getAllTrackedUnits(teamB).filter(
+          (u) => u.hp < teamB.stats.hp - 0.0001,
+        ).length,
         bHp: Math.round(teamB.totalHp),
         bKills: bleedKillsByB,
         notes: "Bleed Tick",
@@ -2995,26 +3516,47 @@ function runBattle() {
     const poisonFromA = collectPoisonTickEvents(teamB, time, EPSILON);
     const poisonDamageToA = poisonFromB.reduce((sum, e) => sum + e.damage, 0);
     const poisonDamageToB = poisonFromA.reduce((sum, e) => sum + e.damage, 0);
-    const poisonWasteToA = poisonFromB.reduce((sum, e) => sum + (e.waste || 0), 0);
-    const poisonWasteToB = poisonFromA.reduce((sum, e) => sum + (e.waste || 0), 0);
-    const poisonKillsByB = poisonFromB.reduce((sum, e) => sum + (e.kills || 0), 0);
-    const poisonKillsByA = poisonFromA.reduce((sum, e) => sum + (e.kills || 0), 0);
+    const poisonWasteToA = poisonFromB.reduce(
+      (sum, e) => sum + (e.waste || 0),
+      0,
+    );
+    const poisonWasteToB = poisonFromA.reduce(
+      (sum, e) => sum + (e.waste || 0),
+      0,
+    );
+    const poisonKillsByB = poisonFromB.reduce(
+      (sum, e) => sum + (e.kills || 0),
+      0,
+    );
+    const poisonKillsByA = poisonFromA.reduce(
+      (sum, e) => sum + (e.kills || 0),
+      0,
+    );
 
-    if (poisonDamageToA > 0 || poisonDamageToB > 0 || poisonKillsByA > 0 || poisonKillsByB > 0) {
+    if (
+      poisonDamageToA > 0 ||
+      poisonDamageToB > 0 ||
+      poisonKillsByA > 0 ||
+      poisonKillsByB > 0
+    ) {
       battleLog.push({
         time: time.toFixed(2),
         aWeapon: poisonDamageToB > 0 ? "Poison" : "â€”",
         aDmg: poisonDamageToB.toFixed(1),
         aWaste: poisonWasteToB.toFixed(1),
         aUnits: teamA.units,
-        aInjured: getAllTrackedUnits(teamA).filter(u => u.hp < teamA.stats.hp - 0.0001).length,
+        aInjured: getAllTrackedUnits(teamA).filter(
+          (u) => u.hp < teamA.stats.hp - 0.0001,
+        ).length,
         aHp: Math.round(teamA.totalHp),
         aKills: poisonKillsByA,
         bWeapon: poisonDamageToA > 0 ? "Poison" : "â€”",
         bDmg: poisonDamageToA.toFixed(1),
         bWaste: poisonWasteToA.toFixed(1),
         bUnits: teamB.units,
-        bInjured: getAllTrackedUnits(teamB).filter(u => u.hp < teamB.stats.hp - 0.0001).length,
+        bInjured: getAllTrackedUnits(teamB).filter(
+          (u) => u.hp < teamB.stats.hp - 0.0001,
+        ).length,
         bHp: Math.round(teamB.totalHp),
         bKills: poisonKillsByB,
         notes: "Poison Tick",
@@ -3058,13 +3600,17 @@ function runBattle() {
     let damageToB = 0;
     let damageToA = 0;
     // For simultaneous-weapon units: track primary/secondary damage separately
-    let primaryDmgToB = 0, secondaryDmgToB = 0;
-    let primaryDmgToA = 0, secondaryDmgToA = 0;
+    let primaryDmgToB = 0,
+      secondaryDmgToB = 0;
+    let primaryDmgToA = 0,
+      secondaryDmgToA = 0;
     const aIsSimultaneous = SIMULTANEOUS_WEAPON_UNITS.has(unitA.name);
     const bIsSimultaneous = SIMULTANEOUS_WEAPON_UNITS.has(unitB.name);
     // AoE tracking (set during primary weapon calc, used during application)
-    let aoeTargetsA = 1, aoeFalloffA = false;
-    let aoeTargetsB = 1, aoeFalloffB = false;
+    let aoeTargetsA = 1,
+      aoeFalloffA = false;
+    let aoeTargetsB = 1,
+      aoeFalloffB = false;
     let logNotesA = [],
       logNotesB = [];
     let aFiredPrimary = false,
@@ -3115,14 +3661,10 @@ function runBattle() {
       if (unitA.effects.aoeSplash) {
         aoeTargetsA = Math.min(unitA.effects.aoeSplash.unitsHit, teamB.units);
       } else if (unitA.effects.aoeFalloff) {
-        aoeTargetsA = Math.min(
-          unitA.effects.aoeFalloff.unitsHit,
-          teamB.units,
-        );
+        aoeTargetsA = Math.min(unitA.effects.aoeFalloff.unitsHit, teamB.units);
         aoeFalloffA = true;
       }
-      let primaryDamage =
-        dmg * teamA.units * (unitA.weaponProjectiles || 1);
+      let primaryDamage = dmg * teamA.units * (unitA.weaponProjectiles || 1);
       if (hasKipchakTripleShot(unitA)) {
         const extraArrowDmg = calcWeaponDamage(
           unitA.weaponType,
@@ -3177,7 +3719,10 @@ function runBattle() {
         ? unitA.effects.armorPenetration.penetration
         : 0;
       // Apply attack buff delta to secondary weapon only if same type as primary
-      const atkBuffDeltaA = (sec.type === unitA.weaponType) ? (teamA.stats.attack - unitA.stats.attack) : 0;
+      const atkBuffDeltaA =
+        sec.type === unitA.weaponType
+          ? teamA.stats.attack - unitA.stats.attack
+          : 0;
       const secAttack = (sec.stats.attack || 0) + atkBuffDeltaA;
       const dmg = calcWeaponDamage(
         sec.type,
@@ -3193,7 +3738,9 @@ function runBattle() {
         secondaryDmgToB += secDmgA;
       }
       damageToB += secDmgA;
-      const secSpeedA = aIsSimultaneous ? sec.attackSpeed * (atkSpeedA / teamA.stats.attackSpeed) : sec.attackSpeed;
+      const secSpeedA = aIsSimultaneous
+        ? sec.attackSpeed * (atkSpeedA / teamA.stats.attackSpeed)
+        : sec.attackSpeed;
       teamA.nextSecondaryAttack = time + secSpeedA;
       aFiredSecondary = true;
     }
@@ -3239,14 +3786,10 @@ function runBattle() {
       if (unitB.effects.aoeSplash) {
         aoeTargetsB = Math.min(unitB.effects.aoeSplash.unitsHit, teamA.units);
       } else if (unitB.effects.aoeFalloff) {
-        aoeTargetsB = Math.min(
-          unitB.effects.aoeFalloff.unitsHit,
-          teamA.units,
-        );
+        aoeTargetsB = Math.min(unitB.effects.aoeFalloff.unitsHit, teamA.units);
         aoeFalloffB = true;
       }
-      let primaryDamage =
-        dmg * teamB.units * (unitB.weaponProjectiles || 1);
+      let primaryDamage = dmg * teamB.units * (unitB.weaponProjectiles || 1);
       if (hasKipchakTripleShot(unitB)) {
         const extraArrowDmg = calcWeaponDamage(
           unitB.weaponType,
@@ -3301,7 +3844,10 @@ function runBattle() {
         ? unitB.effects.armorPenetration.penetration
         : 0;
       // Apply attack buff delta to secondary weapon only if same type as primary
-      const atkBuffDeltaB = (sec.type === unitB.weaponType) ? (teamB.stats.attack - unitB.stats.attack) : 0;
+      const atkBuffDeltaB =
+        sec.type === unitB.weaponType
+          ? teamB.stats.attack - unitB.stats.attack
+          : 0;
       const secAttack = (sec.stats.attack || 0) + atkBuffDeltaB;
       const dmg = calcWeaponDamage(
         sec.type,
@@ -3317,7 +3863,9 @@ function runBattle() {
         secondaryDmgToA += secDmgB;
       }
       damageToA += secDmgB;
-      const secSpeedB = bIsSimultaneous ? sec.attackSpeed * (atkSpeedB / teamB.stats.attackSpeed) : sec.attackSpeed;
+      const secSpeedB = bIsSimultaneous
+        ? sec.attackSpeed * (atkSpeedB / teamB.stats.attackSpeed)
+        : sec.attackSpeed;
       teamB.nextSecondaryAttack = time + secSpeedB;
       bFiredSecondary = true;
     }
@@ -3406,9 +3954,15 @@ function runBattle() {
         teamA.trampleActive = true;
         teamA.trampleEnd = time + t.duration;
         // Trample delays normal attacks by its duration
-        teamA.nextPrimaryAttack = Math.max(teamA.nextPrimaryAttack, teamA.trampleEnd);
+        teamA.nextPrimaryAttack = Math.max(
+          teamA.nextPrimaryAttack,
+          teamA.trampleEnd,
+        );
         if (teamA.nextSecondaryAttack !== Infinity)
-          teamA.nextSecondaryAttack = Math.max(teamA.nextSecondaryAttack, teamA.trampleEnd);
+          teamA.nextSecondaryAttack = Math.max(
+            teamA.nextSecondaryAttack,
+            teamA.trampleEnd,
+          );
       }
       const tickDmg = t.dps * TRAMPLE_TICK * camelUneaseMultiplierAtoB;
       const targets = Math.min(t.unitsHit || 1, teamB.units);
@@ -3434,9 +3988,15 @@ function runBattle() {
         teamB.trampleActive = true;
         teamB.trampleEnd = time + t.duration;
         // Trample delays normal attacks by its duration
-        teamB.nextPrimaryAttack = Math.max(teamB.nextPrimaryAttack, teamB.trampleEnd);
+        teamB.nextPrimaryAttack = Math.max(
+          teamB.nextPrimaryAttack,
+          teamB.trampleEnd,
+        );
         if (teamB.nextSecondaryAttack !== Infinity)
-          teamB.nextSecondaryAttack = Math.max(teamB.nextSecondaryAttack, teamB.trampleEnd);
+          teamB.nextSecondaryAttack = Math.max(
+            teamB.nextSecondaryAttack,
+            teamB.trampleEnd,
+          );
       }
       const tickDmg = t.dps * TRAMPLE_TICK * camelUneaseMultiplierBtoA;
       const targets = Math.min(t.unitsHit || 1, teamA.units);
@@ -3455,12 +4015,16 @@ function runBattle() {
 
     // === NUMERI DEBUFF: Amplify all damage to debuffed teams ===
     if (teamB.numeriDebuffEnd > time + EPSILON && damageToB > 0) {
-      const numeriPct = unitA.effects.numeri ? unitA.effects.numeri.dmgIncrease : 15;
-      damageToB *= (1 + numeriPct / 100);
+      const numeriPct = unitA.effects.numeri
+        ? unitA.effects.numeri.dmgIncrease
+        : 15;
+      damageToB *= 1 + numeriPct / 100;
     }
     if (teamA.numeriDebuffEnd > time + EPSILON && damageToA > 0) {
-      const numeriPct = unitB.effects.numeri ? unitB.effects.numeri.dmgIncrease : 15;
-      damageToA *= (1 + numeriPct / 100);
+      const numeriPct = unitB.effects.numeri
+        ? unitB.effects.numeri.dmgIncrease
+        : 15;
+      damageToA *= 1 + numeriPct / 100;
     }
 
     const startUnitsA = teamA.units;
@@ -3470,7 +4034,10 @@ function runBattle() {
     // AoE params: only primary weapon has AoE; secondary (spear) is single-target
     const aoeA = aFiredPrimary ? aoeTargetsA : 1;
     const aoeB = bFiredPrimary ? aoeTargetsB : 1;
-    let wasteA = 0, wasteB = 0, killsByA = 0, killsByB = 0;
+    let wasteA = 0,
+      wasteB = 0,
+      killsByA = 0,
+      killsByB = 0;
 
     if (aIsSimultaneous && aFiredPrimary && aFiredSecondary) {
       // Simultaneous weapon (e.g. War Elephant): apply tusks then spear sequentially
@@ -3479,8 +4046,24 @@ function runBattle() {
         frontUnits: teamB.frontUnits.map((unit) => cloneUnitState(unit)),
         reserveUnits: teamB.reserveUnits.map((unit) => cloneUnitState(unit)),
       };
-      const r1 = applyBundledDamageToTeam(cloneB1, primaryDmgToB, startUnitsA, splitA, splitTargetsA, overkillEnabled, aoeA, aoeFalloffA);
-      const r2 = applyBundledDamageToTeam(cloneB1, secondaryDmgToB, startUnitsA, splitA, splitTargetsA, overkillEnabled);
+      const r1 = applyBundledDamageToTeam(
+        cloneB1,
+        primaryDmgToB,
+        startUnitsA,
+        splitA,
+        splitTargetsA,
+        overkillEnabled,
+        aoeA,
+        aoeFalloffA,
+      );
+      const r2 = applyBundledDamageToTeam(
+        cloneB1,
+        secondaryDmgToB,
+        startUnitsA,
+        splitA,
+        splitTargetsA,
+        overkillEnabled,
+      );
       wasteA = r1.waste + r2.waste;
       damageToB = r1.dealt + r2.dealt;
       killsByA = r1.kills + r2.kills;
@@ -3510,8 +4093,24 @@ function runBattle() {
         frontUnits: teamA.frontUnits.map((unit) => cloneUnitState(unit)),
         reserveUnits: teamA.reserveUnits.map((unit) => cloneUnitState(unit)),
       };
-      const r1 = applyBundledDamageToTeam(cloneA1, primaryDmgToA, startUnitsB, splitB, splitTargetsB, overkillEnabled, aoeB, aoeFalloffB);
-      const r2 = applyBundledDamageToTeam(cloneA1, secondaryDmgToA, startUnitsB, splitB, splitTargetsB, overkillEnabled);
+      const r1 = applyBundledDamageToTeam(
+        cloneA1,
+        primaryDmgToA,
+        startUnitsB,
+        splitB,
+        splitTargetsB,
+        overkillEnabled,
+        aoeB,
+        aoeFalloffB,
+      );
+      const r2 = applyBundledDamageToTeam(
+        cloneA1,
+        secondaryDmgToA,
+        startUnitsB,
+        splitB,
+        splitTargetsB,
+        overkillEnabled,
+      );
       wasteB = r1.waste + r2.waste;
       damageToA = r1.dealt + r2.dealt;
       killsByB = r1.kills + r2.kills;
@@ -3538,10 +4137,26 @@ function runBattle() {
     // --- Real damage application ---
     if (aIsSimultaneous && aFiredPrimary && aFiredSecondary) {
       if (primaryDmgToB > 0) {
-        applyBundledDamageToTeam(teamB, primaryDmgToB, startUnitsA, splitA, splitTargetsA, overkillEnabled, aoeA, aoeFalloffA);
+        applyBundledDamageToTeam(
+          teamB,
+          primaryDmgToB,
+          startUnitsA,
+          splitA,
+          splitTargetsA,
+          overkillEnabled,
+          aoeA,
+          aoeFalloffA,
+        );
       }
       if (secondaryDmgToB > 0) {
-        applyBundledDamageToTeam(teamB, secondaryDmgToB, startUnitsA, splitA, splitTargetsA, overkillEnabled);
+        applyBundledDamageToTeam(
+          teamB,
+          secondaryDmgToB,
+          startUnitsA,
+          splitA,
+          splitTargetsA,
+          overkillEnabled,
+        );
       }
     } else if (damageToB > 0) {
       applyBundledDamageToTeam(
@@ -3557,10 +4172,26 @@ function runBattle() {
     }
     if (bIsSimultaneous && bFiredPrimary && bFiredSecondary) {
       if (primaryDmgToA > 0) {
-        applyBundledDamageToTeam(teamA, primaryDmgToA, startUnitsB, splitB, splitTargetsB, overkillEnabled, aoeB, aoeFalloffB);
+        applyBundledDamageToTeam(
+          teamA,
+          primaryDmgToA,
+          startUnitsB,
+          splitB,
+          splitTargetsB,
+          overkillEnabled,
+          aoeB,
+          aoeFalloffB,
+        );
       }
       if (secondaryDmgToA > 0) {
-        applyBundledDamageToTeam(teamA, secondaryDmgToA, startUnitsB, splitB, splitTargetsB, overkillEnabled);
+        applyBundledDamageToTeam(
+          teamA,
+          secondaryDmgToA,
+          startUnitsB,
+          splitB,
+          splitTargetsB,
+          overkillEnabled,
+        );
       }
     } else if (damageToA > 0) {
       applyBundledDamageToTeam(
@@ -3593,7 +4224,9 @@ function runBattle() {
     const healA = unitA.effects.healPerAttack;
     if (healA && damageToB > 0) {
       const maxHpA = teamA.stats.hp;
-      const injuredA = getAllTrackedUnits(teamA).filter(u => u.hp < maxHpA - 0.0001).length;
+      const injuredA = getAllTrackedUnits(teamA).filter(
+        (u) => u.hp < maxHpA - 0.0001,
+      ).length;
       if (injuredA > 0) {
         healTrackedTeam(teamA, healA.value * Math.min(teamA.units, injuredA));
       }
@@ -3601,7 +4234,9 @@ function runBattle() {
     const healB = unitB.effects.healPerAttack;
     if (healB && damageToA > 0) {
       const maxHpB = teamB.stats.hp;
-      const injuredB = getAllTrackedUnits(teamB).filter(u => u.hp < maxHpB - 0.0001).length;
+      const injuredB = getAllTrackedUnits(teamB).filter(
+        (u) => u.hp < maxHpB - 0.0001,
+      ).length;
       if (injuredB > 0) {
         healTrackedTeam(teamB, healB.value * Math.min(teamB.units, injuredB));
       }
@@ -3620,13 +4255,21 @@ function runBattle() {
       }
     }
     // Triumph healing: +hps regen for duration (heals even during trample)
-    if (unitA.effects.triumph && time <= unitA.effects.triumph.duration + EPSILON && teamA.units > 0) {
+    if (
+      unitA.effects.triumph &&
+      time <= unitA.effects.triumph.duration + EPSILON &&
+      teamA.units > 0
+    ) {
       const dt = time - (teamA.lastHealAuraTime || 0);
       if (dt > 0) {
         healTrackedTeam(teamA, unitA.effects.triumph.hps * teamA.units * dt);
       }
     }
-    if (unitB.effects.triumph && time <= unitB.effects.triumph.duration + EPSILON && teamB.units > 0) {
+    if (
+      unitB.effects.triumph &&
+      time <= unitB.effects.triumph.duration + EPSILON &&
+      teamB.units > 0
+    ) {
       const dt = time - (teamB.lastHealAuraTime || 0);
       if (dt > 0) {
         healTrackedTeam(teamB, unitB.effects.triumph.hps * teamB.units * dt);
@@ -3678,10 +4321,20 @@ function runBattle() {
     if (unitB.effects.atkSpeedDebuff && bFiredPrimary) logNotesB.push("Slow");
     if (unitA.effects.healAura) logNotesA.push("Heal");
     if (unitB.effects.healAura) logNotesB.push("Heal");
-    if (unitA.effects.triumph && time <= unitA.effects.triumph.duration + EPSILON) logNotesA.push("Triumph");
-    if (unitB.effects.triumph && time <= unitB.effects.triumph.duration + EPSILON) logNotesB.push("Triumph");
-    if (teamB.numeriDebuffEnd > time + EPSILON && damageToB > 0) logNotesA.push("Numeri");
-    if (teamA.numeriDebuffEnd > time + EPSILON && damageToA > 0) logNotesB.push("Numeri");
+    if (
+      unitA.effects.triumph &&
+      time <= unitA.effects.triumph.duration + EPSILON
+    )
+      logNotesA.push("Triumph");
+    if (
+      unitB.effects.triumph &&
+      time <= unitB.effects.triumph.duration + EPSILON
+    )
+      logNotesB.push("Triumph");
+    if (teamB.numeriDebuffEnd > time + EPSILON && damageToB > 0)
+      logNotesA.push("Numeri");
+    if (teamA.numeriDebuffEnd > time + EPSILON && damageToA > 0)
+      logNotesB.push("Numeri");
     if (unitA.effects.armorPenetration && (aFiredPrimary || aFiredSecondary))
       logNotesA.push("ArmorPen");
     if (unitB.effects.armorPenetration && (bFiredPrimary || bFiredSecondary))
@@ -3749,19 +4402,27 @@ function runBattle() {
     if (aIsSimultaneous && aFiredPrimary && aFiredSecondary) {
       const pLabel = unitA.weaponLabel || "Primary";
       const sLabel = unitA.secondaryWeapon?.name || "Secondary";
-      logNotesA.push(`${pLabel}:${primaryDmgToB.toFixed(1)} ${sLabel}:${secondaryDmgToB.toFixed(1)}`);
+      logNotesA.push(
+        `${pLabel}:${primaryDmgToB.toFixed(1)} ${sLabel}:${secondaryDmgToB.toFixed(1)}`,
+      );
     }
     if (bIsSimultaneous && bFiredPrimary && bFiredSecondary) {
       const pLabel = unitB.weaponLabel || "Primary";
       const sLabel = unitB.secondaryWeapon?.name || "Secondary";
-      logNotesB.push(`${pLabel}:${primaryDmgToA.toFixed(1)} ${sLabel}:${secondaryDmgToA.toFixed(1)}`);
+      logNotesB.push(
+        `${pLabel}:${primaryDmgToA.toFixed(1)} ${sLabel}:${secondaryDmgToA.toFixed(1)}`,
+      );
     }
 
     // --- Push battle log entry ---
     const aWeapon = getAttackLogLabel(unitA, aFiredPrimary, aFiredSecondary);
     const bWeapon = getAttackLogLabel(unitB, bFiredPrimary, bFiredSecondary);
-    const aInjured = getAllTrackedUnits(teamA).filter(u => u.hp < teamA.stats.hp - 0.0001).length;
-    const bInjured = getAllTrackedUnits(teamB).filter(u => u.hp < teamB.stats.hp - 0.0001).length;
+    const aInjured = getAllTrackedUnits(teamA).filter(
+      (u) => u.hp < teamA.stats.hp - 0.0001,
+    ).length;
+    const bInjured = getAllTrackedUnits(teamB).filter(
+      (u) => u.hp < teamB.stats.hp - 0.0001,
+    ).length;
     if (
       aFiredPrimary ||
       aFiredSecondary ||
@@ -4104,10 +4765,7 @@ function runBuildingBattle() {
           (k) => k.split("|")[0] === "Incendiary Arrows",
         );
         const armor = hasIncendiary ? 0 : building.rangedArmor;
-        const dmgPerUnit = Math.max(
-          1,
-          teamA.stats.attack - armor,
-        );
+        const dmgPerUnit = Math.max(1, teamA.stats.attack - armor);
         dmgToBuilding = dmgPerUnit * teamA.units;
         logNotesA.push(hasIncendiary ? "Siege" : "Ranged");
       }
@@ -5242,8 +5900,7 @@ function updateWeaponModeButtonsMulti(card, unit, age) {
     bothLabel.textContent = "Both Attacks";
     const priAge = unit.weapons.primary.ages[age] || {};
     const secAge = unit.weapons.secondary.ages[age] || {};
-    weaponInfoEl.textContent =
-      `${getWeaponInfoText(unit.weapons.primary, priAge)} | ${getWeaponInfoText(unit.weapons.secondary, secAge)}`;
+    weaponInfoEl.textContent = `${getWeaponInfoText(unit.weapons.primary, priAge)} | ${getWeaponInfoText(unit.weapons.secondary, secAge)}`;
     weaponInfoEl.style.display = "";
   } else {
     const typeLabel =
@@ -5256,7 +5913,13 @@ function updateWeaponModeButtonsMulti(card, unit, age) {
   }
 }
 
-function updateMultiSecondaryWeaponInputs(card, unitName, unit, age, weaponMode) {
+function updateMultiSecondaryWeaponInputs(
+  card,
+  unitName,
+  unit,
+  age,
+  weaponMode,
+) {
   const wrapper = card.querySelector('[data-role="secondaryWeaponFields"]');
   if (!wrapper) return;
   const supportsBoth =
@@ -5587,26 +6250,25 @@ function syncGroupFromCard(card, group) {
     weaponRange: weaponData.range || 0,
     weaponProjectiles: getWeaponProjectiles(weaponData),
     speed: unit.speed || 1,
-    secondaryWeapon:
-      supportsBoth
-        ? {
-            name: getWeaponDisplayName(unit.weapons.secondary),
-            type: unit.weapons.secondary.type || "melee",
-            attackSpeed:
-              parseFloat(getMultiField(card, "secondaryAttackSpeed").value) ||
-              unit.weapons.secondary.attackSpeed ||
-              1,
-            range: unit.weapons.secondary.range || 0,
-            projectiles: getWeaponProjectiles(unit.weapons.secondary),
-            stats: {
-              ...secondaryStats,
-              attack:
-                parseFloat(getMultiField(card, "secondaryAttack").value) ||
-                secondaryStats.attack ||
-                0,
-            },
-          }
-        : null,
+    secondaryWeapon: supportsBoth
+      ? {
+          name: getWeaponDisplayName(unit.weapons.secondary),
+          type: unit.weapons.secondary.type || "melee",
+          attackSpeed:
+            parseFloat(getMultiField(card, "secondaryAttackSpeed").value) ||
+            unit.weapons.secondary.attackSpeed ||
+            1,
+          range: unit.weapons.secondary.range || 0,
+          projectiles: getWeaponProjectiles(unit.weapons.secondary),
+          stats: {
+            ...secondaryStats,
+            attack:
+              parseFloat(getMultiField(card, "secondaryAttack").value) ||
+              secondaryStats.attack ||
+              0,
+          },
+        }
+      : null,
   };
 
   updateGroupSummary(card, group);
@@ -5769,7 +6431,6 @@ function syncAllGroupsFromCards() {
   });
 }
 
-
 function runMultiBattle() {
   if (multiRosters.A.length === 0 || multiRosters.B.length === 0) {
     alert("Add at least one group on each side.");
@@ -5876,9 +6537,13 @@ function runMultiBattle() {
           atkUnits: sourceTeam?.units || 0,
           tgtUnits: target.units,
           killsA:
-            (entry.sourceSide || sourceTeam?.side) === "A" ? entry.kills || 0 : 0,
+            (entry.sourceSide || sourceTeam?.side) === "A"
+              ? entry.kills || 0
+              : 0,
           killsB:
-            (entry.sourceSide || sourceTeam?.side) === "B" ? entry.kills || 0 : 0,
+            (entry.sourceSide || sourceTeam?.side) === "B"
+              ? entry.kills || 0
+              : 0,
           unitsDied: entry.kills || 0,
           notes: "Bleed Tick",
         });
@@ -5899,9 +6564,13 @@ function runMultiBattle() {
           atkUnits: sourceTeam?.units || 0,
           tgtUnits: target.units,
           killsA:
-            (entry.sourceSide || sourceTeam?.side) === "A" ? entry.kills || 0 : 0,
+            (entry.sourceSide || sourceTeam?.side) === "A"
+              ? entry.kills || 0
+              : 0,
           killsB:
-            (entry.sourceSide || sourceTeam?.side) === "B" ? entry.kills || 0 : 0,
+            (entry.sourceSide || sourceTeam?.side) === "B"
+              ? entry.kills || 0
+              : 0,
           unitsDied: entry.kills || 0,
           notes: "Poison Tick",
         });
@@ -5936,8 +6605,7 @@ function runMultiBattle() {
         battleLog.push(atkResult.log);
       }
       if (atkResult.damage > 0) {
-        if (!incoming.has(targetId))
-          incoming.set(targetId, { details: [] });
+        if (!incoming.has(targetId)) incoming.set(targetId, { details: [] });
         const entry = incoming.get(targetId);
         entry.details.push({
           attacker,
@@ -5968,13 +6636,22 @@ function runMultiBattle() {
         if (detail.isSimultaneous) {
           // Apply primary (tusks) then secondary (spear) sequentially
           const r1 = applyBundledDamageToTeam(
-            target, detail.primaryDamage, detail.attackerUnits,
-            detail.splitEnabled, detail.splitTargets, overkillEnabled,
-            detail.aoeTargets, detail.aoeFalloff,
+            target,
+            detail.primaryDamage,
+            detail.attackerUnits,
+            detail.splitEnabled,
+            detail.splitTargets,
+            overkillEnabled,
+            detail.aoeTargets,
+            detail.aoeFalloff,
           );
           const r2 = applyBundledDamageToTeam(
-            target, detail.secondaryDamage, detail.attackerUnits,
-            detail.splitEnabled, detail.splitTargets, overkillEnabled,
+            target,
+            detail.secondaryDamage,
+            detail.attackerUnits,
+            detail.splitEnabled,
+            detail.splitTargets,
+            overkillEnabled,
           );
           result = {
             dealt: r1.dealt + r2.dealt,
@@ -6044,7 +6721,9 @@ function runMultiBattle() {
         const healEffect = detail.attacker.unitData.effects.healPerAttack;
         if (healEffect && result.dealt > 0) {
           const maxHp = detail.attacker.stats.hp;
-          const injured = getAllTrackedUnits(detail.attacker).filter(u => u.hp < maxHp - 0.0001).length;
+          const injured = getAllTrackedUnits(detail.attacker).filter(
+            (u) => u.hp < maxHp - 0.0001,
+          ).length;
           if (injured > 0) {
             healTrackedTeam(
               detail.attacker,
@@ -6064,7 +6743,10 @@ function runMultiBattle() {
         }
       }
       // Triumph healing: +hps regen for duration (heals even during trample)
-      if (t.unitData.effects.triumph && time <= t.unitData.effects.triumph.duration + EPSILON) {
+      if (
+        t.unitData.effects.triumph &&
+        time <= t.unitData.effects.triumph.duration + EPSILON
+      ) {
         const dt = time - (t.lastHealAuraTime || 0);
         if (dt > 0) {
           healTrackedTeam(t, t.unitData.effects.triumph.hps * t.units * dt);
@@ -6237,6 +6919,14 @@ function switchPage(pageName) {
   document.querySelectorAll(".aoe4-nav-tab").forEach((tab) => {
     tab.classList.toggle("active", tab.dataset.page === pageName);
   });
+  const autoBalanceToggle = document.getElementById("autoBalanceToggleItem");
+  const rangedspeedToggle = document.getElementById("rangeSpeedToggleItem");
+  if (autoBalanceToggle)
+    autoBalanceToggle.style.display =
+      pageName === "vsBuilding" ? "none" : "Block";
+  if (rangedspeedToggle)
+    rangedspeedToggle.style.display =
+      pageName === "vsBuilding" ? "none" : "block";
 
   if (pageName === "buildOrder") {
     const buildEls = document.querySelectorAll(".build-only");
@@ -6591,7 +7281,12 @@ function cycleArrowUpgrades() {
   if (level > 3) level = 0;
   btn.dataset.level = level;
   btn.classList.toggle("active", level > 0);
-  const labels = ["Arrows: 0", "Steeled: +1", "Balanced: +2", "Platecutter: +3"];
+  const labels = [
+    "Arrows: 0",
+    "Steeled: +1",
+    "Balanced: +2",
+    "Platecutter: +3",
+  ];
   const icons = [
     "assets/images/technologies/steeled-arrow-2.png",
     "assets/images/technologies/steeled-arrow-2.png",
