@@ -2497,8 +2497,8 @@ function showUnitDetailWith({ unitName, age, side, selectedCiv }) {
         ? Object.entries(ageStats.bonus)
             .map(([t, v]) => `+${v} vs ${t}`)
             .join(", ")
-        : “—“;
-      const charge = ageStats.chargeDamage ? `+${ageStats.chargeDamage}` : “—“;
+        : "—";
+      const charge = ageStats.chargeDamage ? `+${ageStats.chargeDamage}` : "—";
       const isSelected = ageKey === selectedAgeKey;
       const rowStyle = isSelected
         ? `background:rgba(${teamColorRgb},0.15); font-weight:600;`
