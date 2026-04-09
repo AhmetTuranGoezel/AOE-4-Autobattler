@@ -18406,6 +18406,7 @@
             "hp": 85,
             "meleeArmor": 3,
             "rangedArmor": 0,
+            "rangedResistance": 55,
             "attack": 14,
             "bonus": {
               "Melee Infantry": 12
@@ -18415,6 +18416,7 @@
             "hp": 85,
             "meleeArmor": 3,
             "rangedArmor": 0,
+            "rangedResistance": 55,
             "attack": 14,
             "bonus": {
               "Melee Infantry": 12
@@ -18460,6 +18462,7 @@
             "hp": 130,
             "meleeArmor": 0,
             "rangedArmor": 0,
+            "rangedResistance": 85,
             "attack": 30,
             "bonus": {
               "Ranged": 30
@@ -18469,6 +18472,7 @@
             "hp": 130,
             "meleeArmor": 0,
             "rangedArmor": 0,
+            "rangedResistance": 85,
             "attack": 30,
             "bonus": {
               "Ranged": 30
@@ -18511,8 +18515,461 @@
             "hp": 215,
             "meleeArmor": 10,
             "rangedArmor": 0,
+            "rangedResistance": 35,
             "attack": 504,
             "bonus": {}
+          }
+        }
+      }
+    },
+    "upgrades": []
+  },
+  "Battering Ram": {
+    "civs": [
+      "Common"
+    ],
+    "exceptCivs": [
+      "Byzantines",
+      "Macedonian Dynasty"
+    ],
+    "costs": {
+      "wood": 200
+    },
+    "trainingTime": 35,
+    "population": 1,
+    "speed": 0.75,
+    "tags": [
+      "Siege"
+    ],
+    "effects": {},
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 0.54,
+        "attackSpeed": 5.125,
+        "ages": {
+          "2": {
+            "hp": 370,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "rangedResistance": 95,
+            "attack": 2,
+            "bonus": {
+              "Building": 198
+            }
+          },
+          "3": {
+            "hp": 370,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "rangedResistance": 95,
+            "attack": 2,
+            "bonus": {
+              "Building": 198
+            }
+          },
+          "4": {
+            "hp": 370,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "rangedResistance": 95,
+            "attack": 2,
+            "bonus": {
+              "Building": 198
+            }
+          }
+        }
+      }
+    },
+    "upgrades": []
+  },
+  "Bombard": {
+    "civs": [
+      "Common"
+    ],
+    "exceptCivs": [
+      "Abbasid Dynasty",
+      "Ayyubids",
+      "French",
+      "Holy Roman Empire",
+      "Jeanne d'Arc",
+      "Order of the Dragon",
+      "Ottomans",
+      "Knights Templar"
+    ],
+    "costs": {
+      "wood": 350,
+      "gold": 500
+    },
+    "trainingTime": 45,
+    "population": 3,
+    "speed": 0.75,
+    "tags": [
+      "Siege",
+      "Gunpowder"
+    ],
+    "effects": {
+      "aoeFalloff": {
+        "name": "Cannon Blast",
+        "description": "Explosive shot with AoE, full damage at center, linear falloff to outer targets",
+        "unitsHit": 3
+      }
+    },
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 10,
+        "attackSpeed": 5.375,
+        "ages": {
+          "4": {
+            "hp": 210,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "rangedResistance": 85,
+            "attack": 55,
+            "bonus": {
+              "Building": 375,
+              "Infantry": 50,
+              "Elephant": 50
+            }
+          }
+        }
+      }
+    },
+    "upgrades": []
+  },
+  "Cannon": {
+    "civs": [
+      "French",
+      "Jeanne d'Arc"
+    ],
+    "costs": {
+      "wood": 300,
+      "gold": 600
+    },
+    "trainingTime": 45,
+    "population": 3,
+    "speed": 0.875,
+    "tags": [
+      "Siege",
+      "Gunpowder"
+    ],
+    "effects": {},
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 10,
+        "attackSpeed": 5.375,
+        "ages": {
+          "4": {
+            "hp": 190,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "rangedResistance": 85,
+            "attack": 60,
+            "bonus": {
+              "Building": 450,
+              "Infantry": 55,
+              "Elephant": 55
+            }
+          }
+        }
+      }
+    },
+    "upgrades": []
+  },
+  "Cheirosiphon": {
+    "civs": [
+      "Byzantines",
+      "Macedonian Dynasty"
+    ],
+    "costs": {
+      "wood": 200,
+      "gold": 60
+    },
+    "trainingTime": 35,
+    "population": 1,
+    "speed": 0.75,
+    "tags": [
+      "Siege"
+    ],
+    "effects": {
+      "aoeFalloff": {
+        "name": "Greek Fire",
+        "description": "28 fire projectiles with AoE, full damage at center, linear falloff to outer targets",
+        "unitsHit": 5
+      }
+    },
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 2.5,
+        "attackSpeed": 8.25,
+        "ages": {
+          "3": {
+            "hp": 310,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "rangedResistance": 95,
+            "attack": 280,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 310,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "rangedResistance": 95,
+            "attack": 280,
+            "bonus": {}
+          }
+        }
+      }
+    },
+    "upgrades": []
+  },
+  "Counterweight Trebuchet": {
+    "civs": [
+      "Common"
+    ],
+    "exceptCivs": [
+      "Mongols",
+      "Golden Horde"
+    ],
+    "costs": {
+      "wood": 400,
+      "gold": 150
+    },
+    "trainingTime": 30,
+    "population": 2,
+    "speed": 0.625,
+    "tags": [
+      "Siege"
+    ],
+    "effects": {
+      "aoeFalloff": {
+        "name": "Trebuchet Strike",
+        "description": "Boulder with AoE, full damage at center, linear falloff to outer targets",
+        "unitsHit": 3
+      }
+    },
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 16,
+        "attackSpeed": 11.375,
+        "ages": {
+          "3": {
+            "hp": 140,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "rangedResistance": 80,
+            "attack": 40,
+            "bonus": {
+              "Building": 350
+            }
+          },
+          "4": {
+            "hp": 140,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "rangedResistance": 80,
+            "attack": 40,
+            "bonus": {
+              "Building": 350
+            }
+          }
+        }
+      }
+    },
+    "upgrades": []
+  },
+  "Culverin": {
+    "civs": [
+      "Abbasid Dynasty",
+      "Ayyubids",
+      "Holy Roman Empire",
+      "Order of the Dragon"
+    ],
+    "costs": {
+      "wood": 325,
+      "gold": 550
+    },
+    "trainingTime": 45,
+    "population": 3,
+    "speed": 0.625,
+    "tags": [
+      "Siege",
+      "Gunpowder"
+    ],
+    "effects": {},
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 10.5,
+        "attackSpeed": 3.625,
+        "ages": {
+          "4": {
+            "hp": 200,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "rangedResistance": 85,
+            "attack": 40,
+            "bonus": {
+              "Building": 215,
+              "Infantry": 50,
+              "Elephant": 35
+            }
+          }
+        }
+      }
+    },
+    "upgrades": []
+  },
+  "Great Bombard": {
+    "civs": [
+      "Ottomans"
+    ],
+    "costs": {
+      "wood": 450,
+      "gold": 800
+    },
+    "trainingTime": 60,
+    "population": 4,
+    "speed": 0.75,
+    "tags": [
+      "Siege",
+      "Gunpowder"
+    ],
+    "effects": {
+      "aoeFalloff": {
+        "name": "Massive Blast",
+        "description": "Massive explosive shot with AoE, full damage at center, linear falloff to outer targets",
+        "unitsHit": 5
+      }
+    },
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 11,
+        "attackSpeed": 7.625,
+        "ages": {
+          "4": {
+            "hp": 250,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "rangedResistance": 85,
+            "attack": 70,
+            "bonus": {
+              "Building": 525,
+              "Infantry": 125
+            }
+          }
+        }
+      }
+    },
+    "upgrades": []
+  },
+  "Nest of Bees": {
+    "civs": [
+      "Chinese",
+      "Zhu Xi's Legacy"
+    ],
+    "costs": {
+      "wood": 300,
+      "gold": 300
+    },
+    "trainingTime": 40,
+    "population": 3,
+    "speed": 0.8125,
+    "tags": [
+      "Siege",
+      "Gunpowder"
+    ],
+    "effects": {
+      "aoeFalloff": {
+        "name": "Rocket Barrage",
+        "description": "7 rockets with AoE, full damage at center, linear falloff to outer targets",
+        "unitsHit": 7
+      }
+    },
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 7.5,
+        "attackSpeed": 6.5,
+        "ages": {
+          "3": {
+            "hp": 120,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "rangedResistance": 85,
+            "attack": 42,
+            "bonus": {
+              "Ranged": 14
+            }
+          },
+          "4": {
+            "hp": 120,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "rangedResistance": 85,
+            "attack": 42,
+            "bonus": {
+              "Ranged": 14
+            }
+          }
+        }
+      }
+    },
+    "upgrades": []
+  },
+  "Traction Trebuchet": {
+    "civs": [
+      "Mongols",
+      "Golden Horde"
+    ],
+    "costs": {
+      "wood": 300,
+      "gold": 100
+    },
+    "trainingTime": 30,
+    "population": 2,
+    "speed": 0.875,
+    "tags": [
+      "Siege"
+    ],
+    "effects": {
+      "aoeFalloff": {
+        "name": "Trebuchet Strike",
+        "description": "Boulder with AoE, full damage at center, linear falloff to outer targets",
+        "unitsHit": 3
+      }
+    },
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 14,
+        "attackSpeed": 8.625,
+        "ages": {
+          "3": {
+            "hp": 125,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "rangedResistance": 80,
+            "attack": 40,
+            "bonus": {
+              "Building": 190
+            }
+          },
+          "4": {
+            "hp": 125,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "rangedResistance": 80,
+            "attack": 40,
+            "bonus": {
+              "Building": 190
+            }
           }
         }
       }
