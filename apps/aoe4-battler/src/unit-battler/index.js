@@ -2034,7 +2034,7 @@ function renderEffects(side, effects) {
     // Skip effects restricted to specific civs if current civ doesn't match
     if (effect.civs && selectedCiv && !effect.civs.includes(selectedCiv))
       continue;
-    if (effect.civs && !selectedCiv) continue; // "All Civilizations" â€” skip civ-conditional effects
+    if (effect.civs && !selectedCiv) continue; // "All Civilizations" — skip civ-conditional effects
 
     const checkId = `${side}_effect_${effectId}`;
     const valueHtml = renderEffectValueEditor(effectId, effect, {
@@ -2055,7 +2055,7 @@ function renderEffects(side, effects) {
             </div>
             <label class="effect-label" style="font-size:0.85rem;">
               <strong>${effect.name}</strong>
-              <span style="font-size:0.75rem; color:#b8ad9e;"> â€” ${effect.description}</span>
+              <span style="font-size:0.75rem; color:#b8ad9e;"> — ${effect.description}</span>
             </label>
           </div>
           <div class="effect-value-area">${valueHtml}</div>
@@ -2068,7 +2068,7 @@ function renderEffects(side, effects) {
                    data-effect="${effectId}" checked>
             <label class="form-check-label" for="${checkId}" style="font-size:0.85rem;">
               <strong>${effect.name}</strong>
-              <span style="font-size:0.75rem; color:#b8ad9e;"> â€” ${effect.description}</span>
+              <span style="font-size:0.75rem; color:#b8ad9e;"> — ${effect.description}</span>
             </label>
           </div>
           <div class="effect-value-area">${valueHtml}</div>
@@ -2487,7 +2487,7 @@ function showUnitDetailWith({ unitName, age, side, selectedCiv }) {
     const weapon = unit.weapons[wKey];
     if (!weapon) continue;
 
-    weaponsHtml += `<h6 style="color:${teamColor}; margin-top:12px; font-family:'Cinzel',serif;">${wLabel} â€” ${weapon.type.charAt(0).toUpperCase() + weapon.type.slice(1)}</h6>`;
+    weaponsHtml += `<h6 style="color:${teamColor}; margin-top:12px; font-family:'Cinzel',serif;">${wLabel} — ${weapon.type.charAt(0).toUpperCase() + weapon.type.slice(1)}</h6>`;
     weaponsHtml += `<div style="font-size:0.8rem; color:#b8ad9e; margin-bottom:8px;">Attack Speed: ${weapon.attackSpeed}s | Range: ${weapon.range}</div>`;
     weaponsHtml += `<div class="table-responsive"><table class="table table-sm" style="color:#e0d6c2; font-size:0.85rem;">`;
     weaponsHtml += `<thead><tr style="border-color:#444;"><th>Age</th><th>HP</th><th>Atk</th><th>M.Arm</th><th>R.Arm</th><th>Charge</th><th>Bonuses</th></tr></thead><tbody>`;
@@ -2497,10 +2497,8 @@ function showUnitDetailWith({ unitName, age, side, selectedCiv }) {
         ? Object.entries(ageStats.bonus)
             .map(([t, v]) => `+${v} vs ${t}`)
             .join(", ")
-        : "â€”";
-      const charge = ageStats.chargeDamage
-        ? `+${ageStats.chargeDamage}`
-        : "â€”";
+        : “—“;
+      const charge = ageStats.chargeDamage ? `+${ageStats.chargeDamage}` : “—“;
       const isSelected = ageKey === selectedAgeKey;
       const rowStyle = isSelected
         ? `background:rgba(${teamColorRgb},0.15); font-weight:600;`
@@ -2738,8 +2736,8 @@ function showUnitDetailWith({ unitName, age, side, selectedCiv }) {
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px; font-size:0.9rem;">
       <div><span style="color:#b8ad9e;">Civilizations:</span> ${unit.civs.join(", ")}</div>
       <div><span style="color:#b8ad9e;">Cost:</span> ${costDisplay}</div>
-      <div><span style="color:#b8ad9e;">Training Time:</span> ${unit.trainingTime || "â€”"}s</div>
-      <div><span style="color:#b8ad9e;">Speed:</span> ${unit.speed || "â€”"}</div>
+      <div><span style="color:#b8ad9e;">Training Time:</span> ${unit.trainingTime || "—"}s</div>
+      <div><span style="color:#b8ad9e;">Speed:</span> ${unit.speed || "—"}</div>
       <div><span style="color:#b8ad9e;">Population:</span> ${unit.population || 1}</div>
     </div>
     <div style="margin-bottom:12px;">${tags}</div>
@@ -3275,7 +3273,7 @@ function runBattle() {
   if (unitA.effects.openingAttack || unitB.effects.openingAttack) {
     battleLog.push({
       time: "Pre",
-      aWeapon: unitA.effects.openingAttack ? "Opening" : "â€”",
+      aWeapon: unitA.effects.openingAttack ? "Opening" : "—",
       aDmg: unitA.effects.openingAttack
         ? calcDirectDamageAfterArmor(
             unitA.effects.openingAttack.damage,
@@ -3285,7 +3283,7 @@ function runBattle() {
         : 0,
       aUnits: teamA.units,
       aHp: Math.round(teamA.totalHp),
-      bWeapon: unitB.effects.openingAttack ? "Opening" : "â€”",
+      bWeapon: unitB.effects.openingAttack ? "Opening" : "—",
       bDmg: unitB.effects.openingAttack
         ? calcDirectDamageAfterArmor(
             unitB.effects.openingAttack.damage,
@@ -3328,14 +3326,14 @@ function runBattle() {
   if (antiCavNotesA.length || antiCavNotesB.length) {
     battleLog.push({
       time: "Pre",
-      aWeapon: antiCavNotesA[0] || "â€”",
+      aWeapon: antiCavNotesA[0] || "—",
       aDmg:
         unitA.effects.palings && teamB.tags.includes("Cavalry")
           ? unitA.effects.palings.damage * teamA.units
           : 0,
       aUnits: teamA.units,
       aHp: Math.round(teamA.totalHp),
-      bWeapon: antiCavNotesB[0] || "â€”",
+      bWeapon: antiCavNotesB[0] || "—",
       bDmg:
         unitB.effects.palings && teamA.tags.includes("Cavalry")
           ? unitB.effects.palings.damage * teamB.units
@@ -3489,7 +3487,7 @@ function runBattle() {
     ) {
       battleLog.push({
         time: time.toFixed(2),
-        aWeapon: bleedDamageToB > 0 ? "Bleed" : "â€”",
+        aWeapon: bleedDamageToB > 0 ? "Bleed" : "—",
         aDmg: bleedDamageToB.toFixed(1),
         aWaste: bleedWasteToB.toFixed(1),
         aUnits: teamA.units,
@@ -3498,7 +3496,7 @@ function runBattle() {
         ).length,
         aHp: Math.round(teamA.totalHp),
         aKills: bleedKillsByA,
-        bWeapon: bleedDamageToA > 0 ? "Bleed" : "â€”",
+        bWeapon: bleedDamageToA > 0 ? "Bleed" : "—",
         bDmg: bleedDamageToA.toFixed(1),
         bWaste: bleedWasteToA.toFixed(1),
         bUnits: teamB.units,
@@ -3542,7 +3540,7 @@ function runBattle() {
     ) {
       battleLog.push({
         time: time.toFixed(2),
-        aWeapon: poisonDamageToB > 0 ? "Poison" : "â€”",
+        aWeapon: poisonDamageToB > 0 ? "Poison" : "—",
         aDmg: poisonDamageToB.toFixed(1),
         aWaste: poisonWasteToB.toFixed(1),
         aUnits: teamA.units,
@@ -3551,7 +3549,7 @@ function runBattle() {
         ).length,
         aHp: Math.round(teamA.totalHp),
         aKills: poisonKillsByA,
-        bWeapon: poisonDamageToA > 0 ? "Poison" : "â€”",
+        bWeapon: poisonDamageToA > 0 ? "Poison" : "—",
         bDmg: poisonDamageToA.toFixed(1),
         bWaste: poisonWasteToA.toFixed(1),
         bUnits: teamB.units,
@@ -3693,9 +3691,9 @@ function runBattle() {
       )
         logNotesA.push("Charge");
       if (unitA.effects.aoeSplash && aoeTargetsA > 1)
-        logNotesA.push(`AoEÃ—${aoeTargetsA}`);
+        logNotesA.push(`AoE×${aoeTargetsA}`);
       if (unitA.effects.aoeFalloff && aoeTargetsA > 1)
-        logNotesA.push(`AoEÃ—${aoeTargetsA}(falloff)`);
+        logNotesA.push(`AoE×${aoeTargetsA}(falloff)`);
       // Atk Speed Debuff: slow enemy on hit
       if (unitA.effects.atkSpeedDebuff) {
         teamB.atkSpeedDebuffUntil =
@@ -3818,9 +3816,9 @@ function runBattle() {
       )
         logNotesB.push("Charge");
       if (unitB.effects.aoeSplash && aoeTargetsB > 1)
-        logNotesB.push(`AoEÃ—${aoeTargetsB}`);
+        logNotesB.push(`AoE×${aoeTargetsB}`);
       if (unitB.effects.aoeFalloff && aoeTargetsB > 1)
-        logNotesB.push(`AoEÃ—${aoeTargetsB}(falloff)`);
+        logNotesB.push(`AoE×${aoeTargetsB}(falloff)`);
       // Atk Speed Debuff: slow enemy on hit
       if (unitB.effects.atkSpeedDebuff) {
         teamA.atkSpeedDebuffUntil =
@@ -4781,7 +4779,7 @@ function runBuildingBattle() {
       );
       dmgToAttackers += dmgPerArrow * building.baseArrows;
       nextBaseArrow = time + building.baseArrowRate;
-      logNotesB.push(`BaseÃ—${building.baseArrows}`);
+      logNotesB.push(`Base×${building.baseArrows}`);
     }
 
     // Building -> Attackers (garrison arrows)
@@ -4792,7 +4790,7 @@ function runBuildingBattle() {
       );
       dmgToAttackers += dmgPerArrow * building.garrison;
       nextGarrisonArrow = time + building.garrisonArrowRate;
-      logNotesB.push(`GarrisonÃ—${building.garrison}`);
+      logNotesB.push(`Garrison×${building.garrison}`);
     }
 
     // Building -> Attackers (emplacement weapons)
@@ -4824,12 +4822,12 @@ function runBuildingBattle() {
 
     battleLog.push({
       time: time.toFixed(2),
-      aWeapon: logNotesA.join("+") || "â€”",
+      aWeapon: logNotesA.join("+") || "—",
       aDmg: dmgToBuilding.toFixed(1),
       aWaste: "0.0",
       aUnits: teamA.units,
       aHp: Math.round(teamA.totalHp),
-      bWeapon: logNotesB.join("+") || "â€”",
+      bWeapon: logNotesB.join("+") || "—",
       bDmg: dmgToAttackers.toFixed(1),
       bWaste: "0.0",
       bUnits: buildingHp > 0 ? 1 : 0,
@@ -5663,7 +5661,7 @@ function renderEffectsMulti(card, effects, groupId, selectedCiv) {
             </div>
             <label class="effect-label" style="font-size:0.85rem;">
               <strong>${effect.name}</strong>
-              <span style="font-size:0.75rem; color:#b8ad9e;"> â€” ${effect.description}</span>
+              <span style="font-size:0.75rem; color:#b8ad9e;"> — ${effect.description}</span>
             </label>
           </div>
           <div class="effect-value-area">${valueHtml}</div>
@@ -5675,7 +5673,7 @@ function renderEffectsMulti(card, effects, groupId, selectedCiv) {
             <input class="form-check-input effect-checkbox" type="checkbox" id="${checkId}" data-effect="${effectId}" checked>
             <label class="form-check-label" for="${checkId}" style="font-size:0.85rem;">
               <strong>${effect.name}</strong>
-              <span style="font-size:0.75rem; color:#b8ad9e;"> â€” ${effect.description}</span>
+              <span style="font-size:0.75rem; color:#b8ad9e;"> — ${effect.description}</span>
             </label>
           </div>
           <div class="effect-value-area">${valueHtml}</div>
@@ -7177,7 +7175,7 @@ function updateBuildingStats() {
         btn.className = "building-tech-btn";
         btn.dataset.emplacement = name;
         const dmgText =
-          emp.projectiles > 1 ? `${emp.dmg}Ã—${emp.projectiles}` : `${emp.dmg}`;
+          emp.projectiles > 1 ? `${emp.dmg}×${emp.projectiles}` : `${emp.dmg}`;
         btn.title = `${dmgText} dmg, ${emp.rate}s, range ${emp.range}`;
         btn.textContent = name.replace(" Emplacement", "") + civLabel;
         btn.addEventListener("click", function () {
@@ -7213,7 +7211,7 @@ function updateEmplacementSummary() {
     const emp = EMPLACEMENTS[name];
     if (!emp) return;
     const dmgText =
-      emp.projectiles > 1 ? `${emp.dmg}Ã—${emp.projectiles}` : `${emp.dmg}`;
+      emp.projectiles > 1 ? `${emp.dmg}×${emp.projectiles}` : `${emp.dmg}`;
     parts.push(
       `${name.replace(" Emplacement", "")}: ${dmgText} dmg / ${emp.rate}s`,
     );
