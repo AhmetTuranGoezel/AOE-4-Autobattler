@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-05T14:53:32.533094+00:00",
+  "generatedAt": "2026-04-09T19:06:49.046707+00:00",
   "generatedFrom": "units_restructured.json",
   "civOrder": [
     "Common",
@@ -212,6 +212,36 @@
       "hasAuras": true,
       "hasEffects": false
     },
+    "Battering Ram": {
+      "name": "Battering Ram",
+      "civs": [
+        "Common"
+      ],
+      "exceptCivs": [
+        "Byzantines",
+        "Macedonian Dynasty"
+      ],
+      "costs": {
+        "wood": 200
+      },
+      "trainingTime": 35,
+      "population": 1,
+      "speed": 0.75,
+      "tags": [
+        "Siege"
+      ],
+      "category": "Siege",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": false,
+      "hasEffects": false
+    },
     "Black Rider": {
       "name": "Black Rider",
       "civs": [
@@ -264,6 +294,42 @@
       "ages": [
         2,
         3,
+        4
+      ],
+      "hasAuras": false,
+      "hasEffects": true
+    },
+    "Bombard": {
+      "name": "Bombard",
+      "civs": [
+        "Common"
+      ],
+      "exceptCivs": [
+        "Abbasid Dynasty",
+        "Ayyubids",
+        "French",
+        "Holy Roman Empire",
+        "Jeanne d'Arc",
+        "Order of the Dragon",
+        "Ottomans",
+        "Knights Templar"
+      ],
+      "costs": {
+        "wood": 350,
+        "gold": 500
+      },
+      "trainingTime": 45,
+      "population": 3,
+      "speed": 0.75,
+      "tags": [
+        "Siege",
+        "Gunpowder"
+      ],
+      "category": "Siege",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
         4
       ],
       "hasAuras": false,
@@ -358,6 +424,34 @@
       "hasAuras": true,
       "hasEffects": true
     },
+    "Cannon": {
+      "name": "Cannon",
+      "civs": [
+        "French",
+        "Jeanne d'Arc"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "wood": 300,
+        "gold": 600
+      },
+      "trainingTime": 45,
+      "population": 3,
+      "speed": 0.875,
+      "tags": [
+        "Siege",
+        "Gunpowder"
+      ],
+      "category": "Siege",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        4
+      ],
+      "hasAuras": false,
+      "hasEffects": false
+    },
     "Cataphract": {
       "name": "Cataphract",
       "civs": [
@@ -386,6 +480,34 @@
         4
       ],
       "hasAuras": true,
+      "hasEffects": true
+    },
+    "Cheirosiphon": {
+      "name": "Cheirosiphon",
+      "civs": [
+        "Byzantines",
+        "Macedonian Dynasty"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "wood": 200,
+        "gold": 60
+      },
+      "trainingTime": 35,
+      "population": 1,
+      "speed": 0.75,
+      "tags": [
+        "Siege"
+      ],
+      "category": "Siege",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        3,
+        4
+      ],
+      "hasAuras": false,
       "hasEffects": true
     },
     "Chevalier Confrere": {
@@ -445,6 +567,36 @@
       "hasAuras": true,
       "hasEffects": true
     },
+    "Counterweight Trebuchet": {
+      "name": "Counterweight Trebuchet",
+      "civs": [
+        "Common"
+      ],
+      "exceptCivs": [
+        "Mongols",
+        "Golden Horde"
+      ],
+      "costs": {
+        "wood": 400,
+        "gold": 150
+      },
+      "trainingTime": 30,
+      "population": 2,
+      "speed": 0.625,
+      "tags": [
+        "Siege"
+      ],
+      "category": "Siege",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        3,
+        4
+      ],
+      "hasAuras": false,
+      "hasEffects": true
+    },
     "Crossbow": {
       "name": "Crossbow",
       "civs": [
@@ -479,6 +631,36 @@
         4
       ],
       "hasAuras": true,
+      "hasEffects": false
+    },
+    "Culverin": {
+      "name": "Culverin",
+      "civs": [
+        "Abbasid Dynasty",
+        "Ayyubids",
+        "Holy Roman Empire",
+        "Order of the Dragon"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "wood": 325,
+        "gold": 550
+      },
+      "trainingTime": 45,
+      "population": 3,
+      "speed": 0.625,
+      "tags": [
+        "Siege",
+        "Gunpowder"
+      ],
+      "category": "Siege",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        4
+      ],
+      "hasAuras": false,
       "hasEffects": false
     },
     "Desert Raider": {
@@ -922,6 +1104,33 @@
       "ages": [
         2,
         3,
+        4
+      ],
+      "hasAuras": false,
+      "hasEffects": true
+    },
+    "Great Bombard": {
+      "name": "Great Bombard",
+      "civs": [
+        "Ottomans"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "wood": 450,
+        "gold": 800
+      },
+      "trainingTime": 60,
+      "population": 4,
+      "speed": 0.75,
+      "tags": [
+        "Siege",
+        "Gunpowder"
+      ],
+      "category": "Siege",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
         4
       ],
       "hasAuras": false,
@@ -1713,6 +1922,35 @@
       "hasAuras": true,
       "hasEffects": true
     },
+    "Nest of Bees": {
+      "name": "Nest of Bees",
+      "civs": [
+        "Chinese",
+        "Zhu Xi's Legacy"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "wood": 300,
+        "gold": 300
+      },
+      "trainingTime": 40,
+      "population": 3,
+      "speed": 0.8125,
+      "tags": [
+        "Siege",
+        "Gunpowder"
+      ],
+      "category": "Siege",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        3,
+        4
+      ],
+      "hasAuras": false,
+      "hasEffects": true
+    },
     "Onna Musha": {
       "name": "Onna Musha",
       "civs": [
@@ -2336,6 +2574,34 @@
       "hasAuras": true,
       "hasEffects": true
     },
+    "Traction Trebuchet": {
+      "name": "Traction Trebuchet",
+      "civs": [
+        "Mongols",
+        "Golden Horde"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "wood": 300,
+        "gold": 100
+      },
+      "trainingTime": 30,
+      "population": 2,
+      "speed": 0.875,
+      "tags": [
+        "Siege"
+      ],
+      "category": "Siege",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        3,
+        4
+      ],
+      "hasAuras": false,
+      "hasEffects": true
+    },
     "Varangian Guard": {
       "name": "Varangian Guard",
       "civs": [
@@ -2612,15 +2878,21 @@
       "Archer",
       "Atgeirma\u00f0r",
       "Ballista Elephant",
+      "Battering Ram",
       "Black Rider",
       "Bogma\u00f0r",
+      "Bombard",
       "Camel Archer",
       "Camel Lancer",
       "Camel Rider",
+      "Cannon",
       "Cataphract",
+      "Cheirosiphon",
       "Chevalier Confrere",
       "Condottiero",
+      "Counterweight Trebuchet",
       "Crossbow",
+      "Culverin",
       "Desert Raider",
       "Donso",
       "Earls Guard",
@@ -2636,6 +2908,7 @@
       "Gilded Landsknecht",
       "Gilded MAA",
       "Gilded Spearman",
+      "Great Bombard",
       "Grenadier",
       "Handcannoneer",
       "Heavy Spearman",
@@ -2661,6 +2934,7 @@
       "Musofadi Gunner",
       "Musofadi Warrior",
       "Naginata Samurai",
+      "Nest of Bees",
       "Onna Musha",
       "Onna-Bugeisha",
       "Palace Guard",
@@ -2682,6 +2956,7 @@
       "Teutonic Knight",
       "Torguud",
       "Tower Elephant",
+      "Traction Trebuchet",
       "Varangian Guard",
       "War Elephant",
       "Wynguard Footman",
@@ -2694,6 +2969,9 @@
     ],
     "Common": [
       "Archer",
+      "Battering Ram",
+      "Bombard",
+      "Counterweight Trebuchet",
       "Crossbow",
       "Handcannoneer",
       "Horseman",
@@ -2705,6 +2983,9 @@
       "Springald"
     ],
     "English": [
+      "Battering Ram",
+      "Bombard",
+      "Counterweight Trebuchet",
       "Crossbow",
       "Handcannoneer",
       "Horseman",
@@ -2721,6 +3002,9 @@
     "French": [
       "Arbaletrier",
       "Archer",
+      "Battering Ram",
+      "Cannon",
+      "Counterweight Trebuchet",
       "Handcannoneer",
       "Horseman",
       "MAA",
@@ -2732,8 +3016,11 @@
     ],
     "Holy Roman Empire": [
       "Archer",
+      "Battering Ram",
       "Black Rider",
+      "Counterweight Trebuchet",
       "Crossbow",
+      "Culverin",
       "Handcannoneer",
       "Horseman",
       "Knight/Lancer",
@@ -2746,6 +3033,8 @@
     ],
     "Mongols": [
       "Archer",
+      "Battering Ram",
+      "Bombard",
       "Crossbow",
       "Handcannoneer",
       "Horseman",
@@ -2755,10 +3044,14 @@
       "Mangudai",
       "Ribauldequin",
       "Spearman",
-      "Springald"
+      "Springald",
+      "Traction Trebuchet"
     ],
     "Rus": [
       "Archer",
+      "Battering Ram",
+      "Bombard",
+      "Counterweight Trebuchet",
       "Crossbow",
       "Horse Archer",
       "Horseman",
@@ -2772,6 +3065,9 @@
     ],
     "Delhi Sultanate": [
       "Archer",
+      "Battering Ram",
+      "Bombard",
+      "Counterweight Trebuchet",
       "Crossbow",
       "Ghazi Raider",
       "Handcannoneer",
@@ -2787,9 +3083,12 @@
     ],
     "Abbasid Dynasty": [
       "Archer",
+      "Battering Ram",
       "Camel Archer",
       "Camel Rider",
+      "Counterweight Trebuchet",
       "Crossbow",
+      "Culverin",
       "Ghulam",
       "Handcannoneer",
       "Horseman",
@@ -2801,11 +3100,15 @@
     ],
     "Chinese": [
       "Archer",
+      "Battering Ram",
+      "Bombard",
+      "Counterweight Trebuchet",
       "Fire Lancer",
       "Grenadier",
       "Handcannoneer",
       "Horseman",
       "Knight/Lancer",
+      "Nest of Bees",
       "Palace Guard",
       "Ribauldequin",
       "Spearman",
@@ -2815,7 +3118,10 @@
     "Ottomans": [
       "Akinji",
       "Archer",
+      "Battering Ram",
+      "Counterweight Trebuchet",
       "Crossbow",
+      "Great Bombard",
       "Jannisary",
       "Knight/Lancer",
       "MAA",
@@ -2827,6 +3133,9 @@
     ],
     "Malians": [
       "Archer",
+      "Battering Ram",
+      "Bombard",
+      "Counterweight Trebuchet",
       "Donso",
       "Javelin Thrower",
       "Mangonel",
@@ -2838,7 +3147,10 @@
     ],
     "Byzantines": [
       "Archer",
+      "Bombard",
       "Cataphract",
+      "Cheirosiphon",
+      "Counterweight Trebuchet",
       "Crossbow",
       "Handcannoneer",
       "Horseman",
@@ -2849,6 +3161,9 @@
       "Varangian Guard"
     ],
     "Japanese": [
+      "Battering Ram",
+      "Bombard",
+      "Counterweight Trebuchet",
       "Handcannoneer",
       "Horseman",
       "Mangonel",
@@ -2863,8 +3178,11 @@
     ],
     "Ayyubids": [
       "Archer",
+      "Battering Ram",
       "Camel Lancer",
+      "Counterweight Trebuchet",
       "Crossbow",
+      "Culverin",
       "Desert Raider",
       "Ghulam",
       "Handcannoneer",
@@ -2877,6 +3195,9 @@
     "Jeanne d'Arc": [
       "Arbaletrier",
       "Archer",
+      "Battering Ram",
+      "Cannon",
+      "Counterweight Trebuchet",
       "Handcannoneer",
       "Horseman",
       "MAA",
@@ -2887,6 +3208,9 @@
       "Springald"
     ],
     "Order of the Dragon": [
+      "Battering Ram",
+      "Counterweight Trebuchet",
+      "Culverin",
       "Gilded Archer",
       "Gilded Crossbowman",
       "Gilded Horseman",
@@ -2899,11 +3223,15 @@
       "Springald"
     ],
     "Zhu Xi's Legacy": [
+      "Battering Ram",
+      "Bombard",
+      "Counterweight Trebuchet",
       "Crossbow",
       "Grenadier",
       "Horseman",
       "Imperial Guard",
       "Knight/Lancer",
+      "Nest of Bees",
       "Palace Guard",
       "Ribauldequin",
       "Spearman",
@@ -2912,6 +3240,9 @@
       "Zhuge Nu"
     ],
     "House of Lancaster": [
+      "Battering Ram",
+      "Bombard",
+      "Counterweight Trebuchet",
       "Crossbow",
       "Earls Guard",
       "Handcannoneer",
@@ -2925,8 +3256,10 @@
     ],
     "Knights Templar": [
       "Archer",
+      "Battering Ram",
       "Chevalier Confrere",
       "Condottiero",
+      "Counterweight Trebuchet",
       "Crossbow",
       "Genitour",
       "Genoese Crossbowman",
@@ -2945,6 +3278,8 @@
     ],
     "Golden Horde": [
       "Archer",
+      "Battering Ram",
+      "Bombard",
       "Crossbow",
       "Handcannoneer",
       "Horseman",
@@ -2956,12 +3291,16 @@
       "Ribauldequin",
       "Spearman",
       "Springald",
-      "Torguud"
+      "Torguud",
+      "Traction Trebuchet"
     ],
     "Macedonian Dynasty": [
       "Atgeirma\u00f0r",
       "Bogma\u00f0r",
+      "Bombard",
       "Cataphract",
+      "Cheirosiphon",
+      "Counterweight Trebuchet",
       "Crossbow",
       "Handcannoneer",
       "Horseman",
@@ -2973,6 +3312,9 @@
       "Varangian Guard"
     ],
     "Sengoku Daimyo": [
+      "Battering Ram",
+      "Bombard",
+      "Counterweight Trebuchet",
       "Kanabo Samurai",
       "Mangonel",
       "Mounted Samurai",
@@ -2987,6 +3329,9 @@
     "Tughlaq Dynasty": [
       "Archer",
       "Ballista Elephant",
+      "Battering Ram",
+      "Bombard",
+      "Counterweight Trebuchet",
       "Crossbow",
       "Handcannoneer",
       "Horseman",
