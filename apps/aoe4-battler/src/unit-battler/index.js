@@ -66,6 +66,7 @@ import {
   techUnitTracker,
   getTechKey,
   getTechImage,
+  getTorchTechMeta,
   isCombatCategory,
   filterTechByCiv,
 } from "./techs.js";
@@ -93,6 +94,458 @@ let multiEditorOpen = { A: false, B: false };
 let multiIdCounters = { A: 1, B: 1 };
 let selectedCivA = "";
 let selectedCivB = "";
+const buildingEnhancementStates = {};
+const TORCH_ATTACK_ITEM = Object.freeze({
+  id: "__torchAttack__",
+  name: "Torch Attack",
+  description:
+    "Uses fire damage against buildings. Damage resistance applies before fire armor.",
+  category: "attack",
+  pseudo: true,
+});
+const BUILDING_SIMULATED_TECHS = new Set([
+  "Torch Attack",
+  "Siege Works",
+  "Iron Fittings",
+  "Lightweight Beams",
+  "Wandering Town",
+  "Roller Shutter Triggers",
+  "Roman Fire",
+  "Geometry",
+  "Greek Fire Projectiles",
+  "Warwolf Trebuchet",
+  "Counterweight Defenses",
+  "Prolonged Siege",
+  "Reload Drills",
+  "Fine Tuned Guns",
+  "College of Artillery",
+  "Castle of the Crow Aura",
+]);
+const BUILDING_DISPLAY_ONLY_TECHS = new Set([
+  "Greased Axles",
+  "Siege Carpentry",
+  "Beachhead",
+  "Adjustable Crossbars",
+  "Additional Barrels",
+  "Shattering Projectiles",
+  "Siege Crew Training",
+  "Siege Crews",
+  "Artillery Shot",
+  "Cloud of Terror",
+  "Divine Defense",
+]);
+const BUILDING_NOT_APPLICABLE_TECHS = new Set([
+  "Greased Axles",
+  "Siege Crew Training",
+  "Artillery Shot",
+  "Divine Defense",
+]);
+const RANGED_BUILDING_ATTACK_UNITS = new Set([
+  "Springald",
+  "Ribauldequin",
+  "Ballista Elephant",
+]);
+const SIEGE_BUILDING_ATTACK_OVERRIDES = Object.freeze({
+  "Battering Ram": { damageType: "siege", projectileCount: 1, buildingBonus: 198 },
+  "Cheirosiphon": { damageType: "siege", projectileCount: 28, perProjectileAttack: 10, buildingBonus: 0, buildingOnly: true },
+  "Springald": { damageType: "ranged", projectileCount: 1, buildingBonus: 0 },
+  "Mangonel": { damageType: "siege", projectileCount: 3, perProjectileAttack: 10, buildingBonus: 30 },
+  "Nest of Bees": { damageType: "siege", projectileCount: 7, perProjectileAttack: 6, buildingBonus: 0 },
+  "Ribauldequin": { damageType: "ranged", projectileCount: 12, perProjectileAttack: 42, buildingBonus: 0 },
+  "Counterweight Trebuchet": { damageType: "siege", projectileCount: 1, buildingBonus: 350, setupUnit: true },
+  "Traction Trebuchet": { damageType: "siege", projectileCount: 1, buildingBonus: 190, setupUnit: true },
+  "Bombard": { damageType: "siege", projectileCount: 1, buildingBonus: 375, setupUnit: true },
+  "Cannon": { damageType: "siege", projectileCount: 1, buildingBonus: 450 },
+  "Culverin": { damageType: "siege", projectileCount: 1, buildingBonus: 215 },
+  "Great Bombard": { damageType: "siege", projectileCount: 1, buildingBonus: 525, setupUnit: true },
+  "Ballista Elephant": { damageType: "ranged", projectileCount: 1, buildingBonus: 0 },
+});
+
+function getSelectedCiv(side) {
+  return side === "A" ? selectedCivA : selectedCivB;
+}
+
+function isSiegeUnit(unitOrTags) {
+  if (Array.isArray(unitOrTags)) return unitOrTags.includes("Siege");
+  return Array.isArray(unitOrTags?.tags) && unitOrTags.tags.includes("Siege");
+}
+
+function usesDamageReductionField(unitOrTags) {
+  return isSiegeUnit(unitOrTags);
+}
+
+function getTechState(side, techName) {
+  for (const [key, state] of activeTechs[side]) {
+    if (key.split("|")[0] === techName) return state;
+  }
+  return null;
+}
+
+function getTechLevel(side, techName) {
+  return getTechState(side, techName)?.level ?? 0;
+}
+
+function getFilteredTechItemsForUnit(side, unit, unitName = "") {
+  const selectedCiv = getSelectedCiv(side);
+  if (!unit || !selectedCiv) return [];
+
+  const upgrades = getMergedUpgradesForUnit(unit, unitName);
+  const auras = unit.auras || [];
+  const allItems = [...upgrades, ...auras];
+  const seen = new Set();
+  const filtered = [];
+  for (const item of allItems) {
+    if (!filterTechByCiv(item, selectedCiv)) continue;
+    const key = getTechKey(item);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    filtered.push(item);
+  }
+  return filtered;
+}
+
+function hasActiveTech(side, techName) {
+  return !!getTechState(side, techName);
+}
+
+function getTorchSectionItems(items = []) {
+  const unique = new Map();
+  for (const item of items) {
+    const meta = getTorchTechMeta(item);
+    if (!meta) continue;
+    unique.set(getTechKey(item), { item, meta });
+  }
+  return [...unique.values()].sort((a, b) => {
+    const score = (entry) => {
+      if (entry.meta.affectsTorchDamage) return 0;
+      if (entry.meta.affectsTorchSpeed) return 1;
+      if (entry.meta.affectsTorchRange) return 2;
+      if (entry.meta.affectsTorchAoE) return 3;
+      return 4;
+    };
+    if (a.meta.simulationMode !== b.meta.simulationMode) {
+      return a.meta.simulationMode === "simulated" ? -1 : 1;
+    }
+    return score(a) - score(b);
+  });
+}
+
+function getActiveTorchTotals(side, unit, unitName) {
+  const totals = {
+    flatDamage: 0,
+    pctDamage: 0,
+  };
+  const filtered = getFilteredTechItemsForUnit(side, unit, unitName);
+  for (const item of filtered) {
+    const key = getTechKey(item);
+    if (!activeTechs[side].has(key)) continue;
+    const meta = getTorchTechMeta(item);
+    if (!meta || meta.simulationMode !== "simulated") continue;
+    if (meta.affectsTorchDamage) {
+      totals.flatDamage += meta.torchDamageFlat || 0;
+      totals.pctDamage += meta.torchDamagePct || 0;
+    }
+  }
+  return totals;
+}
+
+function getTorchAttackProfile(side, unitData = null, effectiveStats = null) {
+  const age = parseInt(document.getElementById(`unit${side}Age`)?.value) || 2;
+  const currentUnit = unitData || getUnitData(side);
+  const unitName = currentUnit?.name || document.getElementById(`unit${side}Select`)?.dataset.value || "";
+  const unit = units[unitName];
+  const baseTorch = TORCH_BY_AGE[age] || 13;
+  const { flatDamage, pctDamage } = unit
+    ? getActiveTorchTotals(side, unit, unitName)
+    : { flatDamage: 0, pctDamage: 0 };
+
+  const baseAttackSpeed = currentUnit?.stats?.attackSpeed || 1;
+  const liveStats = effectiveStats || applyBuffs(currentUnit, 0);
+  const speedMultiplier =
+    baseAttackSpeed > 0 && liveStats?.attackSpeed > 0
+      ? liveStats.attackSpeed / baseAttackSpeed
+      : 1;
+
+  return {
+    damage: Math.round((baseTorch + flatDamage) * (1 + pctDamage / 100)),
+    speed: TORCH_ATTACK_SPEED * speedMultiplier,
+  };
+}
+
+function computeTorchAttackDamage(side, age) {
+  void age;
+  return getTorchAttackProfile(side).damage;
+}
+
+function syncTorchAttackInputs(side, unitData = null, effectiveStats = null) {
+  const torchDamageEl = document.getElementById(`${side}_torchDamage`);
+  const torchSpeedEl = document.getElementById(`${side}_torchSpeed`);
+  if (!torchDamageEl && !torchSpeedEl) return;
+  const profile = getTorchAttackProfile(side, unitData, effectiveStats);
+  if (torchDamageEl) {
+    torchDamageEl.value = profile.damage;
+    torchDamageEl.readOnly = true;
+  }
+  if (torchSpeedEl) {
+    torchSpeedEl.value = profile.speed.toFixed(2);
+    torchSpeedEl.readOnly = true;
+  }
+}
+
+function getDisplayedRangedDefenseValue(unit, ageStats) {
+  return usesDamageReductionField(unit)
+    ? ageStats.rangedResistance || 0
+    : ageStats.rangedArmor || 0;
+}
+
+function updateRangedDefenseField(side, unit, value) {
+  const label = document.getElementById(`${side}_rangedArmorLabel`);
+  const suffix = document.getElementById(`${side}_rangedArmorSuffix`);
+  const input = document.getElementById(`${side}_rangedArmor`);
+  if (!label || !suffix || !input) return;
+  const showReduction = usesDamageReductionField(unit);
+  label.textContent = showReduction ? "% Damage Reduction" : "Ranged Armor";
+  suffix.style.display = showReduction ? "" : "none";
+  input.value = value ?? 0;
+}
+
+function updateMultiRangedDefenseField(card, unit, value) {
+  const label = card.querySelector('[data-role="rangedArmorLabel"]');
+  const suffix = card.querySelector('[data-role="rangedArmorSuffix"]');
+  const input = getMultiField(card, "rangedArmor");
+  if (!label || !suffix || !input) return;
+  const showReduction = usesDamageReductionField(unit);
+  label.textContent = showReduction ? "% Damage Reduction" : "Ranged Armor";
+  suffix.style.display = showReduction ? "" : "none";
+  input.value = value ?? 0;
+}
+
+function resolveRangedDefenseStats(unit, ageStats, displayedValue) {
+  if (usesDamageReductionField(unit)) {
+    return {
+      rangedArmor: ageStats.rangedArmor || 0,
+      rangedResistance: displayedValue,
+    };
+  }
+  return {
+    rangedArmor: displayedValue,
+    rangedResistance: ageStats.rangedResistance || 0,
+  };
+}
+
+function getBuildingTechEffectState(item) {
+  if (item?.pseudo) return "simulated";
+  const torchMeta = getTorchTechMeta(item);
+  if (torchMeta) return torchMeta.simulationMode;
+  if (BUILDING_SIMULATED_TECHS.has(item.name)) return "simulated";
+  if (BUILDING_NOT_APPLICABLE_TECHS.has(item.name)) return "not-applicable";
+  if (BUILDING_DISPLAY_ONLY_TECHS.has(item.name)) return "display-only";
+  const key = getTechKey(item);
+  if (isCombatCategory(item.category) && TECH_EFFECTS[key]) return "simulated";
+  return isCombatCategory(item.category) ? "display-only" : "display-only";
+}
+
+function getProjectileAttackValue(unitName, totalAttack, overrideProjectileCount = 1) {
+  const count = Math.max(1, overrideProjectileCount || 1);
+  if (count === 1) return totalAttack;
+  if (unitName === "Counterweight Trebuchet") return totalAttack;
+  return totalAttack / count;
+}
+
+function getSpecialBuildingAttackMultiplier(side, unitName, baseAttack, bonusAttack, time = 0) {
+  let baseMultiplier = 1;
+  let bonusMultiplier = 1;
+
+  if (
+    hasActiveTech(side, "Geometry") &&
+    (unitName === "Counterweight Trebuchet" || unitName === "Traction Trebuchet")
+  ) {
+    baseMultiplier *= 1.2;
+    bonusMultiplier *= 1.2;
+  }
+  if (hasActiveTech(side, "Greek Fire Projectiles") && unitName === "Counterweight Trebuchet") {
+    baseMultiplier *= 1.3;
+    bonusMultiplier *= 1.3;
+  }
+  if (hasActiveTech(side, "Fine Tuned Guns") && unitName === "Bombard") {
+    baseMultiplier *= 1.2;
+    bonusMultiplier *= 1.2;
+  }
+  if (hasActiveTech(side, "College of Artillery") && ["Cannon", "Culverin", "Ribauldequin"].includes(unitName)) {
+    baseMultiplier *= 1.3;
+    bonusMultiplier *= 1.3;
+  }
+  if (hasActiveTech(side, "Castle of the Crow Aura") && !["Battering Ram", "Cheirosiphon"].includes(unitName)) {
+    baseMultiplier *= 1.1;
+    bonusMultiplier *= 1.1;
+  }
+  if (hasActiveTech(side, "Wandering Town") && unitName === "Battering Ram") {
+    baseMultiplier *= 1.25;
+    bonusMultiplier *= 1.25;
+  }
+  if (hasActiveTech(side, "Prolonged Siege") && ["Mangonel", "Bombard", "Counterweight Trebuchet"].includes(unitName)) {
+    const setupStacks = Math.min(5, Math.floor((time + 0.0001) / 20));
+    baseMultiplier *= 1 + setupStacks * 0.1;
+  }
+
+  return {
+    baseAttack: baseAttack * baseMultiplier,
+    bonusAttack: bonusAttack * bonusMultiplier,
+  };
+}
+
+function getSpecialAttackerDefenseStats(side, unitData, currentStats) {
+  const nextStats = { ...currentStats };
+  if (hasActiveTech(side, "Roller Shutter Triggers") && unitData.name === "Springald") {
+    nextStats.rangedResistance = (nextStats.rangedResistance || 0) + 10;
+  }
+  return nextStats;
+}
+
+function getBuildingAttackContext(unitData, side, time = 0) {
+  const unitName = unitData.name || "";
+  const isSiege = isSiegeUnit(unitData.tags || []);
+  const override = SIEGE_BUILDING_ATTACK_OVERRIDES[unitName];
+  let bonusVsBuilding =
+    override?.buildingBonus ?? (unitData.stats?.bonus?.Building || 0);
+  const hasIncendiary =
+    unitData.weaponType === "ranged" &&
+    !isSiege &&
+    side &&
+    hasActiveTech(side, "Incendiary Arrows");
+  const usesTorch =
+    unitData.weaponType === "melee" && !isSiege && bonusVsBuilding <= 0;
+
+  let damageType =
+    override?.damageType ||
+    (RANGED_BUILDING_ATTACK_UNITS.has(unitName)
+      ? "ranged"
+      : isSiege
+        ? "siege"
+        : unitData.weaponType || "melee");
+  if (usesTorch) {
+    damageType = "fire";
+  } else if (hasIncendiary) {
+    damageType = "siege";
+  }
+
+  let projectileCount = Math.max(
+    1,
+    override?.projectileCount || unitData.weaponProjectiles || 1,
+  );
+  let baseAttackTotal = unitData.stats?.attack || 0;
+  let baseAttackPerProjectile =
+    override?.perProjectileAttack ||
+    getProjectileAttackValue(unitName, baseAttackTotal, projectileCount);
+
+  if (unitName === "Counterweight Trebuchet" && getSelectedCiv(side) === "Knights Templar") {
+    baseAttackPerProjectile = 25;
+    projectileCount = 2;
+    bonusVsBuilding = 250;
+  }
+  if (
+    unitName === "Counterweight Trebuchet" &&
+    getSelectedCiv(side) === "Knights Templar" &&
+    hasActiveTech(side, "Counterweight Defenses")
+  ) {
+    projectileCount += 1;
+  }
+
+  const specialDamage = getSpecialBuildingAttackMultiplier(
+    side,
+    unitName,
+    baseAttackPerProjectile * projectileCount,
+    bonusVsBuilding + (hasIncendiary ? 3 : 0),
+    time,
+  );
+  const displayAttackPerProjectile =
+    projectileCount > 1
+      ? specialDamage.baseAttack / projectileCount
+      : specialDamage.baseAttack;
+  const totalBaseAttack = specialDamage.baseAttack;
+
+  return {
+    usesTorch,
+    isSiege,
+    hasIncendiary,
+    damageType,
+    projectileCount,
+    displayAttackPerProjectile,
+    totalBaseAttack,
+    bonusVsBuilding: specialDamage.bonusAttack,
+    totalDirectDamage: totalBaseAttack + specialDamage.bonusAttack,
+    buildingOnly: !!override?.buildingOnly,
+    label: usesTorch
+      ? "Torch"
+      : damageType === "siege"
+        ? "Siege"
+        : unitData.weaponType === "ranged"
+          ? "Ranged"
+          : "Melee",
+  };
+}
+
+function formatBuildingAttackSummary(buildingAttackContext) {
+  if (!buildingAttackContext) return "";
+  if (buildingAttackContext.usesTorch) {
+    return "Torch fire damage uses fire armor.";
+  }
+
+  const baseAttackText =
+    buildingAttackContext.projectileCount > 1
+      ? `${buildingAttackContext.displayAttackPerProjectile.toFixed(2).replace(/\.00$/, "")} x${buildingAttackContext.projectileCount}`
+      : `${buildingAttackContext.displayAttackPerProjectile.toFixed(2).replace(/\.00$/, "")}`;
+  const bonusText =
+    buildingAttackContext.bonusVsBuilding > 0
+      ? ` + ${buildingAttackContext.bonusVsBuilding.toFixed(2).replace(/\.00$/, "")} vs Building`
+      : "";
+  const totalText = ` = ${buildingAttackContext.totalDirectDamage.toFixed(2).replace(/\.00$/, "")}`;
+  return `${baseAttackText}${bonusText}${totalText} ${buildingAttackContext.label.toLowerCase()}`.trim();
+}
+
+function updateBuildingAttackDisplay(side) {
+  const summaryWrap = document.getElementById(`${side}_buildingAttackInfo`);
+  const summaryEl = document.getElementById(`${side}_buildingAttackSummary`);
+  const attackLabel = document.getElementById(`${side}_attackLabel`);
+  const attackCol = document.getElementById(`${side}_attackCol`);
+  const torchInfo = document.getElementById(`${side}_torchInfo`);
+  const attackSpeedCol = document.getElementById(`${side}_attackSpeedCol`);
+  if (!summaryWrap || !summaryEl || !attackLabel) return;
+
+  const inBuildingMode = document.getElementById("vsBuildingToggle")?.checked;
+  if (!inBuildingMode || side !== "A") {
+    summaryWrap.style.display = "none";
+    summaryEl.textContent = "";
+    attackLabel.textContent = "Attack";
+    if (torchInfo) torchInfo.style.display = "none";
+    if (attackCol) attackCol.style.display = "";
+    if (attackSpeedCol) attackSpeedCol.style.display = "";
+    return;
+  }
+
+  const unitData = getUnitData(side);
+  const liveStats = applyBuffs(unitData, 0);
+  const buildingAttackContext = getBuildingAttackContext(
+    { ...unitData, stats: { ...unitData.stats, attack: liveStats.attack } },
+    side,
+    0,
+  );
+
+  attackLabel.textContent = buildingAttackContext.usesTorch ? "Attack" : "Base Attack";
+  summaryWrap.style.display = "";
+  summaryEl.textContent = formatBuildingAttackSummary(buildingAttackContext);
+
+  if (buildingAttackContext.usesTorch) {
+    syncTorchAttackInputs("A", unitData, liveStats);
+    if (torchInfo) torchInfo.style.display = "";
+    if (attackCol) attackCol.style.display = "none";
+    if (attackSpeedCol) attackSpeedCol.style.display = "none";
+  } else {
+    if (torchInfo) torchInfo.style.display = "none";
+    if (attackCol) attackCol.style.display = "";
+    if (attackSpeedCol) attackSpeedCol.style.display = "";
+  }
+}
 
 /**
  * 1. DATA LOADING
@@ -107,7 +560,7 @@ function renderTechButtons(side, unitName, unit) {
   const box = document.getElementById(`${side}_techBox`);
   if (!container || !box) return;
 
-  const selectedCiv = side === "A" ? selectedCivA : selectedCivB;
+  const selectedCiv = getSelectedCiv(side);
 
   // Reset active techs if unit changed
   const trackKey = `${unitName}|${selectedCiv}`;
@@ -123,21 +576,7 @@ function renderTechButtons(side, unitName, unit) {
     return;
   }
 
-  // Merge upgrades and auras
-  const upgrades = getMergedUpgradesForUnit(unit);
-  const auras = unit.auras || [];
-  const allItems = [...upgrades, ...auras];
-
-  // Filter by civ and deduplicate
-  const seen = new Set();
-  const filtered = [];
-  for (const item of allItems) {
-    if (!filterTechByCiv(item, selectedCiv)) continue;
-    const key = getTechKey(item);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    filtered.push(item);
-  }
+  const filtered = getFilteredTechItemsForUnit(side, unit, unitName);
 
   if (filtered.length === 0) {
     box.style.display = "none";
@@ -244,7 +683,7 @@ function renderTechButtons(side, unitName, unit) {
     });
   });
 
-  // Reverse sync: effect checkboxes â†’ tech buttons
+  // Reverse sync: effect checkboxes Ã¢â€ â€™ tech buttons
   const effectsContainer = document.getElementById(`${side}_effectsContainer`);
   if (effectsContainer) {
     effectsContainer.querySelectorAll(".effect-checkbox").forEach((cb) => {
@@ -275,95 +714,194 @@ function renderTechButtons(side, unitName, unit) {
 }
 
 function renderBuildingUnitTechs(side) {
-  const box = document.getElementById(`${side}_buildingUnitTechBox`);
-  const container = document.getElementById(
-    `${side}_buildingUnitTechContainer`,
-  );
+  const box = document.getElementById(`${side}_techBox`);
+  const container = document.getElementById(`${side}_techContainer`);
   if (!box || !container) return;
 
   const unitName = document.getElementById(`unit${side}Select`)?.dataset.value;
   const unit = units[unitName];
   if (!unit) {
     box.style.display = "none";
+    container.innerHTML = "";
     return;
   }
 
-  const selectedCiv = side === "A" ? selectedCivA : selectedCivB;
+  const selectedCiv = getSelectedCiv(side);
   if (!selectedCiv) {
     box.style.display = "none";
     container.innerHTML = "";
     return;
   }
-  const upgrades = getMergedUpgradesForUnit(unit);
-  const auras = unit.auras || [];
-  const allItems = [...upgrades, ...auras];
 
-  // Filter to siege/torch-relevant techs only
-  const seen = new Set();
-  const filtered = [];
-  for (const item of allItems) {
-    if (!filterTechByCiv(item, selectedCiv)) continue;
-    const key = getTechKey(item);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    const desc = (item.description || "").toLowerCase();
-    const name = (item.name || "").toLowerCase();
-    if (
-      desc.includes("siege") ||
-      desc.includes("torch") ||
-      desc.includes("fire") ||
-      name.includes("additional torches") ||
-      name.includes("incendiary arrows")
-    ) {
-      filtered.push(item);
-    }
-  }
+  const age = document.getElementById(`unit${side}Age`)?.value || "2";
+  const weaponMode =
+    document.querySelector(`input[name="weaponMode${side}"]:checked`)?.value ||
+    "primary";
+  const weaponData =
+    weaponMode === "secondary" && unit.weapons.secondary
+      ? unit.weapons.secondary
+      : unit.weapons.primary;
+  const ageStats = weaponData?.ages?.[age] || {};
 
-  if (filtered.length === 0) {
+  const buildingAttackContext = getBuildingAttackContext(
+    {
+      name: unitName,
+      tags: unit.tags || [],
+      weaponType: weaponData?.type || "melee",
+      weaponProjectiles: getWeaponProjectiles(weaponData),
+      stats: {
+        attack: ageStats.attack || 0,
+        bonus: ageStats.bonus || {},
+      },
+    },
+    side,
+  );
+  const filtered = getFilteredTechItemsForUnit(side, unit, unitName);
+  const torchEntries = buildingAttackContext.usesTorch
+    ? getTorchSectionItems(filtered)
+    : [];
+
+  if (filtered.length === 0 && torchEntries.length === 0 && !buildingAttackContext.usesTorch) {
     box.style.display = "none";
     container.innerHTML = "";
     return;
   }
 
   box.style.display = "";
-  let html = '<div class="tech-grid">';
+  const groups = {
+    attack: [],
+    armor: [],
+    hitpoints: [],
+    attackSpeed: [],
+    range: [],
+    nonCombat: [],
+  };
+  const groupLabels = {
+    attack: "Attack",
+    armor: "Armor",
+    hitpoints: "Hitpoints",
+    attackSpeed: "Attack Speed",
+    range: "Range",
+    nonCombat: "Other",
+  };
+
   for (const item of filtered) {
-    const key = getTechKey(item);
-    const isActive = activeTechs[side].has(key);
-    const imgSrc = getTechImage(item.name);
+    if (isCombatCategory(item.category)) {
+      (groups[item.category] || groups.attack).push(item);
+    } else {
+      groups.nonCombat.push(item);
+    }
+  }
+
+  const renderTechMarkup = (item, effectState, options = {}) => {
+    const isPseudo = !!item.pseudo;
+    const key = isPseudo ? item.id : getTechKey(item);
+    const effects = isPseudo ? null : TECH_EFFECTS[key];
+    const torchMeta = isPseudo ? null : getTorchTechMeta(item);
+    const isSimulated = effectState === "simulated";
+    const isActive = isPseudo ? true : activeTechs[side].has(key);
+    const isUnmodeled =
+      !isPseudo &&
+      isSimulated &&
+      !effects &&
+      !(torchMeta && torchMeta.simulationMode === "simulated");
+    const hasLevels =
+      effects &&
+      Object.values(effects).some(
+        (v) => Array.isArray(v) && !["labels"].includes(v),
+      );
+    const labels = effects?.labels;
+    const displayName = options.displayName || torchMeta?.displayName || item.name;
+    const imgSrc = getTechImage(displayName) || getTechImage(item.name);
     const activeClass = isActive ? " active" : "";
-    const tooltip = `${item.name}: ${item.description || ""}`.replace(
-      /"/g,
-      "&quot;",
-    );
-    html += `<div class="tech-btn${activeClass}" data-tech-key="${key}" data-side="${side}" title="${tooltip}">`;
-    html += `<img src="${imgSrc}" alt="${item.name}" onerror="this.src='${FALLBACK_TECH_IMG}'">`;
+    const nonCombatClass = !isPseudo && !isSimulated ? " non-combat" : "";
+    const tooltipSuffix =
+      effectState === "display-only"
+        ? " (display only)"
+        : effectState === "not-applicable"
+          ? " (not applicable to a one-building duel)"
+          : isUnmodeled
+            ? " (not modeled)"
+            : "";
+    const tooltip =
+      `${displayName}: ${item.description || ""}${tooltipSuffix}`.replace(
+        /"/g,
+        "&quot;",
+      );
+    const statusLabel = options.statusLabel || "";
+    const statusBadge = statusLabel
+      ? `<span class="tech-status-badge ${effectState === "display-only" ? "display-only" : "simulated"}">${statusLabel}</span>`
+      : "";
+
+    if (hasLevels && labels && isSimulated) {
+      const currentLevel = activeTechs[side].get(key)?.level || 0;
+      let html = `<div class="tech-level-wrap">`;
+      html += `<div class="tech-btn${activeClass}" data-tech-key="${key}" data-side="${side}" title="${tooltip}">`;
+      html += `<img src="${imgSrc}" alt="${displayName}" onerror="this.src='${FALLBACK_TECH_IMG}'">`;
+      html += `${statusBadge}</div>`;
+      html += `<select class="tech-level-select" data-tech-key="${key}" data-side="${side}">`;
+      for (let i = 0; i < labels.length; i++) {
+        const sel = i === currentLevel ? " selected" : "";
+        html += `<option value="${i}"${sel}>${labels[i]}</option>`;
+      }
+      html += `</select></div>`;
+      return html;
+    }
+
+    const dataAttrs = isPseudo
+      ? `data-pseudo-tech="${item.id}"`
+      : `data-tech-key="${key}" data-side="${side}"`;
+    let html = `<div class="tech-btn${activeClass}${nonCombatClass}" ${dataAttrs} title="${tooltip}">`;
+    html += `<img src="${imgSrc}" alt="${displayName}" onerror="this.src='${FALLBACK_TECH_IMG}'">`;
+    html += `${statusBadge}</div>`;
+    return html;
+  };
+
+  let html = "";
+  if (buildingAttackContext.usesTorch) {
+    html += `<div class="tech-group-label">Torch</div><div class="tech-grid">`;
+    html += renderTechMarkup(TORCH_ATTACK_ITEM, "simulated", {
+      displayName: "Torch Attack",
+    });
+    for (const { item, meta } of torchEntries) {
+      html += renderTechMarkup(item, meta.simulationMode, {
+        displayName: meta.displayName,
+        statusLabel: meta.simulationMode === "display-only" ? "Info" : "Sim",
+      });
+    }
     html += `</div>`;
   }
-  html += "</div>";
+
+  for (const [groupKey, groupItems] of Object.entries(groups)) {
+    if (groupItems.length === 0) continue;
+    html += `<div class="tech-group-label">${groupLabels[groupKey]}</div><div class="tech-grid">`;
+    for (const item of groupItems) {
+      const effectState = getBuildingTechEffectState(item);
+      html += renderTechMarkup(item, effectState);
+    }
+    html += `</div>`;
+  }
   container.innerHTML = html;
 
-  // Attach click handlers
-  container.querySelectorAll(".tech-btn").forEach((btn) => {
+  container.querySelectorAll(".tech-btn:not(.non-combat)").forEach((btn) => {
     btn.addEventListener("click", () => {
       const key = btn.dataset.techKey;
       const s = btn.dataset.side;
+      if (!key || !s) return;
       toggleTech(s, key, btn);
-      // Also update the torch damage input
-      const torchDmgEl = document.getElementById(`${s}_torchDamage`);
-      if (torchDmgEl) {
-        let torchBonus = 0;
-        for (const [tk] of activeTechs[s]) {
-          const tn = tk.split("|")[0].toLowerCase();
-          if (tn.includes("additional torches")) {
-            if (tn.includes("improved")) torchBonus += 2;
-            else torchBonus += 3;
-          }
-        }
-        const age =
-          parseInt(document.getElementById(`unit${s}Age`)?.value) || 2;
-        const baseTorch = TORCH_BY_AGE[age] || 13;
-        torchDmgEl.value = baseTorch + torchBonus;
+    });
+  });
+
+  container.querySelectorAll(".tech-level-select").forEach((sel) => {
+    sel.addEventListener("change", () => {
+      const key = sel.dataset.techKey;
+      const s = sel.dataset.side;
+      const state = activeTechs[s].get(key);
+      if (state) {
+        state.level = parseInt(sel.value) || 0;
+        syncTechBuffsToInputs(s);
+        syncTorchAttackInputs(s);
+        updateBuildingAttackDisplay(s);
       }
     });
   });
@@ -384,6 +922,11 @@ function toggleTech(side, techKey, btnEl) {
     btnEl.classList.add("active");
   }
   syncTechBuffsToInputs(side);
+  syncTorchAttackInputs(side);
+  if (side === "A" && document.getElementById("vsBuildingToggle")?.checked) {
+    renderBuildingUnitTechs(side);
+    updateBuildingAttackDisplay(side);
+  }
 
   // Sync linked effect toggle (tech button or checkbox)
   if (!_syncingTechEffect) {
@@ -2034,7 +2577,7 @@ function renderEffects(side, effects) {
     // Skip effects restricted to specific civs if current civ doesn't match
     if (effect.civs && selectedCiv && !effect.civs.includes(selectedCiv))
       continue;
-    if (effect.civs && !selectedCiv) continue; // "All Civilizations" — skip civ-conditional effects
+    if (effect.civs && !selectedCiv) continue; // "All Civilizations" â€” skip civ-conditional effects
 
     const checkId = `${side}_effect_${effectId}`;
     const valueHtml = renderEffectValueEditor(effectId, effect, {
@@ -2055,7 +2598,7 @@ function renderEffects(side, effects) {
             </div>
             <label class="effect-label" style="font-size:0.85rem;">
               <strong>${effect.name}</strong>
-              <span style="font-size:0.75rem; color:#b8ad9e;"> — ${effect.description}</span>
+              <span style="font-size:0.75rem; color:#b8ad9e;"> â€” ${effect.description}</span>
             </label>
           </div>
           <div class="effect-value-area">${valueHtml}</div>
@@ -2068,7 +2611,7 @@ function renderEffects(side, effects) {
                    data-effect="${effectId}" checked>
             <label class="form-check-label" for="${checkId}" style="font-size:0.85rem;">
               <strong>${effect.name}</strong>
-              <span style="font-size:0.75rem; color:#b8ad9e;"> — ${effect.description}</span>
+              <span style="font-size:0.75rem; color:#b8ad9e;"> â€” ${effect.description}</span>
             </label>
           </div>
           <div class="effect-value-area">${valueHtml}</div>
@@ -2304,7 +2847,11 @@ function updateUnitStats(side) {
   document.getElementById(`${side}_hp`).value = stats.hp || "";
   document.getElementById(`${side}_attack`).value = stats.attack || "";
   document.getElementById(`${side}_meleeArmor`).value = stats.meleeArmor || 0;
-  document.getElementById(`${side}_rangedArmor`).value = stats.rangedArmor || 0;
+  updateRangedDefenseField(
+    side,
+    unit,
+    getDisplayedRangedDefenseValue(unit, stats),
+  );
   document.getElementById(`${side}_attackSpeed`).value =
     weaponData.attackSpeed || 1;
   updateSecondaryWeaponInputs(side, unitName, unit, age, weaponMode);
@@ -2331,27 +2878,8 @@ function updateUnitStats(side) {
     chargeInfo.style.display = "none";
   }
 
-  // Update torch damage display if in building mode (Team A only)
   if (side === "A") {
-    const torchInfo = document.getElementById("A_torchInfo");
-    const torchDmgEl = document.getElementById("A_torchDamage");
-    const attackCol = document.getElementById("A_attackCol");
-    const attackSpeedCol = document.getElementById("A_attackSpeedCol");
-    const inBuildingMode = document.getElementById("vsBuildingToggle")?.checked;
-    if (inBuildingMode) {
-      const weaponType = stats.type || "melee";
-      if (weaponType === "melee") {
-        const age = parseInt(document.getElementById("unitAAge")?.value) || 2;
-        if (torchDmgEl) torchDmgEl.value = TORCH_BY_AGE[age] || 13;
-        if (torchInfo) torchInfo.style.display = "";
-        if (attackCol) attackCol.style.display = "none";
-        if (attackSpeedCol) attackSpeedCol.style.display = "none";
-      } else {
-        if (torchInfo) torchInfo.style.display = "none";
-        if (attackCol) attackCol.style.display = "";
-        if (attackSpeedCol) attackSpeedCol.style.display = "";
-      }
-    }
+    updateBuildingAttackDisplay("A");
   }
 
   // Get selected civ group for flag ordering
@@ -2405,6 +2933,20 @@ function showUnitDetail(side) {
   showUnitDetailWith({ unitName, age, side, selectedCiv });
 }
 
+function showTitleDetail(side) {
+  if (side === "B" && document.getElementById("vsBuildingToggle")?.checked) {
+    showBuildingDetail();
+    return;
+  }
+  showUnitDetail(side);
+}
+
+function showBuildingDetail() {
+  const buildingName = document.getElementById("buildingType")?.value;
+  if (!buildingName) return;
+  showBuildingDetailWith({ buildingName, side: "B" });
+}
+
 let unitDetailModalInstance = null;
 let unitDetailModalCleanupBound = false;
 
@@ -2431,7 +2973,52 @@ function setUnitTitleInteractivity(side, enabled) {
   const titleEl = document.getElementById(`title${side}`);
   if (!titleEl) return;
   titleEl.style.cursor = enabled ? "pointer" : "default";
-  titleEl.onclick = enabled ? () => showUnitDetail(side) : null;
+  titleEl.onclick = enabled ? () => showTitleDetail(side) : null;
+}
+
+function formatModalResourceCost(cost, costText = "") {
+  if (costText) return costText;
+  const parts = [];
+  if (cost?.food) parts.push(`${cost.food} Food`);
+  if (cost?.wood) parts.push(`${cost.wood} Wood`);
+  if (cost?.gold) parts.push(`${cost.gold} Gold`);
+  if (cost?.stone) parts.push(`${cost.stone} Stone`);
+  return parts.join(" / ") || "-";
+}
+
+function formatModalBonusMap(bonus = {}) {
+  const parts = Object.entries(bonus || {}).map(
+    ([tag, value]) => `+${value} vs ${tag}`,
+  );
+  return parts.length ? parts.join(", ") : "-";
+}
+
+function formatModalDamagePattern(dmg, projectiles = 1) {
+  if (!dmg || dmg <= 0) return "-";
+  return projectiles > 1 ? `${dmg} x ${projectiles}` : `${dmg}`;
+}
+
+function formatModalAttackProfile({
+  damage,
+  projectiles,
+  rate,
+  range,
+  attackType,
+  bonus,
+  requiresContact = false,
+  emptyText = "None",
+}) {
+  if (!damage || damage <= 0 || !rate || rate <= 0) return emptyText;
+  const parts = [
+    `${formatModalDamagePattern(damage, projectiles)} damage`,
+    `${rate}s`,
+    `range ${range}`,
+    attackType || "ranged",
+  ];
+  const bonusText = formatModalBonusMap(bonus);
+  if (bonusText !== "-") parts.push(bonusText);
+  if (requiresContact) parts.push("contact only");
+  return parts.join(" | ");
 }
 
 function showUnitDetailWith({ unitName, age, side, selectedCiv }) {
@@ -2487,7 +3074,7 @@ function showUnitDetailWith({ unitName, age, side, selectedCiv }) {
     const weapon = unit.weapons[wKey];
     if (!weapon) continue;
 
-    weaponsHtml += `<h6 style="color:${teamColor}; margin-top:12px; font-family:'Cinzel',serif;">${wLabel} — ${weapon.type.charAt(0).toUpperCase() + weapon.type.slice(1)}</h6>`;
+    weaponsHtml += `<h6 style="color:${teamColor}; margin-top:12px; font-family:'Cinzel',serif;">${wLabel} â€” ${weapon.type.charAt(0).toUpperCase() + weapon.type.slice(1)}</h6>`;
     weaponsHtml += `<div style="font-size:0.8rem; color:#b8ad9e; margin-bottom:8px;">Attack Speed: ${weapon.attackSpeed}s | Range: ${weapon.range}</div>`;
     weaponsHtml += `<div class="table-responsive"><table class="table table-sm" style="color:#e0d6c2; font-size:0.85rem;">`;
     weaponsHtml += `<thead><tr style="border-color:#444;"><th>Age</th><th>HP</th><th>Atk</th><th>M.Arm</th><th>R.Arm</th><th>Charge</th><th>Bonuses</th></tr></thead><tbody>`;
@@ -2497,8 +3084,8 @@ function showUnitDetailWith({ unitName, age, side, selectedCiv }) {
         ? Object.entries(ageStats.bonus)
             .map(([t, v]) => `+${v} vs ${t}`)
             .join(", ")
-        : "—";
-      const charge = ageStats.chargeDamage ? `+${ageStats.chargeDamage}` : "—";
+        : "â€”";
+      const charge = ageStats.chargeDamage ? `+${ageStats.chargeDamage}` : "â€”";
       const isSelected = ageKey === selectedAgeKey;
       const rowStyle = isSelected
         ? `background:rgba(${teamColorRgb},0.15); font-weight:600;`
@@ -2530,7 +3117,7 @@ function showUnitDetailWith({ unitName, age, side, selectedCiv }) {
     .join("");
 
   // Merge per-unit upgrades with global tech rules (e.g. Military Academy, Increased Supplies)
-  const mergedUpgrades = getMergedUpgradesForUnit(unit);
+  const mergedUpgrades = getMergedUpgradesForUnit(unit, unitName);
 
   // Collect all unique civs from upgrades + auras for filter dropdown
   const allEntryCivs = new Set();
@@ -2736,8 +3323,8 @@ function showUnitDetailWith({ unitName, age, side, selectedCiv }) {
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px; font-size:0.9rem;">
       <div><span style="color:#b8ad9e;">Civilizations:</span> ${unit.civs.join(", ")}</div>
       <div><span style="color:#b8ad9e;">Cost:</span> ${costDisplay}</div>
-      <div><span style="color:#b8ad9e;">Training Time:</span> ${unit.trainingTime || "—"}s</div>
-      <div><span style="color:#b8ad9e;">Speed:</span> ${unit.speed || "—"}</div>
+      <div><span style="color:#b8ad9e;">Training Time:</span> ${unit.trainingTime || "â€”"}s</div>
+      <div><span style="color:#b8ad9e;">Speed:</span> ${unit.speed || "â€”"}</div>
       <div><span style="color:#b8ad9e;">Population:</span> ${unit.population || 1}</div>
     </div>
     <div style="margin-bottom:12px;">${tags}</div>
@@ -2759,6 +3346,368 @@ function showUnitDetailWith({ unitName, age, side, selectedCiv }) {
       civSelect.value = selectedCiv;
       filterByCiv(selectedCiv);
     }
+  }
+}
+
+function showBuildingDetailWith({ buildingName, side = "B" }) {
+  const building = BUILDINGS[buildingName];
+  if (!building) return;
+
+  const detail = building.detail || {};
+  const teamColor = side === "A" ? "#4a90d9" : "#d94a4a";
+  const displayCivs =
+    Array.isArray(building.civs) && building.civs.length
+      ? building.civs
+      : ["Generic"];
+
+  document.getElementById("unitDetailTitle").textContent = buildingName;
+  document.getElementById("unitDetailTitle").style.color = teamColor;
+
+  const flagImg = (civ) =>
+    CIV_FLAGS[civ]
+      ? `<img src="${CIV_FLAGS[civ]}" alt="${civ}" title="${civ}" style="height:16px; border-radius:2px; vertical-align:middle;">`
+      : `<span style="font-size:0.7rem; color:#b8ad9e;" title="${civ}">${civ}</span>`;
+
+  const renderBadgeList = (items, emptyText) => {
+    if (!items?.length) {
+      return `<div style="color:#b8ad9e; font-size:0.85rem;">${emptyText}</div>`;
+    }
+    return items
+      .map(
+        (item) =>
+          `<span style="display:inline-block; padding:3px 10px; margin:3px 6px 0 0; border-radius:12px; font-size:0.78rem; background:rgba(212,164,74,0.15); color:#e0d6c2; border:1px solid rgba(212,164,74,0.25);">${item}</span>`,
+      )
+      .join("");
+  };
+
+  const renderSingleEntry = (entry, showFlags) => {
+    const hasExcept = entry.exceptCivs && entry.exceptCivs.length > 0;
+    const hasCivs = entry.civs && entry.civs.length > 0;
+    const civAttr = hasExcept ? "all" : hasCivs ? entry.civs.join(",") : "all";
+    const exceptAttr = hasExcept ? entry.exceptCivs.join(",") : "";
+    const metaText = (entry.meta || "").replace(/\s+[^\x00-\x7F]+\s+/g, " | ");
+    let civInfo =
+      showFlags && hasCivs
+        ? `<span style="margin-left:6px;">${entry.civs.map((civ) => flagImg(civ)).join(" ")}</span>`
+        : "";
+    let html = `<div class="tech-entry" data-civs="${civAttr}"${exceptAttr ? ` data-except-civs="${exceptAttr}"` : ""} style="padding:8px 12px; border-top:1px solid rgba(255,255,255,0.05); font-size:0.82rem; display:flex; align-items:flex-start; gap:8px; flex-wrap:wrap;">`;
+    html += `<strong style="color:#e0d6c2;">${entry.name}</strong>`;
+    if (metaText) {
+      html += `<span style="font-size:0.72rem; color:#b8ad9e; border:1px solid rgba(255,255,255,0.12); border-radius:999px; padding:1px 8px;">${metaText}</span>`;
+    }
+    html += `<span style="color:#e0d6c2;">${entry.description}</span>`;
+    html += civInfo;
+    html += `</div>`;
+    return html;
+  };
+
+  const renderEntries = (entries, containerId) => {
+    const catOrder = ["tech", "source", "ability"];
+    const catLabels = {
+      tech: "Techs",
+      source: "Source Auras",
+      ability: "Passives & Abilities",
+    };
+    const byCategory = {};
+    entries.forEach((entry) => {
+      if (!byCategory[entry.category]) byCategory[entry.category] = [];
+      byCategory[entry.category].push(entry);
+    });
+    const sortedCats = Object.keys(byCategory).sort(
+      (a, b) => catOrder.indexOf(a) - catOrder.indexOf(b),
+    );
+    const subStyle =
+      "padding:4px 12px; font-size:0.74rem; font-weight:600; color:#b8ad9e; background:rgba(255,255,255,0.03); border-top:1px solid rgba(255,255,255,0.05);";
+
+    let html = `<div id="${containerId}" style="border:1px solid rgba(212,164,74,0.2); border-radius:8px; overflow:hidden;">`;
+    sortedCats.forEach((cat) => {
+      html += `<div class="tech-cat-header" data-cat="${cat}" style="background:rgba(212,164,74,0.12); padding:6px 12px; font-size:0.8rem; font-weight:600; color:#d4a44a; border-top:1px solid rgba(212,164,74,0.2);">${catLabels[cat] || cat}</div>`;
+
+      const civGroups = {};
+      const exceptGroups = {};
+      const universal = [];
+      const catEntries = byCategory[cat];
+      catEntries.forEach((entry) => {
+        if (entry.exceptCivs && entry.exceptCivs.length > 0) {
+          const key = [...entry.exceptCivs].sort().join(",");
+          if (!exceptGroups[key]) {
+            exceptGroups[key] = { exceptCivs: entry.exceptCivs, entries: [] };
+          }
+          exceptGroups[key].entries.push(entry);
+        } else if (entry.civs && entry.civs.length > 0) {
+          const key = [...entry.civs].sort().join(",");
+          if (!civGroups[key]) civGroups[key] = { civs: entry.civs, entries: [] };
+          civGroups[key].entries.push(entry);
+        } else {
+          universal.push(entry);
+        }
+      });
+
+      const namedGroups = [];
+      const unique = [];
+      Object.values(civGroups).forEach((group) => {
+        if (group.entries.length >= 2) namedGroups.push(group);
+        else unique.push(...group.entries);
+      });
+
+      const hasMultipleSections =
+        namedGroups.length +
+          Object.keys(exceptGroups).length +
+          (universal.length > 0 ? 1 : 0) +
+          (unique.length > 0 ? 1 : 0) >
+        1;
+
+      namedGroups.forEach((group) => {
+        const label = group.civs
+          .map((civ) => `${flagImg(civ)} ${civ}`)
+          .join(", ");
+        html += `<div class="tech-subheader tech-entry" data-civs="${group.civs.join(",")}" style="${subStyle}">${label}</div>`;
+        group.entries.forEach((entry) => {
+          html += renderSingleEntry(entry, false);
+        });
+      });
+
+      Object.values(exceptGroups).forEach((group) => {
+        const label = group.exceptCivs
+          .map((civ) => `${flagImg(civ)} ${civ}`)
+          .join(", ");
+        html += `<div class="tech-subheader tech-entry" data-civs="all" data-except-civs="${group.exceptCivs.join(",")}" style="${subStyle}">All except ${label}</div>`;
+        group.entries.forEach((entry) => {
+          html += renderSingleEntry(entry, false);
+        });
+      });
+
+      if (universal.length > 0 && hasMultipleSections) {
+        html += `<div class="tech-subheader tech-entry" data-civs="all" style="${subStyle}">All Civilizations</div>`;
+      }
+      universal.forEach((entry) => {
+        html += renderSingleEntry(entry, false);
+      });
+
+      if (unique.length > 0 && hasMultipleSections) {
+        html += `<div class="tech-subheader tech-entry" data-civs="all" style="${subStyle}">Unique</div>`;
+      }
+      unique.forEach((entry) => {
+        html += renderSingleEntry(entry, true);
+      });
+    });
+    html += `</div>`;
+    return html;
+  };
+
+  const enhancementEntries = (building.enhancements || []).map((enhancement) => ({
+    name: enhancement.name,
+    description: enhancement.description || "",
+    civs: [...(enhancement.civs || [])],
+    exceptCivs: [...(enhancement.exceptCivs || [])],
+    category: getBuildingEnhancementGroup(enhancement),
+    meta: getBuildingEnhancementMeta(enhancement),
+  }));
+
+  const entryCivs = new Set();
+  enhancementEntries.forEach((entry) => {
+    (entry.civs || []).forEach((civ) => entryCivs.add(civ));
+  });
+  const sortedEntryCivs = CIV_ORDER.filter((civ) => entryCivs.has(civ));
+  const civFilterHtml = sortedEntryCivs.length
+    ? `<div style="margin-top:16px; margin-bottom:8px;">
+      <select id="civFilterSelect" class="form-select civ-filter-select" onchange="filterByCiv(this.value)">
+        <option value="all">All Civilizations</option>
+        ${sortedEntryCivs.map((civ) => `<option value="${civ}">${civ}</option>`).join("")}
+      </select>
+    </div>`
+    : "";
+
+  const costDisplay = formatModalResourceCost(detail.cost, detail.costText || "");
+  const buildTimeDisplay =
+    detail.buildTimeText ||
+    (typeof detail.buildTime === "number" ? `${detail.buildTime}s` : "-");
+  const overviewRows = [
+    ["Civilizations", displayCivs.map((civ) => `${flagImg(civ)} ${civ}`).join(", ")],
+    ["Type", detail.type || "-"],
+    ["Age", detail.age || "-"],
+    ["Cost", costDisplay],
+    ["Build Time", buildTimeDisplay],
+    ["Size", detail.size || "-"],
+    ["Garrison", `${building.garrisonMax || 0}`],
+  ];
+
+  const baseAttackProfile = formatModalAttackProfile({
+    damage: building.baseArrowDmg,
+    projectiles: building.baseArrows,
+    rate: building.baseArrowRate,
+    range: building.range,
+    attackType: building.baseAttackType,
+    bonus: building.baseArrowBonus,
+    emptyText: "No automatic base projectile",
+  });
+  const garrisonAttackProfile = formatModalAttackProfile({
+    damage: building.garrisonArrowDmg,
+    projectiles: 1,
+    rate: building.garrisonArrowRate,
+    range: building.range,
+    attackType: building.garrisonAttackType,
+    bonus: building.garrisonArrowBonus,
+    emptyText: "No garrison projectile",
+  });
+
+  const combatRows = [
+    ["HP", `${building.hp}`],
+    ["Melee Armor", `${building.meleeArmor || 0}`],
+    ["Ranged Armor", `${building.rangedArmor || 0}`],
+    ["Fire Armor", `${building.fireArmor || 0}`],
+    ["Range", `${building.range || 0}`],
+    ["Base Attack", baseAttackProfile],
+    ["Garrison Attack", garrisonAttackProfile],
+  ];
+
+  const emplacementNames = [
+    ...(building.lockedEmplacements || []).map((name) => ({ name, locked: true })),
+    ...(building.emplacements || []).map((name) => ({ name, locked: false })),
+  ].filter(
+    (entry, index, list) =>
+      list.findIndex((item) => item.name === entry.name) === index,
+  );
+  const emplacementsHtml = emplacementNames.length
+    ? emplacementNames
+        .map(({ name, locked }) => {
+          const emplacement = EMPLACEMENTS[name];
+          if (!emplacement) return "";
+          const profile = formatModalAttackProfile({
+            damage: emplacement.dmg,
+            projectiles: emplacement.projectiles,
+            rate: emplacement.rate,
+            range: emplacement.range,
+            attackType: emplacement.type,
+            bonus: emplacement.bonus,
+            requiresContact: emplacement.requiresContact,
+            emptyText: "-",
+          });
+          return `<li style="margin-bottom:6px;"><strong>${name}</strong>${locked ? ` <span style="font-size:0.72rem; color:#b8ad9e;">(built-in)</span>` : ""}: ${profile}</li>`;
+        })
+        .join("")
+    : `<li style="color:#b8ad9e;">No emplacement options.</li>`;
+
+  const specialNotesHtml = Array.isArray(detail.specialNotes) && detail.specialNotes.length
+    ? `<ul style="font-size:0.85rem; padding-left:20px; margin-bottom:0;">${detail.specialNotes.map((note) => `<li style="margin-bottom:6px;">${note}</li>`).join("")}</ul>`
+    : `<div style="color:#b8ad9e; font-size:0.85rem;">No additional special notes.</div>`;
+
+  const trainableUnitsHtml =
+    Array.isArray(detail.trainableUnits) && detail.trainableUnits.length
+      ? `<div style="margin-top:12px;"><h6 style="color:${teamColor}; margin-top:0; font-family:'Cinzel',serif;">Trainable Units</h6><div>${renderBadgeList(detail.trainableUnits, "No trainable units listed.")}</div></div>`
+      : "";
+
+  const liveState =
+    document.getElementById("vsBuildingToggle")?.checked &&
+    document.getElementById("buildingType")?.value === buildingName
+      ? getBuildingData()
+      : null;
+  const currentStateHtml = liveState
+    ? (() => {
+        const activeEmplacements = liveState.emplacements.map((entry) => {
+          const bonusText = formatModalBonusMap(entry.bonus);
+          return `${entry.name}: ${formatModalDamagePattern(entry.dmg, entry.projectiles)} damage / ${entry.rate}s / range ${entry.range}${bonusText !== "-" ? ` / ${bonusText}` : ""}`;
+        });
+        const activeEnhancements = liveState.activeEnhancements.map((entry) => {
+          const meta = (entry.meta || "").replace(/\s+[^\x00-\x7F]+\s+/g, " | ");
+          return meta ? `${entry.label} (${meta})` : entry.label;
+        });
+        const liveRows = [
+          ["Current HP", `${liveState.hp}`],
+          ["Current Melee Armor", `${liveState.meleeArmor || 0}`],
+          ["Current Ranged Armor", `${liveState.rangedArmor || 0}`],
+          ["Current Fire Armor", `${liveState.fireArmor || 0}`],
+          ["Current Range", `${liveState.range || 0}`],
+          ["Current Garrison", `${liveState.garrison} / ${building.garrisonMax || 0}`],
+          [
+            "Current Base Attack",
+            formatModalAttackProfile({
+              damage: liveState.baseArrowDmg,
+              projectiles: liveState.baseArrows,
+              rate: liveState.baseArrowRate,
+              range: liveState.range,
+              attackType: liveState.baseAttackType,
+              bonus: liveState.baseArrowBonus,
+              emptyText: "No automatic base projectile",
+            }),
+          ],
+          [
+            "Current Garrison Attack",
+            formatModalAttackProfile({
+              damage: liveState.garrisonArrowDmg,
+              projectiles: 1,
+              rate: liveState.garrisonArrowRate,
+              range: liveState.range,
+              attackType: liveState.garrisonAttackType,
+              bonus: liveState.garrisonArrowBonus,
+              emptyText: "No garrison projectile",
+            }),
+          ],
+        ];
+
+        return `
+          <h6 style="color:${teamColor}; margin-top:16px; font-family:'Cinzel',serif;">Current Duel State</h6>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px; font-size:0.9rem;">
+            ${liveRows
+              .map(
+                ([label, value]) =>
+                  `<div><span style="color:#b8ad9e;">${label}:</span> ${value}</div>`,
+              )
+              .join("")}
+          </div>
+          <div style="margin-bottom:12px;">
+            <div style="color:#b8ad9e; font-size:0.85rem; margin-bottom:4px;">Active Emplacements</div>
+            <div>${renderBadgeList(activeEmplacements, "No active emplacements.")}</div>
+          </div>
+          <div>
+            <div style="color:#b8ad9e; font-size:0.85rem; margin-bottom:4px;">Active Enhancements</div>
+            <div>${renderBadgeList(activeEnhancements, "No active enhancements.")}</div>
+          </div>
+        `;
+      })()
+    : "";
+
+  const technologiesHtml = enhancementEntries.length
+    ? `<h6 style="color:${teamColor}; margin-top:16px; font-family:'Cinzel',serif;">Technologies & Effects</h6>${civFilterHtml}${renderEntries(enhancementEntries, "buildingEnhancementsContainer")}`
+    : "";
+
+  document.getElementById("unitDetailBody").innerHTML = `
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px; font-size:0.9rem;">
+      ${overviewRows
+        .map(
+          ([label, value]) =>
+            `<div><span style="color:#b8ad9e;">${label}:</span> ${value}</div>`,
+        )
+        .join("")}
+    </div>
+    <h6 style="color:${teamColor}; margin-top:0; font-family:'Cinzel',serif;">Description</h6>
+    <p style="font-size:0.9rem; color:#e0d6c2; margin-bottom:16px;">${detail.summary || "No building summary available."}</p>
+    <h6 style="color:${teamColor}; margin-top:0; font-family:'Cinzel',serif;">Combat Profile</h6>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px; font-size:0.9rem;">
+      ${combatRows
+        .map(
+          ([label, value]) =>
+            `<div><span style="color:#b8ad9e;">${label}:</span> ${value}</div>`,
+        )
+        .join("")}
+    </div>
+    <h6 style="color:${teamColor}; margin-top:0; font-family:'Cinzel',serif;">Emplacements</h6>
+    <ul style="font-size:0.85rem; padding-left:20px; margin-bottom:16px;">${emplacementsHtml}</ul>
+    <h6 style="color:${teamColor}; margin-top:0; font-family:'Cinzel',serif;">Special Traits</h6>
+    ${specialNotesHtml}
+    ${trainableUnitsHtml}
+    ${technologiesHtml}
+    ${currentStateHtml}
+  `;
+
+  cleanupUnitDetailModalState();
+  const modal = getUnitDetailModalInstance();
+  modal?.show();
+
+  const civSelect = document.getElementById("civFilterSelect");
+  if (civSelect) {
+    civSelect.value = "all";
+    filterByCiv("all");
   }
 }
 
@@ -2866,6 +3815,13 @@ function getUnitData(side) {
   const supportsBoth =
     weaponMode === "both" && unitSupportsBothWeapons(unitName, unit, age);
   const secondaryStats = unit.weapons.secondary?.ages?.[age] || {};
+  const displayedRangedDefense =
+    parseFloat(document.getElementById(`${side}_rangedArmor`).value) || 0;
+  const { rangedArmor, rangedResistance } = resolveRangedDefenseStats(
+    unit,
+    ageStats,
+    displayedRangedDefense,
+  );
 
   return {
     name: unitName,
@@ -2877,9 +3833,8 @@ function getUnitData(side) {
       attack: parseFloat(document.getElementById(`${side}_attack`).value) || 0,
       meleeArmor:
         parseFloat(document.getElementById(`${side}_meleeArmor`).value) || 0,
-      rangedArmor:
-        parseFloat(document.getElementById(`${side}_rangedArmor`).value) || 0,
-      rangedResistance: ageStats.rangedResistance || 0,
+      rangedArmor,
+      rangedResistance,
       attackSpeed:
         parseFloat(document.getElementById(`${side}_attackSpeed`).value) || 1,
       bonus: collectBonuses(side), // NEW: Custom bonuses from UI
@@ -3273,7 +4228,7 @@ function runBattle() {
   if (unitA.effects.openingAttack || unitB.effects.openingAttack) {
     battleLog.push({
       time: "Pre",
-      aWeapon: unitA.effects.openingAttack ? "Opening" : "—",
+      aWeapon: unitA.effects.openingAttack ? "Opening" : "â€”",
       aDmg: unitA.effects.openingAttack
         ? calcDirectDamageAfterArmor(
             unitA.effects.openingAttack.damage,
@@ -3283,7 +4238,7 @@ function runBattle() {
         : 0,
       aUnits: teamA.units,
       aHp: Math.round(teamA.totalHp),
-      bWeapon: unitB.effects.openingAttack ? "Opening" : "—",
+      bWeapon: unitB.effects.openingAttack ? "Opening" : "â€”",
       bDmg: unitB.effects.openingAttack
         ? calcDirectDamageAfterArmor(
             unitB.effects.openingAttack.damage,
@@ -3326,14 +4281,14 @@ function runBattle() {
   if (antiCavNotesA.length || antiCavNotesB.length) {
     battleLog.push({
       time: "Pre",
-      aWeapon: antiCavNotesA[0] || "—",
+      aWeapon: antiCavNotesA[0] || "â€”",
       aDmg:
         unitA.effects.palings && teamB.tags.includes("Cavalry")
           ? unitA.effects.palings.damage * teamA.units
           : 0,
       aUnits: teamA.units,
       aHp: Math.round(teamA.totalHp),
-      bWeapon: antiCavNotesB[0] || "—",
+      bWeapon: antiCavNotesB[0] || "â€”",
       bDmg:
         unitB.effects.palings && teamA.tags.includes("Cavalry")
           ? unitB.effects.palings.damage * teamB.units
@@ -3487,7 +4442,7 @@ function runBattle() {
     ) {
       battleLog.push({
         time: time.toFixed(2),
-        aWeapon: bleedDamageToB > 0 ? "Bleed" : "—",
+        aWeapon: bleedDamageToB > 0 ? "Bleed" : "â€”",
         aDmg: bleedDamageToB.toFixed(1),
         aWaste: bleedWasteToB.toFixed(1),
         aUnits: teamA.units,
@@ -3496,7 +4451,7 @@ function runBattle() {
         ).length,
         aHp: Math.round(teamA.totalHp),
         aKills: bleedKillsByA,
-        bWeapon: bleedDamageToA > 0 ? "Bleed" : "—",
+        bWeapon: bleedDamageToA > 0 ? "Bleed" : "â€”",
         bDmg: bleedDamageToA.toFixed(1),
         bWaste: bleedWasteToA.toFixed(1),
         bUnits: teamB.units,
@@ -3540,7 +4495,7 @@ function runBattle() {
     ) {
       battleLog.push({
         time: time.toFixed(2),
-        aWeapon: poisonDamageToB > 0 ? "Poison" : "—",
+        aWeapon: poisonDamageToB > 0 ? "Poison" : "â€”",
         aDmg: poisonDamageToB.toFixed(1),
         aWaste: poisonWasteToB.toFixed(1),
         aUnits: teamA.units,
@@ -3549,7 +4504,7 @@ function runBattle() {
         ).length,
         aHp: Math.round(teamA.totalHp),
         aKills: poisonKillsByA,
-        bWeapon: poisonDamageToA > 0 ? "Poison" : "—",
+        bWeapon: poisonDamageToA > 0 ? "Poison" : "â€”",
         bDmg: poisonDamageToA.toFixed(1),
         bWaste: poisonWasteToA.toFixed(1),
         bUnits: teamB.units,
@@ -3691,9 +4646,9 @@ function runBattle() {
       )
         logNotesA.push("Charge");
       if (unitA.effects.aoeSplash && aoeTargetsA > 1)
-        logNotesA.push(`AoE×${aoeTargetsA}`);
+        logNotesA.push(`AoEÃ—${aoeTargetsA}`);
       if (unitA.effects.aoeFalloff && aoeTargetsA > 1)
-        logNotesA.push(`AoE×${aoeTargetsA}(falloff)`);
+        logNotesA.push(`AoEÃ—${aoeTargetsA}(falloff)`);
       // Atk Speed Debuff: slow enemy on hit
       if (unitA.effects.atkSpeedDebuff) {
         teamB.atkSpeedDebuffUntil =
@@ -3816,9 +4771,9 @@ function runBattle() {
       )
         logNotesB.push("Charge");
       if (unitB.effects.aoeSplash && aoeTargetsB > 1)
-        logNotesB.push(`AoE×${aoeTargetsB}`);
+        logNotesB.push(`AoEÃ—${aoeTargetsB}`);
       if (unitB.effects.aoeFalloff && aoeTargetsB > 1)
-        logNotesB.push(`AoE×${aoeTargetsB}(falloff)`);
+        logNotesB.push(`AoEÃ—${aoeTargetsB}(falloff)`);
       // Atk Speed Debuff: slow enemy on hit
       if (unitB.effects.atkSpeedDebuff) {
         teamA.atkSpeedDebuffUntil =
@@ -4539,11 +5494,7 @@ function runBattle() {
   const resultsB = calcTeamResults(teamB, unitB, "B", splitAgainstB);
 
   // Show results container with animation
-  const resultsEl = document.getElementById("results");
-  resultsEl.style.display = "block";
-  resultsEl.style.animation = "none";
-  resultsEl.offsetHeight; // trigger reflow
-  resultsEl.style.animation = "";
+  const resultsEl = showResultsContainer();
   const multiResults = document.getElementById("multiResultsContainer");
   if (multiResults) multiResults.style.display = "none";
   document.getElementById("resultPanelA").style.display = "";
@@ -4683,57 +5634,190 @@ function runBattle() {
 // PAGE NAVIGATION
 // ========================================
 
+function calcDamageAgainstBuilding(
+  baseAttack,
+  bonusAttack,
+  damageType,
+  buildingData,
+  attackerTags = [],
+  damageMultiplier = 1,
+) {
+  const totalBase = (baseAttack + bonusAttack) * damageMultiplier;
+  if (totalBase <= 0) return 0;
+
+  let damage = totalBase;
+  const resistancePct = getBuildingDamageResistancePct(
+    buildingData,
+    attackerTags,
+  );
+  if (resistancePct) {
+    damage *= 1 - resistancePct / 100;
+  }
+
+  let armor = 0;
+  if (damageType === "melee") armor = buildingData.meleeArmor || 0;
+  else if (damageType === "ranged") armor = buildingData.rangedArmor || 0;
+  else if (damageType === "fire") armor = buildingData.fireArmor || 0;
+
+  return Math.max(1, damage - armor);
+}
+
+function calcDamageToUnitFromBuilding(
+  baseDamage,
+  bonusDamage,
+  damageType,
+  defenderStats,
+  damageMultiplier = 1,
+) {
+  let damage = (baseDamage + bonusDamage) * damageMultiplier;
+  if (damage <= 0) return 0;
+
+  if (damageType === "ranged" && defenderStats.rangedResistance) {
+    damage *= 1 - defenderStats.rangedResistance / 100;
+  }
+
+  let armor = 0;
+  if (damageType === "melee") armor = defenderStats.meleeArmor || 0;
+  else if (damageType === "ranged") armor = defenderStats.rangedArmor || 0;
+  else if (damageType === "fire") armor = defenderStats.fireArmor || 0;
+
+  return Math.max(1, damage - armor);
+}
+
+function getBonusDamageForTags(bonusMap, tags = []) {
+  if (!bonusMap || !tags?.length) return 0;
+  return tags.reduce((total, tag) => total + (bonusMap[tag] || 0), 0);
+}
+
+function getBuildingDamageResistancePct(buildingData, attackerTags = []) {
+  let resistancePct = buildingData.damageResistancePct || 0;
+  (buildingData.conditionalDamageResistance || []).forEach((rule) => {
+    const ruleTags = rule?.tags || [];
+    if (!ruleTags.length || ruleTags.some((tag) => attackerTags.includes(tag))) {
+      resistancePct = Math.max(
+        resistancePct,
+        rule.pct || rule.damageResistancePct || 0,
+      );
+    }
+  });
+  return resistancePct;
+}
+
+function syncBuildingBattleTeamUnits(team) {
+  if (team.totalHp <= 0 || team.stats.hp <= 0) {
+    team.totalHp = 0;
+    team.units = 0;
+    return;
+  }
+  team.units = Math.max(0, Math.ceil(team.totalHp / team.stats.hp));
+}
+
 function runBuildingBattle() {
   const unitA = getUnitData("A");
   const building = getBuildingData();
-  const age = parseInt(document.getElementById("unitAAge").value) || 2;
+  const openingStats = getSpecialAttackerDefenseStats("A", unitA, applyBuffs(unitA, 0));
+  const openingAttackContext = getBuildingAttackContext(
+    { ...unitA, stats: { ...unitA.stats, attack: openingStats.attack } },
+    "A",
+    0,
+  );
 
-  // Determine if attacker uses torch (melee) or ranged attack
-  const isMelee = unitA.weaponType === "melee";
-  const torchDmg =
-    parseFloat(document.getElementById("A_torchDamage")?.value) ||
-    TORCH_BY_AGE[age] ||
-    13;
-  const torchSpeed =
-    parseFloat(document.getElementById("A_torchSpeed")?.value) ||
-    TORCH_ATTACK_SPEED;
-
-  // Team A setup (attackers)
   let teamA = {
     units: unitA.count,
     totalHp: 0,
-    stats: applyBuffs(unitA, 0),
+    stats: openingStats,
     originalStats: unitA.stats,
     unitData: unitA,
     tags: unitA.tags,
+    combatRegenRate:
+      unitA.name === "Battering Ram" && hasActiveTech("A", "Wandering Town")
+        ? 2
+        : 0,
   };
   teamA.totalHp = teamA.stats.hp * teamA.units;
 
-  // Building setup
   let buildingHp = building.hp;
   const maxBuildingHp = building.hp;
+  let repairActiveUntil = -Infinity;
+  let repairReadyAt = 0;
+  let poisonEffects = [];
 
-  // Attack timers
-  const attackerSpeed = isMelee ? torchSpeed : teamA.stats.attackSpeed;
   let nextAttackerHit = 0;
   let nextBaseArrow = building.baseArrows > 0 ? 0 : Infinity;
   let nextGarrisonArrow = building.garrison > 0 ? 0 : Infinity;
-  // Emplacement timers (one per active emplacement)
   const empTimers = (building.emplacements || []).map((emp) => ({
     emp,
     nextHit: 0,
   }));
+  const attackerInContact =
+    openingAttackContext.usesTorch || (unitA.weaponRange || 0) <= 1;
 
   const battleLog = [];
   let time = 0;
   const maxTime = 300;
   const EPSILON = 0.0001;
 
+  const maybeTriggerEmergencyRepairs = (atTime) => {
+    if (
+      !building.autoTriggerRepair ||
+      !building.repairRate ||
+      !building.repairDuration ||
+      buildingHp <= 0 ||
+      buildingHp >= maxBuildingHp - EPSILON ||
+      atTime + EPSILON < repairReadyAt
+    ) {
+      return false;
+    }
+    repairActiveUntil = atTime + building.repairDuration;
+    repairReadyAt = atTime + building.repairCooldown;
+    return true;
+  };
+
+  const applyContinuousEffects = (fromTime, toTime) => {
+    let poisonDamage = 0;
+    let repairedHp = 0;
+    if (toTime <= fromTime + EPSILON) {
+      return { poisonDamage, repairedHp };
+    }
+
+    poisonEffects = poisonEffects.filter((effect) => effect.endTime > fromTime);
+    poisonEffects.forEach((effect) => {
+      const overlapStart = Math.max(fromTime, effect.startTime);
+      const overlapEnd = Math.min(toTime, effect.endTime);
+      if (overlapEnd <= overlapStart) return;
+      poisonDamage += effect.dps * (overlapEnd - overlapStart);
+    });
+
+    if (repairActiveUntil > fromTime && building.repairRate > 0) {
+      const repairEnd = Math.min(toTime, repairActiveUntil);
+      if (repairEnd > fromTime) {
+        repairedHp = building.repairRate * (repairEnd - fromTime);
+        buildingHp = Math.min(maxBuildingHp, buildingHp + repairedHp);
+      }
+    }
+    if (building.passiveRegenRate > 0) {
+      const passiveRegen = building.passiveRegenRate * (toTime - fromTime);
+      repairedHp += passiveRegen;
+      buildingHp = Math.min(maxBuildingHp, buildingHp + passiveRegen);
+    }
+    if (teamA.combatRegenRate > 0 && teamA.totalHp > 0) {
+      const attackerHeal = teamA.combatRegenRate * (toTime - fromTime);
+      const maxAttackerHp = teamA.units * teamA.stats.hp;
+      teamA.totalHp = Math.min(maxAttackerHp, teamA.totalHp + attackerHeal);
+    }
+
+    if (poisonDamage > 0) {
+      teamA.totalHp = Math.max(0, teamA.totalHp - poisonDamage);
+      syncBuildingBattleTeamUnits(teamA);
+    }
+
+    return { poisonDamage, repairedHp };
+  };
+
   while (teamA.units > 0 && buildingHp > 0 && time < maxTime) {
-    // Find next event
     const nextEmpTime =
       empTimers.length > 0
-        ? Math.min(...empTimers.map((t) => t.nextHit))
+        ? Math.min(...empTimers.map((entry) => entry.nextHit))
         : Infinity;
     const nextEvent = Math.min(
       nextAttackerHit,
@@ -4741,98 +5825,165 @@ function runBuildingBattle() {
       nextGarrisonArrow,
       nextEmpTime,
     );
+    const prevTime = time;
     time = nextEvent;
     if (time >= maxTime) break;
 
-    // Refresh buffs
-    teamA.stats = applyBuffs(unitA, time);
+    const timedEffects = applyContinuousEffects(prevTime, time);
+    teamA.stats = getSpecialAttackerDefenseStats(
+      "A",
+      unitA,
+      applyBuffs(unitA, time),
+    );
+    if (teamA.units <= 0 || buildingHp <= 0) break;
 
     let dmgToBuilding = 0;
     let dmgToAttackers = 0;
     let logNotesA = [];
     let logNotesB = [];
+    let notes = [];
+    let poisonStacks = 0;
 
-    // Attackers -> Building
-    if (nextAttackerHit <= time + EPSILON && teamA.units > 0) {
-      if (isMelee) {
-        const dmgPerUnit = Math.max(1, torchDmg - building.fireArmor);
-        dmgToBuilding = dmgPerUnit * teamA.units;
-        logNotesA.push("Torch");
-      } else {
-        // Incendiary Arrows converts ranged attack to siege (bypasses ranged armor)
-        const hasIncendiary = [...activeTechs.A.keys()].some(
-          (k) => k.split("|")[0] === "Incendiary Arrows",
-        );
-        const armor = hasIncendiary ? 0 : building.rangedArmor;
-        const dmgPerUnit = Math.max(1, teamA.stats.attack - armor);
-        dmgToBuilding = dmgPerUnit * teamA.units;
-        logNotesA.push(hasIncendiary ? "Siege" : "Ranged");
-      }
-      nextAttackerHit = time + (isMelee ? torchSpeed : teamA.stats.attackSpeed);
+    if (timedEffects.repairedHp > 0.01) {
+      notes.push(`Repair +${timedEffects.repairedHp.toFixed(1)}`);
+    }
+    if (timedEffects.poisonDamage > 0.01) {
+      dmgToAttackers += timedEffects.poisonDamage;
+      logNotesB.push("Poison");
     }
 
-    // Building -> Attackers (base arrows)
+    if (nextAttackerHit <= time + EPSILON && teamA.units > 0) {
+      const liveAttackContext = getBuildingAttackContext(
+        { ...unitA, stats: { ...unitA.stats, attack: teamA.stats.attack } },
+        "A",
+        time,
+      );
+      const liveTorchProfile = getTorchAttackProfile("A", unitA, teamA.stats);
+      const perUnitDamage = liveAttackContext.usesTorch
+        ? calcDamageAgainstBuilding(
+            liveTorchProfile.damage,
+            0,
+            "fire",
+            building,
+            teamA.tags,
+          )
+        : calcDamageAgainstBuilding(
+            liveAttackContext.totalBaseAttack,
+            liveAttackContext.bonusVsBuilding,
+            liveAttackContext.damageType,
+            building,
+            teamA.tags,
+          );
+      dmgToBuilding = perUnitDamage * teamA.units;
+      logNotesA.push(liveAttackContext.label);
+      if (building.attackerAttackSpeedSlowPct > 0) {
+        notes.push(`Attack Slow -${building.attackerAttackSpeedSlowPct}%`);
+      }
+      nextAttackerHit =
+        time +
+        (liveAttackContext.usesTorch
+          ? applyAttackSpeedModifierToInterval(
+              liveTorchProfile.speed,
+              -(building.attackerAttackSpeedSlowPct || 0),
+            )
+          : applyAttackSpeedModifierToInterval(
+              teamA.stats.attackSpeed,
+              -(building.attackerAttackSpeedSlowPct || 0),
+            ));
+    }
+
     if (building.baseArrows > 0 && nextBaseArrow <= time + EPSILON) {
-      const dmgPerArrow = Math.max(
-        1,
-        building.baseArrowDmg - teamA.stats.rangedArmor,
+      const baseBonus = getBonusDamageForTags(building.baseArrowBonus, teamA.tags);
+      const dmgPerArrow = calcDamageToUnitFromBuilding(
+        building.baseArrowDmg,
+        baseBonus,
+        building.baseAttackType || "ranged",
+        teamA.stats,
       );
       dmgToAttackers += dmgPerArrow * building.baseArrows;
       nextBaseArrow = time + building.baseArrowRate;
-      logNotesB.push(`Base×${building.baseArrows}`);
+      poisonStacks += building.baseArrows;
+      logNotesB.push(`Base x${building.baseArrows}`);
     }
 
-    // Building -> Attackers (garrison arrows)
     if (building.garrison > 0 && nextGarrisonArrow <= time + EPSILON) {
-      const dmgPerArrow = Math.max(
-        1,
-        building.garrisonArrowDmg - teamA.stats.rangedArmor,
+      const garrisonBonus = getBonusDamageForTags(
+        building.garrisonArrowBonus,
+        teamA.tags,
+      );
+      const dmgPerArrow = calcDamageToUnitFromBuilding(
+        building.garrisonArrowDmg,
+        garrisonBonus,
+        building.garrisonAttackType || "ranged",
+        teamA.stats,
       );
       dmgToAttackers += dmgPerArrow * building.garrison;
       nextGarrisonArrow = time + building.garrisonArrowRate;
-      logNotesB.push(`Garrison×${building.garrison}`);
+      poisonStacks += building.garrison;
+      logNotesB.push(`Garrison x${building.garrison}`);
     }
 
-    // Building -> Attackers (emplacement weapons)
     for (const et of empTimers) {
       if (et.nextHit <= time + EPSILON) {
         const emp = et.emp;
-        // Siege type bypasses ranged armor
-        const armor = emp.type === "siege" ? 0 : teamA.stats.rangedArmor;
-        const dmgPerProjectile = Math.max(1, emp.dmg - armor);
+        if (emp.requiresContact && !attackerInContact) {
+          et.nextHit = time + emp.rate;
+          continue;
+        }
+        const empBonus = getBonusDamageForTags(emp.bonus, teamA.tags);
+        const dmgPerProjectile = calcDamageToUnitFromBuilding(
+          emp.dmg,
+          empBonus,
+          emp.type,
+          teamA.stats,
+        );
         dmgToAttackers += dmgPerProjectile * emp.projectiles;
         et.nextHit = time + emp.rate;
+        poisonStacks += emp.projectiles;
         logNotesB.push(emp.name.replace(" Emplacement", ""));
       }
     }
 
-    // Apply damage
-    buildingHp -= dmgToBuilding;
-    teamA.totalHp -= dmgToAttackers;
-
-    // Update attacker unit count
-    if (dmgToAttackers > 0 && teamA.units > 0) {
-      const unitsLost = Math.floor(
-        (teamA.stats.hp * teamA.units - teamA.totalHp) / teamA.stats.hp,
+    if (
+      poisonStacks > 0 &&
+      building.poisonTotalDamage > 0 &&
+      building.poisonDuration > 0
+    ) {
+      poisonEffects.push({
+        startTime: time,
+        endTime: time + building.poisonDuration,
+        dps:
+          (building.poisonTotalDamage / building.poisonDuration) * poisonStacks,
+      });
+      notes.push(
+        `Poisoned (${building.poisonTotalDamage} over ${building.poisonDuration}s x${poisonStacks})`,
       );
-      teamA.units = Math.max(0, teamA.units - unitsLost);
     }
 
-    buildingHp = Math.max(0, buildingHp);
+    if (dmgToBuilding > 0) {
+      buildingHp = Math.max(0, buildingHp - dmgToBuilding);
+      if (maybeTriggerEmergencyRepairs(time)) {
+        notes.push("Emergency Repairs");
+      }
+    }
+    if (dmgToAttackers > 0) {
+      teamA.totalHp = Math.max(0, teamA.totalHp - dmgToAttackers);
+      syncBuildingBattleTeamUnits(teamA);
+    }
 
     battleLog.push({
       time: time.toFixed(2),
-      aWeapon: logNotesA.join("+") || "—",
+      aWeapon: logNotesA.join("+") || "-",
       aDmg: dmgToBuilding.toFixed(1),
       aWaste: "0.0",
       aUnits: teamA.units,
-      aHp: Math.round(teamA.totalHp),
-      bWeapon: logNotesB.join("+") || "—",
+      aHp: Math.round(Math.max(0, teamA.totalHp)),
+      bWeapon: logNotesB.join("+") || "-",
       bDmg: dmgToAttackers.toFixed(1),
       bWaste: "0.0",
       bUnits: buildingHp > 0 ? 1 : 0,
       bHp: Math.round(buildingHp),
-      notes: "",
+      notes: notes.join(", "),
     });
   }
 
@@ -4840,11 +5991,7 @@ function runBuildingBattle() {
   const attackerWins = buildingHp <= 0;
   const winner = attackerWins ? "A" : teamA.units > 0 ? "timeout" : "B";
 
-  const resultsEl = document.getElementById("results");
-  resultsEl.style.display = "block";
-  resultsEl.style.animation = "none";
-  resultsEl.offsetHeight;
-  resultsEl.style.animation = "";
+  const resultsEl = showResultsContainer();
 
   // Winner text
   const winnerTextEl = document.getElementById("winnerText");
@@ -5091,8 +6238,13 @@ function applyUnitDataToEditor(side, unitData) {
   document.getElementById(`${side}_attack`).value = unitData.stats.attack ?? "";
   document.getElementById(`${side}_meleeArmor`).value =
     unitData.stats.meleeArmor ?? 0;
-  document.getElementById(`${side}_rangedArmor`).value =
-    unitData.stats.rangedArmor ?? 0;
+  updateRangedDefenseField(
+    side,
+    units[unitData.name],
+    usesDamageReductionField(units[unitData.name])
+      ? unitData.stats.rangedResistance ?? 0
+      : unitData.stats.rangedArmor ?? 0,
+  );
   document.getElementById(`${side}_attackSpeed`).value =
     unitData.stats.attackSpeed ?? 1;
 
@@ -5661,7 +6813,7 @@ function renderEffectsMulti(card, effects, groupId, selectedCiv) {
             </div>
             <label class="effect-label" style="font-size:0.85rem;">
               <strong>${effect.name}</strong>
-              <span style="font-size:0.75rem; color:#b8ad9e;"> — ${effect.description}</span>
+              <span style="font-size:0.75rem; color:#b8ad9e;"> â€” ${effect.description}</span>
             </label>
           </div>
           <div class="effect-value-area">${valueHtml}</div>
@@ -5673,7 +6825,7 @@ function renderEffectsMulti(card, effects, groupId, selectedCiv) {
             <input class="form-check-input effect-checkbox" type="checkbox" id="${checkId}" data-effect="${effectId}" checked>
             <label class="form-check-label" for="${checkId}" style="font-size:0.85rem;">
               <strong>${effect.name}</strong>
-              <span style="font-size:0.75rem; color:#b8ad9e;"> — ${effect.description}</span>
+              <span style="font-size:0.75rem; color:#b8ad9e;"> â€” ${effect.description}</span>
             </label>
           </div>
           <div class="effect-value-area">${valueHtml}</div>
@@ -5973,7 +7125,11 @@ function updateMultiUnitStats(card, group) {
   getMultiField(card, "hp").value = stats.hp || "";
   getMultiField(card, "attack").value = stats.attack || "";
   getMultiField(card, "meleeArmor").value = stats.meleeArmor || 0;
-  getMultiField(card, "rangedArmor").value = stats.rangedArmor || 0;
+  updateMultiRangedDefenseField(
+    card,
+    unit,
+    getDisplayedRangedDefenseValue(unit, stats),
+  );
   getMultiField(card, "attackSpeed").value = weaponData.attackSpeed || 1;
   updateMultiSecondaryWeaponInputs(card, unitName, unit, age, weaponMode);
 
@@ -6205,6 +7361,13 @@ function syncGroupFromCard(card, group) {
   const tags = collectTagsFromCard(card);
   const bonuses = collectBonusesFromCard(card);
   const effects = collectEffectsFromCard(card);
+  const displayedRangedDefense =
+    parseFloat(getMultiField(card, "rangedArmor").value) || 0;
+  const { rangedArmor, rangedResistance } = resolveRangedDefenseStats(
+    unit,
+    ageStats,
+    displayedRangedDefense,
+  );
 
   group.unitData = {
     name: unitName,
@@ -6217,7 +7380,8 @@ function syncGroupFromCard(card, group) {
       hp: parseFloat(getMultiField(card, "hp").value) || 0,
       attack: parseFloat(getMultiField(card, "attack").value) || 0,
       meleeArmor: parseFloat(getMultiField(card, "meleeArmor").value) || 0,
-      rangedArmor: parseFloat(getMultiField(card, "rangedArmor").value) || 0,
+      rangedArmor,
+      rangedResistance,
       attackSpeed: parseFloat(getMultiField(card, "attackSpeed").value) || 1,
       bonus: bonuses,
     },
@@ -6837,11 +8001,7 @@ function renderMultiBattleLog(battleLog) {
 }
 
 function renderMultiResults(teamsA, teamsB, time, winner) {
-  const resultsEl = document.getElementById("results");
-  resultsEl.style.display = "block";
-  resultsEl.style.animation = "none";
-  resultsEl.offsetHeight;
-  resultsEl.style.animation = "";
+  const resultsEl = showResultsContainer();
   const multiResults = document.getElementById("multiResultsContainer");
   if (multiResults) multiResults.style.display = "none";
   document.getElementById("resultPanelA").style.display = "";
@@ -6912,6 +8072,42 @@ function renderMultiResults(teamsA, teamsB, time, winner) {
 // PAGE NAVIGATION
 // ========================================
 
+function showResultsContainer() {
+  const resultsEl = document.getElementById("results");
+  if (!resultsEl) return null;
+  resultsEl.dataset.lastVisible = "true";
+  delete resultsEl.dataset.hiddenForPage;
+  resultsEl.style.display = "block";
+  resultsEl.style.animation = "none";
+  resultsEl.offsetHeight;
+  resultsEl.style.animation = "";
+  return resultsEl;
+}
+
+function syncResultsVisibilityForPage(pageName) {
+  const resultsEl = document.getElementById("results");
+  if (!resultsEl) return;
+
+  const isBattlePage =
+    pageName === "unitBattler" ||
+    pageName === "vsBuilding" ||
+    pageName === "multiBattle";
+
+  if (isBattlePage) {
+    if (resultsEl.dataset.hiddenForPage === "1") {
+      resultsEl.style.display =
+        resultsEl.dataset.lastVisible === "true" ? "block" : "none";
+      delete resultsEl.dataset.hiddenForPage;
+    }
+    return;
+  }
+
+  resultsEl.dataset.lastVisible =
+    resultsEl.style.display !== "none" ? "true" : "false";
+  resultsEl.dataset.hiddenForPage = "1";
+  resultsEl.style.display = "none";
+}
+
 function switchPage(pageName) {
   currentPage = pageName;
   // Update nav tabs
@@ -6926,6 +8122,7 @@ function switchPage(pageName) {
   if (rangedspeedToggle)
     rangedspeedToggle.style.display =
       pageName === "vsBuilding" ? "none" : "block";
+  syncResultsVisibilityForPage(pageName);
 
   if (pageName === "buildOrder") {
     const buildEls = document.querySelectorAll(".build-only");
@@ -6984,31 +8181,14 @@ function switchPage(pageName) {
     if (buildingPanel) buildingPanel.style.display = "block";
     if (teamASections) teamASections.style.display = "none";
     if (buildingPanel && teamBNormal) updateBuildingStats();
-    // Show torch damage for melee units, hide normal attack stats
-    const age = parseInt(document.getElementById("unitAAge")?.value) || 2;
-    const weaponMode = document.querySelector(
-      'input[name="weaponModeA"]:checked',
-    )?.value;
-    const unitName = document.getElementById("unitASelect")?.dataset.value;
-    const unit = units[unitName];
-    const weaponType =
-      unit?.weapons?.[weaponMode === "secondary" ? "secondary" : "primary"]
-        ?.type || "melee";
-    if (weaponType === "melee") {
-      if (torchDmgEl) torchDmgEl.value = TORCH_BY_AGE[age] || 13;
-      if (torchInfo) torchInfo.style.display = "";
-      if (attackCol) attackCol.style.display = "none";
-      if (attackSpeedCol) attackSpeedCol.style.display = "none";
-    } else {
-      if (torchInfo) torchInfo.style.display = "none";
-      if (attackCol) attackCol.style.display = "";
-      if (attackSpeedCol) attackSpeedCol.style.display = "";
-    }
-    // Render unit siege/torch tech buttons for vs-building mode
+    if (torchInfo) torchInfo.style.display = "none";
+    if (attackCol) attackCol.style.display = "";
+    if (attackSpeedCol) attackSpeedCol.style.display = "";
     renderBuildingUnitTechs("A");
+    updateBuildingAttackDisplay("A");
     // Update Team B title to show building name
     const bName = document.getElementById("buildingType")?.value || "Building";
-    setUnitTitleInteractivity("B", false);
+    setUnitTitleInteractivity("B", true);
     const titleB = document.getElementById("titleB");
     if (titleB) {
       titleB.innerHTML = `<span>${bName}</span>`;
@@ -7021,6 +8201,7 @@ function switchPage(pageName) {
     if (torchInfo) torchInfo.style.display = "none";
     if (attackCol) attackCol.style.display = "";
     if (attackSpeedCol) attackSpeedCol.style.display = "";
+    updateBuildingAttackDisplay("A");
     setUnitTitleInteractivity("B", true);
     if (teamBNormal) updateUnitStats("B");
   } else {
@@ -7031,6 +8212,7 @@ function switchPage(pageName) {
     if (torchInfo) torchInfo.style.display = "none";
     if (attackCol) attackCol.style.display = "";
     if (attackSpeedCol) attackSpeedCol.style.display = "";
+    updateBuildingAttackDisplay("A");
     setUnitTitleInteractivity("B", true);
     if (teamBNormal) updateUnitStats("B");
   }
@@ -7040,6 +8222,328 @@ function switchPage(pageName) {
 function toggleBuildingMode() {
   const toggle = document.getElementById("vsBuildingToggle");
   switchPage(toggle && toggle.checked ? "vsBuilding" : "unitBattler");
+}
+
+function getBuildingEnhancementState(buildingName) {
+  if (!buildingName || !BUILDINGS[buildingName]) return {};
+  if (!buildingEnhancementStates[buildingName]) {
+    const nextState = {};
+    (BUILDINGS[buildingName].enhancements || []).forEach((enhancement) => {
+      nextState[enhancement.id] = {
+        active: !!enhancement.defaultActive,
+        level: enhancement.defaultLevel || 0,
+      };
+    });
+    buildingEnhancementStates[buildingName] = nextState;
+  }
+  return buildingEnhancementStates[buildingName];
+}
+
+function isBuildingEnhancementEnabled(enhancement, state) {
+  if (!enhancement) return false;
+  if (enhancement.mode === "level") {
+    return (state?.level || 0) > 0;
+  }
+  return !!state?.active;
+}
+
+function getBuildingEnhancementLabel(enhancement, state) {
+  if (!enhancement) return "";
+  if (enhancement.mode === "level") {
+    const level = state?.level || 0;
+    return enhancement.labels?.[level] || enhancement.name;
+  }
+  return enhancement.name;
+}
+
+function getBuildingEnhancementIcon(enhancement, state) {
+  if (!enhancement) return FALLBACK_TECH_IMG;
+  if (enhancement.mode === "level") {
+    const level = state?.level || 0;
+    return enhancement.icons?.[level] || enhancement.icon || FALLBACK_TECH_IMG;
+  }
+  return enhancement.icon || FALLBACK_TECH_IMG;
+}
+
+function getResolvedBuildingEnhancementEffects(enhancement, state) {
+  if (!isBuildingEnhancementEnabled(enhancement, state)) return {};
+  if (enhancement.mode === "level") {
+    return enhancement.effectsByLevel?.[state?.level || 0] || {};
+  }
+  return enhancement.effects || {};
+}
+
+function getShortBuildingCivName(civ) {
+  const shortNames = {
+    "Holy Roman Empire": "HRE",
+    "Order of the Dragon": "OotD",
+    "House of Lancaster": "HoL",
+    "Jeanne d'Arc": "JdA",
+    "Zhu Xi's Legacy": "ZXL",
+    "Macedonian Dynasty": "Macedonian",
+    "Sengoku Daimyo": "Sengoku",
+    "Knights Templar": "KT",
+    "Tughlaq Dynasty": "Tughlaq",
+    "Abbasid Dynasty": "Abbasid",
+  };
+  return shortNames[civ] || civ;
+}
+
+function getBuildingEnhancementMeta(enhancement) {
+  if (!enhancement) return "";
+  const parts = [];
+  if (enhancement.civs?.length) {
+    parts.push(enhancement.civs.map(getShortBuildingCivName).join("/"));
+  }
+  if (enhancement.source) parts.push(enhancement.source);
+  if (enhancement.displayOnly || enhancement.simulates === false) {
+    parts.push("display only");
+  }
+  return parts.join(" | ");
+}
+
+function getBuildingEnhancementGroup(enhancement) {
+  if (enhancement?.group) return enhancement.group;
+  if (enhancement?.kind === "source" || enhancement?.kind === "aura") {
+    return "source";
+  }
+  if (enhancement?.kind === "tech") return "tech";
+  return "ability";
+}
+
+function mergeBonusMap(target, source) {
+  if (!target || !source) return target;
+  Object.entries(source).forEach(([tag, value]) => {
+    if (typeof value !== "number") return;
+    target[tag] = (target[tag] || 0) + value;
+  });
+  return target;
+}
+
+function addUniqueItems(target, items) {
+  if (!Array.isArray(target) || !Array.isArray(items)) return;
+  items.forEach((item) => {
+    if (!target.includes(item)) target.push(item);
+  });
+}
+
+function roundBuildingStat(value) {
+  return Math.round(value * 100) / 100;
+}
+
+function applyBuildingPctAndAdd(baseValue, pct = 0, add = 0) {
+  return baseValue * (1 + pct / 100) + add;
+}
+
+function applyAttackSpeedModifierToInterval(interval, speedPct = 0) {
+  if (!interval || interval <= 0) return 0;
+  return interval / (1 + speedPct / 100);
+}
+
+function buildBuildingBonusMap(baseBonus, bonusAdd) {
+  const result = {};
+  mergeBonusMap(result, baseBonus);
+  mergeBonusMap(result, bonusAdd);
+  return result;
+}
+
+function getBuildingEnhancementEffects(buildingName) {
+  const building = BUILDINGS[buildingName];
+  const state = getBuildingEnhancementState(buildingName);
+  const totals = {
+    hpPct: 0,
+    hpAdd: 0,
+    meleeArmorAdd: 0,
+    meleeArmorPct: 0,
+    rangedArmorAdd: 0,
+    rangedArmorPct: 0,
+    fireArmorAdd: 0,
+    fireArmorPct: 0,
+    rangeAdd: 0,
+    rangePct: 0,
+    baseArrowsAdd: 0,
+    baseArrowDmgAdd: 0,
+    baseArrowDmgPct: 0,
+    garrisonArrowDmgAdd: 0,
+    garrisonArrowDmgPct: 0,
+    attackSpeedPct: 0,
+    damageResistancePct: 0,
+    poisonTotalDamage: 0,
+    poisonDuration: 0,
+    repairRate: 0,
+    repairDuration: 0,
+    repairCooldown: 0,
+    passiveRegenRate: 0,
+    attackerAttackSpeedSlowPct: 0,
+    autoTriggerRepair: false,
+    lockedEmplacementsAdd: [],
+    optionalEmplacementsAdd: [],
+    conditionalDamageResistance: [],
+    baseArrowBonusAdd: {},
+    garrisonArrowBonusAdd: {},
+  };
+  const activeEnhancements = [];
+
+  (building?.enhancements || []).forEach((enhancement) => {
+    const enhancementState = state[enhancement.id] || {
+      active: false,
+      level: 0,
+    };
+    if (!isBuildingEnhancementEnabled(enhancement, enhancementState)) return;
+
+    const effects = getResolvedBuildingEnhancementEffects(
+      enhancement,
+      enhancementState,
+    );
+    const displayOnly = !!enhancement.displayOnly || enhancement.simulates === false;
+
+    activeEnhancements.push({
+      id: enhancement.id,
+      name: enhancement.name,
+      kind: enhancement.kind,
+      group: getBuildingEnhancementGroup(enhancement),
+      state: { ...enhancementState },
+      label: getBuildingEnhancementLabel(enhancement, enhancementState),
+      meta: getBuildingEnhancementMeta(enhancement),
+      effects,
+      source: enhancement.source || "",
+      civs: [...(enhancement.civs || [])],
+      displayOnly,
+    });
+
+    if (displayOnly) return;
+
+    Object.entries(effects).forEach(([key, value]) => {
+      if (typeof value === "number") {
+        if (
+          [
+            "damageResistancePct",
+            "poisonDuration",
+            "repairRate",
+            "repairDuration",
+            "repairCooldown",
+            "attackerAttackSpeedSlowPct",
+          ].includes(key)
+        ) {
+          totals[key] = Math.max(totals[key] || 0, value);
+        } else {
+          totals[key] = (totals[key] || 0) + value;
+        }
+        return;
+      }
+      if (key === "lockedEmplacementsAdd") {
+        addUniqueItems(totals.lockedEmplacementsAdd, value);
+        return;
+      }
+      if (key === "optionalEmplacementsAdd") {
+        addUniqueItems(totals.optionalEmplacementsAdd, value);
+        return;
+      }
+      if (key === "conditionalDamageResistance" && Array.isArray(value)) {
+        value.forEach((entry) => {
+          totals.conditionalDamageResistance.push({ ...entry });
+        });
+        return;
+      }
+      if (key === "baseArrowBonusAdd") {
+        mergeBonusMap(totals.baseArrowBonusAdd, value);
+        return;
+      }
+      if (key === "garrisonArrowBonusAdd") {
+        mergeBonusMap(totals.garrisonArrowBonusAdd, value);
+      }
+    });
+
+    if (effects.autoTrigger) totals.autoTriggerRepair = true;
+  });
+
+  return { state, totals, activeEnhancements };
+}
+
+function renderBuildingEnhancementButtons(buildingName) {
+  const grid = document.getElementById("buildingEnhancementGrid");
+  const building = BUILDINGS[buildingName];
+  if (!grid || !building) return;
+
+  const state = getBuildingEnhancementState(buildingName);
+  const enhancements = building.enhancements || [];
+  const groupTitles = {
+    tech: "Techs",
+    source: "Source Auras",
+    ability: "Passives & Abilities",
+  };
+  const grouped = new Map();
+
+  enhancements.forEach((enhancement) => {
+    const group = getBuildingEnhancementGroup(enhancement);
+    if (!grouped.has(group)) grouped.set(group, []);
+    grouped.get(group).push(enhancement);
+  });
+
+  grid.innerHTML = "";
+
+  ["tech", "source", "ability"].forEach((groupKey) => {
+    const items = grouped.get(groupKey) || [];
+    if (!items.length) return;
+
+    const groupEl = document.createElement("div");
+    groupEl.className = "building-tech-group";
+
+    const titleEl = document.createElement("div");
+    titleEl.className = "building-tech-group-title";
+    titleEl.textContent = groupTitles[groupKey] || groupKey;
+    groupEl.appendChild(titleEl);
+
+    const itemsEl = document.createElement("div");
+    itemsEl.className = "building-tech-group-items";
+
+    items.forEach((enhancement) => {
+      const enhancementState = state[enhancement.id] || {
+        active: false,
+        level: 0,
+      };
+      const enabled = isBuildingEnhancementEnabled(
+        enhancement,
+        enhancementState,
+      );
+      const meta = getBuildingEnhancementMeta(enhancement);
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className =
+        `building-tech-btn${enabled ? " active" : ""}` +
+        `${enhancement.displayOnly || enhancement.simulates === false ? " display-only" : ""}`;
+      btn.dataset.enhancementId = enhancement.id;
+      btn.dataset.kind = enhancement.kind || "tech";
+      btn.title =
+        `${enhancement.name}${meta ? ` [${meta}]` : ""}: ${enhancement.description || ""}`;
+      btn.innerHTML =
+        `<img src="${getBuildingEnhancementIcon(enhancement, enhancementState)}" alt="${enhancement.name}" onerror="this.style.display='none';this.parentElement.dataset.noIcon='1'">` +
+        `<span class="building-tech-copy">` +
+        `<span class="building-tech-label">${getBuildingEnhancementLabel(enhancement, enhancementState)}</span>` +
+        `${meta ? `<span class="building-tech-meta">${meta}</span>` : ""}` +
+        `</span>`;
+      btn.addEventListener("click", () => {
+        const targetState = getBuildingEnhancementState(buildingName)[
+          enhancement.id
+        ];
+        if (!targetState) return;
+        if (enhancement.mode === "level") {
+          const maxLevel = Math.max(0, (enhancement.labels || []).length - 1);
+          targetState.level = targetState.level >= maxLevel
+            ? 0
+            : targetState.level + 1;
+          targetState.active = targetState.level > 0;
+        } else {
+          targetState.active = !targetState.active;
+        }
+        updateBuildingStats();
+      });
+      itemsEl.appendChild(btn);
+    });
+
+    groupEl.appendChild(itemsEl);
+    grid.appendChild(groupEl);
+  });
 }
 
 function updateBuildingStats() {
@@ -7053,66 +8557,68 @@ function updateBuildingStats() {
     buildingWrapper.dataset.value = bName;
     updateBuildingSelectHeader(buildingWrapper);
   }
+  renderBuildingEnhancementButtons(bName);
 
-  // Update garrison max
   const garrisonInput = document.getElementById("buildingGarrison");
   garrisonInput.max = b.garrisonMax;
   document.getElementById("buildingGarrisonMax").textContent = b.garrisonMax;
-  if (parseInt(garrisonInput.value) > b.garrisonMax)
+  if (parseInt(garrisonInput.value) > b.garrisonMax) {
     garrisonInput.value = b.garrisonMax;
-
-  // Calculate effective stats with techs
-  let hp = b.hp;
-  let fireArmor = b.fireArmor;
-  let rangedArmor = b.rangedArmor;
-  let arrowUpgrades = 0;
-
-  // Court Architects: +30% HP
-  if (
-    document.getElementById("techCourtArchitects")?.classList.contains("active")
-  ) {
-    hp = Math.round(hp * 1.3);
   }
 
-  // Fortify Outpost: +1000 HP, +5 fire armor
-  if (
-    b.techs?.includes("fortifyOutpost") &&
-    document.getElementById("techFortifyOutpost")?.classList.contains("active")
-  ) {
-    hp += 1000;
-    fireArmor += 5;
-  }
+  const enhancementEffects = getBuildingEnhancementEffects(bName).totals;
 
-  // Castle Turret: +2 arrow damage
-  if (
-    b.techs?.includes("castleTurret") &&
-    document.getElementById("techCastleTurret")?.classList.contains("active")
-  ) {
-    arrowUpgrades += 2;
-  }
+  const hp = Math.round(
+    applyBuildingPctAndAdd(b.hp, enhancementEffects.hpPct, enhancementEffects.hpAdd),
+  );
+  const fireArmor = roundBuildingStat(
+    applyBuildingPctAndAdd(
+      b.fireArmor,
+      enhancementEffects.fireArmorPct,
+      enhancementEffects.fireArmorAdd,
+    ),
+  );
+  const rangedArmor = roundBuildingStat(
+    applyBuildingPctAndAdd(
+      b.rangedArmor,
+      enhancementEffects.rangedArmorPct,
+      enhancementEffects.rangedArmorAdd,
+    ),
+  );
+  const baseArrowRate = applyAttackSpeedModifierToInterval(
+    b.baseArrowRate,
+    enhancementEffects.attackSpeedPct,
+  );
+  const garrisonArrowRate = applyAttackSpeedModifierToInterval(
+    b.garrisonArrowRate,
+    enhancementEffects.attackSpeedPct,
+  );
+  const baseArrowDmg = roundBuildingStat(
+    applyBuildingPctAndAdd(
+      b.baseArrowDmg,
+      enhancementEffects.baseArrowDmgPct,
+      enhancementEffects.baseArrowDmgAdd,
+    ),
+  );
+  const garrisonArrowDmg = roundBuildingStat(
+    applyBuildingPctAndAdd(
+      b.garrisonArrowDmg,
+      enhancementEffects.garrisonArrowDmgPct,
+      enhancementEffects.garrisonArrowDmgAdd,
+    ),
+  );
 
-  // Arrow Upgrades: +1/+2/+3
-  const arrowUpgradeBtn = document.getElementById("techArrowUpgrades");
-  if (arrowUpgradeBtn) {
-    arrowUpgrades += parseInt(arrowUpgradeBtn.dataset.level) || 0;
-  }
-
-  // Set editable fields
   document.getElementById("buildingHp").value = hp;
   document.getElementById("buildingRangedArmor").value = rangedArmor;
   document.getElementById("buildingFireArmor").value = fireArmor;
-
-  // Set arrow stats
-  document.getElementById("buildingBaseArrows").value = b.baseArrows;
-  document.getElementById("buildingBaseArrowDmg").value =
-    b.baseArrowDmg + arrowUpgrades;
-  document.getElementById("buildingBaseArrowRate").value = b.baseArrowRate;
-  document.getElementById("buildingGarrisonArrowDmg").value =
-    b.garrisonArrowDmg + arrowUpgrades;
+  document.getElementById("buildingBaseArrows").value =
+    b.baseArrows + enhancementEffects.baseArrowsAdd;
+  document.getElementById("buildingBaseArrowDmg").value = baseArrowDmg;
+  document.getElementById("buildingBaseArrowRate").value = baseArrowRate;
+  document.getElementById("buildingGarrisonArrowDmg").value = garrisonArrowDmg;
   document.getElementById("buildingGarrisonArrowRate").value =
-    b.garrisonArrowRate;
+    garrisonArrowRate;
 
-  // Update Team B title to building name with civ flags
   const titleB = document.getElementById("titleB");
   if (titleB && document.getElementById("vsBuildingToggle")?.checked) {
     const civs = (b.civs || []).filter((c) => CIV_FLAGS[c]);
@@ -7128,71 +8634,79 @@ function updateBuildingStats() {
     titleB.innerHTML = `<span>${bName}</span><span>${flagsHtml}</span>`;
   }
 
-  // Show/hide conditional techs
-  const hasFortify = b.techs?.includes("fortifyOutpost");
-  const hasCastleTurret = b.techs?.includes("castleTurret");
-  const fortifyEl = document.getElementById("techFortifyOutpost");
-  const castleTurretEl = document.getElementById("techCastleTurret");
-  if (fortifyEl) fortifyEl.style.display = hasFortify ? "" : "none";
-  if (castleTurretEl)
-    castleTurretEl.style.display = hasCastleTurret ? "" : "none";
-
-  // Reset hidden tech states
-  if (!hasFortify) {
-    document.getElementById("techFortifyOutpost")?.classList.remove("active");
-  }
-  if (!hasCastleTurret) {
-    document.getElementById("techCastleTurret")?.classList.remove("active");
-  }
-
-  // Populate emplacement toggle buttons
   const emplacementSection = document.getElementById("emplacementSection");
   const emplacementGrid = document.getElementById("emplacementGrid");
   const emplacementSummary = document.getElementById("emplacementSummary");
-  if (emplacementSection && emplacementGrid) {
-    const empList = b.emplacements || [];
-    if (empList.length === 0) {
-      emplacementSection.style.display = "none";
-    } else {
-      emplacementSection.style.display = "";
-      // Outposts = single emplacement (radio), Keeps/Landmarks = multiple (toggle)
-      const isOutpost = [
-        "Outpost",
-        "Toll Outpost",
-        "Wooden Fortress",
-        "Fortified Outpost",
-      ].includes(bName);
-      emplacementGrid.dataset.mode = isOutpost ? "radio" : "toggle";
-      emplacementGrid.innerHTML = "";
-      empList.forEach((name) => {
-        const emp = EMPLACEMENTS[name];
-        if (!emp) return;
-        const civLabel = emp.civs?.length
-          ? ` (${emp.civs[0].replace("Macedonian Dynasty", "Macedon.").replace("Knights Templar", "KT")})`
-          : "";
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "building-tech-btn";
-        btn.dataset.emplacement = name;
-        const dmgText =
-          emp.projectiles > 1 ? `${emp.dmg}×${emp.projectiles}` : `${emp.dmg}`;
-        btn.title = `${dmgText} dmg, ${emp.rate}s, range ${emp.range}`;
-        btn.textContent = name.replace(" Emplacement", "") + civLabel;
-        btn.addEventListener("click", function () {
-          if (emplacementGrid.dataset.mode === "radio") {
-            // Radio: deactivate all others
-            emplacementGrid
-              .querySelectorAll(".building-tech-btn")
-              .forEach((b) => b.classList.remove("active"));
-          }
-          this.classList.toggle("active");
-          updateEmplacementSummary();
-        });
-        emplacementGrid.appendChild(btn);
+  if (!emplacementSection || !emplacementGrid) return;
+
+  const prevActive = new Set(
+    Array.from(
+      emplacementGrid.querySelectorAll(".building-tech-btn.active:not(.locked)"),
+    ).map((btn) => btn.dataset.emplacement),
+  );
+  const lockedEmplacements = [
+    ...(b.lockedEmplacements || []),
+    ...(enhancementEffects.lockedEmplacementsAdd || []),
+  ].filter((value, index, list) => list.indexOf(value) === index);
+  const empList = [
+    ...(b.emplacements || []),
+    ...(enhancementEffects.optionalEmplacementsAdd || []),
+  ].filter((value, index, list) => list.indexOf(value) === index);
+
+  if (empList.length === 0 && lockedEmplacements.length === 0) {
+    emplacementSection.style.display = "none";
+    if (emplacementSummary) emplacementSummary.textContent = "";
+    return;
+  }
+
+  emplacementSection.style.display = "";
+  emplacementGrid.dataset.mode = b.emplacementMode || "toggle";
+  emplacementGrid.innerHTML = "";
+
+  const renderEmplacementButton = (name, options = {}) => {
+    const emp = EMPLACEMENTS[name];
+    if (!emp) return;
+    const civLabel = emp.civs?.length
+      ? ` (${emp.civs.map(getShortBuildingCivName).join("/")})`
+      : "";
+    const bonusText = Object.keys(emp.bonus || {}).length
+      ? `; bonus ${Object.entries(emp.bonus)
+          .map(([tag, value]) => `+${value} vs ${tag}`)
+          .join(", ")}`
+      : "";
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className =
+      `building-tech-btn${options.active ? " active" : ""}` +
+      `${options.locked ? " locked" : ""}`;
+    btn.dataset.emplacement = name;
+    if (options.locked) btn.dataset.locked = "1";
+    const dmgText =
+      emp.projectiles > 1 ? `${emp.dmg}x${emp.projectiles}` : `${emp.dmg}`;
+    btn.title =
+      `${dmgText} dmg, ${emp.rate}s, range ${emp.range}${bonusText}`;
+    btn.textContent = name.replace(" Emplacement", "") + civLabel;
+    if (!options.locked) {
+      btn.addEventListener("click", function () {
+        if (emplacementGrid.dataset.mode === "radio") {
+          emplacementGrid
+            .querySelectorAll(".building-tech-btn:not(.locked)")
+            .forEach((node) => node.classList.remove("active"));
+        }
+        this.classList.toggle("active");
+        updateEmplacementSummary();
       });
     }
-    if (emplacementSummary) emplacementSummary.textContent = "";
-  }
+    emplacementGrid.appendChild(btn);
+  };
+
+  lockedEmplacements.forEach((name) => {
+    renderEmplacementButton(name, { active: true, locked: true });
+  });
+  empList.forEach((name) => {
+    renderEmplacementButton(name, { active: prevActive.has(name), locked: false });
+  });
+  updateEmplacementSummary();
 }
 
 function updateEmplacementSummary() {
@@ -7211,10 +8725,8 @@ function updateEmplacementSummary() {
     const emp = EMPLACEMENTS[name];
     if (!emp) return;
     const dmgText =
-      emp.projectiles > 1 ? `${emp.dmg}×${emp.projectiles}` : `${emp.dmg}`;
-    parts.push(
-      `${name.replace(" Emplacement", "")}: ${dmgText} dmg / ${emp.rate}s`,
-    );
+      emp.projectiles > 1 ? `${emp.dmg}x${emp.projectiles}` : `${emp.dmg}`;
+    parts.push(`${name.replace(" Emplacement", "")}: ${dmgText} dmg / ${emp.rate}s`);
   });
   summaryEl.textContent = parts.join(" | ");
 }
@@ -7222,6 +8734,8 @@ function updateEmplacementSummary() {
 function getBuildingData() {
   const bName = document.getElementById("buildingType").value;
   const b = BUILDINGS[bName];
+  const enhancementData = getBuildingEnhancementEffects(bName);
+  const enhancementEffects = enhancementData.totals;
   const garrison =
     parseInt(document.getElementById("buildingGarrison").value) || 0;
   const hp = parseFloat(document.getElementById("buildingHp").value) || b.hp;
@@ -7230,29 +8744,36 @@ function getBuildingData() {
   const fireArmor =
     parseFloat(document.getElementById("buildingFireArmor").value) || 0;
 
-  // Read active emplacements from toggle buttons
   const emplacements = [];
   const grid = document.getElementById("emplacementGrid");
   if (grid) {
     grid.querySelectorAll(".building-tech-btn.active").forEach((btn) => {
       const name = btn.dataset.emplacement;
       const empData = EMPLACEMENTS[name];
-      if (empData) {
-        emplacements.push({
-          name,
-          dmg: empData.dmg,
-          projectiles: empData.projectiles,
-          rate: empData.rate,
-          range: empData.range,
-          type: empData.type,
-        });
-      }
+      if (!empData) return;
+      emplacements.push({
+        name,
+        dmg: empData.dmg,
+        projectiles: empData.projectiles,
+        rate: empData.rate,
+        range: empData.range,
+        type: empData.type,
+        bonus: { ...(empData.bonus || {}) },
+        requiresContact: !!empData.requiresContact,
+      });
     });
   }
 
   return {
     name: bName,
     hp,
+    meleeArmor: roundBuildingStat(
+      applyBuildingPctAndAdd(
+        b.meleeArmor || 0,
+        enhancementEffects.meleeArmorPct,
+        enhancementEffects.meleeArmorAdd,
+      ),
+    ),
     rangedArmor,
     fireArmor,
     garrison,
@@ -7262,41 +8783,43 @@ function getBuildingData() {
       parseFloat(document.getElementById("buildingBaseArrowDmg").value) || 0,
     baseArrowRate:
       parseFloat(document.getElementById("buildingBaseArrowRate").value) || 1,
+    baseAttackType: b.baseAttackType || "ranged",
+    baseArrowBonus: buildBuildingBonusMap(
+      b.baseArrowBonus,
+      enhancementEffects.baseArrowBonusAdd,
+    ),
     garrisonArrowDmg:
-      parseFloat(document.getElementById("buildingGarrisonArrowDmg").value) ||
-      0,
+      parseFloat(document.getElementById("buildingGarrisonArrowDmg").value) || 0,
     garrisonArrowRate:
-      parseFloat(document.getElementById("buildingGarrisonArrowRate").value) ||
-      1,
+      parseFloat(document.getElementById("buildingGarrisonArrowRate").value) || 1,
+    garrisonAttackType: b.garrisonAttackType || "ranged",
+    garrisonArrowBonus: buildBuildingBonusMap(
+      b.garrisonArrowBonus,
+      enhancementEffects.garrisonArrowBonusAdd,
+    ),
     emplacements,
-    range: b.range,
+    range: roundBuildingStat(
+      applyBuildingPctAndAdd(
+        b.range || 0,
+        enhancementEffects.rangePct,
+        enhancementEffects.rangeAdd,
+      ),
+    ),
+    damageResistancePct: enhancementEffects.damageResistancePct || 0,
+    conditionalDamageResistance: [
+      ...(enhancementEffects.conditionalDamageResistance || []),
+    ],
+    poisonTotalDamage: enhancementEffects.poisonTotalDamage || 0,
+    poisonDuration: enhancementEffects.poisonDuration || 0,
+    repairRate: enhancementEffects.repairRate || 0,
+    repairDuration: enhancementEffects.repairDuration || 0,
+    repairCooldown: enhancementEffects.repairCooldown || 0,
+    passiveRegenRate: enhancementEffects.passiveRegenRate || 0,
+    attackerAttackSpeedSlowPct:
+      enhancementEffects.attackerAttackSpeedSlowPct || 0,
+    autoTriggerRepair: !!enhancementEffects.autoTriggerRepair,
+    activeEnhancements: enhancementData.activeEnhancements,
   };
-}
-
-function cycleArrowUpgrades() {
-  const btn = document.getElementById("techArrowUpgrades");
-  if (!btn) return;
-  let level = (parseInt(btn.dataset.level) || 0) + 1;
-  if (level > 3) level = 0;
-  btn.dataset.level = level;
-  btn.classList.toggle("active", level > 0);
-  const labels = [
-    "Arrows: 0",
-    "Steeled: +1",
-    "Balanced: +2",
-    "Platecutter: +3",
-  ];
-  const icons = [
-    "assets/images/technologies/steeled-arrow-2.png",
-    "assets/images/technologies/steeled-arrow-2.png",
-    "assets/images/technologies/balanced-projectiles-3.png",
-    "assets/images/technologies/platecutter-point-4.png",
-  ];
-  const labelEl = btn.querySelector(".building-tech-label");
-  const imgEl = btn.querySelector("img");
-  if (labelEl) labelEl.textContent = labels[level];
-  if (imgEl) imgEl.src = icons[level];
-  updateBuildingStats();
 }
 
 // ========================================
@@ -7474,29 +8997,6 @@ document.getElementById("buildingGarrison")?.addEventListener("input", () => {
   const max = parseInt(input.max) || 15;
   if (parseInt(input.value) > max) input.value = max;
 });
-
-// Tech toggle buttons
-document
-  .getElementById("techCourtArchitects")
-  ?.addEventListener("click", function () {
-    this.classList.toggle("active");
-    updateBuildingStats();
-  });
-document
-  .getElementById("techArrowUpgrades")
-  ?.addEventListener("click", cycleArrowUpgrades);
-document
-  .getElementById("techFortifyOutpost")
-  ?.addEventListener("click", function () {
-    this.classList.toggle("active");
-    updateBuildingStats();
-  });
-document
-  .getElementById("techCastleTurret")
-  ?.addEventListener("click", function () {
-    this.classList.toggle("active");
-    updateBuildingStats();
-  });
 
 // Emplacement toggle buttons are created dynamically in updateBuildingStats()
 
