@@ -351,6 +351,178 @@ function deriveRuntimeUpgradesForUnit(unit, unitName) {
     });
 }
 
+function getKtUnitCosts(unit = {}) {
+  return unit?.costs || unit?.cost || {};
+}
+
+function isKtHumanCombatUnit(unit = {}) {
+  const tags = unit?.tags || [];
+  if (!Array.isArray(tags) || tags.length === 0) return false;
+  return !tags.includes("Siege") &&
+    !tags.includes("Ship") &&
+    !tags.includes("Building");
+}
+
+function isKtMeleeCombatUnit(unit = {}) {
+  const tags = unit?.tags || [];
+  return isKtHumanCombatUnit(unit) &&
+    tags.includes("Melee") &&
+    !tags.includes("Ranged");
+}
+
+function isKtCavalryUnit(unit = {}) {
+  return isKtHumanCombatUnit(unit) && (unit?.tags || []).includes("Cavalry");
+}
+
+function isKtGoldHumanUnit(unit = {}) {
+  return isKtHumanCombatUnit(unit) && (getKtUnitCosts(unit).gold || 0) > 0;
+}
+
+export const KT_COMMANDERIE_BRANCHES = Object.freeze({
+  "Knights Hospitaller": {
+    name: "Knights Hospitaller",
+    branchId: "knightsHospitaller",
+    ageGroup: "feudal",
+    category: "hitpoints",
+    description: "+30% healing received from all sources.",
+    unlocksUnits: ["Hospitaller Knight"],
+    combatVisible: true,
+    alwaysOn: true,
+    appliesToUnit: (unit) => isKtHumanCombatUnit(unit),
+  },
+  "Principality of Antioch": {
+    name: "Principality of Antioch",
+    branchId: "principalityOfAntioch",
+    ageGroup: "feudal",
+    category: "attack",
+    description: "Melee units +15% damage.",
+    unlocksUnits: ["Serjeant"],
+    combatVisible: true,
+    alwaysOn: true,
+    appliesToUnit: (unit) => isKtMeleeCombatUnit(unit),
+  },
+  "Kingdom of France": {
+    name: "Kingdom of France",
+    branchId: "kingdomOfFrance",
+    ageGroup: "feudal",
+    category: "creationSpeed",
+    description: "Unlocks Chevalier Confrere and training/gold bonuses.",
+    unlocksUnits: ["Chevalier Confrere"],
+    combatVisible: false,
+    alwaysOn: true,
+  },
+  "Angevin Empire": {
+    name: "Angevin Empire",
+    branchId: "angevinEmpire",
+    ageGroup: "castle",
+    category: "hitpoints",
+    description: "Unlocks Heavy Spearman and structure-health bonuses.",
+    unlocksUnits: ["Heavy Spearman"],
+    combatVisible: false,
+    alwaysOn: true,
+  },
+  "Republic of Genoa": {
+    name: "Republic of Genoa",
+    branchId: "republicOfGenoa",
+    ageGroup: "castle",
+    category: "other",
+    description: "Unlocks Genoese Crossbowman and Pilgrim gold bonuses.",
+    unlocksUnits: ["Genoese Crossbowman"],
+    combatVisible: false,
+    alwaysOn: true,
+  },
+  "Kingdom of Castile": {
+    name: "Kingdom of Castile",
+    branchId: "kingdomOfCastile",
+    ageGroup: "castle",
+    category: "attack",
+    description: "Near Sacred Sites: +20% damage and +1 HP/s.",
+    unlocksUnits: ["Genitour"],
+    combatVisible: true,
+    alwaysOn: false,
+    situational: true,
+    appliesToUnit: (unit) => isKtHumanCombatUnit(unit),
+  },
+  "Kingdom of Poland": {
+    name: "Kingdom of Poland",
+    branchId: "kingdomOfPoland",
+    ageGroup: "imperial",
+    category: "hitpoints",
+    description: "Cavalry +10% hit points and +50% charge damage.",
+    unlocksUnits: ["Szlachta Cavalry"],
+    combatVisible: true,
+    alwaysOn: true,
+    appliesToUnit: (unit) => isKtCavalryUnit(unit),
+  },
+  "Teutonic Order": {
+    name: "Teutonic Order",
+    branchId: "teutonicOrder",
+    ageGroup: "imperial",
+    category: "armor",
+    description: "Human units that cost gold gain +2 melee armor.",
+    unlocksUnits: ["Teutonic Knight"],
+    combatVisible: true,
+    alwaysOn: true,
+    appliesToUnit: (unit) => isKtGoldHumanUnit(unit),
+  },
+  "Republic of Venice": {
+    name: "Republic of Venice",
+    branchId: "republicOfVenice",
+    ageGroup: "imperial",
+    category: "other",
+    description: "Unlocks Condottiero and trade bonuses.",
+    unlocksUnits: ["Condottiero"],
+    combatVisible: false,
+    alwaysOn: true,
+  },
+});
+
+const KT_COMMANDERIE_ROUTE_LOCKS = Object.freeze({
+  "Hospitaller Knight": "Knights Hospitaller",
+  "Serjeant": "Principality of Antioch",
+  "Chevalier Confrere": "Kingdom of France",
+  "Heavy Spearman": "Angevin Empire",
+  "Genoese Crossbowman": "Republic of Genoa",
+  "Genitour": "Kingdom of Castile",
+  "Szlachta Cavalry": "Kingdom of Poland",
+  "Teutonic Knight": "Teutonic Order",
+  "Condottiero": "Republic of Venice",
+});
+
+const KT_COMMANDERIE_BRANCH_NAME_SET = new Set(
+  Object.keys(KT_COMMANDERIE_BRANCHES),
+);
+
+export function getKtCommanderieBranchByName(name = "") {
+  return KT_COMMANDERIE_BRANCHES[name] || null;
+}
+
+export function getKtCommanderieRouteLock(unitName = "") {
+  const branchName = KT_COMMANDERIE_ROUTE_LOCKS[unitName];
+  return branchName ? getKtCommanderieBranchByName(branchName) : null;
+}
+
+export function isKtCommanderieBranchName(name = "") {
+  return KT_COMMANDERIE_BRANCH_NAME_SET.has(name);
+}
+
+export function isKtCommanderiePlaceholder(item) {
+  if (!item) return false;
+  if (item.name === "Knights Templar") return true;
+  return isKtCommanderieBranchName(item.name);
+}
+
+export function getKtCombatCommanderieBranchesForUnit(unit, unitName = "") {
+  return Object.values(KT_COMMANDERIE_BRANCHES).filter((branch) => {
+    if (!branch.combatVisible) return false;
+    if (typeof branch.appliesToUnit === "function" &&
+      !branch.appliesToUnit(unit, unitName)) {
+      return false;
+    }
+    return true;
+  });
+}
+
 export function computeGlobalUpgradesForUnit(unit, unitName = "") {
   const results = [];
   for (const tech of GLOBAL_UPGRADE_TECHS) {
@@ -482,6 +654,9 @@ export const TECH_EFFECTS = {
   "Geometry|attack": {},
   "Greek Fire Projectiles|attack": {},
   "Counterweight Defenses|attack": {},
+  "Rule of Templars|attack": {},
+  "Principality of Antioch|attack": { attackPct: 15 },
+  "Kingdom of Castile|attack": { attackPct: 20 },
   "Prolonged Siege|attack": {},
   "Fine Tuned Guns|attack": {},
   "Cloud of Terror|attack": {},
@@ -538,6 +713,7 @@ export const TECH_EFFECTS = {
   "Scale Armor|armor": { rangedArmor: 3 },
   "Muscovy Yasak|armor": { rangedArmor: 2 },
   "Cross Folded Armor|armor": { rangedArmor: 2 },
+  "Teutonic Order|armor": { meleeArmor: 2 },
 
   // Tiered armor (Macedonian Dynasty)
   "Butted Chainmail|armor": {
@@ -579,6 +755,8 @@ export const TECH_EFFECTS = {
   "Khan and Torguuds|hitpoints": { hpAbs: 30 },
   "Enlist Mansa Musofadi|hitpoints": { hpAbs: 10 },
   "Defensive Aura Edict|hitpoints": { hpPct: 10 },
+  "Knights Hospitaller|hitpoints": {},
+  "Kingdom of Poland|hitpoints": { hpPct: 10 },
 
   // Tiered HP (Macedonian Dynasty)
   "Butted Chainmail|hitpoints": {
@@ -752,6 +930,16 @@ export const TECH_IMAGE_MAP = {
   "Teardrop Shields": "assets/images/technologies/teardrop-shields-3.png",
   "Static Deployment": "assets/images/abilities/ability-static-deployment-1.png",
   "Fanaticism": "assets/images/technologies/fanaticism-4.png",
+  "Rule of Templars": "assets/images/technologies/rule-of-templars-3.png",
+  "Knights Hospitaller": "assets/images/technologies/knights-hospitaller-2.png",
+  "Principality of Antioch": "assets/images/technologies/principality-of-antioch-2.png",
+  "Kingdom of France": "assets/images/technologies/kingdom-of-france-2.png",
+  "Angevin Empire": "assets/images/technologies/angevin-empire-3.png",
+  "Republic of Genoa": "assets/images/technologies/republic-of-genoa-3.png",
+  "Kingdom of Castile": "assets/images/technologies/kingdom-of-castile-3.png",
+  "Kingdom of Poland": "assets/images/technologies/kingdom-of-poland-4.png",
+  "Teutonic Order": "assets/images/technologies/teutonic-order-4.png",
+  "Republic of Venice": "assets/images/technologies/republic-of-venice-4.png",
   "Elite Army Tactics": "assets/images/technologies/elite-army-tactics-4.png",
   "Oda Tactics": "assets/images/technologies/oda-tactics-4.png",
   "Khan Warcry": "assets/images/technologies/khan-debuff-arrow-2.png",
