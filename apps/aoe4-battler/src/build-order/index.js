@@ -87,6 +87,35 @@ let boLocalEffectAssignments = {};
 let boCompareSortKey = "combinedTotalValue";
 let boCompareSortDir = "desc";
 
+const KT_BO_ROUTE_UNLOCKS = Object.freeze({
+  "Hospitaller Knight": "Knights Hospitaller",
+  "Serjeant": "Principality of Antioch",
+  "Chevalier Confrere": "Kingdom of France",
+  "Heavy Spearman": "Angevin Empire",
+  "Genoese Crossbowman": "Republic of Genoa",
+  "Genitour": "Kingdom of Castile",
+  "Szlachta Cavalry": "Kingdom of Poland",
+  "Teutonic Knight": "Teutonic Order",
+  "Condottiero": "Republic of Venice",
+});
+
+function getKtBoChoiceConflictName(def, researchedTechs) {
+  const group = def?.ktChoiceAgeGroup || null;
+  if (!group) return null;
+  for (const techName of researchedTechs || []) {
+    if (techName === def.name) continue;
+    if (getBoTechDefaults(techName)?.ktChoiceAgeGroup === group) {
+      return techName;
+    }
+  }
+  return null;
+}
+
+function getKtBoRequiredTechForUnit(unitName, civ) {
+  if (civ !== "Knights Templar") return null;
+  return KT_BO_ROUTE_UNLOCKS[resolveBoUnitName(unitName)] || null;
+}
+
 
 
 
@@ -8458,8 +8487,12 @@ function simulateBuildOrder(commands, config) {
 
   function getUnitAvailabilityIssue(unitName, buildingType) {
     const ottomanEffects = getOttomanActiveEffects();
+    const ktRequiredTech = getKtBoRequiredTechForUnit(unitName, civ);
     if (civ === "Malians" && unitName === "Cattle" && malianCattleCount >= 20) {
       return { type: "blocked", message: "Blocked (Cattle limit reached)" };
+    }
+    if (ktRequiredTech && !isTechResearched(ktRequiredTech)) {
+      return { type: "blocked", message: `Blocked (requires ${ktRequiredTech})` };
     }
     if (
       civ === "Ottomans" &&
@@ -8614,6 +8647,7 @@ function simulateBuildOrder(commands, config) {
     if ((age || 1) < Math.max(1, def.minAge || 1)) return false;
     if (Number.isFinite(def.advancesToAge) && (age || 1) >= def.advancesToAge) return false;
     if (isTechResearched(def.name)) return false;
+    if (getKtBoChoiceConflictName(def, researchedTechs)) return false;
     const requiresTechs = Array.isArray(def.requiresTechs) ? def.requiresTechs : [];
     if (requiresTechs.some((name) => !isTechResearched(name))) return false;
     const requiresBuildings = Array.isArray(def.requiresBuildings) ? def.requiresBuildings : [];
@@ -8626,6 +8660,8 @@ function simulateBuildOrder(commands, config) {
     if (!def) return null;
     if ((age || 1) < Math.max(1, def.minAge || 1)) return `Age ${def.minAge}`;
     if (Number.isFinite(def.advancesToAge) && (age || 1) >= def.advancesToAge) return `Age ${def.advancesToAge} already reached`;
+    const ktConflict = getKtBoChoiceConflictName(def, researchedTechs);
+    if (ktConflict) return ktConflict;
     const requiresTechs = Array.isArray(def.requiresTechs) ? def.requiresTechs : [];
     const missingTech = requiresTechs.find((name) => !isTechResearched(name));
     if (missingTech) return missingTech;

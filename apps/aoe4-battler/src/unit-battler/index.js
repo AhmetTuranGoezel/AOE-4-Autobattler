@@ -69,6 +69,10 @@ import {
   getTorchTechMeta,
   isCombatCategory,
   filterTechByCiv,
+  getKtCommanderieBranchByName,
+  getKtCommanderieRouteLock,
+  getKtCombatCommanderieBranchesForUnit,
+  isKtCommanderiePlaceholder,
 } from "./techs.js";
 import {
   createTeamState,
@@ -86,6 +90,7 @@ import {
 // ========================================
 
 let currentPage = "unitBattler";
+let customSelectOwnerIdCounter = 0;
 
 // Multi battle state
 let multiRosters = { A: [], B: [] };
@@ -185,21 +190,170 @@ function getTechLevel(side, techName) {
   return getTechState(side, techName)?.level ?? 0;
 }
 
+function isKnightsTemplarCiv(civ) {
+  return civ === "Knights Templar";
+}
+
+function isKtCommanderieTechKey(techKey = "") {
+  return !!getKtCommanderieBranchByName(String(techKey).split("|")[0]);
+}
+
+function getKtCommanderieAgeGroupFromKey(techKey = "") {
+  return getKtCommanderieBranchByName(String(techKey).split("|")[0])?.ageGroup || null;
+}
+
+function createKtCommanderieTechItem(branch, overrides = {}) {
+  if (!branch) return null;
+  return {
+    name: branch.name,
+    description: branch.description,
+    category: branch.category,
+    civs: ["Knights Templar"],
+    ktCommanderie: true,
+    ktAgeGroup: branch.ageGroup,
+    ktBranchId: branch.branchId,
+    ktAlwaysOn: !!branch.alwaysOn,
+    ktSituational: !!branch.situational,
+    ...overrides,
+  };
+}
+
+function getKtCommanderieRequiredAge(ageGroup = "") {
+  if (ageGroup === "feudal") return 2;
+  if (ageGroup === "castle") return 3;
+  if (ageGroup === "imperial") return 4;
+  return 1;
+}
+
+function getKtInjectedTechItemsForUnit(side, unit, unitName = "") {
+  const lockedBranch = getKtCommanderieRouteLock(unitName);
+  const lockedAgeGroup = lockedBranch?.ageGroup || null;
+  const currentAge =
+    parseInt(document.getElementById(`unit${side}Age`)?.value, 10) || 2;
+  return getKtCombatCommanderieBranchesForUnit(unit, unitName)
+    .filter((branch) => {
+      if (currentAge < getKtCommanderieRequiredAge(branch.ageGroup)) return false;
+      if (!lockedAgeGroup || branch.ageGroup !== lockedAgeGroup) return true;
+      return lockedBranch?.name === branch.name;
+    })
+    .map((branch) =>
+      createKtCommanderieTechItem(branch, {
+        ktRouteLocked: lockedBranch?.name === branch.name,
+        ktLocked: lockedBranch?.name === branch.name && branch.alwaysOn,
+      }),
+    )
+    .filter(Boolean);
+}
+
+function enforceKtCommanderieState(side, unitName, filteredItems = []) {
+  if (!isKnightsTemplarCiv(getSelectedCiv(side))) return;
+
+  const routeLockedBranch = getKtCommanderieRouteLock(unitName);
+  const routeLockedAge = routeLockedBranch?.ageGroup || null;
+  const allowedKeys = new Set(
+    filteredItems
+      .filter((item) => item?.ktCommanderie)
+      .map((item) => getTechKey(item)),
+  );
+
+  for (const [key, state] of [...activeTechs[side].entries()]) {
+    if (!isKtCommanderieTechKey(key)) continue;
+    const branch = getKtCommanderieBranchByName(key.split("|")[0]);
+    if (!branch) continue;
+    if (routeLockedAge && branch.ageGroup === routeLockedAge) {
+      if (branch.name !== routeLockedBranch?.name) {
+        activeTechs[side].delete(key);
+        continue;
+      }
+      if (!routeLockedBranch.combatVisible || !allowedKeys.has(key)) {
+        activeTechs[side].delete(key);
+        continue;
+      }
+    }
+    if (!allowedKeys.has(key)) {
+      activeTechs[side].delete(key);
+      continue;
+    }
+    if (state?.locked && !(routeLockedBranch?.name === branch.name && branch.alwaysOn)) {
+      activeTechs[side].set(key, { ...state, locked: false });
+    }
+  }
+
+  if (routeLockedBranch?.combatVisible && routeLockedBranch.alwaysOn) {
+    const lockedKey = `${routeLockedBranch.name}|${routeLockedBranch.category}`;
+    const lockedState = activeTechs[side].get(lockedKey);
+    activeTechs[side].set(lockedKey, {
+      level: lockedState?.level || 0,
+      locked: true,
+    });
+  }
+
+  const seenByAge = new Map();
+  for (const [key, state] of [...activeTechs[side].entries()]) {
+    if (!isKtCommanderieTechKey(key)) continue;
+    const ageGroup = getKtCommanderieAgeGroupFromKey(key);
+    if (!ageGroup) continue;
+    const existing = seenByAge.get(ageGroup);
+    if (!existing) {
+      seenByAge.set(ageGroup, { key, locked: !!state?.locked });
+      continue;
+    }
+    if (!!state?.locked && !existing.locked) {
+      activeTechs[side].delete(existing.key);
+      seenByAge.set(ageGroup, { key, locked: true });
+      continue;
+    }
+    activeTechs[side].delete(key);
+  }
+}
+
+function getKtDerivedEffectsFromEntries(activeEntries) {
+  const effects = {};
+  for (const [key] of activeEntries) {
+    const techName = String(key).split("|")[0];
+    const branch = getKtCommanderieBranchByName(techName);
+    if (techName === "Rule of Templars") {
+      effects.ruleOfTemplars = { chargeBonusPerNearbyCavalry: 2 };
+      continue;
+    }
+    if (!branch) continue;
+    if (branch.name === "Knights Hospitaller") {
+      effects.healingReceivedPct = 30;
+    } else if (branch.name === "Kingdom of Castile") {
+      effects.passiveRegen = { hps: 1 };
+    } else if (branch.name === "Kingdom of Poland") {
+      effects.chargeDamagePct = 50;
+    }
+  }
+  return effects;
+}
+
 function getFilteredTechItemsForUnit(side, unit, unitName = "") {
   const selectedCiv = getSelectedCiv(side);
   if (!unit || !selectedCiv) return [];
 
   const upgrades = getMergedUpgradesForUnit(unit, unitName);
   const auras = unit.auras || [];
+  const stripKtPlaceholders = isKnightsTemplarCiv(selectedCiv);
   const allItems = [...upgrades, ...auras];
   const seen = new Set();
   const filtered = [];
   for (const item of allItems) {
+    if (stripKtPlaceholders && isKtCommanderiePlaceholder(item)) continue;
     if (!filterTechByCiv(item, selectedCiv)) continue;
     const key = getTechKey(item);
     if (seen.has(key)) continue;
     seen.add(key);
     filtered.push(item);
+  }
+  if (stripKtPlaceholders) {
+    for (const item of getKtInjectedTechItemsForUnit(side, unit, unitName)) {
+      const key = getTechKey(item);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      filtered.push(item);
+    }
+    enforceKtCommanderieState(side, unitName, filtered);
   }
   return filtered;
 }
@@ -577,6 +731,7 @@ function renderTechButtons(side, unitName, unit) {
   }
 
   const filtered = getFilteredTechItemsForUnit(side, unit, unitName);
+  syncTechBuffsToInputs(side);
 
   if (filtered.length === 0) {
     box.style.display = "none";
@@ -621,6 +776,7 @@ function renderTechButtons(side, unitName, unit) {
       const effects = TECH_EFFECTS[key];
       const isCombat = isCombatCategory(item.category);
       const isActive = activeTechs[side].has(key);
+      const isLocked = !!item.ktLocked;
       const isUnmodeled = isCombat && !effects;
       const hasLevels =
         effects &&
@@ -630,8 +786,13 @@ function renderTechButtons(side, unitName, unit) {
       const labels = effects?.labels;
       const imgSrc = getTechImage(item.name);
       const activeClass = isActive ? " active" : "";
+      const lockedClass = isLocked ? " locked" : "";
       const nonCombatClass = !isCombat || isUnmodeled ? " non-combat" : "";
-      const tooltipSuffix = isUnmodeled ? " (not modeled)" : "";
+      const tooltipSuffix = isLocked
+        ? " (locked by Commanderie choice)"
+        : isUnmodeled
+          ? " (not modeled)"
+          : "";
       const tooltip =
         `${item.name}: ${item.description || ""}${tooltipSuffix}`.replace(
           /"/g,
@@ -641,7 +802,7 @@ function renderTechButtons(side, unitName, unit) {
       if (hasLevels && labels && isCombat) {
         const currentLevel = activeTechs[side].get(key)?.level || 0;
         html += `<div class="tech-level-wrap">`;
-        html += `<div class="tech-btn${activeClass}" data-tech-key="${key}" data-side="${side}" title="${tooltip}">`;
+        html += `<div class="tech-btn${activeClass}${lockedClass}" data-tech-key="${key}" data-side="${side}" title="${tooltip}">`;
         html += `<img src="${imgSrc}" alt="${item.name}" onerror="this.src='${FALLBACK_TECH_IMG}'">`;
         html += `</div>`;
         html += `<select class="tech-level-select" data-tech-key="${key}" data-side="${side}">`;
@@ -651,7 +812,7 @@ function renderTechButtons(side, unitName, unit) {
         }
         html += `</select></div>`;
       } else {
-        html += `<div class="tech-btn${activeClass}${nonCombatClass}" data-tech-key="${key}" data-side="${side}" title="${tooltip}">`;
+        html += `<div class="tech-btn${activeClass}${lockedClass}${nonCombatClass}" data-tech-key="${key}" data-side="${side}" title="${tooltip}">`;
         html += `<img src="${imgSrc}" alt="${item.name}" onerror="this.src='${FALLBACK_TECH_IMG}'">`;
         html += `</div>`;
       }
@@ -662,7 +823,7 @@ function renderTechButtons(side, unitName, unit) {
   container.innerHTML = html;
 
   // Attach click handlers for combat tech buttons
-  container.querySelectorAll(".tech-btn:not(.non-combat)").forEach((btn) => {
+  container.querySelectorAll(".tech-btn:not(.non-combat):not(.locked)").forEach((btn) => {
     btn.addEventListener("click", () => {
       const key = btn.dataset.techKey;
       const s = btn.dataset.side;
@@ -757,6 +918,7 @@ function renderBuildingUnitTechs(side) {
     side,
   );
   const filtered = getFilteredTechItemsForUnit(side, unit, unitName);
+  syncTechBuffsToInputs(side);
   const torchEntries = buildingAttackContext.usesTorch
     ? getTorchSectionItems(filtered)
     : [];
@@ -800,6 +962,7 @@ function renderBuildingUnitTechs(side) {
     const torchMeta = isPseudo ? null : getTorchTechMeta(item);
     const isSimulated = effectState === "simulated";
     const isActive = isPseudo ? true : activeTechs[side].has(key);
+    const isLocked = !!item.ktLocked;
     const isUnmodeled =
       !isPseudo &&
       isSimulated &&
@@ -814,9 +977,11 @@ function renderBuildingUnitTechs(side) {
     const displayName = options.displayName || torchMeta?.displayName || item.name;
     const imgSrc = getTechImage(displayName) || getTechImage(item.name);
     const activeClass = isActive ? " active" : "";
+    const lockedClass = isLocked ? " locked" : "";
     const nonCombatClass = !isPseudo && !isSimulated ? " non-combat" : "";
-    const tooltipSuffix =
-      effectState === "display-only"
+    const tooltipSuffix = isLocked
+      ? " (locked by Commanderie choice)"
+      : effectState === "display-only"
         ? " (display only)"
         : effectState === "not-applicable"
           ? " (not applicable to a one-building duel)"
@@ -836,7 +1001,7 @@ function renderBuildingUnitTechs(side) {
     if (hasLevels && labels && isSimulated) {
       const currentLevel = activeTechs[side].get(key)?.level || 0;
       let html = `<div class="tech-level-wrap">`;
-      html += `<div class="tech-btn${activeClass}" data-tech-key="${key}" data-side="${side}" title="${tooltip}">`;
+      html += `<div class="tech-btn${activeClass}${lockedClass}" data-tech-key="${key}" data-side="${side}" title="${tooltip}">`;
       html += `<img src="${imgSrc}" alt="${displayName}" onerror="this.src='${FALLBACK_TECH_IMG}'">`;
       html += `${statusBadge}</div>`;
       html += `<select class="tech-level-select" data-tech-key="${key}" data-side="${side}">`;
@@ -851,7 +1016,7 @@ function renderBuildingUnitTechs(side) {
     const dataAttrs = isPseudo
       ? `data-pseudo-tech="${item.id}"`
       : `data-tech-key="${key}" data-side="${side}"`;
-    let html = `<div class="tech-btn${activeClass}${nonCombatClass}" ${dataAttrs} title="${tooltip}">`;
+    let html = `<div class="tech-btn${activeClass}${lockedClass}${nonCombatClass}" ${dataAttrs} title="${tooltip}">`;
     html += `<img src="${imgSrc}" alt="${displayName}" onerror="this.src='${FALLBACK_TECH_IMG}'">`;
     html += `${statusBadge}</div>`;
     return html;
@@ -883,7 +1048,7 @@ function renderBuildingUnitTechs(side) {
   }
   container.innerHTML = html;
 
-  container.querySelectorAll(".tech-btn:not(.non-combat)").forEach((btn) => {
+  container.querySelectorAll(".tech-btn:not(.non-combat):not(.locked)").forEach((btn) => {
     btn.addEventListener("click", () => {
       const key = btn.dataset.techKey;
       const s = btn.dataset.side;
@@ -910,6 +1075,12 @@ function renderBuildingUnitTechs(side) {
 let _syncingTechEffect = false;
 
 function toggleTech(side, techKey, btnEl) {
+  if (btnEl?.classList?.contains("locked")) return;
+
+  const unitName =
+    document.getElementById(`unit${side}Select`)?.dataset.value || "";
+  const unit = units[unitName];
+
   if (activeTechs[side].has(techKey)) {
     activeTechs[side].delete(techKey);
     btnEl.classList.remove("active");
@@ -918,14 +1089,28 @@ function toggleTech(side, techKey, btnEl) {
     const wrap = btnEl.closest(".tech-level-wrap");
     const levelSel = wrap?.querySelector(".tech-level-select");
     const level = levelSel ? parseInt(levelSel.value) || 0 : 0;
+    if (isKtCommanderieTechKey(techKey)) {
+      const ageGroup = getKtCommanderieAgeGroupFromKey(techKey);
+      for (const key of [...activeTechs[side].keys()]) {
+        if (!isKtCommanderieTechKey(key)) continue;
+        if (getKtCommanderieAgeGroupFromKey(key) !== ageGroup) continue;
+        activeTechs[side].delete(key);
+      }
+    }
     activeTechs[side].set(techKey, { level });
     btnEl.classList.add("active");
+  }
+  if (unit) {
+    const filtered = getFilteredTechItemsForUnit(side, unit, unitName);
+    enforceKtCommanderieState(side, unitName, filtered);
   }
   syncTechBuffsToInputs(side);
   syncTorchAttackInputs(side);
   if (side === "A" && document.getElementById("vsBuildingToggle")?.checked) {
     renderBuildingUnitTechs(side);
     updateBuildingAttackDisplay(side);
+  } else if (unit) {
+    renderTechButtons(side, unitName, unit);
   }
 
   // Sync linked effect toggle (tech button or checkbox)
@@ -1198,7 +1383,7 @@ function buildGroupedUnits(filter, civFilter) {
 
 // Render the dropdown panel contents for a custom select
 function renderDropdownOptions(wrapper, filter) {
-  const dropdown = wrapper.querySelector(".custom-select-dropdown");
+  const dropdown = getDropdownElement(wrapper);
   const currentVal = wrapper.dataset.value;
   const side = wrapper.id === "unitASelect" ? "A" : "B";
   const civFilter = side === "A" ? selectedCivA : selectedCivB;
@@ -1235,6 +1420,8 @@ function renderDropdownOptions(wrapper, filter) {
       updateUnitStats(side);
     });
   });
+
+  if (dropdown.classList.contains("show")) positionDropdown(wrapper);
 }
 
 function updateSelectHeader(wrapper) {
@@ -1271,7 +1458,7 @@ function updateBuildingSelectHeader(wrapper) {
 }
 
 function renderBuildingOptions(wrapper, filter) {
-  const dropdown = wrapper?.querySelector(".custom-select-dropdown");
+  const dropdown = getDropdownElement(wrapper);
   const searchInput = dropdown?.querySelector(".custom-select-search");
   const nativeSelect = document.getElementById("buildingType");
   if (!dropdown || !searchInput || !nativeSelect) return;
@@ -1316,11 +1503,13 @@ function renderBuildingOptions(wrapper, filter) {
       }
     });
   });
+
+  if (dropdown.classList.contains("show")) positionDropdown(wrapper);
 }
 
 function openBuildingDropdown(wrapper) {
   const header = wrapper?.querySelector(".custom-select-header");
-  const dropdown = wrapper?.querySelector(".custom-select-dropdown");
+  const dropdown = attachDropdownToBody(wrapper);
   const search = dropdown?.querySelector(".custom-select-search");
   if (!header || !dropdown || !search) return;
   header.classList.add("open");
@@ -1328,24 +1517,122 @@ function openBuildingDropdown(wrapper) {
   search.value = "";
   search.focus();
   renderBuildingOptions(wrapper, "");
+  positionDropdown(wrapper);
 }
 
 function openDropdown(wrapper) {
   const header = wrapper.querySelector(".custom-select-header");
-  const dropdown = wrapper.querySelector(".custom-select-dropdown");
+  const dropdown = attachDropdownToBody(wrapper);
   header.classList.add("open");
   dropdown.classList.add("show");
   const search = dropdown.querySelector(".custom-select-search");
   search.value = "";
   search.focus();
   renderDropdownOptions(wrapper, "");
+  positionDropdown(wrapper);
 }
 
 function closeDropdown(wrapper) {
-  const header = wrapper.querySelector(".custom-select-header");
-  const dropdown = wrapper.querySelector(".custom-select-dropdown");
+  const header = wrapper?.querySelector(".custom-select-header");
+  const dropdown = restoreDropdownToWrapper(wrapper);
+  if (!header || !dropdown) return;
   header.classList.remove("open");
   dropdown.classList.remove("show");
+  dropdown.classList.remove("open-upward", "open-downward");
+  dropdown.style.position = "";
+  dropdown.style.left = "";
+  dropdown.style.right = "";
+  dropdown.style.top = "";
+  dropdown.style.bottom = "";
+  dropdown.style.width = "";
+  dropdown.style.maxHeight = "";
+  dropdown.style.zIndex = "";
+}
+
+function ensureDropdownOwnerId(wrapper) {
+  if (!wrapper) return "";
+  if (!wrapper.dataset.dropdownOwnerId) {
+    customSelectOwnerIdCounter += 1;
+    wrapper.dataset.dropdownOwnerId = `custom-select-${customSelectOwnerIdCounter}`;
+  }
+  return wrapper.dataset.dropdownOwnerId;
+}
+
+function getDropdownElement(wrapper) {
+  if (!wrapper) return null;
+  const ownerId = ensureDropdownOwnerId(wrapper);
+  return (
+    wrapper.querySelector(".custom-select-dropdown") ||
+    document.querySelector(
+      `.custom-select-dropdown[data-owner-id="${ownerId}"]`,
+    )
+  );
+}
+
+function attachDropdownToBody(wrapper) {
+  const dropdown = getDropdownElement(wrapper);
+  if (!dropdown) return null;
+  dropdown.dataset.ownerId = ensureDropdownOwnerId(wrapper);
+  if (dropdown.parentElement !== document.body) {
+    document.body.appendChild(dropdown);
+  }
+  return dropdown;
+}
+
+function restoreDropdownToWrapper(wrapper) {
+  const dropdown = getDropdownElement(wrapper);
+  if (!dropdown || !wrapper) return dropdown;
+  if (dropdown.parentElement !== wrapper) {
+    wrapper.appendChild(dropdown);
+  }
+  return dropdown;
+}
+
+function positionDropdown(wrapper) {
+  const header = wrapper?.querySelector(".custom-select-header");
+  const dropdown = getDropdownElement(wrapper);
+  if (!header || !dropdown || !dropdown.classList.contains("show")) return;
+
+  const rect = header.getBoundingClientRect();
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+  const margin = 8;
+  const preferredMaxHeight = 320;
+  const minimumHeight = 160;
+  const spaceBelow = viewportHeight - rect.bottom - margin;
+  const spaceAbove = rect.top - margin;
+  const openUpward = spaceBelow < minimumHeight && spaceAbove > spaceBelow;
+  const availableHeight = openUpward ? spaceAbove : spaceBelow;
+  const maxHeight = Math.max(
+    Math.min(preferredMaxHeight, Math.max(availableHeight, minimumHeight)),
+    120,
+  );
+
+  dropdown.style.position = "fixed";
+  dropdown.style.left = `${Math.max(margin, Math.min(rect.left, viewportWidth - rect.width - margin))}px`;
+  dropdown.style.right = "auto";
+  dropdown.style.bottom = "auto";
+  dropdown.style.width = `${rect.width}px`;
+  dropdown.style.maxHeight = `${maxHeight}px`;
+  dropdown.style.zIndex = "5000";
+
+  const dropdownHeight = Math.min(dropdown.scrollHeight || preferredMaxHeight, maxHeight);
+  if (openUpward) {
+    dropdown.classList.add("open-upward");
+    dropdown.classList.remove("open-downward");
+    dropdown.style.top = `${Math.max(margin, rect.top - dropdownHeight)}px`;
+  } else {
+    dropdown.classList.add("open-downward");
+    dropdown.classList.remove("open-upward");
+    dropdown.style.top = `${Math.min(viewportHeight - margin - dropdownHeight, rect.bottom)}px`;
+  }
+}
+
+function repositionOpenDropdowns() {
+  document.querySelectorAll(".custom-select-wrapper").forEach((wrapper) => {
+    const dropdown = getDropdownElement(wrapper);
+    if (dropdown?.classList.contains("show")) positionDropdown(wrapper);
+  });
 }
 
 function initCustomSelect(wrapperId) {
@@ -1362,6 +1649,11 @@ function initCustomSelect(wrapperId) {
       <input type="text" class="custom-select-search" placeholder="Search units...">
     </div>
   `;
+  ensureDropdownOwnerId(wrapper);
+  wrapper.querySelector(".custom-select-dropdown")?.setAttribute(
+    "data-owner-id",
+    wrapper.dataset.dropdownOwnerId,
+  );
 
   const header = wrapper.querySelector(".custom-select-header");
   const dropdown = wrapper.querySelector(".custom-select-dropdown");
@@ -1369,7 +1661,7 @@ function initCustomSelect(wrapperId) {
 
   // Toggle dropdown on header click
   header.addEventListener("click", () => {
-    if (dropdown.classList.contains("show")) {
+    if (getDropdownElement(wrapper)?.classList.contains("show")) {
       closeDropdown(wrapper);
     } else {
       // Close any other open dropdowns
@@ -1408,13 +1700,18 @@ function initBuildingSelect() {
       <input type="text" class="custom-select-search" placeholder="Search buildings...">
     </div>
   `;
+  ensureDropdownOwnerId(wrapper);
+  wrapper.querySelector(".custom-select-dropdown")?.setAttribute(
+    "data-owner-id",
+    wrapper.dataset.dropdownOwnerId,
+  );
 
   const header = wrapper.querySelector(".custom-select-header");
   const dropdown = wrapper.querySelector(".custom-select-dropdown");
   const search = dropdown?.querySelector(".custom-select-search");
 
   header?.addEventListener("click", () => {
-    if (dropdown.classList.contains("show")) {
+    if (getDropdownElement(wrapper)?.classList.contains("show")) {
       closeDropdown(wrapper);
     } else {
       document
@@ -1434,7 +1731,10 @@ function initBuildingSelect() {
 
 // Close dropdowns when clicking outside
 document.addEventListener("click", (e) => {
-  if (!e.target.closest(".custom-select-wrapper")) {
+  if (
+    !e.target.closest(".custom-select-wrapper") &&
+    !e.target.closest(".custom-select-dropdown")
+  ) {
     document
       .querySelectorAll(".custom-select-wrapper")
       .forEach((w) => closeDropdown(w));
@@ -1462,6 +1762,9 @@ document.addEventListener(
   },
   { passive: false },
 );
+
+window.addEventListener("resize", repositionOpenDropdowns);
+window.addEventListener("scroll", repositionOpenDropdowns, true);
 
 function populateSelects(preserveSelection) {
   const wrapperA = document.getElementById("unitASelect");
@@ -1495,13 +1798,18 @@ function initCivSelect(wrapperId, side) {
       <input type="text" class="custom-select-search" placeholder="Search civilizations...">
     </div>
   `;
+  ensureDropdownOwnerId(wrapper);
+  wrapper.querySelector(".custom-select-dropdown")?.setAttribute(
+    "data-owner-id",
+    wrapper.dataset.dropdownOwnerId,
+  );
 
   const header = wrapper.querySelector(".custom-select-header");
   const dropdown = wrapper.querySelector(".custom-select-dropdown");
   const search = dropdown.querySelector(".custom-select-search");
 
   header.addEventListener("click", () => {
-    if (dropdown.classList.contains("show")) {
+    if (getDropdownElement(wrapper)?.classList.contains("show")) {
       closeDropdown(wrapper);
     } else {
       document
@@ -1519,17 +1827,19 @@ function initCivSelect(wrapperId, side) {
 
 function openCivDropdown(wrapper, side) {
   const header = wrapper.querySelector(".custom-select-header");
-  const dropdown = wrapper.querySelector(".custom-select-dropdown");
+  const dropdown = attachDropdownToBody(wrapper);
+  if (!header || !dropdown) return;
   header.classList.add("open");
   dropdown.classList.add("show");
   const search = dropdown.querySelector(".custom-select-search");
   search.value = "";
   search.focus();
   renderCivOptions(wrapper, side, "");
+  positionDropdown(wrapper);
 }
 
 function renderCivOptions(wrapper, side, filter) {
-  const dropdown = wrapper.querySelector(".custom-select-dropdown");
+  const dropdown = getDropdownElement(wrapper);
   const searchInput = dropdown.querySelector(".custom-select-search");
   const currentVal = wrapper.dataset.value;
   const filterLower = (filter || "").toLowerCase();
@@ -1567,6 +1877,8 @@ function renderCivOptions(wrapper, side, filter) {
       onCivChange(side);
     });
   });
+
+  if (dropdown.classList.contains("show")) positionDropdown(wrapper);
 }
 
 function updateCivSelectHeader(wrapper) {
@@ -1608,11 +1920,12 @@ function onCivChange(side) {
   }
 
   // Re-render unit dropdown if open
-  const dropdown = unitWrapper.querySelector(".custom-select-dropdown");
+  const dropdown = getDropdownElement(unitWrapper);
+  const searchInput = dropdown?.querySelector(".custom-select-search");
   if (dropdown && dropdown.classList.contains("show")) {
     renderDropdownOptions(
       unitWrapper,
-      unitWrapper.querySelector(".custom-select-search").value,
+      searchInput?.value || "",
     );
   }
 }
@@ -2662,6 +2975,9 @@ function collectEffects(side) {
   const effects = {};
   const container = document.getElementById(`${side}_effectsContainer`);
   if (!container) return effects;
+  const unitName =
+    document.getElementById(`unit${side}Select`)?.dataset.value || "";
+  const unit = units[unitName];
 
   // Collect from both checkbox effects and tech-toggle effects
   const enabledEffectIds = new Set();
@@ -2809,6 +3125,13 @@ function collectEffects(side) {
       };
     }
   });
+
+  if (isKnightsTemplarCiv(getSelectedCiv(side)) && unit) {
+    Object.assign(
+      effects,
+      getKtDerivedEffectsFromEntries(activeTechs[side].entries()),
+    );
+  }
 
   return effects;
 }
@@ -3822,10 +4145,19 @@ function getUnitData(side) {
     ageStats,
     displayedRangedDefense,
   );
+  const effects = collectEffects(side);
+  const count = parseInt(document.getElementById(`count${side}`).value) || 1;
+  const chargeDamageMultiplier = 1 + ((effects.chargeDamagePct || 0) / 100);
+  const ruleOfTemplarsBonus =
+    effects.ruleOfTemplars && (unit.tags || []).includes("Cavalry")
+      ? effects.ruleOfTemplars.chargeBonusPerNearbyCavalry * Math.max(0, count - 1)
+      : 0;
+  const chargeDamage =
+    (ageStats.chargeDamage || 0) * chargeDamageMultiplier + ruleOfTemplarsBonus;
 
   return {
     name: unitName,
-    count: parseInt(document.getElementById(`count${side}`).value) || 1,
+    count,
     weaponMode: weaponMode,
     weaponLabel: getWeaponDisplayName(weaponData),
     stats: {
@@ -3875,8 +4207,8 @@ function getUnitData(side) {
     firstHitEnabled: document.getElementById(`${side}_firstHitEnabled`).checked,
     freeHits: parseInt(document.getElementById(`${side}_freeHits`).value) || 0,
     tags: collectTags(side),
-    effects: collectEffects(side),
-    chargeDamage: ageStats.chargeDamage || 0,
+    effects,
+    chargeDamage,
     weaponType: weaponData.type || "melee",
     weaponRange: weaponData.range || 0,
     weaponProjectiles: getWeaponProjectiles(weaponData),
@@ -5206,6 +5538,18 @@ function runBattle() {
       const dt = time - (teamB.lastHealAuraTime || 0);
       if (dt > 0) {
         healTrackedTeam(teamB, unitB.effects.healAura.hps * teamB.units * dt);
+      }
+    }
+    if (unitA.effects.passiveRegen && teamA.units > 0) {
+      const dt = time - (teamA.lastHealAuraTime || 0);
+      if (dt > 0) {
+        healTrackedTeam(teamA, unitA.effects.passiveRegen.hps * teamA.units * dt);
+      }
+    }
+    if (unitB.effects.passiveRegen && teamB.units > 0) {
+      const dt = time - (teamB.lastHealAuraTime || 0);
+      if (dt > 0) {
+        healTrackedTeam(teamB, unitB.effects.passiveRegen.hps * teamB.units * dt);
       }
     }
     // Triumph healing: +hps regen for duration (heals even during trample)
@@ -6847,6 +7191,11 @@ function renderEffectsMulti(card, effects, groupId, selectedCiv) {
 
 function collectEffectsFromCard(card) {
   const effects = {};
+  const unitName =
+    card.querySelector('[data-field="unitSelect"]')?.dataset.value || "";
+  const civ =
+    card.querySelector('[data-field="civSelect"]')?.dataset.value || "";
+  const activeEntries = card._groupRef?.unitData?.activeTechs || [];
 
   // Collect from both checkbox effects and tech-toggle effects
   const enabledEffectIds = new Set();
@@ -6997,6 +7346,9 @@ function collectEffectsFromCard(card) {
       };
     }
   });
+  if (isKnightsTemplarCiv(civ) && unitName && activeEntries.length > 0) {
+    Object.assign(effects, getKtDerivedEffectsFromEntries(activeEntries));
+  }
   return effects;
 }
 
@@ -7164,13 +7516,18 @@ function initMultiUnitSelect(wrapper, card) {
       <input type="text" class="custom-select-search" placeholder="Search units...">
     </div>
   `;
+  ensureDropdownOwnerId(wrapper);
+  wrapper.querySelector(".custom-select-dropdown")?.setAttribute(
+    "data-owner-id",
+    wrapper.dataset.dropdownOwnerId,
+  );
 
   const header = wrapper.querySelector(".custom-select-header");
   const dropdown = wrapper.querySelector(".custom-select-dropdown");
   const search = dropdown.querySelector(".custom-select-search");
 
   header.addEventListener("click", () => {
-    if (dropdown.classList.contains("show")) {
+    if (getDropdownElement(wrapper)?.classList.contains("show")) {
       closeDropdown(wrapper);
     } else {
       document
@@ -7190,17 +7547,19 @@ function initMultiUnitSelect(wrapper, card) {
 
 function openMultiUnitDropdown(wrapper, card) {
   const header = wrapper.querySelector(".custom-select-header");
-  const dropdown = wrapper.querySelector(".custom-select-dropdown");
+  const dropdown = attachDropdownToBody(wrapper);
+  if (!header || !dropdown) return;
   header.classList.add("open");
   dropdown.classList.add("show");
   const search = dropdown.querySelector(".custom-select-search");
   search.value = "";
   search.focus();
   renderMultiUnitOptions(wrapper, card, "");
+  positionDropdown(wrapper);
 }
 
 function renderMultiUnitOptions(wrapper, card, filter) {
-  const dropdown = wrapper.querySelector(".custom-select-dropdown");
+  const dropdown = getDropdownElement(wrapper);
   const currentVal = wrapper.dataset.value;
   const civFilter = getMultiField(card, "civSelect")?.dataset.value || "";
   const groups = buildGroupedUnits(filter, civFilter);
@@ -7230,6 +7589,8 @@ function renderMultiUnitOptions(wrapper, card, filter) {
       syncGroupFromCard(card, card._groupRef);
     });
   });
+
+  if (dropdown.classList.contains("show")) positionDropdown(wrapper);
 }
 
 function initMultiCivSelect(wrapper, card) {
@@ -7243,13 +7604,18 @@ function initMultiCivSelect(wrapper, card) {
       <input type="text" class="custom-select-search" placeholder="Search civilizations...">
     </div>
   `;
+  ensureDropdownOwnerId(wrapper);
+  wrapper.querySelector(".custom-select-dropdown")?.setAttribute(
+    "data-owner-id",
+    wrapper.dataset.dropdownOwnerId,
+  );
 
   const header = wrapper.querySelector(".custom-select-header");
   const dropdown = wrapper.querySelector(".custom-select-dropdown");
   const search = dropdown.querySelector(".custom-select-search");
 
   header.addEventListener("click", () => {
-    if (dropdown.classList.contains("show")) {
+    if (getDropdownElement(wrapper)?.classList.contains("show")) {
       closeDropdown(wrapper);
     } else {
       document
@@ -7267,17 +7633,19 @@ function initMultiCivSelect(wrapper, card) {
 
 function openMultiCivDropdown(wrapper, card) {
   const header = wrapper.querySelector(".custom-select-header");
-  const dropdown = wrapper.querySelector(".custom-select-dropdown");
+  const dropdown = attachDropdownToBody(wrapper);
+  if (!header || !dropdown) return;
   header.classList.add("open");
   dropdown.classList.add("show");
   const search = dropdown.querySelector(".custom-select-search");
   search.value = "";
   search.focus();
   renderMultiCivOptions(wrapper, card, "");
+  positionDropdown(wrapper);
 }
 
 function renderMultiCivOptions(wrapper, card, filter) {
-  const dropdown = wrapper.querySelector(".custom-select-dropdown");
+  const dropdown = getDropdownElement(wrapper);
   const searchInput = dropdown.querySelector(".custom-select-search");
   const currentVal = wrapper.dataset.value;
   const filterLower = (filter || "").toLowerCase();
@@ -7309,6 +7677,8 @@ function renderMultiCivOptions(wrapper, card, filter) {
       handleMultiCivChange(card, val);
     });
   });
+
+  if (dropdown.classList.contains("show")) positionDropdown(wrapper);
 }
 
 function handleMultiCivChange(card, civ) {
@@ -7361,6 +7731,11 @@ function syncGroupFromCard(card, group) {
   const tags = collectTagsFromCard(card);
   const bonuses = collectBonusesFromCard(card);
   const effects = collectEffectsFromCard(card);
+  const chargeDamageMultiplier = 1 + ((effects.chargeDamagePct || 0) / 100);
+  const ruleOfTemplarsBonus =
+    effects.ruleOfTemplars && tags.includes("Cavalry")
+      ? effects.ruleOfTemplars.chargeBonusPerNearbyCavalry * Math.max(0, count - 1)
+      : 0;
   const displayedRangedDefense =
     parseFloat(getMultiField(card, "rangedArmor").value) || 0;
   const { rangedArmor, rangedResistance } = resolveRangedDefenseStats(
@@ -7408,7 +7783,8 @@ function syncGroupFromCard(card, group) {
     freeHits: parseInt(getMultiField(card, "freeHits").value, 10) || 0,
     tags,
     effects,
-    chargeDamage: ageStats.chargeDamage || 0,
+    chargeDamage:
+      (ageStats.chargeDamage || 0) * chargeDamageMultiplier + ruleOfTemplarsBonus,
     weaponType: weaponData.type || "melee",
     weaponRange: weaponData.range || 0,
     weaponProjectiles: getWeaponProjectiles(weaponData),
@@ -7903,6 +8279,12 @@ function runMultiBattle() {
         const dt = time - (t.lastHealAuraTime || 0);
         if (dt > 0) {
           healTrackedTeam(t, t.unitData.effects.healAura.hps * t.units * dt);
+        }
+      }
+      if (t.unitData.effects.passiveRegen) {
+        const dt = time - (t.lastHealAuraTime || 0);
+        if (dt > 0) {
+          healTrackedTeam(t, t.unitData.effects.passiveRegen.hps * t.units * dt);
         }
       }
       // Triumph healing: +hps regen for duration (heals even during trample)

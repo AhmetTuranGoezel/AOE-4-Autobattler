@@ -2981,6 +2981,213 @@
       ],
       "noteOnly": true
     },
+    "Knights Hospitaller": {
+      "cost": {
+        "food": 400,
+        "wood": 0,
+        "gold": 200,
+        "stone": 0
+      },
+      "time": 45,
+      "minAge": 1,
+      "category": "civic",
+      "researchedAt": [
+        "Town Center"
+      ],
+      "civs": [
+        "Knights Templar"
+      ],
+      "noteOnly": false,
+      "advancesToAge": 2,
+      "ktChoiceAgeGroup": "feudal",
+      "ktUnlocksUnits": [
+        "Hospitaller Knight"
+      ]
+    },
+    "Principality of Antioch": {
+      "cost": {
+        "food": 400,
+        "wood": 0,
+        "gold": 200,
+        "stone": 0
+      },
+      "time": 45,
+      "minAge": 1,
+      "category": "civic",
+      "researchedAt": [
+        "Town Center"
+      ],
+      "civs": [
+        "Knights Templar"
+      ],
+      "noteOnly": false,
+      "advancesToAge": 2,
+      "ktChoiceAgeGroup": "feudal",
+      "ktUnlocksUnits": [
+        "Serjeant"
+      ]
+    },
+    "Kingdom of France": {
+      "cost": {
+        "food": 400,
+        "wood": 0,
+        "gold": 200,
+        "stone": 0
+      },
+      "time": 45,
+      "minAge": 1,
+      "category": "civic",
+      "researchedAt": [
+        "Town Center"
+      ],
+      "civs": [
+        "Knights Templar"
+      ],
+      "noteOnly": false,
+      "advancesToAge": 2,
+      "ktChoiceAgeGroup": "feudal",
+      "ktUnlocksUnits": [
+        "Chevalier Confrere"
+      ]
+    },
+    "Angevin Empire": {
+      "cost": {
+        "food": 1200,
+        "wood": 0,
+        "gold": 600,
+        "stone": 0
+      },
+      "time": 45,
+      "minAge": 2,
+      "category": "civic",
+      "researchedAt": [
+        "Town Center"
+      ],
+      "civs": [
+        "Knights Templar"
+      ],
+      "noteOnly": false,
+      "advancesToAge": 3,
+      "ktChoiceAgeGroup": "castle",
+      "ktUnlocksUnits": [
+        "Heavy Spearman"
+      ]
+    },
+    "Republic of Genoa": {
+      "cost": {
+        "food": 1200,
+        "wood": 0,
+        "gold": 600,
+        "stone": 0
+      },
+      "time": 45,
+      "minAge": 2,
+      "category": "civic",
+      "researchedAt": [
+        "Town Center"
+      ],
+      "civs": [
+        "Knights Templar"
+      ],
+      "noteOnly": false,
+      "advancesToAge": 3,
+      "ktChoiceAgeGroup": "castle",
+      "ktUnlocksUnits": [
+        "Genoese Crossbowman"
+      ]
+    },
+    "Kingdom of Castile": {
+      "cost": {
+        "food": 1200,
+        "wood": 0,
+        "gold": 600,
+        "stone": 0
+      },
+      "time": 45,
+      "minAge": 2,
+      "category": "civic",
+      "researchedAt": [
+        "Town Center"
+      ],
+      "civs": [
+        "Knights Templar"
+      ],
+      "noteOnly": false,
+      "advancesToAge": 3,
+      "ktChoiceAgeGroup": "castle",
+      "ktUnlocksUnits": [
+        "Genitour"
+      ]
+    },
+    "Kingdom of Poland": {
+      "cost": {
+        "food": 2400,
+        "wood": 0,
+        "gold": 1200,
+        "stone": 0
+      },
+      "time": 45,
+      "minAge": 3,
+      "category": "civic",
+      "researchedAt": [
+        "Town Center"
+      ],
+      "civs": [
+        "Knights Templar"
+      ],
+      "noteOnly": false,
+      "advancesToAge": 4,
+      "ktChoiceAgeGroup": "imperial",
+      "ktUnlocksUnits": [
+        "Szlachta Cavalry"
+      ]
+    },
+    "Teutonic Order": {
+      "cost": {
+        "food": 2400,
+        "wood": 0,
+        "gold": 1200,
+        "stone": 0
+      },
+      "time": 45,
+      "minAge": 3,
+      "category": "civic",
+      "researchedAt": [
+        "Town Center"
+      ],
+      "civs": [
+        "Knights Templar"
+      ],
+      "noteOnly": false,
+      "advancesToAge": 4,
+      "ktChoiceAgeGroup": "imperial",
+      "ktUnlocksUnits": [
+        "Teutonic Knight"
+      ]
+    },
+    "Republic of Venice": {
+      "cost": {
+        "food": 2400,
+        "wood": 0,
+        "gold": 1200,
+        "stone": 0
+      },
+      "time": 45,
+      "minAge": 3,
+      "category": "civic",
+      "researchedAt": [
+        "Town Center"
+      ],
+      "civs": [
+        "Knights Templar"
+      ],
+      "noteOnly": false,
+      "advancesToAge": 4,
+      "ktChoiceAgeGroup": "imperial",
+      "ktUnlocksUnits": [
+        "Condottiero"
+      ]
+    },
     "Safe Passage": {
       "cost": {
         "food": 75,

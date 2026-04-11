@@ -594,12 +594,16 @@ small.text-muted,
   flex-direction: column;
   gap: 8px;
   margin-bottom: 10px;
+  position: relative;
+  z-index: 25;
+  overflow: visible;
 }
 
 .battler-control-row {
   display: grid;
   gap: 8px;
   align-items: end;
+  overflow: visible;
 }
 
 .battler-control-row--primary {
@@ -613,6 +617,7 @@ small.text-muted,
 
 .battler-control-cell {
   min-width: 0;
+  overflow: visible;
 }
 
 .battler-control-cell--age,
@@ -643,6 +648,15 @@ small.text-muted,
   min-height: 32px;
   padding: 0.25rem 0.625rem;
   font-size: 0.82rem;
+}
+
+.battler-control-strip .custom-select-wrapper {
+  z-index: 30;
+  overflow: visible;
+}
+
+.battler-control-strip .custom-select-dropdown {
+  z-index: 2500;
 }
 
 .battler-control-strip .civ-select-wrapper .custom-select-header {
@@ -873,6 +887,29 @@ small.text-muted,
   border-color: #d4a44a;
   box-shadow: 0 0 8px rgba(212, 164, 74, 0.4);
   background: rgba(212, 164, 74, 0.15);
+}
+.tech-btn.locked {
+  opacity: 1;
+  cursor: default;
+  border-color: rgba(212, 164, 74, 0.65);
+  box-shadow: 0 0 10px rgba(212, 164, 74, 0.28);
+}
+.tech-btn.locked::after {
+  content: "L";
+  position: absolute;
+  left: -6px;
+  top: -6px;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.55rem;
+  font-weight: 700;
+  color: #1a1a2e;
+  background: #d4a44a;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.35);
 }
 .tech-btn.non-combat {
   opacity: 0.35;
@@ -1498,6 +1535,14 @@ small.text-muted,
 
 .custom-select-dropdown.show {
   display: block;
+}
+
+.custom-select-dropdown.open-upward {
+  border-radius: 8px 8px 0 0;
+}
+
+.custom-select-dropdown.open-downward {
+  border-radius: 0 0 8px 8px;
 }
 
 .custom-select-search {
