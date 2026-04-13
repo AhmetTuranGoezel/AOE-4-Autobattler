@@ -378,6 +378,28 @@ function isKtGoldHumanUnit(unit = {}) {
   return isKtHumanCombatUnit(unit) && (getKtUnitCosts(unit).gold || 0) > 0;
 }
 
+export const KT_DESERT_CITADELS_TECH = Object.freeze({
+  name: "Desert Citadels",
+  description:
+    "Improves Desert Outposts. Units with the armor aura gain +1 melee and ranged armor.",
+  category: "armor",
+  civs: ["Knights Templar"],
+  ktDesertCitadels: true,
+});
+
+function isKtDesertOutpostsArmorAura(aura = {}) {
+  if (aura?.name !== "Desert Outposts") return false;
+  if (aura?.category !== "armor") return false;
+  return /melee\/ranged/i.test(String(aura?.description || ""));
+}
+
+export function getKtDesertCitadelsTechItem(unit = {}) {
+  const auras = Array.isArray(unit?.auras) ? unit.auras : [];
+  return auras.some(isKtDesertOutpostsArmorAura)
+    ? { ...KT_DESERT_CITADELS_TECH }
+    : null;
+}
+
 export const KT_COMMANDERIE_BRANCHES = Object.freeze({
   "Knights Hospitaller": {
     name: "Knights Hospitaller",
@@ -714,6 +736,7 @@ export const TECH_EFFECTS = {
   "Muscovy Yasak|armor": { rangedArmor: 2 },
   "Cross Folded Armor|armor": { rangedArmor: 2 },
   "Teutonic Order|armor": { meleeArmor: 2 },
+  "Desert Citadels|armor": { meleeArmor: 1, rangedArmor: 1 },
 
   // Tiered armor (Macedonian Dynasty)
   "Butted Chainmail|armor": {
@@ -970,6 +993,7 @@ export const TECH_IMAGE_MAP = {
   "Additional Torches Improved:": "assets/images/technologies/additional-torches-improved-3.png",
   "(Improved) Additional Torches": "assets/images/technologies/additional-torches-improved-3.png",
   "Desert Outposts": "assets/images/abilities/ability-desert-citadels-1.png",
+  "Desert Citadels": "assets/images/technologies/desert-citadels-2.png",
   "Torch Attack": "assets/images/abilities/ability-improved-torch-1.png",
   "Siege Works": "assets/images/technologies/siege-works-4.png",
   "Iron Fittings": "assets/images/technologies/iron-fittings-tier1-2.png",
