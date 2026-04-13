@@ -72,6 +72,7 @@ import {
   getKtCommanderieBranchByName,
   getKtCommanderieRouteLock,
   getKtCombatCommanderieBranchesForUnit,
+  getKtDesertCitadelsTechItem,
   isKtCommanderiePlaceholder,
 } from "./techs.js";
 import {
@@ -230,7 +231,7 @@ function getKtInjectedTechItemsForUnit(side, unit, unitName = "") {
   const lockedAgeGroup = lockedBranch?.ageGroup || null;
   const currentAge =
     parseInt(document.getElementById(`unit${side}Age`)?.value, 10) || 2;
-  return getKtCombatCommanderieBranchesForUnit(unit, unitName)
+  const injected = getKtCombatCommanderieBranchesForUnit(unit, unitName)
     .filter((branch) => {
       if (currentAge < getKtCommanderieRequiredAge(branch.ageGroup)) return false;
       if (!lockedAgeGroup || branch.ageGroup !== lockedAgeGroup) return true;
@@ -243,6 +244,43 @@ function getKtInjectedTechItemsForUnit(side, unit, unitName = "") {
       }),
     )
     .filter(Boolean);
+
+  const desertCitadelsItem = getKtDesertCitadelsTechItem(unit);
+  if (desertCitadelsItem) injected.push(desertCitadelsItem);
+
+  return injected;
+}
+
+function isKtDesertOutpostsAuraItem(item) {
+  if (item?.name !== "Desert Outposts") return false;
+  const description = String(item.description || "").toLowerCase();
+  if (item.category === "armor" && description.includes("melee/ranged")) {
+    return true;
+  }
+  return description.includes("torch range");
+}
+
+function syncKtDesertOutpostsAuraState(side, filteredItems = []) {
+  const outpostKeys = new Set(
+    filteredItems
+      .filter(isKtDesertOutpostsAuraItem)
+      .map((item) => getTechKey(item)),
+  );
+  const desertCitadelsActive = activeTechs[side].has("Desert Citadels|armor");
+
+  for (const [key] of [...activeTechs[side].entries()]) {
+    if (!key.startsWith("Desert Outposts|")) continue;
+    if (!desertCitadelsActive || !outpostKeys.has(key)) {
+      activeTechs[side].delete(key);
+    }
+  }
+
+  if (!desertCitadelsActive) return;
+
+  for (const key of outpostKeys) {
+    const state = activeTechs[side].get(key);
+    activeTechs[side].set(key, { level: state?.level || 0 });
+  }
 }
 
 function enforceKtCommanderieState(side, unitName, filteredItems = []) {
@@ -355,6 +393,7 @@ function getFilteredTechItemsForUnit(side, unit, unitName = "") {
     }
     enforceKtCommanderieState(side, unitName, filtered);
   }
+  syncKtDesertOutpostsAuraState(side, filtered);
   return filtered;
 }
 
@@ -1515,7 +1554,7 @@ function openBuildingDropdown(wrapper) {
   header.classList.add("open");
   dropdown.classList.add("show");
   search.value = "";
-  search.focus();
+  focusDropdownSearch(search);
   renderBuildingOptions(wrapper, "");
   positionDropdown(wrapper);
 }
@@ -1527,7 +1566,7 @@ function openDropdown(wrapper) {
   dropdown.classList.add("show");
   const search = dropdown.querySelector(".custom-select-search");
   search.value = "";
-  search.focus();
+  focusDropdownSearch(search);
   renderDropdownOptions(wrapper, "");
   positionDropdown(wrapper);
 }
@@ -1586,6 +1625,26 @@ function restoreDropdownToWrapper(wrapper) {
     wrapper.appendChild(dropdown);
   }
   return dropdown;
+}
+
+function focusDropdownSearch(searchEl) {
+  if (!searchEl) return;
+  const scrollX =
+    window.scrollX ??
+    window.pageXOffset ??
+    document.documentElement.scrollLeft ??
+    0;
+  const scrollY =
+    window.scrollY ??
+    window.pageYOffset ??
+    document.documentElement.scrollTop ??
+    0;
+  try {
+    searchEl.focus({ preventScroll: true });
+  } catch {
+    searchEl.focus();
+    window.scrollTo(scrollX, scrollY);
+  }
 }
 
 function positionDropdown(wrapper) {
@@ -1833,7 +1892,7 @@ function openCivDropdown(wrapper, side) {
   dropdown.classList.add("show");
   const search = dropdown.querySelector(".custom-select-search");
   search.value = "";
-  search.focus();
+  focusDropdownSearch(search);
   renderCivOptions(wrapper, side, "");
   positionDropdown(wrapper);
 }
@@ -7553,7 +7612,7 @@ function openMultiUnitDropdown(wrapper, card) {
   dropdown.classList.add("show");
   const search = dropdown.querySelector(".custom-select-search");
   search.value = "";
-  search.focus();
+  focusDropdownSearch(search);
   renderMultiUnitOptions(wrapper, card, "");
   positionDropdown(wrapper);
 }
@@ -7639,7 +7698,7 @@ function openMultiCivDropdown(wrapper, card) {
   dropdown.classList.add("show");
   const search = dropdown.querySelector(".custom-select-search");
   search.value = "";
-  search.focus();
+  focusDropdownSearch(search);
   renderMultiCivOptions(wrapper, card, "");
   positionDropdown(wrapper);
 }
