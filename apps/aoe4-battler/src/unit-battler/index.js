@@ -72,8 +72,8 @@ import {
   getKtCommanderieBranchByName,
   getKtCommanderieRouteLock,
   getKtCombatCommanderieBranchesForUnit,
+  isKtBattlerPlaceholder,
   getKtDesertCitadelsTechItem,
-  isKtCommanderiePlaceholder,
 } from "./techs.js";
 import {
   createTeamState,
@@ -251,38 +251,6 @@ function getKtInjectedTechItemsForUnit(side, unit, unitName = "") {
   return injected;
 }
 
-function isKtDesertOutpostsAuraItem(item) {
-  if (item?.name !== "Desert Outposts") return false;
-  const description = String(item.description || "").toLowerCase();
-  if (item.category === "armor" && description.includes("melee/ranged")) {
-    return true;
-  }
-  return description.includes("torch range");
-}
-
-function syncKtDesertOutpostsAuraState(side, filteredItems = []) {
-  const outpostKeys = new Set(
-    filteredItems
-      .filter(isKtDesertOutpostsAuraItem)
-      .map((item) => getTechKey(item)),
-  );
-  const desertCitadelsActive = activeTechs[side].has("Desert Citadels|armor");
-
-  for (const [key] of [...activeTechs[side].entries()]) {
-    if (!key.startsWith("Desert Outposts|")) continue;
-    if (!desertCitadelsActive || !outpostKeys.has(key)) {
-      activeTechs[side].delete(key);
-    }
-  }
-
-  if (!desertCitadelsActive) return;
-
-  for (const key of outpostKeys) {
-    const state = activeTechs[side].get(key);
-    activeTechs[side].set(key, { level: state?.level || 0 });
-  }
-}
-
 function enforceKtCommanderieState(side, unitName, filteredItems = []) {
   if (!isKnightsTemplarCiv(getSelectedCiv(side))) return;
 
@@ -377,7 +345,7 @@ function getFilteredTechItemsForUnit(side, unit, unitName = "") {
   const seen = new Set();
   const filtered = [];
   for (const item of allItems) {
-    if (stripKtPlaceholders && isKtCommanderiePlaceholder(item)) continue;
+    if (stripKtPlaceholders && isKtBattlerPlaceholder(item)) continue;
     if (!filterTechByCiv(item, selectedCiv)) continue;
     const key = getTechKey(item);
     if (seen.has(key)) continue;
@@ -385,6 +353,11 @@ function getFilteredTechItemsForUnit(side, unit, unitName = "") {
     filtered.push(item);
   }
   if (stripKtPlaceholders) {
+    for (const key of [...activeTechs[side].keys()]) {
+      if (key.startsWith("Desert Outposts|")) {
+        activeTechs[side].delete(key);
+      }
+    }
     for (const item of getKtInjectedTechItemsForUnit(side, unit, unitName)) {
       const key = getTechKey(item);
       if (seen.has(key)) continue;
@@ -393,7 +366,6 @@ function getFilteredTechItemsForUnit(side, unit, unitName = "") {
     }
     enforceKtCommanderieState(side, unitName, filtered);
   }
-  syncKtDesertOutpostsAuraState(side, filtered);
   return filtered;
 }
 
