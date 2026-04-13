@@ -393,6 +393,10 @@ function isKtDesertOutpostsArmorAura(aura = {}) {
   return /melee\/ranged/i.test(String(aura?.description || ""));
 }
 
+function isKtDesertOutpostsBattlerPlaceholder(item) {
+  return item?.name === "Desert Outposts";
+}
+
 export function getKtDesertCitadelsTechItem(unit = {}) {
   const auras = Array.isArray(unit?.auras) ? unit.auras : [];
   return auras.some(isKtDesertOutpostsArmorAura)
@@ -532,6 +536,11 @@ export function isKtCommanderiePlaceholder(item) {
   if (!item) return false;
   if (item.name === "Knights Templar") return true;
   return isKtCommanderieBranchName(item.name);
+}
+
+export function isKtBattlerPlaceholder(item) {
+  return isKtCommanderiePlaceholder(item) ||
+    isKtDesertOutpostsBattlerPlaceholder(item);
 }
 
 export function getKtCombatCommanderieBranchesForUnit(unit, unitName = "") {
