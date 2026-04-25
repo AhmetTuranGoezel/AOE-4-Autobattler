@@ -6,27 +6,23 @@
   <title>The Finals Loadout Saver</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800;900&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg-top: #0d1018;
-      --bg-bottom: #1a1a2e;
-      --panel: rgba(16, 20, 31, 0.88);
-      --panel-strong: rgba(20, 25, 38, 0.95);
-      --panel-soft: rgba(32, 39, 58, 0.9);
-      --border: rgba(255, 255, 255, 0.1);
-      --border-strong: rgba(245, 197, 66, 0.5);
-      --text: #f7f7fb;
-      --muted: #9ca5ba;
-      --muted-strong: #cfd3df;
-      --accent: #f5c542;
-      --accent-soft: rgba(245, 197, 66, 0.18);
-      --danger: #f26b6b;
-      --shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
-      --radius-xl: 28px;
-      --radius-lg: 20px;
-      --radius-md: 16px;
-      --radius-sm: 12px;
+      --bg: #11131b;
+      --panel: rgba(19, 20, 28, 0.9);
+      --panel-soft: rgba(28, 30, 40, 0.84);
+      --text: #f5f7fb;
+      --muted: #a6adbd;
+      --faint: rgba(255, 255, 255, 0.1);
+      --line: rgba(255, 255, 255, 0.22);
+      --gold: #f5c542;
+      --gold-strong: #ffcc29;
+      --danger: #ff7f7f;
+      --card-w: 140px;
+      --card-h: 184px;
+      --name-h: 39px;
+      --radius: 8px;
       color-scheme: dark;
     }
 
@@ -36,14 +32,19 @@
       padding: 0;
     }
 
+    html,
     body {
-      min-height: 100vh;
-      font-family: 'Inter', sans-serif;
+      min-height: 100%;
+    }
+
+    body {
+      min-width: 320px;
+      font-family: "Inter", sans-serif;
       color: var(--text);
       background:
-        radial-gradient(circle at top left, rgba(245, 197, 66, 0.12), transparent 28%),
-        radial-gradient(circle at 84% 16%, rgba(97, 109, 139, 0.16), transparent 22%),
-        linear-gradient(180deg, var(--bg-top) 0%, #131827 36%, var(--bg-bottom) 100%);
+        radial-gradient(circle at 16% 0%, rgba(245, 197, 66, 0.14), transparent 27%),
+        radial-gradient(circle at 76% 10%, rgba(151, 160, 181, 0.14), transparent 30%),
+        linear-gradient(180deg, #10121a 0%, #151722 46%, #191827 100%);
       overflow-x: hidden;
     }
 
@@ -51,1469 +52,1267 @@
       content: "";
       position: fixed;
       inset: 0;
+      z-index: -2;
+      background:
+        linear-gradient(118deg, rgba(245, 197, 66, 0.18) 0 10%, transparent 10% 48%, rgba(255, 255, 255, 0.06) 48% 49%, transparent 49%),
+        radial-gradient(circle at 50% 52%, rgba(255, 255, 255, 0.08), transparent 34%),
+        linear-gradient(160deg, #1d1f2c, #0f1016 62%, #181724);
+      opacity: 0.72;
+    }
+
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -1;
       pointer-events: none;
       background:
-        linear-gradient(90deg, rgba(255, 255, 255, 0.02) 0, rgba(255, 255, 255, 0.02) 1px, transparent 1px, transparent 120px),
-        linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0, rgba(255, 255, 255, 0.02) 1px, transparent 1px, transparent 120px);
-      mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.22), rgba(0, 0, 0, 0.7));
-      opacity: 0.22;
+        linear-gradient(180deg, rgba(11, 12, 18, 0.2), rgba(11, 12, 18, 0.72)),
+        repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 140px);
+      mix-blend-mode: normal;
+    }
+
+    button,
+    input,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      color: inherit;
     }
 
     .back-link {
       position: fixed;
-      top: 18px;
-      left: 18px;
+      top: 14px;
+      left: 14px;
       z-index: 30;
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      padding: 10px 16px;
+      min-height: 38px;
+      padding: 0 14px;
+      border: 1px solid rgba(245, 197, 66, 0.34);
       border-radius: 999px;
-      border: 1px solid rgba(245, 197, 66, 0.28);
-      background: rgba(11, 14, 22, 0.84);
-      color: var(--accent);
+      background: rgba(9, 10, 14, 0.84);
+      color: var(--gold);
       text-decoration: none;
-      font-size: 0.88rem;
-      font-weight: 600;
-      letter-spacing: 0.02em;
+      font-size: 0.78rem;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
       backdrop-filter: blur(14px);
-      transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+      transition: border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
     }
 
     .back-link:hover {
-      transform: translateY(-2px);
-      border-color: rgba(245, 197, 66, 0.55);
-      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.28);
+      border-color: var(--gold);
+      box-shadow: 0 0 28px rgba(245, 197, 66, 0.15);
+      transform: translateY(-1px);
     }
 
     .app-shell {
-      width: min(1440px, calc(100% - 32px));
+      width: min(1880px, calc(100% - 24px));
       margin: 0 auto;
-      padding: 90px 0 180px;
+      padding: 70px 0 58px;
     }
 
-    .hero,
-    .board-panel,
-    .controls-panel,
-    .saved-panel {
-      position: relative;
-      overflow: hidden;
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-xl);
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(14px);
-    }
-
-    .hero {
-      padding: 32px 34px 28px;
-      margin-bottom: 22px;
-      background:
-        linear-gradient(135deg, rgba(245, 197, 66, 0.08), transparent 32%),
-        linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 100%),
-        var(--panel-strong);
-    }
-
-    .hero::after,
-    .board-panel::after,
-    .controls-panel::after,
-    .saved-panel::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      border-radius: inherit;
-      border: 1px solid rgba(255, 255, 255, 0.025);
-    }
-
-    .eyebrow {
-      display: inline-flex;
+    .topbar {
+      display: grid;
+      grid-template-columns: minmax(220px, 0.9fr) minmax(300px, 1.1fr) minmax(360px, 1.35fr);
+      gap: 18px;
       align-items: center;
-      gap: 8px;
-      margin-bottom: 14px;
-      color: var(--accent);
-      font-size: 0.76rem;
-      font-weight: 700;
-      letter-spacing: 0.32em;
+      padding: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 18px;
+      background: rgba(11, 12, 18, 0.76);
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.34);
+      backdrop-filter: blur(18px);
+    }
+
+    .brand-kicker {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--gold);
+      font-size: 0.68rem;
+      font-weight: 900;
+      letter-spacing: 0.28em;
       text-transform: uppercase;
-    }
-
-    .eyebrow::before {
-      content: "";
-      width: 30px;
-      height: 1px;
-      background: currentColor;
-      opacity: 0.8;
-    }
-
-    .hero-top {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 22px;
-      margin-bottom: 26px;
-    }
-
-    .hero-copy {
-      max-width: 760px;
     }
 
     h1 {
-      font-size: clamp(2rem, 4vw, 3.4rem);
-      line-height: 0.98;
-      font-weight: 800;
-      letter-spacing: -0.04em;
+      font-size: clamp(1.42rem, 2vw, 2.12rem);
+      line-height: 0.95;
+      font-weight: 900;
+      letter-spacing: -0.025em;
       text-transform: uppercase;
-      margin-bottom: 14px;
-    }
-
-    .hero-copy p {
-      color: var(--muted);
-      font-size: 1rem;
-      line-height: 1.65;
-      max-width: 680px;
-    }
-
-    .hero-stats {
-      display: grid;
-      gap: 12px;
-      min-width: 220px;
-    }
-
-    .hero-stat {
-      padding: 16px 18px;
-      border-radius: var(--radius-md);
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.06);
-    }
-
-    .hero-stat-label {
-      color: var(--muted);
-      font-size: 0.73rem;
-      letter-spacing: 0.22em;
-      text-transform: uppercase;
-      margin-bottom: 8px;
-    }
-
-    .hero-stat-value {
-      font-size: 1.5rem;
-      font-weight: 700;
-    }
-
-    .hero-stat-value small {
-      display: block;
-      margin-top: 6px;
-      font-size: 0.78rem;
-      font-weight: 600;
-      color: var(--muted);
     }
 
     .class-toggle {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 14px;
+      gap: 8px;
+      padding: 5px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.045);
     }
 
     .class-button {
-      position: relative;
-      overflow: hidden;
-      padding: 18px 18px 16px;
-      border: 1px solid rgba(255, 255, 255, 0.09);
-      border-radius: var(--radius-lg);
-      background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015));
-      color: var(--text);
-      text-align: left;
+      min-height: 45px;
+      border: 1px solid transparent;
+      border-radius: 10px;
+      background: transparent;
+      color: rgba(245, 247, 251, 0.72);
       cursor: pointer;
-      transition: transform 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease, background 0.22s ease;
-    }
-
-    .class-button::before {
-      content: "";
-      position: absolute;
-      inset: auto 0 0;
-      height: 3px;
-      background: linear-gradient(90deg, transparent, rgba(245, 197, 66, 0.55), transparent);
-      opacity: 0;
-      transition: opacity 0.22s ease;
+      font-size: 0.82rem;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      transition: transform 0.16s ease, background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
     }
 
     .class-button:hover {
-      transform: translateY(-3px);
-      border-color: rgba(245, 197, 66, 0.35);
-      box-shadow: 0 18px 36px rgba(0, 0, 0, 0.26);
+      color: var(--text);
+      transform: translateY(-1px);
     }
 
     .class-button.is-active {
-      border-color: rgba(245, 197, 66, 0.7);
-      background: linear-gradient(180deg, rgba(245, 197, 66, 0.16), rgba(245, 197, 66, 0.07));
-      box-shadow: 0 0 0 1px rgba(245, 197, 66, 0.12), 0 16px 38px rgba(0, 0, 0, 0.28);
+      border-color: rgba(245, 197, 66, 0.74);
+      background: linear-gradient(180deg, rgba(245, 197, 66, 0.24), rgba(245, 197, 66, 0.08));
+      color: var(--gold);
+      box-shadow: 0 0 22px rgba(245, 197, 66, 0.16);
     }
 
-    .class-button.is-active::before {
-      opacity: 1;
-    }
-
-    .class-name {
-      display: block;
-      font-size: 1rem;
-      font-weight: 800;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      margin-bottom: 8px;
-    }
-
-    .class-desc {
-      display: block;
-      color: var(--muted);
-      font-size: 0.86rem;
-      line-height: 1.45;
-      max-width: 24ch;
-    }
-
-    .board-panel {
-      padding: 28px;
-      margin-bottom: 22px;
-      background:
-        radial-gradient(circle at 14% 16%, rgba(245, 197, 66, 0.1), transparent 18%),
-        linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 100%),
-        var(--panel-strong);
-    }
-
-    .board-scene {
-      position: relative;
-      min-height: 560px;
-      padding: 28px;
-      border-radius: calc(var(--radius-xl) - 6px);
-      background:
-        linear-gradient(180deg, rgba(11, 14, 22, 0.65), rgba(11, 14, 22, 0.36) 34%, rgba(18, 22, 33, 0.92) 100%),
-        linear-gradient(120deg, rgba(245, 197, 66, 0.05), transparent 34%),
-        rgba(5, 8, 14, 0.84);
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      overflow: hidden;
-    }
-
-    .board-scene::before {
-      content: "";
-      position: absolute;
-      inset: 24px;
-      border-radius: 22px;
-      border: 1px dashed rgba(255, 255, 255, 0.05);
-      pointer-events: none;
-    }
-
-    .board-shell {
-      position: relative;
-      z-index: 1;
-    }
-
-    .board-shell.is-switching {
-      animation: boardSwitch 0.48s cubic-bezier(0.2, 0.8, 0.2, 1);
-    }
-
-    .board-shell.is-loading {
-      animation: boardLoad 0.5s cubic-bezier(0.2, 0.85, 0.2, 1);
-    }
-
-    .stage-top {
-      display: flex;
-      align-items: stretch;
-      justify-content: space-between;
-      gap: 26px;
-      margin-bottom: 42px;
-    }
-
-    .stage-copy {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      min-width: 0;
-    }
-
-    .stage-label {
-      color: var(--muted);
-      font-size: 0.76rem;
-      font-weight: 700;
-      letter-spacing: 0.28em;
-      text-transform: uppercase;
-    }
-
-    .stage-class {
-      font-size: clamp(2rem, 5vw, 4rem);
-      font-weight: 800;
-      letter-spacing: -0.06em;
-      text-transform: uppercase;
-      line-height: 0.92;
-    }
-
-    .stage-summary {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-    }
-
-    .summary-pill {
-      padding: 9px 14px;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      color: var(--muted-strong);
-      font-size: 0.82rem;
-      font-weight: 600;
-    }
-
-    .status-stack {
+    .build-actions {
       display: grid;
-      gap: 14px;
-      min-width: 250px;
-    }
-
-    .status-card {
-      padding: 18px 20px;
-      border-radius: var(--radius-lg);
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.06);
-    }
-
-    .status-label {
-      color: var(--muted);
-      font-size: 0.72rem;
-      font-weight: 700;
-      letter-spacing: 0.22em;
-      text-transform: uppercase;
-      margin-bottom: 8px;
-    }
-
-    .status-value {
-      font-size: 1.4rem;
-      font-weight: 700;
-    }
-
-    .status-card small {
-      display: block;
-      margin-top: 6px;
-      color: var(--muted);
-      font-size: 0.8rem;
-    }
-
-    .banks-grid {
-      display: grid;
-      grid-template-columns: minmax(220px, 0.9fr) minmax(220px, 0.9fr) minmax(320px, 1.15fr) minmax(380px, 1.35fr);
-      gap: 18px;
-      align-items: flex-end;
-    }
-
-    .slot-bank {
-      padding: 18px;
-      border-radius: 22px;
-      background: rgba(15, 19, 29, 0.82);
-      border: 1px solid rgba(255, 255, 255, 0.06);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
-    }
-
-    .bank-header {
-      display: flex;
+      grid-template-columns: minmax(180px, 1fr) auto auto auto;
+      gap: 8px;
       align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      margin-bottom: 14px;
     }
 
-    .bank-title {
-      font-size: 0.74rem;
+    .build-name {
+      width: 100%;
+      min-height: 45px;
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: 10px;
+      background: rgba(4, 5, 8, 0.68);
+      color: var(--text);
+      padding: 0 13px;
       font-weight: 800;
-      color: var(--muted-strong);
-      letter-spacing: 0.24em;
-      text-transform: uppercase;
+      outline: none;
+      transition: border-color 0.16s ease, box-shadow 0.16s ease;
     }
 
-    .bank-count {
-      padding: 4px 10px;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.04);
-      color: var(--muted);
-      font-size: 0.74rem;
-      font-weight: 700;
+    .build-name:focus {
+      border-color: rgba(245, 197, 66, 0.72);
+      box-shadow: 0 0 0 3px rgba(245, 197, 66, 0.12);
+    }
+
+    .build-name::placeholder {
+      color: rgba(245, 247, 251, 0.38);
+    }
+
+    .action-button {
+      min-height: 45px;
+      padding: 0 14px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.055);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 0.78rem;
+      font-weight: 900;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease, opacity 0.16s ease;
+    }
+
+    .action-button:hover:not(:disabled) {
+      border-color: rgba(255, 255, 255, 0.26);
+      background: rgba(255, 255, 255, 0.08);
+      transform: translateY(-1px);
+    }
+
+    .action-button:disabled {
+      cursor: not-allowed;
+      opacity: 0.42;
+    }
+
+    .action-button.is-primary {
+      border-color: rgba(245, 197, 66, 0.8);
+      background: linear-gradient(180deg, var(--gold-strong), #d69716);
+      color: #111115;
+      box-shadow: 0 12px 28px rgba(245, 197, 66, 0.17);
+    }
+
+    .status-strip,
+    .share-panel,
+    .import-bar {
+      margin-top: 10px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(4, 5, 8, 0.56);
+      backdrop-filter: blur(14px);
+    }
+
+    .status-strip {
+      min-height: 0;
+      overflow: hidden;
+      opacity: 0;
+      transform: translateY(-4px);
+      transition: opacity 0.18s ease, transform 0.18s ease, min-height 0.18s ease, padding 0.18s ease;
+    }
+
+    .status-strip.has-message {
+      min-height: 36px;
+      padding: 9px 12px;
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .status-strip span {
+      color: var(--gold);
+      font-size: 0.78rem;
+      font-weight: 800;
       letter-spacing: 0.08em;
       text-transform: uppercase;
     }
 
-    .slot-row {
-      display: grid;
-      gap: 12px;
-    }
-
-    .slot-row.gadgets-row {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-
-    .slot-row.reserve-row {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-    }
-
-    .slot-card {
-      position: relative;
+    .import-bar {
       display: flex;
-      flex-direction: column;
-      gap: 14px;
-      min-height: 204px;
-      width: 100%;
-      padding: 14px;
-      border-radius: 18px;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015)),
-        rgba(16, 20, 30, 0.94);
-      color: inherit;
-      text-align: left;
-      cursor: pointer;
-      transition: transform 0.24s ease, border-color 0.24s ease, box-shadow 0.24s ease, background 0.24s ease;
-      animation: slotReveal 0.56s cubic-bezier(0.16, 1, 0.3, 1) both;
-      animation-delay: var(--slot-delay, 0ms);
-    }
-
-    .slot-card:hover {
-      transform: translateY(-3px) scale(1.015);
-      border-color: rgba(245, 197, 66, 0.45);
-      box-shadow: 0 16px 30px rgba(0, 0, 0, 0.3), 0 0 24px rgba(245, 197, 66, 0.1);
-    }
-
-    .slot-card.is-active {
-      border-color: rgba(245, 197, 66, 0.72);
-      box-shadow: 0 0 0 1px rgba(245, 197, 66, 0.2), 0 18px 36px rgba(0, 0, 0, 0.34), 0 0 26px rgba(245, 197, 66, 0.18);
-    }
-
-    .slot-card.is-filled::after {
-      content: "\2713";
-      position: absolute;
-      top: 12px;
-      right: 12px;
-      width: 28px;
-      height: 28px;
-      display: grid;
-      place-items: center;
-      border-radius: 999px;
-      background: rgba(245, 197, 66, 0.12);
-      border: 1px solid rgba(245, 197, 66, 0.42);
-      color: var(--accent);
-      font-size: 0.95rem;
-      font-weight: 800;
-      opacity: 0;
-      animation: checkFade 0.32s ease forwards;
-      animation-delay: calc(var(--slot-delay, 0ms) + 90ms);
-    }
-
-    .slot-card.is-pulse {
-      animation:
-        slotReveal 0.56s cubic-bezier(0.16, 1, 0.3, 1) both,
-        slotPulse 0.48s ease;
-      animation-delay: var(--slot-delay, 0ms), 0ms;
-    }
-
-    .slot-badge {
-      align-self: flex-start;
-      display: inline-flex;
       align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px;
+    }
+
+    .import-bar[hidden],
+    .share-panel[hidden] {
+      display: none;
+    }
+
+    .import-title {
+      color: var(--text);
+      font-size: 0.82rem;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .import-meta {
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+
+    .mini-actions {
+      display: flex;
+      flex-wrap: wrap;
       gap: 8px;
-      padding: 6px 10px;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.05);
-      color: var(--muted-strong);
+      justify-content: flex-end;
+    }
+
+    .mini-button {
+      min-height: 34px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 9px;
+      background: rgba(255, 255, 255, 0.06);
+      padding: 0 10px;
+      color: var(--text);
+      cursor: pointer;
+      font-size: 0.72rem;
+      font-weight: 900;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .mini-button.is-gold {
+      border-color: rgba(245, 197, 66, 0.72);
+      background: rgba(245, 197, 66, 0.18);
+      color: var(--gold);
+    }
+
+    .share-panel {
+      padding: 10px;
+    }
+
+    .share-link {
+      display: block;
+      width: 100%;
+      min-height: 58px;
+      resize: vertical;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      background: rgba(0, 0, 0, 0.35);
+      color: var(--text);
+      padding: 9px 10px;
+      font-size: 0.76rem;
+      font-weight: 700;
+      outline: none;
+    }
+
+    .share-note {
+      margin-top: 7px;
+      color: var(--muted);
       font-size: 0.72rem;
       font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .arena {
+      position: relative;
+      min-height: 360px;
+      margin-top: 14px;
+      padding: 26px 48px 36px;
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 20px;
+      background:
+        linear-gradient(180deg, rgba(15, 15, 22, 0.32), rgba(12, 12, 18, 0.9)),
+        radial-gradient(circle at 22% 100%, rgba(245, 197, 66, 0.26), transparent 30%),
+        radial-gradient(circle at 82% 28%, rgba(255, 255, 255, 0.08), transparent 24%),
+        linear-gradient(145deg, #23232e 0%, #13131b 55%, #1a1822 100%);
+      box-shadow: 0 26px 70px rgba(0, 0, 0, 0.42);
+      overflow: hidden;
+    }
+
+    .arena::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(102deg, transparent 0 36%, rgba(245, 197, 66, 0.18) 36% 38%, transparent 38% 60%, rgba(255, 255, 255, 0.05) 60% 61%, transparent 61%),
+        radial-gradient(circle at 46% 50%, rgba(255, 255, 255, 0.09), transparent 18%);
+      opacity: 0.46;
+    }
+
+    .arena::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: linear-gradient(180deg, rgba(12, 12, 17, 0.04), rgba(12, 12, 17, 0.84));
+    }
+
+    .picker-ribbon,
+    .loadout-board {
+      position: relative;
+      z-index: 1;
+    }
+
+    .picker-ribbon {
+      max-height: 272px;
+      margin-bottom: 44px;
+      opacity: 1;
+      transform: translateY(0);
+      transition: max-height 0.28s ease, opacity 0.22s ease, transform 0.28s ease, margin-bottom 0.28s ease;
+    }
+
+    .picker-ribbon.is-hidden {
+      max-height: 0;
+      margin-bottom: 0;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-18px);
+    }
+
+    .picker-topline {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 32px;
+      margin-bottom: 12px;
+    }
+
+    .picker-title {
+      color: var(--text);
+      font-size: 0.9rem;
+      font-weight: 900;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+    }
+
+    .picker-title span {
+      color: var(--gold);
+    }
+
+    .close-picker {
+      min-width: 34px;
+      min-height: 34px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 9px;
+      background: rgba(255, 255, 255, 0.07);
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: 900;
+    }
+
+    .picker-strip {
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding: 2px 2px 18px;
+      overscroll-behavior-inline: contain;
+      scrollbar-color: rgba(255, 255, 255, 0.46) rgba(255, 255, 255, 0.08);
+      scrollbar-width: thin;
+      border-radius: 12px;
+      transition: background 0.16s ease, box-shadow 0.16s ease;
+    }
+
+    .loadout-board {
+      margin-top: auto;
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding-bottom: 8px;
+      overscroll-behavior-inline: contain;
+      scrollbar-color: rgba(255, 255, 255, 0.42) rgba(255, 255, 255, 0.08);
+      scrollbar-width: thin;
+      border-radius: 12px;
+      transition: background 0.16s ease, box-shadow 0.16s ease;
+    }
+
+    .loadout-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 22px;
+      min-width: max-content;
+    }
+
+    .loadout-section {
+      flex: 0 0 auto;
+    }
+
+    .loadout-section.is-reserve {
+      margin-left: 4px;
+    }
+
+    .section-title {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 5px;
+      margin-bottom: 9px;
+      color: var(--text);
+      font-size: clamp(1.08rem, 1.7vw, 1.52rem);
+      font-weight: 900;
+      letter-spacing: -0.03em;
+      text-align: center;
+      text-transform: uppercase;
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+    }
+
+    .section-title::after {
+      content: "";
+      display: block;
+      height: 3px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.34);
+    }
+
+    .slot-track {
+      display: flex;
+      gap: 10px;
+    }
+
+    .item-card {
+      position: relative;
+      flex: 0 0 var(--card-w);
+      width: var(--card-w);
+      height: var(--card-h);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: var(--radius);
+      background: rgba(16, 16, 22, 0.9);
+      color: var(--text);
+      overflow: hidden;
+      cursor: pointer;
+      box-shadow: 0 18px 34px rgba(0, 0, 0, 0.28);
+      outline: none;
+      transform: translateZ(0);
+      transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease, opacity 0.16s ease;
+      animation: cardIn 0.24s ease backwards;
+      animation-delay: calc(var(--order, 0) * 32ms);
+    }
+
+    .item-card:hover,
+    .item-card:focus-visible {
+      border-color: rgba(245, 197, 66, 0.82);
+      box-shadow: 0 0 0 2px rgba(245, 197, 66, 0.22), 0 24px 44px rgba(0, 0, 0, 0.36);
+      transform: translateY(-3px) scale(1.018);
+      z-index: 4;
+    }
+
+    .item-card.is-selected {
+      border-color: var(--gold);
+      box-shadow: 0 0 0 2px rgba(245, 197, 66, 0.32), 0 20px 48px rgba(0, 0, 0, 0.38);
+    }
+
+    .item-card.is-disabled {
+      cursor: default;
+      filter: grayscale(0.85) brightness(0.68);
+      opacity: 0.48;
+    }
+
+    .item-card.is-disabled:hover,
+    .item-card.is-disabled:focus-visible {
+      border-color: rgba(255, 255, 255, 0.08);
+      box-shadow: 0 18px 34px rgba(0, 0, 0, 0.28);
+      transform: none;
+    }
+
+    .item-card.is-empty {
+      border-style: dashed;
+      background: rgba(255, 255, 255, 0.045);
+    }
+
+    .item-card.is-pulse {
+      animation: cardIn 0.24s ease backwards, pickPulse 0.38s ease;
+    }
+
+    .card-visual {
+      position: relative;
+      height: calc(var(--card-h) - var(--name-h));
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 0.18), transparent 34%),
+        linear-gradient(180deg, #bacbd4, #737b86);
+    }
+
+    .card-visual::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(180deg, transparent 58%, rgba(0, 0, 0, 0.34)),
+        radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.18), transparent 42%);
+    }
+
+    .item-img {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: cover;
+      object-position: center;
+    }
+
+    .image-fallback {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 14px;
+      background:
+        radial-gradient(circle at 50% 36%, rgba(245, 197, 66, 0.18), transparent 36%),
+        linear-gradient(180deg, #454b58, #22242c);
+      color: rgba(255, 255, 255, 0.78);
+      text-align: center;
+      font-size: 0.86rem;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .image-fallback[hidden] {
+      display: none;
+    }
+
+    .empty-mark {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      color: rgba(245, 247, 251, 0.54);
+      font-size: 2rem;
+      font-weight: 900;
+    }
+
+    .card-name {
+      position: relative;
+      z-index: 1;
+      height: var(--name-h);
+      display: grid;
+      place-items: center;
+      padding: 0 8px;
+      background: rgba(14, 13, 19, 0.96);
+      color: var(--text);
+      text-align: center;
+      font-size: 0.86rem;
+      font-weight: 900;
+      letter-spacing: -0.045em;
+      text-transform: uppercase;
+      line-height: 1.02;
+    }
+
+    .card-name span {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      overflow: hidden;
+    }
+
+    .type-badge,
+    .check-badge,
+    .note-btn,
+    .alt-button {
+      position: absolute;
+      z-index: 3;
+      display: inline-grid;
+      place-items: center;
+      border: 0;
+      border-radius: 6px;
+      font-weight: 900;
+      line-height: 1;
+      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.24);
+    }
+
+    .type-badge {
+      left: 7px;
+      bottom: 7px;
+      width: 26px;
+      height: 26px;
+      background: rgba(255, 255, 255, 0.92);
+      color: #16171e;
+      font-size: 0.78rem;
+    }
+
+    .check-badge {
+      top: 7px;
+      right: 7px;
+      width: 28px;
+      height: 28px;
+      background: rgba(38, 39, 48, 0.92);
+      color: var(--gold);
+      font-size: 1rem;
+      opacity: 0;
+      transform: translateY(-4px) scale(0.88);
+      transition: opacity 0.16s ease, transform 0.16s ease;
+    }
+
+    .is-selected .check-badge {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+
+    .note-btn {
+      top: 7px;
+      left: 7px;
+      width: 28px;
+      height: 28px;
+      background: rgba(17, 18, 24, 0.72);
+      color: rgba(255, 255, 255, 0.86);
+      cursor: pointer;
+      font-size: 0.72rem;
+      letter-spacing: 0.02em;
+      transition: background 0.16s ease, color 0.16s ease, transform 0.16s ease;
+    }
+
+    .note-btn:hover,
+    .note-btn:focus-visible,
+    .note-btn.has-note {
+      background: rgba(245, 197, 66, 0.94);
+      color: #111115;
+      outline: none;
+      transform: translateY(-1px);
+    }
+
+    .note-popover {
+      position: absolute;
+      left: 7px;
+      right: 7px;
+      top: 41px;
+      z-index: 5;
+      max-height: 76px;
+      overflow: hidden;
+      border: 1px solid rgba(245, 197, 66, 0.34);
+      border-radius: 8px;
+      background: rgba(8, 9, 13, 0.9);
+      color: var(--text);
+      padding: 8px 9px;
+      font-size: 0.72rem;
+      font-weight: 800;
+      line-height: 1.25;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-5px);
+      transition: opacity 0.16s ease, transform 0.16s ease;
+      backdrop-filter: blur(12px);
+    }
+
+    .note-btn:hover + .note-popover,
+    .note-btn:focus-visible + .note-popover {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .alt-button {
+      right: 7px;
+      bottom: 7px;
+      min-width: 30px;
+      height: 26px;
+      padding: 0 7px;
+      background: rgba(245, 197, 66, 0.93);
+      color: #111115;
+      cursor: pointer;
+      font-size: 0.68rem;
+      letter-spacing: 0.04em;
+    }
+
+    .alt-strip {
+      position: absolute;
+      left: 40px;
+      right: 42px;
+      bottom: 7px;
+      z-index: 3;
+      display: flex;
+      gap: 4px;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .alt-chip {
+      flex: 0 1 auto;
+      max-width: 62px;
+      min-height: 23px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 999px;
+      background: rgba(8, 9, 13, 0.72);
+      color: var(--text);
+      padding: 0 7px;
+      cursor: pointer;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 0.62rem;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .alt-chip:hover,
+    .alt-chip:focus-visible {
+      border-color: rgba(245, 197, 66, 0.7);
+      outline: none;
+    }
+
+    .saved-panel {
+      margin-top: 14px;
+      padding: 15px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 18px;
+      background: rgba(11, 12, 18, 0.78);
+      box-shadow: 0 18px 46px rgba(0, 0, 0, 0.32);
+      backdrop-filter: blur(18px);
+    }
+
+    .saved-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .saved-head h2 {
+      font-size: 0.9rem;
+      font-weight: 900;
       letter-spacing: 0.18em;
       text-transform: uppercase;
     }
 
-    .slot-media-frame {
-      position: relative;
-      flex: 1;
-      min-height: 110px;
-      border-radius: 14px;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0)),
-        rgba(7, 10, 16, 0.92);
-      overflow: hidden;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .slot-card.is-empty .slot-media-frame {
-      border-style: dashed;
-      border-color: rgba(255, 255, 255, 0.18);
-      background: rgba(255, 255, 255, 0.025);
-    }
-
-    .item-media {
-      position: absolute;
-      inset: 0;
-      overflow: hidden;
-    }
-
-    .item-media::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(180deg, rgba(6, 9, 15, 0) 0%, rgba(6, 9, 15, 0.2) 56%, rgba(6, 9, 15, 0.88) 100%);
-      pointer-events: none;
-    }
-
-    .item-media img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-      opacity: 0;
-      transform: scale(1.04);
-      transition: opacity 0.22s ease, transform 0.38s ease;
-    }
-
-    .item-media.is-loaded img {
-      opacity: 1;
-      transform: scale(1);
-    }
-
-    .item-fallback {
-      position: absolute;
-      inset: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      padding: 16px;
-      text-align: center;
+    .saved-head span {
       color: var(--muted);
-      transition: opacity 0.22s ease;
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
     }
 
-    .item-media.is-loaded .item-fallback {
-      opacity: 0;
-      pointer-events: none;
-    }
-
-    .item-fallback-mark {
-      width: 42px;
-      height: 42px;
-      display: grid;
-      place-items: center;
+    .saved-rail {
+      display: flex;
+      gap: 10px;
+      overflow-x: auto;
+      padding-bottom: 5px;
+      overscroll-behavior-inline: contain;
+      scrollbar-color: rgba(255, 255, 255, 0.42) rgba(255, 255, 255, 0.08);
+      scrollbar-width: thin;
       border-radius: 12px;
-      background: rgba(245, 197, 66, 0.1);
-      border: 1px solid rgba(245, 197, 66, 0.24);
-      color: var(--accent);
-      font-size: 0.98rem;
+      transition: background 0.16s ease, box-shadow 0.16s ease;
+    }
+
+    .picker-strip:hover,
+    .picker-strip:focus-within,
+    .loadout-board:hover,
+    .loadout-board:focus-within,
+    .saved-rail:hover,
+    .saved-rail:focus-within {
+      background: rgba(255, 255, 255, 0.025);
+      box-shadow:
+        inset 0 0 0 1px rgba(255, 255, 255, 0.2),
+        0 0 30px rgba(255, 255, 255, 0.055);
+      cursor: ew-resize;
+    }
+
+    .saved-card {
+      position: relative;
+      flex: 0 0 250px;
+      min-height: 112px;
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      border-radius: 12px;
+      background:
+        linear-gradient(135deg, rgba(245, 197, 66, 0.11), transparent 48%),
+        rgba(255, 255, 255, 0.045);
+      padding: 13px 42px 13px 13px;
+      color: var(--text);
+      cursor: pointer;
+      text-align: left;
+      transition: border-color 0.16s ease, transform 0.16s ease, background 0.16s ease;
+    }
+
+    .saved-card:hover,
+    .saved-card:focus-visible {
+      border-color: rgba(245, 197, 66, 0.72);
+      background:
+        linear-gradient(135deg, rgba(245, 197, 66, 0.16), transparent 48%),
+        rgba(255, 255, 255, 0.06);
+      outline: none;
+      transform: translateY(-2px);
+    }
+
+    .saved-card-title {
+      margin-bottom: 8px;
+      font-size: 0.95rem;
+      font-weight: 900;
+      letter-spacing: -0.035em;
+      text-transform: uppercase;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .saved-card-meta {
+      color: var(--muted);
+      font-size: 0.73rem;
+      font-weight: 800;
+      line-height: 1.35;
+      text-transform: uppercase;
+    }
+
+    .saved-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      margin-top: 10px;
+    }
+
+    .saved-badge {
+      border: 1px solid rgba(245, 197, 66, 0.28);
+      border-radius: 999px;
+      color: var(--gold);
+      padding: 3px 7px;
+      font-size: 0.62rem;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .delete-build {
+      position: absolute;
+      top: 9px;
+      right: 9px;
+      width: 28px;
+      height: 28px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.28);
+      color: rgba(255, 255, 255, 0.76);
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: 900;
+    }
+
+    .delete-build:hover,
+    .delete-build:focus-visible {
+      border-color: rgba(255, 127, 127, 0.72);
+      color: var(--danger);
+      outline: none;
+    }
+
+    .empty-saved {
+      flex: 0 0 auto;
+      color: rgba(245, 247, 251, 0.48);
+      padding: 20px 4px;
+      font-size: 0.8rem;
       font-weight: 800;
       letter-spacing: 0.12em;
       text-transform: uppercase;
     }
 
-    .item-fallback-text {
-      font-size: 0.78rem;
-      font-weight: 700;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 60;
+      background: rgba(0, 0, 0, 0.62);
+      backdrop-filter: blur(10px);
+      opacity: 1;
+      transition: opacity 0.16s ease;
     }
 
-    .empty-copy {
-      position: relative;
-      z-index: 1;
-      display: grid;
-      place-items: center;
-      gap: 8px;
-      padding: 14px;
-      text-align: center;
-      color: var(--muted);
+    .modal-overlay[hidden] {
+      display: none;
     }
 
-    .empty-copy strong {
-      font-size: 0.85rem;
-      letter-spacing: 0.04em;
-      color: var(--muted-strong);
-    }
-
-    .slot-info {
-      position: relative;
-      z-index: 1;
-      display: grid;
-      gap: 6px;
-    }
-
-    .slot-label {
-      color: var(--muted);
-      font-size: 0.7rem;
-      font-weight: 700;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-    }
-
-    .slot-name {
-      font-size: 0.96rem;
-      font-weight: 700;
-      line-height: 1.3;
-      min-height: 2.5em;
-    }
-
-    .slot-meta {
-      color: var(--muted);
-      font-size: 0.78rem;
-      line-height: 1.45;
-    }
-
-    .controls-panel {
-      padding: 22px 26px;
-      margin-bottom: 22px;
-      background:
-        linear-gradient(135deg, rgba(245, 197, 66, 0.06), transparent 26%),
-        var(--panel);
-    }
-
-    .controls-row {
-      display: grid;
-      grid-template-columns: minmax(0, 1.2fr) auto;
-      gap: 18px;
-      align-items: end;
-    }
-
-    .input-stack {
-      display: grid;
-      gap: 10px;
-    }
-
-    .input-label {
-      color: var(--muted-strong);
-      font-size: 0.76rem;
-      font-weight: 800;
-      letter-spacing: 0.22em;
-      text-transform: uppercase;
-    }
-
-    .build-name-input {
-      width: 100%;
-      padding: 16px 18px;
+    .note-modal {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      z-index: 70;
+      width: min(460px, calc(100% - 28px));
+      border: 1px solid rgba(245, 197, 66, 0.28);
       border-radius: 16px;
-      border: 1px solid rgba(255, 255, 255, 0.09);
-      background: rgba(7, 10, 16, 0.92);
-      color: var(--text);
-      font: inherit;
-      font-size: 1rem;
-      font-weight: 600;
-      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      background: rgba(14, 15, 20, 0.96);
+      box-shadow: 0 30px 90px rgba(0, 0, 0, 0.56);
+      transform: translate(-50%, -50%);
+      overflow: hidden;
     }
 
-    .build-name-input:focus {
-      outline: none;
-      border-color: rgba(245, 197, 66, 0.6);
-      box-shadow: 0 0 0 4px rgba(245, 197, 66, 0.08);
+    .note-modal[hidden] {
+      display: none;
     }
 
-    .save-side {
-      display: grid;
-      gap: 10px;
-      justify-items: end;
-      min-width: 230px;
-    }
-
-    .save-button {
-      min-width: 220px;
-      padding: 16px 20px;
-      border: 1px solid rgba(245, 197, 66, 0.38);
-      border-radius: 16px;
-      background: linear-gradient(180deg, rgba(245, 197, 66, 0.95), rgba(219, 174, 48, 0.95));
-      color: #18140d;
-      font: inherit;
-      font-size: 0.95rem;
-      font-weight: 800;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      cursor: pointer;
-      transition: transform 0.22s ease, box-shadow 0.22s ease, filter 0.22s ease, opacity 0.22s ease;
-    }
-
-    .save-button:hover:not(:disabled) {
-      transform: translateY(-2px);
-      box-shadow: 0 18px 34px rgba(245, 197, 66, 0.2);
-      filter: saturate(1.06);
-    }
-
-    .save-button:disabled {
-      cursor: not-allowed;
-      opacity: 0.48;
-      box-shadow: none;
-    }
-
-    .save-button.is-flashing {
-      animation: saveFlash 0.72s ease;
-    }
-
-    .save-hint {
-      color: var(--muted);
-      font-size: 0.82rem;
-      text-align: right;
-    }
-
-    .saved-panel {
-      padding: 24px 26px 28px;
-      background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 100%),
-        var(--panel);
-    }
-
-    .saved-header {
+    .modal-head {
       display: flex;
-      align-items: flex-end;
+      align-items: center;
       justify-content: space-between;
-      gap: 18px;
-      margin-bottom: 16px;
+      gap: 10px;
+      padding: 14px 14px 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     }
 
-    .saved-title {
-      font-size: 0.82rem;
-      font-weight: 800;
-      color: var(--muted-strong);
-      letter-spacing: 0.24em;
+    .modal-title {
+      min-width: 0;
+      font-size: 0.95rem;
+      font-weight: 900;
+      letter-spacing: 0.08em;
       text-transform: uppercase;
-      margin-bottom: 8px;
-    }
-
-    .saved-subtitle {
-      color: var(--muted);
-      font-size: 0.92rem;
-      line-height: 1.55;
-      max-width: 640px;
-    }
-
-    .saved-count {
-      color: var(--muted);
-      font-size: 0.84rem;
-      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
       white-space: nowrap;
     }
 
-    .saved-strip {
-      display: flex;
-      gap: 16px;
-      overflow-x: auto;
-      padding-bottom: 6px;
-      scroll-snap-type: x proximity;
-    }
-
-    .saved-strip::-webkit-scrollbar,
-    .picker-groups::-webkit-scrollbar {
-      height: 10px;
-      width: 10px;
-    }
-
-    .saved-strip::-webkit-scrollbar-thumb,
-    .picker-groups::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.12);
-      border-radius: 999px;
-    }
-
-    .saved-strip::-webkit-scrollbar-track,
-    .picker-groups::-webkit-scrollbar-track {
-      background: rgba(255, 255, 255, 0.03);
-      border-radius: 999px;
-    }
-
-    .build-card,
-    .new-build-card {
-      position: relative;
-      flex: 0 0 270px;
-      min-height: 185px;
-      border-radius: 20px;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015)),
-        rgba(14, 18, 28, 0.94);
-      color: inherit;
-      text-align: left;
-      transition: transform 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease;
-      scroll-snap-align: start;
-    }
-
-    .build-card {
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-      padding: 18px;
-    }
-
-    .build-card:hover,
-    .new-build-card:hover {
-      transform: translateY(-3px);
-      border-color: rgba(245, 197, 66, 0.35);
-      box-shadow: 0 18px 34px rgba(0, 0, 0, 0.24);
-    }
-
-    .build-card-body {
-      display: block;
-      width: 100%;
-      flex: 1;
-      padding: 0;
-      border: 0;
-      background: transparent;
-      color: inherit;
-      font: inherit;
-      text-align: left;
-      cursor: pointer;
-    }
-
-    .build-card-body:focus-visible {
-      outline: 2px solid rgba(245, 197, 66, 0.6);
-      outline-offset: 8px;
-      border-radius: 14px;
-    }
-
-    .build-card-top {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 10px;
-      margin-bottom: 18px;
-    }
-
-    .class-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 10px;
-      border-radius: 999px;
-      background: rgba(245, 197, 66, 0.1);
-      color: var(--accent);
-      font-size: 0.72rem;
-      font-weight: 800;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-    }
-
-    .delete-button {
+    .modal-close {
       width: 34px;
       height: 34px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 9px;
+      background: rgba(255, 255, 255, 0.055);
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: 900;
+    }
+
+    .note-textarea {
+      display: block;
+      width: calc(100% - 28px);
+      min-height: 138px;
+      margin: 14px;
+      resize: vertical;
+      border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: 12px;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      background: rgba(255, 255, 255, 0.04);
-      color: var(--muted);
-      font: inherit;
-      font-size: 1rem;
-      font-weight: 700;
-      cursor: pointer;
-      transition: color 0.18s ease, border-color 0.18s ease, background 0.18s ease;
-    }
-
-    .delete-button:hover {
-      color: #fff;
-      border-color: rgba(242, 107, 107, 0.45);
-      background: rgba(242, 107, 107, 0.14);
-    }
-
-    .build-card-title {
-      font-size: 1.12rem;
-      font-weight: 700;
-      line-height: 1.25;
-      margin-bottom: 12px;
-    }
-
-    .build-card-line {
-      color: var(--muted-strong);
-      font-size: 0.88rem;
-      line-height: 1.5;
-      margin-bottom: 7px;
-    }
-
-    .build-card-meta {
-      margin-top: 12px;
-      color: var(--muted);
-      font-size: 0.78rem;
-      line-height: 1.45;
-    }
-
-    .new-build-card {
-      padding: 18px;
-      display: grid;
-      place-items: center;
-      gap: 14px;
-      text-align: center;
-      background:
-        linear-gradient(180deg, rgba(245, 197, 66, 0.08), rgba(245, 197, 66, 0.03)),
-        rgba(14, 18, 28, 0.94);
-    }
-
-    .new-build-plus {
-      width: 54px;
-      height: 54px;
-      display: grid;
-      place-items: center;
-      border-radius: 18px;
-      border: 1px solid rgba(245, 197, 66, 0.34);
-      background: rgba(245, 197, 66, 0.08);
-      color: var(--accent);
-      font-size: 1.9rem;
-      line-height: 1;
-    }
-
-    .new-build-card strong {
-      font-size: 1rem;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-    }
-
-    .new-build-card span {
-      color: var(--muted);
-      font-size: 0.84rem;
-      line-height: 1.45;
-    }
-
-    .picker-overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(4, 6, 10, 0.58);
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.28s ease;
-      z-index: 40;
-    }
-
-    .picker-overlay.is-open {
-      opacity: 1;
-      pointer-events: auto;
-    }
-
-    .picker-panel {
-      position: fixed;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      z-index: 41;
-      max-height: min(74vh, 760px);
-      transform: translateY(calc(100% + 24px));
-      transition: transform 0.42s cubic-bezier(0.2, 0.84, 0.2, 1);
-      padding: 0 18px 18px;
-      pointer-events: none;
-    }
-
-    .picker-panel.is-open {
-      transform: translateY(0);
-      pointer-events: auto;
-    }
-
-    .picker-shell {
-      width: min(1420px, 100%);
-      margin: 0 auto;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 28px 28px 22px 22px;
-      background:
-        linear-gradient(180deg, rgba(245, 197, 66, 0.08), transparent 16%),
-        var(--panel-strong);
-      box-shadow: 0 -18px 60px rgba(0, 0, 0, 0.35);
-      overflow: hidden;
-    }
-
-    .picker-header {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 18px;
-      padding: 22px 24px 18px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    }
-
-    .picker-kicker {
-      color: var(--accent);
-      font-size: 0.74rem;
-      font-weight: 800;
-      letter-spacing: 0.24em;
-      text-transform: uppercase;
-      margin-bottom: 10px;
-    }
-
-    .picker-title {
-      font-size: 1.55rem;
-      font-weight: 800;
-      letter-spacing: -0.04em;
-      margin-bottom: 8px;
-      text-transform: uppercase;
-    }
-
-    .picker-subtitle {
-      color: var(--muted);
+      background: rgba(0, 0, 0, 0.32);
+      color: var(--text);
+      outline: none;
+      padding: 12px;
       font-size: 0.92rem;
-      line-height: 1.55;
-      max-width: 720px;
-    }
-
-    .picker-close {
-      padding: 11px 14px;
-      border-radius: 14px;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      background: rgba(255, 255, 255, 0.04);
-      color: var(--muted-strong);
-      font: inherit;
       font-weight: 700;
-      cursor: pointer;
-      transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+      line-height: 1.45;
     }
 
-    .picker-close:hover {
-      color: #fff;
-      border-color: rgba(245, 197, 66, 0.35);
-      background: rgba(245, 197, 66, 0.07);
+    .note-textarea:focus {
+      border-color: rgba(245, 197, 66, 0.72);
+      box-shadow: 0 0 0 3px rgba(245, 197, 66, 0.1);
     }
 
-    .picker-groups {
-      max-height: min(56vh, 600px);
-      overflow-y: auto;
-      padding: 22px 24px 26px;
-      display: grid;
-      gap: 22px;
-    }
-
-    .picker-group {
-      display: grid;
-      gap: 12px;
-    }
-
-    .picker-group-head {
+    .modal-foot {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
+      gap: 10px;
+      padding: 0 14px 14px;
     }
 
-    .picker-group-title {
-      color: var(--muted-strong);
-      font-size: 0.78rem;
+    .char-count {
+      color: var(--muted);
+      font-size: 0.74rem;
       font-weight: 800;
-      letter-spacing: 0.22em;
-      text-transform: uppercase;
     }
 
-    .picker-group-meta {
-      color: var(--muted);
-      font-size: 0.76rem;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-    }
-
-    .picker-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-      gap: 12px;
-    }
-
-    .picker-card {
-      position: relative;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      min-height: 190px;
-      padding: 12px;
-      border-radius: 18px;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.018)),
-        rgba(13, 17, 27, 0.96);
-      color: inherit;
-      text-align: left;
-      cursor: pointer;
-      transition: transform 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease, opacity 0.22s ease;
-    }
-
-    .picker-card:hover:not(:disabled) {
-      transform: translateY(-4px) scale(1.02);
-      border-color: rgba(245, 197, 66, 0.45);
-      box-shadow: 0 18px 32px rgba(0, 0, 0, 0.28), 0 0 24px rgba(245, 197, 66, 0.12);
-    }
-
-    .picker-card.is-selected {
-      border-color: rgba(245, 197, 66, 0.68);
-      box-shadow: 0 0 0 1px rgba(245, 197, 66, 0.16), 0 16px 34px rgba(0, 0, 0, 0.28), 0 0 26px rgba(245, 197, 66, 0.18);
-    }
-
-    .picker-card:disabled {
-      cursor: not-allowed;
-      opacity: 0.4;
-      filter: saturate(0.65);
-    }
-
-    .picker-card-media {
-      position: relative;
-      flex: 1;
-      min-height: 106px;
-      border-radius: 14px;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      background: rgba(6, 9, 15, 0.92);
-      overflow: hidden;
-    }
-
-    .picker-type-tag,
-    .picker-selected-tag,
-    .picker-disabled-tag {
-      position: absolute;
-      z-index: 2;
-      top: 10px;
-      padding: 5px 8px;
-      border-radius: 999px;
-      font-size: 0.66rem;
-      font-weight: 800;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      backdrop-filter: blur(10px);
-    }
-
-    .picker-type-tag {
-      left: 10px;
-      background: rgba(10, 13, 19, 0.7);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      color: var(--muted-strong);
-    }
-
-    .picker-selected-tag {
-      right: 10px;
-      background: rgba(245, 197, 66, 0.16);
-      border: 1px solid rgba(245, 197, 66, 0.4);
-      color: var(--accent);
-    }
-
-    .picker-disabled-tag {
-      right: 10px;
-      background: rgba(242, 107, 107, 0.14);
-      border: 1px solid rgba(242, 107, 107, 0.36);
-      color: #ffb6b6;
-    }
-
-    .picker-card-name {
-      font-size: 0.9rem;
-      font-weight: 700;
-      line-height: 1.35;
-      min-height: 2.4em;
-    }
-
-    .picker-card-meta {
-      color: var(--muted);
-      font-size: 0.75rem;
-      font-weight: 700;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-    }
-
-    .picker-empty {
-      padding: 22px;
-      border-radius: 18px;
-      border: 1px dashed rgba(255, 255, 255, 0.1);
-      color: var(--muted);
-      text-align: center;
-      font-size: 0.92rem;
-    }
-
-    @keyframes slotReveal {
+    @keyframes cardIn {
       from {
-        opacity: 0;
-        transform: translateY(18px);
+        transform: translateY(12px);
       }
       to {
-        opacity: 1;
         transform: translateY(0);
       }
     }
 
-    @keyframes slotPulse {
+    @keyframes pickPulse {
       0% {
-        box-shadow: 0 0 0 0 rgba(245, 197, 66, 0.34);
-      }
-      60% {
-        box-shadow: 0 0 0 16px rgba(245, 197, 66, 0);
+        box-shadow: 0 0 0 0 rgba(245, 197, 66, 0.42), 0 18px 34px rgba(0, 0, 0, 0.28);
       }
       100% {
-        box-shadow: none;
+        box-shadow: 0 0 0 18px rgba(245, 197, 66, 0), 0 18px 34px rgba(0, 0, 0, 0.28);
       }
     }
 
-    @keyframes checkFade {
-      from {
-        opacity: 0;
-        transform: scale(0.78);
-      }
-      to {
-        opacity: 1;
-        transform: scale(1);
-      }
-    }
-
-    @keyframes boardSwitch {
-      0% {
-        opacity: 0.4;
-        transform: translateY(16px);
-      }
-      100% {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    @keyframes boardLoad {
-      0% {
-        opacity: 0.6;
-        transform: translateY(10px);
-      }
-      100% {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    @keyframes saveFlash {
-      0% {
-        box-shadow: 0 0 0 0 rgba(245, 197, 66, 0.32);
-      }
-      45% {
-        box-shadow: 0 0 0 18px rgba(245, 197, 66, 0);
-      }
-      100% {
-        box-shadow: none;
-      }
-    }
-
-    @media (max-width: 1180px) {
-      .hero-top,
-      .stage-top,
-      .saved-header,
-      .controls-row {
+    @media (max-width: 1160px) {
+      .topbar {
         grid-template-columns: 1fr;
-        display: grid;
       }
 
-      .hero-stats,
-      .status-stack {
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      }
-
-      .banks-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-
-      .save-side {
-        justify-items: stretch;
-      }
-
-      .save-button {
-        min-width: 0;
-        width: 100%;
-      }
-
-      .save-hint {
-        text-align: left;
+      .build-actions {
+        grid-template-columns: minmax(180px, 1fr) repeat(3, auto);
       }
     }
 
-    @media (max-width: 860px) {
+    @media (max-width: 760px) {
+      :root {
+        --card-w: 136px;
+        --card-h: 184px;
+        --name-h: 39px;
+      }
+
       .app-shell {
-        width: min(100%, calc(100% - 20px));
-        padding-top: 84px;
-        padding-bottom: 160px;
+        width: min(100% - 12px, 1880px);
+        padding-top: 62px;
       }
 
-      .hero,
-      .board-panel,
-      .controls-panel,
-      .saved-panel {
-        border-radius: 22px;
+      .topbar {
+        padding: 12px;
+        border-radius: 15px;
       }
 
-      .hero,
-      .board-panel,
-      .controls-panel,
-      .saved-panel,
-      .picker-header,
-      .picker-groups {
-        padding-left: 18px;
-        padding-right: 18px;
+      .class-toggle {
+        overflow-x: auto;
       }
 
-      .board-scene {
-        min-height: 0;
-        padding: 18px;
+      .class-button {
+        min-width: 104px;
       }
 
-      .stage-top {
-        margin-bottom: 24px;
+      .build-actions {
+        grid-template-columns: 1fr 1fr;
       }
 
-      .banks-grid {
-        grid-template-columns: 1fr;
+      .build-name {
+        grid-column: 1 / -1;
       }
 
-      .slot-row.gadgets-row,
-      .slot-row.reserve-row {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+      .action-button {
+        min-height: 42px;
       }
 
-      .slot-card {
-        min-height: 190px;
+      .arena {
+        min-height: 390px;
+        padding: 18px 12px 24px;
+        border-radius: 15px;
       }
 
-      .picker-panel {
-        padding: 0 8px 8px;
+      .picker-ribbon {
+        margin-bottom: 28px;
       }
 
-      .picker-grid {
-        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-      }
-    }
-
-    @media (max-width: 560px) {
-      .back-link {
-        left: 10px;
-        right: 10px;
-        top: 10px;
-        justify-content: center;
+      .loadout-row {
+        gap: 26px;
       }
 
-      .hero,
-      .board-panel,
-      .controls-panel,
-      .saved-panel {
-        padding: 16px;
+      .slot-track {
+        gap: 8px;
       }
 
-      .board-scene {
-        padding: 14px;
+      .section-title {
+        font-size: 1.08rem;
       }
 
-      h1 {
-        font-size: 1.7rem;
+      .card-name {
+        font-size: 0.74rem;
       }
 
-      .class-toggle,
-      .slot-row.gadgets-row,
-      .slot-row.reserve-row {
-        grid-template-columns: 1fr;
-      }
-
-      .hero-stats,
-      .status-stack {
-        grid-template-columns: 1fr;
-      }
-
-      .save-side {
-        min-width: 0;
-      }
-
-      .build-card,
-      .new-build-card {
+      .saved-card {
         flex-basis: 220px;
       }
 
-      .picker-header {
-        gap: 12px;
+      .import-bar {
+        align-items: stretch;
+        flex-direction: column;
       }
 
-      .picker-title {
-        font-size: 1.18rem;
+      .mini-actions {
+        justify-content: stretch;
+      }
+
+      .mini-button {
+        flex: 1;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.001ms !important;
+        scroll-behavior: auto !important;
+        transition-duration: 0.001ms !important;
       }
     }
   </style>
 </head>
 <body>
-  <a class="back-link" href="../../index.html">&larr; Hub</a>
+  <a class="back-link" href="../../index.html">Hub</a>
 
   <main class="app-shell">
-    <section class="hero">
-      <div class="eyebrow">Owl Tools / Game Tool</div>
-      <div class="hero-top">
-        <div class="hero-copy">
-          <h1>The Finals Loadout Saver</h1>
-          <p>Build polished Light, Medium, and Heavy setups with specialization, weapon, gadgets, and a flexible reserve. Every item card pulls its art from THE FINALS Wiki while your saved builds stay local in the browser.</p>
-        </div>
-        <div class="hero-stats">
-          <div class="hero-stat">
-            <div class="hero-stat-label">Saved Builds</div>
-            <div class="hero-stat-value" id="heroSavedCount">0<small>Stored in localStorage</small></div>
-          </div>
-          <div class="hero-stat">
-            <div class="hero-stat-label">Ruleset</div>
-            <div class="hero-stat-value">9 Slots<small>Reserve accepts any weapon or gadget mix</small></div>
-          </div>
-        </div>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-kicker">The Finals</span>
+        <h1>Loadout Saver</h1>
       </div>
-      <div class="class-toggle" id="classToggle"></div>
+      <nav id="classToggle" class="class-toggle" aria-label="Class selector"></nav>
+      <div class="build-actions">
+        <input id="buildNameInput" class="build-name" type="text" maxlength="60" autocomplete="off" placeholder="Build name">
+        <button id="saveButton" class="action-button is-primary" type="button">Save</button>
+        <button id="shareButton" class="action-button" type="button">Share</button>
+        <button id="resetButton" class="action-button" type="button">Reset</button>
+      </div>
+    </header>
+
+    <div id="statusStrip" class="status-strip" aria-live="polite"></div>
+    <div id="sharedBanner" class="import-bar" hidden></div>
+    <div id="shareOutput" class="share-panel" hidden></div>
+
+    <section class="arena" aria-label="Loadout builder">
+      <div id="pickerRibbon" class="picker-ribbon is-hidden"></div>
+      <div id="loadoutBoard" class="loadout-board"></div>
     </section>
 
-    <section class="board-panel">
-      <div class="board-scene">
-        <div class="board-shell" id="boardShell"></div>
+    <section class="saved-panel" aria-label="Saved builds">
+      <div class="saved-head">
+        <h2>Saved Builds</h2>
+        <span id="savedCount">0 builds</span>
       </div>
-    </section>
-
-    <section class="controls-panel">
-      <div class="controls-row">
-        <div class="input-stack">
-          <label class="input-label" for="buildNameInput">Build Name</label>
-          <input id="buildNameInput" class="build-name-input" type="text" maxlength="50" placeholder="Enter a build name">
-        </div>
-        <div class="save-side">
-          <button id="saveButton" class="save-button" type="button">Save Build</button>
-          <div id="saveHint" class="save-hint"></div>
-        </div>
-      </div>
-    </section>
-
-    <section class="saved-panel">
-      <div class="saved-header">
-        <div>
-          <div class="saved-title">Saved Builds</div>
-          <div class="saved-subtitle">Click a build card to load it back into the editor. Delete only removes the selected saved build and never touches your unsaved draft.</div>
-        </div>
-        <div id="savedCount" class="saved-count">0 builds stored</div>
-      </div>
-      <div id="savedBuilds" class="saved-strip"></div>
+      <div id="savedBuilds" class="saved-rail"></div>
     </section>
   </main>
 
-  <div id="pickerOverlay" class="picker-overlay"></div>
-  <aside id="pickerPanel" class="picker-panel"></aside>
+  <div id="modalOverlay" class="modal-overlay" hidden></div>
+  <section id="noteModal" class="note-modal" aria-modal="true" role="dialog" hidden></section>
 
   <script>
     const STORAGE_KEY = 'finals-loadouts';
+    const STORAGE_VERSION = 2;
+    const SHARE_HASH_PREFIX = '#shared=';
+    const MAX_NOTE_LENGTH = 220;
+    const MAX_RESERVE_ALTERNATIVES = 3;
     const WIKI_FILE_BASE = 'https://www.thefinals.wiki/wiki/Special:Redirect/file/';
 
     const CLASS_META = {
-      light: {
-        label: 'Light',
-        short: 'LGT',
-        tone: 'Fast, stealthy, and fragile. Built for flanks, escapes, and opportunistic picks.'
-      },
-      medium: {
-        label: 'Medium',
-        short: 'MED',
-        tone: 'Balanced support with adaptable weapons, team utility, and reliable mid-range pressure.'
-      },
-      heavy: {
-        label: 'Heavy',
-        short: 'HVY',
-        tone: 'Slow, durable, and destructive. Strongest for fortifying, brawling, and objective control.'
-      }
+      light: { label: 'Light', short: 'LGT' },
+      medium: { label: 'Medium', short: 'MED' },
+      heavy: { label: 'Heavy', short: 'HVY' }
     };
 
     const CATEGORY_META = {
-      specialization: { label: 'Specialization', badge: 'SPC', pickerMeta: 'Specialization' },
-      weapon: { label: 'Weapon', badge: 'WPN', pickerMeta: 'Weapon' },
-      gadget: { label: 'Gadget', badge: 'GDT', pickerMeta: 'Gadget' }
+      specialization: { label: 'Specialization', badge: 'S' },
+      weapon: { label: 'Weapon', badge: 'W' },
+      gadget: { label: 'Gadget', badge: 'G' }
     };
 
-    const IMAGE_FILENAME_OVERRIDES = {
-      "H+ Infuser": "HPlus Infuser Rank 1.png",
-      "CB-01 Repeater": "CB-01 Reapeater Rank 1.png",
-      "Proximity Sensor": "Motion Sensor Rank 1.png",
-      "Thermal Vision": "Thermal Vision Maintenance.png",
-      "Guardian Turret": "Guardian Turret Card.png",
-      "Healing Beam": "Healing Beam Card.png",
-      "Shockwave": "Shockwave Card.png",
-      "Recon Senses": "Recon Senses Maintenance.png",
-      "Goo Gun": "Goo Gun Card.png",
-      "Charge 'N' Slam": "Charge_N_Slam Rank 1.png"
+    const WIKI_IMAGE_FILENAMES = {
+      'Cloaking Device': 'Cloaking Device Rank 1.png',
+      'Evasive Dash': 'Evasive Dash Rank 1.png',
+      'Grappling Hook': 'Grappling Hook Rank 1.png',
+      '93R': '93R Rank 1.png',
+      'V9S': 'V9S Rank 1.png',
+      'M11': 'M11 Rank 1.png',
+      'XP-54': 'XP-54 Rank 1.png',
+      'M26 Matter': 'M26 Matter Rank 1.png',
+      'SH1900': 'SH1900 Rank 1.png',
+      'ARN-220': 'ARN-220 Rank 1.png',
+      'LH1': 'LH1 Rank 1.png',
+      'SR-84': 'SR-84 Rank 1.png',
+      'Dagger': 'Dagger Rank 1.png',
+      'Recurve Bow': 'Recurve Bow Rank 1.png',
+      'Sword': 'Sword Rank 1.png',
+      'Throwing Knives': 'Throwing Knives Rank 1.png',
+      'Breach Charge': 'Breach Charge Rank 1.png',
+      'Gateway': 'Gateway Rank 1.png',
+      'Glitch Grenade': 'Glitch Grenade Rank 1.png',
+      'Gravity Vortex': 'Gravity Vortex Rank 1.png',
+      'H+ Infuser': 'HPlus Infuser Rank 1.png',
+      'Nullifier': 'Nullifier Rank 1.png',
+      'Sonar Grenade': 'Sonar Grenade Rank 1.png',
+      'Thermal Bore': 'Thermal Bore Rank 1.png',
+      'Thermal Vision': 'Thermal Vision Maintenance.png',
+      'Tracking Dart': 'Tracking Dart Rank 1.png',
+      'Vanishing Bomb': 'Vanishing Bomb Rank 1.png',
+      'Dematerializer': 'Dematerializer Rank 1.png',
+      'Guardian Turret': 'Guardian Turret Card.png',
+      'Healing Beam': 'Healing Beam Card.png',
+      'Recon Senses': 'Recon Senses Maintenance.png',
+      'Shockwave': 'Shockwave Card.png',
+      'R .357': 'R .357 Rank 1.png',
+      'P90': 'P90 Rank 1.png',
+      'Cerberus 12GA': 'Cerberus 12GA Rank 1.png',
+      'Model 1887': 'Model 1887 Rank 1.png',
+      'AKM': 'AKM Rank 1.png',
+      'FCAR': 'FCAR Rank 1.png',
+      'FAMAS': 'FAMAS Rank 1.png',
+      'CB-01 Repeater': 'CB-01 Reapeater Rank 1.png',
+      'Chimera-XB': 'Chimera-XB Rank 1.png',
+      'Pike-556': 'Pike-556 Rank 1.png',
+      'CL-40': 'CL-40 Rank 1.png',
+      'Dual Blades': 'Dual Blades Rank 1.png',
+      'Riot Shield': 'Riot Shield Rank 1.png',
+      'APS Turret': 'APS Turret Rank 1.png',
+      'Breach Drill': 'Breach Drill Rank 1.png',
+      'Data Reshaper': 'Data Reshaper Rank 1.png',
+      'Defibrillator': 'Defibrillator  Rank 1.png',
+      'Explosive Mine': 'Explosive Mine Rank 1.png',
+      'Gas Mine': 'Gas Mine Rank 1.png',
+      'Glitch Trap': 'Glitch Trap Rank 1.png',
+      'Hover Pad': 'Hover Pad Rank 1.png',
+      'Jump Pad': 'Jump Pad Rank 1.png',
+      'Proximity Sensor': 'Motion Sensor Rank 1.png',
+      'Zipline': 'Zipline Rank 1.png',
+      "Charge 'N' Slam": 'Charge_N_Slam Rank 1.png',
+      'Goo Gun': 'Goo Gun Card.png',
+      'Mesh Shield': 'Mesh Shield Rank 1.png',
+      'Winch Claw': 'Winch Claw Rank 1.png',
+      '.50 Akimbo': '.50 Akimbo Rank 1.png',
+      'BFR Titan': 'BFR Titan Rank 1.png',
+      'KS-23': 'KS-23 Rank 1.png',
+      'SA1216': 'SA1216 Rank 1.png',
+      'ShAK-50': 'ShAK-50 Rank 1.png',
+      'Lewis Gun': 'Lewis Gun Rank 1.png',
+      'M60': 'M60 Rank 1.png',
+      'M134 Minigun': 'M134 Minigun Rank 1.png',
+      'MGL32': 'MGL32 Rank 1.png',
+      'Flamethrower': 'Flamethrower Rank 1.png',
+      'Sledgehammer': 'Sledgehammer Rank 1.png',
+      'Spear': 'Spear Rank 1.png',
+      'Anti-Gravity Cube': 'Anti-Gravity Cube Rank 1.png',
+      'Barricade': 'Barricade  Rank 1.png',
+      'C4': 'C4 Rank 1.png',
+      'Dome Shield': 'Dome Shield Rank 1.png',
+      'Healing Emitter': 'Healing Emitter Rank 1.png',
+      'Lockbolt': 'Lockbolt Rank 1.png',
+      'Pyro Mine': 'Pyro Mine Rank 1.png',
+      'RPG-7': 'RPG-7 Rank 1.png',
+      'Flashbang': 'Flashbang  Rank 1.png',
+      'Frag Grenade': 'Frag Grenade Rank 1.png',
+      'Gas Grenade': 'Gas Grenade Rank 1.png',
+      'Goo Grenade': 'Goo Grenade Rank 1.png',
+      'Pyro Grenade': 'Pyro Grenade Rank 1.png',
+      'Smoke Grenade': 'Smoke Grenade Rank 1.png'
     };
 
     const RAW_GAME_DATA = {
@@ -1544,8 +1343,29 @@
       }
     };
 
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function truncateText(value, limit) {
+      const normalized = String(value || '').trim().replace(/\s+/g, ' ');
+      return normalized.length > limit ? `${normalized.slice(0, Math.max(0, limit - 3))}...` : normalized;
+    }
+
+    function normalizeNoteValue(value) {
+      if (typeof value !== 'string') {
+        return '';
+      }
+      return value.replace(/\r\n/g, '\n').slice(0, MAX_NOTE_LENGTH);
+    }
+
     function getImageFilename(name) {
-      return IMAGE_FILENAME_OVERRIDES[name] || `${name} Rank 1.png`;
+      return WIKI_IMAGE_FILENAMES[name] || `${name} Rank 1.png`;
     }
 
     function buildImageUrl(filename) {
@@ -1578,8 +1398,8 @@
       const sharedGadgets = RAW_GAME_DATA.sharedGadgets.map((name) => makeItem(name, 'gadget', null));
 
       Object.values(classes).forEach((classData) => {
-        ['specializations', 'weapons', 'gadgets'].forEach((key) => {
-          classData[key].forEach((item) => {
+        ['specializations', 'weapons', 'gadgets'].forEach((group) => {
+          classData[group].forEach((item) => {
             catalog[item.name] = item;
           });
         });
@@ -1594,6 +1414,13 @@
 
     const GAME_DATA = buildGameData();
 
+    function createReserveEntry(primary = null, alternatives = []) {
+      return {
+        primary,
+        alternatives: Array.isArray(alternatives) ? alternatives.slice(0, MAX_RESERVE_ALTERNATIVES) : []
+      };
+    }
+
     function createBlankBuild(classKey) {
       return {
         id: null,
@@ -1602,26 +1429,36 @@
         specialization: null,
         mainWeapon: null,
         mainGadgets: [null, null, null],
-        reserve: [null, null, null, null],
+        reserve: Array.from({ length: 4 }, () => createReserveEntry()),
         savedAt: null
       };
     }
 
+    function cloneReserveEntry(entry) {
+      return createReserveEntry(entry && entry.primary ? entry.primary : null, entry && Array.isArray(entry.alternatives) ? entry.alternatives : []);
+    }
+
     function cloneBuild(build) {
+      const reserve = Array.isArray(build.reserve) ? build.reserve.slice(0, 4).map(cloneReserveEntry) : [];
+      while (reserve.length < 4) {
+        reserve.push(createReserveEntry());
+      }
+
       return {
         id: build.id || null,
-        name: build.name || '',
-        className: build.className,
+        name: typeof build.name === 'string' ? build.name : '',
+        className: build.className || 'Light',
         specialization: build.specialization || null,
         mainWeapon: build.mainWeapon || null,
-        mainGadgets: Array.isArray(build.mainGadgets) ? build.mainGadgets.slice(0, 3) : [null, null, null],
-        reserve: Array.isArray(build.reserve) ? build.reserve.slice(0, 4) : [null, null, null, null],
+        mainGadgets: Array.isArray(build.mainGadgets) ? build.mainGadgets.slice(0, 3).concat([null, null, null]).slice(0, 3) : [null, null, null],
+        reserve,
         savedAt: build.savedAt || null
       };
     }
 
     function getClassKeyFromLabel(label) {
-      return typeof label === 'string' ? label.toLowerCase() : 'light';
+      const normalized = typeof label === 'string' ? label.toLowerCase() : '';
+      return Object.prototype.hasOwnProperty.call(CLASS_META, normalized) ? normalized : 'light';
     }
 
     function getClassPools(classKey) {
@@ -1631,7 +1468,8 @@
         weapons: classData.weapons,
         gadgets: classData.gadgets,
         sharedGadgets: GAME_DATA.sharedGadgets,
-        allGadgets: [...classData.gadgets, ...GAME_DATA.sharedGadgets]
+        allGadgets: [...classData.gadgets, ...GAME_DATA.sharedGadgets],
+        reserve: [...classData.weapons, ...classData.gadgets, ...GAME_DATA.sharedGadgets]
       };
     }
 
@@ -1639,27 +1477,77 @@
       return name ? GAME_DATA.catalog[name] || null : null;
     }
 
-    function collectItemNames(build) {
-      return [
-        build.specialization,
-        build.mainWeapon,
-        ...build.mainGadgets,
-        ...build.reserve
-      ].filter(Boolean);
+    function normalizeItemNotes(rawNotes) {
+      const notes = {};
+      if (!rawNotes || typeof rawNotes !== 'object') {
+        return notes;
+      }
+
+      Object.entries(rawNotes).forEach(([itemName, value]) => {
+        if (!getItemByName(itemName)) {
+          return;
+        }
+        const normalized = normalizeNoteValue(value);
+        if (normalized.trim()) {
+          notes[itemName] = normalized;
+        }
+      });
+
+      return notes;
     }
 
-    function isBuildComplete(build) {
-      return Boolean(
-        build.name.trim() &&
-        build.specialization &&
-        build.mainWeapon &&
-        build.mainGadgets.every(Boolean) &&
-        build.reserve.every(Boolean)
-      );
+    function normalizeReserveEntry(entry, allowedNames) {
+      if (typeof entry === 'string') {
+        return createReserveEntry(allowedNames.has(entry) ? entry : null, []);
+      }
+
+      if (!entry || typeof entry !== 'object') {
+        return createReserveEntry();
+      }
+
+      const primary = typeof entry.primary === 'string' && allowedNames.has(entry.primary) ? entry.primary : null;
+      const alternatives = [];
+      if (Array.isArray(entry.alternatives)) {
+        entry.alternatives.forEach((itemName) => {
+          if (
+            typeof itemName === 'string' &&
+            allowedNames.has(itemName) &&
+            itemName !== primary &&
+            !alternatives.includes(itemName) &&
+            alternatives.length < MAX_RESERVE_ALTERNATIVES
+          ) {
+            alternatives.push(itemName);
+          }
+        });
+      }
+
+      return createReserveEntry(primary, alternatives);
     }
 
-    function isValidClassKey(classKey) {
-      return Object.prototype.hasOwnProperty.call(CLASS_META, classKey);
+    function collectAllSelectedItemNames(build) {
+      const names = [];
+      if (build.specialization) {
+        names.push(build.specialization);
+      }
+      if (build.mainWeapon) {
+        names.push(build.mainWeapon);
+      }
+      build.mainGadgets.forEach((itemName) => {
+        if (itemName) {
+          names.push(itemName);
+        }
+      });
+      build.reserve.forEach((entry) => {
+        if (entry.primary) {
+          names.push(entry.primary);
+        }
+        entry.alternatives.forEach((itemName) => {
+          if (itemName) {
+            names.push(itemName);
+          }
+        });
+      });
+      return names;
     }
 
     function normalizeLoadedBuild(raw) {
@@ -1668,749 +1556,1011 @@
       }
 
       const classKey = getClassKeyFromLabel(raw.className);
-      if (!isValidClassKey(classKey)) {
-        return null;
-      }
-
-      const build = createBlankBuild(classKey);
-      build.id = raw.id || null;
-      build.name = typeof raw.name === 'string' ? raw.name.slice(0, 50) : '';
-      build.savedAt = typeof raw.savedAt === 'string' ? raw.savedAt : null;
-
       const pools = getClassPools(classKey);
       const allowedSpecializations = new Set(pools.specializations.map((item) => item.name));
       const allowedWeapons = new Set(pools.weapons.map((item) => item.name));
-      const allowedReserve = new Set([...pools.weapons, ...pools.allGadgets].map((item) => item.name));
       const allowedMainGadgets = new Set(pools.allGadgets.map((item) => item.name));
+      const allowedReserve = new Set(pools.reserve.map((item) => item.name));
+      const build = createBlankBuild(classKey);
 
-      if (raw.specialization && allowedSpecializations.has(raw.specialization)) {
+      build.id = raw.id || null;
+      build.name = typeof raw.name === 'string' ? raw.name.slice(0, 60) : '';
+      build.savedAt = typeof raw.savedAt === 'string' ? raw.savedAt : null;
+
+      if (typeof raw.specialization === 'string' && allowedSpecializations.has(raw.specialization)) {
         build.specialization = raw.specialization;
       }
 
-      if (raw.mainWeapon && allowedWeapons.has(raw.mainWeapon)) {
+      if (typeof raw.mainWeapon === 'string' && allowedWeapons.has(raw.mainWeapon)) {
         build.mainWeapon = raw.mainWeapon;
       }
 
-      if (Array.isArray(raw.mainGadgets) && raw.mainGadgets.length === 3) {
-        build.mainGadgets = raw.mainGadgets.map((item) => allowedMainGadgets.has(item) ? item : null);
+      if (Array.isArray(raw.mainGadgets)) {
+        build.mainGadgets = raw.mainGadgets.slice(0, 3).map((itemName) => allowedMainGadgets.has(itemName) ? itemName : null);
+        while (build.mainGadgets.length < 3) {
+          build.mainGadgets.push(null);
+        }
       }
 
-      if (Array.isArray(raw.reserve) && raw.reserve.length === 4) {
-        build.reserve = raw.reserve.map((item) => allowedReserve.has(item) ? item : null);
+      if (Array.isArray(raw.reserve)) {
+        build.reserve = raw.reserve.slice(0, 4).map((entry) => normalizeReserveEntry(entry, allowedReserve));
+        while (build.reserve.length < 4) {
+          build.reserve.push(createReserveEntry());
+        }
       }
 
-      const names = collectItemNames(build);
-      if (new Set(names).size !== names.length) {
+      const selected = collectAllSelectedItemNames(build);
+      if (new Set(selected).size !== selected.length) {
         return null;
       }
 
       return build;
     }
 
-    function loadSavedBuilds() {
-      try {
-        const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-        if (!Array.isArray(stored)) {
-          return [];
-        }
-        return stored.map(normalizeLoadedBuild).filter(Boolean);
-      } catch (error) {
-        return [];
-      }
+    function createStorageEnvelope(builds, itemNotes) {
+      return {
+        version: STORAGE_VERSION,
+        builds,
+        itemNotes
+      };
     }
 
-    function persistSavedBuilds() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state.savedBuilds));
-    }
-
-    const state = {
-      activeClass: 'light',
-      currentBuild: createBlankBuild('light'),
-      activeSlot: null,
-      savedBuilds: loadSavedBuilds(),
-      boardAnimation: 'load',
-      pulseSlotKey: null,
-      saveFlash: false
-    };
-
-    const elements = {
-      classToggle: document.getElementById('classToggle'),
-      boardShell: document.getElementById('boardShell'),
-      buildNameInput: document.getElementById('buildNameInput'),
-      saveButton: document.getElementById('saveButton'),
-      saveHint: document.getElementById('saveHint'),
-      savedBuilds: document.getElementById('savedBuilds'),
-      savedCount: document.getElementById('savedCount'),
-      heroSavedCount: document.getElementById('heroSavedCount'),
-      pickerOverlay: document.getElementById('pickerOverlay'),
-      pickerPanel: document.getElementById('pickerPanel')
-    };
-
-    function formatRelativeSavedAt(savedAt) {
-      if (!savedAt) {
-        return 'Saved locally';
-      }
-      try {
-        return new Date(savedAt).toLocaleString(undefined, {
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit'
-        });
-      } catch (error) {
-        return 'Saved locally';
-      }
-    }
-
-    function escapeHtml(value) {
-      return String(value)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-    }
-
-    function getFilledSlotCount(build) {
-      return collectItemNames(build).length;
-    }
-
-    function getSlotKey(slot) {
-      return slot ? `${slot.area}:${slot.index == null ? 'root' : slot.index}` : '';
-    }
-
-    function getSlotValue(slot) {
-      if (!slot) {
-        return null;
-      }
-      if (slot.area === 'specialization') {
-        return state.currentBuild.specialization;
-      }
-      if (slot.area === 'mainWeapon') {
-        return state.currentBuild.mainWeapon;
-      }
-      if (slot.area === 'mainGadget') {
-        return state.currentBuild.mainGadgets[slot.index] || null;
-      }
-      if (slot.area === 'reserve') {
-        return state.currentBuild.reserve[slot.index] || null;
-      }
-      return null;
-    }
-
-    function setSlotValue(slot, itemName) {
-      if (slot.area === 'specialization') {
-        state.currentBuild.specialization = itemName;
-      } else if (slot.area === 'mainWeapon') {
-        state.currentBuild.mainWeapon = itemName;
-      } else if (slot.area === 'mainGadget') {
-        state.currentBuild.mainGadgets[slot.index] = itemName;
-      } else if (slot.area === 'reserve') {
-        state.currentBuild.reserve[slot.index] = itemName;
-      }
-    }
-
-    function getUnavailableNamesForPicker() {
-      const used = new Set(collectItemNames(state.currentBuild));
-      const currentName = getSlotValue(state.activeSlot);
-      if (currentName) {
-        used.delete(currentName);
-      }
-      return used;
-    }
-
-    function getSlotTitle(slot) {
-      if (slot.area === 'specialization') {
-        return 'Specialization';
-      }
-      if (slot.area === 'mainWeapon') {
-        return 'Main Weapon';
-      }
-      if (slot.area === 'mainGadget') {
-        return `Main Gadget ${slot.index + 1}`;
-      }
-      return `Reserve Slot ${slot.index + 1}`;
-    }
-
-    function getPickerContext() {
-      if (!state.activeSlot) {
-        return null;
-      }
-
-      const classKey = state.activeClass;
-      const pools = getClassPools(classKey);
-      const slot = state.activeSlot;
-
-      if (slot.area === 'specialization') {
+    function normalizeStorageEnvelope(raw) {
+      if (Array.isArray(raw)) {
         return {
-          title: 'Select Specialization',
-          subtitle: `${CLASS_META[classKey].label} specializations only.`,
-          groups: [{ title: 'Specializations', meta: `${pools.specializations.length} options`, items: pools.specializations }]
+          envelope: createStorageEnvelope(raw.map(normalizeLoadedBuild).filter(Boolean), {}),
+          migrated: true
         };
       }
 
-      if (slot.area === 'mainWeapon') {
+      if (!raw || typeof raw !== 'object') {
         return {
-          title: 'Select Main Weapon',
-          subtitle: `${CLASS_META[classKey].label} weapon pool only.`,
-          groups: [{ title: 'Weapons', meta: `${pools.weapons.length} options`, items: pools.weapons }]
-        };
-      }
-
-      if (slot.area === 'mainGadget') {
-        return {
-          title: 'Select Gadget',
-          subtitle: `${CLASS_META[classKey].label} class gadgets plus shared grenade and utility options.`,
-          groups: [
-            { title: 'Class Gadgets', meta: `${pools.gadgets.length} options`, items: pools.gadgets },
-            { title: 'Shared Gadgets', meta: `${pools.sharedGadgets.length} options`, items: pools.sharedGadgets }
-          ]
+          envelope: createStorageEnvelope([], {}),
+          migrated: false
         };
       }
 
       return {
-        title: 'Configure Reserve',
-        subtitle: 'Reserve slots can hold any mix of class weapons and gadgets. Duplicates stay blocked across the full build.',
-        groups: [
-          { title: 'Weapons', meta: `${pools.weapons.length} options`, items: pools.weapons },
-          { title: 'Class Gadgets', meta: `${pools.gadgets.length} options`, items: pools.gadgets },
-          { title: 'Shared Gadgets', meta: `${pools.sharedGadgets.length} options`, items: pools.sharedGadgets }
-        ]
+        envelope: createStorageEnvelope(
+          Array.isArray(raw.builds) ? raw.builds.map(normalizeLoadedBuild).filter(Boolean) : [],
+          normalizeItemNotes(raw.itemNotes)
+        ),
+        migrated: raw.version !== STORAGE_VERSION
       };
     }
 
-    function buildSummaryPills() {
-      const build = state.currentBuild;
-      const pills = [
-        build.specialization ? `SPEC: ${build.specialization}` : 'SPEC: Unassigned',
-        build.mainWeapon ? `MAIN: ${build.mainWeapon}` : 'MAIN: Unassigned',
-        `GADGETS: ${build.mainGadgets.filter(Boolean).length} / 3`,
-        `RESERVE: ${build.reserve.filter(Boolean).length} / 4`
-      ];
-      return pills.map((text) => `<span class="summary-pill">${escapeHtml(text)}</span>`).join('');
+    function loadStorageEnvelope() {
+      try {
+        return normalizeStorageEnvelope(JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'));
+      } catch (error) {
+        return {
+          envelope: createStorageEnvelope([], {}),
+          migrated: false
+        };
+      }
     }
 
-    function renderItemMedia(item, fallbackTag, fallbackLabel) {
+    function encodeSharedEnvelope(envelope) {
+      const bytes = new TextEncoder().encode(JSON.stringify(envelope));
+      let binary = '';
+      bytes.forEach((byte) => {
+        binary += String.fromCharCode(byte);
+      });
+      return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+    }
+
+    function decodeSharedEnvelope(encoded) {
+      const base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
+      const padded = base64 + '='.repeat((4 - (base64.length % 4 || 4)) % 4);
+      const binary = atob(padded);
+      const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+      return normalizeStorageEnvelope(JSON.parse(new TextDecoder().decode(bytes))).envelope;
+    }
+
+    function readSharedEnvelopeFromHash() {
+      if (!window.location.hash.startsWith(SHARE_HASH_PREFIX)) {
+        return null;
+      }
+      try {
+        return decodeSharedEnvelope(window.location.hash.slice(SHARE_HASH_PREFIX.length));
+      } catch (error) {
+        return null;
+      }
+    }
+
+    function clearSharedHash() {
+      history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
+    }
+
+    const storageLoad = loadStorageEnvelope();
+    const state = {
+      activeClass: 'light',
+      currentBuild: createBlankBuild('light'),
+      activeSlot: null,
+      savedBuilds: storageLoad.envelope.builds,
+      itemNotes: storageLoad.envelope.itemNotes,
+      pendingSharedLibrary: readSharedEnvelopeFromHash(),
+      pulseKey: '',
+      toast: '',
+      toastTimer: null,
+      shareLink: '',
+      noteEditorItem: ''
+    };
+
+    const elements = {
+      classToggle: document.getElementById('classToggle'),
+      buildNameInput: document.getElementById('buildNameInput'),
+      saveButton: document.getElementById('saveButton'),
+      shareButton: document.getElementById('shareButton'),
+      resetButton: document.getElementById('resetButton'),
+      statusStrip: document.getElementById('statusStrip'),
+      sharedBanner: document.getElementById('sharedBanner'),
+      shareOutput: document.getElementById('shareOutput'),
+      pickerRibbon: document.getElementById('pickerRibbon'),
+      loadoutBoard: document.getElementById('loadoutBoard'),
+      savedCount: document.getElementById('savedCount'),
+      savedBuilds: document.getElementById('savedBuilds'),
+      modalOverlay: document.getElementById('modalOverlay'),
+      noteModal: document.getElementById('noteModal')
+    };
+
+    function buildShareLink() {
+      const baseUrl = window.location.href.split('#')[0];
+      return `${baseUrl}${SHARE_HASH_PREFIX}${encodeSharedEnvelope(createStorageEnvelope(state.savedBuilds, state.itemNotes))}`;
+    }
+
+    function persistEnvelope() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(createStorageEnvelope(state.savedBuilds, state.itemNotes)));
+      if (state.shareLink) {
+        state.shareLink = buildShareLink();
+        renderShareOutput();
+      }
+    }
+
+    function showToast(message) {
+      state.toast = message;
+      clearTimeout(state.toastTimer);
+      state.toastTimer = setTimeout(() => {
+        state.toast = '';
+        renderStatus();
+      }, 2600);
+      renderStatus();
+    }
+
+    function getNotePreview(itemName) {
+      return truncateText(state.itemNotes[itemName] || 'Add item note', 108);
+    }
+
+    function getCurrentClassKey() {
+      return getClassKeyFromLabel(state.currentBuild.className);
+    }
+
+    function getPickerTitle() {
+      if (!state.activeSlot) {
+        return '';
+      }
+
+      if (state.activeSlot.mode === 'alternatives') {
+        return `Reserve ${state.activeSlot.reserveIndex + 1} <span>Alternatives</span>`;
+      }
+
+      const { area, index } = state.activeSlot;
+      if (area === 'specialization') {
+        return '<span>Specialization</span>';
+      }
+      if (area === 'mainWeapon') {
+        return '<span>Weapon</span>';
+      }
+      if (area === 'mainGadget') {
+        return `Gadget <span>${index + 1}</span>`;
+      }
+      return `Reserve <span>${index + 1}</span>`;
+    }
+
+    function getPickerItems() {
+      if (!state.activeSlot) {
+        return [];
+      }
+
+      const pools = getClassPools(state.activeClass);
+      if (state.activeSlot.mode === 'alternatives') {
+        return pools.reserve;
+      }
+
+      switch (state.activeSlot.area) {
+        case 'specialization':
+          return pools.specializations;
+        case 'mainWeapon':
+          return pools.weapons;
+        case 'mainGadget':
+          return pools.allGadgets;
+        case 'reserve':
+          return pools.reserve;
+        default:
+          return [];
+      }
+    }
+
+    function collectBlockingNames() {
+      if (!state.activeSlot) {
+        return new Set(collectAllSelectedItemNames(state.currentBuild));
+      }
+
+      const names = [];
+      const slot = state.activeSlot;
+      const build = state.currentBuild;
+
+      if (build.specialization && !(slot.mode === 'single' && slot.area === 'specialization')) {
+        names.push(build.specialization);
+      }
+
+      if (build.mainWeapon && !(slot.mode === 'single' && slot.area === 'mainWeapon')) {
+        names.push(build.mainWeapon);
+      }
+
+      build.mainGadgets.forEach((itemName, index) => {
+        if (itemName && !(slot.mode === 'single' && slot.area === 'mainGadget' && slot.index === index)) {
+          names.push(itemName);
+        }
+      });
+
+      build.reserve.forEach((entry, index) => {
+        if (entry.primary && !(slot.mode === 'single' && slot.area === 'reserve' && slot.index === index)) {
+          names.push(entry.primary);
+        }
+        entry.alternatives.forEach((itemName) => {
+          if (itemName && !(slot.mode === 'alternatives' && slot.reserveIndex === index)) {
+            names.push(itemName);
+          }
+        });
+      });
+
+      return new Set(names);
+    }
+
+    function getCurrentSlotValue() {
+      if (!state.activeSlot || state.activeSlot.mode !== 'single') {
+        return null;
+      }
+
+      const { area, index } = state.activeSlot;
+      if (area === 'specialization') {
+        return state.currentBuild.specialization;
+      }
+      if (area === 'mainWeapon') {
+        return state.currentBuild.mainWeapon;
+      }
+      if (area === 'mainGadget') {
+        return state.currentBuild.mainGadgets[index];
+      }
+      if (area === 'reserve') {
+        return state.currentBuild.reserve[index].primary;
+      }
+      return null;
+    }
+
+    function getPickerItemState(itemName) {
+      if (!state.activeSlot) {
+        return { selected: false, disabled: false };
+      }
+
+      if (state.activeSlot.mode === 'alternatives') {
+        const entry = state.currentBuild.reserve[state.activeSlot.reserveIndex];
+        const selected = entry.alternatives.includes(itemName);
+        const blocked = collectBlockingNames().has(itemName);
+        const full = entry.alternatives.length >= MAX_RESERVE_ALTERNATIVES;
+        return {
+          selected,
+          disabled: !selected && (blocked || full)
+        };
+      }
+
+      const selected = getCurrentSlotValue() === itemName;
+      return {
+        selected,
+        disabled: !selected && collectBlockingNames().has(itemName)
+      };
+    }
+
+    function isBuildComplete(build = state.currentBuild) {
+      return Boolean(
+        build.name.trim() &&
+        build.specialization &&
+        build.mainWeapon &&
+        build.mainGadgets.every(Boolean) &&
+        build.reserve.every((entry) => entry.primary)
+      );
+    }
+
+    function createId() {
+      if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+        return window.crypto.randomUUID();
+      }
+      return `build-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    }
+
+    function renderItemMedia(item) {
+      if (!item) {
+        return '<div class="empty-mark">+</div>';
+      }
+
       return `
-        <div class="item-media" data-item-name="${escapeHtml(item.name)}">
-          <img src="${escapeHtml(item.imageUrl)}" alt="${escapeHtml(item.name)}" loading="lazy">
-          <div class="item-fallback">
-            <div class="item-fallback-mark">${escapeHtml(fallbackTag)}</div>
-            <div class="item-fallback-text">${escapeHtml(fallbackLabel)}</div>
-          </div>
-        </div>
+        <img class="item-img" src="${escapeHtml(item.imageUrl)}" alt="${escapeHtml(item.name)}" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.hidden=true;this.nextElementSibling.hidden=false;">
+        <div class="image-fallback" hidden>${escapeHtml(item.name)}</div>
       `;
     }
 
-    function renderSlotCard(config) {
-      const activeKey = getSlotKey(state.activeSlot);
-      const slotKey = `${config.area}:${config.index == null ? 'root' : config.index}`;
-      const itemName = config.itemName;
+    function renderNoteTool(itemName) {
+      if (!itemName) {
+        return '';
+      }
+
+      const hasNote = Boolean((state.itemNotes[itemName] || '').trim());
+      return `
+        <button class="note-btn ${hasNote ? 'has-note' : ''}" type="button" data-note-item="${escapeHtml(itemName)}" aria-label="Edit note for ${escapeHtml(itemName)}">N</button>
+        <div class="note-popover" role="tooltip">${escapeHtml(getNotePreview(itemName))}</div>
+      `;
+    }
+
+    function renderCard({ itemName, emptyLabel, type, selected = false, disabled = false, slotAttrs = '', order = 0, pulseKey = '', reserveIndex = null }) {
       const item = getItemByName(itemName);
-      const filledClass = item ? 'is-filled' : 'is-empty';
-      const activeClass = activeKey === slotKey ? 'is-active' : '';
-      const pulseClass = state.pulseSlotKey === slotKey ? 'is-pulse' : '';
-
-      const mediaMarkup = item
-        ? renderItemMedia(item, config.badge, CATEGORY_META[item.type].pickerMeta)
-        : `
-          <div class="empty-copy">
-            <div class="item-fallback-mark">${escapeHtml(config.badge)}</div>
-            <strong>Click to select</strong>
-            <span>${escapeHtml(config.placeholder)}</span>
-          </div>
-        `;
+      const cardName = item ? item.name : emptyLabel;
+      const typeBadge = item ? CATEGORY_META[item.type].badge : '+';
+      const isPulse = pulseKey && pulseKey === state.pulseKey;
+      const altControls = reserveIndex !== null ? renderReserveAltControls(reserveIndex) : '';
 
       return `
-        <button
-          type="button"
-          class="slot-card ${filledClass} ${activeClass} ${pulseClass}"
-          data-action="open-slot"
-          data-area="${config.area}"
-          ${config.index == null ? '' : `data-index="${config.index}"`}
-          style="--slot-delay:${config.delay}ms;"
+        <article
+          class="item-card ${item ? '' : 'is-empty'} ${selected ? 'is-selected' : ''} ${disabled ? 'is-disabled' : ''} ${isPulse ? 'is-pulse' : ''}"
+          style="--order: ${order};"
+          role="button"
+          tabindex="0"
+          aria-disabled="${disabled ? 'true' : 'false'}"
+          ${slotAttrs}
         >
-          <span class="slot-badge">${escapeHtml(config.badge)}</span>
-          <div class="slot-media-frame">
-            ${mediaMarkup}
+          <div class="card-visual">
+            ${renderItemMedia(item)}
+            ${renderNoteTool(itemName)}
+            <span class="type-badge">${escapeHtml(typeBadge)}</span>
+            <span class="check-badge" aria-hidden="true">&#10003;</span>
+            ${altControls}
           </div>
-          <div class="slot-info">
-            <span class="slot-label">${escapeHtml(config.label)}</span>
-            <strong class="slot-name">${escapeHtml(item ? item.name : 'Click to select')}</strong>
-            <span class="slot-meta">${escapeHtml(item ? config.filledMeta : config.placeholder)}</span>
-          </div>
-        </button>
+          <div class="card-name"><span>${escapeHtml(cardName)}</span></div>
+        </article>
       `;
     }
 
-    function renderBoard() {
-      const classKey = state.activeClass;
-      const build = state.currentBuild;
-      const filledSlots = getFilledSlotCount(build);
-      const isReady = isBuildComplete(build);
-      const classMeta = CLASS_META[classKey];
-      const animationClass = state.boardAnimation === 'switch'
-        ? 'is-switching'
-        : state.boardAnimation === 'load'
-          ? 'is-loading'
-          : '';
+    function renderReserveAltControls(index) {
+      const entry = state.currentBuild.reserve[index];
+      const chips = entry.alternatives.slice(0, MAX_RESERVE_ALTERNATIVES).map((itemName) => `
+        <button class="alt-chip" type="button" data-promote-alt="${index}" data-alt-name="${escapeHtml(itemName)}" title="Promote ${escapeHtml(itemName)}">${escapeHtml(itemName)}</button>
+      `).join('');
+      return `
+        <div class="alt-strip">${chips}</div>
+        <button class="alt-button" type="button" data-alt-slot="${index}" aria-label="Manage reserve ${index + 1} alternatives">ALT</button>
+      `;
+    }
 
-      const slotCards = [
-        renderSlotCard({
-          area: 'specialization',
-          index: null,
-          itemName: build.specialization,
-          badge: 'SPC',
-          label: 'Specialization',
-          placeholder: 'Choose the class identity ability.',
-          filledMeta: 'Primary build-defining ability.',
-          delay: 0
-        }),
-        renderSlotCard({
-          area: 'mainWeapon',
-          index: null,
-          itemName: build.mainWeapon,
-          badge: 'WPN',
-          label: 'Main Weapon',
-          placeholder: 'Pick the primary weapon for this build.',
-          filledMeta: 'Main loadout weapon.',
-          delay: 65
-        }),
-        [0, 1, 2].map((index) => renderSlotCard({
-          area: 'mainGadget',
-          index,
-          itemName: build.mainGadgets[index],
-          badge: 'GDT',
-          label: `Gadget ${index + 1}`,
-          placeholder: 'Select one class or shared gadget.',
-          filledMeta: 'Main loadout gadget.',
-          delay: 130 + index * 55
-        })).join(''),
-        [0, 1, 2, 3].map((index) => renderSlotCard({
-          area: 'reserve',
-          index,
-          itemName: build.reserve[index],
-          badge: 'RSV',
-          label: `Reserve ${index + 1}`,
-          placeholder: 'Weapon or gadget. No duplicate items.',
-          filledMeta: 'Flexible reserve slot.',
-          delay: 310 + index * 55
-        })).join('')
-      ];
+    function renderPickerRibbon() {
+      if (!state.activeSlot) {
+        elements.pickerRibbon.className = 'picker-ribbon is-hidden';
+        elements.pickerRibbon.innerHTML = '';
+        return;
+      }
 
-      elements.boardShell.className = `board-shell ${animationClass}`.trim();
-      elements.boardShell.innerHTML = `
-        <div class="stage-top">
-          <div class="stage-copy">
-            <div class="stage-label">Current Contestant</div>
-            <div class="stage-class">${escapeHtml(classMeta.label)}</div>
-            <p class="saved-subtitle">${escapeHtml(classMeta.tone)}</p>
-            <div class="stage-summary">${buildSummaryPills()}</div>
-          </div>
-          <div class="status-stack">
-            <div class="status-card">
-              <div class="status-label">Completion</div>
-              <div class="status-value">${filledSlots} / 9</div>
-              <small>${isReady ? 'Build is ready to save.' : 'Fill every slot and add a name to save.'}</small>
-            </div>
-            <div class="status-card">
-              <div class="status-label">Reserve Rules</div>
-              <div class="status-value">4 Flexible Slots</div>
-              <small>Any class weapon or gadget, but duplicate item names are blocked.</small>
-            </div>
-          </div>
+      elements.pickerRibbon.className = 'picker-ribbon';
+      elements.pickerRibbon.innerHTML = `
+        <div class="picker-topline">
+          <div class="picker-title">${getPickerTitle()}</div>
+          <button class="close-picker" type="button" data-close-picker aria-label="Close picker">x</button>
         </div>
-        <div class="banks-grid">
-          <section class="slot-bank">
-            <div class="bank-header">
-              <div class="bank-title">Specialization</div>
-              <div class="bank-count">${build.specialization ? 'Selected' : 'Empty'}</div>
-            </div>
-            <div class="slot-row">${slotCards[0]}</div>
-          </section>
-          <section class="slot-bank">
-            <div class="bank-header">
-              <div class="bank-title">Weapon</div>
-              <div class="bank-count">${build.mainWeapon ? 'Selected' : 'Empty'}</div>
-            </div>
-            <div class="slot-row">${slotCards[1]}</div>
-          </section>
-          <section class="slot-bank">
-            <div class="bank-header">
-              <div class="bank-title">Gadgets</div>
-              <div class="bank-count">${build.mainGadgets.filter(Boolean).length} / 3</div>
-            </div>
-            <div class="slot-row gadgets-row">${slotCards[2]}</div>
-          </section>
-          <section class="slot-bank">
-            <div class="bank-header">
-              <div class="bank-title">Reserve</div>
-              <div class="bank-count">${build.reserve.filter(Boolean).length} / 4</div>
-            </div>
-            <div class="slot-row reserve-row">${slotCards[3]}</div>
-          </section>
+        <div class="picker-strip">
+          ${getPickerItems().map((item, index) => {
+            const itemState = getPickerItemState(item.name);
+            return renderCard({
+              itemName: item.name,
+              emptyLabel: item.name,
+              selected: itemState.selected,
+              disabled: itemState.disabled,
+              slotAttrs: `data-picker-item="${escapeHtml(item.name)}"`,
+              order: index
+            });
+          }).join('')}
         </div>
       `;
+    }
 
-      elements.buildNameInput.value = build.name;
-      bindImageFallbacks(elements.boardShell);
+    function renderLoadoutBoard() {
+      let order = 0;
+      const build = state.currentBuild;
+      const sections = [
+        {
+          title: 'Specialization',
+          cards: [
+            renderCard({
+              itemName: build.specialization,
+              emptyLabel: 'Select',
+              type: 'specialization',
+              slotAttrs: 'data-slot-area="specialization"',
+              pulseKey: 'specialization',
+              order: order++
+            })
+          ]
+        },
+        {
+          title: 'Weapon',
+          cards: [
+            renderCard({
+              itemName: build.mainWeapon,
+              emptyLabel: 'Select',
+              type: 'weapon',
+              slotAttrs: 'data-slot-area="mainWeapon"',
+              pulseKey: 'mainWeapon',
+              order: order++
+            })
+          ]
+        },
+        {
+          title: 'Gadgets',
+          cards: build.mainGadgets.map((itemName, index) => renderCard({
+            itemName,
+            emptyLabel: 'Select',
+            type: 'gadget',
+            slotAttrs: `data-slot-area="mainGadget" data-slot-index="${index}"`,
+            pulseKey: `mainGadget-${index}`,
+            order: order++
+          }))
+        },
+        {
+          title: 'Reserve',
+          className: 'is-reserve',
+          cards: build.reserve.map((entry, index) => renderCard({
+            itemName: entry.primary,
+            emptyLabel: 'Select',
+            slotAttrs: `data-slot-area="reserve" data-slot-index="${index}"`,
+            pulseKey: `reserve-${index}`,
+            order: order++,
+            reserveIndex: index
+          }))
+        }
+      ];
+
+      elements.loadoutBoard.innerHTML = `
+        <div class="loadout-row">
+          ${sections.map((section) => `
+            <section class="loadout-section ${section.className || ''}">
+              <div class="section-title">${escapeHtml(section.title)}</div>
+              <div class="slot-track">${section.cards.join('')}</div>
+            </section>
+          `).join('')}
+        </div>
+      `;
     }
 
     function renderClassToggle() {
       elements.classToggle.innerHTML = Object.entries(CLASS_META).map(([classKey, meta]) => `
-        <button type="button" class="class-button ${state.activeClass === classKey ? 'is-active' : ''}" data-action="switch-class" data-class="${classKey}">
-          <span class="class-name">${escapeHtml(meta.label)}</span>
-          <span class="class-desc">${escapeHtml(meta.tone)}</span>
+        <button class="class-button ${state.activeClass === classKey ? 'is-active' : ''}" type="button" data-class="${classKey}">
+          ${escapeHtml(meta.label)}
         </button>
       `).join('');
     }
 
     function renderControls() {
-      const ready = isBuildComplete(state.currentBuild);
-      elements.saveButton.disabled = !ready;
-      elements.saveButton.classList.toggle('is-flashing', state.saveFlash);
-      elements.saveHint.textContent = ready
-        ? 'Complete build detected. Saving stores it under finals-loadouts.'
-        : 'Saving unlocks after a name, specialization, weapon, 3 gadgets, and 4 reserve picks.';
-    }
-
-    function renderSavedBuilds() {
-      if (!state.savedBuilds.length) {
-        elements.savedBuilds.innerHTML = `
-          <button type="button" class="new-build-card" data-action="new-build">
-            <div class="new-build-plus">+</div>
-            <strong>New Build</strong>
-            <span>Start a fresh draft for the active class.</span>
-          </button>
-        `;
-      } else {
-        elements.savedBuilds.innerHTML = `
-          ${state.savedBuilds.map((build) => `
-            <article class="build-card">
-              <div class="build-card-top">
-                <span class="class-chip">${escapeHtml(build.className)}</span>
-                <button type="button" class="delete-button" data-action="delete-build" data-build-id="${escapeHtml(String(build.id))}" aria-label="Delete ${escapeHtml(build.name)}">X</button>
-              </div>
-              <button type="button" class="build-card-body" data-action="load-build" data-build-id="${escapeHtml(String(build.id))}">
-                <div class="build-card-title">${escapeHtml(build.name)}</div>
-                <div class="build-card-line">${escapeHtml(build.specialization || 'No specialization')}</div>
-                <div class="build-card-line">${escapeHtml(build.mainWeapon || 'No weapon')}</div>
-                <div class="build-card-meta">${escapeHtml(build.mainGadgets.filter(Boolean).length)} gadgets / ${escapeHtml(build.reserve.filter(Boolean).length)} reserve slots ready</div>
-                <div class="build-card-meta">${escapeHtml(formatRelativeSavedAt(build.savedAt))}</div>
-              </button>
-            </article>
-          `).join('')}
-          <button type="button" class="new-build-card" data-action="new-build">
-            <div class="new-build-plus">+</div>
-            <strong>New Build</strong>
-            <span>Clear the current draft and start again.</span>
-          </button>
-        `;
+      if (document.activeElement !== elements.buildNameInput) {
+        elements.buildNameInput.value = state.currentBuild.name;
       }
-
-      const countLabel = `${state.savedBuilds.length} build${state.savedBuilds.length === 1 ? '' : 's'} stored`;
-      elements.savedCount.textContent = countLabel;
-      elements.heroSavedCount.innerHTML = `${state.savedBuilds.length}<small>Stored in localStorage</small>`;
+      elements.saveButton.disabled = !isBuildComplete();
+      elements.saveButton.title = elements.saveButton.disabled ? 'Fill the build name and every slot first' : 'Save build';
     }
 
-    function renderPicker() {
-      if (!state.activeSlot) {
-        elements.pickerOverlay.classList.remove('is-open');
-        elements.pickerPanel.classList.remove('is-open');
-        elements.pickerPanel.innerHTML = '';
+    function renderStatus() {
+      elements.statusStrip.classList.toggle('has-message', Boolean(state.toast));
+      elements.statusStrip.innerHTML = state.toast ? `<span>${escapeHtml(state.toast)}</span>` : '';
+    }
+
+    function renderSharedBanner() {
+      if (!state.pendingSharedLibrary) {
+        elements.sharedBanner.hidden = true;
+        elements.sharedBanner.innerHTML = '';
         return;
       }
 
-      const context = getPickerContext();
-      const currentValue = getSlotValue(state.activeSlot);
-      const unavailable = getUnavailableNamesForPicker();
+      const buildCount = state.pendingSharedLibrary.builds.length;
+      const noteCount = Object.keys(state.pendingSharedLibrary.itemNotes).length;
+      elements.sharedBanner.hidden = false;
+      elements.sharedBanner.innerHTML = `
+        <div>
+          <div class="import-title">Shared library found</div>
+          <div class="import-meta">${buildCount} builds / ${noteCount} notes</div>
+        </div>
+        <div class="mini-actions">
+          <button class="mini-button is-gold" type="button" data-import-shared>Import</button>
+          <button class="mini-button" type="button" data-dismiss-shared>Dismiss</button>
+        </div>
+      `;
+    }
 
-      elements.pickerPanel.innerHTML = `
-        <div class="picker-shell">
-          <div class="picker-header">
-            <div>
-              <div class="picker-kicker">${escapeHtml(getSlotTitle(state.activeSlot))}</div>
-              <div class="picker-title">${escapeHtml(context.title)}</div>
-              <div class="picker-subtitle">${escapeHtml(context.subtitle)}</div>
-            </div>
-            <button type="button" class="picker-close" data-action="close-picker">Close</button>
-          </div>
-          <div class="picker-groups">
-            ${context.groups.map((group) => `
-              <section class="picker-group">
-                <div class="picker-group-head">
-                  <div class="picker-group-title">${escapeHtml(group.title)}</div>
-                  <div class="picker-group-meta">${escapeHtml(group.meta)}</div>
-                </div>
-                <div class="picker-grid">
-                  ${group.items.map((item) => {
-                    const disabled = unavailable.has(item.name);
-                    const selected = currentValue === item.name;
-                    return `
-                      <button
-                        type="button"
-                        class="picker-card ${selected ? 'is-selected' : ''}"
-                        data-action="pick-item"
-                        data-item-name="${escapeHtml(item.name)}"
-                        ${disabled ? 'disabled' : ''}
-                      >
-                        <div class="picker-card-media">
-                          <span class="picker-type-tag">${escapeHtml(CATEGORY_META[item.type].badge)}</span>
-                          ${selected ? '<span class="picker-selected-tag">Selected</span>' : ''}
-                          ${disabled ? '<span class="picker-disabled-tag">In Use</span>' : ''}
-                          ${renderItemMedia(item, CATEGORY_META[item.type].badge, CATEGORY_META[item.type].pickerMeta)}
-                        </div>
-                        <div class="picker-card-name">${escapeHtml(item.name)}</div>
-                        <div class="picker-card-meta">${escapeHtml(CATEGORY_META[item.type].pickerMeta)}</div>
-                      </button>
-                    `;
-                  }).join('')}
-                </div>
-              </section>
-            `).join('')}
+    function renderShareOutput() {
+      elements.shareOutput.hidden = !state.shareLink;
+      elements.shareOutput.innerHTML = state.shareLink ? `
+        <textarea class="share-link" readonly>${escapeHtml(state.shareLink)}</textarea>
+        <div class="share-note">Includes saved builds and item notes</div>
+      ` : '';
+    }
+
+    function buildHasNotes(build) {
+      return collectAllSelectedItemNames(build).some((itemName) => Boolean((state.itemNotes[itemName] || '').trim()));
+    }
+
+    function buildHasAlternatives(build) {
+      return build.reserve.some((entry) => entry.alternatives.length > 0);
+    }
+
+    function renderSavedBuilds() {
+      elements.savedCount.textContent = `${state.savedBuilds.length} ${state.savedBuilds.length === 1 ? 'build' : 'builds'}`;
+
+      if (!state.savedBuilds.length) {
+        elements.savedBuilds.innerHTML = '<div class="empty-saved">No saved builds yet</div>';
+        return;
+      }
+
+      elements.savedBuilds.innerHTML = state.savedBuilds.map((build) => {
+        const badges = [
+          buildHasAlternatives(build) ? '<span class="saved-badge">Alt</span>' : '',
+          buildHasNotes(build) ? '<span class="saved-badge">Notes</span>' : ''
+        ].join('');
+        return `
+          <article class="saved-card" role="button" tabindex="0" data-load-build="${escapeHtml(build.id)}">
+            <button class="delete-build" type="button" data-delete-build="${escapeHtml(build.id)}" aria-label="Delete ${escapeHtml(build.name)}">x</button>
+            <div class="saved-card-title">${escapeHtml(build.name || 'Untitled')}</div>
+            <div class="saved-card-meta">${escapeHtml(build.className)} / ${escapeHtml(build.specialization || 'No spec')}</div>
+            <div class="saved-card-meta">${escapeHtml(build.mainWeapon || 'No weapon')}</div>
+            <div class="saved-badges">${badges}</div>
+          </article>
+        `;
+      }).join('');
+    }
+
+    function renderNoteModal() {
+      const itemName = state.noteEditorItem;
+      elements.modalOverlay.hidden = !itemName;
+      elements.noteModal.hidden = !itemName;
+
+      if (!itemName) {
+        elements.noteModal.innerHTML = '';
+        return;
+      }
+
+      const value = state.itemNotes[itemName] || '';
+      elements.noteModal.innerHTML = `
+        <div class="modal-head">
+          <div class="modal-title">${escapeHtml(itemName)}</div>
+          <button class="modal-close" type="button" data-close-note aria-label="Close note editor">x</button>
+        </div>
+        <textarea id="noteTextarea" class="note-textarea" maxlength="${MAX_NOTE_LENGTH}" placeholder="Personal item note">${escapeHtml(value)}</textarea>
+        <div class="modal-foot">
+          <span id="noteCharCount" class="char-count">${value.length}/${MAX_NOTE_LENGTH}</span>
+          <div class="mini-actions">
+            <button class="mini-button" type="button" data-clear-note title="Clear this item note everywhere">Clear Item Note</button>
+            <button class="mini-button is-gold" type="button" data-close-note>Done</button>
           </div>
         </div>
       `;
 
-      elements.pickerOverlay.classList.add('is-open');
-      elements.pickerPanel.classList.add('is-open');
-      bindImageFallbacks(elements.pickerPanel);
-    }
-
-    function renderAll() {
-      renderClassToggle();
-      renderBoard();
-      renderControls();
-      renderSavedBuilds();
-      renderPicker();
-    }
-
-    function closePicker() {
-      state.activeSlot = null;
-      renderPicker();
-      renderBoard();
-    }
-
-    function bindImageFallbacks(scope) {
-      scope.querySelectorAll('.item-media img').forEach((img) => {
-        const media = img.closest('.item-media');
-        const markLoaded = () => {
-          media.classList.add('is-loaded');
-          media.classList.remove('is-broken');
-        };
-        const markBroken = () => {
-          media.classList.remove('is-loaded');
-          media.classList.add('is-broken');
-        };
-
-        img.onload = markLoaded;
-        img.onerror = markBroken;
-
-        if (img.complete) {
-          if (img.naturalWidth > 0) {
-            markLoaded();
-          } else {
-            markBroken();
-          }
+      setTimeout(() => {
+        const textarea = document.getElementById('noteTextarea');
+        if (textarea) {
+          textarea.focus();
+          textarea.selectionStart = textarea.value.length;
+          textarea.selectionEnd = textarea.value.length;
         }
-      });
-    }
-
-    function queueBoardAnimation(type) {
-      state.boardAnimation = type;
-      renderBoard();
-      window.clearTimeout(queueBoardAnimation.timer);
-      queueBoardAnimation.timer = window.setTimeout(() => {
-        state.boardAnimation = null;
-        renderBoard();
-      }, 520);
-    }
-
-    function triggerPulse(slotKey) {
-      state.pulseSlotKey = slotKey;
-      renderBoard();
-      window.clearTimeout(triggerPulse.timer);
-      triggerPulse.timer = window.setTimeout(() => {
-        state.pulseSlotKey = null;
-        renderBoard();
-      }, 540);
-    }
-
-    function triggerSaveFlash() {
-      state.saveFlash = false;
-      renderControls();
-      window.setTimeout(() => {
-        state.saveFlash = true;
-        renderControls();
-        window.clearTimeout(triggerSaveFlash.timer);
-        triggerSaveFlash.timer = window.setTimeout(() => {
-          state.saveFlash = false;
-          renderControls();
-        }, 760);
       }, 0);
     }
 
-    function resetCurrentBuildForClass(classKey, animationType) {
-      state.activeClass = classKey;
-      state.currentBuild = createBlankBuild(classKey);
-      state.activeSlot = null;
-      state.pulseSlotKey = null;
+    function render() {
       renderClassToggle();
-      renderPicker();
       renderControls();
+      renderStatus();
+      renderSharedBanner();
+      renderShareOutput();
+      renderPickerRibbon();
+      renderLoadoutBoard();
       renderSavedBuilds();
-      queueBoardAnimation(animationType || 'switch');
+      renderNoteModal();
     }
 
-    function handleClassSwitch(classKey) {
-      if (classKey === state.activeClass) {
-        return;
-      }
-      resetCurrentBuildForClass(classKey, 'switch');
+    function openSlot(area, index = 0) {
+      state.activeSlot = { mode: 'single', area, index };
+      renderPickerRibbon();
     }
 
-    function handleSlotOpen(area, index) {
-      state.activeSlot = {
-        area,
-        index: index === undefined || index === null || index === '' ? null : Number(index)
-      };
-      renderBoard();
-      renderPicker();
+    function openAlternatives(index) {
+      state.activeSlot = { mode: 'alternatives', reserveIndex: index };
+      renderPickerRibbon();
     }
 
-    function handleItemPick(itemName) {
+    function setPulse(key) {
+      state.pulseKey = key;
+      setTimeout(() => {
+        if (state.pulseKey === key) {
+          state.pulseKey = '';
+          renderLoadoutBoard();
+        }
+      }, 420);
+    }
+
+    function selectPickerItem(itemName) {
       if (!state.activeSlot) {
         return;
       }
-      const slotKey = getSlotKey(state.activeSlot);
-      setSlotValue(state.activeSlot, itemName);
-      closePicker();
-      renderControls();
-      renderSavedBuilds();
-      triggerPulse(slotKey);
-    }
 
-    function handleNameInput(value) {
-      state.currentBuild.name = value.slice(0, 50);
-      renderControls();
-    }
-
-    function handleSave() {
-      if (!isBuildComplete(state.currentBuild)) {
+      const itemState = getPickerItemState(itemName);
+      if (itemState.disabled) {
+        showToast('Already used');
         return;
       }
 
-      const savedBuild = cloneBuild(state.currentBuild);
-      savedBuild.id = `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
-      savedBuild.savedAt = new Date().toISOString();
-      savedBuild.className = CLASS_META[state.activeClass].label;
-      savedBuild.name = savedBuild.name.trim();
+      const slot = state.activeSlot;
+      if (slot.mode === 'alternatives') {
+        const entry = state.currentBuild.reserve[slot.reserveIndex];
+        if (entry.alternatives.includes(itemName)) {
+          entry.alternatives = entry.alternatives.filter((name) => name !== itemName);
+        } else if (entry.alternatives.length < MAX_RESERVE_ALTERNATIVES) {
+          entry.alternatives.push(itemName);
+        }
+        persistEnvelope();
+        render();
+        return;
+      }
 
-      state.savedBuilds = [savedBuild, ...state.savedBuilds];
-      persistSavedBuilds();
-      renderSavedBuilds();
-      triggerSaveFlash();
+      if (slot.area === 'specialization') {
+        state.currentBuild.specialization = itemName;
+        setPulse('specialization');
+      }
+      if (slot.area === 'mainWeapon') {
+        state.currentBuild.mainWeapon = itemName;
+        setPulse('mainWeapon');
+      }
+      if (slot.area === 'mainGadget') {
+        state.currentBuild.mainGadgets[slot.index] = itemName;
+        setPulse(`mainGadget-${slot.index}`);
+      }
+      if (slot.area === 'reserve') {
+        const entry = state.currentBuild.reserve[slot.index];
+        entry.primary = itemName;
+        entry.alternatives = entry.alternatives.filter((name) => name !== itemName);
+        setPulse(`reserve-${slot.index}`);
+      }
+
+      state.activeSlot = null;
+      render();
     }
 
-    function handleLoadBuild(buildId) {
-      const build = state.savedBuilds.find((entry) => String(entry.id) === String(buildId));
+    function saveBuild() {
+      if (!isBuildComplete()) {
+        showToast('Complete every slot first');
+        return;
+      }
+
+      const saved = cloneBuild(state.currentBuild);
+      saved.id = saved.id || createId();
+      saved.name = saved.name.trim().slice(0, 60);
+      saved.savedAt = new Date().toISOString();
+
+      const existingIndex = state.savedBuilds.findIndex((build) => build.id === saved.id);
+      if (existingIndex >= 0) {
+        state.savedBuilds.splice(existingIndex, 1, saved);
+      } else {
+        state.savedBuilds.unshift(saved);
+      }
+
+      state.currentBuild = cloneBuild(saved);
+      persistEnvelope();
+      showToast('Saved');
+      render();
+    }
+
+    function resetCurrentBuild() {
+      state.currentBuild = createBlankBuild(state.activeClass);
+      state.activeSlot = null;
+      state.shareLink = '';
+      state.pulseKey = '';
+      showToast('Cleared');
+      render();
+    }
+
+    function loadBuild(id) {
+      const build = state.savedBuilds.find((saved) => saved.id === id);
       if (!build) {
         return;
       }
-      const classKey = getClassKeyFromLabel(build.className);
-      state.activeClass = classKey;
       state.currentBuild = cloneBuild(build);
+      state.activeClass = getClassKeyFromLabel(build.className);
       state.activeSlot = null;
-      state.pulseSlotKey = null;
-      renderClassToggle();
-      renderPicker();
+      state.shareLink = '';
+      showToast('Loaded');
+      render();
+    }
+
+    function deleteBuild(id) {
+      state.savedBuilds = state.savedBuilds.filter((build) => build.id !== id);
+      if (state.currentBuild.id === id) {
+        state.currentBuild = createBlankBuild(state.activeClass);
+      }
+      persistEnvelope();
+      showToast('Deleted');
+      render();
+    }
+
+    function shareLibrary() {
+      const link = buildShareLink();
+      state.shareLink = link;
+      renderShareOutput();
+      showToast('Share link includes notes');
+
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(link).catch(() => {});
+      }
+    }
+
+    function importSharedLibrary() {
+      if (!state.pendingSharedLibrary) {
+        return;
+      }
+      state.savedBuilds = state.pendingSharedLibrary.builds;
+      state.itemNotes = state.pendingSharedLibrary.itemNotes;
+      state.pendingSharedLibrary = null;
+      state.currentBuild = createBlankBuild(state.activeClass);
+      state.activeSlot = null;
+      persistEnvelope();
+      clearSharedHash();
+      showToast('Imported');
+      render();
+    }
+
+    function openNoteEditor(itemName) {
+      if (!getItemByName(itemName)) {
+        return;
+      }
+      state.noteEditorItem = itemName;
+      renderNoteModal();
+    }
+
+    function closeNoteEditor() {
+      state.noteEditorItem = '';
+      render();
+    }
+
+    function saveActiveNote(value) {
+      const itemName = state.noteEditorItem;
+      if (!itemName) {
+        return;
+      }
+
+      const normalized = normalizeNoteValue(value);
+      if (normalized.trim()) {
+        state.itemNotes[itemName] = normalized;
+      } else {
+        delete state.itemNotes[itemName];
+      }
+
+      persistEnvelope();
+      const count = document.getElementById('noteCharCount');
+      if (count) {
+        count.textContent = `${normalized.length}/${MAX_NOTE_LENGTH}`;
+      }
+    }
+
+    function clearActiveNote() {
+      if (!state.noteEditorItem) {
+        return;
+      }
+      delete state.itemNotes[state.noteEditorItem];
+      persistEnvelope();
+      showToast('Cleared item note');
+      renderNoteModal();
+      renderSavedBuilds();
+    }
+
+    function removeAlternative(index, itemName) {
+      const entry = state.currentBuild.reserve[index];
+      if (!entry) {
+        return;
+      }
+      entry.alternatives = entry.alternatives.filter((name) => name !== itemName);
+      persistEnvelope();
+      render();
+    }
+
+    function promoteAlternative(index, itemName) {
+      const entry = state.currentBuild.reserve[index];
+      if (!entry || !entry.alternatives.includes(itemName)) {
+        return;
+      }
+      const previous = entry.primary;
+      entry.primary = itemName;
+      entry.alternatives = entry.alternatives.filter((name) => name !== itemName);
+      if (previous && !entry.alternatives.includes(previous)) {
+        entry.alternatives.unshift(previous);
+      }
+      entry.alternatives = entry.alternatives.slice(0, MAX_RESERVE_ALTERNATIVES);
+      persistEnvelope();
+      setPulse(`reserve-${index}`);
+      render();
+    }
+
+    elements.classToggle.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-class]');
+      if (!button) {
+        return;
+      }
+      const classKey = button.dataset.class;
+      if (!CLASS_META[classKey] || state.activeClass === classKey) {
+        return;
+      }
+      state.activeClass = classKey;
+      state.currentBuild = createBlankBuild(classKey);
+      state.activeSlot = null;
+      state.shareLink = '';
+      showToast(`${CLASS_META[classKey].label} selected`);
+      render();
+    });
+
+    elements.buildNameInput.addEventListener('input', () => {
+      state.currentBuild.name = elements.buildNameInput.value.slice(0, 60);
       renderControls();
-      renderSavedBuilds();
-      queueBoardAnimation('load');
+    });
+
+    elements.saveButton.addEventListener('click', saveBuild);
+    elements.shareButton.addEventListener('click', shareLibrary);
+    elements.resetButton.addEventListener('click', resetCurrentBuild);
+
+    document.addEventListener('click', (event) => {
+      const noteButton = event.target.closest('[data-note-item]');
+      if (noteButton) {
+        event.preventDefault();
+        event.stopPropagation();
+        openNoteEditor(noteButton.dataset.noteItem);
+        return;
+      }
+
+      const altButton = event.target.closest('[data-alt-slot]');
+      if (altButton) {
+        event.preventDefault();
+        event.stopPropagation();
+        openAlternatives(Number(altButton.dataset.altSlot));
+        return;
+      }
+
+      const promoteAltButton = event.target.closest('[data-promote-alt]');
+      if (promoteAltButton) {
+        event.preventDefault();
+        event.stopPropagation();
+        promoteAlternative(Number(promoteAltButton.dataset.promoteAlt), promoteAltButton.dataset.altName);
+        return;
+      }
+
+      if (event.target.closest('[data-close-picker]')) {
+        state.activeSlot = null;
+        renderPickerRibbon();
+        return;
+      }
+
+      if (event.target.closest('[data-import-shared]')) {
+        importSharedLibrary();
+        return;
+      }
+
+      if (event.target.closest('[data-dismiss-shared]')) {
+        state.pendingSharedLibrary = null;
+        clearSharedHash();
+        renderSharedBanner();
+        return;
+      }
+
+      if (event.target.closest('[data-close-note]') || event.target === elements.modalOverlay) {
+        closeNoteEditor();
+        return;
+      }
+
+      if (event.target.closest('[data-clear-note]')) {
+        clearActiveNote();
+        return;
+      }
+
+      const pickerCard = event.target.closest('[data-picker-item]');
+      if (pickerCard) {
+        if (pickerCard.getAttribute('aria-disabled') === 'true') {
+          showToast('Already used');
+          return;
+        }
+        selectPickerItem(pickerCard.dataset.pickerItem);
+        return;
+      }
+
+      const slotCard = event.target.closest('[data-slot-area]');
+      if (slotCard) {
+        openSlot(slotCard.dataset.slotArea, Number(slotCard.dataset.slotIndex || 0));
+        return;
+      }
+
+      const savedDelete = event.target.closest('[data-delete-build]');
+      if (savedDelete) {
+        event.preventDefault();
+        event.stopPropagation();
+        deleteBuild(savedDelete.dataset.deleteBuild);
+        return;
+      }
+
+      const savedCard = event.target.closest('[data-load-build]');
+      if (savedCard) {
+        loadBuild(savedCard.dataset.loadBuild);
+      }
+    });
+
+    document.addEventListener('input', (event) => {
+      if (event.target.id === 'noteTextarea') {
+        saveActiveNote(event.target.value);
+      }
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        if (state.noteEditorItem) {
+          closeNoteEditor();
+        } else if (state.activeSlot) {
+          state.activeSlot = null;
+          renderPickerRibbon();
+        }
+        return;
+      }
+
+      if (event.key !== 'Enter' && event.key !== ' ') {
+        return;
+      }
+
+      const keyboardTarget = event.target.closest('[role="button"]');
+      if (!keyboardTarget || event.target.closest('button')) {
+        return;
+      }
+
+      event.preventDefault();
+      keyboardTarget.click();
+    });
+
+    document.addEventListener('wheel', (event) => {
+      const rail = event.target.closest('.picker-strip, .loadout-board, .saved-rail');
+      if (!rail) {
+        return;
+      }
+
+      event.preventDefault();
+
+      if (rail.scrollWidth <= rail.clientWidth) {
+        return;
+      }
+
+      const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+      if (!delta) {
+        return;
+      }
+
+      const previousScrollLeft = rail.scrollLeft;
+      const maxScrollLeft = rail.scrollWidth - rail.clientWidth;
+      const nextScrollLeft = Math.max(0, Math.min(maxScrollLeft, previousScrollLeft + delta));
+      rail.scrollLeft = nextScrollLeft;
+    }, { passive: false });
+
+    window.addEventListener('hashchange', () => {
+      state.pendingSharedLibrary = readSharedEnvelopeFromHash();
+      renderSharedBanner();
+    });
+
+    if (storageLoad.migrated) {
+      persistEnvelope();
     }
 
-    function handleDeleteBuild(buildId) {
-      state.savedBuilds = state.savedBuilds.filter((entry) => String(entry.id) !== String(buildId));
-      persistSavedBuilds();
-      renderSavedBuilds();
-    }
-
-    function initEvents() {
-      elements.classToggle.addEventListener('click', (event) => {
-        const button = event.target.closest('[data-action="switch-class"]');
-        if (!button) {
-          return;
-        }
-        handleClassSwitch(button.dataset.class);
-      });
-
-      elements.boardShell.addEventListener('click', (event) => {
-        const button = event.target.closest('[data-action="open-slot"]');
-        if (!button) {
-          return;
-        }
-        handleSlotOpen(button.dataset.area, button.dataset.index);
-      });
-
-      elements.buildNameInput.addEventListener('input', (event) => {
-        handleNameInput(event.target.value);
-      });
-
-      elements.saveButton.addEventListener('click', handleSave);
-
-      elements.savedBuilds.addEventListener('click', (event) => {
-        const deleteButton = event.target.closest('[data-action="delete-build"]');
-        if (deleteButton) {
-          event.stopPropagation();
-          handleDeleteBuild(deleteButton.dataset.buildId);
-          return;
-        }
-
-        const loadButton = event.target.closest('[data-action="load-build"]');
-        if (loadButton) {
-          handleLoadBuild(loadButton.dataset.buildId);
-          return;
-        }
-
-        const newButton = event.target.closest('[data-action="new-build"]');
-        if (newButton) {
-          resetCurrentBuildForClass(state.activeClass, 'load');
-        }
-      });
-
-      elements.pickerOverlay.addEventListener('click', closePicker);
-
-      elements.pickerPanel.addEventListener('click', (event) => {
-        const closeButton = event.target.closest('[data-action="close-picker"]');
-        if (closeButton) {
-          closePicker();
-          return;
-        }
-
-        const pickButton = event.target.closest('[data-action="pick-item"]');
-        if (pickButton && !pickButton.disabled) {
-          handleItemPick(pickButton.dataset.itemName);
-        }
-      });
-
-      document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape' && state.activeSlot) {
-          closePicker();
-        }
-      });
-    }
-
-    function init() {
-      initEvents();
-      renderAll();
-      window.setTimeout(() => {
-        state.boardAnimation = null;
-        renderBoard();
-      }, 520);
-    }
-
-    init();
+    render();
   </script>
 </body>
 </html>
