@@ -23,6 +23,7 @@
       --card-h: 184px;
       --name-h: 39px;
       --radius: 8px;
+      --slide-ease: cubic-bezier(0.22, 1, 0.36, 1);
       color-scheme: dark;
     }
 
@@ -406,7 +407,12 @@
       margin-bottom: 44px;
       opacity: 1;
       transform: translateY(0);
-      transition: max-height 0.28s ease, opacity 0.22s ease, transform 0.28s ease, margin-bottom 0.28s ease;
+      will-change: max-height, opacity, transform, margin-bottom;
+      transition:
+        max-height 0.42s var(--slide-ease),
+        opacity 0.28s ease,
+        transform 0.42s var(--slide-ease),
+        margin-bottom 0.42s var(--slide-ease);
     }
 
     .picker-ribbon.is-hidden {
@@ -456,6 +462,7 @@
       overflow-y: hidden;
       padding: 2px 2px 18px;
       overscroll-behavior-inline: contain;
+      scroll-behavior: smooth;
       scrollbar-color: rgba(255, 255, 255, 0.46) rgba(255, 255, 255, 0.08);
       scrollbar-width: thin;
       border-radius: 12px;
@@ -468,6 +475,7 @@
       overflow-y: hidden;
       padding-bottom: 8px;
       overscroll-behavior-inline: contain;
+      scroll-behavior: smooth;
       scrollbar-color: rgba(255, 255, 255, 0.42) rgba(255, 255, 255, 0.08);
       scrollbar-width: thin;
       border-radius: 12px;
@@ -530,9 +538,9 @@
       box-shadow: 0 18px 34px rgba(0, 0, 0, 0.28);
       outline: none;
       transform: translateZ(0);
-      transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease, opacity 0.16s ease;
-      animation: cardIn 0.24s ease backwards;
-      animation-delay: calc(var(--order, 0) * 32ms);
+      transition: transform 0.2s var(--slide-ease), border-color 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease, opacity 0.16s ease;
+      animation: cardIn 0.34s var(--slide-ease) backwards;
+      animation-delay: calc(var(--order, 0) * 38ms);
     }
 
     .item-card:hover,
@@ -567,7 +575,7 @@
     }
 
     .item-card.is-pulse {
-      animation: cardIn 0.24s ease backwards, pickPulse 0.38s ease;
+      animation: cardIn 0.34s var(--slide-ease) backwards, pickPulse 0.42s ease;
     }
 
     .card-visual {
@@ -838,6 +846,7 @@
       overflow-x: auto;
       padding-bottom: 5px;
       overscroll-behavior-inline: contain;
+      scroll-behavior: smooth;
       scrollbar-color: rgba(255, 255, 255, 0.42) rgba(255, 255, 255, 0.08);
       scrollbar-width: thin;
       border-radius: 12px;
@@ -1053,9 +1062,11 @@
 
     @keyframes cardIn {
       from {
-        transform: translateY(12px);
+        opacity: 0;
+        transform: translateY(16px) scale(0.985);
       }
       to {
+        opacity: 1;
         transform: translateY(0);
       }
     }
@@ -1217,6 +1228,8 @@
     const MAX_NOTE_LENGTH = 220;
     const MAX_ALTERNATIVES = 3;
     const MAX_RESERVE_ALTERNATIVES = MAX_ALTERNATIVES;
+    const RAIL_GLIDE_MS = 360;
+    const RAIL_LINE_PX = 42;
     const WIKI_FILE_BASE = 'https://www.thefinals.wiki/wiki/Special:Redirect/file/';
 
     const CLASS_META = {
@@ -1844,6 +1857,77 @@
       noteModal: document.getElementById('noteModal')
     };
 
+    const railGlideState = new WeakMap();
+    let pickerClearTimer = null;
+
+    function clampNumber(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function prefersReducedMotion() {
+      return Boolean(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    }
+
+    function easeOutCubic(progress) {
+      return 1 - Math.pow(1 - progress, 3);
+    }
+
+    function getRailWheelDelta(event, rail) {
+      let delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+      if (event.deltaMode === 1) {
+        delta *= RAIL_LINE_PX;
+      } else if (event.deltaMode === 2) {
+        delta *= rail.clientWidth * 0.9;
+      }
+      return delta;
+    }
+
+    function stepRailGlide(rail, timestamp) {
+      const glide = railGlideState.get(rail);
+      if (!glide) {
+        return;
+      }
+
+      const progress = clampNumber((timestamp - glide.startedAt) / RAIL_GLIDE_MS, 0, 1);
+      const eased = easeOutCubic(progress);
+      rail.scrollLeft = glide.startLeft + ((glide.targetLeft - glide.startLeft) * eased);
+
+      if (progress < 1) {
+        glide.rafId = requestAnimationFrame((nextTimestamp) => stepRailGlide(rail, nextTimestamp));
+        return;
+      }
+
+      rail.scrollLeft = glide.targetLeft;
+      railGlideState.delete(rail);
+    }
+
+    function glideRailBy(rail, delta) {
+      const maxScrollLeft = Math.max(0, rail.scrollWidth - rail.clientWidth);
+      const existingGlide = railGlideState.get(rail);
+      const originLeft = existingGlide ? existingGlide.targetLeft : rail.scrollLeft;
+      const targetLeft = clampNumber(originLeft + delta, 0, maxScrollLeft);
+
+      if (targetLeft === originLeft) {
+        return;
+      }
+
+      if (prefersReducedMotion()) {
+        rail.scrollLeft = targetLeft;
+        return;
+      }
+
+      if (existingGlide && existingGlide.rafId) {
+        cancelAnimationFrame(existingGlide.rafId);
+      }
+
+      railGlideState.set(rail, {
+        startLeft: rail.scrollLeft,
+        targetLeft,
+        startedAt: performance.now(),
+        rafId: requestAnimationFrame((timestamp) => stepRailGlide(rail, timestamp))
+      });
+    }
+
     function buildShareLink() {
       const baseUrl = window.location.href.split('#')[0];
       return `${baseUrl}${SHARE_HASH_PREFIX}${encodeSharedEnvelope(createStorageEnvelope(state.savedBuilds, state.itemNotes))}`;
@@ -2127,10 +2211,16 @@
     function renderPickerRibbon() {
       if (!state.activeSlot) {
         elements.pickerRibbon.className = 'picker-ribbon is-hidden';
-        elements.pickerRibbon.innerHTML = '';
+        clearTimeout(pickerClearTimer);
+        pickerClearTimer = setTimeout(() => {
+          if (!state.activeSlot && elements.pickerRibbon.classList.contains('is-hidden')) {
+            elements.pickerRibbon.innerHTML = '';
+          }
+        }, 430);
         return;
       }
 
+      clearTimeout(pickerClearTimer);
       elements.pickerRibbon.className = 'picker-ribbon';
       elements.pickerRibbon.innerHTML = `
         <div class="picker-topline">
@@ -2742,15 +2832,12 @@
         return;
       }
 
-      const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+      const delta = getRailWheelDelta(event, rail);
       if (!delta) {
         return;
       }
 
-      const previousScrollLeft = rail.scrollLeft;
-      const maxScrollLeft = rail.scrollWidth - rail.clientWidth;
-      const nextScrollLeft = Math.max(0, Math.min(maxScrollLeft, previousScrollLeft + delta));
-      rail.scrollLeft = nextScrollLeft;
+      glideRailBy(rail, delta);
     }, { passive: false });
 
     window.addEventListener('hashchange', () => {
