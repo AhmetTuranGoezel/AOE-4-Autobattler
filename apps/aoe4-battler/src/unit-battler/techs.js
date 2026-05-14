@@ -85,7 +85,476 @@ export const GLOBAL_UPGRADE_TECH_NAMES = new Set([
   ...GLOBAL_UPGRADE_TECHS.map((t) => t.name),
 ]);
 
-export function computeGlobalUpgradesForUnit(unit) {
+const SIEGE_HP_TIER_LABELS = [
+  "Tier 1 (+5%)",
+  "Tier 2 (+10%)",
+  "Tier 3 (+15%)",
+  "Tier 4 (+20%)",
+  "Tier 5 (+25%)",
+  "Tier 6 (+30%)",
+];
+
+const ALL_WORKSHOP_SIEGE_UNITS = [
+  "Battering Ram",
+  "Springald",
+  "Mangonel",
+  "Counterweight Trebuchet",
+  "Bombard",
+  "Ribauldequin",
+  "Culverin",
+  "Cheirosiphon",
+  "Nest of Bees",
+  "Traction Trebuchet",
+  "Cannon",
+  "Great Bombard",
+];
+
+const TRUE_BUILDING_SIEGE_UNITS = [
+  "Battering Ram",
+  "Cheirosiphon",
+  "Counterweight Trebuchet",
+  "Traction Trebuchet",
+  "Bombard",
+  "Cannon",
+  "Culverin",
+  "Great Bombard",
+];
+
+const SIEGE_RUNTIME_UPGRADE_TECHS = [
+  {
+    name: "Siege Works",
+    description: "+20% hit points for siege engines.",
+    category: "hitpoints",
+    unitNames: ALL_WORKSHOP_SIEGE_UNITS,
+    exceptCivs: ["Macedonian Dynasty"],
+  },
+  {
+    name: "Iron Fittings",
+    description:
+      "+5% hit points per research tier for siege engines, up to +30%, Macedonian Dynasty.",
+    category: "hitpoints",
+    unitNames: ALL_WORKSHOP_SIEGE_UNITS,
+    civs: ["Macedonian Dynasty"],
+  },
+  {
+    name: "Greased Axles",
+    description: "+15% movement speed for siege engines.",
+    category: "moveSpeed",
+    unitNames: ALL_WORKSHOP_SIEGE_UNITS,
+  },
+  {
+    name: "Lightweight Beams",
+    description:
+      "+20% attack speed and +100% field construction speed for Battering Rams and Cheirosiphons.",
+    category: "attackSpeed",
+    unitNames: ["Battering Ram", "Cheirosiphon"],
+  },
+  {
+    name: "Siege Carpentry",
+    description:
+      "Grants Structural Reinforcements, an active defensive ability for Ayyubid siege.",
+    category: "hitpoints",
+    unitNames: TRUE_BUILDING_SIEGE_UNITS,
+    civs: ["Ayyubids"],
+  },
+  {
+    name: "Wandering Town",
+    description:
+      "+25% attack and 2 HP/s in combat for Battering Rams, Rus.",
+    category: "attack",
+    unitNames: ["Battering Ram"],
+    civs: ["Rus"],
+  },
+  {
+    name: "Beachhead",
+    description:
+      "Unlocks the Beachhead Ram stance for Golden Horde Battering Rams.",
+    category: "armor",
+    unitNames: ["Battering Ram"],
+    civs: ["Golden Horde"],
+  },
+  {
+    name: "Roller Shutter Triggers",
+    description:
+      "Springalds +25% attack speed and +10% ranged resistance.",
+    category: "attackSpeed",
+    unitNames: ["Springald"],
+    exceptCivs: ["Tughlaq Dynasty"],
+  },
+  {
+    name: "Roman Fire",
+    description:
+      "Springalds +15% attack speed and leave Greek Fire after impact, Macedonian Dynasty.",
+    category: "attackSpeed",
+    unitNames: ["Springald"],
+    civs: ["Macedonian Dynasty"],
+  },
+  {
+    name: "Adjustable Crossbars",
+    description:
+      "Mangonels gain +1 range, +1 projectile, and +75% splash radius.",
+    category: "attack",
+    unitNames: ["Mangonel"],
+    exceptCivs: ["Chinese", "Zhu Xi's Legacy"],
+  },
+  {
+    name: "Additional Barrels",
+    description: "Nest of Bees +3 rockets per volley.",
+    category: "attack",
+    unitNames: ["Nest of Bees"],
+    civs: ["Chinese", "Zhu Xi's Legacy"],
+  },
+  {
+    name: "Geometry",
+    description: "+20% damage for trebuchets.",
+    category: "attack",
+    unitNames: ["Counterweight Trebuchet", "Traction Trebuchet"],
+    exceptCivs: ["Byzantines", "Macedonian Dynasty"],
+  },
+  {
+    name: "Greek Fire Projectiles",
+    description:
+      "Counterweight Trebuchets +30% damage and leave lingering Greek Fire, Byzantines and Macedonian Dynasty.",
+    category: "attack",
+    unitNames: ["Counterweight Trebuchet"],
+    civs: ["Byzantines", "Macedonian Dynasty"],
+  },
+  {
+    name: "Warwolf Trebuchet",
+    description:
+      "Counterweight Trebuchets +2 range and +50% hit points, House of Lancaster.",
+    category: "hitpoints",
+    unitNames: ["Counterweight Trebuchet"],
+    civs: ["House of Lancaster"],
+  },
+  {
+    name: "Counterweight Defenses",
+    description:
+      "Trebuchets +1 projectile, Knights Templar.",
+    category: "attack",
+    unitNames: ["Counterweight Trebuchet"],
+    civs: ["Knights Templar"],
+  },
+  {
+    name: "Shattering Projectiles",
+    description:
+      "Trebuchet projectiles gain Area of Effect, English.",
+    category: "attack",
+    unitNames: ["Counterweight Trebuchet"],
+    civs: ["English"],
+  },
+  {
+    name: "Prolonged Siege",
+    description:
+      "+10% base damage every 20 seconds while set up, up to +50%, Macedonian Dynasty.",
+    category: "attack",
+    unitNames: ["Mangonel", "Bombard", "Counterweight Trebuchet"],
+    civs: ["Macedonian Dynasty"],
+  },
+  {
+    name: "Siege Crew Training",
+    description:
+      "Counterweight Trebuchets, Mangonels, and Bombards set up and tear down instantly, Rus.",
+    category: "attackSpeed",
+    unitNames: ["Mangonel", "Bombard", "Counterweight Trebuchet"],
+    civs: ["Rus"],
+  },
+  {
+    name: "Reload Drills",
+    description: "Bombards reload 25% faster, Chinese.",
+    category: "attackSpeed",
+    unitNames: ["Bombard"],
+    civs: ["Chinese"],
+  },
+  {
+    name: "Fine Tuned Guns",
+    description:
+      "Bombards gain +20% base and bonus damage, plus +50 vs Infantry, Rus.",
+    category: "attack",
+    unitNames: ["Bombard"],
+    civs: ["Rus"],
+  },
+  {
+    name: "Cloud of Terror",
+    description: "Bombards gain Area of Effect damage, Zhu Xi's Legacy.",
+    category: "attack",
+    unitNames: ["Bombard"],
+    civs: ["Zhu Xi's Legacy"],
+  },
+  {
+    name: "Siege Crews",
+    description:
+      "While garrisoned, siege engines gain +25% attack and setup speed, Ottomans.",
+    category: "attackSpeed",
+    unitNames: [
+      "Springald",
+      "Mangonel",
+      "Counterweight Trebuchet",
+      "Bombard",
+      "Great Bombard",
+    ],
+    civs: ["Ottomans"],
+  },
+  {
+    name: "College of Artillery",
+    description:
+      "Royal artillery deals +30% damage and trains 50% faster, French and Jeanne d'Arc.",
+    category: "attack",
+    unitNames: ["Cannon", "Culverin", "Ribauldequin"],
+    civs: ["French", "Jeanne d'Arc"],
+  },
+  {
+    name: "Artillery Shot",
+    description:
+      "Next Cannon shot against a building deals +30% damage and gains +5 range.",
+    category: "attack",
+    unitNames: ["Cannon"],
+    civs: ["French", "Jeanne d'Arc"],
+  },
+  {
+    name: "Castle of the Crow Aura",
+    description:
+      "Siege gains +10% attack and +1 range, Sengoku Daimyo.",
+    category: "attack",
+    unitNames: [
+      "Springald",
+      "Mangonel",
+      "Counterweight Trebuchet",
+      "Bombard",
+      "Ribauldequin",
+      "Culverin",
+    ],
+    civs: ["Sengoku Daimyo"],
+  },
+  {
+    name: "Divine Defense",
+    description: "Siege gains +1 range, Zhu Xi's Legacy.",
+    category: "range",
+    unitNames: ["Bombard", "Nest of Bees"],
+    civs: ["Zhu Xi's Legacy"],
+  },
+];
+
+function deriveRuntimeUpgradesForUnit(unit, unitName) {
+  if (!unit || !unitName) return [];
+  return SIEGE_RUNTIME_UPGRADE_TECHS
+    .filter((tech) => tech.unitNames?.includes(unitName))
+    .map((tech) => {
+      const entry = {
+        name: tech.name,
+        description: tech.description,
+        category: tech.category,
+      };
+      if (tech.civs) entry.civs = [...tech.civs];
+      if (tech.exceptCivs) entry.exceptCivs = [...tech.exceptCivs];
+      return entry;
+    });
+}
+
+function getKtUnitCosts(unit = {}) {
+  return unit?.costs || unit?.cost || {};
+}
+
+function isKtHumanCombatUnit(unit = {}) {
+  const tags = unit?.tags || [];
+  if (!Array.isArray(tags) || tags.length === 0) return false;
+  return !tags.includes("Siege") &&
+    !tags.includes("Ship") &&
+    !tags.includes("Building");
+}
+
+function isKtMeleeCombatUnit(unit = {}) {
+  const tags = unit?.tags || [];
+  return isKtHumanCombatUnit(unit) &&
+    tags.includes("Melee") &&
+    !tags.includes("Ranged");
+}
+
+function isKtCavalryUnit(unit = {}) {
+  return isKtHumanCombatUnit(unit) && (unit?.tags || []).includes("Cavalry");
+}
+
+function isKtGoldHumanUnit(unit = {}) {
+  return isKtHumanCombatUnit(unit) && (getKtUnitCosts(unit).gold || 0) > 0;
+}
+
+export const KT_DESERT_CITADELS_TECH = Object.freeze({
+  name: "Desert Citadels",
+  description:
+    "Improves Desert Outposts. Units with the armor aura gain +1 melee and ranged armor.",
+  category: "armor",
+  civs: ["Knights Templar"],
+  ktDesertCitadels: true,
+});
+
+function isKtDesertOutpostsArmorAura(aura = {}) {
+  if (aura?.name !== "Desert Outposts") return false;
+  if (aura?.category !== "armor") return false;
+  return /melee\/ranged/i.test(String(aura?.description || ""));
+}
+
+function isKtDesertOutpostsBattlerPlaceholder(item) {
+  return item?.name === "Desert Outposts";
+}
+
+export function getKtDesertCitadelsTechItem(unit = {}) {
+  const auras = Array.isArray(unit?.auras) ? unit.auras : [];
+  return auras.some(isKtDesertOutpostsArmorAura)
+    ? { ...KT_DESERT_CITADELS_TECH }
+    : null;
+}
+
+export const KT_COMMANDERIE_BRANCHES = Object.freeze({
+  "Knights Hospitaller": {
+    name: "Knights Hospitaller",
+    branchId: "knightsHospitaller",
+    ageGroup: "feudal",
+    category: "hitpoints",
+    description: "+30% healing received from all sources.",
+    unlocksUnits: ["Hospitaller Knight"],
+    combatVisible: true,
+    alwaysOn: true,
+    appliesToUnit: (unit) => isKtHumanCombatUnit(unit),
+  },
+  "Principality of Antioch": {
+    name: "Principality of Antioch",
+    branchId: "principalityOfAntioch",
+    ageGroup: "feudal",
+    category: "attack",
+    description: "Melee units +15% damage.",
+    unlocksUnits: ["Serjeant"],
+    combatVisible: true,
+    alwaysOn: true,
+    appliesToUnit: (unit) => isKtMeleeCombatUnit(unit),
+  },
+  "Kingdom of France": {
+    name: "Kingdom of France",
+    branchId: "kingdomOfFrance",
+    ageGroup: "feudal",
+    category: "creationSpeed",
+    description: "Unlocks Chevalier Confrere and training/gold bonuses.",
+    unlocksUnits: ["Chevalier Confrere"],
+    combatVisible: false,
+    alwaysOn: true,
+  },
+  "Angevin Empire": {
+    name: "Angevin Empire",
+    branchId: "angevinEmpire",
+    ageGroup: "castle",
+    category: "hitpoints",
+    description: "Unlocks Heavy Spearman and structure-health bonuses.",
+    unlocksUnits: ["Heavy Spearman"],
+    combatVisible: false,
+    alwaysOn: true,
+  },
+  "Republic of Genoa": {
+    name: "Republic of Genoa",
+    branchId: "republicOfGenoa",
+    ageGroup: "castle",
+    category: "other",
+    description: "Unlocks Genoese Crossbowman and Pilgrim gold bonuses.",
+    unlocksUnits: ["Genoese Crossbowman"],
+    combatVisible: false,
+    alwaysOn: true,
+  },
+  "Kingdom of Castile": {
+    name: "Kingdom of Castile",
+    branchId: "kingdomOfCastile",
+    ageGroup: "castle",
+    category: "attack",
+    description: "Near Sacred Sites: +20% damage and +1 HP/s.",
+    unlocksUnits: ["Genitour"],
+    combatVisible: true,
+    alwaysOn: false,
+    situational: true,
+    appliesToUnit: (unit) => isKtHumanCombatUnit(unit),
+  },
+  "Kingdom of Poland": {
+    name: "Kingdom of Poland",
+    branchId: "kingdomOfPoland",
+    ageGroup: "imperial",
+    category: "hitpoints",
+    description: "Cavalry +10% hit points and +50% charge damage.",
+    unlocksUnits: ["Szlachta Cavalry"],
+    combatVisible: true,
+    alwaysOn: true,
+    appliesToUnit: (unit) => isKtCavalryUnit(unit),
+  },
+  "Teutonic Order": {
+    name: "Teutonic Order",
+    branchId: "teutonicOrder",
+    ageGroup: "imperial",
+    category: "armor",
+    description: "Human units that cost gold gain +2 melee armor.",
+    unlocksUnits: ["Teutonic Knight"],
+    combatVisible: true,
+    alwaysOn: true,
+    appliesToUnit: (unit) => isKtGoldHumanUnit(unit),
+  },
+  "Republic of Venice": {
+    name: "Republic of Venice",
+    branchId: "republicOfVenice",
+    ageGroup: "imperial",
+    category: "other",
+    description: "Unlocks Condottiero and trade bonuses.",
+    unlocksUnits: ["Condottiero"],
+    combatVisible: false,
+    alwaysOn: true,
+  },
+});
+
+const KT_COMMANDERIE_ROUTE_LOCKS = Object.freeze({
+  "Hospitaller Knight": "Knights Hospitaller",
+  "Serjeant": "Principality of Antioch",
+  "Chevalier Confrere": "Kingdom of France",
+  "Heavy Spearman": "Angevin Empire",
+  "Genoese Crossbowman": "Republic of Genoa",
+  "Genitour": "Kingdom of Castile",
+  "Szlachta Cavalry": "Kingdom of Poland",
+  "Teutonic Knight": "Teutonic Order",
+  "Condottiero": "Republic of Venice",
+});
+
+const KT_COMMANDERIE_BRANCH_NAME_SET = new Set(
+  Object.keys(KT_COMMANDERIE_BRANCHES),
+);
+
+export function getKtCommanderieBranchByName(name = "") {
+  return KT_COMMANDERIE_BRANCHES[name] || null;
+}
+
+export function getKtCommanderieRouteLock(unitName = "") {
+  const branchName = KT_COMMANDERIE_ROUTE_LOCKS[unitName];
+  return branchName ? getKtCommanderieBranchByName(branchName) : null;
+}
+
+export function isKtCommanderieBranchName(name = "") {
+  return KT_COMMANDERIE_BRANCH_NAME_SET.has(name);
+}
+
+export function isKtCommanderiePlaceholder(item) {
+  if (!item) return false;
+  if (item.name === "Knights Templar") return true;
+  return isKtCommanderieBranchName(item.name);
+}
+
+export function isKtBattlerPlaceholder(item) {
+  return isKtCommanderiePlaceholder(item) ||
+    isKtDesertOutpostsBattlerPlaceholder(item);
+}
+
+export function getKtCombatCommanderieBranchesForUnit(unit, unitName = "") {
+  return Object.values(KT_COMMANDERIE_BRANCHES).filter((branch) => {
+    if (!branch.combatVisible) return false;
+    if (typeof branch.appliesToUnit === "function" &&
+      !branch.appliesToUnit(unit, unitName)) {
+      return false;
+    }
+    return true;
+  });
+}
+
+export function computeGlobalUpgradesForUnit(unit, unitName = "") {
   const results = [];
   for (const tech of GLOBAL_UPGRADE_TECHS) {
     if (typeof tech.appliesToUnit === "function" && !tech.appliesToUnit(unit))
@@ -99,15 +568,16 @@ export function computeGlobalUpgradesForUnit(unit) {
     if (tech.exceptCivs) entry.exceptCivs = [...tech.exceptCivs];
     results.push(entry);
   }
+  results.push(...deriveRuntimeUpgradesForUnit(unit, unitName));
   return results;
 }
 
-export function getMergedUpgradesForUnit(unit) {
+export function getMergedUpgradesForUnit(unit, unitName = "") {
   // Drop per-unit copies of globally defined techs (by name)
   const base = (unit.upgrades || []).filter(
     (e) => !GLOBAL_UPGRADE_TECH_NAMES.has(e.name),
   );
-  const derived = computeGlobalUpgradesForUnit(unit);
+  const derived = computeGlobalUpgradesForUnit(unit, unitName);
   return [...base, ...derived];
 }
 
@@ -212,6 +682,22 @@ export const TECH_EFFECTS = {
   "Collateral Damage|attack": { attackPct: 30 },
   "Neza Training|attack": { attackPct: 35 },
   "Khanda Drills|attack": { attackPct: 100 },
+  "Geometry|attack": {},
+  "Greek Fire Projectiles|attack": {},
+  "Counterweight Defenses|attack": {},
+  "Rule of Templars|attack": {},
+  "Principality of Antioch|attack": { attackPct: 15 },
+  "Kingdom of Castile|attack": { attackPct: 20 },
+  "Prolonged Siege|attack": {},
+  "Fine Tuned Guns|attack": {},
+  "Cloud of Terror|attack": {},
+  "College of Artillery|attack": {},
+  "Artillery Shot|attack": {},
+  "Castle of the Crow Aura|attack": {},
+  "Wandering Town|attack": {},
+  "Additional Barrels|attack": {},
+  "Adjustable Crossbars|attack": {},
+  "Shattering Projectiles|attack": {},
 
   // Charge-related attack buffs (mapped to attackAbs as bonus)
   // Cantled Saddles is a charge-duration buff, not permanent flat attack — not modeled here
@@ -258,6 +744,8 @@ export const TECH_EFFECTS = {
   "Scale Armor|armor": { rangedArmor: 3 },
   "Muscovy Yasak|armor": { rangedArmor: 2 },
   "Cross Folded Armor|armor": { rangedArmor: 2 },
+  "Teutonic Order|armor": { meleeArmor: 2 },
+  "Desert Citadels|armor": { meleeArmor: 1, rangedArmor: 1 },
 
   // Tiered armor (Macedonian Dynasty)
   "Butted Chainmail|armor": {
@@ -284,6 +772,11 @@ export const TECH_EFFECTS = {
   "Boyar's Fortitude|hitpoints": { hpAbs: 25 },
   "Piety|hitpoints": { hpAbs: 40 },
   "Boot Camp|hitpoints": { hpAbs: 15 },
+  "Siege Works|hitpoints": { hpPct: 20 },
+  "Iron Fittings|hitpoints": {
+    hpPct: [5, 10, 15, 20, 25, 30],
+    labels: SIEGE_HP_TIER_LABELS,
+  },
   "Armored Beasts|hitpoints": { hpPct: 20 },
   "Howdahs|hitpoints": { hpPct: 25 },
   "Oda Tactics|hitpoints": { hpPct: 15 },
@@ -294,6 +787,8 @@ export const TECH_EFFECTS = {
   "Khan and Torguuds|hitpoints": { hpAbs: 30 },
   "Enlist Mansa Musofadi|hitpoints": { hpAbs: 10 },
   "Defensive Aura Edict|hitpoints": { hpPct: 10 },
+  "Knights Hospitaller|hitpoints": {},
+  "Kingdom of Poland|hitpoints": { hpPct: 10 },
 
   // Tiered HP (Macedonian Dynasty)
   "Butted Chainmail|hitpoints": {
@@ -308,6 +803,8 @@ export const TECH_EFFECTS = {
     hpPct: [5, 10, 15, 20, 25, 30],
     labels: ["Tier 1 (+5%)", "Tier 2 (+10%)", "Tier 3 (+15%)", "Tier 4 (+20%)", "Tier 5 (+25%)", "Tier 6 (+30%)"],
   },
+  "Warwolf Trebuchet|hitpoints": { hpPct: 50 },
+  "Siege Carpentry|hitpoints": {},
 
   // === ATTACK SPEED ===
   "Composite Bows|attackSpeed": { speedPct: 33 },
@@ -332,6 +829,12 @@ export const TECH_EFFECTS = {
   "Khan and Torguuds|attackSpeed": { speedPct: -20 },
   // Stone Armies is a cost/training unlock, not attack speed — not modeled here
   "Stronger Together|attackSpeed": { speedPct: 5 },
+  "Lightweight Beams|attackSpeed": { speedPct: 20 },
+  "Roller Shutter Triggers|attackSpeed": { speedPct: 25 },
+  "Roman Fire|attackSpeed": { speedPct: 15 },
+  "Reload Drills|attackSpeed": { speedPct: 33 },
+  "Siege Crew Training|attackSpeed": {},
+  "Siege Crews|attackSpeed": {},
 
   // === RANGE ===
   "Bolt Magazines|range": {},
@@ -344,10 +847,12 @@ export const TECH_EFFECTS = {
   "Runestones|range": {},
   "Nagae Yari|range": {},
   "Wall Defense|range": {},
+  "Divine Defense|range": {},
 
   // === ARMOR (buff field: melee armor drums) ===
   "Mehter Melee Armor Drums|armor": { meleeArmor: 2 },
   "Mehter Ranged Armor Drums|armor": { rangedArmor: 1 },
+  "Beachhead|armor": {},
 
   // === EFFECT-LINKED TECHS (toggled via effects system, not stat buffs) ===
   "Triple Shot|range": {},
@@ -457,6 +962,16 @@ export const TECH_IMAGE_MAP = {
   "Teardrop Shields": "assets/images/technologies/teardrop-shields-3.png",
   "Static Deployment": "assets/images/abilities/ability-static-deployment-1.png",
   "Fanaticism": "assets/images/technologies/fanaticism-4.png",
+  "Rule of Templars": "assets/images/technologies/rule-of-templars-3.png",
+  "Knights Hospitaller": "assets/images/technologies/knights-hospitaller-2.png",
+  "Principality of Antioch": "assets/images/technologies/principality-of-antioch-2.png",
+  "Kingdom of France": "assets/images/technologies/kingdom-of-france-2.png",
+  "Angevin Empire": "assets/images/technologies/angevin-empire-3.png",
+  "Republic of Genoa": "assets/images/technologies/republic-of-genoa-3.png",
+  "Kingdom of Castile": "assets/images/technologies/kingdom-of-castile-3.png",
+  "Kingdom of Poland": "assets/images/technologies/kingdom-of-poland-4.png",
+  "Teutonic Order": "assets/images/technologies/teutonic-order-4.png",
+  "Republic of Venice": "assets/images/technologies/republic-of-venice-4.png",
   "Elite Army Tactics": "assets/images/technologies/elite-army-tactics-4.png",
   "Oda Tactics": "assets/images/technologies/oda-tactics-4.png",
   "Khan Warcry": "assets/images/technologies/khan-debuff-arrow-2.png",
@@ -482,6 +997,39 @@ export const TECH_IMAGE_MAP = {
   "Glorious Charge": "assets/images/technologies/glorious-charge-3.png",
   "Golden Cuirass": "assets/images/technologies/golden-cuirass-2.png",
   "Heavy Torches": "assets/images/technologies/heavy-torches-2.png",
+  "Additional Torches": "assets/images/technologies/additional-torches-3.png",
+  "Additional Torches Improved": "assets/images/technologies/additional-torches-improved-3.png",
+  "Additional Torches Improved:": "assets/images/technologies/additional-torches-improved-3.png",
+  "(Improved) Additional Torches": "assets/images/technologies/additional-torches-improved-3.png",
+  "Desert Outposts": "assets/images/abilities/ability-desert-citadels-1.png",
+  "Desert Citadels": "assets/images/technologies/desert-citadels-2.png",
+  "Torch Attack": "assets/images/abilities/ability-improved-torch-1.png",
+  "Siege Works": "assets/images/technologies/siege-works-4.png",
+  "Iron Fittings": "assets/images/technologies/iron-fittings-tier1-2.png",
+  "Greased Axles": "assets/images/technologies/greased-axles-3.png",
+  "Lightweight Beams": "assets/images/technologies/lightweight-beams-4.png",
+  "Siege Carpentry": "assets/images/technologies/siege-carpentry-3.png",
+  "Wandering Town": "assets/images/technologies/wandering-town-4.png",
+  "Beachhead": "assets/images/technologies/beachhead-1.png",
+  "Roller Shutter Triggers": "assets/images/technologies/roller-shutter-triggers-4.png",
+  "Roman Fire": "assets/images/technologies/roman-fire-4.png",
+  "Adjustable Crossbars": "assets/images/technologies/adjustable-crossbars-4.png",
+  "Additional Barrels": "assets/images/technologies/additional-barrels-4.png",
+  "Geometry": "assets/images/technologies/geometry-4.png",
+  "Greek Fire Projectiles": "assets/images/technologies/greek-fire-projectiles-4.png",
+  "Warwolf Trebuchet": "assets/images/technologies/warwolf-trebuchet-3.png",
+  "Counterweight Defenses": "assets/images/technologies/counterweight-defenses-4.png",
+  "Shattering Projectiles": "assets/images/technologies/shattering-projectiles-4.png",
+  "Prolonged Siege": "assets/images/technologies/prolonged-siege-4.png",
+  "Siege Crew Training": "assets/images/technologies/siege-crew-training-4.png",
+  "Reload Drills": "assets/images/technologies/reload-drills-4.png",
+  "Fine Tuned Guns": "assets/images/technologies/fine-tuned-guns-4.png",
+  "Cloud of Terror": "assets/images/technologies/cloud-of-terror-4.png",
+  "Siege Crews": "assets/images/technologies/siege-crews-1.png",
+  "College of Artillery": "assets/images/technologies/cannon.png",
+  "Artillery Shot": "assets/images/abilities/ability-artillery-shot-1.png",
+  "Castle of the Crow Aura": "assets/images/abilities/ability-castle-of-the-crow-aura-1.png",
+  "Divine Defense": "assets/images/abilities/ability-divine-defense-1.png",
   "Wall Defense": "assets/images/technologies/village-fortresses-3.png",
   "Hill Training": "assets/images/technologies/hill-training-3.png",
   "Improved Torch": "assets/images/abilities/ability-improved-torch-1.png",
@@ -535,4 +1083,115 @@ export function filterTechByCiv(item, selectedCiv) {
     return item.civs.includes(selectedCiv) || item.civs.includes("Common");
   }
   return true;
+}
+
+function parseTorchPercent(description = "") {
+  const match = description.match(/([+-]?\d+(?:\.\d+)?)\s*%/);
+  return match ? parseFloat(match[1]) : 0;
+}
+
+function parseTorchFireBonus(description = "") {
+  const matches = [...description.matchAll(/([+-]?\d+(?:\.\d+)?)\s*fire/gi)];
+  if (!matches.length) return 0;
+  return Math.max(...matches.map((match) => parseFloat(match[1]) || 0));
+}
+
+export function normalizeTorchTechName(name = "", description = "") {
+  const raw = String(name || "").trim();
+  const normalized = raw
+    .toLowerCase()
+    .replace(/[():]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const lowerDescription = String(description || "").toLowerCase();
+
+  if (
+    normalized.includes("additional torches") &&
+    (normalized.includes("improved") || lowerDescription.includes("(+5"))
+  ) {
+    return "Additional Torches Improved";
+  }
+  if (normalized.includes("additional torches")) return "Additional Torches";
+  if (normalized.includes("improved torch")) return "Improved Torch";
+  if (normalized.includes("heavy torches")) return "Heavy Torches";
+  return raw;
+}
+
+export function getTorchTechMeta(item) {
+  if (!item) return null;
+
+  const description = String(item.description || "");
+  const lowerDescription = description.toLowerCase();
+  const displayName = normalizeTorchTechName(item.name, description);
+  const effectKey = getTechKey(item);
+  const baseMeta = {
+    displayName,
+    affectsTorchDamage: false,
+    torchDamageFlat: 0,
+    affectsTorchSpeed: false,
+    affectsTorchRange: false,
+    affectsTorchAoE: false,
+    torchDamagePct: 0,
+    simulationMode: "simulated",
+  };
+
+  if (
+    item.category === "attackSpeed" &&
+    (TECH_EFFECTS[effectKey] || lowerDescription.includes("torch"))
+  ) {
+    return {
+      ...baseMeta,
+      affectsTorchSpeed: true,
+    };
+  }
+
+  if (displayName === "Improved Torch") {
+    return {
+      ...baseMeta,
+      affectsTorchDamage: true,
+      torchDamagePct: 25,
+    };
+  }
+
+  if (displayName === "Additional Torches") {
+    return {
+      ...baseMeta,
+      affectsTorchDamage: true,
+      torchDamageFlat: parseTorchFireBonus(description) || 3,
+    };
+  }
+
+  if (displayName === "Additional Torches Improved") {
+    return {
+      ...baseMeta,
+      affectsTorchDamage: true,
+      torchDamageFlat: Math.max(5, parseTorchFireBonus(description)),
+    };
+  }
+
+  if (displayName === "Heavy Torches" || lowerDescription.includes("area of effect to torch")) {
+    return {
+      ...baseMeta,
+      affectsTorchAoE: true,
+      simulationMode: "display-only",
+    };
+  }
+
+  if (lowerDescription.includes("torch range")) {
+    return {
+      ...baseMeta,
+      affectsTorchRange: true,
+      simulationMode: "display-only",
+    };
+  }
+
+  if (lowerDescription.includes("torch")) {
+    return {
+      ...baseMeta,
+      affectsTorchDamage: true,
+      torchDamagePct: parseTorchPercent(description),
+    };
+  }
+
+  return null;
 }

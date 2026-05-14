@@ -55,7 +55,7 @@
           { "damage": null, "multiplier": null },
           { "damage": null, "multiplier": 0 }
         ]},
-        { "name": "Back Canister", "breakHp": null, "weapons": [
+        { "name": "Back Canister", "breakHp": 90, "weapons": [
           { "damage": 15, "multiplier": 1.5 },
           { "damage": null, "multiplier": 0 },
           { "damage": null, "multiplier": 0 },
@@ -197,7 +197,7 @@
     },
     "Bastion": {
       "hitzones": [
-        { "name": "Cannister", "breakHp": null, "weapons": [
+        { "name": "Cannister", "breakHp": 90, "weapons": [
           { "damage": null, "multiplier": 0 },
           { "damage": 13.5, "multiplier": 1.5 },
           { "damage": null, "multiplier": 0 },

@@ -15,18 +15,26 @@
 <body>
   <!-- AoE4-styled Top Navigation -->
   <nav class="aoe4-nav">
-    <button class="aoe4-nav-tab active" type="button" data-page="unitBattler">
-      <span class="nav-icon"><i class="fa-solid fa-shield-halved"></i></span> Unit Battler <span class="beta-badge">BETA</span>
-    </button>
-    <button class="aoe4-nav-tab" type="button" data-page="vsBuilding">
-      <span class="nav-icon"><i class="fa-solid fa-chess-rook"></i></span> vs Building <span class="beta-badge">BETA</span>
-    </button>
-    <button class="aoe4-nav-tab" type="button" data-page="multiBattle">
-      <span class="nav-icon"><i class="fa-solid fa-users"></i></span> Multi Battle <span class="beta-badge">BETA</span>
-    </button>
-    <button class="aoe4-nav-tab" type="button" data-page="buildOrder">
-      <span class="nav-icon"><i class="fa-solid fa-clock"></i></span> Build Order <span class="beta-badge">BETA</span>
-    </button>
+    <div class="aoe4-nav-spacer" aria-hidden="true"></div>
+    <div class="aoe4-nav-main">
+      <button class="aoe4-nav-tab active" type="button" data-page="unitBattler">
+        <span class="nav-icon"><i class="fa-solid fa-shield-halved"></i></span> Unit Battler <span class="beta-badge">BETA</span>
+      </button>
+      <button class="aoe4-nav-tab" type="button" data-page="vsBuilding">
+        <span class="nav-icon"><i class="fa-solid fa-chess-rook"></i></span> vs Building <span class="beta-badge">BETA</span>
+      </button>
+      <button class="aoe4-nav-tab" type="button" data-page="multiBattle">
+        <span class="nav-icon"><i class="fa-solid fa-users"></i></span> Multi Battle <span class="beta-badge">BETA</span>
+      </button>
+      <button class="aoe4-nav-tab" type="button" data-page="buildOrder">
+        <span class="nav-icon"><i class="fa-solid fa-clock"></i></span> Build Order <span class="beta-badge">BETA</span>
+      </button>
+    </div>
+    <div class="aoe4-nav-support">
+      <a href="https://ko-fi.com/owl1453" target="_blank" rel="noopener" class="kofi-btn kofi-btn--nav">
+        <i class="bi bi-cup-hot-fill"></i> Support This Tool
+      </a>
+    </div>
   </nav>
 
   <div class="container">
@@ -115,7 +123,7 @@
                 </div>
                 <div class="battler-stat-item" id="A_attackCol">
                   <div class="compact-field compact-field--short">
-                    <label class="compact-field-label" for="A_attack">Attack</label>
+                    <label class="compact-field-label" id="A_attackLabel" for="A_attack">Attack</label>
                     <div class="compact-field-shell">
                       <input id="A_attack" type="number" class="form-control small-input compact-field-input">
                     </div>
@@ -131,9 +139,10 @@
                 </div>
                 <div class="battler-stat-item">
                   <div class="compact-field compact-field--short">
-                    <label class="compact-field-label" for="A_rangedArmor">Ranged Armor</label>
-                    <div class="compact-field-shell">
+                    <label class="compact-field-label" id="A_rangedArmorLabel" for="A_rangedArmor">Ranged Armor</label>
+                    <div class="compact-field-shell has-suffix">
                       <input id="A_rangedArmor" type="number" class="form-control small-input compact-field-input">
+                      <span class="compact-field-suffix" id="A_rangedArmorSuffix" style="display:none;">%</span>
                     </div>
                   </div>
                 </div>
@@ -196,13 +205,10 @@
                   </div>
                 </div>
               </div>
-            </div>
-
-            <div id="teamASectionsNormal">
-            <!-- Unique Effects Section -->
-            <div class="stat-box" id="A_effectsBox" style="display:none;">
-              <h6 class="fw-bold mb-2">Unique Effects</h6>
-              <div id="A_effectsContainer"></div>
+              <div id="A_buildingAttackInfo" class="mt-2" style="display:none;">
+                <small class="text-muted">Vs Building: </small>
+                <small id="A_buildingAttackSummary" style="color:#d4a44a;font-weight:600;"></small>
+              </div>
             </div>
 
             <!-- Technologies & Auras Section -->
@@ -215,6 +221,13 @@
               <div class="collapse show" id="collapseA_techs">
                 <div class="pt-2" id="A_techContainer"></div>
               </div>
+            </div>
+
+            <div id="teamASectionsNormal">
+            <!-- Unique Effects Section -->
+            <div class="stat-box" id="A_effectsBox" style="display:none;">
+              <h6 class="fw-bold mb-2">Unique Effects</h6>
+              <div id="A_effectsContainer"></div>
             </div>
 
             <!-- Split Damage Toggle (Collapsible, collapsed by default) -->
@@ -559,18 +572,8 @@
               </div>
 
               <div class="stat-box">
-                <h6 class="fw-bold mb-2">Building Technologies</h6>
-                <div class="building-tech-grid">
-                  <button type="button" class="building-tech-btn" id="techCourtArchitects" title="Court Architects: +30% HP"><img src="assets/images/technologies/court-architects-3.png" alt="Court Architects" onerror="this.style.display='none';this.parentElement.dataset.noIcon='1'"><span class="building-tech-label">Court Architects</span></button>
-                  <button type="button" class="building-tech-btn" id="techArrowUpgrades" data-level="0" title="Arrow Upgrades: +1 arrow damage per level"><img src="assets/images/technologies/steeled-arrow-2.png" alt="Arrow Upgrades" onerror="this.style.display='none';this.parentElement.dataset.noIcon='1'"><span class="building-tech-label">Arrows: 0</span></button>
-                  <button type="button" class="building-tech-btn" id="techFortifyOutpost" title="Fortify Outpost: +1000 HP, +5 Fire Armor" style="display:none;"><img src="assets/images/technologies/fortify-outpost-2.png" alt="Fortify Outpost" onerror="this.style.display='none';this.parentElement.dataset.noIcon='1'"><span class="building-tech-label">Fortify Outpost</span></button>
-                  <button type="button" class="building-tech-btn" id="techCastleTurret" title="Castle Turret: +2 Arrow Damage (Rus)" style="display:none;"><img src="assets/images/technologies/castle-turret-1.png" alt="Castle Turret" onerror="this.style.display='none';this.parentElement.dataset.noIcon='1'"><span class="building-tech-label">Castle Turret</span></button>
-                </div>
-              </div>
-
-              <div class="tech-box" id="A_buildingUnitTechBox" style="display:none;">
-                <h6 class="fw-bold mb-2">Unit Technologies (Siege/Torch)</h6>
-                <div id="A_buildingUnitTechContainer"></div>
+                <h6 class="fw-bold mb-2">Building Enhancements</h6>
+                <div id="buildingEnhancementGrid" class="building-tech-grid"></div>
               </div>
             </div>
 
@@ -653,9 +656,10 @@
                 </div>
                 <div class="battler-stat-item">
                   <div class="compact-field compact-field--short">
-                    <label class="compact-field-label" for="B_rangedArmor">Ranged Armor</label>
-                    <div class="compact-field-shell">
+                    <label class="compact-field-label" id="B_rangedArmorLabel" for="B_rangedArmor">Ranged Armor</label>
+                    <div class="compact-field-shell has-suffix">
                       <input id="B_rangedArmor" type="number" class="form-control small-input compact-field-input">
+                      <span class="compact-field-suffix" id="B_rangedArmorSuffix" style="display:none;">%</span>
                     </div>
                   </div>
                 </div>
@@ -696,27 +700,6 @@
               <div id="B_chargeInfo" class="mt-2" style="display:none;">
                 <small class="text-muted">Charge Damage: </small>
                 <small id="B_chargeDamage" style="color:#d4a44a;font-weight:600;"></small>
-              </div>
-              <div id="B_torchInfo" class="mt-2" style="display:none;">
-                <div class="compact-field-grid compact-field-grid--2">
-                  <div class="col-6">
-                    <div class="compact-field compact-field--short">
-                      <label class="compact-field-label" for="B_torchDamage">Torch Damage</label>
-                      <div class="compact-field-shell">
-                        <input id="B_torchDamage" type="number" class="form-control small-input compact-field-input" value="13">
-                      </div>
-                    </div>
-                  </div>
-                  <div class="col-6">
-                    <div class="compact-field compact-field--short">
-                      <label class="compact-field-label" for="B_torchSpeed">Torch Speed</label>
-                      <div class="compact-field-shell has-suffix">
-                        <input id="B_torchSpeed" type="number" step="0.01" class="form-control small-input compact-field-input" value="2.15">
-                        <span class="compact-field-suffix">s</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
 
@@ -1544,9 +1527,10 @@
               </div>
               <div class="battler-stat-item">
                 <div class="compact-field compact-field--short">
-                  <label class="compact-field-label">Ranged Armor</label>
-                  <div class="compact-field-shell">
+                  <label class="compact-field-label" data-role="rangedArmorLabel">Ranged Armor</label>
+                  <div class="compact-field-shell has-suffix">
                     <input type="number" class="form-control small-input compact-field-input" data-field="rangedArmor">
+                    <span class="compact-field-suffix" data-role="rangedArmorSuffix" style="display:none;">%</span>
                   </div>
                 </div>
               </div>
@@ -1903,12 +1887,6 @@
           <div class="table-responsive" id="battleLogContainer"></div>
         </div>
       </div>
-    </div>
-
-    <div class="text-center mt-3 mb-3">
-      <a href="https://ko-fi.com/owl1453" target="_blank" rel="noopener" class="kofi-btn">
-        <i class="bi bi-cup-hot-fill"></i> Support this tool
-      </a>
     </div>
 
   </div>
