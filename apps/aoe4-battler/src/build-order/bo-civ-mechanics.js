@@ -369,6 +369,18 @@ export function getBoTechNoteText(techType) {
   return "No Build Order eco effect; tracked for timing only.";
 }
 
+function getKtChoiceConflict(def, researchedTechs) {
+  const group = def?.ktChoiceAgeGroup || null;
+  if (!group) return null;
+  for (const techName of researchedTechs || []) {
+    if (techName === def.name) continue;
+    if (getBoTechDefaults(techName)?.ktChoiceAgeGroup === group) {
+      return techName;
+    }
+  }
+  return null;
+}
+
 export function doesBoPreviewMeetTechRequirements(def, previewState) {
   if (!def) return true;
   const minAge = Math.max(1, def.minAge || 1);
@@ -376,6 +388,7 @@ export function doesBoPreviewMeetTechRequirements(def, previewState) {
   if (Number.isFinite(def.advancesToAge) && (previewState?.age || 1) >= def.advancesToAge) return false;
   const researched = previewState?.researchedTechs || new Set();
   if (researched.has(def.name || "")) return false;
+  if (getKtChoiceConflict(def, researched)) return false;
   const reqs = Array.isArray(def.requiresTechs) ? def.requiresTechs : [];
   if (reqs.some((name) => !researched.has(name))) return false;
   const reqBuildings = Array.isArray(def.requiresBuildings) ? def.requiresBuildings : [];

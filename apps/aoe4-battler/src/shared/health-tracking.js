@@ -108,6 +108,10 @@ export function applyHpDeltaToTeam(team, delta) {
 
 export function healTrackedTeam(team, totalHeal) {
   if (!team || !(totalHeal > 0) || team.units <= 0) return 0;
+  const healingReceivedPct = team.unitData?.effects?.healingReceivedPct || 0;
+  if (healingReceivedPct) {
+    totalHeal *= 1 + healingReceivedPct / 100;
+  }
   const maxHp = team.stats.hp;
   const damaged = getAllTrackedUnits(team)
     .filter((unit) => unit.hp < maxHp - 0.0001)
