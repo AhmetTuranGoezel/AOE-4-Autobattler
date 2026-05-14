@@ -18377,7 +18377,8 @@
       "Common"
     ],
     "exceptCivs": [
-      "Tughlaq Dynasty"
+      "Tughlaq Dynasty",
+      "Jin Dynasty"
     ],
     "costs": {
       "wood": 150,
@@ -18433,7 +18434,8 @@
     ],
     "exceptCivs": [
       "Chinese",
-      "Zhu Xi's Legacy"
+      "Zhu Xi's Legacy",
+      "Jin Dynasty"
     ],
     "costs": {
       "wood": 400,
@@ -18733,7 +18735,8 @@
     ],
     "exceptCivs": [
       "Mongols",
-      "Golden Horde"
+      "Golden Horde",
+      "Jin Dynasty"
     ],
     "costs": {
       "wood": 400,
@@ -18872,7 +18875,8 @@
   "Nest of Bees": {
     "civs": [
       "Chinese",
-      "Zhu Xi's Legacy"
+      "Zhu Xi's Legacy",
+      "Jin Dynasty"
     ],
     "costs": {
       "wood": 300,
@@ -18926,7 +18930,8 @@
   "Traction Trebuchet": {
     "civs": [
       "Mongols",
-      "Golden Horde"
+      "Golden Horde",
+      "Jin Dynasty"
     ],
     "costs": {
       "wood": 300,
@@ -19175,5 +19180,237 @@
         ]
       }
     ]
+  },
+  "Iron Pagoda": {
+    "civs": [
+      "Jin Dynasty"
+    ],
+    "costs": {
+      "food": 115,
+      "gold": 125
+    },
+    "trainingTime": 30,
+    "population": 2,
+    "speed": 1.625,
+    "tags": [
+      "Cavalry",
+      "Heavy",
+      "Melee"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 0.29,
+        "attackSpeed": 1.625,
+        "ages": {
+          "2": {
+            "hp": 200,
+            "meleeArmor": 4,
+            "rangedArmor": 3,
+            "attack": 16,
+            "chargeDamage": 8,
+            "bonus": {}
+          },
+          "3": {
+            "hp": 250,
+            "meleeArmor": 6,
+            "rangedArmor": 4,
+            "attack": 20,
+            "chargeDamage": 10,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 290,
+            "meleeArmor": 7,
+            "rangedArmor": 5,
+            "attack": 23,
+            "chargeDamage": 12,
+            "bonus": {}
+          }
+        }
+      }
+    },
+    "upgrades": []
+  },
+  "Mohe Tribesman": {
+    "civs": [
+      "Jin Dynasty"
+    ],
+    "costs": {
+      "food": 35,
+      "wood": 35
+    },
+    "trainingTime": 18,
+    "population": 1,
+    "speed": 1.625,
+    "tags": [
+      "Cavalry",
+      "Ranged",
+      "Light"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 5,
+        "attackSpeed": 1.625,
+        "ages": {
+          "2": {
+            "hp": 60,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 4,
+            "bonus": {}
+          },
+          "3": {
+            "hp": 70,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 6,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 90,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 7,
+            "bonus": {}
+          }
+        }
+      }
+    },
+    "upgrades": []
+  },
+  "Zhanma Swordsman": {
+    "civs": [
+      "Jin Dynasty"
+    ],
+    "costs": {
+      "food": 90,
+      "gold": 80
+    },
+    "trainingTime": 28,
+    "population": 1,
+    "speed": 1.25,
+    "tags": [
+      "Infantry",
+      "Heavy",
+      "Melee",
+      "Melee Infantry"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 0.29,
+        "attackSpeed": 1.375,
+        "ages": {
+          "4": {
+            "hp": 250,
+            "meleeArmor": 5,
+            "rangedArmor": 5,
+            "attack": 20,
+            "bonus": {
+              "Cavalry": 12
+            }
+          }
+        }
+      }
+    },
+    "upgrades": []
+  },
+  "Eruptor": {
+    "civs": [
+      "Jin Dynasty"
+    ],
+    "costs": {
+      "food": 120,
+      "gold": 150
+    },
+    "trainingTime": 40,
+    "population": 1,
+    "speed": 1.125,
+    "tags": [
+      "Infantry",
+      "Ranged",
+      "Gunpowder"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 3.5,
+        "attackSpeed": 2.125,
+        "ages": {
+          "4": {
+            "hp": 155,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 42,
+            "bonus": {}
+          }
+        }
+      }
+    },
+    "upgrades": []
+  },
+  "Bed Crossbow": {
+    "civs": [
+      "Jin Dynasty"
+    ],
+    "costs": {
+      "wood": 125,
+      "gold": 100
+    },
+    "trainingTime": 30,
+    "population": 2,
+    "speed": 0.91,
+    "tags": [
+      "Siege"
+    ],
+    "effects": {
+      "aoeSplash": {
+        "name": "Piercing Bolts",
+        "description": "Fires 2 large bolts that pierce through multiple units in a line",
+        "unitsHit": 3
+      }
+    },
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 7.5,
+        "attackSpeed": 3.125,
+        "ages": {
+          "2": {
+            "hp": 85,
+            "meleeArmor": 3,
+            "rangedArmor": 0,
+            "rangedResistance": 60,
+            "attack": 14,
+            "bonus": {
+              "Melee Infantry": 8
+            }
+          },
+          "3": {
+            "hp": 95,
+            "meleeArmor": 3,
+            "rangedArmor": 0,
+            "rangedResistance": 60,
+            "attack": 18,
+            "bonus": {
+              "Melee Infantry": 8
+            }
+          },
+          "4": {
+            "hp": 110,
+            "meleeArmor": 3,
+            "rangedArmor": 0,
+            "rangedResistance": 60,
+            "attack": 24,
+            "bonus": {
+              "Melee Infantry": 10
+            }
+          }
+        }
+      }
+    },
+    "upgrades": []
   }
 }

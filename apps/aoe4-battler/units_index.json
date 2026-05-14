@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-09T19:06:49.046707+00:00",
+  "generatedAt": "2026-05-14T15:55:16.757181+00:00",
   "generatedFrom": "units_restructured.json",
   "civOrder": [
     "Common",
@@ -24,7 +24,8 @@
     "Golden Horde",
     "Macedonian Dynasty",
     "Sengoku Daimyo",
-    "Tughlaq Dynasty"
+    "Tughlaq Dynasty",
+    "Jin Dynasty"
   ],
   "typeOrder": [
     "Light Infantry",
@@ -241,6 +242,34 @@
       ],
       "hasAuras": false,
       "hasEffects": false
+    },
+    "Bed Crossbow": {
+      "name": "Bed Crossbow",
+      "civs": [
+        "Jin Dynasty"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "wood": 125,
+        "gold": 100
+      },
+      "trainingTime": 30,
+      "population": 2,
+      "speed": 0.91,
+      "tags": [
+        "Siege"
+      ],
+      "category": "Siege",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": false,
+      "hasEffects": true
     },
     "Black Rider": {
       "name": "Black Rider",
@@ -574,7 +603,8 @@
       ],
       "exceptCivs": [
         "Mongols",
-        "Golden Horde"
+        "Golden Horde",
+        "Jin Dynasty"
       ],
       "costs": {
         "wood": 400,
@@ -754,6 +784,34 @@
       ],
       "hasAuras": true,
       "hasEffects": true
+    },
+    "Eruptor": {
+      "name": "Eruptor",
+      "civs": [
+        "Jin Dynasty"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 120,
+        "gold": 150
+      },
+      "trainingTime": 40,
+      "population": 1,
+      "speed": 1.125,
+      "tags": [
+        "Infantry",
+        "Ranged",
+        "Gunpowder"
+      ],
+      "category": "Ranged Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        4
+      ],
+      "hasAuras": false,
+      "hasEffects": false
     },
     "Fire Lancer": {
       "name": "Fire Lancer",
@@ -1388,6 +1446,36 @@
       "hasAuras": true,
       "hasEffects": false
     },
+    "Iron Pagoda": {
+      "name": "Iron Pagoda",
+      "civs": [
+        "Jin Dynasty"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 115,
+        "gold": 125
+      },
+      "trainingTime": 30,
+      "population": 2,
+      "speed": 1.625,
+      "tags": [
+        "Cavalry",
+        "Heavy",
+        "Melee"
+      ],
+      "category": "Heavy Cavalry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": false,
+      "hasEffects": false
+    },
     "Jannisary": {
       "name": "Jannisary",
       "civs": [
@@ -1750,7 +1838,8 @@
       ],
       "exceptCivs": [
         "Chinese",
-        "Zhu Xi's Legacy"
+        "Zhu Xi's Legacy",
+        "Jin Dynasty"
       ],
       "costs": {
         "wood": 400,
@@ -1800,6 +1889,36 @@
         4
       ],
       "hasAuras": true,
+      "hasEffects": false
+    },
+    "Mohe Tribesman": {
+      "name": "Mohe Tribesman",
+      "civs": [
+        "Jin Dynasty"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 35,
+        "wood": 35
+      },
+      "trainingTime": 18,
+      "population": 1,
+      "speed": 1.625,
+      "tags": [
+        "Cavalry",
+        "Ranged",
+        "Light"
+      ],
+      "category": "Ranged Cavalry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": false,
       "hasEffects": false
     },
     "Mounted Samurai": {
@@ -1926,7 +2045,8 @@
       "name": "Nest of Bees",
       "civs": [
         "Chinese",
-        "Zhu Xi's Legacy"
+        "Zhu Xi's Legacy",
+        "Jin Dynasty"
       ],
       "exceptCivs": [],
       "costs": {
@@ -2321,7 +2441,8 @@
         "Common"
       ],
       "exceptCivs": [
-        "Tughlaq Dynasty"
+        "Tughlaq Dynasty",
+        "Jin Dynasty"
       ],
       "costs": {
         "wood": 150,
@@ -2578,7 +2699,8 @@
       "name": "Traction Trebuchet",
       "civs": [
         "Mongols",
-        "Golden Horde"
+        "Golden Horde",
+        "Jin Dynasty"
       ],
       "exceptCivs": [],
       "costs": {
@@ -2839,6 +2961,35 @@
       "hasAuras": true,
       "hasEffects": true
     },
+    "Zhanma Swordsman": {
+      "name": "Zhanma Swordsman",
+      "civs": [
+        "Jin Dynasty"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 90,
+        "gold": 80
+      },
+      "trainingTime": 28,
+      "population": 1,
+      "speed": 1.25,
+      "tags": [
+        "Infantry",
+        "Heavy",
+        "Melee",
+        "Melee Infantry"
+      ],
+      "category": "Heavy Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        4
+      ],
+      "hasAuras": false,
+      "hasEffects": false
+    },
     "Zhuge Nu": {
       "name": "Zhuge Nu",
       "civs": [
@@ -2879,6 +3030,7 @@
       "Atgeirma\u00f0r",
       "Ballista Elephant",
       "Battering Ram",
+      "Bed Crossbow",
       "Black Rider",
       "Bogma\u00f0r",
       "Bombard",
@@ -2896,6 +3048,7 @@
       "Desert Raider",
       "Donso",
       "Earls Guard",
+      "Eruptor",
       "Fire Lancer",
       "Genitour",
       "Genoese Crossbowman",
@@ -2917,6 +3070,7 @@
       "Horseman",
       "Hospitaller Knight",
       "Imperial Guard",
+      "Iron Pagoda",
       "Jannisary",
       "Javelin Thrower",
       "Kanabo Samurai",
@@ -2930,6 +3084,7 @@
       "MAA",
       "Mangonel",
       "Mangudai",
+      "Mohe Tribesman",
       "Mounted Samurai",
       "Musofadi Gunner",
       "Musofadi Warrior",
@@ -2965,6 +3120,7 @@
       "Yoeman",
       "Yuan Raider",
       "Yumi",
+      "Zhanma Swordsman",
       "Zhuge Nu"
     ],
     "Common": [
@@ -3342,6 +3498,25 @@
       "Ribauldequin",
       "Spearman",
       "War Elephant"
+    ],
+    "Jin Dynasty": [
+      "Archer",
+      "Battering Ram",
+      "Bed Crossbow",
+      "Bombard",
+      "Crossbow",
+      "Eruptor",
+      "Handcannoneer",
+      "Horseman",
+      "Iron Pagoda",
+      "Knight/Lancer",
+      "MAA",
+      "Mohe Tribesman",
+      "Nest of Bees",
+      "Ribauldequin",
+      "Spearman",
+      "Traction Trebuchet",
+      "Zhanma Swordsman"
     ]
   }
 }
