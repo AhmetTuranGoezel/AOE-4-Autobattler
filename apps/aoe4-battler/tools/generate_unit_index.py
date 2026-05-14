@@ -29,6 +29,7 @@ CIV_ORDER = [
     "Macedonian Dynasty",
     "Sengoku Daimyo",
     "Tughlaq Dynasty",
+    "Jin Dynasty",
 ]
 
 UNIT_REPLACEMENTS = {

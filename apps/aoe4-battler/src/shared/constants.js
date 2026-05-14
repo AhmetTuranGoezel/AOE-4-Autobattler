@@ -22,6 +22,7 @@ export const CIV_ORDER = [
   "Macedonian Dynasty",
   "Sengoku Daimyo",
   "Tughlaq Dynasty",
+  "Jin Dynasty",
 ];
 
 export const CIV_FLAGS = {
@@ -47,6 +48,7 @@ export const CIV_FLAGS = {
   "Macedonian Dynasty": "assets/flags/Macedonian_Dynasty_AoE4.webp",
   "Sengoku Daimyo": "assets/flags/Sengoku_Daimyo_AoE4.webp",
   "Tughlaq Dynasty": "assets/flags/Tughlaq_Dynasty_AoE4.webp",
+  "Jin Dynasty": "assets/flags/Jin_Dynasty_AoE4.webp",
 };
 
 export const UNIT_REPLACEMENTS = {
