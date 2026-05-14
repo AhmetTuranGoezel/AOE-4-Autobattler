@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Finals - Loadout Builder</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --gold: #f5c542;
+      --gold-dim: #a8882e;
+      --bg: #12141a;
+      --bg-card: #1c1f28;
+      --bg-card-hover: #252935;
+      --bg-panel: #181b23;
+      --border: #2a2d38;
+      --border-light: #3a3e4a;
+      --text: #e8e8ec;
+      --text-dim: #8a8d9a;
+      --text-muted: #5a5d6a;
+      --red: #e74c4c;
+      --green: #4ce77a;
+      --light-color: #5bc0eb;
+      --medium-color: #f5c542;
+      --heavy-color: #e74c4c;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    a.back-link {
+      position: fixed; top: 16px; left: 16px; z-index: 1000;
+      color: var(--text-dim); text-decoration: none; font-size: 0.85rem;
+      padding: 6px 14px; border-radius: 8px;
+      background: rgba(28, 31, 40, 0.9); border: 1px solid var(--border);
+      backdrop-filter: blur(8px); transition: all 0.2s;
+    }
+    a.back-link:hover { color: var(--gold); border-color: var(--gold); }
+
+    .container {
+      max-width: 1100px; margin: 0 auto; padding: 60px 24px 40px;
+    }
+
+    .header {
+      text-align: center; margin-bottom: 36px;
+    }
+    .header h1 {
+      font-size: 1.8rem; font-weight: 900; letter-spacing: 3px;
+      text-transform: uppercase; color: #fff; margin-bottom: 6px;
+    }
+    .header h1 span { color: var(--gold); }
+    .header p { color: var(--text-dim); font-size: 0.85rem; }
+
+    /* Class Selector */
+    .class-selector {
+      display: flex; justify-content: center; gap: 12px; margin-bottom: 40px;
+    }
+    .class-btn {
+      padding: 12px 32px; border-radius: 10px; border: 2px solid var(--border);
+      background: var(--bg-card); color: var(--text-dim);
+      font-family: inherit; font-size: 0.9rem; font-weight: 700;
+      letter-spacing: 1.5px; text-transform: uppercase; cursor: pointer;
+      transition: all 0.25s ease; position: relative; overflow: hidden;
+    }
+    .class-btn::before {
+      content: ''; position: absolute; inset: 0; opacity: 0;
+      transition: opacity 0.25s;
+    }
+    .class-btn:hover { border-color: var(--border-light); color: var(--text); transform: translateY(-2px); }
+    .class-btn.active { color: #fff; transform: translateY(-2px); }
+    .class-btn[data-class="light"].active { border-color: var(--light-color); box-shadow: 0 4px 24px rgba(91,192,235,0.25); background: linear-gradient(135deg, rgba(91,192,235,0.15), transparent); }
+    .class-btn[data-class="medium"].active { border-color: var(--medium-color); box-shadow: 0 4px 24px rgba(245,197,66,0.25); background: linear-gradient(135deg, rgba(245,197,66,0.15), transparent); }
+    .class-btn[data-class="heavy"].active { border-color: var(--heavy-color); box-shadow: 0 4px 24px rgba(231,76,76,0.25); background: linear-gradient(135deg, rgba(231,76,76,0.15), transparent); }
+    .class-hp { display: block; font-size: 0.65rem; font-weight: 500; margin-top: 4px; opacity: 0.6; }
+
+    /* Loadout Grid */
+    .loadout-area {
+      display: flex; gap: 24px; align-items: flex-start; justify-content: center;
+      flex-wrap: wrap; margin-bottom: 20px;
+    }
+
+    .loadout-section { text-align: center; }
+    .section-label {
+      font-size: 0.65rem; font-weight: 700; letter-spacing: 2px;
+      text-transform: uppercase; color: var(--text-muted); margin-bottom: 10px;
+    }
+    .section-divider {
+      width: 1px; background: var(--border); align-self: stretch;
+      margin: 24px 8px 0;
+    }
+
+    .slot-row { display: flex; gap: 10px; }
+
+    /* Item Slots */
+    .slot {
+      width: 110px; height: 100px; border-radius: 12px;
+      border: 2px dashed var(--border); background: var(--bg-card);
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; cursor: pointer;
+      transition: all 0.25s ease; position: relative; overflow: hidden;
+    }
+    .slot:hover { border-color: var(--border-light); background: var(--bg-card-hover); transform: translateY(-3px); }
+    .slot.active { border-color: var(--gold); border-style: solid; box-shadow: 0 0 20px rgba(245,197,66,0.15); }
+    .slot.filled { border-style: solid; border-color: var(--border-light); }
+    .slot.filled .slot-empty { display: none; }
+    .slot.filled .slot-content { display: flex; }
+
+    .slot-empty {
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+    }
+    .slot-empty-icon { font-size: 1.4rem; opacity: 0.3; }
+    .slot-empty-text { font-size: 0.6rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+    .slot-content {
+      display: none; flex-direction: column; align-items: center;
+      justify-content: center; gap: 4px; padding: 8px; width: 100%; height: 100%;
+    }
+    .slot-content .slot-icon { font-size: 1.6rem; }
+    .slot-content .slot-name {
+      font-size: 0.65rem; font-weight: 600; text-align: center;
+      line-height: 1.2; color: #fff; max-width: 100%;
+      overflow: hidden; text-overflow: ellipsis;
+    }
+    .slot-content .slot-type {
+      font-size: 0.55rem; color: var(--text-muted); text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .slot-remove {
+      position: absolute; top: 4px; right: 4px; width: 18px; height: 18px;
+      border-radius: 50%; background: rgba(231,76,76,0.8); border: none;
+      color: #fff; font-size: 0.6rem; cursor: pointer; display: none;
+      align-items: center; justify-content: center; line-height: 1;
+      transition: all 0.15s;
+    }
+    .slot.filled:hover .slot-remove { display: flex; }
+    .slot-remove:hover { background: var(--red); transform: scale(1.15); }
+
+    /* Picker Panel */
+    .picker-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+      backdrop-filter: blur(4px); z-index: 100; opacity: 0;
+      pointer-events: none; transition: opacity 0.3s ease;
+    }
+    .picker-overlay.open { opacity: 1; pointer-events: all; }
+
+    .picker-panel {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 101;
+      background: var(--bg-panel); border-top: 1px solid var(--border);
+      border-radius: 20px 20px 0 0; padding: 24px 24px 32px;
+      max-height: 55vh; overflow-y: auto;
+      transform: translateY(100%); transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .picker-panel.open { transform: translateY(0); }
+
+    .picker-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid var(--border);
+    }
+    .picker-title {
+      font-size: 0.8rem; font-weight: 700; letter-spacing: 2px;
+      text-transform: uppercase; color: var(--text-dim);
+    }
+    .picker-close {
+      width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border);
+      background: var(--bg-card); color: var(--text-dim); font-size: 1rem;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: all 0.2s;
+    }
+    .picker-close:hover { border-color: var(--red); color: var(--red); }
+
+    .picker-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 10px;
+    }
+
+    .pick-card {
+      background: var(--bg-card); border: 2px solid var(--border);
+      border-radius: 12px; padding: 14px 10px; text-align: center;
+      cursor: pointer; transition: all 0.2s ease; position: relative;
+    }
+    .pick-card:hover { border-color: var(--border-light); background: var(--bg-card-hover); transform: translateY(-3px); }
+    .pick-card.selected { border-color: var(--gold); background: rgba(245,197,66,0.08); }
+    .pick-card.selected::after {
+      content: '\2713'; position: absolute; top: 6px; right: 8px;
+      color: var(--gold); font-size: 0.75rem; font-weight: 700;
+    }
+    .pick-card-icon { font-size: 1.6rem; margin-bottom: 6px; }
+    .pick-card-name { font-size: 0.72rem; font-weight: 600; color: #fff; line-height: 1.3; }
+    .pick-card-type { font-size: 0.58rem; color: var(--text-muted); margin-top: 3px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    /* Saved Builds */
+    .saves-area {
+      margin-top: 40px; border-top: 1px solid var(--border); padding-top: 30px;
+    }
+    .saves-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .saves-title {
+      font-size: 0.75rem; font-weight: 700; letter-spacing: 2px;
+      text-transform: uppercase; color: var(--text-muted);
+    }
+
+    .save-form {
+      display: flex; gap: 8px; align-items: center;
+    }
+    .save-input {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 8px; padding: 8px 14px; color: var(--text);
+      font-family: inherit; font-size: 0.82rem; outline: none;
+      transition: border-color 0.2s; width: 200px;
+    }
+    .save-input:focus { border-color: var(--gold); }
+    .save-input::placeholder { color: var(--text-muted); }
+
+    .save-btn {
+      padding: 8px 20px; border-radius: 8px; border: 1px solid var(--gold);
+      background: rgba(245,197,66,0.1); color: var(--gold);
+      font-family: inherit; font-size: 0.8rem; font-weight: 600;
+      cursor: pointer; transition: all 0.2s; white-space: nowrap;
+    }
+    .save-btn:hover { background: rgba(245,197,66,0.2); transform: translateY(-1px); }
+    .save-btn:active { transform: translateY(0); }
+    .save-btn.saved {
+      border-color: var(--green); color: var(--green);
+      background: rgba(76,231,122,0.1);
+    }
+
+    .builds-list {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 12px; margin-top: 14px;
+    }
+
+    .build-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 12px; padding: 16px; cursor: pointer;
+      transition: all 0.25s ease; position: relative;
+    }
+    .build-card:hover { border-color: var(--border-light); transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
+    .build-card-name { font-size: 0.9rem; font-weight: 700; color: #fff; margin-bottom: 4px; }
+    .build-card-class {
+      display: inline-block; font-size: 0.6rem; font-weight: 700;
+      letter-spacing: 1px; text-transform: uppercase; padding: 2px 8px;
+      border-radius: 4px; margin-bottom: 8px;
+    }
+    .build-card-class.light { background: rgba(91,192,235,0.15); color: var(--light-color); }
+    .build-card-class.medium { background: rgba(245,197,66,0.15); color: var(--medium-color); }
+    .build-card-class.heavy { background: rgba(231,76,76,0.15); color: var(--heavy-color); }
+
+    .build-card-summary { font-size: 0.7rem; color: var(--text-dim); line-height: 1.5; }
+    .build-card-summary span { color: var(--text); font-weight: 500; }
+
+    .build-card-delete {
+      position: absolute; top: 10px; right: 10px; width: 24px; height: 24px;
+      border-radius: 6px; border: 1px solid transparent; background: transparent;
+      color: var(--text-muted); font-size: 0.8rem; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s; opacity: 0;
+    }
+    .build-card:hover .build-card-delete { opacity: 1; }
+    .build-card-delete:hover { border-color: var(--red); color: var(--red); background: rgba(231,76,76,0.1); }
+
+    .no-builds {
+      text-align: center; padding: 32px; color: var(--text-muted);
+      font-size: 0.82rem;
+    }
+
+    /* Animations */
+    @keyframes slotFill {
+      0% { transform: scale(0.85); opacity: 0; }
+      50% { transform: scale(1.05); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .slot.just-filled .slot-content { animation: slotFill 0.3s ease forwards; }
+
+    @keyframes cardPop {
+      0% { transform: scale(0.9) translateY(10px); opacity: 0; }
+      100% { transform: scale(1) translateY(0); opacity: 1; }
+    }
+    .pick-card { animation: cardPop 0.2s ease backwards; }
+
+    @keyframes flashGreen {
+      0% { box-shadow: 0 0 0 0 rgba(76,231,122,0.4); }
+      50% { box-shadow: 0 0 20px 4px rgba(76,231,122,0.2); }
+      100% { box-shadow: none; }
+    }
+    .build-card.just-saved { animation: flashGreen 0.6s ease; }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .container { padding: 60px 12px 30px; }
+      .header h1 { font-size: 1.3rem; letter-spacing: 2px; }
+      .class-btn { padding: 10px 20px; font-size: 0.78rem; }
+      .loadout-area { gap: 16px; }
+      .slot { width: 90px; height: 85px; }
+      .section-divider { display: none; }
+      .picker-panel { max-height: 65vh; }
+      .picker-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+      .save-form { flex-wrap: wrap; }
+      .save-input { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <a href="../../index.html" class="back-link">&larr; Hub</a>
+
+  <div class="container">
+    <div class="header">
+      <h1>THE <span>FINALS</span> LOADOUT</h1>
+      <p>Build, save, and manage your loadouts</p>
+    </div>
+
+    <div class="class-selector">
+      <button class="class-btn active" data-class="light">Light<span class="class-hp">150 HP</span></button>
+      <button class="class-btn" data-class="medium">Medium<span class="class-hp">250 HP</span></button>
+      <button class="class-btn" data-class="heavy">Heavy<span class="class-hp">350 HP</span></button>
+    </div>
+
+    <div class="loadout-area">
+      <div class="loadout-section">
+        <div class="section-label">Specialization</div>
+        <div class="slot-row">
+          <div class="slot" data-slot-type="specialization" data-slot-index="0">
+            <div class="slot-empty"><div class="slot-empty-icon">&#9881;</div><div class="slot-empty-text">Select</div></div>
+            <div class="slot-content"><div class="slot-icon"></div><div class="slot-name"></div><div class="slot-type">Spec</div></div>
+            <button class="slot-remove" title="Remove">&times;</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-divider"></div>
+
+      <div class="loadout-section">
+        <div class="section-label">Weapon</div>
+        <div class="slot-row">
+          <div class="slot" data-slot-type="weapon" data-slot-index="0">
+            <div class="slot-empty"><div class="slot-empty-icon">&#9876;</div><div class="slot-empty-text">Select</div></div>
+            <div class="slot-content"><div class="slot-icon"></div><div class="slot-name"></div><div class="slot-type">Weapon</div></div>
+            <button class="slot-remove" title="Remove">&times;</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-divider"></div>
+
+      <div class="loadout-section">
+        <div class="section-label">Gadgets</div>
+        <div class="slot-row">
+          <div class="slot" data-slot-type="gadget" data-slot-index="0">
+            <div class="slot-empty"><div class="slot-empty-icon">&#128163;</div><div class="slot-empty-text">Select</div></div>
+            <div class="slot-content"><div class="slot-icon"></div><div class="slot-name"></div><div class="slot-type">Gadget</div></div>
+            <button class="slot-remove" title="Remove">&times;</button>
+          </div>
+          <div class="slot" data-slot-type="gadget" data-slot-index="1">
+            <div class="slot-empty"><div class="slot-empty-icon">&#128163;</div><div class="slot-empty-text">Select</div></div>
+            <div class="slot-content"><div class="slot-icon"></div><div class="slot-name"></div><div class="slot-type">Gadget</div></div>
+            <button class="slot-remove" title="Remove">&times;</button>
+          </div>
+          <div class="slot" data-slot-type="gadget" data-slot-index="2">
+            <div class="slot-empty"><div class="slot-empty-icon">&#128163;</div><div class="slot-empty-text">Select</div></div>
+            <div class="slot-content"><div class="slot-icon"></div><div class="slot-name"></div><div class="slot-type">Gadget</div></div>
+            <button class="slot-remove" title="Remove">&times;</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-divider"></div>
+
+      <div class="loadout-section">
+        <div class="section-label">Reserve</div>
+        <div class="slot-row">
+          <div class="slot" data-slot-type="reserve" data-slot-index="0">
+            <div class="slot-empty"><div class="slot-empty-icon">&#128260;</div><div class="slot-empty-text">Select</div></div>
+            <div class="slot-content"><div class="slot-icon"></div><div class="slot-name"></div><div class="slot-type"></div></div>
+            <button class="slot-remove" title="Remove">&times;</button>
+          </div>
+          <div class="slot" data-slot-type="reserve" data-slot-index="1">
+            <div class="slot-empty"><div class="slot-empty-icon">&#128260;</div><div class="slot-empty-text">Select</div></div>
+            <div class="slot-content"><div class="slot-icon"></div><div class="slot-name"></div><div class="slot-type"></div></div>
+            <button class="slot-remove" title="Remove">&times;</button>
+          </div>
+          <div class="slot" data-slot-type="reserve" data-slot-index="2">
+            <div class="slot-empty"><div class="slot-empty-icon">&#128260;</div><div class="slot-empty-text">Select</div></div>
+            <div class="slot-content"><div class="slot-icon"></div><div class="slot-name"></div><div class="slot-type"></div></div>
+            <button class="slot-remove" title="Remove">&times;</button>
+          </div>
+          <div class="slot" data-slot-type="reserve" data-slot-index="3">
+            <div class="slot-empty"><div class="slot-empty-icon">&#128260;</div><div class="slot-empty-text">Select</div></div>
+            <div class="slot-content"><div class="slot-icon"></div><div class="slot-name"></div><div class="slot-type"></div></div>
+            <button class="slot-remove" title="Remove">&times;</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="saves-area">
+      <div class="saves-header">
+        <div class="saves-title">Saved Builds</div>
+        <div class="save-form">
+          <input type="text" class="save-input" id="buildName" placeholder="Build name..." maxlength="40">
+          <button class="save-btn" id="saveBtn">Save Build</button>
+        </div>
+      </div>
+      <div class="builds-list" id="buildsList"></div>
+    </div>
+  </div>
+
+  <div class="picker-overlay" id="pickerOverlay"></div>
+  <div class="picker-panel" id="pickerPanel">
+    <div class="picker-header">
+      <div class="picker-title" id="pickerTitle">Select Item</div>
+      <button class="picker-close" id="pickerClose">&times;</button>
+    </div>
+    <div class="picker-grid" id="pickerGrid"></div>
+  </div>
+
+  <script>
+    const GAME_DATA = {
+      light: {
+        label: "Light", hp: 150,
+        specializations: [
+          "Cloaking Device", "Evasive Dash", "Grappling Hook"
+        ],
+        weapons: [
+          "93R", "V9S", "M11", "XP-54", "M26 Matter", "SH1900",
+          "ARN-220", "LH1", "SR-84", "Dagger", "Recurve Bow", "Sword", "Throwing Knives"
+        ],
+        gadgets: [
+          "Breach Charge", "Gateway", "Glitch Grenade", "Gravity Vortex",
+          "H+ Infuser", "Nullifier", "Sonar Grenade", "Thermal Bore",
+          "Thermal Vision", "Tracking Dart", "Vanishing Bomb",
+          "Flashbang", "Frag Grenade", "Gas Grenade", "Goo Grenade", "Pyro Grenade", "Smoke Grenade"
+        ]
+      },
+      medium: {
+        label: "Medium", hp: 250,
+        specializations: [
+          "Dematerializer", "Guardian Turret", "Healing Beam", "Recon Senses", "Shockwave"
+        ],
+        weapons: [
+          "R .357", "P90", "Cerberus 12GA", "Model 1887",
+          "AKM", "FCAR", "FAMAS", "CB-01 Repeater", "Chimera-XB", "Pike-556",
+          "CL-40", "Dual Blades", "Riot Shield"
+        ],
+        gadgets: [
+          "APS Turret", "Breach Drill", "Data Reshaper", "Defibrillator",
+          "Explosive Mine", "Gas Mine", "Glitch Trap", "Hover Pad",
+          "Jump Pad", "Proximity Sensor", "Zipline",
+          "Flashbang", "Frag Grenade", "Gas Grenade", "Goo Grenade", "Pyro Grenade", "Smoke Grenade"
+        ]
+      },
+      heavy: {
+        label: "Heavy", hp: 350,
+        specializations: [
+          "Charge 'N' Slam", "Goo Gun", "Mesh Shield", "Winch Claw"
+        ],
+        weapons: [
+          ".50 Akimbo", "BFR Titan", "KS-23", "SA1216", "ShAK-50",
+          "Lewis Gun", "M60", "M134 Minigun", "MGL32",
+          "Flamethrower", "Sledgehammer", "Spear"
+        ],
+        gadgets: [
+          "Anti-Gravity Cube", "Barricade", "C4", "Dome Shield",
+          "Explosive Mine", "Healing Emitter", "Lockbolt",
+          "Proximity Sensor", "Pyro Mine", "RPG-7",
+          "Flashbang", "Frag Grenade", "Gas Grenade", "Goo Grenade", "Pyro Grenade", "Smoke Grenade"
+        ]
+      }
+    };
+
+    const ICONS = {
+      specialization: "⚙️",
+      weapon: "⚔️",
+      gadget: "💣",
+      reserve: "🔄"
+    };
+
+    const ITEM_ICONS = {
+      "Cloaking Device": "👻", "Evasive Dash": "💨", "Grappling Hook": "🪝",
+      "Dematerializer": "🌀", "Guardian Turret": "🛡️", "Healing Beam": "💚",
+      "Recon Senses": "👁️", "Shockwave": "⚡",
+      "Charge 'N' Slam": "💥", "Goo Gun": "🪴", "Mesh Shield": "🛡️", "Winch Claw": "⛓️",
+      "93R": "🔫", "V9S": "🔫", "M11": "🔫", "XP-54": "🔫",
+      "M26 Matter": "🔫", "SH1900": "🔫", "ARN-220": "🔫", "LH1": "🎯",
+      "SR-84": "🎯", "Dagger": "🗡️", "Recurve Bow": "🏹", "Sword": "⚔️",
+      "Throwing Knives": "🗡️",
+      "R .357": "🔫", "P90": "🔫", "Cerberus 12GA": "🔫",
+      "Model 1887": "🔫", "AKM": "🔫", "FCAR": "🔫", "FAMAS": "🔫",
+      "CB-01 Repeater": "🎯", "Chimera-XB": "🎯", "Pike-556": "🎯",
+      "CL-40": "💣", "Dual Blades": "⚔️", "Riot Shield": "🛡️",
+      ".50 Akimbo": "🔫", "BFR Titan": "🔫", "KS-23": "🔫",
+      "SA1216": "🔫", "ShAK-50": "🔫", "Lewis Gun": "🔫",
+      "M60": "🔫", "M134 Minigun": "🔫", "MGL32": "💣",
+      "Flamethrower": "🔥", "Sledgehammer": "🔨", "Spear": "🔱",
+      "Breach Charge": "💥", "Gateway": "🚪", "Glitch Grenade": "📟",
+      "Gravity Vortex": "🌀", "H+ Infuser": "💉", "Nullifier": "⛔",
+      "Sonar Grenade": "📡", "Thermal Bore": "🔥", "Thermal Vision": "👁️",
+      "Tracking Dart": "🎯", "Vanishing Bomb": "💨",
+      "APS Turret": "🛡️", "Breach Drill": "🔩", "Data Reshaper": "🔄",
+      "Defibrillator": "❤️", "Explosive Mine": "💣", "Gas Mine": "☣️",
+      "Glitch Trap": "📟", "Hover Pad": "🛸", "Jump Pad": "⬆️",
+      "Proximity Sensor": "📡", "Zipline": "🧵",
+      "Anti-Gravity Cube": "🟣", "Barricade": "🧱", "C4": "💣",
+      "Dome Shield": "🔵", "Healing Emitter": "💚", "Lockbolt": "🔒",
+      "Pyro Mine": "🔥", "RPG-7": "🚀",
+      "Flashbang": "✨", "Frag Grenade": "💣", "Gas Grenade": "☣️",
+      "Goo Grenade": "🪴", "Pyro Grenade": "🔥", "Smoke Grenade": "🌫️"
+    };
+
+    let currentClass = "light";
+    let loadout = { specialization: null, weapon: null, gadgets: [null, null, null], reserve: [null, null, null, null] };
+    let pickerState = { open: false, slotType: null, slotIndex: null };
+    let savedBuilds = JSON.parse(localStorage.getItem("finals-loadouts") || "[]");
+
+    function getClassData() { return GAME_DATA[currentClass]; }
+
+    function getItemIcon(name) { return ITEM_ICONS[name] || ICONS.gadget; }
+
+    function getItemCategory(name) {
+      const d = getClassData();
+      if (d.specializations.includes(name)) return "specialization";
+      if (d.weapons.includes(name)) return "weapon";
+      return "gadget";
+    }
+
+    // Class selector
+    document.querySelectorAll(".class-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelector(".class-btn.active").classList.remove("active");
+        btn.classList.add("active");
+        currentClass = btn.dataset.class;
+        loadout = { specialization: null, weapon: null, gadgets: [null, null, null], reserve: [null, null, null, null] };
+        closePicker();
+        renderSlots();
+      });
+    });
+
+    // Slot clicks
+    document.querySelectorAll(".slot").forEach(slot => {
+      slot.addEventListener("click", (e) => {
+        if (e.target.closest(".slot-remove")) return;
+        const type = slot.dataset.slotType;
+        const idx = parseInt(slot.dataset.slotIndex);
+        openPicker(type, idx);
+      });
+    });
+
+    // Remove buttons
+    document.querySelectorAll(".slot-remove").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const slot = btn.closest(".slot");
+        const type = slot.dataset.slotType;
+        const idx = parseInt(slot.dataset.slotIndex);
+        if (type === "specialization") loadout.specialization = null;
+        else if (type === "weapon") loadout.weapon = null;
+        else if (type === "gadget") loadout.gadgets[idx] = null;
+        else if (type === "reserve") loadout.reserve[idx] = null;
+        renderSlots();
+      });
+    });
+
+    function openPicker(slotType, slotIndex) {
+      pickerState = { open: true, slotType, slotIndex };
+      const d = getClassData();
+      let items = [];
+      let title = "";
+
+      if (slotType === "specialization") {
+        items = d.specializations.map(n => ({ name: n, type: "Spec" }));
+        title = "Choose Specialization";
+      } else if (slotType === "weapon") {
+        items = d.weapons.map(n => ({ name: n, type: "Weapon" }));
+        title = "Choose Weapon";
+      } else if (slotType === "gadget") {
+        items = d.gadgets.map(n => ({ name: n, type: "Gadget" }));
+        title = "Choose Gadget";
+      } else if (slotType === "reserve") {
+        const weps = d.weapons.map(n => ({ name: n, type: "Weapon" }));
+        const gads = d.gadgets.map(n => ({ name: n, type: "Gadget" }));
+        items = [...weps, ...gads];
+        title = "Choose Reserve Item";
+      }
+
+      const currentlySelected = getCurrentSlotValue(slotType, slotIndex);
+
+      document.getElementById("pickerTitle").textContent = title;
+      const grid = document.getElementById("pickerGrid");
+      grid.innerHTML = "";
+
+      items.forEach((item, i) => {
+        const card = document.createElement("div");
+        card.className = "pick-card" + (item.name === currentlySelected ? " selected" : "");
+        card.style.animationDelay = (i * 0.02) + "s";
+        card.innerHTML = `
+          <div class="pick-card-icon">${getItemIcon(item.name)}</div>
+          <div class="pick-card-name">${item.name}</div>
+          <div class="pick-card-type">${item.type}</div>
+        `;
+        card.addEventListener("click", () => selectItem(item.name, item.type));
+        grid.appendChild(card);
+      });
+
+      document.querySelectorAll(".slot").forEach(s => s.classList.remove("active"));
+      const activeSlot = document.querySelector(`.slot[data-slot-type="${slotType}"][data-slot-index="${slotIndex}"]`);
+      if (activeSlot) activeSlot.classList.add("active");
+
+      document.getElementById("pickerOverlay").classList.add("open");
+      document.getElementById("pickerPanel").classList.add("open");
+    }
+
+    function closePicker() {
+      pickerState.open = false;
+      document.getElementById("pickerOverlay").classList.remove("open");
+      document.getElementById("pickerPanel").classList.remove("open");
+      document.querySelectorAll(".slot").forEach(s => s.classList.remove("active"));
+    }
+
+    function getCurrentSlotValue(type, idx) {
+      if (type === "specialization") return loadout.specialization;
+      if (type === "weapon") return loadout.weapon;
+      if (type === "gadget") return loadout.gadgets[idx];
+      if (type === "reserve") return loadout.reserve[idx];
+      return null;
+    }
+
+    function selectItem(name, type) {
+      const { slotType, slotIndex } = pickerState;
+      if (slotType === "specialization") loadout.specialization = name;
+      else if (slotType === "weapon") loadout.weapon = name;
+      else if (slotType === "gadget") loadout.gadgets[slotIndex] = name;
+      else if (slotType === "reserve") loadout.reserve[slotIndex] = name;
+      closePicker();
+      renderSlots();
+
+      const slot = document.querySelector(`.slot[data-slot-type="${slotType}"][data-slot-index="${slotIndex}"]`);
+      if (slot) { slot.classList.add("just-filled"); setTimeout(() => slot.classList.remove("just-filled"), 350); }
+    }
+
+    document.getElementById("pickerOverlay").addEventListener("click", closePicker);
+    document.getElementById("pickerClose").addEventListener("click", closePicker);
+
+    function renderSlots() {
+      document.querySelectorAll(".slot").forEach(slot => {
+        const type = slot.dataset.slotType;
+        const idx = parseInt(slot.dataset.slotIndex);
+        let val = getCurrentSlotValue(type, idx);
+
+        if (val) {
+          slot.classList.add("filled");
+          slot.querySelector(".slot-content .slot-icon").textContent = getItemIcon(val);
+          slot.querySelector(".slot-content .slot-name").textContent = val;
+          const cat = type === "reserve" ? getItemCategory(val) : type;
+          slot.querySelector(".slot-content .slot-type").textContent =
+            cat === "specialization" ? "Spec" : cat.charAt(0).toUpperCase() + cat.slice(1);
+        } else {
+          slot.classList.remove("filled");
+        }
+      });
+    }
+
+    // Save/Load
+    document.getElementById("saveBtn").addEventListener("click", saveBuild);
+
+    function saveBuild() {
+      const nameInput = document.getElementById("buildName");
+      const name = nameInput.value.trim() || ("Build " + (savedBuilds.length + 1));
+      const build = {
+        id: Date.now(),
+        name,
+        class: currentClass,
+        specialization: loadout.specialization,
+        weapon: loadout.weapon,
+        gadgets: [...loadout.gadgets],
+        reserve: [...loadout.reserve]
+      };
+      savedBuilds.push(build);
+      localStorage.setItem("finals-loadouts", JSON.stringify(savedBuilds));
+      nameInput.value = "";
+      renderBuilds();
+
+      const btn = document.getElementById("saveBtn");
+      btn.classList.add("saved");
+      btn.textContent = "Saved!";
+      setTimeout(() => { btn.classList.remove("saved"); btn.textContent = "Save Build"; }, 1200);
+    }
+
+    function loadBuild(id) {
+      const build = savedBuilds.find(b => b.id === id);
+      if (!build) return;
+
+      currentClass = build.class;
+      document.querySelector(".class-btn.active").classList.remove("active");
+      document.querySelector(`.class-btn[data-class="${build.class}"]`).classList.add("active");
+
+      loadout.specialization = build.specialization;
+      loadout.weapon = build.weapon;
+      loadout.gadgets = [...(build.gadgets || [null, null, null])];
+      loadout.reserve = [...(build.reserve || [null, null, null, null])];
+
+      while (loadout.gadgets.length < 3) loadout.gadgets.push(null);
+      while (loadout.reserve.length < 4) loadout.reserve.push(null);
+
+      closePicker();
+      renderSlots();
+
+      document.querySelectorAll(".slot.filled").forEach((slot, i) => {
+        slot.classList.add("just-filled");
+        slot.style.animationDelay = (i * 0.06) + "s";
+        setTimeout(() => { slot.classList.remove("just-filled"); slot.style.animationDelay = ""; }, 500);
+      });
+    }
+
+    function deleteBuild(id, e) {
+      e.stopPropagation();
+      savedBuilds = savedBuilds.filter(b => b.id !== id);
+      localStorage.setItem("finals-loadouts", JSON.stringify(savedBuilds));
+      renderBuilds();
+    }
+
+    function renderBuilds() {
+      const list = document.getElementById("buildsList");
+      if (savedBuilds.length === 0) {
+        list.innerHTML = '<div class="no-builds">No saved builds yet. Create one above!</div>';
+        return;
+      }
+      list.innerHTML = savedBuilds.map(b => {
+        const spec = b.specialization || "None";
+        const wep = b.weapon || "None";
+        const gadgets = (b.gadgets || []).filter(Boolean).join(", ") || "None";
+        const reserve = (b.reserve || []).filter(Boolean).join(", ") || "None";
+        return `
+          <div class="build-card" onclick="loadBuild(${b.id})">
+            <div class="build-card-name">${escapeHtml(b.name)}</div>
+            <div class="build-card-class ${b.class}">${b.class}</div>
+            <div class="build-card-summary">
+              <span>${spec}</span> + <span>${wep}</span><br>
+              Gadgets: ${escapeHtml(gadgets)}<br>
+              Reserve: ${escapeHtml(reserve)}
+            </div>
+            <button class="build-card-delete" onclick="deleteBuild(${b.id}, event)" title="Delete">&times;</button>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    renderSlots();
+    renderBuilds();
+  </script>
+</body>
+</html>
