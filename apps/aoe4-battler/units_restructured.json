@@ -6000,7 +6000,7 @@
     },
     "trainingTime": 15.0,
     "population": 1,
-    "speed": 1.25,
+    "speed": 1.3,
     "tags": [
       "Infantry",
       "Light Infantry",
@@ -6045,7 +6045,7 @@
             }
           },
           "4": {
-            "hp": 140,
+            "hp": 150,
             "meleeArmor": 1,
             "rangedArmor": 0,
             "attack": 11,
@@ -6956,10 +6956,10 @@
       "Order of the Dragon"
     ],
     "costs": {
-      "food": 200,
+      "food": 180,
       "gold": 40
     },
-    "trainingTime": 27.0,
+    "trainingTime": 25,
     "population": 2,
     "speed": 1.125,
     "tags": [
@@ -6974,7 +6974,7 @@
         "attackSpeed": 0.813,
         "ages": {
           "2": {
-            "hp": 230,
+            "hp": 220,
             "meleeArmor": 3,
             "rangedArmor": 3,
             "attack": 14,
@@ -7589,7 +7589,7 @@
       "Macedonian Dynasty"
     ],
     "costs": {
-      "food": 90,
+      "food": 80,
       "gold": 40
     },
     "trainingTime": 25.0,
@@ -7616,7 +7616,7 @@
         "attackSpeed": 1.375,
         "ages": {
           "2": {
-            "hp": 125,
+            "hp": 120,
             "meleeArmor": 4,
             "rangedArmor": 2,
             "attack": 11,
