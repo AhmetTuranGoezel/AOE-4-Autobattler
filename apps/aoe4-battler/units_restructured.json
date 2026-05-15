@@ -6372,10 +6372,10 @@
       "Common"
     ],
     "costs": {
-      "food": 100,
+      "food": 90,
       "gold": 20
     },
-    "trainingTime": 22.5,
+    "trainingTime": 20.5,
     "population": 1,
     "speed": 1.125,
     "tags": [
@@ -19261,21 +19261,21 @@
             "hp": 60,
             "meleeArmor": 0,
             "rangedArmor": 0,
-            "attack": 4,
+            "attack": 5,
             "bonus": {}
           },
           "3": {
             "hp": 70,
             "meleeArmor": 0,
             "rangedArmor": 0,
-            "attack": 6,
+            "attack": 7,
             "bonus": {}
           },
           "4": {
             "hp": 90,
             "meleeArmor": 0,
             "rangedArmor": 0,
-            "attack": 7,
+            "attack": 8,
             "bonus": {}
           }
         }
@@ -19386,7 +19386,7 @@
             "meleeArmor": 3,
             "rangedArmor": 0,
             "rangedResistance": 60,
-            "attack": 14,
+            "attack": 28,
             "bonus": {
               "Melee Infantry": 8
             }
@@ -19396,7 +19396,7 @@
             "meleeArmor": 3,
             "rangedArmor": 0,
             "rangedResistance": 60,
-            "attack": 18,
+            "attack": 36,
             "bonus": {
               "Melee Infantry": 8
             }
@@ -19406,7 +19406,7 @@
             "meleeArmor": 3,
             "rangedArmor": 0,
             "rangedResistance": 60,
-            "attack": 24,
+            "attack": 48,
             "bonus": {
               "Melee Infantry": 10
             }
