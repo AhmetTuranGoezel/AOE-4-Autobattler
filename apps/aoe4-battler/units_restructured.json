@@ -2525,7 +2525,8 @@
       "Knights Templar",
       "Golden Horde",
       "Macedonian Dynasty",
-      "Sengoku Daimyo"
+      "Sengoku Daimyo",
+      "Jin Dynasty"
     ]
   },
   "Royal Knight": {
@@ -4237,7 +4238,8 @@
       "Macedonian Dynasty",
       "Order of the Dragon",
       "Sengoku Daimyo",
-      "Zhu Xi's Legacy"
+      "Zhu Xi's Legacy",
+      "Jin Dynasty"
     ],
     "effects": {
       "poisonedArrows": {
@@ -4965,7 +4967,7 @@
     },
     "trainingTime": 15.0,
     "population": 1,
-    "speed": 1.25,
+    "speed": 1.3,
     "tags": [
       "Infantry",
       "Light Infantry",
@@ -5000,7 +5002,7 @@
             }
           },
           "4": {
-            "hp": 130,
+            "hp": 140,
             "meleeArmor": 0,
             "rangedArmor": 0,
             "attack": 11,
@@ -6864,7 +6866,7 @@
       },
       {
         "name": "Knights Templar",
-        "description": "-5% gold with Kingdom of France",
+        "description": "-5%\u00a0gold with Kingdom of France",
         "category": "moveSpeed",
         "civs": [
           "Knights Templar"
@@ -8890,7 +8892,7 @@
       },
       {
         "name": "Knights Templar",
-        "description": "-5% gold with Kingdom of France",
+        "description": "-5%\u00a0gold with Kingdom of France",
         "category": "moveSpeed",
         "civs": [
           "Knights Templar"
@@ -9670,7 +9672,7 @@
         ]
       },
       {
-        "name": "Foreign Engineering Company :",
+        "name": "Foreign Engineering Company\u00a0:",
         "description": "+10%, grants extra Improved Biology health",
         "category": "hitpoints",
         "civs": [
@@ -11459,7 +11461,8 @@
       "Order of the Dragon",
       "Malians",
       "Knights Templar",
-      "Zhu Xi's Legacy"
+      "Zhu Xi's Legacy",
+      "Jin Dynasty"
     ]
   },
   "Streltsy": {
@@ -12268,7 +12271,7 @@
       },
       {
         "name": "Stone Armies",
-        "description": "-20% stone",
+        "description": "-20%\u00a0stone",
         "category": "nonCombat"
       },
       {
@@ -12321,7 +12324,7 @@
       }
     }
   },
-  "Atgeirmaðr": {
+  "Atgeirma\u00f0r": {
     "civs": [
       "Macedonian Dynasty"
     ],
@@ -12456,7 +12459,7 @@
       }
     }
   },
-  "Bogmaðr": {
+  "Bogma\u00f0r": {
     "civs": [
       "Macedonian Dynasty"
     ],
@@ -12712,7 +12715,7 @@
     "effects": {
       "thrownAxes": {
         "name": "Thrown Axes",
-        "description": "Switches to ranged axes for 10s (30s cooldown) — display only"
+        "description": "Switches to ranged axes for 10s (30s cooldown) \u2014 display only"
       }
     }
   },
@@ -14819,20 +14822,20 @@
             "hp": 155,
             "meleeArmor": 0,
             "rangedArmor": 1,
-            "attack": 11,
+            "attack": 13,
             "chargeDamage": 8,
             "bonus": {
-              "Ranged": 11
+              "Ranged": 13
             }
           },
           "4": {
-            "hp": 180,
+            "hp": 200,
             "meleeArmor": 0,
             "rangedArmor": 3,
-            "attack": 13,
+            "attack": 16,
             "chargeDamage": 10,
             "bonus": {
-              "Ranged": 13
+              "Ranged": 16
             }
           }
         }
@@ -16177,7 +16180,7 @@
       },
       {
         "name": "Kingdom of France",
-        "description": "-5% gold",
+        "description": "-5%\u00a0gold",
         "category": "armor"
       },
       {
@@ -16842,7 +16845,7 @@
       },
       {
         "name": "Kingdom of France",
-        "description": "-5% gold",
+        "description": "-5%\u00a0gold",
         "category": "armor"
       },
       {
@@ -17002,7 +17005,7 @@
       },
       {
         "name": "Kingdom of France",
-        "description": "-5% gold",
+        "description": "-5%\u00a0gold",
         "category": "armor"
       },
       {
@@ -17304,7 +17307,7 @@
       },
       {
         "name": "Kingdom of France",
-        "description": "-5% gold",
+        "description": "-5%\u00a0gold",
         "category": "attack"
       },
       {
@@ -17469,7 +17472,7 @@
       },
       {
         "name": "Kingdom of France",
-        "description": "-5% gold",
+        "description": "-5%\u00a0gold",
         "category": "attack"
       },
       {
@@ -17622,7 +17625,7 @@
       },
       {
         "name": "Kingdom of France",
-        "description": "-5% gold",
+        "description": "-5%\u00a0gold",
         "category": "attack"
       },
       {
@@ -17676,7 +17679,7 @@
             "bonus": {}
           },
           "4": {
-            "hp": 100,
+            "hp": 105,
             "meleeArmor": 0,
             "rangedArmor": 0,
             "attack": 21,
@@ -18993,7 +18996,7 @@
     },
     "trainingTime": 30.0,
     "population": 1,
-    "speed": 1.125,
+    "speed": 1.25,
     "tags": [
       "Infantry",
       "Ranged",
@@ -19018,7 +19021,7 @@
             "hp": 150,
             "meleeArmor": 0,
             "rangedArmor": 0,
-            "attack": 12,
+            "attack": 13,
             "bonus": {
               "Building": 20
             }
