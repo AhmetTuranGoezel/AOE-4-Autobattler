@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-14T15:55:16.757181+00:00",
+  "generatedAt": "2026-05-15T10:10:49.115042+00:00",
   "generatedFrom": "units_restructured.json",
   "civOrder": [
     "Common",
@@ -40,6 +40,11 @@
   "unitReplacements": {
     "Chinese": {
       "Crossbow": "Zhuge Nu"
+    },
+    "Jin Dynasty": {
+      "Archer": "Mohe Tribesman",
+      "Knight/Lancer": "Iron Pagoda",
+      "Handcannoneer": "Eruptor"
     }
   },
   "allTags": [
@@ -128,7 +133,8 @@
         "Macedonian Dynasty",
         "Order of the Dragon",
         "Sengoku Daimyo",
-        "Zhu Xi's Legacy"
+        "Zhu Xi's Legacy",
+        "Jin Dynasty"
       ],
       "costs": {
         "food": 30,
@@ -1208,7 +1214,7 @@
       },
       "trainingTime": 30.0,
       "population": 1,
-      "speed": 1.125,
+      "speed": 1.25,
       "tags": [
         "Infantry",
         "Ranged",
@@ -1237,7 +1243,8 @@
         "Order of the Dragon",
         "Malians",
         "Knights Templar",
-        "Zhu Xi's Legacy"
+        "Zhu Xi's Legacy",
+        "Jin Dynasty"
       ],
       "costs": {
         "food": 120,
@@ -1672,7 +1679,8 @@
         "Knights Templar",
         "Golden Horde",
         "Macedonian Dynasty",
-        "Sengoku Daimyo"
+        "Sengoku Daimyo",
+        "Jin Dynasty"
       ],
       "costs": {
         "food": 140,
@@ -2416,7 +2424,7 @@
       },
       "trainingTime": 15.0,
       "population": 1,
-      "speed": 1.25,
+      "speed": 1.3,
       "tags": [
         "Infantry",
         "Light Infantry",
@@ -3500,16 +3508,13 @@
       "War Elephant"
     ],
     "Jin Dynasty": [
-      "Archer",
       "Battering Ram",
       "Bed Crossbow",
       "Bombard",
       "Crossbow",
       "Eruptor",
-      "Handcannoneer",
       "Horseman",
       "Iron Pagoda",
-      "Knight/Lancer",
       "MAA",
       "Mohe Tribesman",
       "Nest of Bees",

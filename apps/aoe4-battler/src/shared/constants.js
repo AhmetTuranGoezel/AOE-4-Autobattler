@@ -53,6 +53,7 @@ export const CIV_FLAGS = {
 
 export const UNIT_REPLACEMENTS = {
   "Chinese": { "Crossbow": "Zhuge Nu" },
+  "Jin Dynasty": { "Archer": "Mohe Tribesman", "Knight/Lancer": "Iron Pagoda", "Handcannoneer": "Eruptor" },
 };
 
 export const TYPE_ORDER = [
