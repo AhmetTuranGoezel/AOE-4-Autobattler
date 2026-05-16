@@ -3618,21 +3618,6 @@
         ]
       },
       {
-        "name": "Steeled Arrow",
-        "description": "+1",
-        "category": "attack"
-      },
-      {
-        "name": "Balanced Projectiles",
-        "description": "+1",
-        "category": "attack"
-      },
-      {
-        "name": "Platecutter Point",
-        "description": "+1",
-        "category": "attack"
-      },
-      {
         "name": "Incendiary Arrows",
         "description": "+20%, +3 siege damage vs buildings, all except Malians",
         "category": "attack",
