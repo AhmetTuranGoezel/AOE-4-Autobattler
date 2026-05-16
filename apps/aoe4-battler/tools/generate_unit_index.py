@@ -29,10 +29,12 @@ CIV_ORDER = [
     "Macedonian Dynasty",
     "Sengoku Daimyo",
     "Tughlaq Dynasty",
+    "Jin Dynasty",
 ]
 
 UNIT_REPLACEMENTS = {
     "Chinese": {"Crossbow": "Zhuge Nu"},
+    "Jin Dynasty": {"Archer": "Mohe Tribesman", "Knight/Lancer": "Iron Pagoda", "Handcannoneer": "Eruptor"},
 }
 
 TYPE_ORDER = [
