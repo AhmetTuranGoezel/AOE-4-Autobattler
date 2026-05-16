@@ -9,7 +9,7 @@
   --glow: rgba(192, 122, 45, 0.35);
   --panel: rgba(247, 240, 223, 0.94);
   --shadow: 0 24px 40px rgba(16, 12, 8, 0.25);
-  --hex-size: 40px;
+  --hex-size: 30px;
   --hex-w: calc(var(--hex-size) * 1.732);
   --hex-h: calc(var(--hex-size) * 2);
 }
@@ -370,7 +370,7 @@ body {
   min-height: 560px;
   border-radius: 16px;
   background: radial-gradient(circle at top, rgba(255, 255, 255, 0.07), transparent 60%);
-  overflow: hidden;
+  overflow: auto;
 }
 
 .hex {
