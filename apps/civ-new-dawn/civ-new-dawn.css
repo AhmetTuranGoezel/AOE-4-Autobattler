@@ -628,6 +628,34 @@ body {
   gap: 4px;
 }
 
+.district-pick {
+  text-transform: capitalize;
+  min-width: 100px;
+}
+
+.hex-info .action-row {
+  border-bottom: 1px solid rgba(120, 90, 60, 0.1);
+  padding: 4px 0;
+}
+
+.hex-info .action-row:last-child {
+  border-bottom: none;
+}
+
+.gov-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.gov-btn {
+  text-transform: capitalize;
+}
+
+.res-toggle {
+  text-transform: capitalize;
+}
+
 @media (max-width: 1200px) {
   .layout {
     grid-template-columns: 1fr;
