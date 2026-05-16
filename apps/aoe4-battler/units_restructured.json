@@ -2525,7 +2525,8 @@
       "Knights Templar",
       "Golden Horde",
       "Macedonian Dynasty",
-      "Sengoku Daimyo"
+      "Sengoku Daimyo",
+      "Jin Dynasty"
     ]
   },
   "Royal Knight": {
@@ -4237,7 +4238,8 @@
       "Macedonian Dynasty",
       "Order of the Dragon",
       "Sengoku Daimyo",
-      "Zhu Xi's Legacy"
+      "Zhu Xi's Legacy",
+      "Jin Dynasty"
     ],
     "effects": {
       "poisonedArrows": {
@@ -4965,7 +4967,7 @@
     },
     "trainingTime": 15.0,
     "population": 1,
-    "speed": 1.25,
+    "speed": 1.3,
     "tags": [
       "Infantry",
       "Light Infantry",
@@ -5000,7 +5002,7 @@
             }
           },
           "4": {
-            "hp": 130,
+            "hp": 140,
             "meleeArmor": 0,
             "rangedArmor": 0,
             "attack": 11,
@@ -5998,7 +6000,7 @@
     },
     "trainingTime": 15.0,
     "population": 1,
-    "speed": 1.25,
+    "speed": 1.3,
     "tags": [
       "Infantry",
       "Light Infantry",
@@ -6043,7 +6045,7 @@
             }
           },
           "4": {
-            "hp": 140,
+            "hp": 150,
             "meleeArmor": 1,
             "rangedArmor": 0,
             "attack": 11,
@@ -6186,7 +6188,7 @@
     },
     "trainingTime": 17.0,
     "population": 1,
-    "speed": 1.25,
+    "speed": 1.3,
     "tags": [
       "Infantry",
       "Light Infantry",
@@ -6233,7 +6235,7 @@
             }
           },
           "4": {
-            "hp": 140,
+            "hp": 150,
             "meleeArmor": 0,
             "rangedArmor": 0,
             "attack": 11,
@@ -6370,10 +6372,10 @@
       "Common"
     ],
     "costs": {
-      "food": 100,
+      "food": 90,
       "gold": 20
     },
-    "trainingTime": 22.5,
+    "trainingTime": 20.5,
     "population": 1,
     "speed": 1.125,
     "tags": [
@@ -6954,10 +6956,10 @@
       "Order of the Dragon"
     ],
     "costs": {
-      "food": 200,
+      "food": 180,
       "gold": 40
     },
-    "trainingTime": 27.0,
+    "trainingTime": 25,
     "population": 2,
     "speed": 1.125,
     "tags": [
@@ -6972,7 +6974,7 @@
         "attackSpeed": 0.813,
         "ages": {
           "2": {
-            "hp": 230,
+            "hp": 220,
             "meleeArmor": 3,
             "rangedArmor": 3,
             "attack": 14,
@@ -7091,10 +7093,10 @@
       "Ayyubids"
     ],
     "costs": {
-      "food": 120,
+      "food": 110,
       "gold": 30
     },
-    "trainingTime": 26.0,
+    "trainingTime": 25,
     "population": 1,
     "speed": 1.188,
     "tags": [
@@ -7314,10 +7316,10 @@
       "Zhu Xi's Legacy"
     ],
     "costs": {
-      "food": 100,
+      "food": 90,
       "gold": 25
     },
-    "trainingTime": 22.5,
+    "trainingTime": 20.5,
     "population": 1,
     "speed": 1.375,
     "tags": [
@@ -7587,7 +7589,7 @@
       "Macedonian Dynasty"
     ],
     "costs": {
-      "food": 90,
+      "food": 80,
       "gold": 40
     },
     "trainingTime": 25.0,
@@ -7614,7 +7616,7 @@
         "attackSpeed": 1.375,
         "ages": {
           "2": {
-            "hp": 125,
+            "hp": 120,
             "meleeArmor": 4,
             "rangedArmor": 2,
             "attack": 11,
@@ -7893,7 +7895,7 @@
       "Japanese"
     ],
     "costs": {
-      "food": 100,
+      "food": 90,
       "gold": 30
     },
     "trainingTime": 20.0,
@@ -8075,10 +8077,10 @@
       "House of Lancaster"
     ],
     "costs": {
-      "food": 100,
+      "food": 90,
       "gold": 20
     },
-    "trainingTime": 22.5,
+    "trainingTime": 20.5,
     "population": 1,
     "speed": 1.25,
     "tags": [
@@ -11459,7 +11461,8 @@
       "Order of the Dragon",
       "Malians",
       "Knights Templar",
-      "Zhu Xi's Legacy"
+      "Zhu Xi's Legacy",
+      "Jin Dynasty"
     ]
   },
   "Streltsy": {
@@ -12331,7 +12334,7 @@
     },
     "trainingTime": 17.0,
     "population": 1,
-    "speed": 1.25,
+    "speed": 1.3,
     "tags": [
       "Infantry",
       "Light Infantry",
@@ -12367,7 +12370,7 @@
             }
           },
           "4": {
-            "hp": 140,
+            "hp": 150,
             "meleeArmor": 0,
             "rangedArmor": 0,
             "attack": 11,
@@ -12621,14 +12624,14 @@
         "attackSpeed": 1.375,
         "ages": {
           "3": {
-            "hp": 240,
+            "hp": 230,
             "meleeArmor": 4,
             "rangedArmor": 4,
             "attack": 24,
             "bonus": {}
           },
           "4": {
-            "hp": 280,
+            "hp": 270,
             "meleeArmor": 5,
             "rangedArmor": 5,
             "attack": 29,
@@ -12899,7 +12902,7 @@
             "hp": 400,
             "meleeArmor": 2,
             "rangedArmor": 2,
-            "attack": 17,
+            "attack": 18,
             "bonus": {
               "Infantry": 14
             }
@@ -12908,7 +12911,7 @@
             "hp": 475,
             "meleeArmor": 3,
             "rangedArmor": 3,
-            "attack": 19,
+            "attack": 20,
             "bonus": {
               "Infantry": 18
             }
@@ -12926,21 +12929,6 @@
         "name": "Elephant Caretakers",
         "description": "+1 HP/s out of combat",
         "category": "hitpoints"
-      },
-      {
-        "name": "Steeled Arrow",
-        "description": "+1",
-        "category": "attack"
-      },
-      {
-        "name": "Balanced Projectiles",
-        "description": "+1",
-        "category": "attack"
-      },
-      {
-        "name": "Platecutter Point",
-        "description": "+1",
-        "category": "attack"
       },
       {
         "name": "Collateral Damage",
@@ -13016,8 +13004,8 @@
       "Sengoku Daimyo"
     ],
     "costs": {
-      "food": 130,
-      "gold": 30
+      "food": 100,
+      "gold": 20
     },
     "trainingTime": 24.0,
     "population": 1,
@@ -13211,8 +13199,8 @@
       "Sengoku Daimyo"
     ],
     "costs": {
-      "food": 100,
-      "gold": 20
+      "food": 90,
+      "gold": 30
     },
     "trainingTime": 22.5,
     "population": 1,
@@ -14465,7 +14453,9 @@
             "rangedArmor": 4,
             "attack": 24,
             "chargeDamage": 12,
-            "bonus": {}
+            "bonus": {
+              "Infantry": 3
+            }
           },
           "4": {
             "hp": 270,
@@ -14473,7 +14463,9 @@
             "rangedArmor": 5,
             "attack": 29,
             "chargeDamage": 14,
-            "bonus": {}
+            "bonus": {
+              "Infantry": 3
+            }
           }
         }
       }
@@ -14819,20 +14811,20 @@
             "hp": 155,
             "meleeArmor": 0,
             "rangedArmor": 1,
-            "attack": 11,
+            "attack": 13,
             "chargeDamage": 8,
             "bonus": {
-              "Ranged": 11
+              "Ranged": 13
             }
           },
           "4": {
-            "hp": 180,
+            "hp": 200,
             "meleeArmor": 0,
             "rangedArmor": 3,
-            "attack": 13,
+            "attack": 16,
             "chargeDamage": 10,
             "bonus": {
-              "Ranged": 13
+              "Ranged": 16
             }
           }
         }
@@ -16722,7 +16714,7 @@
             }
           },
           "4": {
-            "hp": 170,
+            "hp": 180,
             "meleeArmor": 5,
             "rangedArmor": 5,
             "attack": 13,
@@ -17634,8 +17626,8 @@
     "effects": {
       "gunpowderResistance": {
         "name": "Warfare Experience",
-        "reduction": 33,
-        "description": "Takes 33% less damage from gunpowder units"
+        "reduction": 50,
+        "description": "Takes 50% less damage from gunpowder units"
       }
     }
   },
@@ -17669,14 +17661,14 @@
         "attackSpeed": 1.375,
         "ages": {
           "3": {
-            "hp": 85,
+            "hp": 90,
             "meleeArmor": 0,
             "rangedArmor": 0,
             "attack": 17,
             "bonus": {}
           },
           "4": {
-            "hp": 100,
+            "hp": 105,
             "meleeArmor": 0,
             "rangedArmor": 0,
             "attack": 21,
@@ -17876,14 +17868,14 @@
         "attackSpeed": 1.375,
         "ages": {
           "3": {
-            "hp": 180,
+            "hp": 185,
             "meleeArmor": 0,
             "rangedArmor": 0,
             "attack": 21,
             "bonus": {}
           },
           "4": {
-            "hp": 220,
+            "hp": 225,
             "meleeArmor": 0,
             "rangedArmor": 0,
             "attack": 25,
@@ -18377,7 +18369,8 @@
       "Common"
     ],
     "exceptCivs": [
-      "Tughlaq Dynasty"
+      "Tughlaq Dynasty",
+      "Jin Dynasty"
     ],
     "costs": {
       "wood": 150,
@@ -18407,7 +18400,7 @@
             "meleeArmor": 3,
             "rangedArmor": 0,
             "rangedResistance": 55,
-            "attack": 14,
+            "attack": 15,
             "bonus": {
               "Melee Infantry": 12
             }
@@ -18417,7 +18410,7 @@
             "meleeArmor": 3,
             "rangedArmor": 0,
             "rangedResistance": 55,
-            "attack": 14,
+            "attack": 15,
             "bonus": {
               "Melee Infantry": 12
             }
@@ -18433,7 +18426,8 @@
     ],
     "exceptCivs": [
       "Chinese",
-      "Zhu Xi's Legacy"
+      "Zhu Xi's Legacy",
+      "Jin Dynasty"
     ],
     "costs": {
       "wood": 400,
@@ -18733,7 +18727,8 @@
     ],
     "exceptCivs": [
       "Mongols",
-      "Golden Horde"
+      "Golden Horde",
+      "Jin Dynasty"
     ],
     "costs": {
       "wood": 400,
@@ -18872,7 +18867,8 @@
   "Nest of Bees": {
     "civs": [
       "Chinese",
-      "Zhu Xi's Legacy"
+      "Zhu Xi's Legacy",
+      "Jin Dynasty"
     ],
     "costs": {
       "wood": 300,
@@ -18926,7 +18922,8 @@
   "Traction Trebuchet": {
     "civs": [
       "Mongols",
-      "Golden Horde"
+      "Golden Horde",
+      "Jin Dynasty"
     ],
     "costs": {
       "wood": 300,
@@ -18988,7 +18985,7 @@
     },
     "trainingTime": 30.0,
     "population": 1,
-    "speed": 1.125,
+    "speed": 1.25,
     "tags": [
       "Infantry",
       "Ranged",
@@ -19013,7 +19010,7 @@
             "hp": 150,
             "meleeArmor": 0,
             "rangedArmor": 0,
-            "attack": 12,
+            "attack": 13,
             "bonus": {
               "Building": 20
             }
@@ -19175,5 +19172,237 @@
         ]
       }
     ]
+  },
+  "Iron Pagoda": {
+    "civs": [
+      "Jin Dynasty"
+    ],
+    "costs": {
+      "food": 115,
+      "gold": 125
+    },
+    "trainingTime": 30,
+    "population": 2,
+    "speed": 1.625,
+    "tags": [
+      "Cavalry",
+      "Heavy",
+      "Melee"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 0.29,
+        "attackSpeed": 1.625,
+        "ages": {
+          "2": {
+            "hp": 200,
+            "meleeArmor": 4,
+            "rangedArmor": 3,
+            "attack": 16,
+            "chargeDamage": 8,
+            "bonus": {}
+          },
+          "3": {
+            "hp": 250,
+            "meleeArmor": 6,
+            "rangedArmor": 4,
+            "attack": 20,
+            "chargeDamage": 10,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 290,
+            "meleeArmor": 7,
+            "rangedArmor": 5,
+            "attack": 23,
+            "chargeDamage": 12,
+            "bonus": {}
+          }
+        }
+      }
+    },
+    "upgrades": []
+  },
+  "Mohe Tribesman": {
+    "civs": [
+      "Jin Dynasty"
+    ],
+    "costs": {
+      "food": 35,
+      "wood": 35
+    },
+    "trainingTime": 18,
+    "population": 1,
+    "speed": 1.625,
+    "tags": [
+      "Cavalry",
+      "Ranged",
+      "Light"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 5,
+        "attackSpeed": 1.625,
+        "ages": {
+          "2": {
+            "hp": 60,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 5,
+            "bonus": {}
+          },
+          "3": {
+            "hp": 70,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 7,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 90,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 8,
+            "bonus": {}
+          }
+        }
+      }
+    },
+    "upgrades": []
+  },
+  "Zhanma Swordsman": {
+    "civs": [
+      "Jin Dynasty"
+    ],
+    "costs": {
+      "food": 90,
+      "gold": 80
+    },
+    "trainingTime": 28,
+    "population": 1,
+    "speed": 1.25,
+    "tags": [
+      "Infantry",
+      "Heavy",
+      "Melee",
+      "Melee Infantry"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 0.29,
+        "attackSpeed": 1.375,
+        "ages": {
+          "4": {
+            "hp": 250,
+            "meleeArmor": 5,
+            "rangedArmor": 5,
+            "attack": 20,
+            "bonus": {
+              "Cavalry": 12
+            }
+          }
+        }
+      }
+    },
+    "upgrades": []
+  },
+  "Eruptor": {
+    "civs": [
+      "Jin Dynasty"
+    ],
+    "costs": {
+      "food": 120,
+      "gold": 150
+    },
+    "trainingTime": 40,
+    "population": 1,
+    "speed": 1.125,
+    "tags": [
+      "Infantry",
+      "Ranged",
+      "Gunpowder"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 3.5,
+        "attackSpeed": 2.125,
+        "ages": {
+          "4": {
+            "hp": 155,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 42,
+            "bonus": {}
+          }
+        }
+      }
+    },
+    "upgrades": []
+  },
+  "Bed Crossbow": {
+    "civs": [
+      "Jin Dynasty"
+    ],
+    "costs": {
+      "wood": 125,
+      "gold": 100
+    },
+    "trainingTime": 30,
+    "population": 2,
+    "speed": 0.91,
+    "tags": [
+      "Siege"
+    ],
+    "effects": {
+      "aoeSplash": {
+        "name": "Piercing Bolts",
+        "description": "Fires 2 large bolts that pierce through multiple units in a line",
+        "unitsHit": 3
+      }
+    },
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 7.5,
+        "attackSpeed": 3.125,
+        "ages": {
+          "2": {
+            "hp": 85,
+            "meleeArmor": 3,
+            "rangedArmor": 0,
+            "rangedResistance": 60,
+            "attack": 32,
+            "bonus": {
+              "Melee Infantry": 8
+            }
+          },
+          "3": {
+            "hp": 95,
+            "meleeArmor": 3,
+            "rangedArmor": 0,
+            "rangedResistance": 60,
+            "attack": 40,
+            "bonus": {
+              "Melee Infantry": 8
+            }
+          },
+          "4": {
+            "hp": 110,
+            "meleeArmor": 3,
+            "rangedArmor": 0,
+            "rangedResistance": 60,
+            "attack": 52,
+            "bonus": {
+              "Melee Infantry": 10
+            }
+          }
+        }
+      }
+    },
+    "upgrades": []
   }
 }

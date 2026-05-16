@@ -460,7 +460,7 @@
       gap: 12px;
       overflow-x: auto;
       overflow-y: hidden;
-      padding: 2px 2px 18px;
+      padding: 6px 4px 18px;
       overscroll-behavior-inline: contain;
       scroll-behavior: smooth;
       scrollbar-color: rgba(255, 255, 255, 0.46) rgba(255, 255, 255, 0.08);
@@ -522,6 +522,7 @@
     .slot-track {
       display: flex;
       gap: 10px;
+      padding: 5px 2px;
     }
 
     .item-card {
@@ -855,8 +856,6 @@
 
     .picker-strip:hover,
     .picker-strip:focus-within,
-    .loadout-board:hover,
-    .loadout-board:focus-within,
     .saved-rail:hover,
     .saved-rail:focus-within {
       background: rgba(255, 255, 255, 0.025);
@@ -2103,6 +2102,18 @@
       return null;
     }
 
+    function findSlotHoldingItem(build, itemName) {
+      if (build.specialization === itemName) return { area: 'specialization', index: 0 };
+      if (build.mainWeapon === itemName) return { area: 'mainWeapon', index: 0 };
+      for (let i = 0; i < build.mainGadgets.length; i++) {
+        if (build.mainGadgets[i] === itemName) return { area: 'mainGadget', index: i };
+      }
+      for (let i = 0; i < build.reserve.length; i++) {
+        if (build.reserve[i].primary === itemName) return { area: 'reserve', index: i };
+      }
+      return null;
+    }
+
     function getPickerItemState(itemName) {
       if (!state.activeSlot) {
         return { selected: false, disabled: false };
@@ -2477,12 +2488,25 @@
       }
 
       const itemState = getPickerItemState(itemName);
+      const slot = state.activeSlot;
+
       if (itemState.disabled) {
+        if (slot.mode === 'single') {
+          const occupied = findSlotHoldingItem(state.currentBuild, itemName);
+          if (occupied && occupied.area === slot.area && occupied.index !== slot.index) {
+            const currentValue = getCurrentSlotValue();
+            setPrimaryValue(state.currentBuild, slot.area, itemName, slot.index);
+            setPrimaryValue(state.currentBuild, occupied.area, currentValue || '', occupied.index);
+            setPulse(slot.area === 'mainGadget' || slot.area === 'reserve' ? `${slot.area}-${slot.index}` : slot.area);
+            state.activeSlot = null;
+            render();
+            return;
+          }
+        }
         showToast('Already used');
         return;
       }
 
-      const slot = state.activeSlot;
       if (slot.mode === 'alternatives') {
         const alternatives = getAlternativeList(state.currentBuild, slot.area, slot.index);
         if (alternatives.includes(itemName)) {
@@ -2821,7 +2845,7 @@
     });
 
     document.addEventListener('wheel', (event) => {
-      const rail = event.target.closest('.picker-strip, .loadout-board, .saved-rail');
+      const rail = event.target.closest('.picker-strip, .saved-rail');
       if (!rail) {
         return;
       }
