@@ -247,9 +247,9 @@ body {
 
 .player-meta {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  font-size: 0.78rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  font-size: 0.72rem;
   color: #6b5a46;
 }
 
@@ -307,7 +307,21 @@ body {
 .focus-trade {
   font-size: 0.75rem;
   color: #6f5b44;
+  letter-spacing: 0.1em;
 }
+
+.gov-bonus {
+  font-size: 0.65rem;
+  color: #4d8f5d;
+  margin-left: 2px;
+}
+
+.focus-growth { border-left: 3px solid #4d8f5d; }
+.focus-culture { border-left: 3px solid #9b59b6; }
+.focus-science { border-left: 3px solid #3498db; }
+.focus-economy { border-left: 3px solid #f1c40f; }
+.focus-military { border-left: 3px solid #e74c3c; }
+.focus-industry { border-left: 3px solid #95a5a6; }
 
 .focus-hint {
   font-size: 0.75rem;
@@ -531,6 +545,87 @@ body {
   color: rgba(255, 255, 255, 0.65);
   font-size: 0.8rem;
   text-align: center;
+}
+
+.event-wheel-track {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.event-pip {
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: rgba(255, 255, 255, 0.45);
+  color: #6b5a46;
+  border: 1px solid rgba(120, 90, 60, 0.2);
+}
+
+.event-pip.active {
+  background: rgba(212, 154, 78, 0.5);
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
+.event-pip.next {
+  border-color: rgba(212, 154, 78, 0.4);
+  background: rgba(212, 154, 78, 0.15);
+}
+
+.event-info {
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(212, 154, 78, 0.12);
+  font-size: 0.78rem;
+  color: #6c4b24;
+}
+
+.action-card.victory {
+  background: linear-gradient(160deg, rgba(255, 244, 222, 0.95), rgba(226, 203, 167, 0.92));
+  border-color: var(--accent);
+}
+
+.action-card.victory .action-title {
+  font-family: "Cinzel", serif;
+  font-size: 1.2rem;
+  color: var(--accent-dark);
+}
+
+.action-row.scores {
+  display: grid;
+  gap: 4px;
+  font-size: 0.8rem;
+}
+
+.action-row.btn-row {
+  flex-wrap: wrap;
+}
+
+.recruit-row {
+  flex-wrap: wrap;
+}
+
+.resource-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(128, 92, 53, 0.15);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.dim {
+  opacity: 0.65;
+  font-size: 0.78rem;
+}
+
+.resource-row {
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
 @media (max-width: 1200px) {
