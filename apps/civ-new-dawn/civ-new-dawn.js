@@ -38,16 +38,16 @@
   };
 
   const CORE_ANCHORS = [
-    { q: 0, r: 0 },
-    { q: -3, r: 1 },
-    { q: -4, r: -1 },
-    { q: 0, r: 3 }
+    { q: -2, r: -1 },
+    { q: 2, r: -1 },
+    { q: -2, r: 2 },
+    { q: 2, r: 2 }
   ];
 
   const TILE_OFFSETS = buildTileOffsets();
 
   const DEFAULTS = {
-    mapRadius: 5,
+    mapRadius: 9,
     revealRadius: 2,
     baseWagonMove: 3,
     baseArmyMove: 4
@@ -841,18 +841,11 @@
 
   function buildTileOffsets() {
     const coords = [
-      { r: 0, c: 1 },
-      { r: 0, c: 2 },
-      { r: 1, c: 0 },
-      { r: 1, c: 1 },
-      { r: 1, c: 2 },
-      { r: 2, c: 1 },
-      { r: 2, c: 2 },
-      { r: 3, c: 0 },
-      { r: 3, c: 1 },
-      { r: 4, c: 1 }
+      { r: 0, c: 0 }, { r: 0, c: 1 }, { r: 0, c: 2 }, { r: 0, c: 3 },
+      { r: 1, c: 0 }, { r: 1, c: 1 }, { r: 1, c: 2 }, { r: 1, c: 3 },
+      { r: 2, c: 2 }, { r: 2, c: 3 }
     ];
-    const pivot = { r: 2, c: 1 };
+    const pivot = { r: 1, c: 1 };
     const pivotAxial = offsetToAxial(pivot.r, pivot.c);
     return coords.map((cell) => {
       const axial = offsetToAxial(cell.r, cell.c);
