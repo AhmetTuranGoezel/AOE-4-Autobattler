@@ -55,6 +55,8 @@
     economy: { label: "Economy Victory", check: (p) => countDevelopedCities(p.id) >= 4 }
   };
 
+  const MAX_GOV_MARKERS = 2;
+
   const BARBARIAN_DIRECTIONS = [
     { dq: 1, dr: 0 },
     { dq: -1, dr: 0 },
@@ -523,6 +525,11 @@
     hex.fortress = false;
     hex.terrain = "grass";
     revealAround(gameState.map, pos, DEFAULTS.revealRadius);
+    const player = gameState.players.find((p) => p.id === playerId);
+    if (player) {
+      player.armies.forEach((u) => { if (!u.position) u.position = pos; });
+      player.wagons.forEach((u) => { if (!u.position) u.position = pos; });
+    }
   }
 
   function revealAround(map, key, radius) {
@@ -1193,6 +1200,17 @@
       return;
     }
 
+    if (type === "ASSIGN_GOV") {
+      const player = getPlayer(payload.playerId);
+      if (!player) return;
+      const markers = (payload.markers || []).slice(0, MAX_GOV_MARKERS);
+      player.govMarkers = markers;
+      FOCUS_ORDER.forEach((f) => { player.govBonus[f] = 0; });
+      markers.forEach((f) => { player.govBonus[f] = (player.govBonus[f] || 0) + 1; });
+      logEntry(`${player.name} reassigned government markers.`);
+      return;
+    }
+
     if (type === "RESOLVE_EVENT") {
       resolveEvent(payload.eventType);
       return;
@@ -1415,11 +1433,20 @@
         }
         logEntry(`${player.name}: +${tradeCount} trade markers from trade districts.`);
       }
+      if (encampmentCount > 0 && player.armies.length < DEFAULTS.maxArmies) {
+        const toRecruit = Math.min(encampmentCount, DEFAULTS.maxArmies - player.armies.length);
+        for (let i = 0; i < toRecruit; i++) {
+          player.armies.push(createUnit("army", player.armies.length + 1));
+        }
+        logEntry(`${player.name}: recruited ${toRecruit} army(s) from encampment districts.`);
+      }
       if (industrialCount > 0) {
-        logEntry(`${player.name}: ${industrialCount} industrial district(s) ready for production bonus.`);
+        player.govBonus.industry = Math.min(3, (player.govBonus.industry || 0) + industrialCount);
+        logEntry(`${player.name}: +${industrialCount} industry bonus from industrial districts.`);
       }
       if (theaterCount > 0) {
-        logEntry(`${player.name}: ${theaterCount} theater(s) generate culture influence.`);
+        player.govBonus.culture = Math.min(3, (player.govBonus.culture || 0) + theaterCount);
+        logEntry(`${player.name}: +${theaterCount} culture bonus from theater districts.`);
       }
     });
 
@@ -1779,6 +1806,10 @@
         recruits.push(`<button class="btn tiny" id="recruit-wagon">Recruit Wagon</button>`);
       }
 
+      const govDisplay = player.govMarkers.length
+        ? `Gov: ${player.govMarkers.map((m) => FOCUS_META[m].label).join(", ")}`
+        : "Gov: none assigned";
+
       dom.actionPanel.innerHTML = `
         <div class="action-card">
           ${eventInfo}
@@ -1789,6 +1820,7 @@
             <div class="action-row resource-row">
               ${Object.entries(player.resources).filter(([, v]) => v > 0).map(([k, v]) => `<span class="resource-badge">${k}: ${v}</span>`).join(" ") || "<span class='dim'>No resources</span>"}
             </div>
+            <div class="action-row"><span class="dim">${govDisplay}</span><button class="btn tiny" id="assign-gov">Assign Gov</button></div>
             <button class="btn" id="end-turn">End Turn</button>
           ` : ""}
         </div>
@@ -1800,6 +1832,8 @@
         if (raBtn) raBtn.addEventListener("click", () => dispatch({ type: "RECRUIT_ARMY", payload: { playerId: player.id } }));
         const rwBtn = document.getElementById("recruit-wagon");
         if (rwBtn) rwBtn.addEventListener("click", () => dispatch({ type: "RECRUIT_WAGON", payload: { playerId: player.id } }));
+        const govBtn = document.getElementById("assign-gov");
+        if (govBtn) govBtn.addEventListener("click", () => showGovPicker(player));
       }
       return;
     }
@@ -2027,12 +2061,27 @@
         </div>
       `;
       document.getElementById("growth-district").addEventListener("click", () => {
-        ui.mode = "place-district";
-        ui.remaining = 1;
-        ui.districtType = DISTRICT_TYPES[0];
-        ui.selectable = new Set(validControlPlacements(player.id, card.effectiveSlot, true));
-        renderActions();
-        renderMap();
+        ui.mode = "pick-district";
+        dom.actionPanel.innerHTML = `
+          <div class="action-card">
+            <div class="action-title">Choose District Type</div>
+            ${DISTRICT_TYPES.map((d) => `<div class="action-row"><button class="btn district-pick" data-type="${d}">${d}</button></div>`).join("")}
+            <div class="action-row"><button class="btn ghost" id="district-back">Back</button></div>
+          </div>
+        `;
+        document.querySelectorAll(".district-pick").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            ui.districtType = btn.dataset.type;
+            ui.mode = "place-district";
+            ui.remaining = 1;
+            ui.selectable = new Set(validControlPlacements(player.id, card.effectiveSlot, true));
+            renderActions();
+            renderMap();
+          });
+        });
+        document.getElementById("district-back").addEventListener("click", () => {
+          startActionPhase();
+        });
       });
       document.getElementById("growth-reinforce").addEventListener("click", () => {
         ui.mode = "reinforce";
@@ -2060,40 +2109,65 @@
       logEntry(`${player.name} is moving wagons.`);
     } else if (card.type === "industry") {
       ui.mode = "industry-choice";
-      const production = card.effectiveSlot + card.tradeSpent;
-      const resourceBonus = Object.values(player.resources).reduce((s, v) => s + v, 0) * DEFAULTS.resourceProductionValue;
-      const totalProd = production + resourceBonus;
-      dom.actionPanel.innerHTML = `
-        <div class="action-card">
-          <div class="action-title">Industry (Production: ${totalProd})</div>
-          <div class="action-row dim">Base ${production} + ${resourceBonus} from resources</div>
-          <div class="action-row"><button class="btn" id="industry-city">Build City (cost = terrain difficulty)</button></div>
-          <div class="action-row"><button class="btn" id="industry-wonder">Build Wonder (cost = 6)</button></div>
-          <div class="action-row"><button class="btn ghost" id="industry-back">Back</button></div>
-        </div>
-      `;
-      document.getElementById("industry-city").addEventListener("click", () => {
-        ui.mode = "build-city";
-        ui.selectable = new Set(validCityPlacements(player.id, totalProd));
-        renderActions();
-        renderMap();
-      });
-      document.getElementById("industry-wonder").addEventListener("click", () => {
-        if (totalProd < 6) {
-          logEntry("Not enough production to build a wonder (need 6).");
-          return;
-        }
-        ui.mode = "build-wonder";
-        ui.selectable = new Set(validWonderPlacements(player.id));
-        renderActions();
-        renderMap();
-      });
-      document.getElementById("industry-back").addEventListener("click", () => {
-        ui.mode = "inspect";
-        ui.selectable.clear();
-        renderActions();
-        renderMap();
-      });
+      ui.spentResources = ui.spentResources || {};
+      const showIndustry = () => {
+        const baseProd = card.effectiveSlot + card.tradeSpent;
+        const resEntries = Object.entries(player.resources).filter(([, v]) => v > 0);
+        let spentBonus = 0;
+        Object.values(ui.spentResources).forEach((v) => { if (v) spentBonus += DEFAULTS.resourceProductionValue; });
+        const totalProd = baseProd + spentBonus;
+
+        const resToggleHtml = resEntries.length > 0
+          ? resEntries.map(([k, v]) => {
+            const checked = ui.spentResources[k] ? "primary" : "";
+            return `<button class="btn tiny res-toggle ${checked}" data-res="${k}">${k} (${v}) +${DEFAULTS.resourceProductionValue}</button>`;
+          }).join(" ")
+          : "<span class='dim'>No resources available</span>";
+
+        dom.actionPanel.innerHTML = `
+          <div class="action-card">
+            <div class="action-title">Industry (Production: ${totalProd})</div>
+            <div class="action-row dim">Base ${baseProd} + ${spentBonus} from spent resources</div>
+            <div class="action-row resource-row">${resToggleHtml}</div>
+            <div class="action-row"><button class="btn" id="industry-city">Build City (cost = terrain difficulty)</button></div>
+            <div class="action-row"><button class="btn" id="industry-wonder">Build Wonder (cost = 6)</button></div>
+            <div class="action-row"><button class="btn ghost" id="industry-back">Back</button></div>
+          </div>
+        `;
+        document.querySelectorAll(".res-toggle").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const res = btn.dataset.res;
+            ui.spentResources[res] = !ui.spentResources[res];
+            showIndustry();
+          });
+        });
+        document.getElementById("industry-city").addEventListener("click", () => {
+          spendSelectedResources(player);
+          ui.mode = "build-city";
+          ui.selectable = new Set(validCityPlacements(player.id, totalProd));
+          renderActions();
+          renderMap();
+        });
+        document.getElementById("industry-wonder").addEventListener("click", () => {
+          if (totalProd < 6) {
+            logEntry("Not enough production to build a wonder (need 6).");
+            return;
+          }
+          spendSelectedResources(player);
+          ui.mode = "build-wonder";
+          ui.selectable = new Set(validWonderPlacements(player.id));
+          renderActions();
+          renderMap();
+        });
+        document.getElementById("industry-back").addEventListener("click", () => {
+          ui.spentResources = {};
+          ui.mode = "inspect";
+          ui.selectable.clear();
+          renderActions();
+          renderMap();
+        });
+      };
+      showIndustry();
       return;
     } else if (card.type === "military") {
       ui.mode = "move-army";
@@ -2173,7 +2247,10 @@
       return;
     }
     const player = getPlayer(localPlayerId);
-    if (!player || !ui.activeCard) return;
+    if (!player || !ui.activeCard) {
+      showHexInfo(key);
+      return;
+    }
 
     if (ui.mode === "place-control") {
       if (!ui.selectable.has(key)) return;
@@ -2236,6 +2313,104 @@
       renderMap();
       return;
     }
+  }
+
+  function spendSelectedResources(player) {
+    if (!ui.spentResources) return;
+    Object.entries(ui.spentResources).forEach(([resType, spent]) => {
+      if (spent) {
+        dispatch({ type: "SPEND_RESOURCE", payload: { playerId: player.id, resourceType: resType } });
+      }
+    });
+    ui.spentResources = {};
+  }
+
+  function showGovPicker(player) {
+    let selected = player.govMarkers.slice();
+    const render = () => {
+      const buttons = FOCUS_ORDER.map((f) => {
+        const isActive = selected.includes(f);
+        return `<button class="btn tiny gov-btn ${isActive ? "primary" : ""}" data-focus="${f}">${FOCUS_META[f].label}${isActive ? " ✓" : ""}</button>`;
+      }).join(" ");
+      dom.actionPanel.innerHTML = `
+        <div class="action-card">
+          <div class="action-title">Assign Government Markers (max ${MAX_GOV_MARKERS})</div>
+          <div class="action-row dim">Each marker adds +1 to that focus card's slot value.</div>
+          <div class="action-row gov-picker">${buttons}</div>
+          <div class="action-row">
+            <button class="btn primary" id="gov-confirm">Confirm</button>
+            <button class="btn ghost" id="gov-cancel">Cancel</button>
+          </div>
+        </div>
+      `;
+      document.querySelectorAll(".gov-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const f = btn.dataset.focus;
+          if (selected.includes(f)) {
+            selected = selected.filter((s) => s !== f);
+          } else if (selected.length < MAX_GOV_MARKERS) {
+            selected.push(f);
+          }
+          render();
+        });
+      });
+      document.getElementById("gov-confirm").addEventListener("click", () => {
+        dispatch({ type: "ASSIGN_GOV", payload: { playerId: player.id, markers: selected } });
+        renderActions();
+      });
+      document.getElementById("gov-cancel").addEventListener("click", () => {
+        renderActions();
+      });
+    };
+    render();
+  }
+
+  function showHexInfo(key) {
+    const hex = state.map.hexes[key];
+    if (!hex) return;
+    const lines = [];
+    lines.push(`<div class="action-title">Hex Info (${key})</div>`);
+    lines.push(`<div class="action-row"><span class="label">Terrain</span><span>${hex.terrain} (difficulty ${terrainDifficulty(hex.terrain)})</span></div>`);
+    if (!hex.active) {
+      lines.push(`<div class="action-row dim">Inactive / unexplored</div>`);
+    } else if (!hex.revealed) {
+      lines.push(`<div class="action-row dim">Hidden (fog of war)</div>`);
+    }
+    if (hex.city) {
+      const owner = getPlayer(hex.city.ownerId);
+      lines.push(`<div class="action-row"><span class="label">${hex.city.isCapital ? "Capital" : "City"}</span><span>${owner?.name || "?"} ${hex.city.developed ? "(Developed)" : ""} ${hex.city.hasWonder ? "(Wonder)" : ""}</span></div>`);
+    }
+    if (hex.control) {
+      const owner = getPlayer(hex.control.ownerId);
+      let ctrlLabel = "Control Marker";
+      if (hex.control.district) ctrlLabel = `District: ${hex.control.district}`;
+      if (hex.control.fortified) ctrlLabel += " (Fortified)";
+      lines.push(`<div class="action-row"><span class="label">${ctrlLabel}</span><span>${owner?.name || "?"}</span></div>`);
+    }
+    if (hex.cityState) {
+      lines.push(`<div class="action-row"><span class="label">City-State</span><span>${hex.cityState.name} (${hex.cityState.type})</span></div>`);
+    }
+    if (hex.barbarian) {
+      lines.push(`<div class="action-row"><span class="label">Barbarian</span><span>Power: ${DEFAULTS.barbarianBasePower + terrainDifficulty(hex.terrain)}</span></div>`);
+    }
+    if (hex.resource) {
+      lines.push(`<div class="action-row"><span class="label">Resource</span><span>${hex.resource}</span></div>`);
+    }
+    if (hex.fortress) {
+      const owner = hex.fortressOwnerId ? getPlayer(hex.fortressOwnerId) : null;
+      lines.push(`<div class="action-row"><span class="label">Fortress</span><span>${owner?.name || "Neutral"}</span></div>`);
+    }
+    if (hex.tradeMarker) {
+      lines.push(`<div class="action-row"><span class="label">Trade Marker</span><span>Present</span></div>`);
+    }
+    const units = getUnitsAt(key);
+    if (units.length) {
+      units.forEach((u) => {
+        const owner = getPlayer(u.playerId);
+        lines.push(`<div class="action-row"><span class="label">${u.type}</span><span>${owner?.name || "?"}</span></div>`);
+      });
+    }
+    dom.actionPanel.innerHTML = `<div class="action-card hex-info">${lines.join("")}</div>`;
   }
 
   function handleMoveUnit(type, player, key) {
@@ -2331,9 +2506,16 @@
         if (terrainDifficulty(hex.terrain) > maxTerrain) return false;
         if (hex.city || hex.cityState || hex.barbarian) return false;
         if (hex.control && !allowReplace) return false;
-        return isAdjacentToFriendlyCity(hex, playerId);
+        return isWithinRangeOfFriendlyCity(hex, playerId, maxTerrain);
       })
       .map((hex) => keyFrom(hex.q, hex.r));
+  }
+
+  function isWithinRangeOfFriendlyCity(hex, playerId, range) {
+    return Object.values(state.map.hexes).some((candidate) => {
+      if (!candidate.city || candidate.city.ownerId !== playerId) return false;
+      return hexDistance(candidate, hex) <= range;
+    });
   }
 
   function validReinforceTargets(playerId) {
