@@ -76,8 +76,16 @@ const Game = (() => {
   })();
 
   function getCoreAnchors(playerCount) {
-    if (playerCount <= 3) return [{ q: -2, r: 0 }, { q: 2, r: 0 }];
-    return [{ q: -2, r: -1 }, { q: 2, r: -1 }, { q: -2, r: 2 }, { q: 2, r: 2 }];
+    if (playerCount <= 3) return [
+      { q: 0, r: -1, rotation: 0 },
+      { q: -1, r: 1, rotation: 3 }
+    ];
+    return [
+      { q: -1, r: -1, rotation: 0 },
+      { q: 3,  r: -1, rotation: 0 },
+      { q: -2, r: 1,  rotation: 3 },
+      { q: 2,  r: 1,  rotation: 3 }
+    ];
   }
 
   // --- Map & Tile Functions ---
@@ -347,7 +355,7 @@ const Game = (() => {
     setup.coreTiles.forEach((tileId, i) => {
       const anchor = anchors[i];
       const anchorKey = key(anchor.q, anchor.r);
-      placeTileOnMap(st, tileId, anchorKey, 0, "A");
+      placeTileOnMap(st, tileId, anchorKey, anchor.rotation, "A");
     });
 
     log(st, "Core tiles placed. Fortress placement begins.");
@@ -421,7 +429,7 @@ const Game = (() => {
         const anchors = getCoreAnchors(st.players.length);
         newSetup.coreTiles.forEach((tileId, i) => {
           const anchor = anchors[i];
-          placeTileOnMap(st, tileId, key(anchor.q, anchor.r), 0, "A");
+          placeTileOnMap(st, tileId, key(anchor.q, anchor.r), anchor.rotation, "A");
         });
       }
       log(st, `${payload.name} joined.`);
