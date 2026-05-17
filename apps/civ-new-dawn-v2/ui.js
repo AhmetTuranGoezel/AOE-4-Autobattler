@@ -10,10 +10,16 @@ const UI = (() => {
     cardType: null,
     tradeSpent: 0,
     remaining: 0,
+    totalMarkers: 0,
     validHexes: new Set(),
     selectedUnit: null,
     districtType: null,
-    spentResources: {}
+    spentResources: {},
+    placedKeys: [],
+    // Setup-specific
+    tileRotation: 0,
+    tileSide: "A",
+    hoveredAnchor: null
   };
 
   const dom = {};
@@ -58,7 +64,7 @@ const UI = (() => {
         render();
       },
       onDisconnect: () => {},
-      onConnected: (peerId) => {
+      onConnected: () => {
         if (Net.getIsHost() && state) Net.broadcast(state);
       }
     });
@@ -69,7 +75,8 @@ const UI = (() => {
     localPlayerId = "local";
     const name = dom.inpName.value.trim() || "Player";
     const color = dom.inpColor.value;
-    state = Game.createState(Game.createPlayer(localPlayerId, name, color));
+    const player = Game.createPlayer(localPlayerId, name, color);
+    state = Game.createState([player]);
     showGame();
     render();
   }
@@ -80,7 +87,8 @@ const UI = (() => {
     dom.lobbyStatus.textContent = "Creating room...";
     Net.createRoom((id) => {
       localPlayerId = id;
-      state = Game.createState(Game.createPlayer(id, name, color));
+      const player = Game.createPlayer(id, name, color);
+      state = Game.createState([player]);
       dom.hdrRoom.textContent = `Room: ${id}`;
       showGame();
       render();
@@ -120,35 +128,47 @@ const UI = (() => {
     if (!state) return;
     renderHeader();
     renderPlayers();
-    renderVictoryTracker();
-    renderMyStats();
     renderMap();
     renderWizard();
     renderEventWheel();
     renderLog();
-    renderFocusRow();
+
+    if (state.phase === "playing" || state.phase === "gameover") {
+      renderVictoryTracker();
+      renderMyStats();
+      renderFocusRow();
+    } else {
+      dom.victoryTracker.innerHTML = "";
+      dom.myStats.innerHTML = "";
+      dom.focusRow.innerHTML = "";
+    }
     renderGameOver();
   }
 
   function renderHeader() {
     const cp = Game.currentPlayer(state);
-    dom.hdrRound.textContent = `Round ${state.turn.round}/${Game.CFG.maxRounds}`;
-    dom.hdrTurn.textContent = cp ? (cp.id === localPlayerId ? "Your Turn" : `${cp.name}'s Turn`) : "";
-    dom.hdrTurn.style.color = cp ? cp.color : "";
+    if (state.phase === "setup") {
+      dom.hdrRound.textContent = `Setup: ${state.setup.phase}`;
+      const activeId = state.setup.order[state.setup.turnIndex];
+      const activeP = Game.getPlayer(state, activeId);
+      dom.hdrTurn.textContent = activeP ? (activeId === localPlayerId ? "Your Turn" : `${activeP.name}'s Turn`) : "";
+      dom.hdrTurn.style.color = activeP ? activeP.color : "";
+    } else {
+      dom.hdrRound.textContent = `Round ${state.turn.round}/${Game.CFG.maxRounds}`;
+      dom.hdrTurn.textContent = cp ? (cp.id === localPlayerId ? "Your Turn" : `${cp.name}'s Turn`) : "";
+      dom.hdrTurn.style.color = cp ? cp.color : "";
+    }
   }
 
   function renderPlayers() {
-    const cp = Game.currentPlayer(state);
     dom.players.innerHTML = state.players.map((p) => {
-      const active = cp && cp.id === p.id ? " active" : "";
-      const ctrl = Game.countControl(state, p.id);
-      const cities = Game.countCities(state, p.id);
-      const dev = Game.countDeveloped(state, p.id);
-      const wonders = Game.countWonders(state, p.id);
-      const score = Game.computeScore(state, p.id);
+      const active = state.phase === "setup"
+        ? (state.setup.order[state.setup.turnIndex] === p.id ? " active" : "")
+        : (Game.currentPlayer(state)?.id === p.id ? " active" : "");
+      const score = state.phase === "playing" ? ` | Score: ${Game.computeScore(state, p.id)}` : "";
       return `<div class="player-card${active}">
         <div class="pname"><span class="dot" style="background:${p.color}"></span>${p.name}</div>
-        <div class="pstats">Cities: ${cities} | Dev: ${dev} | Ctrl: ${ctrl} | W: ${wonders} | Score: ${score}</div>
+        <div class="pstats">${state.phase === "setup" ? "Setup" : `Cities: ${Game.countCities(state, p.id)} | Ctrl: ${Game.countControl(state, p.id)}${score}`}</div>
       </div>`;
     }).join("");
   }
@@ -167,11 +187,7 @@ const UI = (() => {
     ];
     dom.victoryTracker.innerHTML = `<h3>Victory Progress</h3>` + rows.map((r) => {
       const pct = Math.min(100, (r.val / r.max) * 100);
-      return `<div class="vtrack-row">
-        <span class="vlabel">${r.label}</span>
-        <div class="vtrack-bar"><div class="vtrack-fill" style="width:${pct}%;background:${r.color}"></div></div>
-        <span class="vtrack-val">${r.val}/${r.max}</span>
-      </div>`;
+      return `<div class="vtrack-row"><span class="vlabel">${r.label}</span><div class="vtrack-bar"><div class="vtrack-fill" style="width:${pct}%;background:${r.color}"></div></div><span class="vtrack-val">${r.val}/${r.max}</span></div>`;
     }).join("");
   }
 
@@ -180,52 +196,94 @@ const UI = (() => {
     if (!me) { dom.myStats.innerHTML = ""; return; }
     const res = Object.entries(me.resources).filter(([, v]) => v > 0).map(([k, v]) => `${k}: ${v}`).join(", ") || "none";
     const gov = me.govMarkers.length ? me.govMarkers.map((m) => Game.FOCUS_LABELS[m]).join(", ") : "none";
-    dom.myStats.innerHTML = `<h3>My Stats</h3>
-      <div class="stat-grid">
-        <span>Tech:</span><span class="sv">${me.tech}/${Game.CFG.techWheelSize} (T${me.techTier})</span>
-        <span>Armies:</span><span class="sv">${me.armies.length}/${Game.CFG.maxArmies}</span>
-        <span>Wagons:</span><span class="sv">${me.wagons.length}/${Game.CFG.maxWagons}</span>
-        <span>Resources:</span><span class="sv">${res}</span>
-        <span>Gov:</span><span class="sv">${gov}</span>
-      </div>`;
+    dom.myStats.innerHTML = `<h3>My Stats</h3><div class="stat-grid">
+      <span>Tech:</span><span class="sv">${me.tech}/${Game.CFG.techWheelSize} (T${me.techTier})</span>
+      <span>Armies:</span><span class="sv">${me.armies.length}/${Game.CFG.maxArmies}</span>
+      <span>Wagons:</span><span class="sv">${me.wagons.length}/${Game.CFG.maxWagons}</span>
+      <span>Resources:</span><span class="sv">${res}</span>
+      <span>Gov:</span><span class="sv">${gov}</span>
+    </div>`;
   }
+
+  // --- MAP RENDERING ---
 
   function renderMap() {
     if (!state) return;
-    const hexes = state.map.hexes;
     if (hexEls.size === 0) buildMapDom();
 
-    Object.entries(hexes).forEach(([k, h]) => {
+    // Compute valid hexes for setup
+    let setupValid = new Set();
+    if (state.phase === "setup") {
+      const activeId = state.setup.order[state.setup.turnIndex];
+      if (activeId === localPlayerId) {
+        if (state.setup.phase === "fortress") {
+          setupValid = Game.getValidFortressHexes(state);
+        } else if (state.setup.phase === "tile") {
+          const playerTiles = state.setup.playerTiles[localPlayerId] || [];
+          if (playerTiles.length > 0) {
+            const tileId = playerTiles[0];
+            const anchors = Game.getValidTileAnchors(state, tileId, sub.tileRotation);
+            setupValid = new Set(anchors);
+          }
+        }
+      }
+    }
+
+    // Ghost tiles for hover preview
+    let ghostKeys = new Set();
+    if (state.phase === "setup" && state.setup.phase === "tile" && sub.hoveredAnchor && setupValid.has(sub.hoveredAnchor)) {
+      const playerTiles = state.setup.playerTiles[localPlayerId] || [];
+      if (playerTiles.length > 0) {
+        const keys = Game.getTileHexKeys(sub.hoveredAnchor, sub.tileRotation, state.map.hexes);
+        ghostKeys = new Set(keys);
+      }
+    }
+
+    const combinedValid = new Set([...sub.validHexes, ...setupValid]);
+
+    Object.entries(state.map.hexes).forEach(([k, h]) => {
       const el = hexEls.get(k);
       if (!el) return;
       el.className = "hex";
-      if (h.terrain === "water" && !h.revealed) el.classList.add("fog");
-      else el.classList.add(`terrain-${h.terrain}`);
-      if (sub.validHexes.has(k)) el.classList.add("valid");
+
+      if (!h.active) {
+        el.classList.add("inactive");
+        if (combinedValid.has(k)) { el.classList.remove("inactive"); el.classList.add("valid"); el.classList.add("terrain-grass"); }
+        if (ghostKeys.has(k)) { el.classList.remove("inactive"); el.classList.add("ghost"); }
+      } else {
+        el.classList.add(`terrain-${h.terrain}`);
+        if (combinedValid.has(k)) el.classList.add("valid");
+      }
 
       let content = "";
-      if (h.city) {
-        const owner = Game.getPlayer(state, h.city.ownerId);
-        const label = h.city.isCapital ? "CAP" : "CTY";
-        const extra = h.city.hasWonder ? "+W" : "";
-        content += `<span class="hex-token city" style="color:${owner ? owner.color : "#fff"}">${label}${extra}</span>`;
+      if (h.active) {
+        if (h.city) {
+          const owner = Game.getPlayer(state, h.city.ownerId);
+          const label = h.city.isCapital ? "CAP" : "CTY";
+          const extra = h.city.hasWonder ? "+W" : (h.city.developed ? "✓" : "");
+          content += `<span class="hex-token city" style="color:${owner ? owner.color : "#fff"}">${label}${extra}</span>`;
+        }
+        if (h.control) {
+          const owner = Game.getPlayer(state, h.control.ownerId);
+          const label = h.control.district ? h.control.district.slice(0, 3).toUpperCase() : "●";
+          const cls = h.control.district ? "dist" : "ctrl";
+          const fort = h.control.fortified ? "⛨" : "";
+          content += `<span class="hex-token ${cls}" style="border-color:${owner ? owner.color : "#fff"};color:${owner ? owner.color : "#fff"}">${label}${fort}</span>`;
+        }
+        if (h.barbarian) content += `<span class="hex-token barb">☠</span>`;
+        if (h.cityState) content += `<span class="hex-token cs">${h.cityState.name.slice(0, 3)}</span>`;
+        if (h.resource) content += `<span class="hex-token res">${h.resource.slice(0, 3)}</span>`;
+        if (h.fortress) {
+          const owner = h.fortressOwnerId ? Game.getPlayer(state, h.fortressOwnerId) : null;
+          content += `<span class="hex-token city" style="color:${owner ? owner.color : "#aaa"}">FRT</span>`;
+        }
+        const units = Game.getUnitsAt(state, k);
+        units.forEach((u) => {
+          const icon = u.type === "army" ? "⚔" : "🛒";
+          const cls = u.type === "army" ? "army" : "wagon";
+          content += `<span class="hex-token ${cls}" style="color:${u.color}">${icon}</span>`;
+        });
       }
-      if (h.control) {
-        const owner = Game.getPlayer(state, h.control.ownerId);
-        const label = h.control.district ? h.control.district.slice(0, 3).toUpperCase() : "●";
-        const cls = h.control.district ? "dist" : "ctrl";
-        content += `<span class="hex-token ${cls}" style="border-color:${owner ? owner.color : "#fff"};color:${owner ? owner.color : "#fff"}">${label}</span>`;
-      }
-      if (h.barbarian) content += `<span class="hex-token barb">☠</span>`;
-      if (h.cityState) content += `<span class="hex-token cs">${h.cityState.name.slice(0, 3)}</span>`;
-      if (h.resource) content += `<span class="hex-token res">${h.resource.slice(0, 3)}</span>`;
-
-      const units = Game.getUnitsAt(state, k);
-      units.forEach((u) => {
-        const icon = u.type === "army" ? "⚔" : "🛒";
-        const cls = u.type === "army" ? "army" : "wagon";
-        content += `<span class="hex-token ${cls}" style="color:${u.color}">${icon}</span>`;
-      });
 
       el.querySelector(".hex-content").innerHTML = content;
     });
@@ -234,7 +292,7 @@ const UI = (() => {
   function buildMapDom() {
     dom.map.innerHTML = "";
     hexEls.clear();
-    const size = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--hex-size"));
+    const size = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--hex-size")) || 38;
     const h = size * 1.155;
     const w = size;
     const radius = state.map.radius;
@@ -248,8 +306,20 @@ const UI = (() => {
       el.style.left = `${px + 20}px`;
       el.style.top = `${py + 20}px`;
       el.addEventListener("click", () => handleHexClick(k));
-      el.addEventListener("mouseenter", (e) => showTooltip(e, k));
-      el.addEventListener("mouseleave", hideTooltip);
+      el.addEventListener("mouseenter", (e) => {
+        showTooltip(e, k);
+        if (state.phase === "setup" && state.setup.phase === "tile") {
+          sub.hoveredAnchor = k;
+          renderMap();
+        }
+      });
+      el.addEventListener("mouseleave", () => {
+        hideTooltip();
+        if (sub.hoveredAnchor) {
+          sub.hoveredAnchor = null;
+          renderMap();
+        }
+      });
       dom.map.appendChild(el);
       hexEls.set(k, el);
     });
@@ -263,21 +333,29 @@ const UI = (() => {
   function showTooltip(e, hexKey) {
     const h = state.map.hexes[hexKey];
     if (!h) return;
-    let lines = [`<strong>${Game.TERRAIN_LABELS[h.terrain]}</strong> (difficulty ${Game.TERRAIN[h.terrain]})`];
-    if (h.city) {
-      const owner = Game.getPlayer(state, h.city.ownerId);
-      lines.push(`${h.city.isCapital ? "Capital" : "City"}: ${owner ? owner.name : "?"} ${h.city.developed ? "(Dev)" : ""} ${h.city.hasWonder ? "(Wonder)" : ""}`);
+    let lines = [];
+    if (!h.active) {
+      lines.push(`<strong>Inactive hex</strong> (${hexKey})`);
+    } else {
+      lines.push(`<strong>${Game.TERRAIN_LABELS[h.terrain]}</strong> (difficulty ${Game.TERRAIN[h.terrain]})`);
+      if (h.city) {
+        const owner = Game.getPlayer(state, h.city.ownerId);
+        lines.push(`${h.city.isCapital ? "Capital" : "City"}: ${owner ? owner.name : "?"} ${h.city.developed ? "(Dev)" : ""} ${h.city.hasWonder ? "(Wonder)" : ""}`);
+      }
+      if (h.control) {
+        const owner = Game.getPlayer(state, h.control.ownerId);
+        lines.push(`${h.control.district ? `District: ${h.control.district}` : "Control"}: ${owner ? owner.name : "?"} ${h.control.fortified ? "(Fort)" : ""}`);
+      }
+      if (h.barbarian) lines.push(`Barbarian (power ${Game.CFG.barbarianBase + Game.TERRAIN[h.terrain]})`);
+      if (h.cityState) lines.push(`City-State: ${h.cityState.name} (${h.cityState.type})`);
+      if (h.resource) lines.push(`Resource: ${h.resource}`);
+      if (h.fortress) {
+        const owner = h.fortressOwnerId ? Game.getPlayer(state, h.fortressOwnerId) : null;
+        lines.push(`Fortress: ${owner ? owner.name : "Neutral"}`);
+      }
+      const units = Game.getUnitsAt(state, hexKey);
+      units.forEach((u) => { const p = Game.getPlayer(state, u.playerId); lines.push(`${u.type}: ${p ? p.name : "?"}`); });
     }
-    if (h.control) {
-      const owner = Game.getPlayer(state, h.control.ownerId);
-      lines.push(`${h.control.district ? `District: ${h.control.district}` : "Control"}: ${owner ? owner.name : "?"} ${h.control.fortified ? "(Fort)" : ""}`);
-    }
-    if (h.barbarian) lines.push(`Barbarian (power ${Game.CFG.barbarianBase + Game.TERRAIN[h.terrain]})`);
-    if (h.cityState) lines.push(`City-State: ${h.cityState.name} (${h.cityState.type})`);
-    if (h.resource) lines.push(`Resource: ${h.resource}`);
-    const units = Game.getUnitsAt(state, hexKey);
-    units.forEach((u) => { const p = Game.getPlayer(state, u.playerId); lines.push(`${u.type}: ${p ? p.name : "?"}`); });
-
     dom.mapTooltip.innerHTML = lines.join("<br>");
     dom.mapTooltip.classList.remove("hidden");
     dom.mapTooltip.style.left = `${e.clientX + 12}px`;
@@ -286,241 +364,313 @@ const UI = (() => {
 
   function hideTooltip() { dom.mapTooltip.classList.add("hidden"); }
 
+  // --- WIZARD RENDERING ---
+
   function renderWizard() {
     if (!state) return;
+
+    // Setup phase wizards
+    if (state.phase === "setup") {
+      renderSetupWizard();
+      return;
+    }
+
+    // Playing phase
     const cp = Game.currentPlayer(state);
     const isMyTurn = cp && cp.id === localPlayerId;
     const me = Game.getPlayer(state, localPlayerId);
 
     if (state.lastCombat) {
-      const c = state.lastCombat;
-      const resultCls = c.win ? "cr-win" : "cr-lose";
-      const resultText = c.win ? "VICTORY!" : "DEFEATED";
-      dom.wizard.innerHTML = `
-        <div class="wiz-title">Combat Result</div>
-        <div class="combat-result">
-          <div>${c.attacker} vs ${c.defender}</div>
-          <div>Attack: d6(${c.atkRoll}) + bonus = <strong>${c.atkTotal}</strong></div>
-          <div>Defense: d6(${c.defRoll}) + bonus = <strong>${c.defTotal}</strong></div>
-          <div class="${resultCls}">${resultText}</div>
-        </div>
-        <div class="wiz-actions"><button id="wiz-combat-ok">Continue</button></div>`;
-      document.getElementById("wiz-combat-ok").addEventListener("click", () => {
-        state.lastCombat = null;
-        render();
-      });
+      renderCombatResult();
       return;
     }
 
     if (sub.phase === "idle") {
-      if (!isMyTurn) {
-        dom.wizard.innerHTML = `<div class="wiz-title">Waiting</div><div class="wiz-body">It's <strong>${cp ? cp.name : "..."}</strong>'s turn.</div>`;
+      renderIdleWizard(isMyTurn, cp, me);
+      return;
+    }
+    if (sub.phase === "card_selected") { renderCardSelected(me); return; }
+    if (sub.phase === "placing_control") { renderPlacingControl(); return; }
+    if (sub.phase === "growth_choice") { renderGrowthChoice(); return; }
+    if (sub.phase === "pick_district") { renderPickDistrict(); return; }
+    if (sub.phase === "placing_district") { renderPlacingDistrict(); return; }
+    if (sub.phase === "reinforcing") { renderReinforcing(); return; }
+    if (sub.phase === "move_wagon" || sub.phase === "move_army") { renderMoving(); return; }
+    if (sub.phase === "industry_choice") { renderIndustryChoice(me); return; }
+    if (sub.phase === "placing_city") { renderPlacingCity(); return; }
+    if (sub.phase === "placing_wonder") { renderPlacingWonder(); return; }
+  }
+
+  function renderSetupWizard() {
+    const activeId = state.setup.order[state.setup.turnIndex];
+    const activeP = Game.getPlayer(state, activeId);
+    const isMySetupTurn = activeId === localPlayerId;
+
+    if (state.setup.phase === "fortress") {
+      if (!isMySetupTurn) {
+        dom.wizard.innerHTML = `<div class="wiz-title">Fortress Placement</div><div class="wiz-body">Waiting for <strong>${activeP ? activeP.name : "..."}</strong> to place their fortress.</div>`;
         return;
       }
-      let actions = `<div class="wiz-actions">`;
-      if (me && me.armies.length < Game.CFG.maxArmies) actions += `<button class="sm" id="wiz-recruit-army">Recruit Army</button>`;
-      if (me && me.wagons.length < Game.CFG.maxWagons) actions += `<button class="sm" id="wiz-recruit-wagon">Recruit Wagon</button>`;
-      actions += `<button class="sm" id="wiz-gov">Assign Gov</button>`;
-      actions += `<button id="wiz-end-turn">End Turn</button>`;
-      actions += `</div>`;
-      dom.wizard.innerHTML = `<div class="wiz-title">Your Turn</div><div class="wiz-body">Select a <strong>focus card</strong> below to take an action.${me && me.cardPlayed ? "<br><em>Card already played this turn.</em>" : ""}</div>${actions}`;
-      const raBtn = document.getElementById("wiz-recruit-army");
-      if (raBtn) raBtn.addEventListener("click", () => dispatch({ type: "RECRUIT_ARMY", payload: { playerId: localPlayerId } }));
-      const rwBtn = document.getElementById("wiz-recruit-wagon");
-      if (rwBtn) rwBtn.addEventListener("click", () => dispatch({ type: "RECRUIT_WAGON", payload: { playerId: localPlayerId } }));
-      const govBtn = document.getElementById("wiz-gov");
-      if (govBtn) govBtn.addEventListener("click", showGovPicker);
-      const endBtn = document.getElementById("wiz-end-turn");
-      if (endBtn) endBtn.addEventListener("click", () => dispatch({ type: "END_TURN", payload: {} }));
+      dom.wizard.innerHTML = `
+        <div class="wiz-title">Place Your Fortress</div>
+        <div class="wiz-body">
+          Click an <strong>inactive hex</strong> that borders at least 2 active hexes to place your fortress.<br><br>
+          Valid positions are <strong>highlighted green</strong> on the map.
+        </div>`;
       return;
     }
 
-    if (sub.phase === "card_selected") {
-      const me2 = Game.getPlayer(state, localPlayerId);
-      const slot = Game.getSlotValue(me2, sub.cardType);
-      const tradeAvail = me2.trade[sub.cardType];
+    if (state.setup.phase === "tile") {
+      const playerTiles = state.setup.playerTiles[activeId] || [];
+      if (!isMySetupTurn) {
+        dom.wizard.innerHTML = `<div class="wiz-title">Tile Placement</div><div class="wiz-body">Waiting for <strong>${activeP ? activeP.name : "..."}</strong> to place a tile. (${playerTiles.length} remaining)</div>`;
+        return;
+      }
+      if (playerTiles.length === 0) {
+        dom.wizard.innerHTML = `<div class="wiz-title">Tile Placement</div><div class="wiz-body">All your tiles are placed! Waiting for others...</div>`;
+        return;
+      }
+      const tileId = playerTiles[0];
+      const tile = state.setup.tiles[tileId];
+      const tileType = tile ? tile.type : "?";
+
       dom.wizard.innerHTML = `
-        <div class="wiz-title">${Game.FOCUS_LABELS[sub.cardType]} (Slot ${slot})</div>
+        <div class="wiz-title">Place Tile: ${tileType.charAt(0).toUpperCase() + tileType.slice(1)} (${tileId})</div>
         <div class="wiz-body">
-          ${Game.FOCUS_TRADE_DESC[sub.cardType]}<br>
-          Trade available: <strong>${tradeAvail}</strong>
+          <div class="tile-preview">${renderTilePreview()}</div>
           <div class="trade-counter">
-            <span>Spend:</span>
-            <button id="tc-dec" class="sm">−</button>
-            <span class="tc-val" id="tc-val">${sub.tradeSpent}</span>
-            <button id="tc-inc" class="sm">+</button>
+            <span>Rotation:</span>
+            <button id="rot-dec" class="sm">◄</button>
+            <span class="tc-val">${sub.tileRotation + 1}/6</span>
+            <button id="rot-inc" class="sm">►</button>
           </div>
-          ${getCardPreview(sub.cardType, me2, slot)}
+          <div class="trade-counter">
+            <span>Side:</span>
+            <button id="side-toggle" class="sm">${sub.tileSide}</button>
+          </div>
+          <br>Click a <strong>highlighted anchor hex</strong> on the map to place.<br>
+          Tiles remaining: <strong>${playerTiles.length}</strong>
+        </div>`;
+
+      document.getElementById("rot-dec").addEventListener("click", () => { sub.tileRotation = (sub.tileRotation + 5) % 6; render(); });
+      document.getElementById("rot-inc").addEventListener("click", () => { sub.tileRotation = (sub.tileRotation + 1) % 6; render(); });
+      document.getElementById("side-toggle").addEventListener("click", () => { sub.tileSide = sub.tileSide === "A" ? "B" : "A"; render(); });
+      return;
+    }
+  }
+
+  function renderTilePreview() {
+    const offsets = Game.TILE_OFFSETS.map((off) => Game.rotateAxial(off, sub.tileRotation));
+    const minQ = Math.min(...offsets.map((o) => o.q));
+    const minR = Math.min(...offsets.map((o) => o.r));
+    const cells = offsets.map((o) => ({ q: o.q - minQ, r: o.r - minR }));
+    const cellSize = 12;
+    let svg = `<svg width="120" height="70" viewBox="-5 -5 120 70">`;
+    cells.forEach((c) => {
+      const x = c.q * cellSize * 0.88 + c.r * cellSize * 0.44;
+      const y = c.r * cellSize * 0.77;
+      const isAnchor = (c.q === (0 - minQ) && c.r === (0 - minR));
+      const fill = isAnchor ? "#4fc3f7" : "#4a7c3f";
+      svg += `<rect x="${x}" y="${y}" width="${cellSize - 1}" height="${cellSize - 1}" rx="2" fill="${fill}" stroke="#fff3" stroke-width="0.5"/>`;
+    });
+    svg += `</svg>`;
+    return svg;
+  }
+
+  function renderCombatResult() {
+    const c = state.lastCombat;
+    const cls = c.win ? "cr-win" : "cr-lose";
+    const txt = c.win ? "VICTORY!" : "DEFEATED";
+    dom.wizard.innerHTML = `
+      <div class="wiz-title">Combat Result</div>
+      <div class="combat-result">
+        <div>${c.attacker} vs ${c.defender}</div>
+        <div>Attack: d6(${c.atkRoll}) + bonus = <strong>${c.atkTotal}</strong></div>
+        <div>Defense: d6(${c.defRoll}) + bonus = <strong>${c.defTotal}</strong></div>
+        <div class="${cls}">${txt}</div>
+      </div>
+      <div class="wiz-actions"><button id="wiz-combat-ok">Continue</button></div>`;
+    document.getElementById("wiz-combat-ok").addEventListener("click", () => { state.lastCombat = null; render(); });
+  }
+
+  function renderIdleWizard(isMyTurn, cp, me) {
+    if (!isMyTurn) {
+      dom.wizard.innerHTML = `<div class="wiz-title">Waiting</div><div class="wiz-body">It's <strong>${cp ? cp.name : "..."}</strong>'s turn.</div>`;
+      return;
+    }
+    let actions = `<div class="wiz-actions">`;
+    if (me && me.armies.length < Game.CFG.maxArmies) actions += `<button class="sm" id="wiz-recruit-army">Recruit Army</button>`;
+    if (me && me.wagons.length < Game.CFG.maxWagons) actions += `<button class="sm" id="wiz-recruit-wagon">Recruit Wagon</button>`;
+    actions += `<button class="sm" id="wiz-gov">Assign Gov</button>`;
+    actions += `<button id="wiz-end-turn">End Turn</button></div>`;
+    dom.wizard.innerHTML = `<div class="wiz-title">Your Turn</div><div class="wiz-body">Select a <strong>focus card</strong> below to take an action.${me && me.cardPlayed ? "<br><em>Card already played this turn.</em>" : ""}</div>${actions}`;
+    const raBtn = document.getElementById("wiz-recruit-army");
+    if (raBtn) raBtn.addEventListener("click", () => dispatch({ type: "RECRUIT_ARMY", payload: { playerId: localPlayerId } }));
+    const rwBtn = document.getElementById("wiz-recruit-wagon");
+    if (rwBtn) rwBtn.addEventListener("click", () => dispatch({ type: "RECRUIT_WAGON", payload: { playerId: localPlayerId } }));
+    document.getElementById("wiz-gov")?.addEventListener("click", showGovPicker);
+    document.getElementById("wiz-end-turn")?.addEventListener("click", () => dispatch({ type: "END_TURN", payload: {} }));
+  }
+
+  function renderCardSelected(me) {
+    const slot = Game.getSlotValue(me, sub.cardType);
+    const tradeAvail = me.trade[sub.cardType];
+    dom.wizard.innerHTML = `
+      <div class="wiz-title">${Game.FOCUS_LABELS[sub.cardType]} (Slot ${slot})</div>
+      <div class="wiz-body">
+        ${Game.FOCUS_TRADE_DESC[sub.cardType]}<br>
+        Trade available: <strong>${tradeAvail}</strong>
+        <div class="trade-counter">
+          <span>Spend:</span>
+          <button id="tc-dec" class="sm">−</button>
+          <span class="tc-val" id="tc-val">${sub.tradeSpent}</span>
+          <button id="tc-inc" class="sm">+</button>
         </div>
-        <div class="wiz-actions">
-          <button class="primary" id="wiz-start">Start Action</button>
-          <button class="ghost" id="wiz-cancel">Cancel</button>
-        </div>`;
-      document.getElementById("tc-dec").addEventListener("click", () => { sub.tradeSpent = Math.max(0, sub.tradeSpent - 1); renderWizard(); });
-      document.getElementById("tc-inc").addEventListener("click", () => { sub.tradeSpent = Math.min(tradeAvail, sub.tradeSpent + 1); renderWizard(); });
-      document.getElementById("wiz-start").addEventListener("click", startAction);
-      document.getElementById("wiz-cancel").addEventListener("click", cancelAction);
-      return;
-    }
+        ${getCardPreview(sub.cardType, me, slot)}
+      </div>
+      <div class="wiz-actions">
+        <button class="primary" id="wiz-start">Start Action</button>
+        <button class="ghost" id="wiz-cancel">Cancel</button>
+      </div>`;
+    document.getElementById("tc-dec").addEventListener("click", () => { sub.tradeSpent = Math.max(0, sub.tradeSpent - 1); renderWizard(); });
+    document.getElementById("tc-inc").addEventListener("click", () => { sub.tradeSpent = Math.min(tradeAvail, sub.tradeSpent + 1); renderWizard(); });
+    document.getElementById("wiz-start").addEventListener("click", startAction);
+    document.getElementById("wiz-cancel").addEventListener("click", cancelAction);
+  }
 
-    if (sub.phase === "placing_control") {
-      const total = sub.totalMarkers || 0;
-      const placed = total - sub.remaining;
-      const pct = total > 0 ? (placed / total) * 100 : 0;
-      dom.wizard.innerHTML = `
-        <div class="wiz-title">Placing Control Markers</div>
-        <div class="wiz-body">Click <strong>highlighted hexes</strong> on the map.<br>Remaining: ${sub.remaining} of ${total}</div>
-        <div class="wiz-progress"><div class="wiz-progress-fill" style="width:${pct}%"></div></div>
-        <div class="wiz-actions"><button id="wiz-done">Done Early</button><button class="ghost" id="wiz-cancel2">Cancel</button></div>`;
-      document.getElementById("wiz-done").addEventListener("click", finishAction);
-      document.getElementById("wiz-cancel2").addEventListener("click", cancelAction);
-      return;
-    }
+  function renderPlacingControl() {
+    const total = sub.totalMarkers || 0;
+    const placed = total - sub.remaining;
+    const pct = total > 0 ? (placed / total) * 100 : 0;
+    dom.wizard.innerHTML = `
+      <div class="wiz-title">Placing Control Markers</div>
+      <div class="wiz-body">Click <strong>highlighted hexes</strong> on the map.<br>Remaining: ${sub.remaining} of ${total}</div>
+      <div class="wiz-progress"><div class="wiz-progress-fill" style="width:${pct}%"></div></div>
+      <div class="wiz-actions"><button id="wiz-done">Done Early</button><button class="ghost" id="wiz-cancel2">Cancel</button></div>`;
+    document.getElementById("wiz-done").addEventListener("click", finishAction);
+    document.getElementById("wiz-cancel2").addEventListener("click", cancelAction);
+  }
 
-    if (sub.phase === "growth_choice") {
-      dom.wizard.innerHTML = `
-        <div class="wiz-title">Growth: Choose Action</div>
-        <div class="wiz-body">Place a district adjacent to your city, or reinforce existing control markers.</div>
-        <div class="wiz-actions">
-          <button id="wiz-district">Place District</button>
-          <button id="wiz-reinforce">Reinforce</button>
-          <button class="ghost" id="wiz-cancel3">Cancel</button>
-        </div>`;
-      document.getElementById("wiz-district").addEventListener("click", () => { sub.phase = "pick_district"; renderWizard(); });
-      document.getElementById("wiz-reinforce").addEventListener("click", startReinforce);
-      document.getElementById("wiz-cancel3").addEventListener("click", cancelAction);
-      return;
-    }
+  function renderGrowthChoice() {
+    dom.wizard.innerHTML = `
+      <div class="wiz-title">Growth: Choose Action</div>
+      <div class="wiz-body">Place a district adjacent to your city, or reinforce existing control markers.</div>
+      <div class="wiz-actions">
+        <button id="wiz-district">Place District</button>
+        <button id="wiz-reinforce">Reinforce</button>
+        <button class="ghost" id="wiz-cancel3">Cancel</button>
+      </div>`;
+    document.getElementById("wiz-district").addEventListener("click", () => { sub.phase = "pick_district"; renderWizard(); });
+    document.getElementById("wiz-reinforce").addEventListener("click", startReinforce);
+    document.getElementById("wiz-cancel3").addEventListener("click", cancelAction);
+  }
 
-    if (sub.phase === "pick_district") {
-      dom.wizard.innerHTML = `
-        <div class="wiz-title">Choose District Type</div>
-        <div class="district-grid">${Game.DISTRICTS.map((d) =>
-          `<button class="sm dist-btn" data-d="${d}">${Game.DISTRICT_LABELS[d]}</button>`
-        ).join("")}</div>
-        <div class="wiz-body" style="margin-top:6px;font-size:10px">${Game.DISTRICTS.map((d) =>
-          `<div><strong>${Game.DISTRICT_LABELS[d]}</strong>: ${Game.DISTRICT_EFFECTS[d]}</div>`
-        ).join("")}</div>
-        <div class="wiz-actions"><button class="ghost" id="wiz-back-growth">Back</button></div>`;
-      document.querySelectorAll(".dist-btn").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          sub.districtType = btn.dataset.d;
-          startDistrictPlace();
-        });
-      });
-      document.getElementById("wiz-back-growth").addEventListener("click", () => { sub.phase = "growth_choice"; renderWizard(); });
-      return;
-    }
+  function renderPickDistrict() {
+    dom.wizard.innerHTML = `
+      <div class="wiz-title">Choose District Type</div>
+      <div class="district-grid">${Game.DISTRICTS.map((d) =>
+        `<button class="sm dist-btn" data-d="${d}">${Game.DISTRICT_LABELS[d]}</button>`
+      ).join("")}</div>
+      <div class="wiz-body" style="margin-top:6px;font-size:10px">${Game.DISTRICTS.map((d) =>
+        `<div><strong>${Game.DISTRICT_LABELS[d]}</strong>: ${Game.DISTRICT_EFFECTS[d]}</div>`
+      ).join("")}</div>
+      <div class="wiz-actions"><button class="ghost" id="wiz-back-growth">Back</button></div>`;
+    document.querySelectorAll(".dist-btn").forEach((btn) => {
+      btn.addEventListener("click", () => { sub.districtType = btn.dataset.d; startDistrictPlace(); });
+    });
+    document.getElementById("wiz-back-growth").addEventListener("click", () => { sub.phase = "growth_choice"; renderWizard(); });
+  }
 
-    if (sub.phase === "placing_district") {
-      dom.wizard.innerHTML = `
-        <div class="wiz-title">Place ${Game.DISTRICT_LABELS[sub.districtType]} District</div>
-        <div class="wiz-body">Click a <strong>highlighted hex</strong> adjacent to your city.</div>
-        <div class="wiz-actions"><button class="ghost" id="wiz-cancel4">Cancel</button></div>`;
-      document.getElementById("wiz-cancel4").addEventListener("click", cancelAction);
-      return;
-    }
+  function renderPlacingDistrict() {
+    dom.wizard.innerHTML = `
+      <div class="wiz-title">Place ${Game.DISTRICT_LABELS[sub.districtType]} District</div>
+      <div class="wiz-body">Click a <strong>highlighted hex</strong> adjacent to your city.</div>
+      <div class="wiz-actions"><button class="ghost" id="wiz-cancel4">Cancel</button></div>`;
+    document.getElementById("wiz-cancel4").addEventListener("click", cancelAction);
+  }
 
-    if (sub.phase === "reinforcing") {
-      const total = sub.totalMarkers || 0;
-      const placed = total - sub.remaining;
-      const pct = total > 0 ? (placed / total) * 100 : 0;
-      dom.wizard.innerHTML = `
-        <div class="wiz-title">Reinforcing Markers</div>
-        <div class="wiz-body">Click your control markers to fortify them.<br>Remaining: ${sub.remaining} of ${total}</div>
-        <div class="wiz-progress"><div class="wiz-progress-fill" style="width:${pct}%"></div></div>
-        <div class="wiz-actions"><button id="wiz-done2">Done</button><button class="ghost" id="wiz-cancel5">Cancel</button></div>`;
-      document.getElementById("wiz-done2").addEventListener("click", finishAction);
-      document.getElementById("wiz-cancel5").addEventListener("click", cancelAction);
-      return;
-    }
+  function renderReinforcing() {
+    const total = sub.totalMarkers || 0;
+    const placed = total - sub.remaining;
+    const pct = total > 0 ? (placed / total) * 100 : 0;
+    dom.wizard.innerHTML = `
+      <div class="wiz-title">Reinforcing Markers</div>
+      <div class="wiz-body">Click your control markers to fortify them.<br>Remaining: ${sub.remaining} of ${total}</div>
+      <div class="wiz-progress"><div class="wiz-progress-fill" style="width:${pct}%"></div></div>
+      <div class="wiz-actions"><button id="wiz-done2">Done</button><button class="ghost" id="wiz-cancel5">Cancel</button></div>`;
+    document.getElementById("wiz-done2").addEventListener("click", finishAction);
+    document.getElementById("wiz-cancel5").addEventListener("click", cancelAction);
+  }
 
-    if (sub.phase === "move_wagon" || sub.phase === "move_army") {
-      const unitType = sub.phase === "move_wagon" ? "wagon" : "army";
-      const selectingUnit = !sub.selectedUnit;
-      dom.wizard.innerHTML = `
-        <div class="wiz-title">Move ${unitType === "wagon" ? "Wagon" : "Army"}</div>
-        <div class="wiz-body">${selectingUnit
-          ? `Click one of your <strong>${unitType}s</strong> on the map to select it.`
-          : `Click a <strong>highlighted hex</strong> to move.`}</div>
-        <div class="wiz-actions"><button class="ghost" id="wiz-cancel6">Cancel</button></div>`;
-      document.getElementById("wiz-cancel6").addEventListener("click", cancelAction);
-      return;
-    }
+  function renderMoving() {
+    const unitType = sub.phase === "move_wagon" ? "wagon" : "army";
+    const selectingUnit = !sub.selectedUnit;
+    dom.wizard.innerHTML = `
+      <div class="wiz-title">Move ${unitType === "wagon" ? "Wagon" : "Army"}</div>
+      <div class="wiz-body">${selectingUnit
+        ? `Click one of your <strong>${unitType}s</strong> on the map to select it.`
+        : `Click a <strong>highlighted hex</strong> to move.`}</div>
+      <div class="wiz-actions"><button class="ghost" id="wiz-cancel6">Cancel</button></div>`;
+    document.getElementById("wiz-cancel6").addEventListener("click", cancelAction);
+  }
 
-    if (sub.phase === "industry_choice") {
-      const me3 = Game.getPlayer(state, localPlayerId);
-      const slot = Game.getSlotValue(me3, "industry");
-      let spentBonus = 0;
-      Object.values(sub.spentResources).forEach((v) => { if (v) spentBonus += Game.CFG.resourceProdValue; });
-      const totalProd = slot + sub.tradeSpent + spentBonus;
-      const resEntries = Object.entries(me3.resources).filter(([, v]) => v > 0);
-      const resHtml = resEntries.length ? resEntries.map(([k, v]) => {
-        const active = sub.spentResources[k] ? " primary" : "";
-        return `<button class="sm res-btn${active}" data-r="${k}">${k}(${v}) +${Game.CFG.resourceProdValue}</button>`;
-      }).join(" ") : "<em>No resources</em>";
+  function renderIndustryChoice(me) {
+    const slot = Game.getSlotValue(me, "industry");
+    let spentBonus = 0;
+    Object.values(sub.spentResources).forEach((v) => { if (v) spentBonus += Game.CFG.resourceProdValue; });
+    const totalProd = slot + sub.tradeSpent + spentBonus;
+    const resEntries = Object.entries(me.resources).filter(([, v]) => v > 0);
+    const resHtml = resEntries.length ? resEntries.map(([k, v]) => {
+      const active = sub.spentResources[k] ? " primary" : "";
+      return `<button class="sm res-btn${active}" data-r="${k}">${k}(${v}) +${Game.CFG.resourceProdValue}</button>`;
+    }).join(" ") : "<em>No resources</em>";
 
-      dom.wizard.innerHTML = `
-        <div class="wiz-title">Industry (Production: ${totalProd})</div>
-        <div class="wiz-body">
-          Base ${slot} + ${sub.tradeSpent} trade + ${spentBonus} resources<br>
-          <div style="margin:6px 0">${resHtml}</div>
-        </div>
-        <div class="wiz-actions">
-          <button id="wiz-build-city">Build City (cost=terrain)</button>
-          <button id="wiz-build-wonder">Build Wonder (cost=6)</button>
-          <button class="ghost" id="wiz-cancel7">Cancel</button>
-        </div>`;
-      document.querySelectorAll(".res-btn").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const r = btn.dataset.r;
-          sub.spentResources[r] = !sub.spentResources[r];
-          renderWizard();
-        });
-      });
-      document.getElementById("wiz-build-city").addEventListener("click", () => startBuildCity(totalProd));
-      document.getElementById("wiz-build-wonder").addEventListener("click", () => startBuildWonder(totalProd));
-      document.getElementById("wiz-cancel7").addEventListener("click", cancelAction);
-      return;
-    }
+    dom.wizard.innerHTML = `
+      <div class="wiz-title">Industry (Production: ${totalProd})</div>
+      <div class="wiz-body">Base ${slot} + ${sub.tradeSpent} trade + ${spentBonus} resources<br><div style="margin:6px 0">${resHtml}</div></div>
+      <div class="wiz-actions">
+        <button id="wiz-build-city">Build City (cost=terrain)</button>
+        <button id="wiz-build-wonder">Build Wonder (cost=6)</button>
+        <button class="ghost" id="wiz-cancel7">Cancel</button>
+      </div>`;
+    document.querySelectorAll(".res-btn").forEach((btn) => {
+      btn.addEventListener("click", () => { sub.spentResources[btn.dataset.r] = !sub.spentResources[btn.dataset.r]; renderWizard(); });
+    });
+    document.getElementById("wiz-build-city").addEventListener("click", () => startBuildCity(totalProd));
+    document.getElementById("wiz-build-wonder").addEventListener("click", () => startBuildWonder(totalProd));
+    document.getElementById("wiz-cancel7").addEventListener("click", cancelAction);
+  }
 
-    if (sub.phase === "placing_city") {
-      dom.wizard.innerHTML = `
-        <div class="wiz-title">Place New City</div>
-        <div class="wiz-body">Click a <strong>highlighted hex</strong> to build your city.</div>
-        <div class="wiz-actions"><button class="ghost" id="wiz-cancel8">Cancel</button></div>`;
-      document.getElementById("wiz-cancel8").addEventListener("click", cancelAction);
-      return;
-    }
+  function renderPlacingCity() {
+    dom.wizard.innerHTML = `
+      <div class="wiz-title">Place New City</div>
+      <div class="wiz-body">Click a <strong>highlighted hex</strong> to build your city.</div>
+      <div class="wiz-actions"><button class="ghost" id="wiz-cancel8">Cancel</button></div>`;
+    document.getElementById("wiz-cancel8").addEventListener("click", cancelAction);
+  }
 
-    if (sub.phase === "placing_wonder") {
-      dom.wizard.innerHTML = `
-        <div class="wiz-title">Build Wonder</div>
-        <div class="wiz-body">Click one of your <strong>cities</strong> to build the wonder.</div>
-        <div class="wiz-actions"><button class="ghost" id="wiz-cancel9">Cancel</button></div>`;
-      document.getElementById("wiz-cancel9").addEventListener("click", cancelAction);
-      return;
-    }
+  function renderPlacingWonder() {
+    dom.wizard.innerHTML = `
+      <div class="wiz-title">Build Wonder</div>
+      <div class="wiz-body">Click one of your <strong>cities</strong> to build the wonder.</div>
+      <div class="wiz-actions"><button class="ghost" id="wiz-cancel9">Cancel</button></div>`;
+    document.getElementById("wiz-cancel9").addEventListener("click", cancelAction);
   }
 
   function getCardPreview(cardType, player, slot) {
     const spend = sub.tradeSpent;
     switch (cardType) {
-      case "culture":
-        return `Markers to place: <strong>${2 + spend}</strong> (terrain ≤ ${slot})`;
-      case "growth":
-        return `Place 1 district or reinforce ${slot + spend} markers.`;
-      case "science":
-        return `Advance tech by <strong>${slot + spend}</strong>. Current: ${player.tech}/${Game.CFG.techWheelSize}`;
-      case "economy":
-        return `Move wagon up to <strong>${Game.CFG.baseWagonMove + spend}</strong> hexes.`;
-      case "military":
-        return `Move army up to <strong>${Game.CFG.baseArmyMove + slot - 1}</strong>. Combat: d6 + ${slot + spend}`;
-      case "industry":
-        return `Production: <strong>${slot + spend}</strong>. Build city (terrain cost) or wonder (6).`;
+      case "culture": return `Markers to place: <strong>${2 + spend}</strong> (terrain ≤ ${slot})`;
+      case "growth": return `Place 1 district or reinforce ${slot + spend} markers.`;
+      case "science": return `Advance tech by <strong>${slot + spend}</strong>. Current: ${player.tech}/${Game.CFG.techWheelSize}`;
+      case "economy": return `Move wagon up to <strong>${Game.CFG.baseWagonMove + spend}</strong> hexes.`;
+      case "military": return `Move army up to <strong>${Game.CFG.baseArmyMove + slot - 1}</strong>. Combat: d6 + ${slot + spend}`;
+      case "industry": return `Production: <strong>${slot + spend}</strong>. Build city (terrain cost) or wonder (6).`;
       default: return "";
     }
   }
+
+  // --- ACTION LOGIC ---
 
   function startAction() {
     const me = Game.getPlayer(state, localPlayerId);
@@ -528,50 +678,21 @@ const UI = (() => {
     const slot = Game.getSlotValue(me, sub.cardType);
 
     if (sub.cardType === "science") {
-      const amount = slot + sub.tradeSpent;
-      dispatch({ type: "PLAY_SCIENCE", payload: { playerId: localPlayerId, amount, tradeSpent: sub.tradeSpent } });
-      resetSub();
-      return;
+      dispatch({ type: "PLAY_SCIENCE", payload: { playerId: localPlayerId, amount: slot + sub.tradeSpent, tradeSpent: sub.tradeSpent } });
+      resetSub(); return;
     }
-
     if (sub.cardType === "culture") {
       sub.phase = "placing_control";
       sub.remaining = 2 + sub.tradeSpent;
       sub.totalMarkers = sub.remaining;
       sub.placedKeys = [];
       sub.validHexes = Game.validControlHexes(state, localPlayerId, slot);
-      render();
-      return;
+      render(); return;
     }
-
-    if (sub.cardType === "growth") {
-      sub.phase = "growth_choice";
-      renderWizard();
-      return;
-    }
-
-    if (sub.cardType === "economy") {
-      sub.phase = "move_wagon";
-      sub.selectedUnit = null;
-      sub.validHexes = new Set();
-      render();
-      return;
-    }
-
-    if (sub.cardType === "military") {
-      sub.phase = "move_army";
-      sub.selectedUnit = null;
-      sub.validHexes = new Set();
-      render();
-      return;
-    }
-
-    if (sub.cardType === "industry") {
-      sub.phase = "industry_choice";
-      sub.spentResources = {};
-      renderWizard();
-      return;
-    }
+    if (sub.cardType === "growth") { sub.phase = "growth_choice"; renderWizard(); return; }
+    if (sub.cardType === "economy") { sub.phase = "move_wagon"; sub.selectedUnit = null; sub.validHexes = new Set(); render(); return; }
+    if (sub.cardType === "military") { sub.phase = "move_army"; sub.selectedUnit = null; sub.validHexes = new Set(); render(); return; }
+    if (sub.cardType === "industry") { sub.phase = "industry_choice"; sub.spentResources = {}; renderWizard(); return; }
   }
 
   function startDistrictPlace() {
@@ -600,10 +721,7 @@ const UI = (() => {
   }
 
   function startBuildWonder(production) {
-    if (production < 6) {
-      dom.wizard.innerHTML += `<div style="color:var(--danger);margin-top:6px">Need 6 production for a wonder!</div>`;
-      return;
-    }
+    if (production < 6) { dom.wizard.innerHTML += `<div style="color:var(--danger);margin-top:6px">Need 6 production!</div>`; return; }
     sub.phase = "placing_wonder";
     sub.validHexes = Game.validWonderHexes(state, localPlayerId);
     render();
@@ -619,77 +737,74 @@ const UI = (() => {
     resetSub();
   }
 
-  function cancelAction() {
-    resetSub();
+  function cancelAction() { resetSub(); render(); }
+
+  function resetSub() {
+    sub.phase = "idle"; sub.cardType = null; sub.tradeSpent = 0; sub.remaining = 0;
+    sub.totalMarkers = 0; sub.validHexes = new Set(); sub.selectedUnit = null;
+    sub.districtType = null; sub.spentResources = {}; sub.placedKeys = [];
     render();
   }
 
-  function resetSub() {
-    sub.phase = "idle";
-    sub.cardType = null;
-    sub.tradeSpent = 0;
-    sub.remaining = 0;
-    sub.validHexes = new Set();
-    sub.selectedUnit = null;
-    sub.districtType = null;
-    sub.spentResources = {};
-    sub.placedKeys = [];
-    sub.totalMarkers = 0;
-    render();
-  }
+  // --- HEX CLICK HANDLER ---
 
   function handleHexClick(hexKey) {
     if (!state) return;
+
+    // Setup phase clicks
+    if (state.phase === "setup") {
+      const activeId = state.setup.order[state.setup.turnIndex];
+      if (activeId !== localPlayerId) return;
+
+      if (state.setup.phase === "fortress") {
+        dispatch({ type: "PLACE_FORTRESS", payload: { playerId: localPlayerId, hexKey } });
+        return;
+      }
+      if (state.setup.phase === "tile") {
+        const playerTiles = state.setup.playerTiles[localPlayerId] || [];
+        if (playerTiles.length === 0) return;
+        const tileId = playerTiles[0];
+        dispatch({ type: "PLACE_TILE", payload: { playerId: localPlayerId, tileId, anchorKey: hexKey, rotation: sub.tileRotation, side: sub.tileSide } });
+        return;
+      }
+      return;
+    }
+
+    // Playing phase clicks
     const me = Game.getPlayer(state, localPlayerId);
     if (!me) return;
 
     if (sub.phase === "placing_control") {
       if (!sub.validHexes.has(hexKey)) return;
-      if (!sub.placedKeys) sub.placedKeys = [];
       sub.placedKeys.push(hexKey);
       sub.remaining--;
       sub.validHexes.delete(hexKey);
-      if (sub.remaining <= 0) {
-        finishAction();
-      } else {
-        renderMap();
-        renderWizard();
-      }
+      if (sub.remaining <= 0) finishAction();
+      else { renderMap(); renderWizard(); }
       return;
     }
-
     if (sub.phase === "placing_district") {
       if (!sub.validHexes.has(hexKey)) return;
       dispatch({ type: "PLAY_GROWTH_DISTRICT", payload: { playerId: localPlayerId, hexKey, district: sub.districtType, tradeSpent: sub.tradeSpent } });
-      resetSub();
-      return;
+      resetSub(); return;
     }
-
     if (sub.phase === "reinforcing") {
       if (!sub.validHexes.has(hexKey)) return;
-      if (!sub.placedKeys) sub.placedKeys = [];
       sub.placedKeys.push(hexKey);
       sub.remaining--;
       sub.validHexes.delete(hexKey);
-      if (sub.remaining <= 0) {
-        finishAction();
-      } else {
-        renderMap();
-        renderWizard();
-      }
+      if (sub.remaining <= 0) finishAction();
+      else { renderMap(); renderWizard(); }
       return;
     }
-
     if (sub.phase === "move_wagon") {
       if (!sub.selectedUnit) {
         const unit = me.wagons.find((u) => u.position === hexKey);
         if (!unit) return;
         sub.selectedUnit = unit;
-        const slot = Game.getSlotValue(me, "economy");
         const range = Game.CFG.baseWagonMove + sub.tradeSpent;
         sub.validHexes = Game.getReachable(state, hexKey, range, "wagon", localPlayerId);
-        renderMap();
-        renderWizard();
+        renderMap(); renderWizard();
       } else {
         if (!sub.validHexes.has(hexKey)) return;
         dispatch({ type: "PLAY_ECONOMY", payload: { playerId: localPlayerId, unitId: sub.selectedUnit.id, toKey: hexKey, tradeSpent: sub.tradeSpent } });
@@ -697,34 +812,20 @@ const UI = (() => {
       }
       return;
     }
-
     if (sub.phase === "move_army") {
       if (!sub.selectedUnit) {
         const unit = me.armies.find((u) => u.position === hexKey);
         if (!unit) return;
         sub.selectedUnit = unit;
         const slot = Game.getSlotValue(me, "military");
-        const range = Game.CFG.baseArmyMove + slot - 1;
-        sub.validHexes = Game.getReachable(state, hexKey, range, "army", localPlayerId);
-        renderMap();
-        renderWizard();
+        sub.validHexes = Game.getReachable(state, hexKey, Game.CFG.baseArmyMove + slot - 1, "army", localPlayerId);
+        renderMap(); renderWizard();
       } else {
         if (!sub.validHexes.has(hexKey)) return;
         const defender = Game.findDefender(state, hexKey, localPlayerId);
         const slot = Game.getSlotValue(me, "military");
         if (defender) {
-          dispatch({
-            type: "PLAY_MILITARY_ATTACK",
-            payload: {
-              playerId: localPlayerId,
-              unitId: sub.selectedUnit.id,
-              toKey: hexKey,
-              attackPower: slot + sub.tradeSpent,
-              defensePower: defender.power,
-              defenderLabel: defender.label,
-              tradeSpent: sub.tradeSpent
-            }
-          });
+          dispatch({ type: "PLAY_MILITARY_ATTACK", payload: { playerId: localPlayerId, unitId: sub.selectedUnit.id, toKey: hexKey, attackPower: slot + sub.tradeSpent, defensePower: defender.power, defenderLabel: defender.label, tradeSpent: sub.tradeSpent } });
         } else {
           dispatch({ type: "PLAY_MILITARY_MOVE", payload: { playerId: localPlayerId, unitId: sub.selectedUnit.id, toKey: hexKey, tradeSpent: sub.tradeSpent } });
         }
@@ -732,25 +833,21 @@ const UI = (() => {
       }
       return;
     }
-
     if (sub.phase === "placing_city") {
       if (!sub.validHexes.has(hexKey)) return;
-      const resources = {};
-      Object.entries(sub.spentResources).forEach(([r, spent]) => { if (spent) resources[r] = 1; });
+      const resources = {}; Object.entries(sub.spentResources).forEach(([r, spent]) => { if (spent) resources[r] = 1; });
       dispatch({ type: "PLAY_INDUSTRY_CITY", payload: { playerId: localPlayerId, hexKey, resources, tradeSpent: sub.tradeSpent } });
-      resetSub();
-      return;
+      resetSub(); return;
     }
-
     if (sub.phase === "placing_wonder") {
       if (!sub.validHexes.has(hexKey)) return;
-      const resources = {};
-      Object.entries(sub.spentResources).forEach(([r, spent]) => { if (spent) resources[r] = 1; });
+      const resources = {}; Object.entries(sub.spentResources).forEach(([r, spent]) => { if (spent) resources[r] = 1; });
       dispatch({ type: "PLAY_INDUSTRY_WONDER", payload: { playerId: localPlayerId, hexKey, resources, tradeSpent: sub.tradeSpent } });
-      resetSub();
-      return;
+      resetSub(); return;
     }
   }
+
+  // --- GOV PICKER ---
 
   function showGovPicker() {
     const me = Game.getPlayer(state, localPlayerId);
@@ -778,14 +875,13 @@ const UI = (() => {
           renderPicker();
         });
       });
-      document.getElementById("gov-ok").addEventListener("click", () => {
-        dispatch({ type: "ASSIGN_GOV", payload: { playerId: localPlayerId, markers: selected } });
-        renderWizard();
-      });
+      document.getElementById("gov-ok").addEventListener("click", () => { dispatch({ type: "ASSIGN_GOV", payload: { playerId: localPlayerId, markers: selected } }); renderWizard(); });
       document.getElementById("gov-cancel").addEventListener("click", renderWizard);
     };
     renderPicker();
   }
+
+  // --- EVENT WHEEL, LOG, FOCUS ROW, GAMEOVER ---
 
   function renderEventWheel() {
     if (!state) return;
@@ -803,13 +899,11 @@ const UI = (() => {
 
   function renderLog() {
     if (!state) return;
-    dom.gameLog.innerHTML = `<h3>Game Log</h3>` + state.log.slice(-20).reverse().map((msg) =>
-      `<div class="log-entry">${msg}</div>`
-    ).join("");
+    dom.gameLog.innerHTML = `<h3>Game Log</h3>` + state.log.slice(-20).reverse().map((msg) => `<div class="log-entry">${msg}</div>`).join("");
   }
 
   function renderFocusRow() {
-    if (!state) return;
+    if (!state || state.phase !== "playing") return;
     const me = Game.getPlayer(state, localPlayerId);
     if (!me) { dom.focusRow.innerHTML = ""; return; }
     const cp = Game.currentPlayer(state);
@@ -834,9 +928,8 @@ const UI = (() => {
     if (canPlay) {
       document.querySelectorAll(".fcard:not(.disabled)").forEach((el) => {
         el.addEventListener("click", () => {
-          const ct = el.dataset.card;
           sub.phase = "card_selected";
-          sub.cardType = ct;
+          sub.cardType = el.dataset.card;
           sub.tradeSpent = 0;
           renderWizard();
           renderFocusRow();
