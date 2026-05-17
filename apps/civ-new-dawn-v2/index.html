@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Civ: New Dawn</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+</head>
+<body>
+  <div id="app">
+    <!-- LOBBY -->
+    <div id="lobby" class="panel-lobby">
+      <h1>Civ: New Dawn</h1>
+      <div class="lobby-form">
+        <label>Name <input type="text" id="inp-name" value="Player" maxlength="16"></label>
+        <label>Color
+          <select id="inp-color">
+            <option value="#e63946">Red</option>
+            <option value="#457b9d">Blue</option>
+            <option value="#2a9d8f">Teal</option>
+            <option value="#e9c46a">Gold</option>
+            <option value="#9b5de5">Purple</option>
+            <option value="#f77f00">Orange</option>
+          </select>
+        </label>
+        <div class="lobby-actions">
+          <button id="btn-local">Local Solo</button>
+          <button id="btn-create">Create Room</button>
+          <div class="join-row">
+            <input type="text" id="inp-join" placeholder="Room code">
+            <button id="btn-join">Join</button>
+          </div>
+        </div>
+        <div id="lobby-status"></div>
+      </div>
+    </div>
+
+    <!-- GAME -->
+    <div id="game" class="panel-game hidden">
+      <header id="header">
+        <span id="hdr-title">Civ: New Dawn</span>
+        <span id="hdr-room"></span>
+        <span id="hdr-round"></span>
+        <span id="hdr-turn"></span>
+      </header>
+
+      <div id="layout">
+        <aside id="left-panel">
+          <section id="players"></section>
+          <section id="victory-tracker"></section>
+          <section id="my-stats"></section>
+        </aside>
+
+        <main id="map-container">
+          <div id="map"></div>
+          <div id="map-tooltip" class="hidden"></div>
+        </main>
+
+        <aside id="right-panel">
+          <section id="wizard"></section>
+          <section id="event-wheel"></section>
+          <section id="game-log"></section>
+        </aside>
+      </div>
+
+      <footer id="focus-bar">
+        <div id="focus-row"></div>
+      </footer>
+    </div>
+  </div>
+
+  <script src="net.js"></script>
+  <script src="game.js"></script>
+  <script src="ui.js"></script>
+</body>
+</html>
