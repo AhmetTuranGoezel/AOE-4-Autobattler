@@ -75,12 +75,10 @@ const Game = (() => {
     });
   })();
 
-  const CORE_ANCHORS = [
-    { q: -2, r: -1 },
-    { q: 2, r: -1 },
-    { q: -2, r: 2 },
-    { q: 2, r: 2 }
-  ];
+  function getCoreAnchors(playerCount) {
+    if (playerCount <= 3) return [{ q: -2, r: 0 }, { q: 2, r: 0 }];
+    return [{ q: -2, r: -1 }, { q: 2, r: -1 }, { q: -2, r: 2 }, { q: 2, r: 2 }];
+  }
 
   // --- Map & Tile Functions ---
 
@@ -102,7 +100,8 @@ const Game = (() => {
           fortress: false,
           fortressOwnerId: null,
           core: false,
-          coreAdjacent: false
+          coreAdjacent: false,
+          tileId: null
         };
       }
     }
@@ -191,6 +190,7 @@ const Game = (() => {
       hex.revealed = true;
       hex.terrain = randomLandTerrain();
       hex.core = tile.isCore;
+      hex.tileId = tileId;
     });
 
     const anchorHex = st.map.hexes[anchorKey];
@@ -250,6 +250,7 @@ const Game = (() => {
       h.active = true;
       h.revealed = true;
       h.terrain = "water";
+      h.tileId = "water-fill";
     });
   }
 
@@ -297,7 +298,10 @@ const Game = (() => {
       playerTiles[id] = [tile.id];
     });
 
-    const coreTiles = [naturalPool.pop(), naturalPool.pop(), cityPool.pop(), cityPool.pop()];
+    const coreCount = playerIds.length <= 3 ? 2 : 4;
+    const coreTiles = [];
+    for (let i = 0; i < Math.ceil(coreCount / 2); i++) coreTiles.push(naturalPool.pop());
+    for (let i = 0; i < Math.floor(coreCount / 2); i++) coreTiles.push(cityPool.pop());
     coreTiles.forEach((tile) => { tile.isCore = true; });
 
     const remaining = normalPool.concat(naturalPool, cityPool, capitalPool);
@@ -339,9 +343,9 @@ const Game = (() => {
       log: []
     };
 
-    // Place core tiles automatically
+    const anchors = getCoreAnchors(players.length);
     setup.coreTiles.forEach((tileId, i) => {
-      const anchor = CORE_ANCHORS[i];
+      const anchor = anchors[i];
       const anchorKey = key(anchor.q, anchor.r);
       placeTileOnMap(st, tileId, anchorKey, 0, "A");
     });
@@ -414,8 +418,9 @@ const Game = (() => {
         st.turn.order = newSetup.order.slice();
         // Re-place core tiles
         st.map = buildEmptyMap(CFG.mapRadius);
+        const anchors = getCoreAnchors(st.players.length);
         newSetup.coreTiles.forEach((tileId, i) => {
-          const anchor = CORE_ANCHORS[i];
+          const anchor = anchors[i];
           placeTileOnMap(st, tileId, key(anchor.q, anchor.r), 0, "A");
         });
       }
@@ -437,6 +442,7 @@ const Game = (() => {
       hex.terrain = randomLandTerrain();
       hex.fortress = true;
       hex.fortressOwnerId = payload.playerId;
+      hex.tileId = "fortress";
       st.setup.fortressPlaced[payload.playerId] = true;
 
       updateCoreAdjacency(st);
@@ -1047,7 +1053,7 @@ const Game = (() => {
   return {
     TERRAIN, TERRAIN_LABELS, FOCUS_TYPES, FOCUS_LABELS, FOCUS_SLOTS, FOCUS_TRADE_DESC,
     DISTRICTS, DISTRICT_LABELS, DISTRICT_EFFECTS, RESOURCES, EVENTS, EVENT_LABELS, CFG,
-    TILE_OFFSETS, CORE_ANCHORS,
+    TILE_OFFSETS, getCoreAnchors,
     createState, createPlayer, applyAction, currentPlayer, getPlayer,
     getSlotValue, getSlotIndex, computeScore,
     validControlHexes, validDistrictHexes, validReinforceHexes,
