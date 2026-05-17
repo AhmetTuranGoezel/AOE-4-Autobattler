@@ -29,7 +29,7 @@ const Game = (() => {
   const CITY_NAMES = ["Akkad", "Seoul", "Buenos Aires", "Venice", "Kabul", "Geneva", "Nan Madol", "Brussels", "Preslav", "Carthage", "Valletta", "Antananarivo"];
 
   const CFG = {
-    mapRadius: 6,
+    mapRadius: 9,
     maxTrade: 3,
     maxArmies: 3,
     maxWagons: 2,
@@ -54,19 +54,299 @@ const Game = (() => {
     { dq: 1, dr: -1 }, { dq: -1, dr: 1 }
   ];
 
-  function createState(hostPlayer) {
-    const map = buildMap(CFG.mapRadius);
+  // 10-hex tile shape (irregular parallelogram)
+  // Row 0: 4 hexes, Row 1: 4 hexes, Row 2: 2 hexes (right side)
+  // Pivot/anchor at row 1, col 1 → axial (0,0)
+  const TILE_OFFSETS = (() => {
+    const coords = [
+      { row: 0, col: 0 }, { row: 0, col: 1 }, { row: 0, col: 2 }, { row: 0, col: 3 },
+      { row: 1, col: 0 }, { row: 1, col: 1 }, { row: 1, col: 2 }, { row: 1, col: 3 },
+      { row: 2, col: 2 }, { row: 2, col: 3 }
+    ];
+    const pivot = { row: 1, col: 1 };
+    function toAxial(row, col) {
+      const q = col - Math.floor((row - (row & 1)) / 2);
+      return { q, r: row };
+    }
+    const pivotAx = toAxial(pivot.row, pivot.col);
+    return coords.map((c) => {
+      const ax = toAxial(c.row, c.col);
+      return { q: ax.q - pivotAx.q, r: ax.r - pivotAx.r };
+    });
+  })();
+
+  const CORE_ANCHORS = [
+    { q: -2, r: -1 },
+    { q: 2, r: -1 },
+    { q: -2, r: 2 },
+    { q: 2, r: 2 }
+  ];
+
+  // --- Map & Tile Functions ---
+
+  function buildEmptyMap(radius) {
+    const hexes = {};
+    for (let q = -radius; q <= radius; q++) {
+      for (let r = -radius; r <= radius; r++) {
+        if (Math.abs(q + r) > radius) continue;
+        hexes[key(q, r)] = {
+          q, r,
+          terrain: "grass",
+          active: false,
+          revealed: false,
+          resource: null,
+          cityState: null,
+          barbarian: false,
+          control: null,
+          city: null,
+          fortress: false,
+          fortressOwnerId: null,
+          core: false,
+          coreAdjacent: false
+        };
+      }
+    }
+    return { radius, hexes };
+  }
+
+  function rotateAxial(coord, steps) {
+    let x = coord.q;
+    let z = coord.r;
+    let y = -x - z;
+    for (let i = 0; i < steps; i++) {
+      const nx = -z;
+      const ny = -x;
+      const nz = -y;
+      x = nx; y = ny; z = nz;
+    }
+    return { q: x, r: z };
+  }
+
+  function getTileHexKeys(anchorKey, rotation, mapHexes) {
+    const aq = parseQ(anchorKey);
+    const ar = parseR(anchorKey);
+    return TILE_OFFSETS.map((off) => {
+      const rotated = rotateAxial(off, rotation);
+      return key(aq + rotated.q, ar + rotated.r);
+    }).filter((k) => mapHexes[k] !== undefined);
+  }
+
+  function validateTilePlacement(st, tileId, anchorKey, rotation) {
+    const tile = st.setup.tiles[tileId];
+    if (!tile || tile.placed) return { ok: false };
+    const cellKeys = getTileHexKeys(anchorKey, rotation, st.map.hexes);
+    if (cellKeys.length !== TILE_OFFSETS.length) return { ok: false };
+    if (cellKeys.some((k) => st.map.hexes[k].active)) return { ok: false };
+
+    const cellSet = new Set(cellKeys);
+    let adjacentCount = 0;
+    let touchesCore = false;
+    let touchesCoreAdj = false;
+
+    cellKeys.forEach((k) => {
+      let hasNeighbor = false;
+      hexNeighborKeys(parseQ(k), parseR(k)).forEach((nk) => {
+        if (cellSet.has(nk)) return;
+        const nh = st.map.hexes[nk];
+        if (!nh || !nh.active) return;
+        hasNeighbor = true;
+        if (nh.core) touchesCore = true;
+        if (nh.coreAdjacent) touchesCoreAdj = true;
+      });
+      if (hasNeighbor) adjacentCount++;
+    });
+
+    if (!tile.isCore && adjacentCount < 4) return { ok: false };
+    if (!tile.isCore && !touchesCore && !touchesCoreAdj) return { ok: false };
+    return { ok: true, touchesCore, touchesCoreAdj };
+  }
+
+  function getValidTileAnchors(st, tileId, rotation) {
+    const anchors = [];
+    const coreAnchors = [];
+    const tile = st.setup.tiles[tileId];
+    if (!tile) return [];
+    Object.keys(st.map.hexes).forEach((k) => {
+      const result = validateTilePlacement(st, tileId, k, rotation);
+      if (!result.ok) return;
+      anchors.push(k);
+      if (result.touchesCore) coreAnchors.push(k);
+    });
+    if (!tile.isCore && coreAnchors.length) return coreAnchors;
+    return anchors;
+  }
+
+  function placeTileOnMap(st, tileId, anchorKey, rotation, side) {
+    const tile = st.setup.tiles[tileId];
+    if (!tile) return;
+    const cellKeys = getTileHexKeys(anchorKey, rotation, st.map.hexes);
+    tile.placed = true;
+    tile.anchorKey = anchorKey;
+    tile.rotation = rotation;
+    tile.side = side;
+
+    cellKeys.forEach((k) => {
+      const hex = st.map.hexes[k];
+      hex.active = true;
+      hex.revealed = true;
+      hex.terrain = randomLandTerrain();
+      hex.core = tile.isCore;
+    });
+
+    const anchorHex = st.map.hexes[anchorKey];
+    if (anchorHex) {
+      if (tile.type === "capital" && tile.ownerId) {
+        anchorHex.terrain = "grass";
+        anchorHex.city = { ownerId: tile.ownerId, isCapital: true, developed: false, hasWonder: false };
+      }
+      if (tile.type === "natural") {
+        anchorHex.resource = "wonder";
+      }
+      if (tile.type === "citystate") {
+        anchorHex.cityState = {
+          name: CITY_NAMES[Math.floor(Math.random() * CITY_NAMES.length)],
+          type: FOCUS_TYPES[Math.floor(Math.random() * FOCUS_TYPES.length)]
+        };
+      }
+    }
+
+    updateCoreAdjacency(st);
+    fillEnclosedHoles(st);
+  }
+
+  function updateCoreAdjacency(st) {
+    Object.values(st.map.hexes).forEach((h) => { h.coreAdjacent = false; });
+    Object.values(st.map.hexes).filter((h) => h.core).forEach((h) => {
+      hexNeighborKeys(h.q, h.r).forEach((nk) => {
+        const nh = st.map.hexes[nk];
+        if (nh && nh.active) nh.coreAdjacent = true;
+      });
+    });
+  }
+
+  function fillEnclosedHoles(st) {
+    const { hexes, radius } = st.map;
+    const outside = new Set();
+    const queue = [];
+    Object.entries(hexes).forEach(([k, h]) => {
+      if (!h.active && isBoundaryHex(h, radius)) {
+        outside.add(k);
+        queue.push(k);
+      }
+    });
+    while (queue.length) {
+      const k = queue.shift();
+      hexNeighborKeys(parseQ(k), parseR(k)).forEach((nk) => {
+        if (outside.has(nk)) return;
+        const nh = hexes[nk];
+        if (!nh || nh.active) return;
+        outside.add(nk);
+        queue.push(nk);
+      });
+    }
+    Object.entries(hexes).forEach(([k, h]) => {
+      if (h.active) return;
+      if (outside.has(k)) return;
+      h.active = true;
+      h.revealed = true;
+      h.terrain = "water";
+    });
+  }
+
+  function isBoundaryHex(h, radius) {
+    return Math.max(Math.abs(h.q), Math.abs(h.r), Math.abs(h.q + h.r)) === radius;
+  }
+
+  function getValidFortressHexes(st) {
+    const valid = [];
+    Object.entries(st.map.hexes).forEach(([k, h]) => {
+      if (h.active) return;
+      let activeNeighbors = 0;
+      hexNeighborKeys(h.q, h.r).forEach((nk) => {
+        const nh = st.map.hexes[nk];
+        if (nh && nh.active) activeNeighbors++;
+      });
+      if (activeNeighbors >= 2) valid.push(k);
+    });
+    return new Set(valid);
+  }
+
+  // --- Setup State Creation ---
+
+  function createSetupState(playerIds) {
+    const tiles = {};
+    let nextId = 1;
+    const order = shuffle(playerIds.slice());
+
+    function makeTile(type) {
+      const id = `T${nextId++}`;
+      tiles[id] = { id, type, ownerId: null, side: "A", rotation: 0, placed: false, isCore: false, anchorKey: null };
+      return tiles[id];
+    }
+
+    const capitalPool = Array.from({ length: playerIds.length + 2 }, () => makeTile("capital"));
+    const naturalPool = Array.from({ length: 4 }, () => makeTile("natural"));
+    const cityPool = Array.from({ length: 4 }, () => makeTile("citystate"));
+    const normalPool = Array.from({ length: playerIds.length * 2 + 6 }, () => makeTile("normal"));
+
+    shuffle(capitalPool);
+    const playerTiles = {};
+    playerIds.forEach((id) => {
+      const tile = capitalPool.pop();
+      tile.ownerId = id;
+      playerTiles[id] = [tile.id];
+    });
+
+    const coreTiles = [naturalPool.pop(), naturalPool.pop(), cityPool.pop(), cityPool.pop()];
+    coreTiles.forEach((tile) => { tile.isCore = true; });
+
+    const remaining = normalPool.concat(naturalPool, cityPool, capitalPool);
+    shuffle(remaining);
+    playerIds.forEach((id) => {
+      for (let i = 0; i < 2; i++) {
+        const tile = remaining.pop();
+        if (!tile) continue;
+        tile.ownerId = id;
+        playerTiles[id].push(tile.id);
+      }
+    });
+
+    return {
+      phase: "fortress",
+      order,
+      turnIndex: 0,
+      tiles,
+      playerTiles,
+      coreTiles: coreTiles.map((t) => t.id),
+      fortressPlaced: {}
+    };
+  }
+
+  function createState(players) {
+    const map = buildEmptyMap(CFG.mapRadius);
+    const playerIds = players.map((p) => p.id);
+    const setup = createSetupState(playerIds);
+
     const st = {
-      phase: "playing",
+      phase: "setup",
       map,
-      players: [hostPlayer],
-      turn: { order: [hostPlayer.id], index: 0, round: 1 },
+      players: players.slice(),
+      turn: { order: setup.order.slice(), index: 0, round: 1 },
+      setup,
       eventWheel: { position: 0, events: EVENTS.slice() },
       lastCombat: null,
       winner: null,
       log: []
     };
-    placeCapital(st, hostPlayer.id, 0);
+
+    // Place core tiles automatically
+    setup.coreTiles.forEach((tileId, i) => {
+      const anchor = CORE_ANCHORS[i];
+      const anchorKey = key(anchor.q, anchor.r);
+      placeTileOnMap(st, tileId, anchorKey, 0, "A");
+    });
+
+    log(st, "Core tiles placed. Fortress placement begins.");
     return st;
   }
 
@@ -85,64 +365,40 @@ const Game = (() => {
     };
   }
 
-  function buildMap(radius) {
-    const hexes = {};
-    for (let q = -radius; q <= radius; q++) {
-      for (let r = -radius; r <= radius; r++) {
-        if (Math.abs(q + r) > radius) continue;
-        hexes[key(q, r)] = {
-          q, r,
-          terrain: randomTerrain(),
-          revealed: true,
-          resource: null,
-          cityState: null,
-          barbarian: false,
-          control: null,
-          city: null
-        };
+  // --- Finalize Setup ---
+
+  function finalizeSetup(st) {
+    st.setup.phase = "done";
+    st.phase = "playing";
+    st.turn.round = 1;
+    st.turn.index = 0;
+
+    // Place armies and wagons at each player's capital
+    st.players.forEach((player) => {
+      const capKey = findCapital(st, player.id);
+      if (capKey) {
+        player.armies.forEach((u) => { if (!u.position) u.position = capKey; });
+        player.wagons.forEach((u) => { if (!u.position) u.position = capKey; });
       }
-    }
-    scatterFeatures(hexes);
-    return { radius, hexes };
-  }
-
-  function scatterFeatures(hexes) {
-    const land = Object.keys(hexes).filter((k) => hexes[k].terrain !== "water");
-    const picks1 = pickRandom(land, 8);
-    picks1.forEach((k, i) => { hexes[k].resource = RESOURCES[i % RESOURCES.length]; });
-    const remaining = land.filter((k) => !hexes[k].resource);
-    const picks2 = pickRandom(remaining, 6);
-    picks2.forEach((k, i) => {
-      hexes[k].cityState = { name: CITY_NAMES[i % CITY_NAMES.length], type: FOCUS_TYPES[i % FOCUS_TYPES.length] };
     });
-    const barbCandidates = remaining.filter((k) => !hexes[k].cityState);
-    const picks3 = pickRandom(barbCandidates, 5);
-    picks3.forEach((k) => { hexes[k].barbarian = true; });
+
+    // Scatter resources, barbarians on active land hexes
+    const activeLand = Object.keys(st.map.hexes).filter((k) => {
+      const h = st.map.hexes[k];
+      return h.active && h.terrain !== "water" && !h.city && !h.cityState && !h.resource && !h.fortress;
+    });
+
+    const resPicks = pickRandom(activeLand, Math.min(8, Math.floor(activeLand.length / 8)));
+    resPicks.forEach((k, i) => { st.map.hexes[k].resource = RESOURCES[i % RESOURCES.length]; });
+
+    const barbCandidates = activeLand.filter((k) => !st.map.hexes[k].resource);
+    const barbPicks = pickRandom(barbCandidates, Math.min(5, Math.floor(barbCandidates.length / 10)));
+    barbPicks.forEach((k) => { st.map.hexes[k].barbarian = true; });
+
+    log(st, "Setup complete! Game begins.");
   }
 
-  const START_POSITIONS = [
-    (r) => key(-r + 1, 0),
-    (r) => key(r - 1, 0),
-    (r) => key(0, -r + 1),
-    (r) => key(0, r - 1)
-  ];
-
-  function placeCapital(st, playerId, posIndex) {
-    const pos = START_POSITIONS[posIndex % START_POSITIONS.length](st.map.radius);
-    const hex = st.map.hexes[pos];
-    if (!hex) return;
-    hex.terrain = "grass";
-    hex.city = { ownerId: playerId, isCapital: true, developed: false, hasWonder: false };
-    hex.resource = null;
-    hex.cityState = null;
-    hex.barbarian = false;
-    hex.control = null;
-    const player = st.players.find((p) => p.id === playerId);
-    if (player) {
-      player.armies.forEach((u) => { if (!u.position) u.position = pos; });
-      player.wagons.forEach((u) => { if (!u.position) u.position = pos; });
-    }
-  }
+  // --- Actions ---
 
   function applyAction(st, action) {
     const { type, payload } = action;
@@ -151,12 +407,84 @@ const Game = (() => {
       if (st.players.find((p) => p.id === payload.id)) return st;
       st.players.push(payload);
       st.turn.order.push(payload.id);
-      placeCapital(st, payload.id, st.players.length - 1);
+      // Rebuild setup with new player
+      if (st.phase === "setup") {
+        const newSetup = createSetupState(st.players.map((p) => p.id));
+        st.setup = newSetup;
+        st.turn.order = newSetup.order.slice();
+        // Re-place core tiles
+        st.map = buildEmptyMap(CFG.mapRadius);
+        newSetup.coreTiles.forEach((tileId, i) => {
+          const anchor = CORE_ANCHORS[i];
+          placeTileOnMap(st, tileId, key(anchor.q, anchor.r), 0, "A");
+        });
+      }
       log(st, `${payload.name} joined.`);
       return st;
     }
 
-    if (type === "SELECT_CARD") return st;
+    if (type === "PLACE_FORTRESS") {
+      if (st.phase !== "setup" || st.setup.phase !== "fortress") return st;
+      const activeId = st.setup.order[st.setup.turnIndex];
+      if (payload.playerId !== activeId) return st;
+      const hex = st.map.hexes[payload.hexKey];
+      if (!hex || hex.active) return st;
+      const validSet = getValidFortressHexes(st);
+      if (!validSet.has(payload.hexKey)) return st;
+
+      hex.active = true;
+      hex.revealed = true;
+      hex.terrain = randomLandTerrain();
+      hex.fortress = true;
+      hex.fortressOwnerId = payload.playerId;
+      st.setup.fortressPlaced[payload.playerId] = true;
+
+      updateCoreAdjacency(st);
+      fillEnclosedHoles(st);
+
+      const player = getPlayer(st, payload.playerId);
+      log(st, `${player ? player.name : "Player"} placed a fortress.`);
+
+      // Advance to next player or next phase
+      const allPlaced = st.setup.order.every((id) => st.setup.fortressPlaced[id]);
+      if (allPlaced) {
+        st.setup.phase = "tile";
+        st.setup.turnIndex = 0;
+        log(st, "All fortresses placed. Tile placement begins.");
+      } else {
+        advanceSetupTurn(st);
+      }
+      return st;
+    }
+
+    if (type === "PLACE_TILE") {
+      if (st.phase !== "setup" || st.setup.phase !== "tile") return st;
+      const activeId = st.setup.order[st.setup.turnIndex];
+      if (payload.playerId !== activeId) return st;
+      const playerTiles = st.setup.playerTiles[payload.playerId] || [];
+      if (!playerTiles.includes(payload.tileId)) return st;
+
+      const result = validateTilePlacement(st, payload.tileId, payload.anchorKey, payload.rotation);
+      if (!result.ok) return st;
+
+      placeTileOnMap(st, payload.tileId, payload.anchorKey, payload.rotation, payload.side);
+      st.setup.playerTiles[payload.playerId] = playerTiles.filter((id) => id !== payload.tileId);
+
+      const player = getPlayer(st, payload.playerId);
+      const tile = st.setup.tiles[payload.tileId];
+      log(st, `${player ? player.name : "Player"} placed a ${tile.type} tile.`);
+
+      // Check if all tiles placed
+      const allDone = st.setup.order.every((id) => (st.setup.playerTiles[id] || []).length === 0);
+      if (allDone) {
+        finalizeSetup(st);
+      } else {
+        advanceSetupTurnTile(st);
+      }
+      return st;
+    }
+
+    // --- Playing phase actions (same as before) ---
 
     if (type === "PLAY_CULTURE") {
       const player = getPlayer(st, payload.playerId);
@@ -164,7 +492,7 @@ const Game = (() => {
       payload.hexKeys.forEach((k) => {
         const hex = st.map.hexes[k];
         if (!hex) return;
-        if (hex.resource) {
+        if (hex.resource && hex.resource !== "wonder") {
           if (player.resources[hex.resource] !== undefined) player.resources[hex.resource]++;
           hex.resource = null;
         }
@@ -180,9 +508,7 @@ const Game = (() => {
       const player = getPlayer(st, payload.playerId);
       if (!player) return st;
       const hex = st.map.hexes[payload.hexKey];
-      if (hex) {
-        hex.control = { ownerId: payload.playerId, fortified: false, district: payload.district };
-      }
+      if (hex) hex.control = { ownerId: payload.playerId, fortified: false, district: payload.district };
       resolveCard(st, player, "growth", payload.tradeSpent);
       log(st, `${player.name} placed a ${payload.district} district.`);
       checkDevelopment(st, payload.playerId);
@@ -194,9 +520,7 @@ const Game = (() => {
       if (!player) return st;
       payload.hexKeys.forEach((k) => {
         const hex = st.map.hexes[k];
-        if (hex && hex.control && hex.control.ownerId === payload.playerId) {
-          hex.control.fortified = true;
-        }
+        if (hex && hex.control && hex.control.ownerId === payload.playerId) hex.control.fortified = true;
       });
       resolveCard(st, player, "growth", payload.tradeSpent);
       log(st, `${player.name} reinforced ${payload.hexKeys.length} marker(s).`);
@@ -238,10 +562,7 @@ const Game = (() => {
       const player = getPlayer(st, payload.playerId);
       if (!player) return st;
       const unit = player.armies.find((u) => u.id === payload.unitId);
-      if (unit) {
-        unit.position = payload.toKey;
-        log(st, `${player.name} moved army.`);
-      }
+      if (unit) { unit.position = payload.toKey; log(st, `${player.name} moved army.`); }
       resolveCard(st, player, "military", payload.tradeSpent);
       return st;
     }
@@ -260,11 +581,7 @@ const Game = (() => {
       const defTotal = defRoll + payload.defensePower;
       const win = atkTotal > defTotal;
 
-      st.lastCombat = {
-        attacker: player.name,
-        defender: payload.defenderLabel,
-        atkRoll, defRoll, atkTotal, defTotal, win
-      };
+      st.lastCombat = { attacker: player.name, defender: payload.defenderLabel, atkRoll, defRoll, atkTotal, defTotal, win };
 
       if (win) {
         unit.position = payload.toKey;
@@ -368,15 +685,39 @@ const Game = (() => {
     return st;
   }
 
+  // --- Setup Helpers ---
+
+  function advanceSetupTurn(st) {
+    const order = st.setup.order;
+    let next = st.setup.turnIndex;
+    for (let i = 0; i < order.length; i++) {
+      next = (next + 1) % order.length;
+      if (!st.setup.fortressPlaced[order[next]]) break;
+    }
+    st.setup.turnIndex = next;
+    st.turn.index = next;
+  }
+
+  function advanceSetupTurnTile(st) {
+    const order = st.setup.order;
+    let next = st.setup.turnIndex;
+    for (let i = 0; i < order.length; i++) {
+      next = (next + 1) % order.length;
+      if ((st.setup.playerTiles[order[next]] || []).length > 0) break;
+    }
+    st.setup.turnIndex = next;
+    st.turn.index = next;
+  }
+
+  // --- Card Resolution ---
+
   function resolveCard(st, player, cardType, tradeSpent) {
     const idx = player.focusRow.indexOf(cardType);
     if (idx >= 0) {
       player.focusRow.splice(idx, 1);
       player.focusRow.unshift(cardType);
     }
-    if (tradeSpent > 0) {
-      player.trade[cardType] = Math.max(0, player.trade[cardType] - tradeSpent);
-    }
+    if (tradeSpent > 0) player.trade[cardType] = Math.max(0, player.trade[cardType] - tradeSpent);
     player.cardPlayed = true;
   }
 
@@ -398,6 +739,8 @@ const Game = (() => {
     });
   }
 
+  // --- Event Wheel ---
+
   function advanceEventWheel(st) {
     const wheel = st.eventWheel;
     wheel.position = (wheel.position + 1) % wheel.events.length;
@@ -410,23 +753,20 @@ const Game = (() => {
     if (evt === "barbarian_spawn") {
       const candidates = Object.keys(st.map.hexes).filter((k) => {
         const h = st.map.hexes[k];
-        return h.terrain !== "water" && !h.city && !h.cityState && !h.barbarian && !h.control;
+        return h.active && h.terrain !== "water" && !h.city && !h.cityState && !h.barbarian && !h.control;
       });
       const count = Math.min(rollDie() <= 3 ? 1 : 2, candidates.length);
       pickRandom(candidates, count).forEach((k) => { st.map.hexes[k].barbarian = true; });
       if (count > 0) log(st, `${count} barbarian(s) spawned.`);
     }
-
     if (evt === "barbarian_move") {
       const barbs = Object.entries(st.map.hexes).filter(([, h]) => h.barbarian);
       let moved = 0;
       barbs.forEach(([k, hex]) => {
         const dir = HEX_DIRS[Math.floor(Math.random() * 6)];
-        const tq = hex.q + dir.dq;
-        const tr = hex.r + dir.dr;
-        const tk = key(tq, tr);
+        const tk = key(hex.q + dir.dq, hex.r + dir.dr);
         const target = st.map.hexes[tk];
-        if (!target || target.terrain === "water") return;
+        if (!target || !target.active || target.terrain === "water") return;
         hex.barbarian = false;
         if (target.control && !target.control.fortified) {
           target.control = null;
@@ -441,14 +781,11 @@ const Game = (() => {
       });
       if (moved) log(st, `${moved} barbarian(s) moved.`);
     }
-
     if (evt === "district_event") {
       st.players.forEach((player) => {
         const counts = { campus: 0, trade: 0, encampment: 0, industrial: 0, theater: 0 };
         Object.values(st.map.hexes).forEach((h) => {
-          if (h.control && h.control.ownerId === player.id && h.control.district) {
-            counts[h.control.district]++;
-          }
+          if (h.control && h.control.ownerId === player.id && h.control.district) counts[h.control.district]++;
         });
         if (counts.campus) { player.tech += counts.campus; log(st, `${player.name}: +${counts.campus} tech (campus).`); }
         if (counts.trade) {
@@ -465,17 +802,15 @@ const Game = (() => {
         if (counts.theater) player.govBonus.culture = Math.min(3, player.govBonus.culture + counts.theater);
       });
     }
-
-    if (evt === "gov_change") {
-      log(st, "Players may reassign gov markers.");
-    }
-
+    if (evt === "gov_change") log(st, "Players may reassign gov markers.");
     if (evt === "wonder_aging") {
       let wc = 0;
       Object.values(st.map.hexes).forEach((h) => { if (h.city && h.city.hasWonder) wc++; });
       if (wc) log(st, `${wc} wonder(s) on the map.`);
     }
   }
+
+  // --- Victory & Scoring ---
 
   function checkDevelopment(st, playerId) {
     Object.values(st.map.hexes).forEach((hex) => {
@@ -489,6 +824,7 @@ const Game = (() => {
     return hexNeighborKeys(hex.q, hex.r).every((nk) => {
       const n = st.map.hexes[nk];
       if (!n) return true;
+      if (!n.active) return true;
       if (n.terrain === "water") return true;
       if (n.control && n.control.ownerId === hex.city.ownerId) return true;
       return false;
@@ -526,63 +862,44 @@ const Game = (() => {
     return score;
   }
 
+  // --- Query Helpers ---
+
   function countControl(st, playerId) {
-    let c = 0;
-    Object.values(st.map.hexes).forEach((h) => { if (h.control && h.control.ownerId === playerId) c++; });
-    return c;
+    let c = 0; Object.values(st.map.hexes).forEach((h) => { if (h.control && h.control.ownerId === playerId) c++; }); return c;
   }
-
   function countWonders(st, playerId) {
-    let c = 0;
-    Object.values(st.map.hexes).forEach((h) => { if (h.city && h.city.ownerId === playerId && h.city.hasWonder) c++; });
-    return c;
+    let c = 0; Object.values(st.map.hexes).forEach((h) => { if (h.city && h.city.ownerId === playerId && h.city.hasWonder) c++; }); return c;
   }
-
   function countDeveloped(st, playerId) {
-    let c = 0;
-    Object.values(st.map.hexes).forEach((h) => { if (h.city && h.city.ownerId === playerId && h.city.developed) c++; });
-    return c;
+    let c = 0; Object.values(st.map.hexes).forEach((h) => { if (h.city && h.city.ownerId === playerId && h.city.developed) c++; }); return c;
   }
-
   function countCities(st, playerId) {
-    let c = 0;
-    Object.values(st.map.hexes).forEach((h) => { if (h.city && h.city.ownerId === playerId) c++; });
-    return c;
+    let c = 0; Object.values(st.map.hexes).forEach((h) => { if (h.city && h.city.ownerId === playerId) c++; }); return c;
   }
-
   function findCapital(st, playerId) {
     for (const [k, h] of Object.entries(st.map.hexes)) {
       if (h.city && h.city.ownerId === playerId && h.city.isCapital) return k;
     }
     return null;
   }
-
   function currentPlayer(st) {
     if (!st) return null;
     return st.players.find((p) => p.id === st.turn.order[st.turn.index]) || null;
   }
-
   function getPlayer(st, id) { return st.players.find((p) => p.id === id) || null; }
-
   function getSlotValue(player, cardType) {
     const idx = player.focusRow.indexOf(cardType);
     if (idx < 0) return 1;
-    const base = FOCUS_SLOTS[idx];
-    const bonus = player.govBonus[cardType] || 0;
-    return Math.min(5, base + bonus);
+    return Math.min(5, FOCUS_SLOTS[idx] + (player.govBonus[cardType] || 0));
   }
-
-  function getSlotIndex(player, cardType) {
-    return player.focusRow.indexOf(cardType);
-  }
+  function getSlotIndex(player, cardType) { return player.focusRow.indexOf(cardType); }
 
   function validControlHexes(st, playerId, maxTerrain) {
     const valid = [];
     Object.entries(st.map.hexes).forEach(([k, h]) => {
-      if (h.terrain === "water") return;
+      if (!h.active || h.terrain === "water") return;
       if (TERRAIN[h.terrain] > maxTerrain) return;
-      if (h.city || h.cityState || h.barbarian) return;
-      if (h.control) return;
+      if (h.city || h.cityState || h.barbarian || h.control) return;
       if (!withinRangeOfCity(st, h, playerId, maxTerrain)) return;
       valid.push(k);
     });
@@ -592,10 +909,9 @@ const Game = (() => {
   function validDistrictHexes(st, playerId, maxTerrain) {
     const valid = [];
     Object.entries(st.map.hexes).forEach(([k, h]) => {
-      if (h.terrain === "water") return;
+      if (!h.active || h.terrain === "water") return;
       if (TERRAIN[h.terrain] > maxTerrain) return;
-      if (h.city || h.cityState || h.barbarian) return;
-      if (h.control) return;
+      if (h.city || h.cityState || h.barbarian || h.control) return;
       if (!adjacentToFriendlyCity(st, h, playerId)) return;
       valid.push(k);
     });
@@ -605,7 +921,7 @@ const Game = (() => {
   function validReinforceHexes(st, playerId) {
     const valid = [];
     Object.entries(st.map.hexes).forEach(([k, h]) => {
-      if (h.control && h.control.ownerId === playerId && !h.control.fortified) valid.push(k);
+      if (h.active && h.control && h.control.ownerId === playerId && !h.control.fortified) valid.push(k);
     });
     return new Set(valid);
   }
@@ -613,7 +929,7 @@ const Game = (() => {
   function validCityHexes(st, playerId, production) {
     const valid = [];
     Object.entries(st.map.hexes).forEach(([k, h]) => {
-      if (h.terrain === "water") return;
+      if (!h.active || h.terrain === "water") return;
       if (TERRAIN[h.terrain] > production) return;
       if (h.city || h.cityState || h.barbarian) return;
       if (adjacentToAnyCity(st, h)) return;
@@ -641,7 +957,7 @@ const Game = (() => {
       hexNeighborKeys(parseQ(cur.key), parseR(cur.key)).forEach((nk) => {
         if (visited.has(nk)) return;
         const h = st.map.hexes[nk];
-        if (!h) return;
+        if (!h || !h.active) return;
         if (h.terrain === "water") return;
         if (unitType === "wagon" && h.barbarian) return;
         visited.add(nk);
@@ -661,13 +977,11 @@ const Game = (() => {
       const def = TERRAIN[h.terrain] + (h.control.fortified ? 2 : 0);
       return { type: "control", label: "Control Marker", power: def };
     }
-    if (h.city && h.city.ownerId !== attackerId) {
-      return { type: "city", label: "City", power: TERRAIN[h.terrain] * 2 };
-    }
+    if (h.city && h.city.ownerId !== attackerId) return { type: "city", label: "City", power: TERRAIN[h.terrain] * 2 };
     for (const p of st.players) {
       if (p.id === attackerId) continue;
       for (const u of p.armies) {
-        if (u.position === hexKey) return { type: "army", label: `${p.name}'s Army`, power: 3, ownerId: p.id, unitId: u.id };
+        if (u.position === hexKey) return { type: "army", label: `${p.name}'s Army`, power: 3 };
       }
     }
     return null;
@@ -688,21 +1002,14 @@ const Game = (() => {
       return hexDist(h, hex) <= range;
     });
   }
-
   function adjacentToFriendlyCity(st, hex, playerId) {
     return hexNeighborKeys(hex.q, hex.r).some((nk) => {
-      const n = st.map.hexes[nk];
-      return n && n.city && n.city.ownerId === playerId;
+      const n = st.map.hexes[nk]; return n && n.city && n.city.ownerId === playerId;
     });
   }
-
   function adjacentToAnyCity(st, hex) {
-    return hexNeighborKeys(hex.q, hex.r).some((nk) => {
-      const n = st.map.hexes[nk];
-      return n && n.city;
-    });
+    return hexNeighborKeys(hex.q, hex.r).some((nk) => { const n = st.map.hexes[nk]; return n && n.city; });
   }
-
   function withinRangeOfFriendly(st, hex, playerId, range) {
     return Object.values(st.map.hexes).some((h) => {
       if (h.city && h.city.ownerId === playerId) return hexDist(h, hex) <= range;
@@ -711,48 +1018,42 @@ const Game = (() => {
     });
   }
 
-  // Hex utilities
+  // --- Hex Utilities ---
   function key(q, r) { return `${q},${r}`; }
   function parseQ(k) { return parseInt(k.split(",")[0]); }
   function parseR(k) { return parseInt(k.split(",")[1]); }
-  function hexNeighborKeys(q, r) {
-    return HEX_DIRS.map((d) => key(q + d.dq, r + d.dr));
-  }
-  function hexDist(a, b) {
-    return (Math.abs(a.q - b.q) + Math.abs(a.r - b.r) + Math.abs(a.q + a.r - b.q - b.r)) / 2;
-  }
-
-  function randomTerrain() {
+  function hexNeighborKeys(q, r) { return HEX_DIRS.map((d) => key(q + d.dq, r + d.dr)); }
+  function hexDist(a, b) { return (Math.abs(a.q - b.q) + Math.abs(a.r - b.r) + Math.abs(a.q + a.r - b.q - b.r)) / 2; }
+  function randomLandTerrain() {
     const roll = Math.random() * 100;
     if (roll < 30) return "grass";
-    if (roll < 50) return "hill";
-    if (roll < 70) return "forest";
-    if (roll < 85) return "desert";
-    if (roll < 95) return "mountain";
-    return "water";
+    if (roll < 55) return "hill";
+    if (roll < 75) return "forest";
+    if (roll < 90) return "desert";
+    return "mountain";
   }
-
   function pickRandom(arr, n) {
-    const copy = arr.slice();
-    const result = [];
-    while (copy.length && result.length < n) {
-      const i = Math.floor(Math.random() * copy.length);
-      result.push(copy.splice(i, 1)[0]);
-    }
+    const copy = arr.slice(); const result = [];
+    while (copy.length && result.length < n) { const i = Math.floor(Math.random() * copy.length); result.push(copy.splice(i, 1)[0]); }
     return result;
   }
-
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; }
+    return arr;
+  }
   function rollDie() { return Math.floor(Math.random() * 6) + 1; }
   function log(st, msg) { st.log.push(msg); }
 
   return {
     TERRAIN, TERRAIN_LABELS, FOCUS_TYPES, FOCUS_LABELS, FOCUS_SLOTS, FOCUS_TRADE_DESC,
     DISTRICTS, DISTRICT_LABELS, DISTRICT_EFFECTS, RESOURCES, EVENTS, EVENT_LABELS, CFG,
+    TILE_OFFSETS, CORE_ANCHORS,
     createState, createPlayer, applyAction, currentPlayer, getPlayer,
     getSlotValue, getSlotIndex, computeScore,
     validControlHexes, validDistrictHexes, validReinforceHexes,
     validCityHexes, validWonderHexes, getReachable, findDefender, getUnitsAt,
     countControl, countWonders, countDeveloped, countCities, findCapital,
-    hexNeighborKeys, parseQ, parseR, key, hexDist, rollDie
+    getValidFortressHexes, getValidTileAnchors, getTileHexKeys, validateTilePlacement,
+    hexNeighborKeys, parseQ, parseR, key, hexDist, rollDie, rotateAxial
   };
 })();
