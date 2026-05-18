@@ -393,3 +393,4 @@ input, select {
 .gameover-box h2 { color: var(--accent); margin-bottom: 12px; }
 .gameover-box .go-type { color: var(--warn); margin-bottom: 16px; }
 .gameover-scores { text-align: left; font-size: 12px; line-height: 2; }
+.gameover-actions { margin-top: 20px; display: flex; justify-content: center; gap: 8px; }
