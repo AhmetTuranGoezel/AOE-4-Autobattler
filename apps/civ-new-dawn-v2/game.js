@@ -36,7 +36,7 @@ const Game = (() => {
     maxGovMarkers: 2,
     baseWagonMove: 3,
     baseArmyMove: 4,
-    barbarianBase: 3,
+    barbarianBase: 0,
     cityStateDefense: 8,
     resourceProdValue: 2,
     techWheelSize: 24,
@@ -164,7 +164,7 @@ const Game = (() => {
     });
 
     if (!tile.isCore && adjacentCount < 4) return { ok: false };
-    if (!tile.isCore && !touchesCore && !touchesCoreAdj) return { ok: false };
+    if (!tile.isCore && st.setup.phase !== "capital_tile" && !touchesCore && !touchesCoreAdj) return { ok: false };
     return { ok: true, touchesCore, touchesCoreAdj };
   }
 
@@ -271,11 +271,17 @@ const Game = (() => {
     Object.entries(st.map.hexes).forEach(([k, h]) => {
       if (h.active) return;
       let activeNeighbors = 0;
+      let adjacentToFortress = false;
+      let adjacentToCityState = false;
       hexNeighborKeys(h.q, h.r).forEach((nk) => {
         const nh = st.map.hexes[nk];
-        if (nh && nh.active) activeNeighbors++;
+        if (nh && nh.active) {
+          activeNeighbors++;
+          if (nh.fortress) adjacentToFortress = true;
+          if (nh.cityState) adjacentToCityState = true;
+        }
       });
-      if (activeNeighbors >= 2) valid.push(k);
+      if (activeNeighbors >= 2 && !adjacentToFortress && !adjacentToCityState) valid.push(k);
     });
     return new Set(valid);
   }
@@ -314,14 +320,6 @@ const Game = (() => {
 
     const remaining = normalPool.concat(naturalPool, cityPool, capitalPool);
     shuffle(remaining);
-    playerIds.forEach((id) => {
-      for (let i = 0; i < 2; i++) {
-        const tile = remaining.pop();
-        if (!tile) continue;
-        tile.ownerId = id;
-        playerTiles[id].push(tile.id);
-      }
-    });
 
     return {
       phase: "fortress",
@@ -330,7 +328,8 @@ const Game = (() => {
       tiles,
       playerTiles,
       coreTiles: coreTiles.map((t) => t.id),
-      fortressPlaced: {}
+      fortressPlaced: {},
+      tileStack: remaining.map((t) => t.id)
     };
   }
 
@@ -385,6 +384,9 @@ const Game = (() => {
     st.turn.round = 1;
     st.turn.index = 0;
 
+    st.tiles = st.setup.tiles;
+    st.tileStack = st.setup.tileStack || [];
+
     // Place armies and wagons at each player's capital
     st.players.forEach((player) => {
       const capKey = findCapital(st, player.id);
@@ -394,17 +396,17 @@ const Game = (() => {
       }
     });
 
-    // Scatter resources, barbarians on active land hexes
-    const activeLand = Object.keys(st.map.hexes).filter((k) => {
+    // Light scatter on core tiles only (TI: most content comes from exploration)
+    const coreLand = Object.keys(st.map.hexes).filter((k) => {
       const h = st.map.hexes[k];
-      return h.active && h.terrain !== "water" && !h.city && !h.cityState && !h.resource && !h.fortress;
+      return h.active && h.core && h.terrain !== "water" && !h.city && !h.cityState && !h.resource && !h.fortress;
     });
 
-    const resPicks = pickRandom(activeLand, Math.min(8, Math.floor(activeLand.length / 8)));
+    const resPicks = pickRandom(coreLand, Math.min(3, Math.floor(coreLand.length / 6)));
     resPicks.forEach((k, i) => { st.map.hexes[k].resource = RESOURCES[i % RESOURCES.length]; });
 
-    const barbCandidates = activeLand.filter((k) => !st.map.hexes[k].resource);
-    const barbPicks = pickRandom(barbCandidates, Math.min(5, Math.floor(barbCandidates.length / 10)));
+    const barbCandidates = coreLand.filter((k) => !st.map.hexes[k].resource);
+    const barbPicks = pickRandom(barbCandidates, Math.min(2, Math.floor(barbCandidates.length / 8)));
     barbPicks.forEach((k) => { st.map.hexes[k].barbarian = true; });
 
     log(st, "Setup complete! Game begins.");
@@ -462,9 +464,9 @@ const Game = (() => {
       // Advance to next player or next phase
       const allPlaced = st.setup.order.every((id) => st.setup.fortressPlaced[id]);
       if (allPlaced) {
-        st.setup.phase = "tile";
+        st.setup.phase = "capital_tile";
         st.setup.turnIndex = 0;
-        log(st, "All fortresses placed. Tile placement begins.");
+        log(st, "All fortresses placed. Capital tile placement begins.");
       } else {
         advanceSetupTurn(st);
       }
@@ -472,7 +474,7 @@ const Game = (() => {
     }
 
     if (type === "PLACE_TILE") {
-      if (st.phase !== "setup" || st.setup.phase !== "tile") return st;
+      if (st.phase !== "setup" || st.setup.phase !== "capital_tile") return st;
       const activeId = st.setup.order[st.setup.turnIndex];
       if (payload.playerId !== activeId) return st;
       const playerTiles = st.setup.playerTiles[payload.playerId] || [];
@@ -495,6 +497,24 @@ const Game = (() => {
       } else {
         advanceSetupTurnTile(st);
       }
+      return st;
+    }
+
+    if (type === "EXPLORE_TILE") {
+      if (st.phase !== "playing") return st;
+      const player = getPlayer(st, payload.playerId);
+      if (!player) return st;
+      if (!st.tileStack || st.tileStack.length === 0) return st;
+
+      const tileId = st.tileStack[0];
+      const result = validateExploration(st, tileId, payload.anchorKey, payload.rotation);
+      if (!result.ok) return st;
+
+      st.tileStack.shift();
+      placeExploredTile(st, tileId, payload.anchorKey, payload.rotation, payload.side || "A");
+
+      const tile = st.tiles[tileId];
+      log(st, `${player.name} explored and placed a ${tile ? tile.type : "unknown"} tile.`);
       return st;
     }
 
@@ -1058,6 +1078,117 @@ const Game = (() => {
   function rollDie() { return Math.floor(Math.random() * 6) + 1; }
   function log(st, msg) { st.log.push(msg); }
 
+  // --- Exploration (Terra Incognita) ---
+
+  function isExploreEligible(st, hexKey) {
+    if (!st.tileStack || st.tileStack.length === 0) return false;
+    const h = st.map.hexes[hexKey];
+    if (!h || !h.active || !h.tileId) return false;
+    const hasInactiveNeighbor = hexNeighborKeys(h.q, h.r).some((nk) => {
+      const nh = st.map.hexes[nk];
+      return nh && !nh.active;
+    });
+    if (!hasInactiveNeighbor) return false;
+    return Object.values(st.map.hexes).some((hh) =>
+      hh.tileId === h.tileId && hh.city && hh.city.isCapital
+    );
+  }
+
+  function validateExploration(st, tileId, anchorKey, rotation) {
+    const tile = st.tiles[tileId];
+    if (!tile || tile.placed) return { ok: false };
+    const cellKeys = getTileHexKeys(anchorKey, rotation, st.map.hexes);
+    if (cellKeys.length !== TILE_OFFSETS.length) return { ok: false };
+    if (cellKeys.some((k) => st.map.hexes[k].active)) return { ok: false };
+
+    const cellSet = new Set(cellKeys);
+    let adjacentCount = 0;
+    cellKeys.forEach((k) => {
+      let hasNeighbor = false;
+      hexNeighborKeys(parseQ(k), parseR(k)).forEach((nk) => {
+        if (cellSet.has(nk)) return;
+        const nh = st.map.hexes[nk];
+        if (!nh || !nh.active) return;
+        hasNeighbor = true;
+      });
+      if (hasNeighbor) adjacentCount++;
+    });
+
+    if (adjacentCount < 4) return { ok: false };
+    return { ok: true };
+  }
+
+  function placeExploredTile(st, tileId, anchorKey, rotation, side) {
+    const tile = st.tiles[tileId];
+    if (!tile) return;
+    const cellKeys = getTileHexKeys(anchorKey, rotation, st.map.hexes);
+    tile.placed = true;
+    tile.anchorKey = anchorKey;
+    tile.rotation = rotation;
+    tile.side = side;
+
+    cellKeys.forEach((k) => {
+      const hex = st.map.hexes[k];
+      hex.active = true;
+      hex.revealed = true;
+      hex.terrain = randomLandTerrain();
+      hex.tileId = tileId;
+    });
+
+    const anchorHex = st.map.hexes[anchorKey];
+    if (anchorHex) {
+      if (tile.type === "natural") anchorHex.resource = "wonder";
+      if (tile.type === "citystate") {
+        anchorHex.cityState = {
+          name: CITY_NAMES[Math.floor(Math.random() * CITY_NAMES.length)],
+          type: FOCUS_TYPES[Math.floor(Math.random() * FOCUS_TYPES.length)]
+        };
+      }
+    }
+
+    // Populate tile content
+    const landKeys = cellKeys.filter((k) => {
+      const hx = st.map.hexes[k];
+      return hx.terrain !== "water" && !hx.resource && !hx.cityState;
+    });
+
+    if (tile.type === "normal") {
+      const barbCount = Math.min(2 + (Math.random() < 0.5 ? 1 : 0), landKeys.length);
+      pickRandom(landKeys, barbCount).forEach((k) => { st.map.hexes[k].barbarian = true; });
+      const resKeys = landKeys.filter((k) => !st.map.hexes[k].barbarian);
+      const resCount = Math.min(1 + (Math.random() < 0.5 ? 1 : 0), resKeys.length);
+      pickRandom(resKeys, resCount).forEach((k, i) => { st.map.hexes[k].resource = RESOURCES[i % RESOURCES.length]; });
+    }
+    if (tile.type === "citystate") {
+      const nonAnchor = landKeys.filter((k) => k !== anchorKey);
+      const barbCount = Math.min(2, nonAnchor.length);
+      pickRandom(nonAnchor, barbCount).forEach((k) => { st.map.hexes[k].barbarian = true; });
+    }
+
+    updateCoreAdjacency(st);
+    fillEnclosedHoles(st);
+  }
+
+  function getReachableWithDist(st, startKey, maxSteps, unitType, playerId) {
+    const distances = new Map([[startKey, 0]]);
+    const queue = [{ key: startKey, steps: 0 }];
+    while (queue.length) {
+      const cur = queue.shift();
+      if (cur.steps >= maxSteps) continue;
+      hexNeighborKeys(parseQ(cur.key), parseR(cur.key)).forEach((nk) => {
+        if (distances.has(nk)) return;
+        const h = st.map.hexes[nk];
+        if (!h || !h.active) return;
+        if (h.terrain === "water") return;
+        if (unitType === "wagon" && h.barbarian) return;
+        distances.set(nk, cur.steps + 1);
+        queue.push({ key: nk, steps: cur.steps + 1 });
+      });
+    }
+    distances.delete(startKey);
+    return distances;
+  }
+
   return {
     TERRAIN, TERRAIN_LABELS, FOCUS_TYPES, FOCUS_LABELS, FOCUS_SLOTS, FOCUS_TRADE_DESC,
     DISTRICTS, DISTRICT_LABELS, DISTRICT_EFFECTS, RESOURCES, EVENTS, EVENT_LABELS, CFG,
@@ -1068,6 +1199,7 @@ const Game = (() => {
     validCityHexes, validWonderHexes, getReachable, findDefender, getUnitsAt,
     countControl, countWonders, countDeveloped, countCities, findCapital,
     getValidFortressHexes, getValidTileAnchors, getTileHexKeys, validateTilePlacement,
-    hexNeighborKeys, parseQ, parseR, key, hexDist, rollDie, rotateAxial
+    hexNeighborKeys, parseQ, parseR, key, hexDist, rollDie, rotateAxial,
+    isExploreEligible, validateExploration, placeExploredTile, getReachableWithDist
   };
 })();
