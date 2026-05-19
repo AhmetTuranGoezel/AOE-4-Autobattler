@@ -3,23 +3,34 @@
 const UI = (() => {
   let state = null;
   let localPlayerId = null;
-  let hexEls = new Map();
+
+  // Canvas
+  let canvas = null;
+  let ctx = null;
+  const HEX_SIZE = 30;
+  const SQRT3 = Math.sqrt(3);
+  let panX = 0, panY = 0;
+  let isPanning = false;
+  let panStart = null;
+  let dragDistance = 0;
+  let mouseHex = null;
+
+  const TERRAIN_COLORS = {
+    grass: '#4a7c3f', hill: '#8b7355', forest: '#2d5a27',
+    desert: '#c4a35a', mountain: '#6b6b6b', water: '#2563a0'
+  };
+
+  const EDGE_NEIGHBORS = [
+    { dq: 1, dr: 0 }, { dq: 0, dr: 1 }, { dq: -1, dr: 1 },
+    { dq: -1, dr: 0 }, { dq: 0, dr: -1 }, { dq: 1, dr: -1 }
+  ];
 
   const sub = {
-    phase: "idle",
-    cardType: null,
-    tradeSpent: 0,
-    remaining: 0,
-    totalMarkers: 0,
-    validHexes: new Set(),
-    selectedUnit: null,
-    districtType: null,
-    spentResources: {},
-    placedKeys: [],
-    // Setup-specific
-    tileRotation: 0,
-    tileSide: "A",
-    hoveredAnchor: null
+    phase: "idle", cardType: null, tradeSpent: 0, remaining: 0,
+    totalMarkers: 0, validHexes: new Set(), selectedUnit: null,
+    districtType: null, spentResources: {}, placedKeys: [],
+    tileRotation: 0, tileSide: "A",
+    movementState: null
   };
 
   const dom = {};
@@ -50,10 +61,10 @@ const UI = (() => {
 
     Net.init({
       onState: (payload) => {
-        if (Net.getIsHost()) {
-          dispatch(payload);
-        } else {
+        if (Net.getIsHost()) dispatch(payload);
+        else {
           state = payload;
+          try { localStorage.setItem("civ-nd-save", JSON.stringify({ state, localPlayerId })); } catch(e) {}
           render();
         }
       },
@@ -64,13 +75,26 @@ const UI = (() => {
         render();
       },
       onDisconnect: () => {},
-      onConnected: () => {
-        if (Net.getIsHost() && state) Net.broadcast(state);
-      }
+      onConnected: () => { if (Net.getIsHost() && state) Net.broadcast(state); }
     });
+
+    try {
+      const saved = localStorage.getItem("civ-nd-save");
+      if (saved) {
+        const data = JSON.parse(saved);
+        if (data.state && data.localPlayerId) {
+          state = data.state;
+          localPlayerId = data.localPlayerId;
+          Net.startLocal();
+          showGame();
+          render();
+        }
+      }
+    } catch(e) {}
   }
 
   function startLocal() {
+    try { localStorage.removeItem("civ-nd-save"); } catch(e) {}
     Net.startLocal();
     localPlayerId = "local";
     const name = dom.inpName.value.trim() || "Player";
@@ -82,6 +106,7 @@ const UI = (() => {
   }
 
   function startCreate() {
+    try { localStorage.removeItem("civ-nd-save"); } catch(e) {}
     const name = dom.inpName.value.trim() || "Host";
     const color = dom.inpColor.value;
     dom.lobbyStatus.textContent = "Creating room...";
@@ -96,6 +121,7 @@ const UI = (() => {
   }
 
   function startJoin() {
+    try { localStorage.removeItem("civ-nd-save"); } catch(e) {}
     const code = dom.inpJoin.value.trim();
     if (!code) { dom.lobbyStatus.textContent = "Enter a room code."; return; }
     const name = dom.inpName.value.trim() || "Player";
@@ -111,6 +137,7 @@ const UI = (() => {
   function showGame() {
     dom.lobby.classList.add("hidden");
     dom.game.classList.remove("hidden");
+    initCanvas();
   }
 
   function dispatch(action) {
@@ -118,17 +145,531 @@ const UI = (() => {
     if (Net.getIsHost()) {
       state = Game.applyAction(state, action);
       Net.broadcast(state);
+      try { localStorage.setItem("civ-nd-save", JSON.stringify({ state, localPlayerId })); } catch(e) {}
       render();
     } else {
       Net.sendAction(action);
     }
   }
 
+  // ── Canvas Setup ──────────────────────────────────────────
+
+  function initCanvas() {
+    canvas = document.createElement("canvas");
+    dom.map.innerHTML = "";
+    dom.map.appendChild(canvas);
+    ctx = canvas.getContext("2d");
+
+    resizeCanvas();
+    window.addEventListener("resize", resizeCanvas);
+
+    canvas.addEventListener("mousemove", onCanvasMouseMove);
+    canvas.addEventListener("mousedown", onCanvasMouseDown);
+    canvas.addEventListener("mouseup", onCanvasMouseUp);
+    canvas.addEventListener("mouseleave", onCanvasMouseLeave);
+    canvas.addEventListener("click", onCanvasClick);
+    canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+    document.addEventListener("keydown", onKeyDown);
+
+    panX = (dom.map.clientWidth || 800) / 2;
+    panY = (dom.map.clientHeight || 600) / 2;
+  }
+
+  function resizeCanvas() {
+    const dpr = window.devicePixelRatio || 1;
+    const w = dom.map.clientWidth || 800;
+    const h = dom.map.clientHeight || 600;
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    canvas.style.width = w + "px";
+    canvas.style.height = h + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (state) renderCanvas();
+  }
+
+  // ── Hex Math ──────────────────────────────────────────────
+
+  function axialToPixel(q, r) {
+    return {
+      x: HEX_SIZE * SQRT3 * (q + r / 2) + panX,
+      y: HEX_SIZE * 1.5 * r + panY
+    };
+  }
+
+  function pixelToAxial(px, py) {
+    const x = px - panX;
+    const y = py - panY;
+    const fq = (SQRT3 / 3 * x - y / 3) / HEX_SIZE;
+    const fr = (2 / 3 * y) / HEX_SIZE;
+    return axialRound(fq, fr);
+  }
+
+  function axialRound(fq, fr) {
+    const fs = -fq - fr;
+    let rq = Math.round(fq), rr = Math.round(fr), rs = Math.round(fs);
+    const dq = Math.abs(rq - fq), dr = Math.abs(rr - fr), ds = Math.abs(rs - fs);
+    if (dq > dr && dq > ds) rq = -rr - rs;
+    else if (dr > ds) rr = -rq - rs;
+    return { q: rq, r: rr };
+  }
+
+  function hexCorner(cx, cy, size, i) {
+    const angle = Math.PI / 180 * (60 * i - 30);
+    return { x: cx + size * Math.cos(angle), y: cy + size * Math.sin(angle) };
+  }
+
+  function hexPath(cx, cy, size) {
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const c = hexCorner(cx, cy, size, i);
+      if (i === 0) ctx.moveTo(c.x, c.y);
+      else ctx.lineTo(c.x, c.y);
+    }
+    ctx.closePath();
+  }
+
+  // ── Canvas Rendering ─────────────────────────────────────
+
+  function renderCanvas() {
+    if (!state || !ctx) return;
+    const cw = canvas.width / (window.devicePixelRatio || 1);
+    const ch = canvas.height / (window.devicePixelRatio || 1);
+
+    ctx.clearRect(0, 0, cw, ch);
+    ctx.fillStyle = "#111122";
+    ctx.fillRect(0, 0, cw, ch);
+
+    const hexes = state.map.hexes;
+
+    // Compute setup-valid and ghost data
+    let setupValid = new Set();
+    let ghostKeys = new Set();
+    let ghostValid = false;
+
+    if (state.phase === "setup") {
+      const activeId = state.setup.order[state.setup.turnIndex];
+      if (activeId === localPlayerId) {
+        if (state.setup.phase === "fortress") {
+          setupValid = Game.getValidFortressHexes(state);
+        } else if ((state.setup.phase === "tile" || state.setup.phase === "capital_tile") && mouseHex) {
+          const playerTiles = state.setup.playerTiles[localPlayerId] || [];
+          if (playerTiles.length > 0) {
+            const tileId = playerTiles[0];
+            const anchorKey = Game.key(mouseHex.q, mouseHex.r);
+            const keys = Game.getTileHexKeys(anchorKey, sub.tileRotation, hexes);
+            if (keys.length === Game.TILE_OFFSETS.length) {
+              const result = Game.validateTilePlacement(state, tileId, anchorKey, sub.tileRotation);
+              ghostKeys = new Set(keys);
+              ghostValid = result.ok;
+            }
+          }
+        }
+      }
+    }
+
+    if (state.phase === "playing" &&
+        (sub.phase === "move_army_exploring" || sub.phase === "move_wagon_exploring") &&
+        mouseHex && state.tileStack && state.tileStack.length > 0) {
+      const tileId = state.tileStack[0];
+      const anchorKey = Game.key(mouseHex.q, mouseHex.r);
+      const keys = Game.getTileHexKeys(anchorKey, sub.tileRotation, hexes);
+      if (keys.length === Game.TILE_OFFSETS.length) {
+        const result = Game.validateExploration(state, tileId, anchorKey, sub.tileRotation);
+        ghostKeys = new Set(keys);
+        ghostValid = result.ok;
+      }
+    }
+
+    const combinedValid = new Set([...sub.validHexes, ...setupValid]);
+
+    // Layer 1: Inactive hexes
+    Object.values(hexes).forEach((h) => {
+      if (h.active || ghostKeys.has(Game.key(h.q, h.r))) return;
+      const p = axialToPixel(h.q, h.r);
+      if (p.x < -50 || p.x > cw + 50 || p.y < -50 || p.y > ch + 50) return;
+      hexPath(p.x, p.y, HEX_SIZE);
+      ctx.fillStyle = "rgba(30,30,50,0.3)";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(60,60,90,0.15)";
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+    });
+
+    // Layer 2: Active hex terrain
+    Object.values(hexes).forEach((h) => {
+      if (!h.active) return;
+      const p = axialToPixel(h.q, h.r);
+      if (p.x < -50 || p.x > cw + 50 || p.y < -50 || p.y > ch + 50) return;
+      hexPath(p.x, p.y, HEX_SIZE);
+      ctx.fillStyle = TERRAIN_COLORS[h.terrain] || "#444";
+      ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,0.35)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    });
+
+    // Layer 3: Tile boundaries
+    drawTileBoundaries(cw, ch);
+
+    // Layer 4: Valid hex highlights
+    combinedValid.forEach((k) => {
+      const h = hexes[k];
+      if (!h) return;
+      const p = axialToPixel(h.q, h.r);
+      hexPath(p.x, p.y, HEX_SIZE - 2);
+      ctx.fillStyle = "rgba(102,187,106,0.2)";
+      ctx.fill();
+      ctx.strokeStyle = "#66bb6a";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    });
+
+    // Layer 5: Hex content
+    Object.entries(hexes).forEach(([k, h]) => {
+      if (!h.active) return;
+      const p = axialToPixel(h.q, h.r);
+      if (p.x < -50 || p.x > cw + 50 || p.y < -50 || p.y > ch + 50) return;
+      drawHexContent(p.x, p.y, h, k);
+    });
+
+    // Layer 6: Ghost tile
+    if (ghostKeys.size > 0) drawGhostTile(ghostKeys, ghostValid);
+
+    // Layer 7: Current unit position during movement
+    if (sub.movementState && sub.movementState.currentKey) {
+      const curHex = hexes[sub.movementState.currentKey];
+      if (curHex) {
+        const p = axialToPixel(curHex.q, curHex.r);
+        hexPath(p.x, p.y, HEX_SIZE + 2);
+        ctx.strokeStyle = "#4fc3f7";
+        ctx.lineWidth = 3;
+        ctx.stroke();
+      }
+    }
+
+    // Layer 8: Hover ring
+    if (mouseHex) {
+      const mk = Game.key(mouseHex.q, mouseHex.r);
+      const mh = hexes[mk];
+      if (mh) {
+        const p = axialToPixel(mouseHex.q, mouseHex.r);
+        hexPath(p.x, p.y, HEX_SIZE);
+        ctx.strokeStyle = mh.active ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.2)";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    }
+  }
+
+  function drawTileBoundaries(cw, ch) {
+    if (!state) return;
+    const hexes = state.map.hexes;
+    ctx.strokeStyle = "rgba(255,213,79,0.45)";
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = "round";
+
+    Object.values(hexes).forEach((h) => {
+      if (!h.active || !h.tileId) return;
+      const p = axialToPixel(h.q, h.r);
+      if (p.x < -60 || p.x > cw + 60 || p.y < -60 || p.y > ch + 60) return;
+
+      for (let i = 0; i < 6; i++) {
+        const n = EDGE_NEIGHBORS[i];
+        const nk = Game.key(h.q + n.dq, h.r + n.dr);
+        const nh = hexes[nk];
+        if (!nh || !nh.active || nh.tileId !== h.tileId) {
+          const c1 = hexCorner(p.x, p.y, HEX_SIZE, i);
+          const c2 = hexCorner(p.x, p.y, HEX_SIZE, (i + 1) % 6);
+          ctx.beginPath();
+          ctx.moveTo(c1.x, c1.y);
+          ctx.lineTo(c2.x, c2.y);
+          ctx.stroke();
+        }
+      }
+    });
+  }
+
+  function drawGhostTile(ghostKeys, valid) {
+    const hexes = state.map.hexes;
+    const fillColor = valid ? "rgba(102,187,106,0.25)" : "rgba(239,83,80,0.2)";
+    const strokeColor = valid ? "#66bb6a" : "#ef5350";
+
+    // Get tile data for terrain preview
+    let tileId = null;
+    let tile = null;
+    if (state.phase === "setup") {
+      const playerTiles = state.setup.playerTiles[localPlayerId] || [];
+      tileId = playerTiles[0];
+      tile = tileId ? state.setup.tiles[tileId] : null;
+    } else if (sub.phase === "move_army_exploring" || sub.phase === "move_wagon_exploring") {
+      tileId = state.tileStack ? state.tileStack[0] : null;
+      tile = tileId ? state.tiles[tileId] : null;
+    }
+
+    ghostKeys.forEach((k) => {
+      const h = hexes[k];
+      if (!h) return;
+      const p = axialToPixel(h.q, h.r);
+      hexPath(p.x, p.y, HEX_SIZE);
+      ctx.fillStyle = h.active ? "rgba(239,83,80,0.3)" : fillColor;
+      ctx.fill();
+
+      // Show tile type indicator at anchor
+      if (tile && k === Game.key(mouseHex.q, mouseHex.r)) {
+        ctx.fillStyle = "#fff";
+        ctx.font = "bold 9px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        const labels = { capital: "CAP", natural: "WND", citystate: "CS", normal: "" };
+        ctx.fillText(labels[tile.type] || "", p.x, p.y);
+      }
+    });
+
+    // Ghost outline
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    ghostKeys.forEach((k) => {
+      const h = hexes[k];
+      if (!h) return;
+      const p = axialToPixel(h.q, h.r);
+      for (let i = 0; i < 6; i++) {
+        const n = EDGE_NEIGHBORS[i];
+        const nk = Game.key(h.q + n.dq, h.r + n.dr);
+        if (!ghostKeys.has(nk)) {
+          const c1 = hexCorner(p.x, p.y, HEX_SIZE, i);
+          const c2 = hexCorner(p.x, p.y, HEX_SIZE, (i + 1) % 6);
+          ctx.beginPath();
+          ctx.moveTo(c1.x, c1.y);
+          ctx.lineTo(c2.x, c2.y);
+          ctx.stroke();
+        }
+      }
+    });
+  }
+
+  function drawHexContent(cx, cy, h, k) {
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    let yOff = -8;
+    const step = 11;
+
+    if (h.city) {
+      const owner = Game.getPlayer(state, h.city.ownerId);
+      const color = owner ? owner.color : "#fff";
+      const label = h.city.isCapital ? "CAP" : "CTY";
+      const extra = h.city.hasWonder ? "★" : (h.city.developed ? "✓" : "");
+      ctx.fillStyle = "rgba(0,0,0,0.5)";
+      ctx.fillRect(cx - 14, cy + yOff - 5, 28, 11);
+      ctx.fillStyle = color;
+      ctx.font = "bold 8px sans-serif";
+      ctx.fillText(label + extra, cx, cy + yOff);
+      yOff += step;
+    }
+
+    if (h.fortress) {
+      const owner = h.fortressOwnerId ? Game.getPlayer(state, h.fortressOwnerId) : null;
+      ctx.fillStyle = "rgba(0,0,0,0.5)";
+      ctx.fillRect(cx - 11, cy + yOff - 5, 22, 11);
+      ctx.fillStyle = owner ? owner.color : "#aaa";
+      ctx.font = "bold 8px sans-serif";
+      ctx.fillText("FRT", cx, cy + yOff);
+      yOff += step;
+    }
+
+    if (h.control) {
+      const owner = Game.getPlayer(state, h.control.ownerId);
+      const color = owner ? owner.color : "#fff";
+      if (h.control.district) {
+        ctx.fillStyle = "rgba(255,255,255,0.12)";
+        ctx.fillRect(cx - 11, cy + yOff - 5, 22, 10);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(cx - 11, cy + yOff - 5, 22, 10);
+        ctx.fillStyle = color;
+        ctx.font = "bold 7px sans-serif";
+        ctx.fillText(h.control.district.slice(0, 3).toUpperCase(), cx, cy + yOff);
+      } else {
+        ctx.beginPath();
+        ctx.arc(cx, cy + yOff, 4, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+        if (h.control.fortified) {
+          ctx.strokeStyle = "#fff";
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        }
+      }
+      yOff += step;
+    }
+
+    if (h.barbarian) {
+      ctx.fillStyle = "#ff5722";
+      ctx.font = "bold 10px sans-serif";
+      ctx.fillText("☠", cx, cy + yOff);
+      yOff += step;
+    }
+
+    if (h.cityState) {
+      ctx.fillStyle = "#ce93d8";
+      ctx.font = "bold 7px sans-serif";
+      ctx.fillText(h.cityState.name.slice(0, 4), cx, cy + yOff);
+      yOff += step;
+    }
+
+    if (h.resource) {
+      ctx.fillStyle = "#ffd54f";
+      ctx.font = "bold 7px sans-serif";
+      const resLabels = { marble: "MRB", mercury: "MRC", oil: "OIL", diamonds: "DIA", wonder: "WND" };
+      ctx.fillText(resLabels[h.resource] || h.resource.slice(0, 3), cx, cy + yOff);
+      yOff += step;
+    }
+
+    const units = Game.getUnitsAt(state, k);
+    units.forEach((u) => {
+      ctx.beginPath();
+      ctx.arc(cx, cy + yOff, 5, 0, Math.PI * 2);
+      ctx.fillStyle = u.type === "army" ? "rgba(239,83,80,0.5)" : "rgba(102,187,106,0.5)";
+      ctx.fill();
+      ctx.fillStyle = u.color;
+      ctx.font = "bold 8px sans-serif";
+      ctx.fillText(u.type === "army" ? "A" : "W", cx, cy + yOff);
+      yOff += step;
+    });
+  }
+
+  // ── Mouse / Keyboard ─────────────────────────────────────
+
+  function onCanvasMouseMove(e) {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+
+    if (isPanning && panStart) {
+      const dx = mx - panStart.x;
+      const dy = my - panStart.y;
+      dragDistance = Math.sqrt(dx * dx + dy * dy);
+      panX = panStart.panX + dx;
+      panY = panStart.panY + dy;
+      canvas.style.cursor = "grabbing";
+      hideTooltip();
+      renderCanvas();
+      return;
+    }
+
+    const newHex = pixelToAxial(mx, my);
+    const newKey = Game.key(newHex.q, newHex.r);
+    const oldKey = mouseHex ? Game.key(mouseHex.q, mouseHex.r) : null;
+
+    if (newKey !== oldKey) {
+      mouseHex = state && state.map.hexes[newKey] ? newHex : null;
+      if (mouseHex) showTooltip(e.clientX, e.clientY, newKey);
+      else hideTooltip();
+      renderCanvas();
+    } else if (mouseHex) {
+      dom.mapTooltip.style.left = (e.clientX + 14) + "px";
+      dom.mapTooltip.style.top = (e.clientY + 14) + "px";
+    }
+  }
+
+  function onCanvasMouseDown(e) {
+    if (e.button !== 0) return;
+    const rect = canvas.getBoundingClientRect();
+    isPanning = true;
+    dragDistance = 0;
+    panStart = { x: e.clientX - rect.left, y: e.clientY - rect.top, panX, panY };
+  }
+
+  function onCanvasMouseUp() {
+    isPanning = false;
+    panStart = null;
+    canvas.style.cursor = "grab";
+  }
+
+  function onCanvasMouseLeave() {
+    isPanning = false;
+    panStart = null;
+    mouseHex = null;
+    hideTooltip();
+    canvas.style.cursor = "grab";
+    renderCanvas();
+  }
+
+  function onCanvasClick(e) {
+    if (dragDistance > 5) { dragDistance = 0; return; }
+    dragDistance = 0;
+    const rect = canvas.getBoundingClientRect();
+    const hex = pixelToAxial(e.clientX - rect.left, e.clientY - rect.top);
+    handleHexClick(Game.key(hex.q, hex.r));
+  }
+
+  function onKeyDown(e) {
+    if (sub.phase === "move_army_exploring" || sub.phase === "move_wagon_exploring") {
+      if (e.key === "q" || e.key === "Q") { e.preventDefault(); sub.tileRotation = (sub.tileRotation + 5) % 6; render(); }
+      else if (e.key === "e" || e.key === "E") { e.preventDefault(); sub.tileRotation = (sub.tileRotation + 1) % 6; render(); }
+      return;
+    }
+    if (!state || state.phase !== "setup" || (state.setup.phase !== "tile" && state.setup.phase !== "capital_tile")) return;
+    const activeId = state.setup.order[state.setup.turnIndex];
+    if (activeId !== localPlayerId) return;
+
+    if (e.key === "q" || e.key === "Q") {
+      e.preventDefault();
+      sub.tileRotation = (sub.tileRotation + 5) % 6;
+      render();
+    } else if (e.key === "e" || e.key === "E") {
+      e.preventDefault();
+      sub.tileRotation = (sub.tileRotation + 1) % 6;
+      render();
+    }
+  }
+
+  // ── Tooltip ───────────────────────────────────────────────
+
+  function showTooltip(screenX, screenY, hexKey) {
+    const h = state.map.hexes[hexKey];
+    if (!h) return;
+    const lines = [];
+    if (!h.active) {
+      lines.push(`<strong>Inactive</strong> (${hexKey})`);
+    } else {
+      lines.push(`<strong>${Game.TERRAIN_LABELS[h.terrain]}</strong> (diff ${Game.TERRAIN[h.terrain]})`);
+      if (h.city) {
+        const owner = Game.getPlayer(state, h.city.ownerId);
+        lines.push(`${h.city.isCapital ? "Capital" : "City"}: ${owner ? owner.name : "?"} ${h.city.developed ? "(Dev)" : ""} ${h.city.hasWonder ? "(Wonder)" : ""}`);
+      }
+      if (h.control) {
+        const owner = Game.getPlayer(state, h.control.ownerId);
+        lines.push(`${h.control.district ? `District: ${h.control.district}` : "Control"}: ${owner ? owner.name : "?"} ${h.control.fortified ? "(Fort)" : ""}`);
+      }
+      if (h.barbarian) lines.push(`Barbarian (power ${Game.TERRAIN[h.terrain]})`);
+      if (h.cityState) lines.push(`City-State: ${h.cityState.name} (${h.cityState.type})`);
+      if (h.resource) lines.push(`Resource: ${h.resource}`);
+      if (h.fortress) {
+        const owner = h.fortressOwnerId ? Game.getPlayer(state, h.fortressOwnerId) : null;
+        lines.push(`Fortress: ${owner ? owner.name : "Neutral"}`);
+      }
+      Game.getUnitsAt(state, hexKey).forEach((u) => {
+        const p = Game.getPlayer(state, u.playerId);
+        lines.push(`${u.type}: ${p ? p.name : "?"}`);
+      });
+      if (h.tileId) lines.push(`<em style="color:#ffd54f88">Tile: ${h.tileId}</em>`);
+    }
+    dom.mapTooltip.innerHTML = lines.join("<br>");
+    dom.mapTooltip.classList.remove("hidden");
+    dom.mapTooltip.style.left = (screenX + 14) + "px";
+    dom.mapTooltip.style.top = (screenY + 14) + "px";
+  }
+
+  function hideTooltip() { dom.mapTooltip.classList.add("hidden"); }
+
+  // ── Render Orchestrator ───────────────────────────────────
+
   function render() {
     if (!state) return;
     renderHeader();
     renderPlayers();
-    renderMap();
+    renderCanvas();
     renderWizard();
     renderEventWheel();
     renderLog();
@@ -145,6 +686,8 @@ const UI = (() => {
     renderGameOver();
   }
 
+  // ── Header / Players / Stats ──────────────────────────────
+
   function renderHeader() {
     const cp = Game.currentPlayer(state);
     if (state.phase === "setup") {
@@ -157,6 +700,7 @@ const UI = (() => {
       dom.hdrRound.textContent = `Round ${state.turn.round}/${Game.CFG.maxRounds}`;
       dom.hdrTurn.textContent = cp ? (cp.id === localPlayerId ? "Your Turn" : `${cp.name}'s Turn`) : "";
       dom.hdrTurn.style.color = cp ? cp.color : "";
+      if (state.tileStack) dom.hdrRoom.textContent = `Tiles: ${state.tileStack.length}`;
     }
   }
 
@@ -205,190 +749,18 @@ const UI = (() => {
     </div>`;
   }
 
-  // --- MAP RENDERING ---
-
-  function renderMap() {
-    if (!state) return;
-    if (hexEls.size === 0) buildMapDom();
-
-    // Compute valid hexes for setup
-    let setupValid = new Set();
-    if (state.phase === "setup") {
-      const activeId = state.setup.order[state.setup.turnIndex];
-      if (activeId === localPlayerId) {
-        if (state.setup.phase === "fortress") {
-          setupValid = Game.getValidFortressHexes(state);
-        } else if (state.setup.phase === "tile") {
-          const playerTiles = state.setup.playerTiles[localPlayerId] || [];
-          if (playerTiles.length > 0) {
-            const tileId = playerTiles[0];
-            const anchors = Game.getValidTileAnchors(state, tileId, sub.tileRotation);
-            setupValid = new Set(anchors);
-          }
-        }
-      }
-    }
-
-    // Ghost tiles for hover preview
-    let ghostKeys = new Set();
-    if (state.phase === "setup" && state.setup.phase === "tile" && sub.hoveredAnchor && setupValid.has(sub.hoveredAnchor)) {
-      const playerTiles = state.setup.playerTiles[localPlayerId] || [];
-      if (playerTiles.length > 0) {
-        const keys = Game.getTileHexKeys(sub.hoveredAnchor, sub.tileRotation, state.map.hexes);
-        ghostKeys = new Set(keys);
-      }
-    }
-
-    const combinedValid = new Set([...sub.validHexes, ...setupValid]);
-
-    Object.entries(state.map.hexes).forEach(([k, h]) => {
-      const el = hexEls.get(k);
-      if (!el) return;
-      el.className = "hex";
-
-      if (!h.active) {
-        el.classList.add("inactive");
-        if (combinedValid.has(k)) { el.classList.remove("inactive"); el.classList.add("valid"); el.classList.add("terrain-grass"); }
-        if (ghostKeys.has(k)) { el.classList.remove("inactive"); el.classList.add("ghost"); }
-      } else {
-        el.classList.add(`terrain-${h.terrain}`);
-        if (combinedValid.has(k)) el.classList.add("valid");
-      }
-
-      let content = "";
-      if (h.active) {
-        if (h.city) {
-          const owner = Game.getPlayer(state, h.city.ownerId);
-          const label = h.city.isCapital ? "CAP" : "CTY";
-          const extra = h.city.hasWonder ? "+W" : (h.city.developed ? "✓" : "");
-          content += `<span class="hex-token city" style="color:${owner ? owner.color : "#fff"}">${label}${extra}</span>`;
-        }
-        if (h.control) {
-          const owner = Game.getPlayer(state, h.control.ownerId);
-          const label = h.control.district ? h.control.district.slice(0, 3).toUpperCase() : "●";
-          const cls = h.control.district ? "dist" : "ctrl";
-          const fort = h.control.fortified ? "⛨" : "";
-          content += `<span class="hex-token ${cls}" style="border-color:${owner ? owner.color : "#fff"};color:${owner ? owner.color : "#fff"}">${label}${fort}</span>`;
-        }
-        if (h.barbarian) content += `<span class="hex-token barb">☠</span>`;
-        if (h.cityState) content += `<span class="hex-token cs">${h.cityState.name.slice(0, 3)}</span>`;
-        if (h.resource) content += `<span class="hex-token res">${h.resource.slice(0, 3)}</span>`;
-        if (h.fortress) {
-          const owner = h.fortressOwnerId ? Game.getPlayer(state, h.fortressOwnerId) : null;
-          content += `<span class="hex-token city" style="color:${owner ? owner.color : "#aaa"}">FRT</span>`;
-        }
-        const units = Game.getUnitsAt(state, k);
-        units.forEach((u) => {
-          const icon = u.type === "army" ? "⚔" : "🛒";
-          const cls = u.type === "army" ? "army" : "wagon";
-          content += `<span class="hex-token ${cls}" style="color:${u.color}">${icon}</span>`;
-        });
-      }
-
-      el.querySelector(".hex-content").innerHTML = content;
-    });
-  }
-
-  function buildMapDom() {
-    dom.map.innerHTML = "";
-    hexEls.clear();
-    const size = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--hex-size")) || 38;
-    const h = size * 1.155;
-    const w = size;
-    const radius = state.map.radius;
-
-    Object.entries(state.map.hexes).forEach(([k, hex]) => {
-      const el = document.createElement("div");
-      el.className = "hex";
-      el.innerHTML = `<div class="hex-content"></div>`;
-      const px = (hex.q + radius) * (w * 0.88) + (hex.r + radius) * (w * 0.44);
-      const py = (hex.r + radius) * (h * 0.77);
-      el.style.left = `${px + 20}px`;
-      el.style.top = `${py + 20}px`;
-      el.addEventListener("click", () => handleHexClick(k));
-      el.addEventListener("mouseenter", (e) => {
-        showTooltip(e, k);
-        if (state.phase === "setup" && state.setup.phase === "tile") {
-          sub.hoveredAnchor = k;
-          renderMap();
-        }
-      });
-      el.addEventListener("mouseleave", () => {
-        hideTooltip();
-        if (sub.hoveredAnchor) {
-          sub.hoveredAnchor = null;
-          renderMap();
-        }
-      });
-      dom.map.appendChild(el);
-      hexEls.set(k, el);
-    });
-
-    const maxX = (radius * 2 + 1) * (w * 0.88) + radius * (w * 0.44) + 80;
-    const maxY = (radius * 2 + 1) * (h * 0.77) + 80;
-    dom.map.style.width = `${maxX}px`;
-    dom.map.style.height = `${maxY}px`;
-  }
-
-  function showTooltip(e, hexKey) {
-    const h = state.map.hexes[hexKey];
-    if (!h) return;
-    let lines = [];
-    if (!h.active) {
-      lines.push(`<strong>Inactive hex</strong> (${hexKey})`);
-    } else {
-      lines.push(`<strong>${Game.TERRAIN_LABELS[h.terrain]}</strong> (difficulty ${Game.TERRAIN[h.terrain]})`);
-      if (h.city) {
-        const owner = Game.getPlayer(state, h.city.ownerId);
-        lines.push(`${h.city.isCapital ? "Capital" : "City"}: ${owner ? owner.name : "?"} ${h.city.developed ? "(Dev)" : ""} ${h.city.hasWonder ? "(Wonder)" : ""}`);
-      }
-      if (h.control) {
-        const owner = Game.getPlayer(state, h.control.ownerId);
-        lines.push(`${h.control.district ? `District: ${h.control.district}` : "Control"}: ${owner ? owner.name : "?"} ${h.control.fortified ? "(Fort)" : ""}`);
-      }
-      if (h.barbarian) lines.push(`Barbarian (power ${Game.CFG.barbarianBase + Game.TERRAIN[h.terrain]})`);
-      if (h.cityState) lines.push(`City-State: ${h.cityState.name} (${h.cityState.type})`);
-      if (h.resource) lines.push(`Resource: ${h.resource}`);
-      if (h.fortress) {
-        const owner = h.fortressOwnerId ? Game.getPlayer(state, h.fortressOwnerId) : null;
-        lines.push(`Fortress: ${owner ? owner.name : "Neutral"}`);
-      }
-      const units = Game.getUnitsAt(state, hexKey);
-      units.forEach((u) => { const p = Game.getPlayer(state, u.playerId); lines.push(`${u.type}: ${p ? p.name : "?"}`); });
-    }
-    dom.mapTooltip.innerHTML = lines.join("<br>");
-    dom.mapTooltip.classList.remove("hidden");
-    dom.mapTooltip.style.left = `${e.clientX + 12}px`;
-    dom.mapTooltip.style.top = `${e.clientY + 12}px`;
-  }
-
-  function hideTooltip() { dom.mapTooltip.classList.add("hidden"); }
-
-  // --- WIZARD RENDERING ---
+  // ── Wizard ────────────────────────────────────────────────
 
   function renderWizard() {
     if (!state) return;
+    if (state.phase === "setup") { renderSetupWizard(); return; }
 
-    // Setup phase wizards
-    if (state.phase === "setup") {
-      renderSetupWizard();
-      return;
-    }
-
-    // Playing phase
     const cp = Game.currentPlayer(state);
     const isMyTurn = cp && cp.id === localPlayerId;
     const me = Game.getPlayer(state, localPlayerId);
 
-    if (state.lastCombat) {
-      renderCombatResult();
-      return;
-    }
-
-    if (sub.phase === "idle") {
-      renderIdleWizard(isMyTurn, cp, me);
-      return;
-    }
+    if (state.lastCombat) { renderCombatResult(); return; }
+    if (sub.phase === "idle") { renderIdleWizard(isMyTurn, cp, me); return; }
     if (sub.phase === "card_selected") { renderCardSelected(me); return; }
     if (sub.phase === "placing_control") { renderPlacingControl(); return; }
     if (sub.phase === "growth_choice") { renderGrowthChoice(); return; }
@@ -396,6 +768,8 @@ const UI = (() => {
     if (sub.phase === "placing_district") { renderPlacingDistrict(); return; }
     if (sub.phase === "reinforcing") { renderReinforcing(); return; }
     if (sub.phase === "move_wagon" || sub.phase === "move_army") { renderMoving(); return; }
+    if (sub.phase === "move_army_post" || sub.phase === "move_wagon_post") { renderPostMove(); return; }
+    if (sub.phase === "move_army_exploring" || sub.phase === "move_wagon_exploring") { renderExploring(); return; }
     if (sub.phase === "industry_choice") { renderIndustryChoice(me); return; }
     if (sub.phase === "placing_city") { renderPlacingCity(); return; }
     if (sub.phase === "placing_wonder") { renderPlacingWonder(); return; }
@@ -408,54 +782,56 @@ const UI = (() => {
 
     if (state.setup.phase === "fortress") {
       if (!isMySetupTurn) {
-        dom.wizard.innerHTML = `<div class="wiz-title">Fortress Placement</div><div class="wiz-body">Waiting for <strong>${activeP ? activeP.name : "..."}</strong> to place their fortress.</div>`;
+        dom.wizard.innerHTML = `<div class="wiz-title">Fortress Placement</div><div class="wiz-body">Waiting for <strong>${activeP ? activeP.name : "..."}</strong>.</div>`;
         return;
       }
       dom.wizard.innerHTML = `
         <div class="wiz-title">Place Your Fortress</div>
         <div class="wiz-body">
-          Click an <strong>inactive hex</strong> that borders at least 2 active hexes to place your fortress.<br><br>
-          Valid positions are <strong>highlighted green</strong> on the map.
+          Click an <strong>inactive hex</strong> bordering at least 2 active hexes.<br>
+          Valid positions glow <strong style="color:#66bb6a">green</strong>.
         </div>`;
       return;
     }
 
-    if (state.setup.phase === "tile") {
+    if (state.setup.phase === "tile" || state.setup.phase === "capital_tile") {
+      const isCapitalPhase = state.setup.phase === "capital_tile";
+      const phaseLabel = isCapitalPhase ? "Capital Tile Placement" : "Tile Placement";
       const playerTiles = state.setup.playerTiles[activeId] || [];
       if (!isMySetupTurn) {
-        dom.wizard.innerHTML = `<div class="wiz-title">Tile Placement</div><div class="wiz-body">Waiting for <strong>${activeP ? activeP.name : "..."}</strong> to place a tile. (${playerTiles.length} remaining)</div>`;
+        dom.wizard.innerHTML = `<div class="wiz-title">${phaseLabel}</div><div class="wiz-body">Waiting for <strong>${activeP ? activeP.name : "..."}</strong>. (${playerTiles.length} remaining)</div>`;
         return;
       }
       if (playerTiles.length === 0) {
-        dom.wizard.innerHTML = `<div class="wiz-title">Tile Placement</div><div class="wiz-body">All your tiles are placed! Waiting for others...</div>`;
+        dom.wizard.innerHTML = `<div class="wiz-title">${phaseLabel}</div><div class="wiz-body">All tiles placed! Waiting for others...</div>`;
         return;
       }
       const tileId = playerTiles[0];
       const tile = state.setup.tiles[tileId];
-      const tileType = tile ? tile.type : "?";
+      const tileType = tile ? tile.type.charAt(0).toUpperCase() + tile.type.slice(1) : "?";
 
       dom.wizard.innerHTML = `
-        <div class="wiz-title">Place Tile: ${tileType.charAt(0).toUpperCase() + tileType.slice(1)} (${tileId})</div>
+        <div class="wiz-title">${isCapitalPhase ? "Place Your Capital Tile" : `Place Tile: ${tileType} (${tileId})`}</div>
         <div class="wiz-body">
           <div class="tile-preview">${renderTilePreview()}</div>
           <div class="trade-counter">
             <span>Rotation:</span>
-            <button id="rot-dec" class="sm">◄</button>
+            <button id="rot-dec" class="sm">◄ Q</button>
             <span class="tc-val">${sub.tileRotation + 1}/6</span>
-            <button id="rot-inc" class="sm">►</button>
+            <button id="rot-inc" class="sm">E ►</button>
           </div>
           <div class="trade-counter">
             <span>Side:</span>
             <button id="side-toggle" class="sm">${sub.tileSide}</button>
           </div>
-          <br>Click a <strong>highlighted anchor hex</strong> on the map to place.<br>
+          <br>Hover the map to preview tile placement.<br>
+          <strong style="color:#66bb6a">Green</strong> = valid, <strong style="color:#ef5350">Red</strong> = invalid.<br>
           Tiles remaining: <strong>${playerTiles.length}</strong>
         </div>`;
 
       document.getElementById("rot-dec").addEventListener("click", () => { sub.tileRotation = (sub.tileRotation + 5) % 6; render(); });
       document.getElementById("rot-inc").addEventListener("click", () => { sub.tileRotation = (sub.tileRotation + 1) % 6; render(); });
       document.getElementById("side-toggle").addEventListener("click", () => { sub.tileSide = sub.tileSide === "A" ? "B" : "A"; render(); });
-      return;
     }
   }
 
@@ -464,14 +840,20 @@ const UI = (() => {
     const minQ = Math.min(...offsets.map((o) => o.q));
     const minR = Math.min(...offsets.map((o) => o.r));
     const cells = offsets.map((o) => ({ q: o.q - minQ, r: o.r - minR }));
-    const cellSize = 12;
-    let svg = `<svg width="120" height="70" viewBox="-5 -5 120 70">`;
+    const s = 10;
+    const w3 = SQRT3 * s;
+    let svg = `<svg width="130" height="75" viewBox="-5 -5 130 75">`;
     cells.forEach((c) => {
-      const x = c.q * cellSize * 0.88 + c.r * cellSize * 0.44;
-      const y = c.r * cellSize * 0.77;
+      const cx = s * SQRT3 * (c.q + c.r / 2) + 5;
+      const cy = s * 1.5 * c.r + 15;
+      const pts = [];
+      for (let i = 0; i < 6; i++) {
+        const a = Math.PI / 180 * (60 * i - 30);
+        pts.push(`${cx + s * Math.cos(a)},${cy + s * Math.sin(a)}`);
+      }
       const isAnchor = (c.q === (0 - minQ) && c.r === (0 - minR));
       const fill = isAnchor ? "#4fc3f7" : "#4a7c3f";
-      svg += `<rect x="${x}" y="${y}" width="${cellSize - 1}" height="${cellSize - 1}" rx="2" fill="${fill}" stroke="#fff3" stroke-width="0.5"/>`;
+      svg += `<polygon points="${pts.join(" ")}" fill="${fill}" stroke="#fff3" stroke-width="0.5"/>`;
     });
     svg += `</svg>`;
     return svg;
@@ -504,10 +886,8 @@ const UI = (() => {
     actions += `<button class="sm" id="wiz-gov">Assign Gov</button>`;
     actions += `<button id="wiz-end-turn">End Turn</button></div>`;
     dom.wizard.innerHTML = `<div class="wiz-title">Your Turn</div><div class="wiz-body">Select a <strong>focus card</strong> below to take an action.${me && me.cardPlayed ? "<br><em>Card already played this turn.</em>" : ""}</div>${actions}`;
-    const raBtn = document.getElementById("wiz-recruit-army");
-    if (raBtn) raBtn.addEventListener("click", () => dispatch({ type: "RECRUIT_ARMY", payload: { playerId: localPlayerId } }));
-    const rwBtn = document.getElementById("wiz-recruit-wagon");
-    if (rwBtn) rwBtn.addEventListener("click", () => dispatch({ type: "RECRUIT_WAGON", payload: { playerId: localPlayerId } }));
+    document.getElementById("wiz-recruit-army")?.addEventListener("click", () => dispatch({ type: "RECRUIT_ARMY", payload: { playerId: localPlayerId } }));
+    document.getElementById("wiz-recruit-wagon")?.addEventListener("click", () => dispatch({ type: "RECRUIT_WAGON", payload: { playerId: localPlayerId } }));
     document.getElementById("wiz-gov")?.addEventListener("click", showGovPicker);
     document.getElementById("wiz-end-turn")?.addEventListener("click", () => dispatch({ type: "END_TURN", payload: {} }));
   }
@@ -605,13 +985,145 @@ const UI = (() => {
   function renderMoving() {
     const unitType = sub.phase === "move_wagon" ? "wagon" : "army";
     const selectingUnit = !sub.selectedUnit;
+    const ms = sub.movementState;
+    const remaining = ms ? ` (${ms.remaining} moves left)` : "";
     dom.wizard.innerHTML = `
-      <div class="wiz-title">Move ${unitType === "wagon" ? "Wagon" : "Army"}</div>
+      <div class="wiz-title">Move ${unitType === "wagon" ? "Wagon" : "Army"}${remaining}</div>
       <div class="wiz-body">${selectingUnit
-        ? `Click one of your <strong>${unitType}s</strong> on the map to select it.`
+        ? `Click one of your <strong>${unitType}s</strong> on the map.`
         : `Click a <strong>highlighted hex</strong> to move.`}</div>
       <div class="wiz-actions"><button class="ghost" id="wiz-cancel6">Cancel</button></div>`;
     document.getElementById("wiz-cancel6").addEventListener("click", cancelAction);
+  }
+
+  function renderPostMove() {
+    const ms = sub.movementState;
+    if (!ms) return;
+    const unitLabel = ms.unitType === "army" ? "Army" : "Wagon";
+    const canExplore = Game.isExploreEligible(state, ms.currentKey) && ms.remaining > 0 && !ms.explored;
+    const defender = ms.unitType === "army" ? Game.findDefender(state, ms.currentKey, localPlayerId) : null;
+
+    let buttons = `<div class="wiz-actions">`;
+    if (defender) buttons += `<button id="wiz-attack" class="primary">Attack ${defender.label} (pow ${defender.power})</button>`;
+    if (ms.remaining > 0) buttons += `<button id="wiz-continue-move">Continue (${ms.remaining} left)</button>`;
+    if (canExplore) buttons += `<button id="wiz-explore">Explore</button>`;
+    buttons += `<button id="wiz-end-move">${defender ? "Retreat" : "End Movement"}</button></div>`;
+
+    const bodyText = defender
+      ? `<strong style="color:#ef5350">${defender.label}</strong> here! (power ${defender.power})`
+      : `Remaining movement: <strong>${ms.remaining}</strong>`;
+
+    dom.wizard.innerHTML = `
+      <div class="wiz-title">${unitLabel} ${defender ? "— Encounter!" : "Moved"}</div>
+      <div class="wiz-body">${bodyText}</div>
+      ${buttons}`;
+
+    document.getElementById("wiz-attack")?.addEventListener("click", endMovement);
+    document.getElementById("wiz-continue-move")?.addEventListener("click", continueMovement);
+    document.getElementById("wiz-explore")?.addEventListener("click", startExploration);
+    document.getElementById("wiz-end-move").addEventListener("click", () => {
+      if (defender) {
+        ms.currentKey = ms.startKey;
+      }
+      endMovement();
+    });
+  }
+
+  function renderExploring() {
+    dom.wizard.innerHTML = `
+      <div class="wiz-title">Exploring</div>
+      <div class="wiz-body">
+        <div class="tile-preview">${renderTilePreview()}</div>
+        <div class="trade-counter">
+          <span>Rotation:</span>
+          <button id="rot-dec" class="sm">◄ Q</button>
+          <span class="tc-val">${sub.tileRotation + 1}/6</span>
+          <button id="rot-inc" class="sm">E ►</button>
+        </div>
+        <div class="trade-counter">
+          <span>Side:</span>
+          <button id="side-toggle" class="sm">${sub.tileSide}</button>
+        </div>
+        <br>Place the tile touching your unit's hex.<br>
+        <strong style="color:#66bb6a">Green</strong> = valid, <strong style="color:#ef5350">Red</strong> = invalid.
+        <br>Tiles remaining in stack: <strong>${state.tileStack ? state.tileStack.length : 0}</strong>
+      </div>
+      <div class="wiz-actions"><button class="ghost" id="wiz-cancel-explore">Cancel</button></div>`;
+
+    document.getElementById("rot-dec").addEventListener("click", () => { sub.tileRotation = (sub.tileRotation + 5) % 6; render(); });
+    document.getElementById("rot-inc").addEventListener("click", () => { sub.tileRotation = (sub.tileRotation + 1) % 6; render(); });
+    document.getElementById("side-toggle").addEventListener("click", () => { sub.tileSide = sub.tileSide === "A" ? "B" : "A"; render(); });
+    document.getElementById("wiz-cancel-explore").addEventListener("click", () => {
+      const ms = sub.movementState;
+      sub.phase = ms.unitType === "army" ? "move_army_post" : "move_wagon_post";
+      render();
+    });
+  }
+
+  function continueMovement() {
+    const ms = sub.movementState;
+    if (!ms) return;
+    sub.phase = ms.unitType === "army" ? "move_army" : "move_wagon";
+    sub.selectedUnit = { id: ms.unitId, position: ms.currentKey };
+    sub.validHexes = Game.getReachable(state, ms.currentKey, ms.remaining, ms.unitType, localPlayerId);
+    render();
+  }
+
+  function startExploration() {
+    const ms = sub.movementState;
+    if (!ms) return;
+    sub.phase = ms.unitType === "army" ? "move_army_exploring" : "move_wagon_exploring";
+    sub.tileRotation = 0;
+    render();
+  }
+
+  function endMovement() {
+    const ms = sub.movementState;
+    if (!ms) { resetSub(); return; }
+    const me = Game.getPlayer(state, localPlayerId);
+    if (!me) { resetSub(); return; }
+
+    if (ms.unitType === "army") {
+      const defender = Game.findDefender(state, ms.currentKey, localPlayerId);
+      const slot = Game.getSlotValue(me, "military");
+      if (defender) {
+        dispatch({ type: "PLAY_MILITARY_ATTACK", payload: {
+          playerId: localPlayerId, unitId: ms.unitId, toKey: ms.currentKey,
+          fromKey: ms.startKey, attackPower: slot + sub.tradeSpent,
+          defensePower: defender.power, defenderLabel: defender.label, tradeSpent: sub.tradeSpent
+        }});
+      } else {
+        dispatch({ type: "PLAY_MILITARY_MOVE", payload: {
+          playerId: localPlayerId, unitId: ms.unitId, toKey: ms.currentKey, tradeSpent: sub.tradeSpent
+        }});
+      }
+    } else {
+      dispatch({ type: "PLAY_ECONOMY", payload: {
+        playerId: localPlayerId, unitId: ms.unitId, toKey: ms.currentKey, tradeSpent: sub.tradeSpent
+      }});
+    }
+    resetSub();
+  }
+
+  function computeStepDistance(st, fromKey, toKey, maxSteps, unitType, playerId) {
+    if (fromKey === toKey) return 0;
+    const visited = new Map([[fromKey, 0]]);
+    const queue = [{ key: fromKey, steps: 0 }];
+    while (queue.length) {
+      const cur = queue.shift();
+      if (cur.steps >= maxSteps) continue;
+      const neighbors = Game.hexNeighborKeys(Game.parseQ(cur.key), Game.parseR(cur.key));
+      for (const nk of neighbors) {
+        if (visited.has(nk)) continue;
+        const h = st.map.hexes[nk];
+        if (!h || !h.active || h.terrain === "water") continue;
+        if (unitType === "wagon" && h.barbarian) continue;
+        visited.set(nk, cur.steps + 1);
+        if (nk === toKey) return cur.steps + 1;
+        queue.push({ key: nk, steps: cur.steps + 1 });
+      }
+    }
+    return maxSteps;
   }
 
   function renderIndustryChoice(me) {
@@ -670,7 +1182,7 @@ const UI = (() => {
     }
   }
 
-  // --- ACTION LOGIC ---
+  // ── Action Logic ──────────────────────────────────────────
 
   function startAction() {
     const me = Game.getPlayer(state, localPlayerId);
@@ -728,10 +1240,10 @@ const UI = (() => {
   }
 
   function finishAction() {
-    if (sub.phase === "placing_control" && sub.placedKeys && sub.placedKeys.length > 0) {
+    if (sub.phase === "placing_control" && sub.placedKeys.length > 0) {
       dispatch({ type: "PLAY_CULTURE", payload: { playerId: localPlayerId, hexKeys: sub.placedKeys, tradeSpent: sub.tradeSpent } });
     }
-    if (sub.phase === "reinforcing" && sub.placedKeys && sub.placedKeys.length > 0) {
+    if (sub.phase === "reinforcing" && sub.placedKeys.length > 0) {
       dispatch({ type: "PLAY_GROWTH_REINFORCE", payload: { playerId: localPlayerId, hexKeys: sub.placedKeys, tradeSpent: sub.tradeSpent } });
     }
     resetSub();
@@ -743,15 +1255,15 @@ const UI = (() => {
     sub.phase = "idle"; sub.cardType = null; sub.tradeSpent = 0; sub.remaining = 0;
     sub.totalMarkers = 0; sub.validHexes = new Set(); sub.selectedUnit = null;
     sub.districtType = null; sub.spentResources = {}; sub.placedKeys = [];
+    sub.movementState = null;
     render();
   }
 
-  // --- HEX CLICK HANDLER ---
+  // ── Hex Click Handler ─────────────────────────────────────
 
   function handleHexClick(hexKey) {
     if (!state) return;
 
-    // Setup phase clicks
     if (state.phase === "setup") {
       const activeId = state.setup.order[state.setup.turnIndex];
       if (activeId !== localPlayerId) return;
@@ -760,17 +1272,18 @@ const UI = (() => {
         dispatch({ type: "PLACE_FORTRESS", payload: { playerId: localPlayerId, hexKey } });
         return;
       }
-      if (state.setup.phase === "tile") {
+      if (state.setup.phase === "tile" || state.setup.phase === "capital_tile") {
         const playerTiles = state.setup.playerTiles[localPlayerId] || [];
         if (playerTiles.length === 0) return;
         const tileId = playerTiles[0];
+        const result = Game.validateTilePlacement(state, tileId, hexKey, sub.tileRotation);
+        if (!result.ok) return;
         dispatch({ type: "PLACE_TILE", payload: { playerId: localPlayerId, tileId, anchorKey: hexKey, rotation: sub.tileRotation, side: sub.tileSide } });
         return;
       }
       return;
     }
 
-    // Playing phase clicks
     const me = Game.getPlayer(state, localPlayerId);
     if (!me) return;
 
@@ -780,7 +1293,7 @@ const UI = (() => {
       sub.remaining--;
       sub.validHexes.delete(hexKey);
       if (sub.remaining <= 0) finishAction();
-      else { renderMap(); renderWizard(); }
+      else render();
       return;
     }
     if (sub.phase === "placing_district") {
@@ -794,7 +1307,7 @@ const UI = (() => {
       sub.remaining--;
       sub.validHexes.delete(hexKey);
       if (sub.remaining <= 0) finishAction();
-      else { renderMap(); renderWizard(); }
+      else render();
       return;
     }
     if (sub.phase === "move_wagon") {
@@ -802,13 +1315,22 @@ const UI = (() => {
         const unit = me.wagons.find((u) => u.position === hexKey);
         if (!unit) return;
         sub.selectedUnit = unit;
-        const range = Game.CFG.baseWagonMove + sub.tradeSpent;
-        sub.validHexes = Game.getReachable(state, hexKey, range, "wagon", localPlayerId);
-        renderMap(); renderWizard();
+        const maxMove = Game.CFG.baseWagonMove + sub.tradeSpent;
+        sub.movementState = { unitType: "wagon", unitId: unit.id, maxMove, remaining: maxMove, currentKey: hexKey, startKey: hexKey, explored: false };
+        sub.validHexes = Game.getReachable(state, hexKey, maxMove, "wagon", localPlayerId);
+        render();
       } else {
         if (!sub.validHexes.has(hexKey)) return;
-        dispatch({ type: "PLAY_ECONOMY", payload: { playerId: localPlayerId, unitId: sub.selectedUnit.id, toKey: hexKey, tradeSpent: sub.tradeSpent } });
-        resetSub();
+        const ms = sub.movementState;
+        const dist = computeStepDistance(state, ms.currentKey, hexKey, ms.remaining, "wagon", localPlayerId);
+        ms.remaining -= dist;
+        ms.currentKey = hexKey;
+        if (ms.remaining > 0) {
+          sub.phase = "move_wagon_post";
+          render();
+        } else {
+          endMovement();
+        }
       }
       return;
     }
@@ -818,19 +1340,42 @@ const UI = (() => {
         if (!unit) return;
         sub.selectedUnit = unit;
         const slot = Game.getSlotValue(me, "military");
-        sub.validHexes = Game.getReachable(state, hexKey, Game.CFG.baseArmyMove + slot - 1, "army", localPlayerId);
-        renderMap(); renderWizard();
+        const maxMove = Game.CFG.baseArmyMove + slot - 1;
+        sub.movementState = { unitType: "army", unitId: unit.id, maxMove, remaining: maxMove, currentKey: hexKey, startKey: hexKey, explored: false };
+        sub.validHexes = Game.getReachable(state, hexKey, maxMove, "army", localPlayerId);
+        render();
       } else {
         if (!sub.validHexes.has(hexKey)) return;
-        const defender = Game.findDefender(state, hexKey, localPlayerId);
-        const slot = Game.getSlotValue(me, "military");
-        if (defender) {
-          dispatch({ type: "PLAY_MILITARY_ATTACK", payload: { playerId: localPlayerId, unitId: sub.selectedUnit.id, toKey: hexKey, attackPower: slot + sub.tradeSpent, defensePower: defender.power, defenderLabel: defender.label, tradeSpent: sub.tradeSpent } });
+        const ms = sub.movementState;
+        const dist = computeStepDistance(state, ms.currentKey, hexKey, ms.remaining, "army", localPlayerId);
+        ms.remaining -= dist;
+        ms.currentKey = hexKey;
+        if (ms.remaining > 0) {
+          sub.phase = "move_army_post";
+          render();
         } else {
-          dispatch({ type: "PLAY_MILITARY_MOVE", payload: { playerId: localPlayerId, unitId: sub.selectedUnit.id, toKey: hexKey, tradeSpent: sub.tradeSpent } });
+          sub.phase = "move_army_post";
+          render();
         }
-        resetSub();
       }
+      return;
+    }
+    if (sub.phase === "move_army_exploring" || sub.phase === "move_wagon_exploring") {
+      const ms = sub.movementState;
+      if (!state.tileStack || state.tileStack.length === 0) return;
+      const tileId = state.tileStack[0];
+      const result = Game.validateExploration(state, tileId, hexKey, sub.tileRotation);
+      if (!result.ok) return;
+      const cellKeys = Game.getTileHexKeys(hexKey, sub.tileRotation, state.map.hexes);
+      const touchesUnit = cellKeys.some((ck) =>
+        Game.hexNeighborKeys(Game.parseQ(ck), Game.parseR(ck)).includes(ms.currentKey)
+      );
+      if (!touchesUnit) return;
+      dispatch({ type: "EXPLORE_TILE", payload: { playerId: localPlayerId, anchorKey: hexKey, rotation: sub.tileRotation, side: sub.tileSide, fromKey: ms.currentKey } });
+      ms.remaining -= 1;
+      ms.explored = true;
+      sub.phase = ms.unitType === "army" ? "move_army_post" : "move_wagon_post";
+      render();
       return;
     }
     if (sub.phase === "placing_city") {
@@ -847,7 +1392,7 @@ const UI = (() => {
     }
   }
 
-  // --- GOV PICKER ---
+  // ── Gov Picker ────────────────────────────────────────────
 
   function showGovPicker() {
     const me = Game.getPlayer(state, localPlayerId);
@@ -881,7 +1426,7 @@ const UI = (() => {
     renderPicker();
   }
 
-  // --- EVENT WHEEL, LOG, FOCUS ROW, GAMEOVER ---
+  // ── Event Wheel / Log / Focus Row / Game Over ─────────────
 
   function renderEventWheel() {
     if (!state) return;
@@ -951,8 +1496,17 @@ const UI = (() => {
       <div class="gameover-scores">${state.players.map((p) =>
         `<div><span class="dot" style="background:${p.color};display:inline-block;width:8px;height:8px;border-radius:50%"></span> ${p.name}: ${Game.computeScore(state, p.id)} pts</div>`
       ).join("")}</div>
+      <div class="gameover-actions"><button class="primary" id="go-restart">Play Again</button></div>
     </div>`;
     document.body.appendChild(overlay);
+    document.getElementById("go-restart").addEventListener("click", () => {
+      overlay.remove();
+      state = null;
+      localPlayerId = null;
+      try { localStorage.removeItem("civ-nd-save"); } catch(e) {}
+      dom.game.classList.add("hidden");
+      dom.lobby.classList.remove("hidden");
+    });
   }
 
   window.addEventListener("load", init);

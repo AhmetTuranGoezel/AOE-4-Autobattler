@@ -184,6 +184,47 @@
       box-shadow: 0 0 22px rgba(245, 197, 66, 0.16);
     }
 
+    .app-tabs {
+      display: inline-flex;
+      gap: 6px;
+      margin-top: 12px;
+      padding: 5px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      background: rgba(11, 12, 18, 0.72);
+      backdrop-filter: blur(14px);
+    }
+
+    .app-tab {
+      min-height: 40px;
+      border: 1px solid transparent;
+      border-radius: 10px;
+      background: transparent;
+      color: rgba(245, 247, 251, 0.72);
+      cursor: pointer;
+      padding: 0 16px;
+      font-size: 0.78rem;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease, transform 0.16s ease;
+    }
+
+    .app-tab:hover {
+      color: var(--text);
+      transform: translateY(-1px);
+    }
+
+    .app-tab.is-active {
+      border-color: rgba(245, 197, 66, 0.74);
+      background: rgba(245, 197, 66, 0.16);
+      color: var(--gold);
+    }
+
+    .view-panel[hidden] {
+      display: none;
+    }
+
     .build-actions {
       display: grid;
       grid-template-columns: minmax(180px, 1fr) auto auto auto;
@@ -874,7 +915,7 @@
       background:
         linear-gradient(135deg, rgba(245, 197, 66, 0.11), transparent 48%),
         rgba(255, 255, 255, 0.045);
-      padding: 13px 42px 13px 13px;
+      padding: 13px 86px 13px 13px;
       color: var(--text);
       cursor: pointer;
       text-align: left;
@@ -928,10 +969,16 @@
       text-transform: uppercase;
     }
 
-    .delete-build {
+    .saved-card-actions {
       position: absolute;
       top: 9px;
       right: 9px;
+      display: flex;
+      gap: 6px;
+    }
+
+    .saved-action {
+      min-width: 28px;
       width: 28px;
       height: 28px;
       border: 1px solid rgba(255, 255, 255, 0.1);
@@ -939,8 +986,27 @@
       background: rgba(0, 0, 0, 0.28);
       color: rgba(255, 255, 255, 0.76);
       cursor: pointer;
-      font-size: 1rem;
       font-weight: 900;
+    }
+
+    .duplicate-build {
+      width: auto;
+      padding: 0 8px;
+      color: var(--gold);
+      font-size: 0.62rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .delete-build {
+      font-size: 1rem;
+    }
+
+    .duplicate-build:hover,
+    .duplicate-build:focus-visible {
+      border-color: rgba(245, 197, 66, 0.72);
+      color: var(--gold-strong);
+      outline: none;
     }
 
     .delete-build:hover,
@@ -958,6 +1024,378 @@
       font-weight: 800;
       letter-spacing: 0.12em;
       text-transform: uppercase;
+    }
+
+    .stats-panel {
+      margin-top: 14px;
+      padding: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 18px;
+      background: rgba(11, 12, 18, 0.78);
+      box-shadow: 0 18px 46px rgba(0, 0, 0, 0.32);
+      backdrop-filter: blur(18px);
+    }
+
+    .stats-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: flex-start;
+      margin-bottom: 14px;
+    }
+
+    .stats-head h2 {
+      margin-bottom: 6px;
+      font-size: 0.94rem;
+      font-weight: 900;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+
+    .stats-source,
+    .stats-status {
+      color: var(--muted);
+      font-size: 0.75rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      line-height: 1.35;
+      text-transform: uppercase;
+    }
+
+    .stats-source a {
+      color: var(--gold);
+      text-decoration: none;
+    }
+
+    .stats-controls {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(160px, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .stats-control {
+      min-width: 0;
+    }
+
+    .stats-label {
+      display: block;
+      margin-bottom: 7px;
+      color: rgba(245, 247, 251, 0.72);
+      font-size: 0.68rem;
+      font-weight: 900;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .stats-toggle-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .stats-toggle {
+      min-height: 32px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.045);
+      color: rgba(245, 247, 251, 0.75);
+      cursor: pointer;
+      padding: 0 10px;
+      font-size: 0.68rem;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+    }
+
+    .stats-toggle.is-active {
+      border-color: rgba(245, 197, 66, 0.72);
+      background: rgba(245, 197, 66, 0.16);
+      color: var(--gold);
+    }
+
+    .stats-range {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+    }
+
+    .stats-range[hidden] {
+      display: none;
+    }
+
+    .stats-range input {
+      width: 100%;
+      accent-color: var(--gold);
+    }
+
+    .stats-range span {
+      min-width: 42px;
+      color: var(--gold);
+      font-size: 0.76rem;
+      font-weight: 900;
+    }
+
+    .stats-empty {
+      min-height: 280px;
+      display: grid;
+      place-items: center;
+      border: 1px dashed rgba(245, 197, 66, 0.26);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.03);
+      color: rgba(245, 247, 251, 0.68);
+      padding: 24px;
+      text-align: center;
+      font-size: 0.82rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      line-height: 1.5;
+      text-transform: uppercase;
+    }
+
+    .stats-content[hidden] {
+      display: none;
+    }
+
+    .stats-layout {
+      display: grid;
+      grid-template-columns: minmax(190px, 0.75fr) minmax(420px, 2.4fr) minmax(210px, 0.9fr);
+      gap: 12px;
+      align-items: stretch;
+    }
+
+    .stats-legend,
+    .stats-info,
+    .stats-chart-wrap,
+    .stats-pinned {
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      background: rgba(4, 5, 8, 0.42);
+    }
+
+    .stats-legend,
+    .stats-info {
+      min-height: 390px;
+      max-height: 420px;
+      overflow-y: auto;
+      padding: 10px;
+      scrollbar-color: rgba(255, 255, 255, 0.42) rgba(255, 255, 255, 0.08);
+      scrollbar-width: thin;
+    }
+
+    .stats-chart-wrap {
+      position: relative;
+      min-height: 420px;
+      padding: 38px 18px 38px 46px;
+    }
+
+    .stats-chart-title {
+      position: absolute;
+      top: 11px;
+      left: 46px;
+      right: 18px;
+      color: rgba(245, 247, 251, 0.68);
+      font-size: 0.74rem;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-align: center;
+      text-transform: uppercase;
+    }
+
+    .stats-plot {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      min-height: 330px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.015)),
+        rgba(0, 0, 0, 0.18);
+      border-radius: 8px;
+      overflow: hidden;
+      cursor: crosshair;
+    }
+
+    .stats-plot svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+
+    .stats-grid-line {
+      stroke: rgba(255, 255, 255, 0.09);
+      stroke-width: 1;
+    }
+
+    .stats-line {
+      fill: none;
+      stroke-width: 2;
+      opacity: 0.78;
+      transition: opacity 0.16s ease, stroke-width 0.16s ease, filter 0.16s ease;
+    }
+
+    .stats-line.is-dimmed {
+      opacity: 0.12;
+    }
+
+    .stats-line.is-pinned,
+    .stats-line.is-hovered {
+      opacity: 1;
+      stroke-width: 4;
+      filter: drop-shadow(0 0 5px rgba(245, 197, 66, 0.35));
+    }
+
+    .stats-cursor {
+      stroke: rgba(245, 197, 66, 0.58);
+      stroke-width: 1;
+      stroke-dasharray: 5 5;
+      pointer-events: none;
+    }
+
+    .stats-axis-x,
+    .stats-axis-y {
+      position: absolute;
+      color: rgba(245, 247, 251, 0.42);
+      font-size: 0.68rem;
+      font-weight: 800;
+    }
+
+    .stats-axis-x {
+      left: 46px;
+      right: 18px;
+      bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .stats-axis-y {
+      left: 9px;
+      top: 38px;
+      bottom: 38px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: flex-end;
+      width: 32px;
+    }
+
+    .stats-legend-item {
+      width: 100%;
+      min-height: 33px;
+      display: grid;
+      grid-template-columns: 12px 1fr auto;
+      gap: 8px;
+      align-items: center;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--text);
+      cursor: pointer;
+      padding: 5px 7px;
+      text-align: left;
+    }
+
+    .stats-legend-item:hover,
+    .stats-legend-item.is-hovered,
+    .stats-legend-item.is-pinned {
+      border-color: rgba(245, 197, 66, 0.34);
+      background: rgba(245, 197, 66, 0.08);
+    }
+
+    .stats-dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 999px;
+    }
+
+    .stats-legend-name {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 0.72rem;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .stats-legend-class {
+      color: var(--muted);
+      font-size: 0.62rem;
+      font-weight: 900;
+    }
+
+    .stats-info-title {
+      margin-bottom: 10px;
+      color: var(--gold);
+      font-size: 0.76rem;
+      font-weight: 900;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .stats-info-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 7px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      color: rgba(245, 247, 251, 0.82);
+      font-size: 0.76rem;
+      font-weight: 800;
+    }
+
+    .stats-info-row span:first-child {
+      color: var(--muted);
+    }
+
+    .stats-info-row span:last-child {
+      text-align: right;
+    }
+
+    .stats-pinned {
+      margin-top: 12px;
+      padding: 10px;
+    }
+
+    .stats-pinned-title {
+      margin-bottom: 8px;
+      color: rgba(245, 247, 251, 0.72);
+      font-size: 0.72rem;
+      font-weight: 900;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .stats-pinned-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+    }
+
+    .stats-pin-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 28px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.045);
+      color: var(--text);
+      padding: 0 8px;
+      font-size: 0.68rem;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .stats-pin-chip button {
+      border: 0;
+      background: transparent;
+      color: rgba(255, 255, 255, 0.76);
+      cursor: pointer;
+      font-weight: 900;
     }
 
     .modal-overlay {
@@ -1087,6 +1525,21 @@
       .build-actions {
         grid-template-columns: minmax(180px, 1fr) repeat(3, auto);
       }
+
+      .stats-controls,
+      .stats-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .stats-legend,
+      .stats-info {
+        min-height: auto;
+        max-height: 240px;
+      }
+
+      .stats-chart-wrap {
+        min-height: 380px;
+      }
     }
 
     @media (max-width: 760px) {
@@ -1104,6 +1557,14 @@
       .topbar {
         padding: 12px;
         border-radius: 15px;
+      }
+
+      .app-tabs {
+        width: 100%;
+      }
+
+      .app-tab {
+        flex: 1;
       }
 
       .class-toggle {
@@ -1130,6 +1591,29 @@
         min-height: 390px;
         padding: 18px 12px 24px;
         border-radius: 15px;
+      }
+
+      .stats-panel {
+        padding: 12px;
+        border-radius: 15px;
+      }
+
+      .stats-head {
+        flex-direction: column;
+      }
+
+      .stats-controls {
+        grid-template-columns: 1fr;
+      }
+
+      .stats-chart-wrap {
+        min-height: 340px;
+        padding-left: 40px;
+      }
+
+      .stats-chart-title,
+      .stats-axis-x {
+        left: 40px;
       }
 
       .picker-ribbon {
@@ -1199,21 +1683,100 @@
       </div>
     </header>
 
-    <div id="statusStrip" class="status-strip" aria-live="polite"></div>
-    <div id="sharedBanner" class="import-bar" hidden></div>
-    <div id="shareOutput" class="share-panel" hidden></div>
+    <nav id="appTabs" class="app-tabs" aria-label="App sections">
+      <button class="app-tab is-active" type="button" data-app-view="loadout">Loadout</button>
+      <button class="app-tab" type="button" data-app-view="stats">Stats</button>
+    </nav>
 
-    <section class="arena" aria-label="Loadout builder">
-      <div id="pickerRibbon" class="picker-ribbon is-hidden"></div>
-      <div id="loadoutBoard" class="loadout-board"></div>
-    </section>
+    <div id="loadoutView" class="view-panel">
+      <div id="statusStrip" class="status-strip" aria-live="polite"></div>
+      <div id="sharedBanner" class="import-bar" hidden></div>
+      <div id="shareOutput" class="share-panel" hidden></div>
 
-    <section class="saved-panel" aria-label="Saved builds">
-      <div class="saved-head">
-        <h2>Saved Builds</h2>
-        <span id="savedCount">0 builds</span>
+      <section class="arena" aria-label="Loadout builder">
+        <div id="pickerRibbon" class="picker-ribbon is-hidden"></div>
+        <div id="loadoutBoard" class="loadout-board"></div>
+      </section>
+
+      <section class="saved-panel" aria-label="Saved builds">
+        <div class="saved-head">
+          <h2>Saved Builds</h2>
+          <span id="savedCount">0 builds</span>
+        </div>
+        <div id="savedBuilds" class="saved-rail"></div>
+      </section>
+    </div>
+
+    <section id="statsView" class="view-panel stats-panel" aria-label="Weapon stats" hidden>
+      <div class="stats-head">
+        <div>
+          <h2>Weapon Stats</h2>
+          <div id="weaponStatsSource" class="stats-source"></div>
+        </div>
+        <div id="weaponStatsStatus" class="stats-status"></div>
       </div>
-      <div id="savedBuilds" class="saved-rail"></div>
+
+      <div class="stats-controls" aria-label="Weapon stats controls">
+        <div class="stats-control">
+          <span class="stats-label">Class</span>
+          <div class="stats-toggle-group">
+            <button class="stats-toggle is-active" type="button" data-stats-class="ALL">All</button>
+            <button class="stats-toggle" type="button" data-stats-class="LIGHT">Light</button>
+            <button class="stats-toggle" type="button" data-stats-class="MEDIUM">Medium</button>
+            <button class="stats-toggle" type="button" data-stats-class="HEAVY">Heavy</button>
+          </div>
+        </div>
+        <div class="stats-control">
+          <span class="stats-label">Target HP</span>
+          <div class="stats-toggle-group">
+            <button class="stats-toggle" type="button" data-stats-target="Light">Light</button>
+            <button class="stats-toggle is-active" type="button" data-stats-target="Medium">Medium</button>
+            <button class="stats-toggle" type="button" data-stats-target="Heavy">Heavy</button>
+          </div>
+        </div>
+        <div class="stats-control">
+          <span class="stats-label">Hit Mode</span>
+          <div class="stats-toggle-group">
+            <button class="stats-toggle is-active" type="button" data-stats-hit="Body">Body</button>
+            <button class="stats-toggle" type="button" data-stats-hit="Head">Head</button>
+            <button id="mixedHitButton" class="stats-toggle" type="button" data-stats-hit="Mixed">Mixed</button>
+          </div>
+        </div>
+        <div class="stats-control">
+          <span class="stats-label">Metric</span>
+          <div class="stats-toggle-group">
+            <button class="stats-toggle is-active" type="button" data-stats-metric="TTK">TTK</button>
+            <button class="stats-toggle" type="button" data-stats-metric="DPS">DPS</button>
+          </div>
+        </div>
+        <div class="stats-control">
+          <span class="stats-label">Headshot %</span>
+          <label id="headshotRangeWrap" class="stats-range" hidden>
+            <input id="headshotRange" type="range" min="0" max="100" value="25" step="5">
+            <span id="headshotValue">25%</span>
+          </label>
+        </div>
+      </div>
+
+      <div id="weaponStatsEmpty" class="stats-empty"></div>
+      <div id="weaponStatsContent" class="stats-content" hidden>
+        <div class="stats-layout">
+          <div id="weaponStatsLegend" class="stats-legend" aria-label="Weapon list"></div>
+          <div class="stats-chart-wrap">
+            <div id="weaponStatsChartTitle" class="stats-chart-title"></div>
+            <div id="weaponStatsYLabels" class="stats-axis-y"></div>
+            <div id="weaponStatsPlot" class="stats-plot" aria-label="Weapon stat chart"></div>
+            <div class="stats-axis-x">
+              <span>0m</span><span>25m</span><span>50m</span><span>75m</span><span>100m</span>
+            </div>
+          </div>
+          <div id="weaponStatsInfo" class="stats-info"></div>
+        </div>
+        <div class="stats-pinned">
+          <div class="stats-pinned-title">Pinned Weapons</div>
+          <div id="weaponStatsPinned" class="stats-pinned-list"></div>
+        </div>
+      </div>
     </section>
   </main>
 
@@ -1230,6 +1793,15 @@
     const RAIL_GLIDE_MS = 360;
     const RAIL_LINE_PX = 42;
     const WIKI_FILE_BASE = 'https://www.thefinals.wiki/wiki/Special:Redirect/file/';
+    const WEAPON_STATS_CONFIG = {
+      liveEnabled: false,
+      sourceName: 'Ape Squad',
+      sourcePageUrl: 'https://apesquad.org/gundata',
+      csvUrl: 'https://docs.google.com/spreadsheets/d/12aWohgro45Mp-8bwGpL09jDmCcAwvYEAr0sm3fYDxFY/export?format=csv',
+      fallbackRows: []
+    };
+    const WEAPON_HEALTH_VALUES = { Light: 150, Medium: 250, Heavy: 350 };
+    const WEAPON_MAX_RANGE = 100;
 
     const CLASS_META = {
       light: { label: 'Light', short: 'LGT' },
@@ -1826,6 +2398,7 @@
 
     const storageLoad = loadStorageEnvelope();
     const state = {
+      activeView: 'loadout',
       activeClass: 'light',
       currentBuild: createBlankBuild('light'),
       activeSlot: null,
@@ -1836,10 +2409,31 @@
       toast: '',
       toastTimer: null,
       shareLink: '',
-      noteEditorItem: ''
+      noteEditorItem: '',
+      weaponStats: {
+        loadState: 'idle',
+        weapons: [],
+        plottedWeapons: [],
+        pinnedNames: new Set(),
+        hoverName: '',
+        hoverRange: 0,
+        maxY: 1,
+        classFilter: 'ALL',
+        targetClass: 'Medium',
+        hitMode: 'Body',
+        metric: 'TTK',
+        headshotPct: 25,
+        source: WEAPON_STATS_CONFIG.liveEnabled ? 'live' : 'disabled',
+        version: '',
+        lastLoadedAt: null,
+        error: ''
+      }
     };
 
     const elements = {
+      appTabs: document.getElementById('appTabs'),
+      loadoutView: document.getElementById('loadoutView'),
+      statsView: document.getElementById('statsView'),
       classToggle: document.getElementById('classToggle'),
       buildNameInput: document.getElementById('buildNameInput'),
       saveButton: document.getElementById('saveButton'),
@@ -1853,7 +2447,21 @@
       savedCount: document.getElementById('savedCount'),
       savedBuilds: document.getElementById('savedBuilds'),
       modalOverlay: document.getElementById('modalOverlay'),
-      noteModal: document.getElementById('noteModal')
+      noteModal: document.getElementById('noteModal'),
+      weaponStatsSource: document.getElementById('weaponStatsSource'),
+      weaponStatsStatus: document.getElementById('weaponStatsStatus'),
+      weaponStatsEmpty: document.getElementById('weaponStatsEmpty'),
+      weaponStatsContent: document.getElementById('weaponStatsContent'),
+      weaponStatsLegend: document.getElementById('weaponStatsLegend'),
+      weaponStatsPlot: document.getElementById('weaponStatsPlot'),
+      weaponStatsInfo: document.getElementById('weaponStatsInfo'),
+      weaponStatsPinned: document.getElementById('weaponStatsPinned'),
+      weaponStatsYLabels: document.getElementById('weaponStatsYLabels'),
+      weaponStatsChartTitle: document.getElementById('weaponStatsChartTitle'),
+      headshotRangeWrap: document.getElementById('headshotRangeWrap'),
+      headshotRange: document.getElementById('headshotRange'),
+      headshotValue: document.getElementById('headshotValue'),
+      mixedHitButton: document.getElementById('mixedHitButton')
     };
 
     const railGlideState = new WeakMap();
@@ -1925,6 +2533,637 @@
         startedAt: performance.now(),
         rafId: requestAnimationFrame((timestamp) => stepRailGlide(rail, timestamp))
       });
+    }
+
+    function parseCsvRows(csvText) {
+      const rows = [];
+      let row = [];
+      let field = '';
+      let inQuotes = false;
+
+      for (let index = 0; index < csvText.length; index++) {
+        const char = csvText[index];
+        const nextChar = csvText[index + 1];
+
+        if (inQuotes) {
+          if (char === '"' && nextChar === '"') {
+            field += '"';
+            index++;
+          } else if (char === '"') {
+            inQuotes = false;
+          } else {
+            field += char;
+          }
+          continue;
+        }
+
+        if (char === '"') {
+          inQuotes = true;
+        } else if (char === ',') {
+          row.push(field);
+          field = '';
+        } else if (char === '\n') {
+          row.push(field);
+          if (row.some((value) => value.trim())) {
+            rows.push(row);
+          }
+          row = [];
+          field = '';
+        } else if (char !== '\r') {
+          field += char;
+        }
+      }
+
+      row.push(field);
+      if (row.some((value) => value.trim())) {
+        rows.push(row);
+      }
+
+      return rows;
+    }
+
+    function parseCsvObjects(csvText) {
+      const rows = parseCsvRows(csvText);
+      if (!rows.length) {
+        return [];
+      }
+
+      const headers = rows[0].map((header) => header.trim());
+      return rows.slice(1).map((row) => {
+        const entry = {};
+        headers.forEach((header, index) => {
+          entry[header] = row[index] ?? '';
+        });
+        return entry;
+      });
+    }
+
+    function parseWeaponNumber(value, fallback = 0) {
+      if (typeof value === 'number') {
+        return Number.isFinite(value) ? value : fallback;
+      }
+      const parsed = parseFloat(String(value ?? '').trim());
+      return Number.isFinite(parsed) ? parsed : fallback;
+    }
+
+    function parseMagazineSize(value) {
+      if (value === Infinity) {
+        return Infinity;
+      }
+      const text = String(value ?? '').trim();
+      if (!text || /^n\/a$/i.test(text)) {
+        return Infinity;
+      }
+      const parsed = parseFloat(text);
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : Infinity;
+    }
+
+    function getWeaponColor(name, className) {
+      const classHue = { LIGHT: 48, MEDIUM: 186, HEAVY: 352 }[className] ?? 48;
+      let hash = 0;
+      for (let index = 0; index < name.length; index++) {
+        hash = ((hash << 5) - hash) + name.charCodeAt(index);
+        hash |= 0;
+      }
+      const hue = (classHue + Math.abs(hash % 44) - 22 + 360) % 360;
+      return `hsl(${hue}, 82%, 62%)`;
+    }
+
+    function normalizeWeaponStatRow(row) {
+      const name = String(row.Name || row.name || '').trim();
+      const className = String(row.Class || row.className || row.class || '').trim().toUpperCase();
+      if (!name || !['LIGHT', 'MEDIUM', 'HEAVY'].includes(className)) {
+        return null;
+      }
+
+      return {
+        name,
+        className,
+        bodyDamage: parseWeaponNumber(row['Body Damage'] ?? row.bodyDamage),
+        headDamage: parseWeaponNumber(row['Head Damage'] ?? row.headDamage),
+        rpm: parseWeaponNumber(row.RPM ?? row.rpm),
+        burstCount: Math.max(1, parseWeaponNumber(row['Burst Count'] ?? row.burstCount, 1) || 1),
+        burstDelay: parseWeaponNumber(row['Burst Delay'] ?? row.burstDelay),
+        minDropoff: parseWeaponNumber(row['Min Dropoff'] ?? row.minDropoff),
+        maxDropoff: parseWeaponNumber(row['Max Dropoff'] ?? row.maxDropoff),
+        dropoffModifier: parseWeaponNumber(row['Dropoff Modifier'] ?? row.dropoffModifier, 1) || 1,
+        magazineSize: parseMagazineSize(row['Magazine Size'] ?? row.magazineSize),
+        emptyReload: parseWeaponNumber(row['Empty Reload'] ?? row.emptyReload),
+        tacticalReload: parseWeaponNumber(row['Tactical Reload'] ?? row.tacticalReload),
+        notes: String(row.Notes || row.notes || '').trim(),
+        version: String(row.Version || row.version || '').trim(),
+        color: getWeaponColor(name, className)
+      };
+    }
+
+    function normalizeWeaponStatRows(rows) {
+      return rows
+        .map(normalizeWeaponStatRow)
+        .filter(Boolean)
+        .sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    async function loadWeaponStats() {
+      if (state.weaponStats.loadState !== 'idle') {
+        renderWeaponStats();
+        return;
+      }
+
+      if (!WEAPON_STATS_CONFIG.liveEnabled) {
+        state.weaponStats.weapons = normalizeWeaponStatRows(WEAPON_STATS_CONFIG.fallbackRows);
+        state.weaponStats.loadState = state.weaponStats.weapons.length ? 'fallback' : 'disabled';
+        state.weaponStats.source = 'disabled';
+        renderWeaponStats();
+        return;
+      }
+
+      state.weaponStats.loadState = 'loading';
+      state.weaponStats.source = 'live';
+      state.weaponStats.error = '';
+      renderWeaponStats();
+
+      try {
+        const response = await fetch(WEAPON_STATS_CONFIG.csvUrl, { cache: 'no-store' });
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        const csvText = await response.text();
+        const weapons = normalizeWeaponStatRows(parseCsvObjects(csvText));
+        if (!weapons.length) {
+          throw new Error('No weapon rows found');
+        }
+        state.weaponStats.weapons = weapons;
+        state.weaponStats.loadState = 'loaded';
+        state.weaponStats.lastLoadedAt = new Date();
+        state.weaponStats.version = weapons.find((weapon) => weapon.version)?.version || '';
+      } catch (error) {
+        const fallbackWeapons = normalizeWeaponStatRows(WEAPON_STATS_CONFIG.fallbackRows);
+        state.weaponStats.weapons = fallbackWeapons;
+        state.weaponStats.loadState = fallbackWeapons.length ? 'fallback-error' : 'error';
+        state.weaponStats.source = fallbackWeapons.length ? 'fallback' : 'live';
+        state.weaponStats.error = error?.message || 'Unable to load weapon data';
+      }
+
+      renderWeaponStats();
+    }
+
+    function renderAppView() {
+      elements.loadoutView.hidden = state.activeView !== 'loadout';
+      elements.statsView.hidden = state.activeView !== 'stats';
+      elements.appTabs.querySelectorAll('[data-app-view]').forEach((button) => {
+        button.classList.toggle('is-active', button.dataset.appView === state.activeView);
+      });
+    }
+
+    function switchAppView(viewName) {
+      if (!['loadout', 'stats'].includes(viewName)) {
+        return;
+      }
+      state.activeView = viewName;
+      renderAppView();
+      if (viewName === 'stats') {
+        loadWeaponStats();
+        requestAnimationFrame(renderWeaponStats);
+      }
+    }
+
+    function syncWeaponStatsControls() {
+      document.querySelectorAll('[data-stats-class]').forEach((button) => {
+        button.classList.toggle('is-active', button.dataset.statsClass === state.weaponStats.classFilter);
+      });
+      document.querySelectorAll('[data-stats-target]').forEach((button) => {
+        button.classList.toggle('is-active', button.dataset.statsTarget === state.weaponStats.targetClass);
+      });
+      document.querySelectorAll('[data-stats-hit]').forEach((button) => {
+        button.classList.toggle('is-active', button.dataset.statsHit === state.weaponStats.hitMode);
+      });
+      document.querySelectorAll('[data-stats-metric]').forEach((button) => {
+        button.classList.toggle('is-active', button.dataset.statsMetric === state.weaponStats.metric);
+      });
+      elements.headshotRange.value = String(state.weaponStats.headshotPct);
+      elements.headshotValue.textContent = `${state.weaponStats.headshotPct}%`;
+      elements.mixedHitButton.textContent = `Mixed (${state.weaponStats.headshotPct}%)`;
+      elements.headshotRangeWrap.hidden = state.weaponStats.hitMode !== 'Mixed';
+    }
+
+    function getFilteredWeaponStats() {
+      const classFilter = state.weaponStats.classFilter;
+      return state.weaponStats.weapons.filter((weapon) => (
+        classFilter === 'ALL' || weapon.className === classFilter
+      ));
+    }
+
+    function getWeaponDamage(weapon, rangeMeters) {
+      const headshotRatio = state.weaponStats.hitMode === 'Mixed'
+        ? state.weaponStats.headshotPct / 100
+        : state.weaponStats.hitMode === 'Head' ? 1 : 0;
+      const baseDamage = (weapon.headDamage * headshotRatio) + (weapon.bodyDamage * (1 - headshotRatio));
+
+      if (weapon.maxDropoff <= weapon.minDropoff || weapon.dropoffModifier >= 1) {
+        return baseDamage;
+      }
+      if (rangeMeters <= weapon.minDropoff) {
+        return baseDamage;
+      }
+      if (rangeMeters >= weapon.maxDropoff) {
+        return baseDamage * weapon.dropoffModifier;
+      }
+
+      const dropProgress = (rangeMeters - weapon.minDropoff) / (weapon.maxDropoff - weapon.minDropoff);
+      return baseDamage * (1 - ((1 - weapon.dropoffModifier) * dropProgress));
+    }
+
+    function getShotsToKill(weapon, rangeMeters) {
+      const targetHp = WEAPON_HEALTH_VALUES[state.weaponStats.targetClass];
+      const damage = getWeaponDamage(weapon, rangeMeters);
+      return damage > 0 ? Math.ceil(targetHp / damage) : Infinity;
+    }
+
+    function calculateWeaponTTK(weapon, rangeMeters) {
+      const shotsToKill = getShotsToKill(weapon, rangeMeters);
+      if (!Number.isFinite(shotsToKill) || shotsToKill <= 0 || weapon.rpm <= 0) {
+        return Infinity;
+      }
+      if (shotsToKill === 1) {
+        return 0;
+      }
+
+      const shotInterval = 60 / weapon.rpm;
+      let elapsed = 0;
+      for (let firedShots = 1; firedShots < shotsToKill; firedShots++) {
+        const nextShotStartsNewBurst = weapon.burstCount > 1 && weapon.burstDelay > 0 && firedShots % weapon.burstCount === 0;
+        elapsed += nextShotStartsNewBurst ? weapon.burstDelay : shotInterval;
+      }
+
+      if (Number.isFinite(weapon.magazineSize) && weapon.magazineSize > 0 && shotsToKill > weapon.magazineSize) {
+        const reloads = Math.floor((shotsToKill - 1) / weapon.magazineSize);
+        elapsed += reloads * (weapon.emptyReload || weapon.tacticalReload || 2.5);
+      }
+
+      return elapsed;
+    }
+
+    function calculateWeaponDPS(weapon, rangeMeters) {
+      const damage = getWeaponDamage(weapon, rangeMeters);
+      if (damage <= 0 || weapon.rpm <= 0) {
+        return 0;
+      }
+
+      if (weapon.burstCount > 1 && weapon.burstDelay > 0) {
+        const shotInterval = 60 / weapon.rpm;
+        const burstTime = ((weapon.burstCount - 1) * shotInterval) + weapon.burstDelay;
+        return burstTime > 0 ? (damage * weapon.burstCount) / burstTime : 0;
+      }
+
+      return damage * (weapon.rpm / 60);
+    }
+
+    function getWeaponMetricValue(weapon, rangeMeters) {
+      return state.weaponStats.metric === 'TTK'
+        ? calculateWeaponTTK(weapon, rangeMeters)
+        : calculateWeaponDPS(weapon, rangeMeters);
+    }
+
+    function getWeaponChartRanges() {
+      return Array.from({ length: 51 }, (_, index) => index * 2);
+    }
+
+    function getWeaponChartMaxY(weapons) {
+      let maxValue = 0;
+      const ranges = getWeaponChartRanges();
+      weapons.forEach((weapon) => {
+        ranges.forEach((rangeMeters) => {
+          const value = getWeaponMetricValue(weapon, rangeMeters);
+          if (Number.isFinite(value)) {
+            maxValue = Math.max(maxValue, value);
+          }
+        });
+      });
+
+      if (state.weaponStats.metric === 'TTK') {
+        return Math.max(0.5, Math.min(5, Math.ceil(maxValue * 1.18 * 2) / 2));
+      }
+      return Math.max(100, Math.ceil(maxValue * 1.12 / 100) * 100);
+    }
+
+    function formatWeaponMetricValue(value) {
+      if (!Number.isFinite(value)) {
+        return 'N/A';
+      }
+      return state.weaponStats.metric === 'TTK' ? `${value.toFixed(3)}s` : String(Math.round(value));
+    }
+
+    function renderWeaponStatsSourceStatus() {
+      if (state.weaponStats.loadState === 'loaded') {
+        const version = state.weaponStats.version ? ` / Version ${escapeHtml(state.weaponStats.version)}` : '';
+        const loadedAt = state.weaponStats.lastLoadedAt
+          ? ` / Loaded ${state.weaponStats.lastLoadedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+          : '';
+        elements.weaponStatsSource.innerHTML = `Weapon data from <a href="${WEAPON_STATS_CONFIG.sourcePageUrl}" target="_blank" rel="noopener noreferrer">${escapeHtml(WEAPON_STATS_CONFIG.sourceName)}</a>${version}${loadedAt}`;
+        elements.weaponStatsStatus.textContent = `${state.weaponStats.weapons.length} weapons`;
+        return;
+      }
+
+      if (state.weaponStats.loadState === 'loading') {
+        elements.weaponStatsSource.textContent = 'Loading weapon data';
+        elements.weaponStatsStatus.textContent = '';
+        return;
+      }
+
+      if (state.weaponStats.loadState === 'error') {
+        elements.weaponStatsSource.textContent = `Live weapon data unavailable: ${state.weaponStats.error}`;
+        elements.weaponStatsStatus.textContent = '';
+        return;
+      }
+
+      if (state.weaponStats.loadState === 'fallback-error') {
+        elements.weaponStatsSource.textContent = `Using fallback data after live fetch failed: ${state.weaponStats.error}`;
+        elements.weaponStatsStatus.textContent = `${state.weaponStats.weapons.length} weapons`;
+        return;
+      }
+
+      if (state.weaponStats.loadState === 'fallback') {
+        elements.weaponStatsSource.textContent = 'Using local fallback weapon data';
+        elements.weaponStatsStatus.textContent = `${state.weaponStats.weapons.length} weapons`;
+        return;
+      }
+
+      elements.weaponStatsSource.textContent = 'Live weapon data is disabled until source permission is confirmed';
+      elements.weaponStatsStatus.textContent = '';
+    }
+
+    function renderWeaponStatsEmpty(message) {
+      elements.weaponStatsContent.hidden = true;
+      elements.weaponStatsEmpty.hidden = false;
+      elements.weaponStatsEmpty.textContent = message;
+    }
+
+    function renderWeaponStatsLegend() {
+      const anyPinned = state.weaponStats.pinnedNames.size > 0;
+      elements.weaponStatsLegend.innerHTML = state.weaponStats.plottedWeapons.map((weapon) => {
+        const isPinned = state.weaponStats.pinnedNames.has(weapon.name);
+        const isHovered = state.weaponStats.hoverName === weapon.name;
+        return `
+          <button class="stats-legend-item ${isPinned ? 'is-pinned' : ''} ${isHovered ? 'is-hovered' : ''}" type="button" data-weapon-pin="${escapeHtml(weapon.name)}" style="${anyPinned && !isPinned ? 'opacity: 0.42;' : ''}">
+            <span class="stats-dot" style="background:${weapon.color};"></span>
+            <span class="stats-legend-name">${escapeHtml(weapon.name)}</span>
+            <span class="stats-legend-class">${escapeHtml(weapon.className.slice(0, 3))}</span>
+          </button>
+        `;
+      }).join('');
+    }
+
+    function renderWeaponStatsPlot() {
+      const plot = elements.weaponStatsPlot;
+      const width = Math.max(320, Math.round(plot.clientWidth || 760));
+      const height = Math.max(250, Math.round(plot.clientHeight || 330));
+      const maxY = state.weaponStats.maxY;
+      const anyPinned = state.weaponStats.pinnedNames.size > 0;
+      const ranges = getWeaponChartRanges();
+      const gridLines = [];
+
+      for (let index = 0; index <= 4; index++) {
+        const x = (width * index) / 4;
+        const y = (height * index) / 4;
+        gridLines.push(`<line class="stats-grid-line" x1="${x}" x2="${x}" y1="0" y2="${height}"></line>`);
+        gridLines.push(`<line class="stats-grid-line" x1="0" x2="${width}" y1="${y}" y2="${y}"></line>`);
+      }
+
+      const lines = state.weaponStats.plottedWeapons.map((weapon) => {
+        const points = ranges.map((rangeMeters) => {
+          const value = getWeaponMetricValue(weapon, rangeMeters);
+          const clampedValue = Number.isFinite(value) ? Math.min(value, maxY) : maxY;
+          const x = (rangeMeters / WEAPON_MAX_RANGE) * width;
+          const y = height - ((clampedValue / maxY) * height);
+          return `${x.toFixed(1)},${y.toFixed(1)}`;
+        }).join(' ');
+        const isPinned = state.weaponStats.pinnedNames.has(weapon.name);
+        const isHovered = state.weaponStats.hoverName === weapon.name;
+        const classes = [
+          'stats-line',
+          anyPinned && !isPinned ? 'is-dimmed' : '',
+          isPinned ? 'is-pinned' : '',
+          isHovered ? 'is-hovered' : ''
+        ].filter(Boolean).join(' ');
+        return `<polyline class="${classes}" data-stats-name="${escapeHtml(weapon.name)}" points="${points}" stroke="${weapon.color}"></polyline>`;
+      }).join('');
+
+      const cursorX = state.weaponStats.hoverName
+        ? (state.weaponStats.hoverRange / WEAPON_MAX_RANGE) * width
+        : -10;
+
+      plot.innerHTML = `
+        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+          ${gridLines.join('')}
+          ${lines}
+          <line class="stats-cursor" data-stats-cursor x1="${cursorX}" x2="${cursorX}" y1="0" y2="${height}"></line>
+        </svg>
+      `;
+
+      elements.weaponStatsYLabels.innerHTML = Array.from({ length: 5 }, (_, index) => {
+        const value = maxY - ((maxY * index) / 4);
+        return `<span>${state.weaponStats.metric === 'TTK' ? `${value.toFixed(1)}s` : Math.round(value)}</span>`;
+      }).join('');
+
+      const targetHp = WEAPON_HEALTH_VALUES[state.weaponStats.targetClass];
+      elements.weaponStatsChartTitle.textContent = state.weaponStats.metric === 'TTK'
+        ? `TTK vs range / ${state.weaponStats.hitMode} / ${state.weaponStats.targetClass} ${targetHp} HP`
+        : `DPS vs range / ${state.weaponStats.hitMode}`;
+    }
+
+    function getWeaponByName(name) {
+      return state.weaponStats.weapons.find((weapon) => weapon.name === name) || null;
+    }
+
+    function renderWeaponStatsInfo() {
+      const weapon = getWeaponByName(state.weaponStats.hoverName);
+      if (!weapon) {
+        const pinnedCount = state.weaponStats.pinnedNames.size;
+        elements.weaponStatsInfo.innerHTML = `
+          <div class="stats-info-title">Live Stats</div>
+          <div class="stats-info-row"><span>Pinned</span><span>${pinnedCount}</span></div>
+          <div class="stats-info-row"><span>Metric</span><span>${escapeHtml(state.weaponStats.metric)}</span></div>
+          <div class="stats-info-row"><span>Hit Mode</span><span>${escapeHtml(state.weaponStats.hitMode)}</span></div>
+        `;
+        return;
+      }
+
+      const range = state.weaponStats.hoverRange;
+      const metricValue = getWeaponMetricValue(weapon, range);
+      const damage = getWeaponDamage(weapon, range);
+      const shots = getShotsToKill(weapon, range);
+
+      elements.weaponStatsInfo.innerHTML = `
+        <div class="stats-info-title">${escapeHtml(weapon.name)}</div>
+        <div class="stats-info-row"><span>Class</span><span>${escapeHtml(weapon.className)}</span></div>
+        <div class="stats-info-row"><span>Range</span><span>${range.toFixed(1)}m</span></div>
+        <div class="stats-info-row"><span>${escapeHtml(state.weaponStats.metric)}</span><span>${formatWeaponMetricValue(metricValue)}</span></div>
+        <div class="stats-info-row"><span>Damage</span><span>${damage.toFixed(1)}</span></div>
+        <div class="stats-info-row"><span>Shots</span><span>${Number.isFinite(shots) ? shots : 'N/A'}</span></div>
+        <div class="stats-info-row"><span>RPM</span><span>${weapon.rpm || 'N/A'}</span></div>
+        <div class="stats-info-row"><span>Dropoff</span><span>${weapon.minDropoff}m - ${weapon.maxDropoff}m</span></div>
+        <div class="stats-info-row"><span>Magazine</span><span>${Number.isFinite(weapon.magazineSize) ? weapon.magazineSize : 'N/A'}</span></div>
+      `;
+    }
+
+    function renderWeaponStatsPinned() {
+      const pinnedWeapons = Array.from(state.weaponStats.pinnedNames)
+        .map(getWeaponByName)
+        .filter(Boolean);
+
+      elements.weaponStatsPinned.innerHTML = pinnedWeapons.length
+        ? pinnedWeapons.map((weapon) => `
+            <span class="stats-pin-chip" style="border-color:${weapon.color};">
+              ${escapeHtml(weapon.name)}
+              <button type="button" data-weapon-unpin="${escapeHtml(weapon.name)}" aria-label="Unpin ${escapeHtml(weapon.name)}">x</button>
+            </span>
+          `).join('')
+        : '<span class="stats-source">No pinned weapons</span>';
+    }
+
+    function syncWeaponStatsHighlights() {
+      document.querySelectorAll('[data-stats-name]').forEach((line) => {
+        const name = line.getAttribute('data-stats-name');
+        line.classList.toggle('is-hovered', name === state.weaponStats.hoverName);
+        line.classList.toggle('is-pinned', state.weaponStats.pinnedNames.has(name));
+        line.classList.toggle('is-dimmed', state.weaponStats.pinnedNames.size > 0 && !state.weaponStats.pinnedNames.has(name));
+      });
+      document.querySelectorAll('[data-weapon-pin]').forEach((button) => {
+        const name = button.dataset.weaponPin;
+        button.classList.toggle('is-hovered', name === state.weaponStats.hoverName);
+        button.classList.toggle('is-pinned', state.weaponStats.pinnedNames.has(name));
+      });
+
+      const cursor = elements.weaponStatsPlot.querySelector('[data-stats-cursor]');
+      if (cursor) {
+        const width = Math.max(1, elements.weaponStatsPlot.clientWidth || 1);
+        const viewBoxWidth = Number(elements.weaponStatsPlot.querySelector('svg')?.viewBox?.baseVal?.width) || width;
+        const cursorX = state.weaponStats.hoverName
+          ? (state.weaponStats.hoverRange / WEAPON_MAX_RANGE) * viewBoxWidth
+          : -10;
+        cursor.setAttribute('x1', cursorX);
+        cursor.setAttribute('x2', cursorX);
+      }
+    }
+
+    function setWeaponHover(name, rangeMeters) {
+      state.weaponStats.hoverName = name || '';
+      state.weaponStats.hoverRange = clampNumber(rangeMeters || 0, 0, WEAPON_MAX_RANGE);
+      syncWeaponStatsHighlights();
+      renderWeaponStatsInfo();
+    }
+
+    function findClosestWeaponAtPoint(y, rangeMeters, chartHeight) {
+      const lists = [
+        { weapons: state.weaponStats.plottedWeapons.filter((weapon) => state.weaponStats.pinnedNames.has(weapon.name)), threshold: 95 },
+        { weapons: state.weaponStats.plottedWeapons.filter((weapon) => !state.weaponStats.pinnedNames.has(weapon.name)), threshold: 28 }
+      ];
+
+      for (const list of lists) {
+        let closest = null;
+        let closestDiff = Infinity;
+        list.weapons.forEach((weapon) => {
+          const value = getWeaponMetricValue(weapon, rangeMeters);
+          const clampedValue = Number.isFinite(value) ? Math.min(value, state.weaponStats.maxY) : state.weaponStats.maxY;
+          const pixelY = chartHeight - ((clampedValue / state.weaponStats.maxY) * chartHeight);
+          const diff = Math.abs(y - pixelY);
+          if (diff < list.threshold && diff < closestDiff) {
+            closest = weapon;
+            closestDiff = diff;
+          }
+        });
+        if (closest) {
+          return closest;
+        }
+      }
+
+      return null;
+    }
+
+    function getWeaponPointerTarget(event) {
+      if (!state.weaponStats.plottedWeapons.length) {
+        return null;
+      }
+      const rect = elements.weaponStatsPlot.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) {
+        return null;
+      }
+
+      const x = clampNumber(event.clientX - rect.left, 0, rect.width);
+      const y = clampNumber(event.clientY - rect.top, 0, rect.height);
+      const rangeMeters = (x / rect.width) * WEAPON_MAX_RANGE;
+      const weapon = findClosestWeaponAtPoint(y, rangeMeters, rect.height);
+      return { weapon, rangeMeters };
+    }
+
+    function handleWeaponStatsPointerMove(event) {
+      const target = getWeaponPointerTarget(event);
+      if (!target || !target.weapon) {
+        setWeaponHover('', target?.rangeMeters || 0);
+        return;
+      }
+      setWeaponHover(target.weapon.name, target.rangeMeters);
+    }
+
+    function toggleWeaponPin(name) {
+      if (!getWeaponByName(name)) {
+        return;
+      }
+      if (state.weaponStats.pinnedNames.has(name)) {
+        state.weaponStats.pinnedNames.delete(name);
+      } else {
+        state.weaponStats.pinnedNames.add(name);
+      }
+      renderWeaponStatsLegend();
+      renderWeaponStatsPlot();
+      renderWeaponStatsPinned();
+      renderWeaponStatsInfo();
+    }
+
+    function renderWeaponStats() {
+      if (!elements.weaponStatsEmpty) {
+        return;
+      }
+
+      syncWeaponStatsControls();
+      renderWeaponStatsSourceStatus();
+
+      if (state.weaponStats.loadState === 'idle') {
+        renderWeaponStatsEmpty('Weapon stat data has not been loaded yet');
+        return;
+      }
+      if (state.weaponStats.loadState === 'loading') {
+        renderWeaponStatsEmpty('Loading weapon stat data');
+        return;
+      }
+      if (state.weaponStats.loadState === 'disabled' && !state.weaponStats.weapons.length) {
+        renderWeaponStatsEmpty('Live weapon data is gated off. Enable WEAPON_STATS_CONFIG.liveEnabled after source permission is confirmed');
+        return;
+      }
+      if (!state.weaponStats.weapons.length) {
+        renderWeaponStatsEmpty('No weapon stat rows are available');
+        return;
+      }
+
+      state.weaponStats.plottedWeapons = getFilteredWeaponStats();
+      state.weaponStats.pinnedNames.forEach((name) => {
+        if (!getWeaponByName(name)) {
+          state.weaponStats.pinnedNames.delete(name);
+        }
+      });
+
+      if (!state.weaponStats.plottedWeapons.length) {
+        renderWeaponStatsEmpty('No weapons match the selected class filter');
+        return;
+      }
+
+      elements.weaponStatsEmpty.hidden = true;
+      elements.weaponStatsContent.hidden = false;
+      state.weaponStats.maxY = getWeaponChartMaxY(state.weaponStats.plottedWeapons);
+      renderWeaponStatsLegend();
+      renderWeaponStatsPlot();
+      renderWeaponStatsInfo();
+      renderWeaponStatsPinned();
     }
 
     function buildShareLink() {
@@ -2114,6 +3353,23 @@
       return null;
     }
 
+    function getSwappableOccupiedSlot(itemName) {
+      if (!state.activeSlot || state.activeSlot.mode !== 'single') {
+        return null;
+      }
+
+      const occupied = findSlotHoldingItem(state.currentBuild, itemName);
+      if (
+        occupied &&
+        occupied.area === state.activeSlot.area &&
+        occupied.index !== state.activeSlot.index
+      ) {
+        return occupied;
+      }
+
+      return null;
+    }
+
     function getPickerItemState(itemName) {
       if (!state.activeSlot) {
         return { selected: false, disabled: false };
@@ -2131,9 +3387,10 @@
       }
 
       const selected = getCurrentSlotValue() === itemName;
+      const blocked = collectBlockingNames().has(itemName);
       return {
         selected,
-        disabled: !selected && collectBlockingNames().has(itemName)
+        disabled: !selected && blocked && !getSwappableOccupiedSlot(itemName)
       };
     }
 
@@ -2404,7 +3661,10 @@
         ].join('');
         return `
           <article class="saved-card" role="button" tabindex="0" data-load-build="${escapeHtml(build.id)}">
-            <button class="delete-build" type="button" data-delete-build="${escapeHtml(build.id)}" aria-label="Delete ${escapeHtml(build.name)}">x</button>
+            <div class="saved-card-actions">
+              <button class="saved-action duplicate-build" type="button" data-duplicate-build="${escapeHtml(build.id)}" aria-label="Duplicate ${escapeHtml(build.name)}">Copy</button>
+              <button class="saved-action delete-build" type="button" data-delete-build="${escapeHtml(build.id)}" aria-label="Delete ${escapeHtml(build.name)}">x</button>
+            </div>
             <div class="saved-card-title">${escapeHtml(build.name || 'Untitled')}</div>
             <div class="saved-card-meta">${escapeHtml(build.className)} / ${escapeHtml(build.specialization || 'No spec')}</div>
             <div class="saved-card-meta">${escapeHtml(build.mainWeapon || 'No weapon')}</div>
@@ -2451,6 +3711,7 @@
     }
 
     function render() {
+      renderAppView();
       renderClassToggle();
       renderControls();
       renderStatus();
@@ -2460,6 +3721,9 @@
       renderLoadoutBoard();
       renderSavedBuilds();
       renderNoteModal();
+      if (state.activeView === 'stats') {
+        renderWeaponStats();
+      }
     }
 
     function openSlot(area, index = 0) {
@@ -2489,20 +3753,19 @@
 
       const itemState = getPickerItemState(itemName);
       const slot = state.activeSlot;
+      const swappableSlot = getSwappableOccupiedSlot(itemName);
+
+      if (swappableSlot) {
+        const currentValue = getPrimaryValue(state.currentBuild, slot.area, slot.index);
+        setPrimaryValue(state.currentBuild, slot.area, itemName, slot.index);
+        setPrimaryValue(state.currentBuild, swappableSlot.area, currentValue, swappableSlot.index);
+        setPulse(slot.area === 'mainGadget' || slot.area === 'reserve' ? `${slot.area}-${slot.index}` : slot.area);
+        state.activeSlot = null;
+        render();
+        return;
+      }
 
       if (itemState.disabled) {
-        if (slot.mode === 'single') {
-          const occupied = findSlotHoldingItem(state.currentBuild, itemName);
-          if (occupied && occupied.area === slot.area && occupied.index !== slot.index) {
-            const currentValue = getCurrentSlotValue();
-            setPrimaryValue(state.currentBuild, slot.area, itemName, slot.index);
-            setPrimaryValue(state.currentBuild, occupied.area, currentValue || '', occupied.index);
-            setPulse(slot.area === 'mainGadget' || slot.area === 'reserve' ? `${slot.area}-${slot.index}` : slot.area);
-            state.activeSlot = null;
-            render();
-            return;
-          }
-        }
         showToast('Already used');
         return;
       }
@@ -2569,6 +3832,43 @@
       state.activeSlot = null;
       state.shareLink = '';
       showToast('Loaded');
+      render();
+    }
+
+    function getDuplicateBuildName(name) {
+      const baseName = String(name || 'Untitled').trim() || 'Untitled';
+      const existingNames = new Set(state.savedBuilds.map((build) => build.name));
+
+      for (let copyNumber = 1; copyNumber < 1000; copyNumber++) {
+        const suffix = copyNumber === 1 ? ' Copy' : ` Copy ${copyNumber}`;
+        const trimmedBase = baseName.slice(0, Math.max(1, 60 - suffix.length)).trim();
+        const candidate = `${trimmedBase}${suffix}`.slice(0, 60);
+        if (!existingNames.has(candidate)) {
+          return candidate;
+        }
+      }
+
+      return `${baseName.slice(0, 49).trim()} Copy`;
+    }
+
+    function duplicateBuild(id) {
+      const sourceIndex = state.savedBuilds.findIndex((saved) => saved.id === id);
+      if (sourceIndex < 0) {
+        return;
+      }
+
+      const duplicated = cloneBuild(state.savedBuilds[sourceIndex]);
+      duplicated.id = createId();
+      duplicated.name = getDuplicateBuildName(duplicated.name);
+      duplicated.savedAt = new Date().toISOString();
+
+      state.savedBuilds.splice(sourceIndex + 1, 0, duplicated);
+      state.currentBuild = cloneBuild(duplicated);
+      state.activeClass = getClassKeyFromLabel(duplicated.className);
+      state.activeSlot = null;
+      state.shareLink = '';
+      persistEnvelope();
+      showToast('Duplicated');
       render();
     }
 
@@ -2728,6 +4028,57 @@
     elements.resetButton.addEventListener('click', resetCurrentBuild);
 
     document.addEventListener('click', (event) => {
+      const appTab = event.target.closest('[data-app-view]');
+      if (appTab) {
+        switchAppView(appTab.dataset.appView);
+        return;
+      }
+
+      const statsClassButton = event.target.closest('[data-stats-class]');
+      if (statsClassButton) {
+        state.weaponStats.classFilter = statsClassButton.dataset.statsClass;
+        state.weaponStats.hoverName = '';
+        renderWeaponStats();
+        return;
+      }
+
+      const statsTargetButton = event.target.closest('[data-stats-target]');
+      if (statsTargetButton) {
+        state.weaponStats.targetClass = statsTargetButton.dataset.statsTarget;
+        state.weaponStats.hoverName = '';
+        renderWeaponStats();
+        return;
+      }
+
+      const statsHitButton = event.target.closest('[data-stats-hit]');
+      if (statsHitButton) {
+        state.weaponStats.hitMode = statsHitButton.dataset.statsHit;
+        state.weaponStats.hoverName = '';
+        renderWeaponStats();
+        return;
+      }
+
+      const statsMetricButton = event.target.closest('[data-stats-metric]');
+      if (statsMetricButton) {
+        state.weaponStats.metric = statsMetricButton.dataset.statsMetric;
+        state.weaponStats.hoverName = '';
+        renderWeaponStats();
+        return;
+      }
+
+      const weaponPinButton = event.target.closest('[data-weapon-pin]');
+      if (weaponPinButton) {
+        toggleWeaponPin(weaponPinButton.dataset.weaponPin);
+        return;
+      }
+
+      const weaponUnpinButton = event.target.closest('[data-weapon-unpin]');
+      if (weaponUnpinButton) {
+        state.weaponStats.pinnedNames.delete(weaponUnpinButton.dataset.weaponUnpin);
+        renderWeaponStats();
+        return;
+      }
+
       const noteButton = event.target.closest('[data-note-item]');
       if (noteButton) {
         event.preventDefault();
@@ -2786,10 +4137,6 @@
 
       const pickerCard = event.target.closest('[data-picker-item]');
       if (pickerCard) {
-        if (pickerCard.getAttribute('aria-disabled') === 'true') {
-          showToast('Already used');
-          return;
-        }
         selectPickerItem(pickerCard.dataset.pickerItem);
         return;
       }
@@ -2797,6 +4144,14 @@
       const slotCard = event.target.closest('[data-slot-area]');
       if (slotCard) {
         openSlot(slotCard.dataset.slotArea, Number(slotCard.dataset.slotIndex || 0));
+        return;
+      }
+
+      const savedDuplicate = event.target.closest('[data-duplicate-build]');
+      if (savedDuplicate) {
+        event.preventDefault();
+        event.stopPropagation();
+        duplicateBuild(savedDuplicate.dataset.duplicateBuild);
         return;
       }
 
@@ -2815,6 +4170,13 @@
     });
 
     document.addEventListener('input', (event) => {
+      if (event.target === elements.headshotRange) {
+        state.weaponStats.headshotPct = Number(event.target.value) || 0;
+        state.weaponStats.hoverName = '';
+        renderWeaponStats();
+        return;
+      }
+
       if (event.target.id === 'noteTextarea') {
         saveActiveNote(event.target.value);
       }
@@ -2864,9 +4226,24 @@
       glideRailBy(rail, delta);
     }, { passive: false });
 
+    elements.weaponStatsPlot.addEventListener('pointermove', handleWeaponStatsPointerMove);
+    elements.weaponStatsPlot.addEventListener('pointerleave', () => setWeaponHover('', 0));
+    elements.weaponStatsPlot.addEventListener('click', (event) => {
+      const target = getWeaponPointerTarget(event);
+      if (target?.weapon) {
+        toggleWeaponPin(target.weapon.name);
+      }
+    });
+
     window.addEventListener('hashchange', () => {
       state.pendingSharedLibrary = readSharedEnvelopeFromHash();
       renderSharedBanner();
+    });
+
+    window.addEventListener('resize', () => {
+      if (state.activeView === 'stats' && !elements.statsView.hidden) {
+        renderWeaponStats();
+      }
     });
 
     if (storageLoad.migrated) {
