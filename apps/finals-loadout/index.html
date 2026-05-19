@@ -1462,6 +1462,59 @@
       line-height: 1.35;
     }
 
+    .stats-detail-note-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 7px;
+    }
+
+    .stats-detail-note-label {
+      color: var(--muted);
+      font-size: 0.68rem;
+      font-weight: 900;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .stats-detail-note-edit {
+      flex: 0 0 auto;
+      min-height: 26px;
+      border: 1px solid rgba(245, 197, 66, 0.26);
+      border-radius: 7px;
+      background: rgba(0, 0, 0, 0.22);
+      color: var(--gold);
+      cursor: pointer;
+      padding: 0 9px;
+      font-size: 0.66rem;
+      font-weight: 900;
+      text-transform: uppercase;
+      transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+    }
+
+    .stats-detail-note-edit:hover,
+    .stats-detail-note-edit:focus-visible {
+      border-color: rgba(245, 197, 66, 0.78);
+      background: rgba(245, 197, 66, 0.92);
+      color: #111115;
+      outline: none;
+    }
+
+    .stats-detail-note-text {
+      color: rgba(245, 247, 251, 0.8);
+      white-space: pre-wrap;
+    }
+
+    .stats-detail-note-text.is-empty {
+      color: rgba(245, 247, 251, 0.48);
+      font-style: italic;
+    }
+
+    .stats-detail-source-note {
+      color: rgba(245, 247, 251, 0.58);
+    }
+
     .modal-overlay {
       position: fixed;
       inset: 0;
@@ -2821,9 +2874,15 @@
 
     function getFilteredWeaponStats() {
       const classFilter = state.weaponStats.classFilter;
-      return state.weaponStats.weapons.filter((weapon) => (
+      const filteredWeapons = state.weaponStats.weapons.filter((weapon) => (
         classFilter === 'ALL' || weapon.className === classFilter
       ));
+      const filteredNames = new Set(filteredWeapons.map((weapon) => weapon.name));
+      const pinnedWeaponsOutsideFilter = Array.from(state.weaponStats.pinnedNames)
+        .map(getWeaponByName)
+        .filter((weapon) => weapon && !filteredNames.has(weapon.name));
+
+      return [...filteredWeapons, ...pinnedWeaponsOutsideFilter];
     }
 
     function getWeaponDamage(weapon, rangeMeters) {
@@ -3109,7 +3168,12 @@
         .filter(Boolean);
 
       elements.weaponStatsPinned.innerHTML = pinnedWeapons.length
-        ? pinnedWeapons.map((weapon) => `
+        ? pinnedWeapons.map((weapon) => {
+            const loadoutNote = state.itemNotes[weapon.name] || '';
+            const hasLoadoutNote = Boolean(loadoutNote.trim());
+            const canEditLoadoutNote = Boolean(getItemByName(weapon.name));
+
+            return `
             <article class="stats-detail-card" style="--weapon-color:${weapon.color};">
               <div class="stats-detail-head">
                 <div class="stats-detail-title">${escapeHtml(weapon.name)}</div>
@@ -3127,9 +3191,22 @@
                 <div class="stats-detail-row"><span>25m TTK</span><span>${formatWeaponTTKValue(calculateWeaponTTK(weapon, 25))}</span></div>
                 <div class="stats-detail-row"><span>25m DPS</span><span>${formatWeaponDPSValue(calculateWeaponDPS(weapon, 25))}</span></div>
               </div>
-              ${weapon.notes ? `<div class="stats-detail-note">${escapeHtml(weapon.notes)}</div>` : ''}
+              <div class="stats-detail-note">
+                <div class="stats-detail-note-head">
+                  <span class="stats-detail-note-label">Loadout Note</span>
+                  ${canEditLoadoutNote ? `<button class="stats-detail-note-edit" type="button" data-note-item="${escapeHtml(weapon.name)}">${hasLoadoutNote ? 'Edit Note' : 'Add Note'}</button>` : ''}
+                </div>
+                <div class="stats-detail-note-text ${hasLoadoutNote ? '' : 'is-empty'}">${hasLoadoutNote ? escapeHtml(loadoutNote) : 'No loadout note yet'}</div>
+              </div>
+              ${weapon.notes ? `
+                <div class="stats-detail-note stats-detail-source-note">
+                  <div class="stats-detail-note-label">Weapon Note</div>
+                  <div class="stats-detail-note-text">${escapeHtml(weapon.notes)}</div>
+                </div>
+              ` : ''}
             </article>
-          `).join('')
+          `;
+          }).join('')
         : '<span class="stats-source">No pinned weapons</span>';
     }
 
@@ -3226,6 +3303,10 @@
       } else {
         state.weaponStats.pinnedNames.add(name);
       }
+      state.weaponStats.plottedWeapons = getFilteredWeaponStats();
+      if (state.weaponStats.hoverName && !state.weaponStats.plottedWeapons.some((weapon) => weapon.name === state.weaponStats.hoverName)) {
+        state.weaponStats.hoverName = '';
+      }
       renderWeaponStatsLegend();
       renderWeaponStatsPlot();
       renderWeaponStatsPinned();
@@ -3257,12 +3338,12 @@
         return;
       }
 
-      state.weaponStats.plottedWeapons = getFilteredWeaponStats();
       state.weaponStats.pinnedNames.forEach((name) => {
         if (!getWeaponByName(name)) {
           state.weaponStats.pinnedNames.delete(name);
         }
       });
+      state.weaponStats.plottedWeapons = getFilteredWeaponStats();
 
       if (!state.weaponStats.plottedWeapons.length) {
         renderWeaponStatsEmpty('No weapons match the selected class filter');
@@ -4083,6 +4164,9 @@
       if (count) {
         count.textContent = `${normalized.length}/${MAX_NOTE_LENGTH}`;
       }
+      if (state.activeView === 'stats') {
+        renderWeaponStatsPinned();
+      }
     }
 
     function clearActiveNote() {
@@ -4094,6 +4178,9 @@
       showToast('Cleared item note');
       renderNoteModal();
       renderSavedBuilds();
+      if (state.activeView === 'stats') {
+        renderWeaponStatsPinned();
+      }
     }
 
     function promoteAlternative(area, index, itemName) {
