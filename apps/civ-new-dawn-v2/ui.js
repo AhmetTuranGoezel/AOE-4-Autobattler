@@ -29,7 +29,8 @@ const UI = (() => {
     phase: "idle", cardType: null, tradeSpent: 0, remaining: 0,
     totalMarkers: 0, validHexes: new Set(), selectedUnit: null,
     districtType: null, spentResources: {}, placedKeys: [],
-    tileRotation: 0, tileSide: "A"
+    tileRotation: 0, tileSide: "A",
+    movementState: null
   };
 
   const dom = {};
@@ -61,7 +62,11 @@ const UI = (() => {
     Net.init({
       onState: (payload) => {
         if (Net.getIsHost()) dispatch(payload);
-        else { state = payload; render(); }
+        else {
+          state = payload;
+          try { localStorage.setItem("civ-nd-save", JSON.stringify({ state, localPlayerId })); } catch(e) {}
+          render();
+        }
       },
       onJoin: (peerId, name, color) => {
         const player = Game.createPlayer(peerId, name, color);
@@ -72,9 +77,24 @@ const UI = (() => {
       onDisconnect: () => {},
       onConnected: () => { if (Net.getIsHost() && state) Net.broadcast(state); }
     });
+
+    try {
+      const saved = localStorage.getItem("civ-nd-save");
+      if (saved) {
+        const data = JSON.parse(saved);
+        if (data.state && data.localPlayerId) {
+          state = data.state;
+          localPlayerId = data.localPlayerId;
+          Net.startLocal();
+          showGame();
+          render();
+        }
+      }
+    } catch(e) {}
   }
 
   function startLocal() {
+    try { localStorage.removeItem("civ-nd-save"); } catch(e) {}
     Net.startLocal();
     localPlayerId = "local";
     const name = dom.inpName.value.trim() || "Player";
@@ -86,6 +106,7 @@ const UI = (() => {
   }
 
   function startCreate() {
+    try { localStorage.removeItem("civ-nd-save"); } catch(e) {}
     const name = dom.inpName.value.trim() || "Host";
     const color = dom.inpColor.value;
     dom.lobbyStatus.textContent = "Creating room...";
@@ -100,6 +121,7 @@ const UI = (() => {
   }
 
   function startJoin() {
+    try { localStorage.removeItem("civ-nd-save"); } catch(e) {}
     const code = dom.inpJoin.value.trim();
     if (!code) { dom.lobbyStatus.textContent = "Enter a room code."; return; }
     const name = dom.inpName.value.trim() || "Player";
@@ -123,6 +145,7 @@ const UI = (() => {
     if (Net.getIsHost()) {
       state = Game.applyAction(state, action);
       Net.broadcast(state);
+      try { localStorage.setItem("civ-nd-save", JSON.stringify({ state, localPlayerId })); } catch(e) {}
       render();
     } else {
       Net.sendAction(action);
@@ -228,7 +251,7 @@ const UI = (() => {
       if (activeId === localPlayerId) {
         if (state.setup.phase === "fortress") {
           setupValid = Game.getValidFortressHexes(state);
-        } else if (state.setup.phase === "tile" && mouseHex) {
+        } else if ((state.setup.phase === "tile" || state.setup.phase === "capital_tile") && mouseHex) {
           const playerTiles = state.setup.playerTiles[localPlayerId] || [];
           if (playerTiles.length > 0) {
             const tileId = playerTiles[0];
@@ -241,6 +264,19 @@ const UI = (() => {
             }
           }
         }
+      }
+    }
+
+    if (state.phase === "playing" &&
+        (sub.phase === "move_army_exploring" || sub.phase === "move_wagon_exploring") &&
+        mouseHex && state.tileStack && state.tileStack.length > 0) {
+      const tileId = state.tileStack[0];
+      const anchorKey = Game.key(mouseHex.q, mouseHex.r);
+      const keys = Game.getTileHexKeys(anchorKey, sub.tileRotation, hexes);
+      if (keys.length === Game.TILE_OFFSETS.length) {
+        const result = Game.validateExploration(state, tileId, anchorKey, sub.tileRotation);
+        ghostKeys = new Set(keys);
+        ghostValid = result.ok;
       }
     }
 
@@ -299,7 +335,19 @@ const UI = (() => {
     // Layer 6: Ghost tile
     if (ghostKeys.size > 0) drawGhostTile(ghostKeys, ghostValid);
 
-    // Layer 7: Hover ring
+    // Layer 7: Current unit position during movement
+    if (sub.movementState && sub.movementState.currentKey) {
+      const curHex = hexes[sub.movementState.currentKey];
+      if (curHex) {
+        const p = axialToPixel(curHex.q, curHex.r);
+        hexPath(p.x, p.y, HEX_SIZE + 2);
+        ctx.strokeStyle = "#4fc3f7";
+        ctx.lineWidth = 3;
+        ctx.stroke();
+      }
+    }
+
+    // Layer 8: Hover ring
     if (mouseHex) {
       const mk = Game.key(mouseHex.q, mouseHex.r);
       const mh = hexes[mk];
@@ -347,9 +395,16 @@ const UI = (() => {
     const strokeColor = valid ? "#66bb6a" : "#ef5350";
 
     // Get tile data for terrain preview
-    const playerTiles = state.setup.playerTiles[localPlayerId] || [];
-    const tileId = playerTiles[0];
-    const tile = tileId ? state.setup.tiles[tileId] : null;
+    let tileId = null;
+    let tile = null;
+    if (state.phase === "setup") {
+      const playerTiles = state.setup.playerTiles[localPlayerId] || [];
+      tileId = playerTiles[0];
+      tile = tileId ? state.setup.tiles[tileId] : null;
+    } else if (sub.phase === "move_army_exploring" || sub.phase === "move_wagon_exploring") {
+      tileId = state.tileStack ? state.tileStack[0] : null;
+      tile = tileId ? state.tiles[tileId] : null;
+    }
 
     ghostKeys.forEach((k) => {
       const h = hexes[k];
@@ -549,7 +604,12 @@ const UI = (() => {
   }
 
   function onKeyDown(e) {
-    if (!state || state.phase !== "setup" || state.setup.phase !== "tile") return;
+    if (sub.phase === "move_army_exploring" || sub.phase === "move_wagon_exploring") {
+      if (e.key === "q" || e.key === "Q") { e.preventDefault(); sub.tileRotation = (sub.tileRotation + 5) % 6; render(); }
+      else if (e.key === "e" || e.key === "E") { e.preventDefault(); sub.tileRotation = (sub.tileRotation + 1) % 6; render(); }
+      return;
+    }
+    if (!state || state.phase !== "setup" || (state.setup.phase !== "tile" && state.setup.phase !== "capital_tile")) return;
     const activeId = state.setup.order[state.setup.turnIndex];
     if (activeId !== localPlayerId) return;
 
@@ -582,7 +642,7 @@ const UI = (() => {
         const owner = Game.getPlayer(state, h.control.ownerId);
         lines.push(`${h.control.district ? `District: ${h.control.district}` : "Control"}: ${owner ? owner.name : "?"} ${h.control.fortified ? "(Fort)" : ""}`);
       }
-      if (h.barbarian) lines.push(`Barbarian (power ${Game.CFG.barbarianBase + Game.TERRAIN[h.terrain]})`);
+      if (h.barbarian) lines.push(`Barbarian (power ${Game.TERRAIN[h.terrain]})`);
       if (h.cityState) lines.push(`City-State: ${h.cityState.name} (${h.cityState.type})`);
       if (h.resource) lines.push(`Resource: ${h.resource}`);
       if (h.fortress) {
@@ -640,6 +700,7 @@ const UI = (() => {
       dom.hdrRound.textContent = `Round ${state.turn.round}/${Game.CFG.maxRounds}`;
       dom.hdrTurn.textContent = cp ? (cp.id === localPlayerId ? "Your Turn" : `${cp.name}'s Turn`) : "";
       dom.hdrTurn.style.color = cp ? cp.color : "";
+      if (state.tileStack) dom.hdrRoom.textContent = `Tiles: ${state.tileStack.length}`;
     }
   }
 
@@ -707,6 +768,8 @@ const UI = (() => {
     if (sub.phase === "placing_district") { renderPlacingDistrict(); return; }
     if (sub.phase === "reinforcing") { renderReinforcing(); return; }
     if (sub.phase === "move_wagon" || sub.phase === "move_army") { renderMoving(); return; }
+    if (sub.phase === "move_army_post" || sub.phase === "move_wagon_post") { renderPostMove(); return; }
+    if (sub.phase === "move_army_exploring" || sub.phase === "move_wagon_exploring") { renderExploring(); return; }
     if (sub.phase === "industry_choice") { renderIndustryChoice(me); return; }
     if (sub.phase === "placing_city") { renderPlacingCity(); return; }
     if (sub.phase === "placing_wonder") { renderPlacingWonder(); return; }
@@ -731,14 +794,16 @@ const UI = (() => {
       return;
     }
 
-    if (state.setup.phase === "tile") {
+    if (state.setup.phase === "tile" || state.setup.phase === "capital_tile") {
+      const isCapitalPhase = state.setup.phase === "capital_tile";
+      const phaseLabel = isCapitalPhase ? "Capital Tile Placement" : "Tile Placement";
       const playerTiles = state.setup.playerTiles[activeId] || [];
       if (!isMySetupTurn) {
-        dom.wizard.innerHTML = `<div class="wiz-title">Tile Placement</div><div class="wiz-body">Waiting for <strong>${activeP ? activeP.name : "..."}</strong>. (${playerTiles.length} remaining)</div>`;
+        dom.wizard.innerHTML = `<div class="wiz-title">${phaseLabel}</div><div class="wiz-body">Waiting for <strong>${activeP ? activeP.name : "..."}</strong>. (${playerTiles.length} remaining)</div>`;
         return;
       }
       if (playerTiles.length === 0) {
-        dom.wizard.innerHTML = `<div class="wiz-title">Tile Placement</div><div class="wiz-body">All tiles placed! Waiting for others...</div>`;
+        dom.wizard.innerHTML = `<div class="wiz-title">${phaseLabel}</div><div class="wiz-body">All tiles placed! Waiting for others...</div>`;
         return;
       }
       const tileId = playerTiles[0];
@@ -746,7 +811,7 @@ const UI = (() => {
       const tileType = tile ? tile.type.charAt(0).toUpperCase() + tile.type.slice(1) : "?";
 
       dom.wizard.innerHTML = `
-        <div class="wiz-title">Place Tile: ${tileType} (${tileId})</div>
+        <div class="wiz-title">${isCapitalPhase ? "Place Your Capital Tile" : `Place Tile: ${tileType} (${tileId})`}</div>
         <div class="wiz-body">
           <div class="tile-preview">${renderTilePreview()}</div>
           <div class="trade-counter">
@@ -920,13 +985,145 @@ const UI = (() => {
   function renderMoving() {
     const unitType = sub.phase === "move_wagon" ? "wagon" : "army";
     const selectingUnit = !sub.selectedUnit;
+    const ms = sub.movementState;
+    const remaining = ms ? ` (${ms.remaining} moves left)` : "";
     dom.wizard.innerHTML = `
-      <div class="wiz-title">Move ${unitType === "wagon" ? "Wagon" : "Army"}</div>
+      <div class="wiz-title">Move ${unitType === "wagon" ? "Wagon" : "Army"}${remaining}</div>
       <div class="wiz-body">${selectingUnit
         ? `Click one of your <strong>${unitType}s</strong> on the map.`
         : `Click a <strong>highlighted hex</strong> to move.`}</div>
       <div class="wiz-actions"><button class="ghost" id="wiz-cancel6">Cancel</button></div>`;
     document.getElementById("wiz-cancel6").addEventListener("click", cancelAction);
+  }
+
+  function renderPostMove() {
+    const ms = sub.movementState;
+    if (!ms) return;
+    const unitLabel = ms.unitType === "army" ? "Army" : "Wagon";
+    const canExplore = Game.isExploreEligible(state, ms.currentKey) && ms.remaining > 0 && !ms.explored;
+    const defender = ms.unitType === "army" ? Game.findDefender(state, ms.currentKey, localPlayerId) : null;
+
+    let buttons = `<div class="wiz-actions">`;
+    if (defender) buttons += `<button id="wiz-attack" class="primary">Attack ${defender.label} (pow ${defender.power})</button>`;
+    if (ms.remaining > 0) buttons += `<button id="wiz-continue-move">Continue (${ms.remaining} left)</button>`;
+    if (canExplore) buttons += `<button id="wiz-explore">Explore</button>`;
+    buttons += `<button id="wiz-end-move">${defender ? "Retreat" : "End Movement"}</button></div>`;
+
+    const bodyText = defender
+      ? `<strong style="color:#ef5350">${defender.label}</strong> here! (power ${defender.power})`
+      : `Remaining movement: <strong>${ms.remaining}</strong>`;
+
+    dom.wizard.innerHTML = `
+      <div class="wiz-title">${unitLabel} ${defender ? "— Encounter!" : "Moved"}</div>
+      <div class="wiz-body">${bodyText}</div>
+      ${buttons}`;
+
+    document.getElementById("wiz-attack")?.addEventListener("click", endMovement);
+    document.getElementById("wiz-continue-move")?.addEventListener("click", continueMovement);
+    document.getElementById("wiz-explore")?.addEventListener("click", startExploration);
+    document.getElementById("wiz-end-move").addEventListener("click", () => {
+      if (defender) {
+        ms.currentKey = ms.startKey;
+      }
+      endMovement();
+    });
+  }
+
+  function renderExploring() {
+    dom.wizard.innerHTML = `
+      <div class="wiz-title">Exploring</div>
+      <div class="wiz-body">
+        <div class="tile-preview">${renderTilePreview()}</div>
+        <div class="trade-counter">
+          <span>Rotation:</span>
+          <button id="rot-dec" class="sm">◄ Q</button>
+          <span class="tc-val">${sub.tileRotation + 1}/6</span>
+          <button id="rot-inc" class="sm">E ►</button>
+        </div>
+        <div class="trade-counter">
+          <span>Side:</span>
+          <button id="side-toggle" class="sm">${sub.tileSide}</button>
+        </div>
+        <br>Place the tile touching your unit's hex.<br>
+        <strong style="color:#66bb6a">Green</strong> = valid, <strong style="color:#ef5350">Red</strong> = invalid.
+        <br>Tiles remaining in stack: <strong>${state.tileStack ? state.tileStack.length : 0}</strong>
+      </div>
+      <div class="wiz-actions"><button class="ghost" id="wiz-cancel-explore">Cancel</button></div>`;
+
+    document.getElementById("rot-dec").addEventListener("click", () => { sub.tileRotation = (sub.tileRotation + 5) % 6; render(); });
+    document.getElementById("rot-inc").addEventListener("click", () => { sub.tileRotation = (sub.tileRotation + 1) % 6; render(); });
+    document.getElementById("side-toggle").addEventListener("click", () => { sub.tileSide = sub.tileSide === "A" ? "B" : "A"; render(); });
+    document.getElementById("wiz-cancel-explore").addEventListener("click", () => {
+      const ms = sub.movementState;
+      sub.phase = ms.unitType === "army" ? "move_army_post" : "move_wagon_post";
+      render();
+    });
+  }
+
+  function continueMovement() {
+    const ms = sub.movementState;
+    if (!ms) return;
+    sub.phase = ms.unitType === "army" ? "move_army" : "move_wagon";
+    sub.selectedUnit = { id: ms.unitId, position: ms.currentKey };
+    sub.validHexes = Game.getReachable(state, ms.currentKey, ms.remaining, ms.unitType, localPlayerId);
+    render();
+  }
+
+  function startExploration() {
+    const ms = sub.movementState;
+    if (!ms) return;
+    sub.phase = ms.unitType === "army" ? "move_army_exploring" : "move_wagon_exploring";
+    sub.tileRotation = 0;
+    render();
+  }
+
+  function endMovement() {
+    const ms = sub.movementState;
+    if (!ms) { resetSub(); return; }
+    const me = Game.getPlayer(state, localPlayerId);
+    if (!me) { resetSub(); return; }
+
+    if (ms.unitType === "army") {
+      const defender = Game.findDefender(state, ms.currentKey, localPlayerId);
+      const slot = Game.getSlotValue(me, "military");
+      if (defender) {
+        dispatch({ type: "PLAY_MILITARY_ATTACK", payload: {
+          playerId: localPlayerId, unitId: ms.unitId, toKey: ms.currentKey,
+          fromKey: ms.startKey, attackPower: slot + sub.tradeSpent,
+          defensePower: defender.power, defenderLabel: defender.label, tradeSpent: sub.tradeSpent
+        }});
+      } else {
+        dispatch({ type: "PLAY_MILITARY_MOVE", payload: {
+          playerId: localPlayerId, unitId: ms.unitId, toKey: ms.currentKey, tradeSpent: sub.tradeSpent
+        }});
+      }
+    } else {
+      dispatch({ type: "PLAY_ECONOMY", payload: {
+        playerId: localPlayerId, unitId: ms.unitId, toKey: ms.currentKey, tradeSpent: sub.tradeSpent
+      }});
+    }
+    resetSub();
+  }
+
+  function computeStepDistance(st, fromKey, toKey, maxSteps, unitType, playerId) {
+    if (fromKey === toKey) return 0;
+    const visited = new Map([[fromKey, 0]]);
+    const queue = [{ key: fromKey, steps: 0 }];
+    while (queue.length) {
+      const cur = queue.shift();
+      if (cur.steps >= maxSteps) continue;
+      const neighbors = Game.hexNeighborKeys(Game.parseQ(cur.key), Game.parseR(cur.key));
+      for (const nk of neighbors) {
+        if (visited.has(nk)) continue;
+        const h = st.map.hexes[nk];
+        if (!h || !h.active || h.terrain === "water") continue;
+        if (unitType === "wagon" && h.barbarian) continue;
+        visited.set(nk, cur.steps + 1);
+        if (nk === toKey) return cur.steps + 1;
+        queue.push({ key: nk, steps: cur.steps + 1 });
+      }
+    }
+    return maxSteps;
   }
 
   function renderIndustryChoice(me) {
@@ -1058,6 +1255,7 @@ const UI = (() => {
     sub.phase = "idle"; sub.cardType = null; sub.tradeSpent = 0; sub.remaining = 0;
     sub.totalMarkers = 0; sub.validHexes = new Set(); sub.selectedUnit = null;
     sub.districtType = null; sub.spentResources = {}; sub.placedKeys = [];
+    sub.movementState = null;
     render();
   }
 
@@ -1074,7 +1272,7 @@ const UI = (() => {
         dispatch({ type: "PLACE_FORTRESS", payload: { playerId: localPlayerId, hexKey } });
         return;
       }
-      if (state.setup.phase === "tile") {
+      if (state.setup.phase === "tile" || state.setup.phase === "capital_tile") {
         const playerTiles = state.setup.playerTiles[localPlayerId] || [];
         if (playerTiles.length === 0) return;
         const tileId = playerTiles[0];
@@ -1117,12 +1315,22 @@ const UI = (() => {
         const unit = me.wagons.find((u) => u.position === hexKey);
         if (!unit) return;
         sub.selectedUnit = unit;
-        sub.validHexes = Game.getReachable(state, hexKey, Game.CFG.baseWagonMove + sub.tradeSpent, "wagon", localPlayerId);
+        const maxMove = Game.CFG.baseWagonMove + sub.tradeSpent;
+        sub.movementState = { unitType: "wagon", unitId: unit.id, maxMove, remaining: maxMove, currentKey: hexKey, startKey: hexKey, explored: false };
+        sub.validHexes = Game.getReachable(state, hexKey, maxMove, "wagon", localPlayerId);
         render();
       } else {
         if (!sub.validHexes.has(hexKey)) return;
-        dispatch({ type: "PLAY_ECONOMY", payload: { playerId: localPlayerId, unitId: sub.selectedUnit.id, toKey: hexKey, tradeSpent: sub.tradeSpent } });
-        resetSub();
+        const ms = sub.movementState;
+        const dist = computeStepDistance(state, ms.currentKey, hexKey, ms.remaining, "wagon", localPlayerId);
+        ms.remaining -= dist;
+        ms.currentKey = hexKey;
+        if (ms.remaining > 0) {
+          sub.phase = "move_wagon_post";
+          render();
+        } else {
+          endMovement();
+        }
       }
       return;
     }
@@ -1132,19 +1340,42 @@ const UI = (() => {
         if (!unit) return;
         sub.selectedUnit = unit;
         const slot = Game.getSlotValue(me, "military");
-        sub.validHexes = Game.getReachable(state, hexKey, Game.CFG.baseArmyMove + slot - 1, "army", localPlayerId);
+        const maxMove = Game.CFG.baseArmyMove + slot - 1;
+        sub.movementState = { unitType: "army", unitId: unit.id, maxMove, remaining: maxMove, currentKey: hexKey, startKey: hexKey, explored: false };
+        sub.validHexes = Game.getReachable(state, hexKey, maxMove, "army", localPlayerId);
         render();
       } else {
         if (!sub.validHexes.has(hexKey)) return;
-        const defender = Game.findDefender(state, hexKey, localPlayerId);
-        const slot = Game.getSlotValue(me, "military");
-        if (defender) {
-          dispatch({ type: "PLAY_MILITARY_ATTACK", payload: { playerId: localPlayerId, unitId: sub.selectedUnit.id, toKey: hexKey, attackPower: slot + sub.tradeSpent, defensePower: defender.power, defenderLabel: defender.label, tradeSpent: sub.tradeSpent } });
+        const ms = sub.movementState;
+        const dist = computeStepDistance(state, ms.currentKey, hexKey, ms.remaining, "army", localPlayerId);
+        ms.remaining -= dist;
+        ms.currentKey = hexKey;
+        if (ms.remaining > 0) {
+          sub.phase = "move_army_post";
+          render();
         } else {
-          dispatch({ type: "PLAY_MILITARY_MOVE", payload: { playerId: localPlayerId, unitId: sub.selectedUnit.id, toKey: hexKey, tradeSpent: sub.tradeSpent } });
+          sub.phase = "move_army_post";
+          render();
         }
-        resetSub();
       }
+      return;
+    }
+    if (sub.phase === "move_army_exploring" || sub.phase === "move_wagon_exploring") {
+      const ms = sub.movementState;
+      if (!state.tileStack || state.tileStack.length === 0) return;
+      const tileId = state.tileStack[0];
+      const result = Game.validateExploration(state, tileId, hexKey, sub.tileRotation);
+      if (!result.ok) return;
+      const cellKeys = Game.getTileHexKeys(hexKey, sub.tileRotation, state.map.hexes);
+      const touchesUnit = cellKeys.some((ck) =>
+        Game.hexNeighborKeys(Game.parseQ(ck), Game.parseR(ck)).includes(ms.currentKey)
+      );
+      if (!touchesUnit) return;
+      dispatch({ type: "EXPLORE_TILE", payload: { playerId: localPlayerId, anchorKey: hexKey, rotation: sub.tileRotation, side: sub.tileSide, fromKey: ms.currentKey } });
+      ms.remaining -= 1;
+      ms.explored = true;
+      sub.phase = ms.unitType === "army" ? "move_army_post" : "move_wagon_post";
+      render();
       return;
     }
     if (sub.phase === "placing_city") {
@@ -1265,8 +1496,17 @@ const UI = (() => {
       <div class="gameover-scores">${state.players.map((p) =>
         `<div><span class="dot" style="background:${p.color};display:inline-block;width:8px;height:8px;border-radius:50%"></span> ${p.name}: ${Game.computeScore(state, p.id)} pts</div>`
       ).join("")}</div>
+      <div class="gameover-actions"><button class="primary" id="go-restart">Play Again</button></div>
     </div>`;
     document.body.appendChild(overlay);
+    document.getElementById("go-restart").addEventListener("click", () => {
+      overlay.remove();
+      state = null;
+      localPlayerId = null;
+      try { localStorage.removeItem("civ-nd-save"); } catch(e) {}
+      dom.game.classList.add("hidden");
+      dom.lobby.classList.remove("hidden");
+    });
   }
 
   window.addEventListener("load", init);
