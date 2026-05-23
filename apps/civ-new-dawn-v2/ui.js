@@ -7,7 +7,7 @@ const UI = (() => {
   // Canvas
   let canvas = null;
   let ctx = null;
-  const HEX_SIZE = 30;
+  let HEX_SIZE = 30;
   const SQRT3 = Math.sqrt(3);
   let panX = 0, panY = 0;
   let isPanning = false;
@@ -34,6 +34,57 @@ const UI = (() => {
   };
 
   const dom = {};
+
+  // Toast system
+  let toastTimeout = null;
+  function showToast(msg) {
+    const el = document.getElementById("toast");
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.remove("hidden");
+    clearTimeout(toastTimeout);
+    toastTimeout = setTimeout(() => el.classList.add("hidden"), 2500);
+  }
+
+  // Action notification toast
+  let actionToastTimeout = null;
+  function showActionToast(msg) {
+    const el = document.getElementById("action-toast");
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.remove("hidden");
+    clearTimeout(actionToastTimeout);
+    actionToastTimeout = setTimeout(() => el.classList.add("hidden"), 3000);
+  }
+
+  // Chat
+  const chatHistory = [];
+  function sendChat(text) {
+    if (!text.trim()) return;
+    const me = state && state.players.find((p) => p.id === localPlayerId);
+    const msg = { type: "chat", sender: localPlayerId, name: me ? me.name : "???", text: text.trim(), ts: Date.now() };
+    chatHistory.push(msg);
+    Net.broadcastChat(msg);
+    renderLog();
+  }
+
+  // Help text lookup
+  function helpText(phase) {
+    const helps = {
+      idle: "Click a focus card below to take your turn action. Cards in higher slots are more powerful.",
+      card_selected: "Spend trade tokens for extra power. Click 'Start Action' when ready.",
+      placing_control: "Click green hexes to claim territory. Must be within range of your city.",
+      move_army: "Click your army, then click a green hex to move it.",
+      move_army_post: "Choose what to do next: continue moving, explore, attack, or end.",
+      move_wagon: "Click your wagon, then a green hex to move. Visit city-states for trade tokens.",
+      choosing_district: "Select a district type to build on your controlled hex.",
+      industry_choice: "Choose to build a city or a wonder with your production.",
+      exploring: "Use R to rotate, F to flip. Click a valid hex to place the tile.",
+      growth_choice: "Choose a hex near your city to build a district or fortify.",
+      waiting: "Waiting for other player's turn..."
+    };
+    return helps[phase] || "";
+  }
 
   function init() {
     dom.lobby = document.getElementById("lobby");
@@ -74,8 +125,22 @@ const UI = (() => {
         Net.broadcast(state);
         render();
       },
-      onDisconnect: () => {},
-      onConnected: () => { if (Net.getIsHost() && state) Net.broadcast(state); }
+      onDisconnect: () => {
+        document.getElementById("conn-banner").textContent = "Connection lost — attempting to reconnect...";
+        document.getElementById("conn-banner").classList.remove("hidden");
+        showToast("Connection lost");
+      },
+      onConnected: () => { if (Net.getIsHost() && state) Net.broadcast(state); },
+      onChat: (msg) => { chatHistory.push(msg); renderLog(); }
+    });
+
+    document.getElementById("chat-send").addEventListener("click", () => {
+      const inp = document.getElementById("chat-input");
+      sendChat(inp.value);
+      inp.value = "";
+    });
+    document.getElementById("chat-input").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { sendChat(e.target.value); e.target.value = ""; }
     });
 
     try {
@@ -169,6 +234,12 @@ const UI = (() => {
     canvas.addEventListener("mouseleave", onCanvasMouseLeave);
     canvas.addEventListener("click", onCanvasClick);
     canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+    canvas.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -2 : 2;
+      HEX_SIZE = Math.max(15, Math.min(60, HEX_SIZE + delta));
+      renderCanvas();
+    }, { passive: false });
     document.addEventListener("keydown", onKeyDown);
 
     panX = (dom.map.clientWidth || 800) / 2;
@@ -344,6 +415,20 @@ const UI = (() => {
         ctx.strokeStyle = "#4fc3f7";
         ctx.lineWidth = 3;
         ctx.stroke();
+      }
+    }
+
+    // Layer 7b: Selected unit indicator
+    if (sub.selectedUnit && sub.selectedUnit.position) {
+      const sh = hexes[sub.selectedUnit.position];
+      if (sh) {
+        const p = axialToPixel(sh.q, sh.r);
+        hexPath(p.x, p.y, HEX_SIZE + 4);
+        ctx.strokeStyle = "#ffd54f";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 4]);
+        ctx.stroke();
+        ctx.setLineDash([]);
       }
     }
 
@@ -684,6 +769,16 @@ const UI = (() => {
       dom.focusRow.innerHTML = "";
     }
     renderGameOver();
+
+    if (state.lastAction && state.lastAction.playerId !== localPlayerId) {
+      const elapsed = Date.now() - state.lastAction.ts;
+      if (elapsed < 4000) {
+        const ap = state.players.find((p) => p.id === state.lastAction.playerId);
+        const labels = { PLAY_CULTURE: "placed control markers", PLAY_GROWTH: "built a district", PLAY_SCIENCE: "advanced tech", PLAY_ECONOMY: "moved a wagon", PLAY_MILITARY_MOVE: "moved an army", PLAY_MILITARY_ATTACK: "attacked!", PLAY_INDUSTRY_CITY: "built a city", PLAY_INDUSTRY_WONDER: "built a wonder", EXPLORE_TILE: "explored a tile", END_TURN: "ended their turn" };
+        const desc = labels[state.lastAction.type] || state.lastAction.type;
+        showActionToast(`${ap ? ap.name : "Opponent"} ${desc}`);
+      }
+    }
   }
 
   // ── Header / Players / Stats ──────────────────────────────
@@ -740,10 +835,12 @@ const UI = (() => {
     if (!me) { dom.myStats.innerHTML = ""; return; }
     const res = Object.entries(me.resources).filter(([, v]) => v > 0).map(([k, v]) => `${k}: ${v}`).join(", ") || "none";
     const gov = me.govMarkers.length ? me.govMarkers.map((m) => Game.FOCUS_LABELS[m]).join(", ") : "none";
+    const maxA = Game.CFG.maxArmies + (me.techTier >= 3 ? 1 : 0);
+    const maxW = Game.CFG.maxWagons + (me.techTier >= 3 ? 1 : 0);
     dom.myStats.innerHTML = `<h3>My Stats</h3><div class="stat-grid">
       <span>Tech:</span><span class="sv">${me.tech}/${Game.CFG.techWheelSize} (T${me.techTier})</span>
-      <span>Armies:</span><span class="sv">${me.armies.length}/${Game.CFG.maxArmies}</span>
-      <span>Wagons:</span><span class="sv">${me.wagons.length}/${Game.CFG.maxWagons}</span>
+      <span>Armies:</span><span class="sv">${me.armies.length}/${maxA}</span>
+      <span>Wagons:</span><span class="sv">${me.wagons.length}/${maxW}</span>
       <span>Resources:</span><span class="sv">${res}</span>
       <span>Gov:</span><span class="sv">${gov}</span>
     </div>`;
@@ -760,19 +857,23 @@ const UI = (() => {
     const me = Game.getPlayer(state, localPlayerId);
 
     if (state.lastCombat) { renderCombatResult(); return; }
-    if (sub.phase === "idle") { renderIdleWizard(isMyTurn, cp, me); return; }
-    if (sub.phase === "card_selected") { renderCardSelected(me); return; }
-    if (sub.phase === "placing_control") { renderPlacingControl(); return; }
-    if (sub.phase === "growth_choice") { renderGrowthChoice(); return; }
-    if (sub.phase === "pick_district") { renderPickDistrict(); return; }
-    if (sub.phase === "placing_district") { renderPlacingDistrict(); return; }
-    if (sub.phase === "reinforcing") { renderReinforcing(); return; }
-    if (sub.phase === "move_wagon" || sub.phase === "move_army") { renderMoving(); return; }
-    if (sub.phase === "move_army_post" || sub.phase === "move_wagon_post") { renderPostMove(); return; }
-    if (sub.phase === "move_army_exploring" || sub.phase === "move_wagon_exploring") { renderExploring(); return; }
-    if (sub.phase === "industry_choice") { renderIndustryChoice(me); return; }
-    if (sub.phase === "placing_city") { renderPlacingCity(); return; }
-    if (sub.phase === "placing_wonder") { renderPlacingWonder(); return; }
+    if (sub.phase === "idle") { renderIdleWizard(isMyTurn, cp, me); }
+    else if (sub.phase === "card_selected") { renderCardSelected(me); }
+    else if (sub.phase === "placing_control") { renderPlacingControl(); }
+    else if (sub.phase === "growth_choice") { renderGrowthChoice(); }
+    else if (sub.phase === "pick_district") { renderPickDistrict(); }
+    else if (sub.phase === "placing_district") { renderPlacingDistrict(); }
+    else if (sub.phase === "reinforcing") { renderReinforcing(); }
+    else if (sub.phase === "move_wagon" || sub.phase === "move_army") { renderMoving(); }
+    else if (sub.phase === "move_army_post" || sub.phase === "move_wagon_post") { renderPostMove(); }
+    else if (sub.phase === "move_army_exploring" || sub.phase === "move_wagon_exploring") { renderExploring(); }
+    else if (sub.phase === "industry_choice") { renderIndustryChoice(me); }
+    else if (sub.phase === "placing_city") { renderPlacingCity(); }
+    else if (sub.phase === "placing_wonder") { renderPlacingWonder(); }
+    else { return; }
+
+    const help = helpText(sub.phase);
+    if (help) dom.wizard.innerHTML += `<div class="wiz-help">${help}</div>`;
   }
 
   function renderSetupWizard() {
@@ -881,8 +982,10 @@ const UI = (() => {
       return;
     }
     let actions = `<div class="wiz-actions">`;
-    if (me && me.armies.length < Game.CFG.maxArmies) actions += `<button class="sm" id="wiz-recruit-army">Recruit Army</button>`;
-    if (me && me.wagons.length < Game.CFG.maxWagons) actions += `<button class="sm" id="wiz-recruit-wagon">Recruit Wagon</button>`;
+    const maxArmies = Game.CFG.maxArmies + (me && me.techTier >= 3 ? 1 : 0);
+    const maxWagons = Game.CFG.maxWagons + (me && me.techTier >= 3 ? 1 : 0);
+    if (me && me.armies.length < maxArmies) actions += `<button class="sm" id="wiz-recruit-army">Recruit Army</button>`;
+    if (me && me.wagons.length < maxWagons) actions += `<button class="sm" id="wiz-recruit-wagon">Recruit Wagon</button>`;
     actions += `<button class="sm" id="wiz-gov">Assign Gov</button>`;
     actions += `<button id="wiz-end-turn">End Turn</button></div>`;
     dom.wizard.innerHTML = `<div class="wiz-title">Your Turn</div><div class="wiz-body">Select a <strong>focus card</strong> below to take an action.${me && me.cardPlayed ? "<br><em>Card already played this turn.</em>" : ""}</div>${actions}`;
@@ -893,7 +996,7 @@ const UI = (() => {
   }
 
   function renderCardSelected(me) {
-    const slot = Game.getSlotValue(me, sub.cardType);
+    const slot = Game.getSlotValue(me, sub.cardType, state);
     const tradeAvail = me.trade[sub.cardType];
     dom.wizard.innerHTML = `
       <div class="wiz-title">${Game.FOCUS_LABELS[sub.cardType]} (Slot ${slot})</div>
@@ -1085,7 +1188,7 @@ const UI = (() => {
 
     if (ms.unitType === "army") {
       const defender = Game.findDefender(state, ms.currentKey, localPlayerId);
-      const slot = Game.getSlotValue(me, "military");
+      const slot = Game.getSlotValue(me, "military", state);
       if (defender) {
         dispatch({ type: "PLAY_MILITARY_ATTACK", payload: {
           playerId: localPlayerId, unitId: ms.unitId, toKey: ms.currentKey,
@@ -1127,7 +1230,7 @@ const UI = (() => {
   }
 
   function renderIndustryChoice(me) {
-    const slot = Game.getSlotValue(me, "industry");
+    const slot = Game.getSlotValue(me, "industry", state);
     let spentBonus = 0;
     Object.values(sub.spentResources).forEach((v) => { if (v) spentBonus += Game.CFG.resourceProdValue; });
     const totalProd = slot + sub.tradeSpent + spentBonus;
@@ -1187,7 +1290,7 @@ const UI = (() => {
   function startAction() {
     const me = Game.getPlayer(state, localPlayerId);
     if (!me) return;
-    const slot = Game.getSlotValue(me, sub.cardType);
+    const slot = Game.getSlotValue(me, sub.cardType, state);
 
     if (sub.cardType === "science") {
       dispatch({ type: "PLAY_SCIENCE", payload: { playerId: localPlayerId, amount: slot + sub.tradeSpent, tradeSpent: sub.tradeSpent } });
@@ -1209,7 +1312,7 @@ const UI = (() => {
 
   function startDistrictPlace() {
     const me = Game.getPlayer(state, localPlayerId);
-    const slot = Game.getSlotValue(me, "growth");
+    const slot = Game.getSlotValue(me, "growth", state);
     sub.phase = "placing_district";
     sub.validHexes = Game.validDistrictHexes(state, localPlayerId, slot);
     render();
@@ -1217,7 +1320,7 @@ const UI = (() => {
 
   function startReinforce() {
     const me = Game.getPlayer(state, localPlayerId);
-    const slot = Game.getSlotValue(me, "growth");
+    const slot = Game.getSlotValue(me, "growth", state);
     sub.phase = "reinforcing";
     sub.remaining = slot + sub.tradeSpent;
     sub.totalMarkers = sub.remaining;
@@ -1288,7 +1391,7 @@ const UI = (() => {
     if (!me) return;
 
     if (sub.phase === "placing_control") {
-      if (!sub.validHexes.has(hexKey)) return;
+      if (!sub.validHexes.has(hexKey)) { showToast("Must be within range of your city"); return; }
       sub.placedKeys.push(hexKey);
       sub.remaining--;
       sub.validHexes.delete(hexKey);
@@ -1297,7 +1400,7 @@ const UI = (() => {
       return;
     }
     if (sub.phase === "placing_district") {
-      if (!sub.validHexes.has(hexKey)) return;
+      if (!sub.validHexes.has(hexKey)) { showToast("Must be adjacent to your city"); return; }
       dispatch({ type: "PLAY_GROWTH_DISTRICT", payload: { playerId: localPlayerId, hexKey, district: sub.districtType, tradeSpent: sub.tradeSpent } });
       resetSub(); return;
     }
@@ -1320,7 +1423,7 @@ const UI = (() => {
         sub.validHexes = Game.getReachable(state, hexKey, maxMove, "wagon", localPlayerId);
         render();
       } else {
-        if (!sub.validHexes.has(hexKey)) return;
+        if (!sub.validHexes.has(hexKey)) { showToast("Can't move there"); return; }
         const ms = sub.movementState;
         const dist = computeStepDistance(state, ms.currentKey, hexKey, ms.remaining, "wagon", localPlayerId);
         ms.remaining -= dist;
@@ -1339,7 +1442,7 @@ const UI = (() => {
         const unit = me.armies.find((u) => u.position === hexKey);
         if (!unit) return;
         sub.selectedUnit = unit;
-        const slot = Game.getSlotValue(me, "military");
+        const slot = Game.getSlotValue(me, "military", state);
         const maxMove = Game.CFG.baseArmyMove + slot - 1;
         sub.movementState = { unitType: "army", unitId: unit.id, maxMove, remaining: maxMove, currentKey: hexKey, startKey: hexKey, explored: false };
         sub.validHexes = Game.getReachable(state, hexKey, maxMove, "army", localPlayerId);
@@ -1379,13 +1482,13 @@ const UI = (() => {
       return;
     }
     if (sub.phase === "placing_city") {
-      if (!sub.validHexes.has(hexKey)) return;
+      if (!sub.validHexes.has(hexKey)) { showToast("Invalid city location"); return; }
       const resources = {}; Object.entries(sub.spentResources).forEach(([r, spent]) => { if (spent) resources[r] = 1; });
       dispatch({ type: "PLAY_INDUSTRY_CITY", payload: { playerId: localPlayerId, hexKey, resources, tradeSpent: sub.tradeSpent } });
       resetSub(); return;
     }
     if (sub.phase === "placing_wonder") {
-      if (!sub.validHexes.has(hexKey)) return;
+      if (!sub.validHexes.has(hexKey)) { showToast("Must be your city without a wonder"); return; }
       const resources = {}; Object.entries(sub.spentResources).forEach(([r, spent]) => { if (spent) resources[r] = 1; });
       dispatch({ type: "PLAY_INDUSTRY_WONDER", payload: { playerId: localPlayerId, hexKey, resources, tradeSpent: sub.tradeSpent } });
       resetSub(); return;
@@ -1444,7 +1547,20 @@ const UI = (() => {
 
   function renderLog() {
     if (!state) return;
-    dom.gameLog.innerHTML = `<h3>Game Log</h3>` + state.log.slice(-20).reverse().map((msg) => `<div class="log-entry">${msg}</div>`).join("");
+    const logEntries = state.log.slice(-15).map((msg) => ({ html: `<div class="log-entry">${msg}</div>`, ts: 0 }));
+    const chatEntries = chatHistory.slice(-10).map((m) => ({
+      html: `<div class="chat-msg"><span class="chat-name" style="color:${getPlayerColor(m.sender)}">${m.name}:</span>${m.text}</div>`,
+      ts: m.ts
+    }));
+    const all = [...logEntries, ...chatEntries];
+    dom.gameLog.innerHTML = `<h3>Game Log</h3>` + all.map((e) => e.html).join("");
+    dom.gameLog.scrollTop = dom.gameLog.scrollHeight;
+  }
+
+  function getPlayerColor(playerId) {
+    if (!state) return "var(--text)";
+    const p = state.players.find((pl) => pl.id === playerId);
+    return p ? p.color : "var(--text)";
   }
 
   function renderFocusRow() {
@@ -1456,9 +1572,8 @@ const UI = (() => {
     const canPlay = isMyTurn && !me.cardPlayed && sub.phase === "idle";
 
     dom.focusRow.innerHTML = me.focusRow.map((cardType, idx) => {
-      const baseSlot = Game.FOCUS_SLOTS[idx];
+      const effective = Game.getSlotValue(me, cardType, state);
       const bonus = me.govBonus[cardType] || 0;
-      const effective = Math.min(5, baseSlot + bonus);
       const trade = "●".repeat(me.trade[cardType]) + "○".repeat(Game.CFG.maxTrade - me.trade[cardType]);
       const disabled = !canPlay ? " disabled" : "";
       const selected = sub.cardType === cardType && sub.phase !== "idle" ? " selected" : "";
@@ -1469,6 +1584,20 @@ const UI = (() => {
         <span class="fc-trade">${trade}</span>
       </div>`;
     }).join("");
+
+    document.querySelectorAll(".fcard").forEach((el) => {
+      const cardType = el.dataset.card;
+      el.addEventListener("mouseenter", (e) => {
+        const slot = Game.getSlotValue(me, cardType, state);
+        const desc = Game.FOCUS_TRADE_DESC[cardType];
+        dom.mapTooltip.innerHTML = `<strong>${Game.FOCUS_LABELS[cardType]}</strong> (Power: ${slot})<br>${desc}`;
+        dom.mapTooltip.classList.remove("hidden");
+        const rect = el.getBoundingClientRect();
+        dom.mapTooltip.style.left = rect.left + "px";
+        dom.mapTooltip.style.top = (rect.top - 60) + "px";
+      });
+      el.addEventListener("mouseleave", () => { dom.mapTooltip.classList.add("hidden"); });
+    });
 
     if (canPlay) {
       document.querySelectorAll(".fcard:not(.disabled)").forEach((el) => {

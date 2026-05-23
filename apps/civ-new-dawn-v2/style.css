@@ -394,3 +394,44 @@ input, select {
 .gameover-box .go-type { color: var(--warn); margin-bottom: 16px; }
 .gameover-scores { text-align: left; font-size: 12px; line-height: 2; }
 .gameover-actions { margin-top: 20px; display: flex; justify-content: center; gap: 8px; }
+
+/* TOAST */
+#toast {
+  position: fixed; bottom: 120px; left: 50%; transform: translateX(-50%);
+  background: var(--surface); border: 1px solid var(--danger); color: var(--danger);
+  padding: 8px 16px; border-radius: 8px; z-index: 500;
+  font-size: 12px; transition: opacity 0.3s;
+}
+#toast.hidden { opacity: 0; pointer-events: none; }
+
+/* ACTION TOAST */
+#action-toast {
+  position: fixed; top: 50px; left: 50%; transform: translateX(-50%);
+  background: var(--surface); border: 1px solid var(--accent); color: var(--accent);
+  padding: 6px 14px; border-radius: 6px; z-index: 500;
+  font-size: 12px; transition: opacity 0.3s;
+}
+#action-toast.hidden { opacity: 0; pointer-events: none; }
+
+/* CHAT */
+#chat-row {
+  display: flex; gap: 4px; padding: 4px 0;
+}
+#chat-row input { flex: 1; }
+#chat-row button { white-space: nowrap; }
+.chat-msg {
+  font-size: 10px; color: var(--text); padding: 2px 0;
+  border-bottom: 1px solid var(--bg);
+}
+.chat-msg .chat-name { font-weight: 700; margin-right: 4px; }
+
+/* HELP TEXT */
+.wiz-help { font-size: 10px; color: var(--text2); font-style: italic; margin-top: 6px; }
+
+/* CONNECTION BANNER */
+#conn-banner {
+  position: fixed; top: 0; left: 0; right: 0;
+  background: var(--danger); color: #fff; text-align: center;
+  padding: 4px; font-size: 11px; z-index: 1000;
+}
+#conn-banner.hidden { display: none; }
