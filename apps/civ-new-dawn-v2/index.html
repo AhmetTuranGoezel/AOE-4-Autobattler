@@ -37,6 +37,7 @@
     </div>
 
     <!-- GAME -->
+    <div id="conn-banner" class="hidden">Connection lost...</div>
     <div id="game" class="panel-game hidden">
       <header id="header">
         <span id="hdr-title">Civ: New Dawn</span>
@@ -61,12 +62,15 @@
           <section id="wizard"></section>
           <section id="event-wheel"></section>
           <section id="game-log"></section>
+          <div id="chat-row"><input id="chat-input" placeholder="Chat..." maxlength="100"><button id="chat-send">Send</button></div>
         </aside>
       </div>
 
       <footer id="focus-bar">
         <div id="focus-row"></div>
       </footer>
+      <div id="toast" class="hidden"></div>
+      <div id="action-toast" class="hidden"></div>
     </div>
   </div>
 
