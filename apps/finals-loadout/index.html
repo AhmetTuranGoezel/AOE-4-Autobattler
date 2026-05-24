@@ -1916,9 +1916,11 @@
     const WIKI_FILE_BASE = 'https://www.thefinals.wiki/wiki/Special:Redirect/file/';
     const WEAPON_STATS_CONFIG = {
       liveEnabled: true,
-      sourceName: 'Ape Squad',
-      sourcePageUrl: 'https://apesquad.org/gundata',
-      csvUrl: 'https://docs.google.com/spreadsheets/d/12aWohgro45Mp-8bwGpL09jDmCcAwvYEAr0sm3fYDxFY/export?format=csv',
+      sourceName: "Krome's Weapon Data Sheet",
+      sourcePageUrl: 'https://docs.google.com/spreadsheets/d/1CAlLb9ebPWtXdsRKocSeIddDGa4xy5Hn3pzz4poGpD0/edit?gid=276374354#gid=276374354',
+      csvUrl: 'https://docs.google.com/spreadsheets/d/1CAlLb9ebPWtXdsRKocSeIddDGa4xy5Hn3pzz4poGpD0/export?format=csv&gid=276374354',
+      jsonpUrl: 'https://docs.google.com/spreadsheets/d/1CAlLb9ebPWtXdsRKocSeIddDGa4xy5Hn3pzz4poGpD0/gviz/tq?gid=276374354',
+      csvFormat: 'krome',
       fallbackRows: []
     };
     const WEAPON_HEALTH_VALUES = { Light: 150, Medium: 250, Heavy: 350 };
@@ -2712,7 +2714,10 @@
     }
 
     function parseCsvObjects(csvText) {
-      const rows = parseCsvRows(csvText);
+      return parseCsvObjectsFromRows(parseCsvRows(csvText));
+    }
+
+    function parseCsvObjectsFromRows(rows) {
       if (!rows.length) {
         return [];
       }
@@ -2727,12 +2732,80 @@
       });
     }
 
+    function getGoogleSheetCellValue(cell) {
+      if (!cell) {
+        return '';
+      }
+      if (cell.f !== undefined && cell.f !== null) {
+        return cell.f;
+      }
+      return cell.v ?? '';
+    }
+
+    function googleSheetTableToRows(sheetData) {
+      const columns = sheetData?.table?.cols || [];
+      const rows = sheetData?.table?.rows || [];
+      const headerRow = columns.map((column) => column.label || '');
+      const dataRows = rows.map((row) => {
+        const cells = row.c || [];
+        const length = Math.max(columns.length, cells.length);
+        return Array.from({ length }, (_, index) => getGoogleSheetCellValue(cells[index]));
+      });
+      return [headerRow, ...dataRows];
+    }
+
+    function loadGoogleSheetJsonpRows() {
+      return new Promise((resolve, reject) => {
+        const callbackName = `weaponStatsSheet${Date.now()}${Math.floor(Math.random() * 100000)}`;
+        const script = document.createElement('script');
+        const separator = WEAPON_STATS_CONFIG.jsonpUrl.includes('?') ? '&' : '?';
+        const timeout = setTimeout(() => {
+          cleanup();
+          reject(new Error('Timed out loading weapon sheet'));
+        }, 12000);
+
+        function cleanup() {
+          clearTimeout(timeout);
+          delete window[callbackName];
+          script.remove();
+        }
+
+        window[callbackName] = (sheetData) => {
+          cleanup();
+          resolve(googleSheetTableToRows(sheetData));
+        };
+
+        script.onerror = () => {
+          cleanup();
+          reject(new Error('Unable to load weapon sheet'));
+        };
+
+        script.src = `${WEAPON_STATS_CONFIG.jsonpUrl}${separator}tqx=responseHandler:${callbackName}`;
+        document.head.appendChild(script);
+      });
+    }
+
     function parseWeaponNumber(value, fallback = 0) {
       if (typeof value === 'number') {
         return Number.isFinite(value) ? value : fallback;
       }
-      const parsed = parseFloat(String(value ?? '').trim());
+      const text = String(value ?? '').trim();
+      const directParsed = parseFloat(text);
+      if (Number.isFinite(directParsed)) {
+        return directParsed;
+      }
+      const numberMatch = text.match(/-?\d+(?:\.\d+)?/);
+      const parsed = numberMatch ? parseFloat(numberMatch[0]) : NaN;
       return Number.isFinite(parsed) ? parsed : fallback;
+    }
+
+    function parseDropoffModifier(value) {
+      const text = String(value ?? '').trim();
+      const parsed = parseWeaponNumber(text, 1);
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        return 1;
+      }
+      return text.includes('%') || parsed > 1 ? parsed / 100 : parsed;
     }
 
     function parseMagazineSize(value) {
@@ -2751,6 +2824,128 @@
       return WEAPON_COLOR_PALETTE[index % WEAPON_COLOR_PALETTE.length];
     }
 
+    function getKromeWeaponName(name) {
+      const normalized = String(name || '').trim().replace(/\s+/g, ' ');
+      const nameMap = {
+        'ARN-220': 'ARN-220',
+        'DAGGER': 'Dagger',
+        'DAGGER (ALT.)': 'Dagger (Alt.)',
+        'DAGGER (ALT. W/ BACKSTAB)': 'Dagger (Alt. W/ Backstab)',
+        'LH1': 'LH1',
+        'M11': 'M11',
+        'M26 MATTER': 'M26 Matter',
+        'RECURVE BOW': 'Recurve Bow',
+        'RECURVE BOW (UNCHARGED)': 'Recurve Bow (Uncharged)',
+        'RECURVE BOW (CHARGED)': 'Recurve Bow (Charged)',
+        'SH1900': 'SH1900',
+        'SR-84': 'SR-84',
+        'SWORD': 'Sword',
+        'SWORD (ALT.)': 'Sword (Alt.)',
+        'THROWING KNIVES': 'Throwing Knives',
+        'THROWING KNIVES (ALT.)': 'Throwing Knives (Alt.)',
+        'V9S': 'V9S',
+        'XP-54': 'XP-54',
+        'AKM': 'AKM',
+        'CB-01 REPEATER': 'CB-01 Repeater',
+        'CERBERUS 12GA': 'Cerberus 12GA',
+        'CHIMERA-XB': 'Chimera-XB',
+        'CL-40 (DIRECT)': 'CL-40 (Direct)',
+        'CL-40 (SPLASH)': 'CL-40 (Splash)',
+        'DUAL BLADES': 'Dual Blades',
+        'FAMAS': 'FAMAS',
+        'FCAR': 'FCAR',
+        'MODEL 1887': 'Model 1887',
+        'P90': 'P90',
+        'PIKE .556': 'Pike-556',
+        'R.357': 'R .357',
+        'RIOT SHIELD': 'Riot Shield',
+        '.50 AKIMBO': '.50 Akimbo',
+        'BFR TITAN': 'BFR Titan',
+        'FLAMETHROWER': 'Flamethrower',
+        'KS-23': 'KS-23',
+        'LEWIS GUN': 'Lewis Gun',
+        'M134 MINIGUN': 'M134 Minigun',
+        'M60': 'M60',
+        'MGL-32': 'MGL32',
+        'SA1216': 'SA1216',
+        'SHAK-50': 'ShAK-50',
+        'SLEDGEHAMMER': 'Sledgehammer',
+        'SLEDGEHAMMER (ALT.)': 'Sledgehammer (Alt.)',
+        'SPEAR': 'Spear',
+        'SPEAR (ALT.)': 'Spear (Alt.)'
+      };
+      return nameMap[normalized.toUpperCase()] || normalized;
+    }
+
+    function getLoadoutItemNameForWeapon(name) {
+      if (getItemByName(name)) {
+        return name;
+      }
+
+      const baseName = String(name || '')
+        .replace(/\s*\([^)]*\)\s*$/g, '')
+        .trim();
+      return getItemByName(baseName) ? baseName : '';
+    }
+
+    function getKromeWeaponVersion(rows) {
+      for (const row of rows) {
+        for (const value of row) {
+          const match = String(value || '').match(/Last Update\s*:\s*([^\s]+)/i);
+          if (match) {
+            return match[1].trim();
+          }
+        }
+      }
+      return '';
+    }
+
+    function normalizeKromeWeaponRows(rows) {
+      const version = getKromeWeaponVersion(rows);
+      const hasLightHeader = rows.some((row) => String(row[0] || '').trim().toUpperCase() === 'LIGHT');
+      let className = hasLightHeader ? '' : 'LIGHT';
+
+      return rows.map((row) => {
+        const firstCell = String(row[0] || '').trim().toUpperCase();
+        if (['LIGHT', 'MEDIUM', 'HEAVY'].includes(firstCell)) {
+          className = firstCell;
+          return null;
+        }
+        if (!className) {
+          return null;
+        }
+
+        const rawName = String(row[2] || '').trim();
+        const rowNumber = parseWeaponNumber(row[1], NaN);
+        if (!rawName || rawName.toLowerCase() === 'name' || !Number.isFinite(rowNumber)) {
+          return null;
+        }
+
+        const name = getKromeWeaponName(rawName);
+        const bodyDamage = parseWeaponNumber(row[5]);
+        const rpm = parseWeaponNumber(row[7]);
+        return {
+          name,
+          loadoutItemName: getLoadoutItemNameForWeapon(name),
+          className,
+          bodyDamage,
+          headDamage: parseWeaponNumber(row[6], bodyDamage),
+          rpm,
+          burstCount: Math.max(1, parseWeaponNumber(row[13], 1) || 1),
+          burstDelay: parseWeaponNumber(row[14]),
+          minDropoff: parseWeaponNumber(row[27]),
+          maxDropoff: parseWeaponNumber(row[28]),
+          dropoffModifier: parseDropoffModifier(row[29]),
+          magazineSize: parseMagazineSize(row[8]),
+          emptyReload: parseWeaponNumber(row[12]),
+          tacticalReload: parseWeaponNumber(row[11]),
+          notes: String(row[30] || '').trim(),
+          version,
+          color: WEAPON_COLOR_PALETTE[0]
+        };
+      }).filter(Boolean);
+    }
+
     function normalizeWeaponStatRow(row) {
       const name = String(row.Name || row.name || '').trim();
       const className = String(row.Class || row.className || row.class || '').trim().toUpperCase();
@@ -2760,6 +2955,7 @@
 
       return {
         name,
+        loadoutItemName: getLoadoutItemNameForWeapon(name),
         className,
         bodyDamage: parseWeaponNumber(row['Body Damage'] ?? row.bodyDamage),
         headDamage: parseWeaponNumber(row['Head Damage'] ?? row.headDamage),
@@ -2768,7 +2964,7 @@
         burstDelay: parseWeaponNumber(row['Burst Delay'] ?? row.burstDelay),
         minDropoff: parseWeaponNumber(row['Min Dropoff'] ?? row.minDropoff),
         maxDropoff: parseWeaponNumber(row['Max Dropoff'] ?? row.maxDropoff),
-        dropoffModifier: parseWeaponNumber(row['Dropoff Modifier'] ?? row.dropoffModifier, 1) || 1,
+        dropoffModifier: parseDropoffModifier(row['Dropoff Modifier'] ?? row.dropoffModifier),
         magazineSize: parseMagazineSize(row['Magazine Size'] ?? row.magazineSize),
         emptyReload: parseWeaponNumber(row['Empty Reload'] ?? row.emptyReload),
         tacticalReload: parseWeaponNumber(row['Tactical Reload'] ?? row.tacticalReload),
@@ -2787,6 +2983,30 @@
           ...weapon,
           color: getWeaponColor(index)
         }));
+    }
+
+    function normalizeWeaponStatsFromRows(rows) {
+      if (WEAPON_STATS_CONFIG.csvFormat === 'krome') {
+        return normalizeWeaponStatRows(normalizeKromeWeaponRows(rows));
+      }
+
+      return normalizeWeaponStatRows(parseCsvObjectsFromRows(rows));
+    }
+
+    function parseWeaponStatRows(csvText) {
+      return normalizeWeaponStatsFromRows(parseCsvRows(csvText));
+    }
+
+    async function loadLiveWeaponStats() {
+      if (WEAPON_STATS_CONFIG.jsonpUrl) {
+        return normalizeWeaponStatsFromRows(await loadGoogleSheetJsonpRows());
+      }
+
+      const response = await fetch(WEAPON_STATS_CONFIG.csvUrl, { cache: 'no-store' });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      return parseWeaponStatRows(await response.text());
     }
 
     async function loadWeaponStats() {
@@ -2809,12 +3029,7 @@
       renderWeaponStats();
 
       try {
-        const response = await fetch(WEAPON_STATS_CONFIG.csvUrl, { cache: 'no-store' });
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
-        const csvText = await response.text();
-        const weapons = normalizeWeaponStatRows(parseCsvObjects(csvText));
+        const weapons = await loadLiveWeaponStats();
         if (!weapons.length) {
           throw new Error('No weapon rows found');
         }
@@ -3169,9 +3384,10 @@
 
       elements.weaponStatsPinned.innerHTML = pinnedWeapons.length
         ? pinnedWeapons.map((weapon) => {
-            const loadoutNote = state.itemNotes[weapon.name] || '';
+            const loadoutItemName = weapon.loadoutItemName || getLoadoutItemNameForWeapon(weapon.name);
+            const loadoutNote = loadoutItemName ? state.itemNotes[loadoutItemName] || '' : '';
             const hasLoadoutNote = Boolean(loadoutNote.trim());
-            const canEditLoadoutNote = Boolean(getItemByName(weapon.name));
+            const canEditLoadoutNote = Boolean(loadoutItemName);
 
             return `
             <article class="stats-detail-card" style="--weapon-color:${weapon.color};">
@@ -3194,13 +3410,13 @@
               <div class="stats-detail-note">
                 <div class="stats-detail-note-head">
                   <span class="stats-detail-note-label">Loadout Note</span>
-                  ${canEditLoadoutNote ? `<button class="stats-detail-note-edit" type="button" data-note-item="${escapeHtml(weapon.name)}">${hasLoadoutNote ? 'Edit Note' : 'Add Note'}</button>` : ''}
+                  ${canEditLoadoutNote ? `<button class="stats-detail-note-edit" type="button" data-note-item="${escapeHtml(loadoutItemName)}">${hasLoadoutNote ? 'Edit Note' : 'Add Note'}</button>` : ''}
                 </div>
                 <div class="stats-detail-note-text ${hasLoadoutNote ? '' : 'is-empty'}">${hasLoadoutNote ? escapeHtml(loadoutNote) : 'No loadout note yet'}</div>
               </div>
               ${weapon.notes ? `
                 <div class="stats-detail-note stats-detail-source-note">
-                  <div class="stats-detail-note-label">Weapon Note</div>
+                  <div class="stats-detail-note-label">Sheet Note</div>
                   <div class="stats-detail-note-text">${escapeHtml(weapon.notes)}</div>
                 </div>
               ` : ''}
