@@ -7,10 +7,10 @@ const Game = (() => {
   const FOCUS_LABELS = { culture: "Culture", growth: "Growth", science: "Science", economy: "Economy", military: "Military", industry: "Industry" };
   const FOCUS_SLOTS = [1, 1, 2, 3, 4, 5];
   const FOCUS_TRADE_DESC = {
-    culture: "+1 control marker per trade spent",
+    culture: "+1 effective slot value per trade spent",
     growth: "+1 extra district/reinforce per trade",
     science: "+1 tech advance per trade spent",
-    economy: "+1 wagon movement per trade spent",
+    economy: "+1 caravan movement per trade spent",
     military: "+1 combat strength per trade spent",
     industry: "+1 production per trade spent"
   };
@@ -40,10 +40,8 @@ const Game = (() => {
     mapRadius: 9,
     maxTrade: 3,
     maxArmies: 3,
-    maxWagons: 2,
+    maxCaravans: 1,
     maxGovMarkers: 2,
-    baseWagonMove: 3,
-    baseArmyMove: 4,
     barbarianBase: 0,
     cityStateDefense: 8,
     resourceProdValue: 2,
@@ -211,10 +209,6 @@ const Game = (() => {
 
     const anchorHex = st.map.hexes[anchorKey];
     if (anchorHex) {
-      if (tile.type === "capital" && tile.ownerId) {
-        anchorHex.terrain = "grass";
-        anchorHex.city = { ownerId: tile.ownerId, isCapital: true, developed: false, hasWonder: false };
-      }
       if (tile.type === "natural") {
         anchorHex.resource = "wonder";
       }
@@ -378,8 +372,8 @@ const Game = (() => {
       tech: 0, techTier: 1,
       govMarkers: [],
       govBonus: { culture: 0, growth: 0, science: 0, economy: 0, military: 0, industry: 0 },
-      armies: [{ id: "army-1", position: null }],
-      wagons: [{ id: "wagon-1", position: null }],
+      armies: [],
+      caravans: [{ id: "caravan-1", position: null }],
       cardPlayed: false
     };
   }
@@ -395,12 +389,12 @@ const Game = (() => {
     st.tiles = st.setup.tiles;
     st.tileStack = st.setup.tileStack || [];
 
-    // Place armies and wagons at each player's capital
+    // Place caravans at each player's capital
     st.players.forEach((player) => {
       const capKey = findCapital(st, player.id);
       if (capKey) {
         player.armies.forEach((u) => { if (!u.position) u.position = capKey; });
-        player.wagons.forEach((u) => { if (!u.position) u.position = capKey; });
+        player.caravans.forEach((u) => { if (!u.position) u.position = capKey; });
       }
     });
 
@@ -467,9 +461,10 @@ const Game = (() => {
 
       hex.active = true;
       hex.revealed = true;
-      hex.terrain = randomLandTerrain();
+      hex.terrain = "grass";
       hex.fortress = true;
       hex.fortressOwnerId = payload.playerId;
+      hex.city = { ownerId: payload.playerId, isCapital: true, developed: false, hasWonder: false };
       hex.tileId = "fortress";
       st.setup.fortressPlaced[payload.playerId] = true;
 
@@ -477,7 +472,7 @@ const Game = (() => {
       fillEnclosedHoles(st);
 
       const player = getPlayer(st, payload.playerId);
-      log(st, `${player ? player.name : "Player"} placed a fortress.`);
+      log(st, `${player ? player.name : "Player"} placed their capital.`);
 
       // Advance to next player or next phase
       const allPlaced = st.setup.order.every((id) => st.setup.fortressPlaced[id]);
@@ -547,7 +542,7 @@ const Game = (() => {
     // --- Playing phase actions ---
 
     if (type.startsWith("PLAY_") || type === "END_TURN" || type === "RECRUIT_ARMY" ||
-        type === "RECRUIT_WAGON" || type === "ASSIGN_GOV") {
+        type === "RECRUIT_CARAVAN" || type === "ASSIGN_GOV") {
       if (st.phase !== "playing") return st;
     }
     if (type.startsWith("PLAY_") || type === "END_TURN") {
@@ -558,22 +553,26 @@ const Game = (() => {
     if (type === "PLAY_CULTURE") {
       const player = getPlayer(st, payload.playerId);
       if (!player || player.cardPlayed) return st;
-      const cSlot = getSlotValue(player, "culture", st);
-      for (const k of payload.hexKeys) {
+      const effectiveSlot = getSlotValue(player, "culture", st) + (payload.tradeSpent || 0);
+      const maxMarkers = 2 + (payload.tradeSpent || 0);
+      const hexKeys = (payload.hexKeys || []).slice(0, maxMarkers);
+      let placed = 0;
+      for (const k of hexKeys) {
         const hx = st.map.hexes[k];
-        if (!hx || !hx.active || hx.terrain === "water" || hx.city || hx.barbarian) return st;
-      }
-      payload.hexKeys.forEach((k) => {
-        const hex = st.map.hexes[k];
-        if (!hex) return;
-        if (hex.resource && hex.resource !== "wonder") {
-          if (player.resources[hex.resource] !== undefined) player.resources[hex.resource]++;
-          hex.resource = null;
+        if (!hx || !hx.active || hx.terrain === "water" || hx.city || hx.barbarian || hx.cityState) continue;
+        if (hx.control) continue;
+        if (terrainDifficulty(hx) > effectiveSlot) continue;
+        if (!adjacentToFriendlyCity(st, hx, payload.playerId) && !adjacentToFriendlyControl(st, hx, payload.playerId)) continue;
+        if (hx.resource && hx.resource !== "wonder") {
+          if (player.resources[hx.resource] !== undefined) player.resources[hx.resource]++;
+          hx.resource = null;
         }
-        hex.control = { ownerId: payload.playerId, fortified: false, district: null };
-      });
+        hx.control = { ownerId: payload.playerId, fortified: false, district: null };
+        placed++;
+      }
+      if (placed === 0) return st;
       resolveCard(st, player, "culture", payload.tradeSpent);
-      log(st, `${player.name} placed ${payload.hexKeys.length} control marker(s).`);
+      log(st, `${player.name} placed ${placed} control marker(s).`);
       checkDevelopment(st, payload.playerId);
       return st;
     }
@@ -584,6 +583,8 @@ const Game = (() => {
       const hex = st.map.hexes[payload.hexKey];
       if (!hex || !hex.active || hex.terrain === "water" || hex.city || hex.control) return st;
       if (!adjacentToFriendlyCity(st, hex, payload.playerId)) return st;
+      const growthSlot = getSlotValue(player, "growth", st) + (payload.tradeSpent || 0);
+      if (terrainDifficulty(hex) > growthSlot) return st;
       hex.control = { ownerId: payload.playerId, fortified: false, district: payload.district };
       resolveCard(st, player, "growth", payload.tradeSpent);
       log(st, `${player.name} placed a ${payload.district} district.`);
@@ -614,24 +615,30 @@ const Game = (() => {
     if (type === "PLAY_ECONOMY") {
       const player = getPlayer(st, payload.playerId);
       if (!player || player.cardPlayed) return st;
-      const unit = player.wagons.find((u) => u.id === payload.unitId);
+      const unit = player.caravans.find((u) => u.id === payload.unitId);
       if (!unit || !unit.position) return st;
       const ecoHex = st.map.hexes[payload.toKey];
       if (!ecoHex || !ecoHex.active || ecoHex.terrain === "water") return st;
-      if (unit) {
-        unit.position = payload.toKey;
-        const hex = st.map.hexes[payload.toKey];
-        if (hex && hex.cityState) {
-          player.trade[hex.cityState.type] = Math.min(CFG.maxTrade, player.trade[hex.cityState.type] + 2);
-          unit.position = null;
-          log(st, `${player.name}'s wagon traded at ${hex.cityState.name} (+2 ${hex.cityState.type} trade).`);
-        } else if (hex && hex.city && hex.city.ownerId !== payload.playerId) {
-          player.trade.economy = Math.min(CFG.maxTrade, player.trade.economy + 2);
-          unit.position = null;
-          log(st, `${player.name}'s wagon traded at foreign city (+2 economy trade).`);
-        } else {
-          log(st, `${player.name} moved wagon.`);
+      unit.position = payload.toKey;
+      const hex = st.map.hexes[payload.toKey];
+      if (hex && hex.cityState) {
+        const tradeType = hex.cityState.type;
+        if (player.trade[tradeType] !== undefined) {
+          player.trade[tradeType] = Math.min(CFG.maxTrade, player.trade[tradeType] + 2);
         }
+        const capKey = findCapital(st, payload.playerId);
+        unit.position = capKey;
+        log(st, `${player.name}'s caravan traded at ${hex.cityState.name} (+2 ${tradeType} trade). Returned to capital.`);
+      } else if (hex && hex.city && hex.city.ownerId !== payload.playerId) {
+        const tradeType = payload.tradeType || "economy";
+        if (player.trade[tradeType] !== undefined) {
+          player.trade[tradeType] = Math.min(CFG.maxTrade, player.trade[tradeType] + 2);
+        }
+        const capKey = findCapital(st, payload.playerId);
+        unit.position = capKey;
+        log(st, `${player.name}'s caravan traded at foreign city (+2 ${tradeType} trade). Returned to capital.`);
+      } else {
+        log(st, `${player.name} moved caravan.`);
       }
       resolveCard(st, player, "economy", payload.tradeSpent);
       return st;
@@ -668,7 +675,12 @@ const Game = (() => {
 
       if (win) {
         unit.position = payload.toKey;
-        if (hex.barbarian) hex.barbarian = false;
+        if (hex.barbarian) {
+          hex.barbarian = false;
+          const t = FOCUS_TYPES[Math.floor(Math.random() * FOCUS_TYPES.length)];
+          player.trade[t] = Math.min(CFG.maxTrade, player.trade[t] + 1);
+          log(st, `${player.name} gained +1 ${t} trade from barbarian defeat.`);
+        }
         if (hex.cityState) {
           hex.cityState = null;
           hex.city = { ownerId: payload.playerId, isCapital: false, developed: false, hasWonder: false };
@@ -694,7 +706,13 @@ const Game = (() => {
       const player = getPlayer(st, payload.playerId);
       if (!player || player.cardPlayed) return st;
       const hex = st.map.hexes[payload.hexKey];
-      if (!hex || !hex.active || hex.terrain === "water" || hex.city || hex.cityState) return st;
+      if (!hex || !hex.active || hex.terrain === "water" || hex.city || hex.cityState || hex.barbarian) return st;
+      if (adjacentToAnyCity(st, hex) || adjacentToCityState(st, hex)) return st;
+      const slot = getSlotValue(player, "industry", st);
+      let resBonus = 0;
+      if (payload.resources) Object.values(payload.resources).forEach((v) => { if (v) resBonus += CFG.resourceProdValue; });
+      const totalProd = slot + (payload.tradeSpent || 0) + resBonus;
+      if (terrainDifficulty(hex) > totalProd) return st;
       if (payload.resources) {
         for (const [r, count] of Object.entries(payload.resources)) {
           if ((player.resources[r] || 0) < count) return st;
@@ -754,13 +772,13 @@ const Game = (() => {
       return st;
     }
 
-    if (type === "RECRUIT_WAGON") {
+    if (type === "RECRUIT_CARAVAN") {
       const player = getPlayer(st, payload.playerId);
-      const maxWagons = CFG.maxWagons + (player && player.techTier >= 3 ? 1 : 0);
-      if (!player || player.wagons.length >= maxWagons) return st;
+      const maxCaravans = CFG.maxCaravans + (player && player.techTier >= 3 ? 1 : 0);
+      if (!player || player.caravans.length >= maxCaravans) return st;
       const capitalKey = findCapital(st, payload.playerId);
-      player.wagons.push({ id: `wagon-${player.wagons.length + 1}`, position: capitalKey });
-      log(st, `${player.name} recruited a wagon.`);
+      player.caravans.push({ id: `caravan-${player.caravans.length + 1}`, position: capitalKey });
+      log(st, `${player.name} recruited a caravan.`);
       return st;
     }
 
@@ -926,9 +944,16 @@ const Game = (() => {
   // --- Victory & Scoring ---
 
   function checkDevelopment(st, playerId) {
+    const player = getPlayer(st, playerId);
     Object.values(st.map.hexes).forEach((hex) => {
       if (!hex.city || hex.city.ownerId !== playerId) return;
+      const wasDeveloped = hex.city.developed;
       hex.city.developed = isCityDeveloped(st, hex);
+      if (!wasDeveloped && hex.city.developed && player) {
+        const t = FOCUS_TYPES[Math.floor(Math.random() * FOCUS_TYPES.length)];
+        player.trade[t] = Math.min(CFG.maxTrade, player.trade[t] + 1);
+        log(st, `${player.name}'s city matured! +1 ${t} trade.`);
+      }
     });
   }
 
@@ -1011,13 +1036,18 @@ const Game = (() => {
   }
   function getSlotIndex(player, cardType) { return player.focusRow.indexOf(cardType); }
 
+  function terrainDifficulty(h) {
+    if (h.resource === "wonder") return 5;
+    return TERRAIN[h.terrain] || 1;
+  }
+
   function validControlHexes(st, playerId, maxTerrain) {
     const valid = [];
     Object.entries(st.map.hexes).forEach(([k, h]) => {
       if (!h.active || h.terrain === "water") return;
-      if (TERRAIN[h.terrain] > maxTerrain) return;
+      if (terrainDifficulty(h) > maxTerrain) return;
       if (h.city || h.cityState || h.barbarian || h.control) return;
-      if (!withinRangeOfCity(st, h, playerId, maxTerrain)) return;
+      if (!adjacentToFriendlyCity(st, h, playerId) && !adjacentToFriendlyControl(st, h, playerId)) return;
       valid.push(k);
     });
     return new Set(valid);
@@ -1027,7 +1057,7 @@ const Game = (() => {
     const valid = [];
     Object.entries(st.map.hexes).forEach(([k, h]) => {
       if (!h.active || h.terrain === "water") return;
-      if (TERRAIN[h.terrain] > maxTerrain) return;
+      if (terrainDifficulty(h) > maxTerrain) return;
       if (h.city || h.cityState || h.barbarian || h.control) return;
       if (!adjacentToFriendlyCity(st, h, playerId)) return;
       valid.push(k);
@@ -1047,9 +1077,9 @@ const Game = (() => {
     const valid = [];
     Object.entries(st.map.hexes).forEach(([k, h]) => {
       if (!h.active || h.terrain === "water") return;
-      if (TERRAIN[h.terrain] > production) return;
+      if (terrainDifficulty(h) > production) return;
       if (h.city || h.cityState || h.barbarian) return;
-      if (adjacentToAnyCity(st, h)) return;
+      if (adjacentToAnyCity(st, h) || adjacentToCityState(st, h)) return;
       if (!withinRangeOfFriendly(st, h, playerId, 2)) return;
       valid.push(k);
     });
@@ -1076,7 +1106,7 @@ const Game = (() => {
         const h = st.map.hexes[nk];
         if (!h || !h.active) return;
         if (h.terrain === "water") return;
-        if (unitType === "wagon" && h.barbarian) return;
+        if (unitType === "caravan" && h.barbarian) return;
         visited.add(nk);
         reachable.add(nk);
         queue.push({ key: nk, steps: cur.steps + 1 });
@@ -1088,15 +1118,18 @@ const Game = (() => {
   function findDefender(st, hexKey, attackerId) {
     const h = st.map.hexes[hexKey];
     if (!h) return null;
-    if (h.barbarian) return { type: "barbarian", label: "Barbarian", power: CFG.barbarianBase + TERRAIN[h.terrain] };
+    if (h.barbarian) {
+      const terrainDiff = h.resource === "wonder" ? 5 : TERRAIN[h.terrain];
+      return { type: "barbarian", label: "Barbarian", power: CFG.barbarianBase + terrainDiff };
+    }
     if (h.cityState) return { type: "citystate", label: h.cityState.name, power: CFG.cityStateDefense };
     if (h.control && h.control.ownerId !== attackerId) {
-      const def = TERRAIN[h.terrain] + (h.control.fortified ? 2 : 0);
+      const def = terrainDifficulty(h) + (h.control.fortified ? 2 : 0);
       return { type: "control", label: "Control Marker", power: def };
     }
     if (h.city && h.city.ownerId !== attackerId) {
       const wallBonus = playerHasWonder(st, h.city.ownerId, "Great Wall") ? 2 : 0;
-      return { type: "city", label: "City", power: TERRAIN[h.terrain] * 2 + wallBonus };
+      return { type: "city", label: "City", power: terrainDifficulty(h) * 2 + wallBonus };
     }
     for (const p of st.players) {
       if (p.id === attackerId) continue;
@@ -1111,7 +1144,7 @@ const Game = (() => {
     const units = [];
     st.players.forEach((p) => {
       p.armies.forEach((u) => { if (u.position === hexKey) units.push({ type: "army", playerId: p.id, color: p.color }); });
-      p.wagons.forEach((u) => { if (u.position === hexKey) units.push({ type: "wagon", playerId: p.id, color: p.color }); });
+      p.caravans.forEach((u) => { if (u.position === hexKey) units.push({ type: "caravan", playerId: p.id, color: p.color }); });
     });
     return units;
   }
@@ -1129,6 +1162,14 @@ const Game = (() => {
   }
   function adjacentToAnyCity(st, hex) {
     return hexNeighborKeys(hex.q, hex.r).some((nk) => { const n = st.map.hexes[nk]; return n && n.city; });
+  }
+  function adjacentToCityState(st, hex) {
+    return hexNeighborKeys(hex.q, hex.r).some((nk) => { const n = st.map.hexes[nk]; return n && n.cityState; });
+  }
+  function adjacentToFriendlyControl(st, hex, playerId) {
+    return hexNeighborKeys(hex.q, hex.r).some((nk) => {
+      const n = st.map.hexes[nk]; return n && n.control && n.control.ownerId === playerId;
+    });
   }
   function withinRangeOfFriendly(st, hex, playerId, range) {
     return Object.values(st.map.hexes).some((h) => {
@@ -1175,15 +1216,11 @@ const Game = (() => {
   function isExploreEligible(st, hexKey) {
     if (!st.tileStack || st.tileStack.length === 0) return false;
     const h = st.map.hexes[hexKey];
-    if (!h || !h.active || !h.tileId) return false;
-    const hasInactiveNeighbor = hexNeighborKeys(h.q, h.r).some((nk) => {
+    if (!h || !h.active) return false;
+    return hexNeighborKeys(h.q, h.r).some((nk) => {
       const nh = st.map.hexes[nk];
       return nh && !nh.active;
     });
-    if (!hasInactiveNeighbor) return false;
-    return Object.values(st.map.hexes).some((hh) =>
-      hh.tileId === h.tileId && hh.city && hh.city.isCapital
-    );
   }
 
   function validateExploration(st, tileId, anchorKey, rotation) {
@@ -1272,7 +1309,7 @@ const Game = (() => {
         const h = st.map.hexes[nk];
         if (!h || !h.active) return;
         if (h.terrain === "water") return;
-        if (unitType === "wagon" && h.barbarian) return;
+        if (unitType === "caravan" && h.barbarian) return;
         distances.set(nk, cur.steps + 1);
         queue.push({ key: nk, steps: cur.steps + 1 });
       });
@@ -1289,6 +1326,7 @@ const Game = (() => {
     getSlotValue, getSlotIndex, computeScore,
     validControlHexes, validDistrictHexes, validReinforceHexes,
     validCityHexes, validWonderHexes, getReachable, findDefender, getUnitsAt,
+    adjacentToCityState, adjacentToFriendlyControl, terrainDifficulty,
     countControl, countWonders, countDeveloped, countCities, findCapital,
     getValidFortressHexes, getValidTileAnchors, getTileHexKeys, validateTilePlacement,
     hexNeighborKeys, parseQ, parseR, key, hexDist, rollDie, rotateAxial,
