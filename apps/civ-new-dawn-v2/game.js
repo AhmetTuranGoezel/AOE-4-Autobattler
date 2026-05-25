@@ -556,24 +556,23 @@ const Game = (() => {
       const effectiveSlot = getSlotValue(player, "culture", st) + (payload.tradeSpent || 0);
       const maxMarkers = 2 + (payload.tradeSpent || 0);
       const hexKeys = (payload.hexKeys || []).slice(0, maxMarkers);
+      let placed = 0;
       for (const k of hexKeys) {
         const hx = st.map.hexes[k];
-        if (!hx || !hx.active || hx.terrain === "water" || hx.city || hx.barbarian || hx.cityState) return st;
-        if (hx.control) return st;
-        if (terrainDifficulty(hx) > effectiveSlot) return st;
-        if (!adjacentToFriendlyCity(st, hx, payload.playerId) && !adjacentToFriendlyControl(st, hx, payload.playerId)) return st;
-      }
-      hexKeys.forEach((k) => {
-        const hex = st.map.hexes[k];
-        if (!hex) return;
-        if (hex.resource && hex.resource !== "wonder") {
-          if (player.resources[hex.resource] !== undefined) player.resources[hex.resource]++;
-          hex.resource = null;
+        if (!hx || !hx.active || hx.terrain === "water" || hx.city || hx.barbarian || hx.cityState) continue;
+        if (hx.control) continue;
+        if (terrainDifficulty(hx) > effectiveSlot) continue;
+        if (!adjacentToFriendlyCity(st, hx, payload.playerId) && !adjacentToFriendlyControl(st, hx, payload.playerId)) continue;
+        if (hx.resource && hx.resource !== "wonder") {
+          if (player.resources[hx.resource] !== undefined) player.resources[hx.resource]++;
+          hx.resource = null;
         }
-        hex.control = { ownerId: payload.playerId, fortified: false, district: null };
-      });
+        hx.control = { ownerId: payload.playerId, fortified: false, district: null };
+        placed++;
+      }
+      if (placed === 0) return st;
       resolveCard(st, player, "culture", payload.tradeSpent);
-      log(st, `${player.name} placed ${hexKeys.length} control marker(s).`);
+      log(st, `${player.name} placed ${placed} control marker(s).`);
       checkDevelopment(st, payload.playerId);
       return st;
     }

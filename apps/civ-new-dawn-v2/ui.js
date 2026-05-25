@@ -1392,10 +1392,18 @@ const UI = (() => {
     if (!me) return;
 
     if (sub.phase === "placing_control") {
-      if (!sub.validHexes.has(hexKey)) { showToast("Must be within range of your city"); return; }
+      if (!sub.validHexes.has(hexKey)) { showToast("Must be adjacent to your city or control"); return; }
       sub.placedKeys.push(hexKey);
       sub.remaining--;
       sub.validHexes.delete(hexKey);
+      const effectiveSlot = (Game.getSlotValue(me, "culture", state) || 1) + (sub.tradeSpent || 0);
+      Game.hexNeighborKeys(Game.parseQ(hexKey), Game.parseR(hexKey)).forEach((nk) => {
+        if (sub.placedKeys.includes(nk)) return;
+        const nh = state.map.hexes[nk];
+        if (!nh || !nh.active || nh.terrain === "water" || nh.city || nh.barbarian || nh.cityState || nh.control) return;
+        if (Game.terrainDifficulty(nh) > effectiveSlot) return;
+        sub.validHexes.add(nk);
+      });
       if (sub.remaining <= 0) finishAction();
       else render();
       return;
