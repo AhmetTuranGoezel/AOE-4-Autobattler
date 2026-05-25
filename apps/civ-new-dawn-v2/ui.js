@@ -73,10 +73,10 @@ const UI = (() => {
     const helps = {
       idle: "Click a focus card below to take your turn action. Cards in higher slots are more powerful.",
       card_selected: "Spend trade tokens for extra power. Click 'Start Action' when ready.",
-      placing_control: "Click green hexes to claim territory. Must be within range of your city.",
+      placing_control: "Click green hexes adjacent to your cities/control to claim territory.",
       move_army: "Click your army, then click a green hex to move it.",
       move_army_post: "Choose what to do next: continue moving, explore, attack, or end.",
-      move_wagon: "Click your wagon, then a green hex to move. Visit city-states for trade tokens.",
+      move_caravan: "Click your caravan, then a green hex. Visit city-states to gain trade tokens.",
       choosing_district: "Select a district type to build on your controlled hex.",
       industry_choice: "Choose to build a city or a wonder with your production.",
       exploring: "Use R to rotate, F to flip. Click a valid hex to place the tile.",
@@ -339,7 +339,7 @@ const UI = (() => {
     }
 
     if (state.phase === "playing" &&
-        (sub.phase === "move_army_exploring" || sub.phase === "move_wagon_exploring") &&
+        (sub.phase === "move_army_exploring" || sub.phase === "move_caravan_exploring") &&
         mouseHex && state.tileStack && state.tileStack.length > 0) {
       const tileId = state.tileStack[0];
       const anchorKey = Game.key(mouseHex.q, mouseHex.r);
@@ -486,7 +486,7 @@ const UI = (() => {
       const playerTiles = state.setup.playerTiles[localPlayerId] || [];
       tileId = playerTiles[0];
       tile = tileId ? state.setup.tiles[tileId] : null;
-    } else if (sub.phase === "move_army_exploring" || sub.phase === "move_wagon_exploring") {
+    } else if (sub.phase === "move_army_exploring" || sub.phase === "move_caravan_exploring") {
       tileId = state.tileStack ? state.tileStack[0] : null;
       tile = tileId ? state.tiles[tileId] : null;
     }
@@ -552,7 +552,7 @@ const UI = (() => {
       yOff += step;
     }
 
-    if (h.fortress) {
+    if (h.fortress && !h.city) {
       const owner = h.fortressOwnerId ? Game.getPlayer(state, h.fortressOwnerId) : null;
       ctx.fillStyle = "rgba(0,0,0,0.5)";
       ctx.fillRect(cx - 11, cy + yOff - 5, 22, 11);
@@ -618,7 +618,7 @@ const UI = (() => {
       ctx.fill();
       ctx.fillStyle = u.color;
       ctx.font = "bold 8px sans-serif";
-      ctx.fillText(u.type === "army" ? "A" : "W", cx, cy + yOff);
+      ctx.fillText(u.type === "army" ? "A" : "C", cx, cy + yOff);
       yOff += step;
     });
   }
@@ -689,7 +689,7 @@ const UI = (() => {
   }
 
   function onKeyDown(e) {
-    if (sub.phase === "move_army_exploring" || sub.phase === "move_wagon_exploring") {
+    if (sub.phase === "move_army_exploring" || sub.phase === "move_caravan_exploring") {
       if (e.key === "q" || e.key === "Q") { e.preventDefault(); sub.tileRotation = (sub.tileRotation + 5) % 6; render(); }
       else if (e.key === "e" || e.key === "E") { e.preventDefault(); sub.tileRotation = (sub.tileRotation + 1) % 6; render(); }
       return;
@@ -774,7 +774,7 @@ const UI = (() => {
       const elapsed = Date.now() - state.lastAction.ts;
       if (elapsed < 4000) {
         const ap = state.players.find((p) => p.id === state.lastAction.playerId);
-        const labels = { PLAY_CULTURE: "placed control markers", PLAY_GROWTH: "built a district", PLAY_SCIENCE: "advanced tech", PLAY_ECONOMY: "moved a wagon", PLAY_MILITARY_MOVE: "moved an army", PLAY_MILITARY_ATTACK: "attacked!", PLAY_INDUSTRY_CITY: "built a city", PLAY_INDUSTRY_WONDER: "built a wonder", EXPLORE_TILE: "explored a tile", END_TURN: "ended their turn" };
+        const labels = { PLAY_CULTURE: "placed control markers", PLAY_GROWTH: "built a district", PLAY_SCIENCE: "advanced tech", PLAY_ECONOMY: "moved a caravan", PLAY_MILITARY_MOVE: "moved an army", PLAY_MILITARY_ATTACK: "attacked!", PLAY_INDUSTRY_CITY: "built a city", PLAY_INDUSTRY_WONDER: "built a wonder", EXPLORE_TILE: "explored a tile", END_TURN: "ended their turn" };
         const desc = labels[state.lastAction.type] || state.lastAction.type;
         showActionToast(`${ap ? ap.name : "Opponent"} ${desc}`);
       }
@@ -836,11 +836,11 @@ const UI = (() => {
     const res = Object.entries(me.resources).filter(([, v]) => v > 0).map(([k, v]) => `${k}: ${v}`).join(", ") || "none";
     const gov = me.govMarkers.length ? me.govMarkers.map((m) => Game.FOCUS_LABELS[m]).join(", ") : "none";
     const maxA = Game.CFG.maxArmies + (me.techTier >= 3 ? 1 : 0);
-    const maxW = Game.CFG.maxWagons + (me.techTier >= 3 ? 1 : 0);
+    const maxW = Game.CFG.maxCaravans + (me.techTier >= 3 ? 1 : 0);
     dom.myStats.innerHTML = `<h3>My Stats</h3><div class="stat-grid">
       <span>Tech:</span><span class="sv">${me.tech}/${Game.CFG.techWheelSize} (T${me.techTier})</span>
       <span>Armies:</span><span class="sv">${me.armies.length}/${maxA}</span>
-      <span>Wagons:</span><span class="sv">${me.wagons.length}/${maxW}</span>
+      <span>Caravans:</span><span class="sv">${me.caravans.length}/${maxW}</span>
       <span>Resources:</span><span class="sv">${res}</span>
       <span>Gov:</span><span class="sv">${gov}</span>
     </div>`;
@@ -864,9 +864,9 @@ const UI = (() => {
     else if (sub.phase === "pick_district") { renderPickDistrict(); }
     else if (sub.phase === "placing_district") { renderPlacingDistrict(); }
     else if (sub.phase === "reinforcing") { renderReinforcing(); }
-    else if (sub.phase === "move_wagon" || sub.phase === "move_army") { renderMoving(); }
-    else if (sub.phase === "move_army_post" || sub.phase === "move_wagon_post") { renderPostMove(); }
-    else if (sub.phase === "move_army_exploring" || sub.phase === "move_wagon_exploring") { renderExploring(); }
+    else if (sub.phase === "move_caravan" || sub.phase === "move_army") { renderMoving(); }
+    else if (sub.phase === "move_army_post" || sub.phase === "move_caravan_post") { renderPostMove(); }
+    else if (sub.phase === "move_army_exploring" || sub.phase === "move_caravan_exploring") { renderExploring(); }
     else if (sub.phase === "industry_choice") { renderIndustryChoice(me); }
     else if (sub.phase === "placing_city") { renderPlacingCity(); }
     else if (sub.phase === "placing_wonder") { renderPlacingWonder(); }
@@ -983,14 +983,14 @@ const UI = (() => {
     }
     let actions = `<div class="wiz-actions">`;
     const maxArmies = Game.CFG.maxArmies + (me && me.techTier >= 3 ? 1 : 0);
-    const maxWagons = Game.CFG.maxWagons + (me && me.techTier >= 3 ? 1 : 0);
+    const maxCaravans = Game.CFG.maxCaravans + (me && me.techTier >= 3 ? 1 : 0);
     if (me && me.armies.length < maxArmies) actions += `<button class="sm" id="wiz-recruit-army">Recruit Army</button>`;
-    if (me && me.wagons.length < maxWagons) actions += `<button class="sm" id="wiz-recruit-wagon">Recruit Wagon</button>`;
+    if (me && me.caravans.length < maxCaravans) actions += `<button class="sm" id="wiz-recruit-caravan">Recruit Caravan</button>`;
     actions += `<button class="sm" id="wiz-gov">Assign Gov</button>`;
     actions += `<button id="wiz-end-turn">End Turn</button></div>`;
     dom.wizard.innerHTML = `<div class="wiz-title">Your Turn</div><div class="wiz-body">Select a <strong>focus card</strong> below to take an action.${me && me.cardPlayed ? "<br><em>Card already played this turn.</em>" : ""}</div>${actions}`;
     document.getElementById("wiz-recruit-army")?.addEventListener("click", () => dispatch({ type: "RECRUIT_ARMY", payload: { playerId: localPlayerId } }));
-    document.getElementById("wiz-recruit-wagon")?.addEventListener("click", () => dispatch({ type: "RECRUIT_WAGON", payload: { playerId: localPlayerId } }));
+    document.getElementById("wiz-recruit-caravan")?.addEventListener("click", () => dispatch({ type: "RECRUIT_CARAVAN", payload: { playerId: localPlayerId } }));
     document.getElementById("wiz-gov")?.addEventListener("click", showGovPicker);
     document.getElementById("wiz-end-turn")?.addEventListener("click", () => dispatch({ type: "END_TURN", payload: {} }));
   }
@@ -1086,12 +1086,12 @@ const UI = (() => {
   }
 
   function renderMoving() {
-    const unitType = sub.phase === "move_wagon" ? "wagon" : "army";
+    const unitType = sub.phase === "move_caravan" ? "caravan" : "army";
     const selectingUnit = !sub.selectedUnit;
     const ms = sub.movementState;
     const remaining = ms ? ` (${ms.remaining} moves left)` : "";
     dom.wizard.innerHTML = `
-      <div class="wiz-title">Move ${unitType === "wagon" ? "Wagon" : "Army"}${remaining}</div>
+      <div class="wiz-title">Move ${unitType === "caravan" ? "Caravan" : "Army"}${remaining}</div>
       <div class="wiz-body">${selectingUnit
         ? `Click one of your <strong>${unitType}s</strong> on the map.`
         : `Click a <strong>highlighted hex</strong> to move.`}</div>
@@ -1102,7 +1102,7 @@ const UI = (() => {
   function renderPostMove() {
     const ms = sub.movementState;
     if (!ms) return;
-    const unitLabel = ms.unitType === "army" ? "Army" : "Wagon";
+    const unitLabel = ms.unitType === "army" ? "Army" : "Caravan";
     const canExplore = Game.isExploreEligible(state, ms.currentKey) && ms.remaining > 0 && !ms.explored;
     const defender = ms.unitType === "army" ? Game.findDefender(state, ms.currentKey, localPlayerId) : null;
 
@@ -1158,7 +1158,7 @@ const UI = (() => {
     document.getElementById("side-toggle").addEventListener("click", () => { sub.tileSide = sub.tileSide === "A" ? "B" : "A"; render(); });
     document.getElementById("wiz-cancel-explore").addEventListener("click", () => {
       const ms = sub.movementState;
-      sub.phase = ms.unitType === "army" ? "move_army_post" : "move_wagon_post";
+      sub.phase = ms.unitType === "army" ? "move_army_post" : "move_caravan_post";
       render();
     });
   }
@@ -1166,7 +1166,7 @@ const UI = (() => {
   function continueMovement() {
     const ms = sub.movementState;
     if (!ms) return;
-    sub.phase = ms.unitType === "army" ? "move_army" : "move_wagon";
+    sub.phase = ms.unitType === "army" ? "move_army" : "move_caravan";
     sub.selectedUnit = { id: ms.unitId, position: ms.currentKey };
     sub.validHexes = Game.getReachable(state, ms.currentKey, ms.remaining, ms.unitType, localPlayerId);
     render();
@@ -1175,7 +1175,7 @@ const UI = (() => {
   function startExploration() {
     const ms = sub.movementState;
     if (!ms) return;
-    sub.phase = ms.unitType === "army" ? "move_army_exploring" : "move_wagon_exploring";
+    sub.phase = ms.unitType === "army" ? "move_army_exploring" : "move_caravan_exploring";
     sub.tileRotation = 0;
     render();
   }
@@ -1220,7 +1220,7 @@ const UI = (() => {
         if (visited.has(nk)) continue;
         const h = st.map.hexes[nk];
         if (!h || !h.active || h.terrain === "water") continue;
-        if (unitType === "wagon" && h.barbarian) continue;
+        if (unitType === "caravan" && h.barbarian) continue;
         visited.set(nk, cur.steps + 1);
         if (nk === toKey) return cur.steps + 1;
         queue.push({ key: nk, steps: cur.steps + 1 });
@@ -1278,8 +1278,8 @@ const UI = (() => {
       case "culture": return `Markers to place: <strong>${2 + spend}</strong> (terrain ≤ ${slot})`;
       case "growth": return `Place 1 district or reinforce ${slot + spend} markers.`;
       case "science": return `Advance tech by <strong>${slot + spend}</strong>. Current: ${player.tech}/${Game.CFG.techWheelSize}`;
-      case "economy": return `Move wagon up to <strong>${Game.CFG.baseWagonMove + spend}</strong> hexes.`;
-      case "military": return `Move army up to <strong>${Game.CFG.baseArmyMove + slot - 1}</strong>. Combat: d6 + ${slot + spend}`;
+      case "economy": return `Move caravan up to <strong>${slot + spend}</strong> hexes.`;
+      case "military": return `Move army up to <strong>${slot + spend}</strong> hexes. Combat: d6 + ${slot + spend}`;
       case "industry": return `Production: <strong>${slot + spend}</strong>. Build city (terrain cost) or wonder (6).`;
       default: return "";
     }
@@ -1298,14 +1298,15 @@ const UI = (() => {
     }
     if (sub.cardType === "culture") {
       sub.phase = "placing_control";
+      const effectiveSlot = slot + sub.tradeSpent;
       sub.remaining = 2 + sub.tradeSpent;
       sub.totalMarkers = sub.remaining;
       sub.placedKeys = [];
-      sub.validHexes = Game.validControlHexes(state, localPlayerId, slot);
+      sub.validHexes = Game.validControlHexes(state, localPlayerId, effectiveSlot);
       render(); return;
     }
     if (sub.cardType === "growth") { sub.phase = "growth_choice"; renderWizard(); return; }
-    if (sub.cardType === "economy") { sub.phase = "move_wagon"; sub.selectedUnit = null; sub.validHexes = new Set(); render(); return; }
+    if (sub.cardType === "economy") { sub.phase = "move_caravan"; sub.selectedUnit = null; sub.validHexes = new Set(); render(); return; }
     if (sub.cardType === "military") { sub.phase = "move_army"; sub.selectedUnit = null; sub.validHexes = new Set(); render(); return; }
     if (sub.cardType === "industry") { sub.phase = "industry_choice"; sub.spentResources = {}; renderWizard(); return; }
   }
@@ -1413,23 +1414,24 @@ const UI = (() => {
       else render();
       return;
     }
-    if (sub.phase === "move_wagon") {
+    if (sub.phase === "move_caravan") {
       if (!sub.selectedUnit) {
-        const unit = me.wagons.find((u) => u.position === hexKey);
+        const unit = me.caravans.find((u) => u.position === hexKey);
         if (!unit) return;
         sub.selectedUnit = unit;
-        const maxMove = Game.CFG.baseWagonMove + sub.tradeSpent;
-        sub.movementState = { unitType: "wagon", unitId: unit.id, maxMove, remaining: maxMove, currentKey: hexKey, startKey: hexKey, explored: false };
-        sub.validHexes = Game.getReachable(state, hexKey, maxMove, "wagon", localPlayerId);
+        const slot = Game.getSlotValue(me, "economy", state);
+        const maxMove = slot + sub.tradeSpent;
+        sub.movementState = { unitType: "caravan", unitId: unit.id, maxMove, remaining: maxMove, currentKey: hexKey, startKey: hexKey, explored: false };
+        sub.validHexes = Game.getReachable(state, hexKey, maxMove, "caravan", localPlayerId);
         render();
       } else {
         if (!sub.validHexes.has(hexKey)) { showToast("Can't move there"); return; }
         const ms = sub.movementState;
-        const dist = computeStepDistance(state, ms.currentKey, hexKey, ms.remaining, "wagon", localPlayerId);
+        const dist = computeStepDistance(state, ms.currentKey, hexKey, ms.remaining, "caravan", localPlayerId);
         ms.remaining -= dist;
         ms.currentKey = hexKey;
         if (ms.remaining > 0) {
-          sub.phase = "move_wagon_post";
+          sub.phase = "move_caravan_post";
           render();
         } else {
           endMovement();
@@ -1443,7 +1445,7 @@ const UI = (() => {
         if (!unit) return;
         sub.selectedUnit = unit;
         const slot = Game.getSlotValue(me, "military", state);
-        const maxMove = Game.CFG.baseArmyMove + slot - 1;
+        const maxMove = slot + sub.tradeSpent;
         sub.movementState = { unitType: "army", unitId: unit.id, maxMove, remaining: maxMove, currentKey: hexKey, startKey: hexKey, explored: false };
         sub.validHexes = Game.getReachable(state, hexKey, maxMove, "army", localPlayerId);
         render();
@@ -1463,7 +1465,7 @@ const UI = (() => {
       }
       return;
     }
-    if (sub.phase === "move_army_exploring" || sub.phase === "move_wagon_exploring") {
+    if (sub.phase === "move_army_exploring" || sub.phase === "move_caravan_exploring") {
       const ms = sub.movementState;
       if (!state.tileStack || state.tileStack.length === 0) return;
       const tileId = state.tileStack[0];
@@ -1477,7 +1479,7 @@ const UI = (() => {
       dispatch({ type: "EXPLORE_TILE", payload: { playerId: localPlayerId, anchorKey: hexKey, rotation: sub.tileRotation, side: sub.tileSide, fromKey: ms.currentKey } });
       ms.remaining -= 1;
       ms.explored = true;
-      sub.phase = ms.unitType === "army" ? "move_army_post" : "move_wagon_post";
+      sub.phase = ms.unitType === "army" ? "move_army_post" : "move_caravan_post";
       render();
       return;
     }
