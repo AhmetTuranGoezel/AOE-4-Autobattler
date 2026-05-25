@@ -1370,32 +1370,149 @@
     }
 
     .stats-pinned-list {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 7px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 10px;
     }
 
-    .stats-pin-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      min-height: 28px;
+    .stats-detail-card {
       border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 999px;
-      background: rgba(255, 255, 255, 0.045);
+      border-top: 3px solid var(--weapon-color, var(--gold));
+      border-radius: 10px;
+      background:
+        linear-gradient(135deg, color-mix(in srgb, var(--weapon-color, var(--gold)) 18%, transparent), transparent 46%),
+        rgba(255, 255, 255, 0.04);
       color: var(--text);
-      padding: 0 8px;
-      font-size: 0.68rem;
-      font-weight: 900;
-      text-transform: uppercase;
+      padding: 12px;
     }
 
-    .stats-pin-chip button {
-      border: 0;
-      background: transparent;
+    .stats-detail-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .stats-detail-title {
+      min-width: 0;
+      color: var(--weapon-color, var(--gold));
+      font-size: 0.86rem;
+      font-weight: 900;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .stats-detail-remove {
+      flex: 0 0 auto;
+      width: 28px;
+      height: 28px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.24);
       color: rgba(255, 255, 255, 0.76);
       cursor: pointer;
       font-weight: 900;
+    }
+
+    .stats-detail-remove:hover,
+    .stats-detail-remove:focus-visible {
+      border-color: var(--weapon-color, var(--gold));
+      color: var(--weapon-color, var(--gold));
+      outline: none;
+    }
+
+    .stats-detail-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px 12px;
+    }
+
+    .stats-detail-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      min-width: 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      padding-bottom: 5px;
+      color: rgba(245, 247, 251, 0.84);
+      font-size: 0.72rem;
+      font-weight: 800;
+    }
+
+    .stats-detail-row span:first-child {
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    .stats-detail-row span:last-child {
+      text-align: right;
+    }
+
+    .stats-detail-note {
+      margin-top: 9px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      padding-top: 8px;
+      color: rgba(245, 247, 251, 0.64);
+      font-size: 0.72rem;
+      font-weight: 750;
+      line-height: 1.35;
+    }
+
+    .stats-detail-note-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 7px;
+    }
+
+    .stats-detail-note-label {
+      color: var(--muted);
+      font-size: 0.68rem;
+      font-weight: 900;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .stats-detail-note-edit {
+      flex: 0 0 auto;
+      min-height: 26px;
+      border: 1px solid rgba(245, 197, 66, 0.26);
+      border-radius: 7px;
+      background: rgba(0, 0, 0, 0.22);
+      color: var(--gold);
+      cursor: pointer;
+      padding: 0 9px;
+      font-size: 0.66rem;
+      font-weight: 900;
+      text-transform: uppercase;
+      transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+    }
+
+    .stats-detail-note-edit:hover,
+    .stats-detail-note-edit:focus-visible {
+      border-color: rgba(245, 197, 66, 0.78);
+      background: rgba(245, 197, 66, 0.92);
+      color: #111115;
+      outline: none;
+    }
+
+    .stats-detail-note-text {
+      color: rgba(245, 247, 251, 0.8);
+      white-space: pre-wrap;
+    }
+
+    .stats-detail-note-text.is-empty {
+      color: rgba(245, 247, 251, 0.48);
+      font-style: italic;
+    }
+
+    .stats-detail-source-note {
+      color: rgba(245, 247, 251, 0.58);
     }
 
     .modal-overlay {
@@ -1616,6 +1733,10 @@
         left: 40px;
       }
 
+      .stats-detail-grid {
+        grid-template-columns: 1fr;
+      }
+
       .picker-ribbon {
         margin-bottom: 28px;
       }
@@ -1794,7 +1915,7 @@
     const RAIL_LINE_PX = 42;
     const WIKI_FILE_BASE = 'https://www.thefinals.wiki/wiki/Special:Redirect/file/';
     const WEAPON_STATS_CONFIG = {
-      liveEnabled: false,
+      liveEnabled: true,
       sourceName: 'Ape Squad',
       sourcePageUrl: 'https://apesquad.org/gundata',
       csvUrl: 'https://docs.google.com/spreadsheets/d/12aWohgro45Mp-8bwGpL09jDmCcAwvYEAr0sm3fYDxFY/export?format=csv',
@@ -1802,6 +1923,14 @@
     };
     const WEAPON_HEALTH_VALUES = { Light: 150, Medium: 250, Heavy: 350 };
     const WEAPON_MAX_RANGE = 100;
+    const WEAPON_COLOR_PALETTE = [
+      '#f5c542', '#4cc9f0', '#ff5d8f', '#7bd88f', '#b388ff', '#ff8a3d',
+      '#00d4b8', '#f72585', '#90be6d', '#4895ef', '#f94144', '#d9ed92',
+      '#9b5de5', '#f8961e', '#2ec4b6', '#ffbe0b', '#3a86ff', '#fb5607',
+      '#06d6a0', '#ef476f', '#8ac926', '#8338ec', '#ff006e', '#00bbf9',
+      '#ffd166', '#118ab2', '#ff70a6', '#70e000', '#ff9f1c', '#80ffdb',
+      '#c77dff', '#e9ff70', '#00f5d4', '#ff477e', '#aacc00', '#48cae4'
+    ];
 
     const CLASS_META = {
       light: { label: 'Light', short: 'LGT' },
@@ -2618,15 +2747,8 @@
       return Number.isFinite(parsed) && parsed > 0 ? parsed : Infinity;
     }
 
-    function getWeaponColor(name, className) {
-      const classHue = { LIGHT: 48, MEDIUM: 186, HEAVY: 352 }[className] ?? 48;
-      let hash = 0;
-      for (let index = 0; index < name.length; index++) {
-        hash = ((hash << 5) - hash) + name.charCodeAt(index);
-        hash |= 0;
-      }
-      const hue = (classHue + Math.abs(hash % 44) - 22 + 360) % 360;
-      return `hsl(${hue}, 82%, 62%)`;
+    function getWeaponColor(index) {
+      return WEAPON_COLOR_PALETTE[index % WEAPON_COLOR_PALETTE.length];
     }
 
     function normalizeWeaponStatRow(row) {
@@ -2652,7 +2774,7 @@
         tacticalReload: parseWeaponNumber(row['Tactical Reload'] ?? row.tacticalReload),
         notes: String(row.Notes || row.notes || '').trim(),
         version: String(row.Version || row.version || '').trim(),
-        color: getWeaponColor(name, className)
+        color: WEAPON_COLOR_PALETTE[0]
       };
     }
 
@@ -2660,7 +2782,11 @@
       return rows
         .map(normalizeWeaponStatRow)
         .filter(Boolean)
-        .sort((a, b) => a.name.localeCompare(b.name));
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((weapon, index) => ({
+          ...weapon,
+          color: getWeaponColor(index)
+        }));
     }
 
     async function loadWeaponStats() {
@@ -2748,9 +2874,15 @@
 
     function getFilteredWeaponStats() {
       const classFilter = state.weaponStats.classFilter;
-      return state.weaponStats.weapons.filter((weapon) => (
+      const filteredWeapons = state.weaponStats.weapons.filter((weapon) => (
         classFilter === 'ALL' || weapon.className === classFilter
       ));
+      const filteredNames = new Set(filteredWeapons.map((weapon) => weapon.name));
+      const pinnedWeaponsOutsideFilter = Array.from(state.weaponStats.pinnedNames)
+        .map(getWeaponByName)
+        .filter((weapon) => weapon && !filteredNames.has(weapon.name));
+
+      return [...filteredWeapons, ...pinnedWeaponsOutsideFilter];
     }
 
     function getWeaponDamage(weapon, rangeMeters) {
@@ -2851,6 +2983,30 @@
         return 'N/A';
       }
       return state.weaponStats.metric === 'TTK' ? `${value.toFixed(3)}s` : String(Math.round(value));
+    }
+
+    function formatWeaponTTKValue(value) {
+      return Number.isFinite(value) ? `${value.toFixed(3)}s` : 'N/A';
+    }
+
+    function formatWeaponDPSValue(value) {
+      return Number.isFinite(value) ? String(Math.round(value)) : 'N/A';
+    }
+
+    function formatWeaponMagazine(weapon) {
+      return Number.isFinite(weapon.magazineSize) ? String(weapon.magazineSize) : 'N/A';
+    }
+
+    function formatWeaponReload(weapon) {
+      const empty = weapon.emptyReload ? `${weapon.emptyReload}s empty` : '';
+      const tactical = weapon.tacticalReload ? `${weapon.tacticalReload}s tac` : '';
+      return [empty, tactical].filter(Boolean).join(' / ') || 'N/A';
+    }
+
+    function formatWeaponBurst(weapon) {
+      return weapon.burstCount > 1
+        ? `${weapon.burstCount} burst${weapon.burstDelay ? ` / ${weapon.burstDelay}s delay` : ''}`
+        : 'Single';
     }
 
     function renderWeaponStatsSourceStatus() {
@@ -3012,12 +3168,45 @@
         .filter(Boolean);
 
       elements.weaponStatsPinned.innerHTML = pinnedWeapons.length
-        ? pinnedWeapons.map((weapon) => `
-            <span class="stats-pin-chip" style="border-color:${weapon.color};">
-              ${escapeHtml(weapon.name)}
-              <button type="button" data-weapon-unpin="${escapeHtml(weapon.name)}" aria-label="Unpin ${escapeHtml(weapon.name)}">x</button>
-            </span>
-          `).join('')
+        ? pinnedWeapons.map((weapon) => {
+            const loadoutNote = state.itemNotes[weapon.name] || '';
+            const hasLoadoutNote = Boolean(loadoutNote.trim());
+            const canEditLoadoutNote = Boolean(getItemByName(weapon.name));
+
+            return `
+            <article class="stats-detail-card" style="--weapon-color:${weapon.color};">
+              <div class="stats-detail-head">
+                <div class="stats-detail-title">${escapeHtml(weapon.name)}</div>
+                <button class="stats-detail-remove" type="button" data-weapon-unpin="${escapeHtml(weapon.name)}" aria-label="Unpin ${escapeHtml(weapon.name)}">x</button>
+              </div>
+              <div class="stats-detail-grid">
+                <div class="stats-detail-row"><span>Class</span><span>${escapeHtml(weapon.className)}</span></div>
+                <div class="stats-detail-row"><span>Damage</span><span>${weapon.bodyDamage} / ${weapon.headDamage}</span></div>
+                <div class="stats-detail-row"><span>RPM</span><span>${weapon.rpm || 'N/A'}</span></div>
+                <div class="stats-detail-row"><span>Magazine</span><span>${formatWeaponMagazine(weapon)}</span></div>
+                <div class="stats-detail-row"><span>Reload</span><span>${escapeHtml(formatWeaponReload(weapon))}</span></div>
+                <div class="stats-detail-row"><span>Burst</span><span>${escapeHtml(formatWeaponBurst(weapon))}</span></div>
+                <div class="stats-detail-row"><span>Dropoff</span><span>${weapon.minDropoff}m - ${weapon.maxDropoff}m</span></div>
+                <div class="stats-detail-row"><span>0m TTK</span><span>${formatWeaponTTKValue(calculateWeaponTTK(weapon, 0))}</span></div>
+                <div class="stats-detail-row"><span>25m TTK</span><span>${formatWeaponTTKValue(calculateWeaponTTK(weapon, 25))}</span></div>
+                <div class="stats-detail-row"><span>25m DPS</span><span>${formatWeaponDPSValue(calculateWeaponDPS(weapon, 25))}</span></div>
+              </div>
+              <div class="stats-detail-note">
+                <div class="stats-detail-note-head">
+                  <span class="stats-detail-note-label">Loadout Note</span>
+                  ${canEditLoadoutNote ? `<button class="stats-detail-note-edit" type="button" data-note-item="${escapeHtml(weapon.name)}">${hasLoadoutNote ? 'Edit Note' : 'Add Note'}</button>` : ''}
+                </div>
+                <div class="stats-detail-note-text ${hasLoadoutNote ? '' : 'is-empty'}">${hasLoadoutNote ? escapeHtml(loadoutNote) : 'No loadout note yet'}</div>
+              </div>
+              ${weapon.notes ? `
+                <div class="stats-detail-note stats-detail-source-note">
+                  <div class="stats-detail-note-label">Weapon Note</div>
+                  <div class="stats-detail-note-text">${escapeHtml(weapon.notes)}</div>
+                </div>
+              ` : ''}
+            </article>
+          `;
+          }).join('')
         : '<span class="stats-source">No pinned weapons</span>';
     }
 
@@ -3114,6 +3303,10 @@
       } else {
         state.weaponStats.pinnedNames.add(name);
       }
+      state.weaponStats.plottedWeapons = getFilteredWeaponStats();
+      if (state.weaponStats.hoverName && !state.weaponStats.plottedWeapons.some((weapon) => weapon.name === state.weaponStats.hoverName)) {
+        state.weaponStats.hoverName = '';
+      }
       renderWeaponStatsLegend();
       renderWeaponStatsPlot();
       renderWeaponStatsPinned();
@@ -3145,12 +3338,12 @@
         return;
       }
 
-      state.weaponStats.plottedWeapons = getFilteredWeaponStats();
       state.weaponStats.pinnedNames.forEach((name) => {
         if (!getWeaponByName(name)) {
           state.weaponStats.pinnedNames.delete(name);
         }
       });
+      state.weaponStats.plottedWeapons = getFilteredWeaponStats();
 
       if (!state.weaponStats.plottedWeapons.length) {
         renderWeaponStatsEmpty('No weapons match the selected class filter');
@@ -3971,6 +4164,9 @@
       if (count) {
         count.textContent = `${normalized.length}/${MAX_NOTE_LENGTH}`;
       }
+      if (state.activeView === 'stats') {
+        renderWeaponStatsPinned();
+      }
     }
 
     function clearActiveNote() {
@@ -3982,6 +4178,9 @@
       showToast('Cleared item note');
       renderNoteModal();
       renderSavedBuilds();
+      if (state.activeView === 'stats') {
+        renderWeaponStatsPinned();
+      }
     }
 
     function promoteAlternative(area, index, itemName) {
