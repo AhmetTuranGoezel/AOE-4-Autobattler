@@ -342,7 +342,10 @@ export function computeTeamAttack(attacker, target, time, config) {
     if (unitA.effects.aoeFalloff && mAoeTargets > 1)
       logNotes.push(`AoE×${mAoeTargets}(falloff)`);
     appliesAtkSpeedDebuff = !!unitA.effects.atkSpeedDebuff;
-    appliesDamageDebuff = !!unitA.effects.dmgDebuffOnHit;
+    appliesDamageDebuff =
+      !!unitA.effects.dmgDebuffOnHit &&
+      (!unitA.effects.dmgDebuffOnHit.cavalryOnly ||
+        target.tags.includes("Cavalry"));
   }
 
   if (
@@ -456,7 +459,7 @@ export function computeTeamAttack(attacker, target, time, config) {
   if (unitA.effects.armorPenetration && (firedPrimary || firedSecondary))
     logNotes.push("ArmorPen");
   if (unitA.effects.atkSpeedDebuff && firedPrimary) logNotes.push("Slow");
-  if (unitA.effects.dmgDebuffOnHit && (firedPrimary || firedSecondary))
+  if (appliesDamageDebuff && (firedPrimary || firedSecondary))
     logNotes.push("Weaken");
   if (
     attacker.dmgDebuffUntil &&

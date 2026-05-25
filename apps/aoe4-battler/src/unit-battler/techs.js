@@ -96,6 +96,7 @@ const SIEGE_HP_TIER_LABELS = [
 
 const ALL_WORKSHOP_SIEGE_UNITS = [
   "Battering Ram",
+  "Bed Crossbow",
   "Springald",
   "Mangonel",
   "Counterweight Trebuchet",
@@ -120,6 +121,19 @@ const TRUE_BUILDING_SIEGE_UNITS = [
   "Great Bombard",
 ];
 
+const JIN_NATIVE_UNITS = new Set([
+  "Bed Crossbow",
+  "Emissary",
+  "Eruptor",
+  "Iron Pagoda",
+  "Meng'an Mouke Defender",
+  "Mohe Tribesman",
+  "Mounted Grenadier",
+  "Mounted Villager",
+  "Reindeer Trader",
+  "Zhanma Swordsman",
+]);
+
 const SIEGE_RUNTIME_UPGRADE_TECHS = [
   {
     name: "Siege Works",
@@ -141,6 +155,7 @@ const SIEGE_RUNTIME_UPGRADE_TECHS = [
     description: "+15% movement speed for siege engines.",
     category: "moveSpeed",
     unitNames: ALL_WORKSHOP_SIEGE_UNITS,
+    exceptCivs: ["Jin Dynasty"],
   },
   {
     name: "Lightweight Beams",
@@ -209,7 +224,7 @@ const SIEGE_RUNTIME_UPGRADE_TECHS = [
     description: "+20% damage for trebuchets.",
     category: "attack",
     unitNames: ["Counterweight Trebuchet", "Traction Trebuchet"],
-    exceptCivs: ["Byzantines", "Macedonian Dynasty"],
+    exceptCivs: ["Byzantines", "Macedonian Dynasty", "Jin Dynasty"],
   },
   {
     name: "Greek Fire Projectiles",
@@ -335,9 +350,192 @@ const SIEGE_RUNTIME_UPGRADE_TECHS = [
   },
 ];
 
+const JIN_GENERIC_MELEE_ATTACK_TECHS = [
+  { name: "Bloomery", description: "+1", category: "attack" },
+  { name: "Decarbonization", description: "+1", category: "attack" },
+  { name: "Damascus Steel", description: "+1", category: "attack" },
+];
+
+const JIN_GENERIC_RANGED_ATTACK_TECHS = [
+  { name: "Steeled Arrow", description: "+1", category: "attack" },
+  { name: "Balanced Projectiles", description: "+1", category: "attack" },
+  { name: "Platecutter Point", description: "+1", category: "attack" },
+];
+
+const JIN_MOHE_RANGED_TECHS = [
+  {
+    name: "Incendiary Arrows",
+    description: "+20%, +3 siege damage vs buildings",
+    category: "attack",
+  },
+  {
+    name: "Silk Bowstrings",
+    description: "+0.5 range",
+    category: "range",
+  },
+];
+
+const JIN_MOUNTED_VILLAGER_TECHS = [
+  {
+    name: "Textiles",
+    description: "+42 hit points for Mounted Villagers.",
+    category: "hitpoints",
+  },
+  {
+    name: "Wheelbarrow",
+    description: "+15% movement speed for Mounted Villagers.",
+    category: "moveSpeed",
+  },
+];
+
+const JIN_GENERIC_ARMOR_TECHS = [
+  { name: "Fitted Leatherwork", description: "+1 melee", category: "armor" },
+  { name: "Insulated Helm", description: "+1 melee", category: "armor" },
+  { name: "Master Smiths", description: "+1 melee", category: "armor" },
+  { name: "Iron Undermesh", description: "+1 ranged", category: "armor" },
+  { name: "Wedge Rivets", description: "+1 ranged", category: "armor" },
+  { name: "Angled Surfaces", description: "+1 ranged", category: "armor" },
+];
+
+const JIN_RUNTIME_UPGRADE_TECHS = [
+  {
+    name: "Padded Lamellar",
+    description:
+      "+25% hit points for cavalry and melee infantry. Replaces Biology and Elite Army Tactics for Jin.",
+    category: "hitpoints",
+    appliesToUnit(unit, unitName) {
+      const tags = unit?.tags || [];
+      return (
+        tags.includes("Cavalry") ||
+        (tags.includes("Infantry") && tags.includes("Melee")) ||
+        unitName === "Reindeer Trader"
+      );
+    },
+  },
+  {
+    name: "Grassland Horses (Melee Cavalry)",
+    description:
+      "Grassland Horses grant +2 maximum hit points per horse to melee cavalry.",
+    category: "hitpoints",
+    appliesToUnit(unit) {
+      const tags = unit?.tags || [];
+      return tags.includes("Cavalry") && tags.includes("Melee");
+    },
+  },
+  {
+    name: "Grassland Horses (Ranged Cavalry)",
+    description:
+      "Grassland Horses grant +1 maximum hit point per horse to ranged cavalry.",
+    category: "hitpoints",
+    appliesToUnit(unit) {
+      const tags = unit?.tags || [];
+      return tags.includes("Cavalry") && tags.includes("Ranged");
+    },
+  },
+  {
+    name: "Quilted Armor",
+    description: "Mohe Tribesmen take -50% bonus damage.",
+    category: "armor",
+    unitNames: ["Mohe Tribesman"],
+  },
+  {
+    name: "Tower Shields",
+    description: "Man-at-Arms gain +3 ranged armor.",
+    category: "armor",
+    unitNames: ["MAA"],
+  },
+  {
+    name: "Heaven Shaking Thunder",
+    description:
+      "Ranged attacks reduce enemy cavalry damage by 20% for 5 seconds.",
+    category: "attack",
+    unitNames: ["Eruptor", "Spearman"],
+  },
+  {
+    name: "Storm Lances",
+    description:
+      "Spearmen gain a periodic explosive ranged attack. Displayed here; full secondary attack timing needs a dedicated weapon-mode pass.",
+    category: "attack",
+    unitNames: ["Spearman"],
+    displayOnly: true,
+  },
+  {
+    name: "Pili Pao",
+    description:
+      "Traction Trebuchets and Nest of Bees gain +1 range. In vs-building, Traction Trebuchets use the burst profile and buildings hit by them deal -20% damage for 8 seconds.",
+    category: "attack",
+    unitNames: ["Traction Trebuchet", "Nest of Bees"],
+  },
+  {
+    name: "Porcupine Defense",
+    description: "Nest of Bees deal 10 damage back to melee attackers.",
+    category: "armor",
+    unitNames: ["Nest of Bees"],
+  },
+  {
+    name: "Great Wall Bastion",
+    description: "Bed Crossbow projectiles deal +3 damage.",
+    category: "attack",
+    unitNames: ["Bed Crossbow"],
+  },
+  {
+    name: "Wall Defense",
+    description:
+      "Wall-mounted infantry take reduced ranged and siege damage. Displayed only; wall positioning is not simulated.",
+    category: "damageResistance",
+    unitNames: ["Eruptor", "Zhanma Swordsman"],
+    displayOnly: true,
+  },
+  {
+    name: "Siege Engineering",
+    description:
+      "Can build Battering Rams and Siege Towers. Displayed only; field construction is outside the duel.",
+    category: "ability",
+    unitNames: ["Zhanma Swordsman"],
+    displayOnly: true,
+  },
+  {
+    name: "Flying Fire Battalions",
+    description:
+      "Improves Meng'an Mouke Emplacements and unlocks Mounted Grenadier spawns. Displayed only for defender-source context.",
+    category: "other",
+    unitNames: ["Meng'an Mouke Defender", "Mounted Grenadier"],
+    displayOnly: true,
+  },
+  {
+    name: "Lightweight Frames",
+    description: "+10% movement speed for Jin siege engines.",
+    category: "moveSpeed",
+    appliesToUnit(unit) {
+      return (unit?.tags || []).includes("Siege");
+    },
+  },
+  {
+    name: "Reinforced Axles",
+    description: "+10% movement speed for Jin siege engines.",
+    category: "moveSpeed",
+    appliesToUnit(unit) {
+      return (unit?.tags || []).includes("Siege");
+    },
+  },
+  {
+    name: "Flower Garden",
+    description: "Military units within a Flower Garden gain +25% attack speed.",
+    category: "attackSpeed",
+    appliesToUnit(unit) {
+      const tags = unit?.tags || [];
+      return (
+        tags.includes("Infantry") ||
+        tags.includes("Cavalry") ||
+        tags.includes("Siege")
+      );
+    },
+  },
+];
+
 function deriveRuntimeUpgradesForUnit(unit, unitName) {
   if (!unit || !unitName) return [];
-  return SIEGE_RUNTIME_UPGRADE_TECHS
+  const siegeTechs = SIEGE_RUNTIME_UPGRADE_TECHS
     .filter((tech) => tech.unitNames?.includes(unitName))
     .map((tech) => {
       const entry = {
@@ -349,6 +547,49 @@ function deriveRuntimeUpgradesForUnit(unit, unitName) {
       if (tech.exceptCivs) entry.exceptCivs = [...tech.exceptCivs];
       return entry;
     });
+
+  const tags = unit.tags || [];
+  const jinTechs = [];
+  const isJinNativeUnit = JIN_NATIVE_UNITS.has(unitName);
+  if (isJinNativeUnit && tags.includes("Melee") && !tags.includes("Siege")) {
+    jinTechs.push(...JIN_GENERIC_MELEE_ATTACK_TECHS);
+  }
+  if (
+    isJinNativeUnit &&
+    ["Mohe Tribesman", "Mounted Villager"].includes(unitName)
+  ) {
+    jinTechs.push(...JIN_GENERIC_RANGED_ATTACK_TECHS);
+  }
+  if (unitName === "Mohe Tribesman") {
+    jinTechs.push(...JIN_MOHE_RANGED_TECHS);
+  }
+  if (unitName === "Mounted Villager") {
+    jinTechs.push(...JIN_MOUNTED_VILLAGER_TECHS);
+  }
+  if (isJinNativeUnit && !tags.includes("Siege")) {
+    jinTechs.push(...JIN_GENERIC_ARMOR_TECHS);
+  }
+  for (const tech of JIN_RUNTIME_UPGRADE_TECHS) {
+    const unitMatch = tech.unitNames?.includes(unitName);
+    const appliesMatch =
+      typeof tech.appliesToUnit === "function" &&
+      tech.appliesToUnit(unit, unitName);
+    if (!unitMatch && !appliesMatch) continue;
+    jinTechs.push(tech);
+  }
+
+  const normalizedJinTechs = jinTechs.map((tech) => {
+    const entry = {
+      name: tech.name,
+      description: tech.description,
+      category: tech.category,
+      civs: ["Jin Dynasty"],
+    };
+    if (tech.displayOnly) entry.displayOnly = true;
+    return entry;
+  });
+
+  return [...siegeTechs, ...normalizedJinTechs];
 }
 
 function getKtUnitCosts(unit = {}) {
@@ -590,6 +831,7 @@ export const COMBAT_CATEGORIES = new Set([
   "armor",
   "hitpoints",
   "attackSpeed",
+  "moveSpeed",
   "range",
 ]);
 
@@ -698,6 +940,9 @@ export const TECH_EFFECTS = {
   "Additional Barrels|attack": {},
   "Adjustable Crossbars|attack": {},
   "Shattering Projectiles|attack": {},
+  "Pili Pao|attack": {},
+  "Storm Lances|attack": {},
+  "Heaven Shaking Thunder|attack": {},
 
   // Charge-related attack buffs (mapped to attackAbs as bonus)
   // Cantled Saddles is a charge-duration buff, not permanent flat attack — not modeled here
@@ -746,6 +991,9 @@ export const TECH_EFFECTS = {
   "Cross Folded Armor|armor": { rangedArmor: 2 },
   "Teutonic Order|armor": { meleeArmor: 2 },
   "Desert Citadels|armor": { meleeArmor: 1, rangedArmor: 1 },
+  "Tower Shields|armor": { rangedArmor: 3 },
+  "Quilted Armor|armor": {},
+  "Porcupine Defense|armor": {},
 
   // Tiered armor (Macedonian Dynasty)
   "Butted Chainmail|armor": {
@@ -789,6 +1037,48 @@ export const TECH_EFFECTS = {
   "Defensive Aura Edict|hitpoints": { hpPct: 10 },
   "Knights Hospitaller|hitpoints": {},
   "Kingdom of Poland|hitpoints": { hpPct: 10 },
+  "Padded Lamellar|hitpoints": { hpPct: 25 },
+  "Textiles|hitpoints": { hpAbs: 42 },
+  "Grassland Horses (Melee Cavalry)|hitpoints": {
+    hpAbs: [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30],
+    labels: [
+      "1 Horse (+2)",
+      "2 Horses (+4)",
+      "3 Horses (+6)",
+      "4 Horses (+8)",
+      "5 Horses (+10)",
+      "6 Horses (+12)",
+      "7 Horses (+14)",
+      "8 Horses (+16)",
+      "9 Horses (+18)",
+      "10 Horses (+20)",
+      "11 Horses (+22)",
+      "12 Horses (+24)",
+      "13 Horses (+26)",
+      "14 Horses (+28)",
+      "15 Horses (+30)",
+    ],
+  },
+  "Grassland Horses (Ranged Cavalry)|hitpoints": {
+    hpAbs: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+    labels: [
+      "1 Horse (+1)",
+      "2 Horses (+2)",
+      "3 Horses (+3)",
+      "4 Horses (+4)",
+      "5 Horses (+5)",
+      "6 Horses (+6)",
+      "7 Horses (+7)",
+      "8 Horses (+8)",
+      "9 Horses (+9)",
+      "10 Horses (+10)",
+      "11 Horses (+11)",
+      "12 Horses (+12)",
+      "13 Horses (+13)",
+      "14 Horses (+14)",
+      "15 Horses (+15)",
+    ],
+  },
 
   // Tiered HP (Macedonian Dynasty)
   "Butted Chainmail|hitpoints": {
@@ -835,6 +1125,7 @@ export const TECH_EFFECTS = {
   "Reload Drills|attackSpeed": { speedPct: 33 },
   "Siege Crew Training|attackSpeed": {},
   "Siege Crews|attackSpeed": {},
+  "Flower Garden|attackSpeed": { speedPct: 25 },
 
   // === RANGE ===
   "Bolt Magazines|range": {},
@@ -848,6 +1139,7 @@ export const TECH_EFFECTS = {
   "Nagae Yari|range": {},
   "Wall Defense|range": {},
   "Divine Defense|range": {},
+  "Pili Pao|range": {},
 
   // === ARMOR (buff field: melee armor drums) ===
   "Mehter Melee Armor Drums|armor": { meleeArmor: 2 },
@@ -872,6 +1164,10 @@ export const TECH_EFFECTS = {
   "Triumph|hitpoints": {},
   "Triumph|attack": {},
   "Triumph|moveSpeed": {},
+  "Greased Axles|moveSpeed": {},
+  "Lightweight Frames|moveSpeed": {},
+  "Reinforced Axles|moveSpeed": {},
+  "Wheelbarrow|moveSpeed": {},
 };
 
 // Image map: tech name → image path (relative to app root)
@@ -1030,6 +1326,20 @@ export const TECH_IMAGE_MAP = {
   "Artillery Shot": "assets/images/abilities/ability-artillery-shot-1.png",
   "Castle of the Crow Aura": "assets/images/abilities/ability-castle-of-the-crow-aura-1.png",
   "Divine Defense": "assets/images/abilities/ability-divine-defense-1.png",
+  "Padded Lamellar": "assets/images/technologies/padded-armor-3.png",
+  "Quilted Armor": "assets/images/technologies/padded-armor-3.png",
+  "Tower Shields": "assets/images/technologies/reinforced-defenses-4.png",
+  "Storm Lances": "assets/images/technologies/upgrades.png",
+  "Heaven Shaking Thunder": "assets/images/technologies/thunderclap-bombs-4.png",
+  "Pili Pao": "assets/images/technologies/upgrades.png",
+  "Porcupine Defense": "assets/images/technologies/reinforced-defenses-4.png",
+  "Lightweight Frames": "assets/images/technologies/lightweight-beams-4.png",
+  "Reinforced Axles": "assets/images/technologies/reinforced-arm-ballista-4.png",
+  "Flower Garden": "assets/images/technologies/upgrades.png",
+  "Textiles": "assets/images/technologies/textiles-1.png",
+  "Wheelbarrow": "assets/images/technologies/wheelbarrow-1.png",
+  "Grassland Horses (Melee Cavalry)": "assets/images/technologies/horsemen-2.png",
+  "Grassland Horses (Ranged Cavalry)": "assets/images/technologies/horsemen-2.png",
   "Wall Defense": "assets/images/technologies/village-fortresses-3.png",
   "Hill Training": "assets/images/technologies/hill-training-3.png",
   "Improved Torch": "assets/images/abilities/ability-improved-torch-1.png",
@@ -1078,6 +1388,12 @@ export function isCombatCategory(category) {
 
 export function filterTechByCiv(item, selectedCiv) {
   if (!selectedCiv) return true;
+  if (
+    selectedCiv === "Jin Dynasty" &&
+    (item.name === "Biology" || item.name === "Elite Army Tactics")
+  ) {
+    return false;
+  }
   if (item.exceptCivs && item.exceptCivs.includes(selectedCiv)) return false;
   if (item.civs && item.civs.length > 0) {
     return item.civs.includes(selectedCiv) || item.civs.includes("Common");
