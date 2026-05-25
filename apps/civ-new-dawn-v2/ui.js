@@ -1275,7 +1275,7 @@ const UI = (() => {
   function getCardPreview(cardType, player, slot) {
     const spend = sub.tradeSpent;
     switch (cardType) {
-      case "culture": return `Markers to place: <strong>${2 + spend}</strong> (terrain ≤ ${slot})`;
+      case "culture": return `Markers to place: <strong>${2 + spend}</strong> (terrain ≤ ${slot + spend})`;
       case "growth": return `Place 1 district or reinforce ${slot + spend} markers.`;
       case "science": return `Advance tech by <strong>${slot + spend}</strong>. Current: ${player.tech}/${Game.CFG.techWheelSize}`;
       case "economy": return `Move caravan up to <strong>${slot + spend}</strong> hexes.`;

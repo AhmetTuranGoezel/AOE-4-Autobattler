@@ -1216,15 +1216,11 @@ const Game = (() => {
   function isExploreEligible(st, hexKey) {
     if (!st.tileStack || st.tileStack.length === 0) return false;
     const h = st.map.hexes[hexKey];
-    if (!h || !h.active || !h.tileId) return false;
-    const hasInactiveNeighbor = hexNeighborKeys(h.q, h.r).some((nk) => {
+    if (!h || !h.active) return false;
+    return hexNeighborKeys(h.q, h.r).some((nk) => {
       const nh = st.map.hexes[nk];
       return nh && !nh.active;
     });
-    if (!hasInactiveNeighbor) return false;
-    return Object.values(st.map.hexes).some((hh) =>
-      hh.tileId === h.tileId && hh.city && hh.city.isCapital
-    );
   }
 
   function validateExploration(st, tileId, anchorKey, rotation) {
