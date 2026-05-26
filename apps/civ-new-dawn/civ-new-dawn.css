@@ -656,6 +656,25 @@ body {
   text-transform: capitalize;
 }
 
+.focus-tier {
+  font-size: 9px;
+  color: var(--text2, #999);
+  letter-spacing: 0.5px;
+}
+
+.wonder-pick {
+  display: block;
+  width: 100%;
+  text-align: left;
+  margin-bottom: 4px;
+  font-size: 11px;
+}
+
+.upgrade-card {
+  font-size: 11px;
+  margin: 2px;
+}
+
 @media (max-width: 1200px) {
   .layout {
     grid-template-columns: 1fr;
