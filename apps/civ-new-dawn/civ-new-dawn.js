@@ -11,20 +11,7 @@
   const TERRAIN_LIST = Object.keys(TERRAIN);
   const RESOURCE_TYPES = ["marble", "mercury", "oil", "diamonds"];
   const DISTRICT_TYPES = ["campus", "trade", "encampment", "industrial", "theater"];
-  const CITY_STATE_NAMES = [
-    "Akkad",
-    "Seoul",
-    "Buenos Aires",
-    "Antananarivo",
-    "Venice",
-    "Kabul",
-    "Geneva",
-    "Nan Madol",
-    "Brussels",
-    "Preslav",
-    "Carthage",
-    "Valletta"
-  ];
+  // CITY_STATE_NAMES derived from CITY_STATE_DATA below
 
   const FOCUS_SLOTS = [1, 1, 2, 3, 4, 5];
   const FOCUS_ORDER = ["growth", "culture", "science", "economy", "military", "industry"];
@@ -88,6 +75,134 @@
     resourceProductionValue: 2,
     maxRounds: 20
   };
+
+  const CARD_TIERS = {
+    culture: {
+      1: { name: "Early Empire", n: 2, effects: [] },
+      2: { name: "Drama and Poetry", n: 2, effects: ["move1"] },
+      3: { name: "Civil Service", n: 2, effects: ["extraControl"] },
+      4: { name: "Mass Media", n: 3, effects: ["replaceRival"] }
+    },
+    growth: {
+      1: { name: "Irrigation", effects: [] },
+      2: { name: "Engineering", effects: ["controlNearDistrict"] },
+      3: { name: "Sanitation", effects: ["extraReinforce"] },
+      4: { name: "Globalization", effects: ["globalDistrict", "extraReinforce"] }
+    },
+    industry: {
+      1: { name: "Pottery", cityRange: 2, wonderProdOverride: null, effects: [] },
+      2: { name: "Animal Husbandry", cityRange: 3, wonderProdOverride: null, effects: ["buildOnUnit"] },
+      3: { name: "Nationalism", cityRange: 4, wonderProdOverride: 7, effects: ["throughWater"] },
+      4: { name: "Urbanization", cityRange: 5, wonderProdOverride: null, effects: ["throughWater", "controlAfterCity"] }
+    },
+    science: {
+      1: { name: "Astrology", effects: [] },
+      2: { name: "Mathematics", effects: ["bonusTrade"] },
+      3: { name: "Replaceable Parts", effects: ["bonusResource"] },
+      4: { name: "Nuclear Power", effects: ["nuke"] }
+    },
+    military: {
+      1: { name: "Masonry", move: 3, armies: 1, combatBonus: 0, effects: [] },
+      2: { name: "Iron Working", move: 4, armies: 2, combatBonus: 0, combatVsBarb: 2, effects: [] },
+      3: { name: "Mass Production", move: 5, armies: 2, combatBonus: 2, effects: ["throughWater", "respawn"] },
+      4: { name: "Flight", move: 6, armies: 2, combatBonus: 3, effects: ["throughWater", "throughTokens"] }
+    },
+    economy: {
+      1: { name: "Foreign Trade", move: 3, caravans: 1, effects: [] },
+      2: { name: "Currency", move: 4, caravans: 2, effects: ["removeBarb"] },
+      3: { name: "Steam Power", move: 6, caravans: 2, effects: ["throughWater", "exchangeResource"] },
+      4: { name: "Capitalism", move: 6, caravans: 3, effects: ["throughWater", "resolveExtra"] }
+    }
+  };
+
+  const WONDERS = [
+    { name: "Jebel Barkal", era: "ancient", type: "military", cost: 7, description: "When attacking or defending, spend resource tokens for +2 combat each." },
+    { name: "Petra", era: "ancient", type: "military", cost: 7, description: "+2 defense. Barbarians cannot enter your cities or reinforced control tokens." },
+    { name: "Terracotta Army", era: "ancient", type: "military", cost: 7, description: "+2 attack combat value." },
+    { name: "Stonehenge", era: "ancient", type: "culture", cost: 7, description: "After placing control on hill, chain-place on adjacent hills." },
+    { name: "Hanging Gardens", era: "ancient", type: "culture", cost: 8, description: "Start of turn: place 1 control on terrain ≤4 adjacent to city." },
+    { name: "Colosseum", era: "ancient", type: "culture", cost: 9, description: "Start of turn: reinforce 1 control adjacent to city." },
+    { name: "Colossus", era: "ancient", type: "commerce", cost: 7, description: "Caravans move 6 additional spaces on economy card." },
+    { name: "Great Lighthouse", era: "ancient", type: "commerce", cost: 8, description: "Build cities on edge of map as if within 2 of friendly space." },
+    { name: "Apadana", era: "ancient", type: "commerce", cost: 8, description: "On build/capture: explore from edge space, then place 1 control on new tile." },
+    { name: "Oracle", era: "ancient", type: "science", cost: 8, description: "Start of turn: swap 2 adjacent cards in focus row." },
+    { name: "Great Library", era: "ancient", type: "science", cost: 8, description: "Caravan to player city: gain matching focus card at same tier, replace yours." },
+    { name: "Pyramids", era: "ancient", type: "science", cost: 9, description: "On build: upgrade up to 3 tier-I cards to tier-II." },
+    { name: "Huey Teocalli", era: "medieval", type: "military", cost: 9, description: "+1 defense per adjacent water space." },
+    { name: "Venetian Arsenal", era: "medieval", type: "military", cost: 10, description: "After resolving slot #5 card, resolve again as slot #1." },
+    { name: "Alhambra", era: "medieval", type: "military", cost: 10, description: "+2 combat value (attack and defense)." },
+    { name: "Taj Mahal", era: "medieval", type: "culture", cost: 9, description: "Resolve focus card as 1 slot further right per matching wonder you own." },
+    { name: "Forbidden City", era: "medieval", type: "culture", cost: 9, description: "Start of turn: remove 1 rival control adjacent to friendly space." },
+    { name: "Chichen Itza", era: "medieval", type: "culture", cost: 10, description: "Place control on forest spaces not adjacent to friendly city." },
+    { name: "Kilwa Kisiwani", era: "medieval", type: "commerce", cost: 9, description: "Caravan to city-state: +1 additional trade on any focus card." },
+    { name: "Great Zimbabwe", era: "medieval", type: "commerce", cost: 9, description: "Store up to 4 trade tokens on this wonder. Distribute at start of turn." },
+    { name: "Machu Picchu", era: "medieval", type: "commerce", cost: 10, description: "Slot #1 or #2 resolves as 2 slots further right." },
+    { name: "University of Sankore", era: "medieval", type: "science", cost: 9, description: "After tech upgrade: swap any 2 non-science cards." },
+    { name: "Porcelain Tower", era: "medieval", type: "science", cost: 9, description: "On build: upgrade up to 2 cards to next tier." },
+    { name: "Potala Palace", era: "medieval", type: "science", cost: 10, description: "Have 4 diplomacy from each player. On build: take 3 diplomacy cards." },
+    { name: "Ruhr Valley", era: "modern", type: "military", cost: 11, description: "+5 defense combat value." },
+    { name: "Pentagon", era: "modern", type: "military", cost: 12, description: "+2 attack. Armies can move any number of spaces." },
+    { name: "Statue of Liberty", era: "modern", type: "military", cost: 12, description: "Before capturing rival city, replace adjacent rival control with yours." },
+    { name: "Sydney Opera House", era: "modern", type: "culture", cost: 10, description: "Rival control tokens count toward your cities' maturity." },
+    { name: "Cristo Redentor", era: "modern", type: "culture", cost: 11, description: "On build: steal rival non-capital city (no army) within 3 spaces." },
+    { name: "Eiffel Tower", era: "modern", type: "culture", cost: 12, description: "Start of turn: choose 2 rival control of same player, replace 1 with yours." },
+    { name: "Big Ben", era: "modern", type: "commerce", cost: 10, description: "+2 combat per your caravan adjacent to defending space." },
+    { name: "Estádio Do Maracanã", era: "modern", type: "commerce", cost: 10, description: "Resolve economy card before resolving a non-economy focus card." },
+    { name: "Országház", era: "modern", type: "commerce", cost: 11, description: "After caravan trades at city-state, you may conquer it." },
+    { name: "Oxford University", era: "modern", type: "science", cost: 10, description: "Tech upgrade: don't need same type replacement." },
+    { name: "Amundsen-Scott RS", era: "modern", type: "science", cost: 10, description: "On build: build city on edge, place wonder there, +2 adjacent control." },
+    { name: "Kremlin", era: "modern", type: "science", cost: 11, description: "+4 attack vs rival if you have more reinforced tokens than defender." }
+  ];
+
+  const DIPLOMACY_CARDS = {
+    joint_war: { name: "Joint War", description: "When attacking, +2 combat value (unless attacking the card owner)." },
+    defensive_pact: { name: "Defensive Pact", description: "When defending, +2 combat value (unless the card owner is attacking)." },
+    non_aggression: { name: "Non-Aggression", description: "You cannot attack the owner's pieces. If owner attacks you, swap your military card with any other." },
+    open_borders: { name: "Open Borders", description: "Owner's cities and control are friendly for your districts and city maturity." },
+    embassy: { name: "Embassy", description: "Caravan to owner's capital: +1 trade to owner's card, gain 1 resource of choice." }
+  };
+
+  const CITY_STATE_DATA = {
+    Carthage: { type: "military", diplomacy: "When defending or attacking (not Carthage), +1 combat per city-state token and friendly city within 2 spaces." },
+    Kumasi: { type: "culture", diplomacy: "When resolving industry or culture, forest terrain difficulty is 1." },
+    Brussels: { type: "industry", diplomacy: "When building a wonder, -1 cost per mature city." },
+    Seoul: { type: "science", diplomacy: "Start of turn: move 1 barbarian to adjacent empty space." },
+    "Buenos Aires": { type: "industry", diplomacy: "When building a wonder, -2 cost if you don't already have a wonder of that type." },
+    Kabul: { type: "military", diplomacy: "When attacking a city or city-state (not Kabul), +3 combat." },
+    Geneva: { type: "science", diplomacy: "Start of turn: return 1 diplomacy card to take a different one from that player." },
+    "Mohenjo Daro": { type: "culture", diplomacy: "When placing control tokens, terrain difficulty reduced by 1." },
+    Auckland: { type: "industry", diplomacy: "When building city, count through water; terrain difficulty 1 for spaces adjacent to water." },
+    Akkad: { type: "military", diplomacy: "Your armies can move through rival control tokens." },
+    Antananarivo: { type: "culture", diplomacy: "During your turn, Antananarivo is treated as your city (armies cannot end there)." },
+    Palenque: { type: "science", diplomacy: "When resolving a focus card, spend resource tokens as trade tokens (limit 3)." }
+  };
+
+  const CITY_STATE_NAMES = Object.keys(CITY_STATE_DATA);
+
+  const AGENDA_CARDS = [
+    { name: "Fortified", description: "Control 1+ Fort tiles with a city.", check: (p, st) => countFortCities(p.id, st) >= 1 },
+    { name: "Expeditionary", description: "Control 2+ Fort tiles with a city.", check: (p, st) => countFortCities(p.id, st) >= 2 },
+    { name: "Warmonger", description: "Defeat 1 rival capital OR control 2 conquered city-states.", check: (p, st) => p.capturedCapitals >= 1 || countConqueredCityStates(p.id, st) >= 2 },
+    { name: "Paranoid", description: "Control 2 military world wonders.", check: (p, st) => countWondersByType(p.id, st, "military") >= 2 },
+    { name: "Civilized", description: "Have 8 cities on the map.", check: (p, st) => countCities(p.id).total >= 8 },
+    { name: "Money Grubber", description: "Control 2 economic world wonders.", check: (p, st) => countWondersByType(p.id, st, "commerce") >= 2 },
+    { name: "Defensive", description: "Have 15 reinforced control tokens.", check: (p, st) => countReinforcedTokens(p.id, st) >= 15 },
+    { name: "Devastating", description: "Win an attack with total combat value ≥ 16.", check: (p) => p.maxCombatWin >= 16 },
+    { name: "Diplomatic", description: "Have 4 diplomacy cards from different players/city-states.", check: (p) => countUniqueDiplomacySources(p) >= 4 },
+    { name: "Hoarder", description: "Have 5 resource/natural wonder tokens.", check: (p) => totalResources(p) >= 5 },
+    { name: "Explorer", description: "Control 15 spaces adjacent to water or map edge.", check: (p, st) => countEdgeWaterControl(p.id, st) >= 15 },
+    { name: "Aesthetic", description: "Control 2 cultural world wonders.", check: (p, st) => countWondersByType(p.id, st, "culture") >= 2 },
+    { name: "Technophile", description: "Have 3 tier-IV focus cards.", check: (p) => countTier4Cards(p) >= 3 },
+    { name: "Scholarly", description: "Control 2 science world wonders.", check: (p, st) => countWondersByType(p.id, st, "science") >= 2 },
+    { name: "Industrious", description: "Have all 5 districts on the map.", check: (p, st) => countDistrictTypes(p.id, st) >= 5 },
+    { name: "Provincial", description: "Control 1 mature city on 4 different map tiles.", check: (p, st) => countMatureCityTiles(p.id, st) >= 4 },
+    { name: "Diversified", description: "Control 3 different types of world wonders.", check: (p, st) => countWonderTypeVariety(p.id, st) >= 3 },
+    { name: "Populous", description: "Control 5 matured cities.", check: (p, st) => countDevelopedCities(p.id) >= 5 },
+    { name: "Preservationist", description: "Control 2 natural wonders.", check: (p, st) => countNaturalWonders(p.id, st) >= 2 },
+    { name: "Expansionist", description: "Control 1 city on 6 different map tiles.", check: (p, st) => countCityTiles(p.id, st) >= 6 },
+    { name: "Prolific", description: "Control 2 wonders from the same era.", check: (p, st) => maxWondersInSameEra(p.id, st) >= 2 },
+    { name: "Progressive", description: "Control 1 wonder from each era.", check: (p, st) => countWonderEras(p.id, st) >= 3 }
+  ];
 
   let state = null;
   let ui = {
@@ -368,6 +483,9 @@
 
   function buildInitialState(hostPlayer) {
     const map = buildMap(DEFAULTS.mapRadius, { activeAll: true, populate: true });
+    const shuffledAgendas = AGENDA_CARDS.slice().sort(() => Math.random() - 0.5);
+    hostPlayer.agenda = shuffledAgendas[0]?.name || null;
+
     const gameState = {
       settings: { expansion: true },
       map,
@@ -379,7 +497,9 @@
       log: [],
       lastRoll: null,
       startPositions: getStartPositions(DEFAULTS.mapRadius),
-      winner: null
+      winner: null,
+      builtWonders: [],
+      discountedWonders: []
     };
     placeCapital(gameState, hostPlayer.id);
     return gameState;
@@ -417,8 +537,19 @@
         industry: 0
       },
       govMarkers: [],
+      cardTiers: {
+        culture: 1,
+        growth: 1,
+        science: 1,
+        economy: 1,
+        military: 1,
+        industry: 1
+      },
       diplomacy: [],
-      victoryPoints: { military: 0, science: 0, culture: 0, economy: 0 },
+      cityStateTokens: [],
+      capturedCapitals: 0,
+      maxCombatWin: 0,
+      wonderTokens: 0,
       armies: [createUnit("army", 1)],
       wagons: [createUnit("wagon", 1)],
       cardPlayed: false,
@@ -479,11 +610,15 @@
   }
 
   function scatterCityStates(hexes, hexKeys) {
-    const picks = pickRandom(hexKeys.filter((key) => !isWater(hexes[key])), 6);
+    const names = pickRandom(CITY_STATE_NAMES.slice(), 6);
+    const picks = pickRandom(hexKeys.filter((key) => !isWater(hexes[key])), names.length);
     picks.forEach((key, index) => {
+      const csName = names[index];
+      const csData = CITY_STATE_DATA[csName];
       hexes[key].cityState = {
-        name: CITY_STATE_NAMES[index % CITY_STATE_NAMES.length],
-        type: FOCUS_ORDER[index % FOCUS_ORDER.length]
+        name: csName,
+        type: csData ? csData.type : FOCUS_ORDER[index % FOCUS_ORDER.length],
+        diplomacyCards: 2
       };
     });
   }
@@ -518,7 +653,7 @@
     if (!hex) return;
     hex.active = true;
     hex.revealed = true;
-    hex.city = { ownerId: playerId, isCapital: true, developed: false, hasWonder: false };
+    hex.city = { ownerId: playerId, isCapital: true, developed: false, wonder: null };
     hex.resource = null;
     hex.cityState = null;
     hex.barbarian = false;
@@ -775,7 +910,7 @@
       }
       if (tile.type === "capital" && tile.ownerId) {
         pivot.terrain = "grass";
-        pivot.city = { ownerId: tile.ownerId, isCapital: true, developed: false, hasWonder: false };
+        pivot.city = { ownerId: tile.ownerId, isCapital: true, developed: false, wonder: null };
       }
     }
     return true;
@@ -977,6 +1112,12 @@
     const { type, payload } = action;
     if (type === "ADD_PLAYER") {
       if (state.players.find((p) => p.id === payload.id)) return;
+      if (!payload.agenda) {
+        const usedAgendas = state.players.map((p) => p.agenda).filter(Boolean);
+        const available = AGENDA_CARDS.filter((a) => !usedAgendas.includes(a.name));
+        const shuffled = available.sort(() => Math.random() - 0.5);
+        payload.agenda = shuffled[0]?.name || null;
+      }
       state.players.push(payload);
       state.turn.order.push(payload.id);
       placeCapital(state, payload.id);
@@ -1100,7 +1241,7 @@
     if (type === "BUILD_CITY") {
       const hex = state.map.hexes[payload.key];
       if (!hex) return;
-      hex.city = { ownerId: payload.playerId, isCapital: false, developed: false, hasWonder: false };
+      hex.city = { ownerId: payload.playerId, isCapital: false, developed: false, wonder: null };
       if (hex.control && hex.control.ownerId === payload.playerId) {
         hex.control = null;
       }
@@ -1111,7 +1252,13 @@
     if (type === "BUILD_WONDER") {
       const hex = state.map.hexes[payload.key];
       if (!hex || !hex.city || hex.city.ownerId !== payload.playerId) return;
-      hex.city.hasWonder = true;
+      const wonderDef = payload.wonder || null;
+      hex.city.wonder = wonderDef ? { name: wonderDef.name, era: wonderDef.era, type: wonderDef.type } : { name: "Unknown", era: "ancient", type: "military" };
+      logEntry(`${getPlayer(payload.playerId)?.name} built ${hex.city.wonder.name}!`);
+      if (wonderDef) {
+        state.builtWonders = state.builtWonders || [];
+        state.builtWonders.push(wonderDef.name);
+      }
       return;
     }
 
@@ -1152,6 +1299,38 @@
         player.techTier = Math.min(4, (player.techTier || 1) + 1);
         logEntry(`${player.name} advanced to tech tier ${player.techTier}! Wheel reset.`);
       }
+      return;
+    }
+
+    if (type === "UPGRADE_CARD") {
+      const player = getPlayer(payload.playerId);
+      if (!player) return;
+      const cardType = payload.cardType;
+      const currentTier = player.cardTiers[cardType] || 1;
+      if (currentTier >= 4) return;
+      player.cardTiers[cardType] = currentTier + 1;
+      const tierData = CARD_TIERS[cardType][currentTier + 1];
+      logEntry(`${player.name} upgraded ${cardType} to tier ${currentTier + 1}: ${tierData?.name || ""}`);
+      return;
+    }
+
+    if (type === "ADD_DIPLOMACY") {
+      const player = getPlayer(payload.playerId);
+      if (!player) return;
+      player.diplomacy.push({
+        type: payload.cardType,
+        fromId: payload.fromPlayerId || null,
+        fromCityState: payload.fromCityState || null
+      });
+      logEntry(`${player.name} gained diplomacy card: ${DIPLOMACY_CARDS[payload.cardType]?.name || payload.cardType}`);
+      return;
+    }
+
+    if (type === "SET_AGENDA") {
+      const player = getPlayer(payload.playerId);
+      if (!player) return;
+      player.agenda = payload.agendaName;
+      logEntry(`${player.name} chose agenda: ${payload.agendaName}`);
       return;
     }
 
@@ -1241,6 +1420,90 @@
     }
   }
 
+  function getPlayerWonders(playerId) {
+    const wonders = [];
+    Object.values(state.map.hexes).forEach((hex) => {
+      if (hex.city && hex.city.ownerId === playerId && hex.city.wonder) {
+        wonders.push(hex.city.wonder);
+      }
+    });
+    return wonders;
+  }
+
+  function getWonderCombatBonus(playerId, isAttacker, defenderKey) {
+    const wonders = getPlayerWonders(playerId);
+    let bonus = 0;
+    wonders.forEach((w) => {
+      if (w.name === "Terracotta Army" && isAttacker) bonus += 2;
+      if (w.name === "Petra" && !isAttacker) bonus += 2;
+      if (w.name === "Alhambra") bonus += 2;
+      if (w.name === "Pentagon" && isAttacker) bonus += 2;
+      if (w.name === "Ruhr Valley" && !isAttacker) bonus += 5;
+      if (w.name === "Huey Teocalli" && !isAttacker && defenderKey) {
+        const waterAdj = neighborsFromKey(defenderKey).filter((nk) => {
+          const nh = state.map.hexes[nk];
+          return nh && nh.terrain === "water";
+        }).length;
+        bonus += waterAdj;
+      }
+      if (w.name === "Big Ben" && defenderKey) {
+        const caravanAdj = neighborsFromKey(defenderKey).filter((nk) => {
+          return getUnitsAt(nk).some((u) => u.type === "wagon" && u.playerId === playerId);
+        }).length;
+        bonus += caravanAdj * 2;
+      }
+      if (w.name === "Kremlin" && isAttacker && defenderKey) {
+        const hex = state.map.hexes[defenderKey];
+        if (hex && hex.control && hex.control.ownerId !== playerId) {
+          const myReinforced = countReinforcedTokens(playerId, state);
+          const theirReinforced = countReinforcedTokens(hex.control.ownerId, state);
+          if (myReinforced > theirReinforced) bonus += 4;
+        } else if (hex && hex.city && hex.city.ownerId !== playerId) {
+          const myReinforced = countReinforcedTokens(playerId, state);
+          const theirReinforced = countReinforcedTokens(hex.city.ownerId, state);
+          if (myReinforced > theirReinforced) bonus += 4;
+        }
+      }
+    });
+    return bonus;
+  }
+
+  function getDiplomacyCombatBonus(playerId, isAttacker, defenderId) {
+    const player = getPlayer(playerId);
+    if (!player) return 0;
+    let bonus = 0;
+    player.diplomacy.forEach((card) => {
+      if (isAttacker && card.type === "joint_war" && card.fromId !== defenderId) bonus += 2;
+      if (!isAttacker && card.type === "defensive_pact" && card.fromId !== playerId) bonus += 2;
+    });
+    return bonus;
+  }
+
+  function getCityStateCombatBonus(playerId, isAttacker, defenderKey) {
+    const player = getPlayer(playerId);
+    if (!player) return 0;
+    let bonus = 0;
+    player.cityStateTokens.forEach((csName) => {
+      if (csName === "Kabul" && isAttacker) {
+        const hex = state.map.hexes[defenderKey];
+        if (hex && (hex.city || hex.cityState)) bonus += 3;
+      }
+      if (csName === "Carthage") {
+        const nearCount = neighborsFromKey(defenderKey).filter((nk) => {
+          const nh = state.map.hexes[nk];
+          return nh && ((nh.city && nh.city.ownerId === playerId) || (nh.cityState));
+        }).length;
+        const selfHex = state.map.hexes[defenderKey];
+        if (selfHex && ((selfHex.city && selfHex.city.ownerId === playerId) || selfHex.cityState)) {
+          bonus += nearCount + 1;
+        } else {
+          bonus += nearCount;
+        }
+      }
+    });
+    return bonus;
+  }
+
   function resolveCombat(payload) {
     const attacker = getPlayer(payload.attackerId);
     if (!attacker) return;
@@ -1250,48 +1513,118 @@
     const attackerRoll = rollDie();
     const defenderRoll = rollDie();
 
-    const attackerValue = attackerRoll + payload.attackPower;
-    const defenderValue = defenderRoll + payload.defensePower;
+    let attackPower = payload.attackPower;
+    const milTier = attacker.cardTiers.military;
+    const tierData = CARD_TIERS.military[milTier];
+    if (tierData) {
+      if (payload.defender.type === "barbarian" && tierData.combatVsBarb) {
+        attackPower += tierData.combatVsBarb;
+      }
+      attackPower += tierData.combatBonus || 0;
+    }
+    attackPower += getWonderCombatBonus(attacker.id, true, payload.key);
+    attackPower += getDiplomacyCombatBonus(attacker.id, true, payload.defender.ownerId);
+    attackPower += getCityStateCombatBonus(attacker.id, true, payload.key);
+    if (payload.combatTradeSpent) attackPower += payload.combatTradeSpent;
+
+    let defensePower = payload.defensePower;
+    if (payload.defender.ownerId) {
+      defensePower += getWonderCombatBonus(payload.defender.ownerId, false, payload.key);
+      defensePower += getDiplomacyCombatBonus(payload.defender.ownerId, false, attacker.id);
+      defensePower += getCityStateCombatBonus(payload.defender.ownerId, false, payload.key);
+    }
+
+    const attackerValue = attackerRoll + attackPower;
+    const defenderValue = defenderRoll + defensePower;
 
     state.lastRoll = { attackerRoll, defenderRoll, attackerValue, defenderValue };
-    dom.diceResult.textContent = `${attackerRoll} vs ${defenderRoll}`;
+    dom.diceResult.textContent = `Atk: ${attackerRoll}+${attackPower}=${attackerValue} vs Def: ${defenderRoll}+${defensePower}=${defenderValue}`;
 
     if (attackerValue > defenderValue) {
-      applyCombatWin(payload, hex);
-      logEntry(`${attacker.name} won the combat.`);
+      applyCombatWin(payload, hex, attackerValue);
+      logEntry(`${attacker.name} won combat (${attackerValue} vs ${defenderValue}).`);
     } else {
       applyCombatLoss(payload);
-      logEntry(`${attacker.name} lost the combat.`);
+      logEntry(`${attacker.name} lost combat (${attackerValue} vs ${defenderValue}). Defender wins ties.`);
     }
   }
 
-  function applyCombatWin(payload, hex) {
+  function applyCombatWin(payload, hex, attackerValue) {
     const attacker = getPlayer(payload.attackerId);
-    if (attacker) {
-      const unit = attacker.armies.find((u) => u.id === payload.attackerUnitId);
-      if (unit) {
-        unit.position = payload.key;
-      }
+    if (!attacker) return;
+
+    if (attackerValue > attacker.maxCombatWin) {
+      attacker.maxCombatWin = attackerValue;
     }
+
+    const unit = attacker.armies.find((u) => u.id === payload.attackerUnitId);
+    if (unit) {
+      unit.position = payload.key;
+    }
+
     if (payload.defender.type === "barbarian") {
       hex.barbarian = false;
+      const tradeType = attacker.focusRow[attacker.focusRow.length - 1];
+      attacker.trade[tradeType] = Math.min(DEFAULTS.maxTradePerCard, attacker.trade[tradeType] + 1);
+      logEntry(`${attacker.name} gained 1 trade token (${tradeType}) from defeating barbarian.`);
     }
+
     if (payload.defender.type === "control") {
       hex.control = { ownerId: payload.attackerId, fortified: false, district: null };
     }
+
     if (payload.defender.type === "city") {
-      hex.city = { ownerId: payload.attackerId, isCapital: false, developed: false, hasWonder: hex.city?.hasWonder || false };
+      const defenderId = hex.city?.ownerId;
+      const wasCapital = hex.city?.isCapital || false;
+      hex.city = {
+        ownerId: payload.attackerId,
+        isCapital: false,
+        developed: false,
+        wonder: hex.city?.wonder || null
+      };
+      if (defenderId) {
+        const defender = getPlayer(defenderId);
+        if (defender) {
+          defender.armies.forEach((u) => { u.position = null; });
+          defender.wagons.forEach((u) => { u.position = null; });
+          logEntry(`${defender.name}'s armies and caravans returned to focus cards.`);
+          if (wasCapital) {
+            attacker.capturedCapitals = (attacker.capturedCapitals || 0) + 1;
+            let tokensStolen = 0;
+            for (const ft of FOCUS_ORDER) {
+              if (tokensStolen >= 2) break;
+              if (defender.trade[ft] > 0) {
+                defender.trade[ft] -= 1;
+                attacker.trade[ft] = Math.min(DEFAULTS.maxTradePerCard, attacker.trade[ft] + 1);
+                tokensStolen++;
+              }
+            }
+            if (tokensStolen > 0) {
+              logEntry(`${attacker.name} stole ${tokensStolen} trade token(s) from ${defender.name}'s capital!`);
+            }
+          }
+        }
+      }
     }
+
     if (payload.defender.type === "citystate") {
+      const csType = hex.cityState?.type || "military";
+      const csName = hex.cityState?.name;
       hex.cityState = null;
-      hex.city = { ownerId: payload.attackerId, isCapital: false, developed: false, hasWonder: false };
+      hex.city = { ownerId: payload.attackerId, isCapital: false, developed: false, wonder: null };
+      if (csName) {
+        attacker.cityStateTokens = attacker.cityStateTokens || [];
+        attacker.cityStateTokens.push(csName);
+      }
+      logEntry(`${attacker.name} conquered city-state ${csName || ""} (${csType}).`);
     }
+
     if (payload.defender.type === "army" || payload.defender.type === "wagon") {
       const defenderPlayer = getPlayer(payload.defender.ownerId);
       if (defenderPlayer) {
         const units = payload.defender.type === "army" ? defenderPlayer.armies : defenderPlayer.wagons;
-        const unit = units.find((u) => u.id === payload.defender.unitId);
-        if (unit) unit.position = null;
+        const dUnit = units.find((u) => u.id === payload.defender.unitId);
+        if (dUnit) dUnit.position = null;
       }
     }
   }
@@ -1405,49 +1738,115 @@
 
   function resolveDistrictEvents() {
     state.players.forEach((player) => {
-      let campusCount = 0;
-      let tradeCount = 0;
-      let encampmentCount = 0;
-      let industrialCount = 0;
-      let theaterCount = 0;
-
+      const districts = [];
       Object.values(state.map.hexes).forEach((hex) => {
         if (!hex.control || hex.control.ownerId !== player.id || !hex.control.district) return;
-        switch (hex.control.district) {
-          case "campus": campusCount++; break;
-          case "trade": tradeCount++; break;
-          case "encampment": encampmentCount++; break;
-          case "industrial": industrialCount++; break;
-          case "theater": theaterCount++; break;
-        }
+        districts.push({ hex, type: hex.control.district, key: keyFrom(hex.q, hex.r) });
       });
 
-      if (campusCount > 0) {
-        player.tech += campusCount;
-        logEntry(`${player.name}: +${campusCount} tech from campus districts.`);
-      }
-      if (tradeCount > 0) {
-        const tradeTypes = FOCUS_ORDER;
-        for (let i = 0; i < tradeCount && i < tradeTypes.length; i++) {
-          player.trade[tradeTypes[i]] = Math.min(DEFAULTS.maxTradePerCard, player.trade[tradeTypes[i]] + 1);
+      districts.forEach(({ hex, type, key }) => {
+        if (type === "campus") {
+          let tokens = 0;
+          neighborsFromKey(key).forEach((nk) => {
+            const nh = state.map.hexes[nk];
+            if (nh && (nh.terrain === "mountain" || nh.resource === "natural_wonder")) tokens++;
+          });
+          tokens = Math.min(tokens, DEFAULTS.maxTradePerCard - player.trade.science);
+          if (tokens > 0) {
+            player.trade.science = Math.min(DEFAULTS.maxTradePerCard, player.trade.science + tokens);
+            logEntry(`${player.name}: Campus +${tokens} science trade (adj mountains/NW).`);
+          }
         }
-        logEntry(`${player.name}: +${tradeCount} trade markers from trade districts.`);
-      }
-      if (encampmentCount > 0 && player.armies.length < DEFAULTS.maxArmies) {
-        const toRecruit = Math.min(encampmentCount, DEFAULTS.maxArmies - player.armies.length);
-        for (let i = 0; i < toRecruit; i++) {
-          player.armies.push(createUnit("army", player.armies.length + 1));
+
+        if (type === "trade") {
+          let tokens = 0;
+          const developedCount = Object.values(state.map.hexes).filter(
+            (h) => h.city && h.city.ownerId === player.id && isCityDeveloped(h)
+          ).length;
+          if (developedCount > 0) {
+            FOCUS_ORDER.forEach((ft) => {
+              if (tokens < developedCount && player.trade[ft] < DEFAULTS.maxTradePerCard) {
+                player.trade[ft] = Math.min(DEFAULTS.maxTradePerCard, player.trade[ft] + 1);
+                tokens++;
+              }
+            });
+            if (tokens > 0) logEntry(`${player.name}: Commercial Hub +${tokens} trade (${developedCount} mature cities).`);
+          } else {
+            let desertTokens = 0;
+            neighborsFromKey(key).forEach((nk) => {
+              const nh = state.map.hexes[nk];
+              if (nh && nh.terrain === "desert") desertTokens++;
+            });
+            desertTokens = Math.min(desertTokens, DEFAULTS.maxTradePerCard - player.trade.economy);
+            if (desertTokens > 0) {
+              player.trade.economy = Math.min(DEFAULTS.maxTradePerCard, player.trade.economy + desertTokens);
+              logEntry(`${player.name}: Commercial Hub +${desertTokens} economy trade (adj deserts).`);
+            }
+          }
         }
-        logEntry(`${player.name}: recruited ${toRecruit} army(s) from encampment districts.`);
-      }
-      if (industrialCount > 0) {
-        player.govBonus.industry = Math.min(3, (player.govBonus.industry || 0) + industrialCount);
-        logEntry(`${player.name}: +${industrialCount} industry bonus from industrial districts.`);
-      }
-      if (theaterCount > 0) {
-        player.govBonus.culture = Math.min(3, (player.govBonus.culture || 0) + theaterCount);
-        logEntry(`${player.name}: +${theaterCount} culture bonus from theater districts.`);
-      }
+
+        if (type === "encampment") {
+          let defeated = 0;
+          neighborsFromKey(key).forEach((nk) => {
+            const nh = state.map.hexes[nk];
+            if (nh && nh.barbarian) {
+              nh.barbarian = false;
+              defeated++;
+              player.trade.military = Math.min(DEFAULTS.maxTradePerCard, player.trade.military + 1);
+            }
+          });
+          const nk2 = [];
+          neighborsFromKey(key).forEach((nk) => {
+            neighborsFromKey(nk).forEach((nk2key) => {
+              if (!nk2.includes(nk2key) && nk2key !== key) nk2.push(nk2key);
+            });
+          });
+          nk2.forEach((nk) => {
+            const nh = state.map.hexes[nk];
+            if (nh && nh.barbarian && !defeated) {
+              nh.barbarian = false;
+              defeated++;
+              player.trade.military = Math.min(DEFAULTS.maxTradePerCard, player.trade.military + 1);
+            }
+          });
+          if (defeated > 0) logEntry(`${player.name}: Encampment defeated ${defeated} barbarian(s).`);
+          let reinforced = 0;
+          neighborsFromKey(key).forEach((nk) => {
+            const nh = state.map.hexes[nk];
+            if (nh?.control?.ownerId === player.id && !nh.control.fortified && reinforced < 1) {
+              nh.control.fortified = true;
+              reinforced++;
+            }
+          });
+          if (reinforced > 0) logEntry(`${player.name}: Encampment reinforced ${reinforced} token(s).`);
+        }
+
+        if (type === "industrial") {
+          let tokens = 0;
+          neighborsFromKey(key).forEach((nk) => {
+            const nh = state.map.hexes[nk];
+            if (nh && nh.terrain === "forest") tokens++;
+          });
+          tokens = Math.min(tokens, DEFAULTS.maxTradePerCard - player.trade.industry);
+          if (tokens > 0) {
+            player.trade.industry = Math.min(DEFAULTS.maxTradePerCard, player.trade.industry + tokens);
+            logEntry(`${player.name}: Industrial Zone +${tokens} industry trade (adj forests).`);
+          }
+        }
+
+        if (type === "theater") {
+          const hexesWithin2 = getHexesWithinRange(hex, 2);
+          let placed = 0;
+          for (const targetKey of hexesWithin2) {
+            if (placed >= 1) break;
+            const th = state.map.hexes[targetKey];
+            if (!th || th.terrain === "water" || th.city || th.cityState || th.barbarian || th.control) continue;
+            th.control = { ownerId: player.id, fortified: false, district: null };
+            placed++;
+          }
+          if (placed > 0) logEntry(`${player.name}: Theatre Square placed ${placed} control token(s).`);
+        }
+      });
     });
 
     const developedCities = [];
@@ -1466,18 +1865,43 @@
     }
   }
 
+  function getHexesWithinRange(centerHex, range) {
+    const result = [];
+    Object.values(state.map.hexes).forEach((hex) => {
+      if (hexDistance(centerHex, hex) <= range && hex !== centerHex && hex.active) {
+        result.push(keyFrom(hex.q, hex.r));
+      }
+    });
+    return result;
+  }
+
   function resolveGovernmentChange() {
-    logEntry("Government change event — players may adjust government markers.");
+    state.players.forEach((player) => {
+      const slot1Cards = player.focusRow.filter((_, i) => FOCUS_SLOTS[i] === 1);
+      if (slot1Cards.length >= 2) {
+        player.govMarkers = slot1Cards.slice(0, 2);
+        FOCUS_ORDER.forEach((f) => { player.govBonus[f] = 0; });
+        player.govMarkers.forEach((f) => { player.govBonus[f] = (player.govBonus[f] || 0) + 1; });
+        logEntry(`${player.name}: Government set from slot #1 cards: ${player.govMarkers.join(", ")}.`);
+      }
+    });
+    logEntry("Government change event — players selected government from slot #1 focus cards.");
   }
 
   function resolveWonderAging() {
+    state.builtWonders = state.builtWonders || [];
+    const available = WONDERS.filter((w) => !state.builtWonders.includes(w.name));
+    const discounted = state.discountedWonders || [];
+    discounted.forEach((wn) => {
+      const idx = available.findIndex((w) => w.name === wn);
+      if (idx >= 0) available.splice(idx, 1);
+    });
+    state.discountedWonders = available.slice(0, 3).map((w) => w.name);
     let wonderCount = 0;
     Object.values(state.map.hexes).forEach((hex) => {
-      if (hex.city && hex.city.hasWonder) wonderCount++;
+      if (hex.city && hex.city.wonder) wonderCount++;
     });
-    if (wonderCount > 0) {
-      logEntry(`Wonder aging: ${wonderCount} wonder(s) on the map.`);
-    }
+    logEntry(`Wonder aging: ${wonderCount} wonder(s) on map. Discounted wonders refreshed.`);
   }
 
   function checkCityDevelopment(playerId) {
@@ -1495,6 +1919,12 @@
 
   function checkVictoryConditions() {
     for (const player of state.players) {
+      if (player.agenda) {
+        const agendaDef = AGENDA_CARDS.find((a) => a.name === player.agenda);
+        if (agendaDef && agendaDef.check(player, state)) {
+          return { player, type: `Agenda: ${agendaDef.name}` };
+        }
+      }
       for (const [vtype, vdef] of Object.entries(VICTORY_TYPES)) {
         if (vdef.check(player)) {
           return { player, type: vdef.label };
@@ -1529,6 +1959,131 @@
     return score;
   }
 
+  function countFortCities(playerId, st) {
+    let count = 0;
+    Object.values(st.map.hexes).forEach((hex) => {
+      if (hex.fortress && hex.city && hex.city.ownerId === playerId) count++;
+    });
+    return count;
+  }
+
+  function countConqueredCityStates(playerId, st) {
+    return (getPlayer(playerId)?.cityStateTokens || []).length;
+  }
+
+  function countWondersByType(playerId, st, wonderType) {
+    let count = 0;
+    Object.values(st.map.hexes).forEach((hex) => {
+      if (hex.city && hex.city.ownerId === playerId && hex.city.wonder && hex.city.wonder.type === wonderType) count++;
+    });
+    return count;
+  }
+
+  function countReinforcedTokens(playerId, st) {
+    let count = 0;
+    Object.values(st.map.hexes).forEach((hex) => {
+      if (hex.control && hex.control.ownerId === playerId && hex.control.fortified) count++;
+    });
+    return count;
+  }
+
+  function countUniqueDiplomacySources(player) {
+    const sources = new Set();
+    (player.diplomacy || []).forEach((c) => sources.add(c.fromId || c.fromCityState));
+    return sources.size;
+  }
+
+  function totalResources(player) {
+    return Object.values(player.resources).reduce((s, v) => s + v, 0);
+  }
+
+  function countEdgeWaterControl(playerId, st) {
+    let count = 0;
+    Object.values(st.map.hexes).forEach((hex) => {
+      if (!hex.control || hex.control.ownerId !== playerId) return;
+      const isEdge = Math.abs(hex.q) + Math.abs(hex.r) + Math.abs(hex.q + hex.r) >= st.map.radius * 2 - 1;
+      const adjWater = neighbors(hex.q, hex.r).some((nk) => {
+        const nh = st.map.hexes[nk];
+        return nh && nh.terrain === "water";
+      });
+      if (isEdge || adjWater) count++;
+    });
+    return count;
+  }
+
+  function countTier4Cards(player) {
+    return FOCUS_ORDER.filter((f) => (player.cardTiers || {})[f] >= 4).length;
+  }
+
+  function countDistrictTypes(playerId, st) {
+    const types = new Set();
+    Object.values(st.map.hexes).forEach((hex) => {
+      if (hex.control && hex.control.ownerId === playerId && hex.control.district) {
+        types.add(hex.control.district);
+      }
+    });
+    return types.size;
+  }
+
+  function countMatureCityTiles(playerId, st) {
+    const tiles = new Set();
+    Object.values(st.map.hexes).forEach((hex) => {
+      if (hex.city && hex.city.ownerId === playerId && isCityDeveloped(hex)) {
+        tiles.add(`${Math.floor(hex.q / 4)},${Math.floor(hex.r / 4)}`);
+      }
+    });
+    return tiles.size;
+  }
+
+  function countWonderTypeVariety(playerId, st) {
+    const types = new Set();
+    Object.values(st.map.hexes).forEach((hex) => {
+      if (hex.city && hex.city.ownerId === playerId && hex.city.wonder) {
+        types.add(hex.city.wonder.type);
+      }
+    });
+    return types.size;
+  }
+
+  function countNaturalWonders(playerId, st) {
+    let count = 0;
+    Object.values(st.map.hexes).forEach((hex) => {
+      if (hex.control && hex.control.ownerId === playerId && hex.resource === "natural_wonder") count++;
+    });
+    return count;
+  }
+
+  function countCityTiles(playerId, st) {
+    const tiles = new Set();
+    Object.values(st.map.hexes).forEach((hex) => {
+      if (hex.city && hex.city.ownerId === playerId) {
+        tiles.add(`${Math.floor(hex.q / 4)},${Math.floor(hex.r / 4)}`);
+      }
+    });
+    return tiles.size;
+  }
+
+  function maxWondersInSameEra(playerId, st) {
+    const eraCounts = {};
+    Object.values(st.map.hexes).forEach((hex) => {
+      if (hex.city && hex.city.ownerId === playerId && hex.city.wonder) {
+        const era = hex.city.wonder.era;
+        eraCounts[era] = (eraCounts[era] || 0) + 1;
+      }
+    });
+    return Math.max(0, ...Object.values(eraCounts));
+  }
+
+  function countWonderEras(playerId, st) {
+    const eras = new Set();
+    Object.values(st.map.hexes).forEach((hex) => {
+      if (hex.city && hex.city.ownerId === playerId && hex.city.wonder) {
+        eras.add(hex.city.wonder.era);
+      }
+    });
+    return eras.size;
+  }
+
   function countControlMarkers(playerId) {
     let count = 0;
     Object.values(state.map.hexes).forEach((hex) => {
@@ -1540,7 +2095,7 @@
   function countWonders(playerId) {
     let count = 0;
     Object.values(state.map.hexes).forEach((hex) => {
-      if (hex.city && hex.city.ownerId === playerId && hex.city.hasWonder) count++;
+      if (hex.city && hex.city.ownerId === playerId && hex.city.wonder) count++;
     });
     return count;
   }
@@ -1610,6 +2165,9 @@
       const wonders = countWonders(player.id);
       const districts = countDistricts(player.id);
       const resources = Object.values(player.resources).reduce((s, v) => s + v, 0);
+      const dipCount = (player.diplomacy || []).length;
+      const agendaLabel = player.agenda || "None";
+      const tierSummary = FOCUS_ORDER.map((f) => `${f[0].toUpperCase()}${player.cardTiers[f] || 1}`).join(" ");
       card.innerHTML = `
         <div class="player-name"><span class="color-dot" style="--player-color:${player.color}"></span>${player.name}</div>
         <div class="player-meta">
@@ -1627,7 +2185,12 @@
         <div class="player-meta">
           <span>Armies: ${player.armies.length}</span>
           <span>Wagons: ${player.wagons.length}</span>
+          <span>Diplo: ${dipCount}</span>
           <span>Score: ${computeScore(player)}</span>
+        </div>
+        <div class="player-meta dim">
+          <span>Cards: ${tierSummary}</span>
+          <span>Agenda: ${agendaLabel}</span>
         </div>
       `;
       dom.playerList.appendChild(card);
@@ -1653,9 +2216,12 @@
         card.classList.add("disabled");
       }
       const tradeMarkers = "●".repeat(player.trade[cardType]) + "○".repeat(DEFAULTS.maxTradePerCard - player.trade[cardType]);
+      const cardTier = player.cardTiers[cardType] || 1;
+      const tierData = CARD_TIERS[cardType]?.[cardTier] || {};
       card.innerHTML = `
         <div class="focus-slot">${effectiveSlot}${govB > 0 ? `<span class="gov-bonus">+${govB}</span>` : ""}</div>
-        <div class="focus-name">${FOCUS_META[cardType].label}</div>
+        <div class="focus-name">${tierData.name || FOCUS_META[cardType].label}</div>
+        <div class="focus-tier">Tier ${cardTier}</div>
         <div class="focus-trade">${tradeMarkers}</div>
       `;
       card.addEventListener("click", () => {
@@ -1709,8 +2275,8 @@
       if (hex.city) {
         const owner = getPlayer(hex.city.ownerId);
         tokens.push(tokenSpan("city", hex.city.isCapital ? "Cap" : "City", owner?.color));
-        if (hex.city.hasWonder) {
-          tokens.push(tokenSpan("resource", "Wonder"));
+        if (hex.city.wonder) {
+          tokens.push(tokenSpan("resource", hex.city.wonder.name || "Wonder"));
         }
       }
       if (hex.control) {
@@ -1810,6 +2376,29 @@
         ? `Gov: ${player.govMarkers.map((m) => FOCUS_META[m].label).join(", ")}`
         : "Gov: none assigned";
 
+      const upgradeableCards = FOCUS_ORDER.filter((f) => {
+        const ct = player.cardTiers[f] || 1;
+        return ct < player.techTier && ct < 4;
+      });
+      const upgradeHtml = upgradeableCards.length > 0
+        ? `<div class="action-row"><span class="dim">Upgradeable:</span> ${upgradeableCards.map((f) => {
+            const ct = player.cardTiers[f] || 1;
+            const nextTier = CARD_TIERS[f]?.[ct + 1];
+            return `<button class="btn tiny upgrade-card" data-card="${f}">↑ ${FOCUS_META[f].label} → ${nextTier?.name || `T${ct + 1}`}</button>`;
+          }).join(" ")}</div>`
+        : "";
+
+      const diploHtml = (player.diplomacy || []).length > 0
+        ? `<div class="action-row dim">Diplomacy: ${player.diplomacy.map((d) => {
+            const label = d.fromCityState || (getPlayer(d.fromId)?.name || "?");
+            return `${DIPLOMACY_CARDS[d.type]?.name || d.type} (${label})`;
+          }).join(", ")}</div>`
+        : "";
+
+      const agendaHtml = player.agenda
+        ? `<div class="action-row dim">Agenda: ${player.agenda} — ${AGENDA_CARDS.find((a) => a.name === player.agenda)?.description || ""}</div>`
+        : "";
+
       dom.actionPanel.innerHTML = `
         <div class="action-card">
           ${eventInfo}
@@ -1821,6 +2410,9 @@
               ${Object.entries(player.resources).filter(([, v]) => v > 0).map(([k, v]) => `<span class="resource-badge">${k}: ${v}</span>`).join(" ") || "<span class='dim'>No resources</span>"}
             </div>
             <div class="action-row"><span class="dim">${govDisplay}</span><button class="btn tiny" id="assign-gov">Assign Gov</button></div>
+            ${upgradeHtml}
+            ${diploHtml}
+            ${agendaHtml}
             <button class="btn" id="end-turn">End Turn</button>
           ` : ""}
         </div>
@@ -1834,6 +2426,12 @@
         if (rwBtn) rwBtn.addEventListener("click", () => dispatch({ type: "RECRUIT_WAGON", payload: { playerId: player.id } }));
         const govBtn = document.getElementById("assign-gov");
         if (govBtn) govBtn.addEventListener("click", () => showGovPicker(player));
+        document.querySelectorAll(".upgrade-card").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            dispatch({ type: "UPGRADE_CARD", payload: { playerId: player.id, cardType: btn.dataset.card } });
+            renderAll();
+          });
+        });
       }
       return;
     }
@@ -1858,28 +2456,38 @@
       </div>
     `);
 
+    const tier = player.cardTiers[card.type] || 1;
+    const tierData = CARD_TIERS[card.type]?.[tier] || {};
+    const tierLabel = `${tierData.name || card.type} (Tier ${tier})`;
+
     if (card.type === "culture") {
-      lines.push(`<div class="action-row">Place <strong>${slot + spend}</strong> control markers (terrain ≤ ${slot}).</div>`);
+      const n = (CARD_TIERS.culture[tier]?.n || 2) + spend;
+      lines.push(`<div class="action-row">${tierLabel}: Place <strong>${n}</strong> control markers (terrain ≤ ${slot}).</div>`);
     }
     if (card.type === "growth") {
-      lines.push(`<div class="action-row">Place <strong>1</strong> district OR reinforce <strong>${slot}</strong> markers.</div>`);
+      lines.push(`<div class="action-row">${tierLabel}: Place <strong>1</strong> district OR reinforce markers.</div>`);
       if (spend > 0) lines.push(`<div class="action-row dim">+${spend} extra from trade.</div>`);
     }
     if (card.type === "science") {
-      lines.push(`<div class="action-row">Advance tech by <strong>${slot + spend}</strong>. Current: ${player.tech}/${TECH_WHEEL_SIZE} (Tier ${player.techTier || 1})</div>`);
+      lines.push(`<div class="action-row">${tierLabel}: Advance tech by <strong>${slot + spend}</strong>. Current: ${player.tech}/${TECH_WHEEL_SIZE} (Tier ${player.techTier || 1})</div>`);
+      if (tier >= 2) lines.push(`<div class="action-row dim">+1 trade token (Mathematics)</div>`);
+      if (tier >= 3) lines.push(`<div class="action-row dim">+1 missing resource (Replaceable Parts)</div>`);
     }
     if (card.type === "economy") {
-      lines.push(`<div class="action-row">Move wagons up to <strong>${DEFAULTS.baseWagonMove + spend}</strong> hexes.</div>`);
-      lines.push(`<div class="action-row dim">Wagons trade at city-states and foreign cities.</div>`);
+      const econTier = CARD_TIERS.economy[tier] || {};
+      lines.push(`<div class="action-row">${tierLabel}: Move <strong>${econTier.caravans || 1}</strong> caravan(s) up to <strong>${(econTier.move || 3) + spend}</strong> hexes.</div>`);
+      lines.push(`<div class="action-row dim">Caravans trade at city-states (+2 trade + diplomacy) and foreign cities (+2 economy trade).</div>`);
+      if (tier >= 3) lines.push(`<div class="action-row dim">Can move through water.</div>`);
     }
     if (card.type === "industry") {
+      const indTier = CARD_TIERS.industry[tier] || {};
       const production = slot + spend;
-      lines.push(`<div class="action-row">Production power: <strong>${production}</strong>. Build city (cost = terrain) or wonder (cost = 6).</div>`);
-      lines.push(`<div class="action-row dim">Resources give +${DEFAULTS.resourceProductionValue} each.</div>`);
+      lines.push(`<div class="action-row">${tierLabel}: Production <strong>${production}</strong>. City range: ${indTier.cityRange || 2}. Resources: +${DEFAULTS.resourceProductionValue} each.</div>`);
     }
     if (card.type === "military") {
-      const moveRange = DEFAULTS.baseArmyMove + slot - 1;
-      lines.push(`<div class="action-row">Move armies up to <strong>${moveRange}</strong>. Combat: roll d6 + ${slot + spend}.</div>`);
+      const milTier = CARD_TIERS.military[tier] || {};
+      lines.push(`<div class="action-row">${tierLabel}: Move <strong>${milTier.armies || 1}</strong> army/armies up to <strong>${milTier.move || 3}</strong>. Combat: d6 + ${slot + spend} + tier bonus (${milTier.combatBonus || 0}).</div>`);
+      if (tier >= 3) lines.push(`<div class="action-row dim">Can move through water.</div>`);
     }
     if (card.type === "economy" || card.type === "military") {
       lines.push(`<div class="action-row"><button class="btn tiny" id="action-explore">Explore Map Edge</button></div>`);
@@ -2011,11 +2619,15 @@
   function startCardAction(player, cardType, index) {
     const slot = FOCUS_SLOTS[index];
     const bonus = player.govBonus[cardType] || 0;
+    const tier = player.cardTiers[cardType] || 1;
+    const tierData = CARD_TIERS[cardType]?.[tier] || {};
     ui.activeCard = {
       type: cardType,
       slotIndex: index,
       slot,
       effectiveSlot: Math.min(5, slot + bonus),
+      tier,
+      tierData,
       tradeSpent: 0
     };
     ui.mode = "inspect";
@@ -2046,9 +2658,10 @@
 
     if (card.type === "culture") {
       ui.mode = "place-control";
-      ui.remaining = 2 + card.tradeSpent;
+      const cultureTier = CARD_TIERS.culture[card.tier] || {};
+      ui.remaining = (cultureTier.n || 2) + card.tradeSpent;
       ui.selectable = new Set(validControlPlacements(player.id, card.effectiveSlot));
-      logEntry(`${player.name} is placing control markers.`);
+      logEntry(`${player.name} is placing ${ui.remaining} control markers (${cultureTier.name || "Culture"}).`);
     } else if (card.type === "growth") {
       ui.mode = "growth-choice";
       ui.remaining = card.effectiveSlot;
@@ -2099,23 +2712,49 @@
     } else if (card.type === "science") {
       const amount = card.effectiveSlot + card.tradeSpent;
       dispatch({ type: "ADVANCE_TECH", payload: { playerId: player.id, amount } });
+      const sciTier = CARD_TIERS.science[card.tier] || {};
+      if (sciTier.effects.includes("bonusTrade")) {
+        const tradeType = player.focusRow[player.focusRow.length - 1];
+        dispatch({ type: "ADD_TRADE", payload: { playerId: player.id, cardType: tradeType, amount: 1 } });
+        logEntry(`${player.name} gained +1 trade token (${tradeType}) from Mathematics.`);
+      }
+      if (sciTier.effects.includes("bonusResource")) {
+        const missing = RESOURCE_TYPES.find((r) => player.resources[r] === 0);
+        if (missing) {
+          player.resources[missing] = (player.resources[missing] || 0) + 1;
+          logEntry(`${player.name} gained 1 ${missing} from Replaceable Parts.`);
+        }
+      }
       finishCardAction();
       return;
     } else if (card.type === "economy") {
       ui.mode = "move-wagon";
-      ui.remaining = DEFAULTS.baseWagonMove + card.tradeSpent;
+      const econTier = CARD_TIERS.economy[card.tier] || {};
+      ui.remaining = (econTier.move || 3) + card.tradeSpent;
+      ui.maxCaravans = econTier.caravans || 1;
+      ui.caravansUsed = 0;
       ui.selectedUnit = null;
       ui.selectable.clear();
-      logEntry(`${player.name} is moving wagons.`);
+      logEntry(`${player.name} is moving caravans (${econTier.name || "Economy"}, range ${ui.remaining}, ${ui.maxCaravans} caravan(s)).`);
     } else if (card.type === "industry") {
       ui.mode = "industry-choice";
       ui.spentResources = ui.spentResources || {};
+      const indTier = CARD_TIERS.industry[card.tier] || {};
+      const cityRange = indTier.cityRange || 2;
       const showIndustry = () => {
-        const baseProd = card.effectiveSlot + card.tradeSpent;
+        let baseProd = card.effectiveSlot + card.tradeSpent;
+        if (indTier.wonderProdOverride && card.effectiveSlot === 5) {
+          baseProd = indTier.wonderProdOverride + card.tradeSpent;
+        }
         const resEntries = Object.entries(player.resources).filter(([, v]) => v > 0);
         let spentBonus = 0;
         Object.values(ui.spentResources).forEach((v) => { if (v) spentBonus += DEFAULTS.resourceProductionValue; });
         const totalProd = baseProd + spentBonus;
+        ui.industryTotalProd = totalProd;
+
+        const builtNames = state.builtWonders || [];
+        const availableWonders = WONDERS.filter((w) => !builtNames.includes(w.name) && w.cost <= totalProd);
+        const discounted = state.discountedWonders || [];
 
         const resToggleHtml = resEntries.length > 0
           ? resEntries.map(([k, v]) => {
@@ -2124,13 +2763,20 @@
           }).join(" ")
           : "<span class='dim'>No resources available</span>";
 
+        const wonderListHtml = availableWonders.length > 0
+          ? availableWonders.map((w) => {
+            const disc = discounted.includes(w.name) ? " (discounted)" : "";
+            return `<button class="btn tiny wonder-pick" data-wonder="${w.name}">${w.name} [${w.era}/${w.type}] Cost:${w.cost}${disc}</button>`;
+          }).join("<br>")
+          : "<span class='dim'>No affordable wonders</span>";
+
         dom.actionPanel.innerHTML = `
           <div class="action-card">
-            <div class="action-title">Industry (Production: ${totalProd})</div>
-            <div class="action-row dim">Base ${baseProd} + ${spentBonus} from spent resources</div>
+            <div class="action-title">${indTier.name || "Industry"} (Production: ${totalProd})</div>
+            <div class="action-row dim">Base ${baseProd} + ${spentBonus} from resources. City range: ${cityRange} hexes.</div>
             <div class="action-row resource-row">${resToggleHtml}</div>
-            <div class="action-row"><button class="btn" id="industry-city">Build City (cost = terrain difficulty)</button></div>
-            <div class="action-row"><button class="btn" id="industry-wonder">Build Wonder (cost = 6)</button></div>
+            <div class="action-row"><button class="btn" id="industry-city">Build City (cost = terrain, range ${cityRange})</button></div>
+            <div class="action-row"><div class="action-title">Build Wonder:</div>${wonderListHtml}</div>
             <div class="action-row"><button class="btn ghost" id="industry-back">Back</button></div>
           </div>
         `;
@@ -2144,20 +2790,25 @@
         document.getElementById("industry-city").addEventListener("click", () => {
           spendSelectedResources(player);
           ui.mode = "build-city";
-          ui.selectable = new Set(validCityPlacements(player.id, totalProd));
+          ui.selectable = new Set(validCityPlacements(player.id, totalProd, cityRange));
           renderActions();
           renderMap();
         });
-        document.getElementById("industry-wonder").addEventListener("click", () => {
-          if (totalProd < 6) {
-            logEntry("Not enough production to build a wonder (need 6).");
-            return;
-          }
-          spendSelectedResources(player);
-          ui.mode = "build-wonder";
-          ui.selectable = new Set(validWonderPlacements(player.id));
-          renderActions();
-          renderMap();
+        document.querySelectorAll(".wonder-pick").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const wonderName = btn.dataset.wonder;
+            const wonderDef = WONDERS.find((w) => w.name === wonderName);
+            if (!wonderDef || totalProd < wonderDef.cost) {
+              logEntry(`Not enough production to build ${wonderName} (need ${wonderDef?.cost}).`);
+              return;
+            }
+            spendSelectedResources(player);
+            ui.selectedWonder = wonderDef;
+            ui.mode = "build-wonder";
+            ui.selectable = new Set(validWonderPlacements(player.id));
+            renderActions();
+            renderMap();
+          });
         });
         document.getElementById("industry-back").addEventListener("click", () => {
           ui.spentResources = {};
@@ -2171,10 +2822,13 @@
       return;
     } else if (card.type === "military") {
       ui.mode = "move-army";
-      ui.remaining = DEFAULTS.baseArmyMove + card.effectiveSlot - 1;
+      const milTier = CARD_TIERS.military[card.tier] || {};
+      ui.remaining = (milTier.move || 3);
+      ui.maxArmies = milTier.armies || 1;
+      ui.armiesUsed = 0;
       ui.selectedUnit = null;
       ui.selectable.clear();
-      logEntry(`${player.name} is moving armies.`);
+      logEntry(`${player.name} is moving armies (${milTier.name || "Military"}, range ${ui.remaining}, ${ui.maxArmies} army/armies).`);
     }
 
     renderActions();
@@ -2291,7 +2945,8 @@
 
     if (ui.mode === "build-wonder") {
       if (!ui.selectable.has(key)) return;
-      dispatch({ type: "BUILD_WONDER", payload: { playerId: player.id, key } });
+      dispatch({ type: "BUILD_WONDER", payload: { playerId: player.id, key, wonder: ui.selectedWonder || null } });
+      ui.selectedWonder = null;
       finishCardAction();
       return;
     }
@@ -2378,7 +3033,7 @@
     }
     if (hex.city) {
       const owner = getPlayer(hex.city.ownerId);
-      lines.push(`<div class="action-row"><span class="label">${hex.city.isCapital ? "Capital" : "City"}</span><span>${owner?.name || "?"} ${hex.city.developed ? "(Developed)" : ""} ${hex.city.hasWonder ? "(Wonder)" : ""}</span></div>`);
+      lines.push(`<div class="action-row"><span class="label">${hex.city.isCapital ? "Capital" : "City"}</span><span>${owner?.name || "?"} ${hex.city.developed ? "(Developed)" : ""} ${hex.city.wonder ? `(${hex.city.wonder.name})` : ""}</span></div>`);
     }
     if (hex.control) {
       const owner = getPlayer(hex.control.ownerId);
@@ -2454,9 +3109,38 @@
       const hex = state.map.hexes[key];
       if (hex.cityState) {
         dispatch({ type: "ADD_TRADE", payload: { playerId: player.id, cardType: hex.cityState.type, amount: 2 } });
+        if (hex.cityState.diplomacyCards > 0) {
+          hex.cityState.diplomacyCards -= 1;
+          const csData = CITY_STATE_DATA[hex.cityState.name];
+          dispatch({
+            type: "ADD_DIPLOMACY",
+            payload: {
+              playerId: player.id,
+              cardType: "city_state",
+              fromCityState: hex.cityState.name
+            }
+          });
+          logEntry(`${player.name} traded with ${hex.cityState.name} — gained diplomacy card.`);
+        }
         dispatch({ type: "MOVE_UNIT", payload: { playerId: player.id, unitType: type, unitId: unit.id, to: null } });
       } else if (hex.city && hex.city.ownerId !== player.id) {
         dispatch({ type: "ADD_TRADE", payload: { playerId: player.id, cardType: "economy", amount: 2 } });
+        const rivalPlayer = getPlayer(hex.city.ownerId);
+        if (rivalPlayer) {
+          const availableCards = Object.keys(DIPLOMACY_CARDS).filter((ct) => {
+            return !player.diplomacy.some((d) => d.type === ct && d.fromId === rivalPlayer.id);
+          });
+          if (availableCards.length > 0) {
+            dispatch({
+              type: "ADD_DIPLOMACY",
+              payload: {
+                playerId: player.id,
+                cardType: availableCards[0],
+                fromPlayerId: rivalPlayer.id
+              }
+            });
+          }
+        }
         dispatch({ type: "MOVE_UNIT", payload: { playerId: player.id, unitType: type, unitId: unit.id, to: null } });
       }
     }
@@ -2482,17 +3166,17 @@
     const hex = state.map.hexes[key];
     if (!hex) return 0;
     if (defender.type === "barbarian") return terrainDifficulty(hex.terrain);
-    if (defender.type === "citystate") return 8;
-    if (defender.type === "control") return terrainDifficulty(hex.terrain) + fortifiedBonus(key);
-    if (defender.type === "city") return terrainDifficulty(hex.terrain) * 2 + fortifiedBonus(key);
+    if (defender.type === "citystate") return DEFAULTS.cityStateDefense;
+    if (defender.type === "control") return terrainDifficulty(hex.terrain) + fortifiedBonus(key, hex.control?.ownerId);
+    if (defender.type === "city") return terrainDifficulty(hex.terrain) * 2 + fortifiedBonus(key, hex.city?.ownerId);
     return terrainDifficulty(hex.terrain);
   }
 
-  function fortifiedBonus(key) {
+  function fortifiedBonus(key, ownerId) {
     let bonus = 0;
     neighborsFromKey(key).forEach((neighborKey) => {
       const neighbor = state.map.hexes[neighborKey];
-      if (neighbor?.control?.fortified) bonus += 1;
+      if (neighbor?.control?.fortified && (!ownerId || neighbor.control.ownerId === ownerId)) bonus += 1;
     });
     return bonus;
   }
@@ -2524,7 +3208,8 @@
       .map((hex) => keyFrom(hex.q, hex.r));
   }
 
-  function validCityPlacements(playerId, maxTerrain) {
+  function validCityPlacements(playerId, maxTerrain, range) {
+    const cityRange = range || 2;
     return Object.values(state.map.hexes)
       .filter((hex) => {
         if (!hex.active) return false;
@@ -2533,14 +3218,14 @@
         if (terrainDifficulty(hex.terrain) > maxTerrain) return false;
         if (hex.city || hex.cityState || hex.barbarian || hex.fortress) return false;
         if (adjacentToCity(hex)) return false;
-        return isWithinRangeOfFriendly(hex, playerId, 2);
+        return isWithinRangeOfFriendly(hex, playerId, cityRange);
       })
       .map((hex) => keyFrom(hex.q, hex.r));
   }
 
   function validWonderPlacements(playerId) {
     return Object.values(state.map.hexes)
-      .filter((hex) => hex.city && hex.city.ownerId === playerId && !hex.city.hasWonder)
+      .filter((hex) => hex.city && hex.city.ownerId === playerId && !hex.city.wonder)
       .map((hex) => keyFrom(hex.q, hex.r));
   }
 
@@ -2709,14 +3394,14 @@
       if (hex.city) {
         changes.city = null;
       } else {
-        changes.city = { ownerId: owner, isCapital: false, developed: false, hasWonder: false };
+        changes.city = { ownerId: owner, isCapital: false, developed: false, wonder: null };
       }
     }
     if (mode === "capital") {
       if (hex.city && hex.city.isCapital) {
         changes.city = null;
       } else {
-        changes.city = { ownerId: owner, isCapital: true, developed: false, hasWonder: false };
+        changes.city = { ownerId: owner, isCapital: true, developed: false, wonder: null };
       }
     }
     if (mode === "army") {
