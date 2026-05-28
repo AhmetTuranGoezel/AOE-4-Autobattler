@@ -2559,22 +2559,24 @@
         const owner = getPlayer(hex.city.ownerId);
         tokens.push(tokenSpan("city", hex.city.isCapital ? "Cap" : "City", owner?.color));
         if (hex.city.wonder) {
-          tokens.push(tokenSpan("resource", hex.city.wonder.name || "Wonder"));
+          tokens.push(tokenSpan("wonder", hex.city.wonder.name || "Wonder"));
         }
       }
       if (hex.control) {
         const owner = getPlayer(hex.control.ownerId);
-        const label = hex.control.district ? hex.control.district.slice(0, 3) : "Ctrl";
-        tokens.push(tokenSpan(hex.control.district ? "district" : "control", label, owner?.color));
         if (hex.control.fortified) {
-          tokens.push(tokenSpan("control", "Fort", owner?.color));
+          tokens.push(tokenSpan("control", "Reinforced" + (hex.control.district ? ` (${hex.control.district})` : ""), owner?.color));
+        } else if (hex.control.district) {
+          tokens.push(tokenSpan("district", hex.control.district, owner?.color));
+        } else {
+          tokens.push(tokenSpan("control", "Control", owner?.color));
         }
       }
       if (hex.cityState) {
-        tokens.push(tokenSpan("citystate", "CS"));
+        tokens.push(tokenSpan("citystate", hex.cityState.name || "City-State"));
       }
       if (hex.barbarian) {
-        tokens.push(tokenSpan("barbarian", "Barb"));
+        tokens.push(tokenSpan("barbarian", "Barbarian"));
       }
       if (hex.resource) {
         tokens.push(tokenSpan("resource", hex.resource.slice(0, 3)));
@@ -4191,9 +4193,34 @@
     commitState();
   }
 
+  const TOKEN_ICONS = {
+    city: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 21V7l5-4 5 4v2h8v12H3zm2-2h2v-2H5v2zm0-4h2v-2H5v2zm0-4h2V9H5v2zm5 8h2v-2h-2v2zm0-4h2v-2h-2v2zm0-4h2V9h-2v2zm6 8h2v-2h-2v2zm0-4h2v-2h-2v2z"/></svg>`,
+    capital: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3 6h6l-5 4 2 7-6-4-6 4 2-7-5-4h6z"/></svg>`,
+    control: `<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="8"/></svg>`,
+    fortified: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L3 7v6c0 5.5 3.8 10.7 9 12 5.2-1.3 9-6.5 9-12V7l-9-5z"/></svg>`,
+    district: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>`,
+    army: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l-2 4H4l2 4-2 4h6l2 4 2-4h6l-2-4 2-4h-6z"/></svg>`,
+    wagon: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 8h-3V4H3C2 4 1 5 1 6v11h2c0 1.7 1.3 3 3 3s3-1.3 3-3h6c0 1.7 1.3 3 3 3s3-1.3 3-3h2v-5l-3-4zM6 18.5c-.8 0-1.5-.7-1.5-1.5s.7-1.5 1.5-1.5 1.5.7 1.5 1.5-.7 1.5-1.5 1.5zm13.5-9l1.96 2.5H17V9.5h2.5zm-1.5 9c-.8 0-1.5-.7-1.5-1.5s.7-1.5 1.5-1.5 1.5.7 1.5 1.5-.7 1.5-1.5 1.5z"/></svg>`,
+    barbarian: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-1 15l-5-5 1.4-1.4L11 14.2l7.6-7.6L20 8l-9 9z" transform="rotate(45 12 12)"/><path d="M5 5l14 14M5 19L19 5" stroke="currentColor" stroke-width="2.5" fill="none"/></svg>`,
+    citystate: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 7V3H2v18h20V7H12zM6 19H4v-2h2v2zm0-4H4v-2h2v2zm0-4H4V9h2v2zm0-4H4V5h2v2zm4 12H8v-2h2v2zm0-4H8v-2h2v2zm0-4H8V9h2v2zm0-4H8V5h2v2zm10 12h-8v-2h2v-2h-2v-2h2v-2h-2V9h8v10zm-2-8h-2v2h2v-2zm0 4h-2v2h2v-2z"/></svg>`,
+    resource: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L4.5 20.3l.7.7L12 18l6.8 3 .7-.7z"/></svg>`,
+    fortress: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 8V4h-3v2h-2V4h-4v2H10V4H6v4H4v14h16V8h-3zm-9-2h0zm0 0h0zM6 8h3v2H6V8zm0 4h3v2H6v-2zm0 6v-2h3v2H6zm9 0h-3v-2h3v2zm0-4h-3v-2h3v2zm0-4h-3V8h3v2zm3 8h-1v-2h1v2zm0-4h-1v-2h1v2zm0-4h-1V8h1v2z"/></svg>`,
+    wonder: `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M1 21h22L12 2 1 21zm3.5-2L12 5.5 19.5 19H4.5z"/><path d="M11 15h2v2h-2zm0-6h2v5h-2z"/></svg>`
+  };
+
   function tokenSpan(type, label, color) {
     const style = color ? ` style="--player-color:${color}"` : "";
-    return `<span class="token ${type}"${style}>${label}</span>`;
+    let iconKey = type;
+    let cssClass = type;
+    if (type === "city" && label === "Cap") iconKey = "capital";
+    if (type === "city" && label !== "Cap") iconKey = "city";
+    if (type === "control" && label && label.startsWith("Reinforced")) {
+      iconKey = "fortified";
+      cssClass = "control fortified";
+    }
+    const svg = TOKEN_ICONS[iconKey] || TOKEN_ICONS[type] || "";
+    const tooltip = label || type;
+    return `<span class="token ${cssClass}" title="${tooltip}"${style}>${svg}</span>`;
   }
 
   function keyFrom(q, r) {
