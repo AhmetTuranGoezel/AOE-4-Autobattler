@@ -1300,7 +1300,20 @@
         player.focusRow.unshift(payload.cardType);
       }
       if (payload.tradeSpent) {
-        player.trade[payload.cardType] = Math.max(0, player.trade[payload.cardType] - payload.tradeSpent);
+        let remaining = payload.tradeSpent;
+        const fromTrade = Math.min(remaining, player.trade[payload.cardType]);
+        player.trade[payload.cardType] = Math.max(0, player.trade[payload.cardType] - fromTrade);
+        remaining -= fromTrade;
+        if (remaining > 0) {
+          for (const r of RESOURCE_TYPES) {
+            if (remaining <= 0) break;
+            if (player.resources[r] > 0) {
+              player.resources[r] -= 1;
+              remaining -= 1;
+              logEntry(`Palenque: spent 1 ${r} as trade.`);
+            }
+          }
+        }
       }
       const csTokens = player.cityStateTokens || [];
       csTokens.forEach((csName) => {
@@ -1666,6 +1679,18 @@
         return false;
       });
     }
+    if (csTokens.includes("Geneva") && player.diplomacy.length > 0) {
+      const oldCard = player.diplomacy[0];
+      const fromId = oldCard.fromId;
+      if (fromId) {
+        const available = Object.keys(DIPLOMACY_CARDS).filter((ct) => ct !== oldCard.type);
+        if (available.length > 0) {
+          player.diplomacy.splice(0, 1);
+          player.diplomacy.push({ type: available[0], fromId, fromCityState: null });
+          logEntry(`Geneva: swapped ${oldCard.type} diplomacy card for ${available[0]}.`);
+        }
+      }
+    }
   }
 
   function getPlayerWonders(playerId) {
@@ -1824,9 +1849,8 @@
 
     if (payload.defender.type === "barbarian") {
       hex.barbarian = false;
-      const tradeType = attacker.focusRow[attacker.focusRow.length - 1];
-      attacker.trade[tradeType] = Math.min(DEFAULTS.maxTradePerCard, attacker.trade[tradeType] + 1);
-      logEntry(`${attacker.name} gained 1 trade token (${tradeType}) from defeating barbarian.`);
+      state.pendingBarbReward = { playerId: payload.attackerId };
+      logEntry(`${attacker.name} defeated a barbarian! Choose a focus card for +1 trade.`);
     }
 
     if (payload.defender.type === "control") {
@@ -2019,15 +2043,13 @@
     }
   }
 
-  function resolveDistrictEvents() {
-    state.players.forEach((player) => {
-      const districts = [];
-      Object.values(state.map.hexes).forEach((hex) => {
-        if (!hex.control || hex.control.ownerId !== player.id || !hex.control.district) return;
-        districts.push({ hex, type: hex.control.district, key: keyFrom(hex.q, hex.r) });
-      });
-
-      districts.forEach(({ hex, type, key }) => {
+  function resolvePlayerDistricts(player) {
+    const districts = [];
+    Object.values(state.map.hexes).forEach((hex) => {
+      if (!hex.control || hex.control.ownerId !== player.id || !hex.control.district) return;
+      districts.push({ hex, type: hex.control.district, key: keyFrom(hex.q, hex.r) });
+    });
+    districts.forEach(({ hex, type, key }) => {
         if (type === "campus") {
           let tokens = 0;
           neighborsFromKey(key).forEach((nk) => {
@@ -2130,6 +2152,11 @@
           if (placed > 0) logEntry(`${player.name}: Theatre Square placed ${placed} control token(s).`);
         }
       });
+  }
+
+  function resolveDistrictEvents() {
+    state.players.forEach((player) => {
+      resolvePlayerDistricts(player);
     });
 
     const developedCities = [];
@@ -2643,6 +2670,29 @@
       return;
     }
 
+    if (state.pendingBarbReward && state.pendingBarbReward.playerId === localPlayerId) {
+      dom.actionPanel.innerHTML = `
+        <div class="action-card">
+          <div class="action-title">Barbarian Defeated! Choose a focus card for +1 trade:</div>
+          ${FOCUS_ORDER.map((f) => {
+            const current = player.trade[f] || 0;
+            return `<div class="action-row"><button class="btn barb-reward-pick" data-type="${f}">${FOCUS_META[f].label} (${current}/${DEFAULTS.maxTradePerCard})</button></div>`;
+          }).join("")}
+        </div>
+      `;
+      document.querySelectorAll(".barb-reward-pick").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const cardType = btn.dataset.type;
+          dispatch({ type: "ADD_TRADE", payload: { playerId: player.id, cardType, amount: 1 } });
+          logEntry(`${player.name} placed barbarian reward trade on ${cardType}.`);
+          state.pendingBarbReward = null;
+          renderActions();
+          renderMap();
+        });
+      });
+      return;
+    }
+
     const eventInfo = state.eventWheel
       ? `<div class="event-info"><span class="label">Next Event:</span> ${formatEventName(state.eventWheel.events[(state.eventWheel.position + 1) % state.eventWheel.events.length])}</div>`
       : "";
@@ -2661,9 +2711,11 @@
         ? `Gov: ${player.govMarkers.map((m) => FOCUS_META[m].label).join(", ")}`
         : "Gov: none assigned";
 
+      const hasOxford = getPlayerWonders(player.id).some((w) => w.name === "Oxford University");
       const upgradeableCards = FOCUS_ORDER.filter((f) => {
         const ct = player.cardTiers[f] || 1;
-        return ct < player.techTier && ct < 4;
+        if (ct >= 4) return false;
+        return hasOxford || ct < player.techTier;
       });
       const upgradeHtml = upgradeableCards.length > 0
         ? `<div class="action-row"><span class="dim">Upgradeable:</span> ${upgradeableCards.map((f) => {
@@ -2905,6 +2957,45 @@
     const slot = FOCUS_SLOTS[index];
     let bonus = player.govBonus[cardType] || 0;
     const wonders = getPlayerWonders(player.id);
+    const hasEstadio = wonders.some((w) => w.name === "Estádio Do Maracanã");
+    if (hasEstadio && cardType !== "economy" && !ui.estadioDone) {
+      ui.estadioDone = true;
+      ui.estadioPendingCard = { cardType, index };
+      ui.mode = "estadio-choice";
+      dom.actionPanel.innerHTML = `
+        <div class="action-card">
+          <div class="action-title">Estádio Do Maracanã</div>
+          <div class="action-row">Resolve economy card first (as slot #1)?</div>
+          <div class="action-row">
+            <button class="btn primary" id="estadio-yes">Yes, resolve economy first</button>
+            <button class="btn ghost" id="estadio-no">No, skip</button>
+          </div>
+        </div>
+      `;
+      document.getElementById("estadio-yes")?.addEventListener("click", () => {
+        const econTier = player.cardTiers.economy || 1;
+        const econTierData = CARD_TIERS.economy?.[econTier] || {};
+        ui.activeCard = {
+          type: "economy",
+          slotIndex: 0,
+          slot: 1,
+          effectiveSlot: 1,
+          tier: econTier,
+          tierData: econTierData,
+          tradeSpent: 0,
+          isResolveExtra: true
+        };
+        ui.mode = "inspect";
+        ui.tradeLocked = true;
+        startActionPhase();
+      });
+      document.getElementById("estadio-no")?.addEventListener("click", () => {
+        const pending = ui.estadioPendingCard;
+        ui.estadioPendingCard = null;
+        startCardAction(player, pending.cardType, pending.index);
+      });
+      return;
+    }
     wonders.forEach((w) => {
       if (w.name === "Taj Mahal") {
         const matchCount = wonders.filter((ow) => ow.type === cardType || FOCUS_META[cardType]?.wonderType === ow.type).length;
@@ -2928,6 +3019,7 @@
     ui.mode = "inspect";
     ui.selectable.clear();
     ui.tradeLocked = false;
+    ui.estadioPendingCard = null;
     renderActions();
     renderMap();
   }
@@ -2937,7 +3029,12 @@
     const player = getPlayer(localPlayerId);
     if (!player) return;
     const cardType = ui.activeCard.type;
-    const maxSpend = player.trade[cardType];
+    let maxSpend = player.trade[cardType];
+    const hasPalenque = (player.cityStateTokens || []).includes("Palenque");
+    if (hasPalenque) {
+      const totalRes = RESOURCE_TYPES.reduce((s, r) => s + (player.resources[r] || 0), 0);
+      maxSpend += Math.min(3, totalRes);
+    }
     const current = ui.activeCard.tradeSpent || 0;
     const next = Math.max(0, Math.min(maxSpend, current + delta));
     ui.activeCard.tradeSpent = next;
@@ -3254,6 +3351,18 @@
       return;
     }
 
+    if (ui.estadioPendingCard) {
+      const pending = ui.estadioPendingCard;
+      ui.estadioPendingCard = null;
+      ui.activeCard = null;
+      ui.mode = "inspect";
+      ui.selectable.clear();
+      ui.selectedUnit = null;
+      ui.tradeLocked = false;
+      startCardAction(player, pending.cardType, pending.index);
+      return;
+    }
+
     ui.activeCard = null;
     ui.mode = "inspect";
     ui.selectable.clear();
@@ -3404,6 +3513,11 @@
       if (!ui.selectable.has(key)) return;
       dispatch({ type: "PLACE_DISTRICT", payload: { playerId: player.id, key, district: ui.districtType || "campus" } });
       const growthEffects = (ui.activeCard?.tierData || {}).effects || [];
+      if (growthEffects.includes("globalDistrict") && !ui.globalDistrictDone) {
+        ui.globalDistrictDone = true;
+        resolvePlayerDistricts(player);
+        logEntry("Globalization: triggered all district effects.");
+      }
       if (growthEffects.includes("controlNearDistrict") && !ui.growthControlDone) {
         ui.growthControlDone = true;
         const targets = validControlNearDistricts(player.id);
@@ -3513,6 +3627,10 @@
       return;
     }
 
+    if (ui.mode === "pre-combat" || ui.mode === "exchange-resource") {
+      return;
+    }
+
     if (ui.mode === "move-army") {
       handleMoveUnit("army", player, key);
       return;
@@ -3535,6 +3653,74 @@
       }
     });
     ui.spentResources = {};
+  }
+
+  function showPreCombatUI() {
+    const data = ui.combatData;
+    if (!data) return;
+    const player = getPlayer(data.attackerId);
+    const defLabel = data.defender.type === "barbarian" ? "Barbarian" :
+      data.defender.type === "citystate" ? "City-State" :
+      data.defender.type === "city" ? "City" :
+      data.defender.type === "control" ? "Control Token" : "Enemy";
+    const renderCombat = () => {
+      const spent = data.combatTradeSpent;
+      const total = data.attackPower + spent;
+      dom.actionPanel.innerHTML = `
+        <div class="action-card">
+          <div class="action-title">Combat: vs ${defLabel}</div>
+          <div class="action-row dim">Base attack: ${data.attackPower} | Defense: ${data.defensePower}</div>
+          <div class="action-row">
+            <span>Spend military trade for +1 each: <strong>${spent}</strong> / ${data.maxCombatTrade}</span>
+          </div>
+          <div class="action-row">
+            <button class="btn tiny" id="combat-trade-minus">-</button>
+            <button class="btn tiny" id="combat-trade-plus">+</button>
+          </div>
+          <div class="action-row dim">Total attack power: <strong>${total}</strong></div>
+          <div class="action-row">
+            <button class="btn primary" id="combat-confirm">Fight!</button>
+            <button class="btn ghost" id="combat-cancel">Cancel</button>
+          </div>
+        </div>
+      `;
+      document.getElementById("combat-trade-minus")?.addEventListener("click", () => {
+        data.combatTradeSpent = Math.max(0, data.combatTradeSpent - 1);
+        renderCombat();
+      });
+      document.getElementById("combat-trade-plus")?.addEventListener("click", () => {
+        data.combatTradeSpent = Math.min(data.maxCombatTrade, data.combatTradeSpent + 1);
+        renderCombat();
+      });
+      document.getElementById("combat-confirm")?.addEventListener("click", () => {
+        if (player) {
+          player.trade.military = Math.max(0, player.trade.military - data.combatTradeSpent);
+        }
+        dispatch({
+          type: "ATTACK",
+          payload: {
+            attackerId: data.attackerId,
+            attackerUnitId: data.attackerUnitId,
+            key: data.key,
+            attackPower: data.attackPower,
+            defensePower: data.defensePower,
+            defender: data.defender,
+            combatTradeSpent: data.combatTradeSpent
+          }
+        });
+        ui.combatData = null;
+        ui.mode = "move-army";
+        renderActions();
+        renderMap();
+      });
+      document.getElementById("combat-cancel")?.addEventListener("click", () => {
+        ui.combatData = null;
+        ui.mode = "move-army";
+        renderActions();
+        renderMap();
+      });
+    };
+    renderCombat();
   }
 
   function showGovPicker(player) {
@@ -3657,6 +3843,22 @@
       if (defender) {
         const attackPower = ui.activeCard.effectiveSlot + (ui.activeCard.tradeSpent || 0);
         const defensePower = defenderDefensePower(defender, key);
+        const totalMilTrade = player.trade.military || 0;
+        if (totalMilTrade > 0) {
+          ui.mode = "pre-combat";
+          ui.combatData = {
+            attackerId: player.id,
+            attackerUnitId: unit.id,
+            key,
+            attackPower,
+            defensePower,
+            defender,
+            combatTradeSpent: 0,
+            maxCombatTrade: totalMilTrade
+          };
+          showPreCombatUI();
+          return;
+        }
         dispatch({
           type: "ATTACK",
           payload: {
@@ -3665,7 +3867,8 @@
             key,
             attackPower,
             defensePower,
-            defender
+            defender,
+            combatTradeSpent: 0
           }
         });
       } else {
@@ -3746,9 +3949,79 @@
       }
     }
 
+    const tradeHex = state.map.hexes[key];
+    const didTrade = type === "wagon" && tradeHex && (tradeHex.cityState || (tradeHex.city && tradeHex.city.ownerId !== player.id));
+    if (didTrade && tierEffects.includes("exchangeResource") && !ui.exchangeResourceDone) {
+      const owned = RESOURCE_TYPES.filter((r) => player.resources[r] > 0);
+      if (owned.length > 0) {
+        ui.exchangeResourceDone = true;
+        ui.mode = "exchange-resource";
+        showExchangeResourceUI(player, owned);
+        return;
+      }
+    }
+
     ui.selectable.clear();
     ui.selectedUnit = null;
     renderMap();
+  }
+
+  function showExchangeResourceUI(player, ownedResources) {
+    const wanted = RESOURCE_TYPES.filter((r) => player.resources[r] === 0);
+    if (wanted.length === 0) {
+      ui.mode = "move-wagon";
+      renderMap();
+      return;
+    }
+    dom.actionPanel.innerHTML = `
+      <div class="action-card">
+        <div class="action-title">Steam Power: Exchange 1 Resource</div>
+        <div class="action-row dim">Give one of yours:</div>
+        ${ownedResources.map((r) => `<button class="btn tiny exchange-give" data-res="${r}">${r} (${player.resources[r]})</button>`).join(" ")}
+        <div class="action-row dim">Receive:</div>
+        ${wanted.map((r) => `<button class="btn tiny exchange-get" data-res="${r}" disabled>${r}</button>`).join(" ")}
+        <div class="action-row">
+          <button class="btn primary" id="exchange-confirm" disabled>Confirm</button>
+          <button class="btn ghost" id="exchange-skip">Skip</button>
+        </div>
+      </div>
+    `;
+    let giveRes = null;
+    let getRes = null;
+    const updateBtns = () => {
+      document.querySelectorAll(".exchange-give").forEach((b) => b.classList.toggle("primary", b.dataset.res === giveRes));
+      document.querySelectorAll(".exchange-get").forEach((b) => {
+        b.disabled = !giveRes;
+        b.classList.toggle("primary", b.dataset.res === getRes);
+      });
+      const confirmBtn = document.getElementById("exchange-confirm");
+      if (confirmBtn) confirmBtn.disabled = !(giveRes && getRes);
+    };
+    document.querySelectorAll(".exchange-give").forEach((btn) => {
+      btn.addEventListener("click", () => { giveRes = btn.dataset.res; updateBtns(); });
+    });
+    document.querySelectorAll(".exchange-get").forEach((btn) => {
+      btn.addEventListener("click", () => { getRes = btn.dataset.res; updateBtns(); });
+    });
+    document.getElementById("exchange-confirm")?.addEventListener("click", () => {
+      if (giveRes && getRes) {
+        player.resources[giveRes] = Math.max(0, player.resources[giveRes] - 1);
+        player.resources[getRes] = (player.resources[getRes] || 0) + 1;
+        logEntry(`Steam Power: exchanged 1 ${giveRes} for 1 ${getRes}.`);
+      }
+      ui.mode = "move-wagon";
+      ui.selectable.clear();
+      ui.selectedUnit = null;
+      renderActions();
+      renderMap();
+    });
+    document.getElementById("exchange-skip")?.addEventListener("click", () => {
+      ui.mode = "move-wagon";
+      ui.selectable.clear();
+      ui.selectedUnit = null;
+      renderActions();
+      renderMap();
+    });
   }
 
   function findDefender(key, attackerId) {
@@ -3805,9 +4078,16 @@
   }
 
   function isWithinRangeOfFriendlyCity(hex, playerId, range) {
+    const player = getPlayer(playerId);
+    const hasAntananarivo = (player?.cityStateTokens || []).includes("Antananarivo");
     return Object.values(state.map.hexes).some((candidate) => {
-      if (!candidate.city || candidate.city.ownerId !== playerId) return false;
-      return hexDistance(candidate, hex) <= range;
+      if (candidate.city && candidate.city.ownerId === playerId) {
+        return hexDistance(candidate, hex) <= range;
+      }
+      if (hasAntananarivo && candidate.cityState && candidate.cityState.name === "Antananarivo") {
+        return hexDistance(candidate, hex) <= range;
+      }
+      return false;
     });
   }
 
@@ -3921,13 +4201,19 @@
   function validCityPlacements(playerId, maxTerrain, range, allowOnUnit) {
     const cityRange = range || 2;
     const hasGreatLighthouse = getPlayerWonders(playerId).some((w) => w.name === "Great Lighthouse");
+    const player = getPlayer(playerId);
+    const hasAuckland = (player?.cityStateTokens || []).includes("Auckland");
     const mapRadius = state.map.radius || 5;
     return Object.values(state.map.hexes)
       .filter((hex) => {
         if (!hex.active) return false;
         if (!hex.revealed) return false;
         if (hex.terrain === "water") return false;
-        if (terrainDifficulty(hex.terrain) > maxTerrain) return false;
+        let td = terrainDifficulty(hex.terrain);
+        if (hasAuckland && neighbors(hex.q, hex.r).some((nk) => { const nh = state.map.hexes[nk]; return nh && nh.terrain === "water"; })) {
+          td = 1;
+        }
+        if (td > maxTerrain) return false;
         if (hex.city || hex.cityState || hex.barbarian || hex.fortress) return false;
         if (adjacentToCity(hex)) return false;
         const key = keyFrom(hex.q, hex.r);
