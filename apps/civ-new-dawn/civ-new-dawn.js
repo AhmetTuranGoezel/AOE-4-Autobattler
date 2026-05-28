@@ -336,7 +336,7 @@
     setHostTools(false);
   }
 
-  window.addEventListener("load", init);
+  document.addEventListener("DOMContentLoaded", init);
   function setStatus(text) {
     dom.status.textContent = text;
   }
@@ -354,6 +354,10 @@
   }
 
   function createRoom() {
+    if (typeof Peer === "undefined") {
+      setStatus("Multiplayer unavailable (PeerJS not loaded). Use Local Solo.");
+      return;
+    }
     if (peer) {
       peer.destroy();
     }
@@ -393,6 +397,10 @@
   }
 
   function joinRoom() {
+    if (typeof Peer === "undefined") {
+      setStatus("Multiplayer unavailable (PeerJS not loaded). Use Local Solo.");
+      return;
+    }
     if (peer) {
       peer.destroy();
     }
