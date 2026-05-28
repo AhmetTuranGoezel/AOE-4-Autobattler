@@ -639,9 +639,15 @@
   }
 
   function scatterFortresses(hexes, hexKeys) {
-    const picks = pickRandom(hexKeys.filter((key) => !isWater(hexes[key])), 2);
+    const valid = hexKeys.filter((key) => {
+      const h = hexes[key];
+      if (isWater(h) || h.city || h.cityState) return false;
+      return true;
+    });
+    const picks = pickRandom(valid, Math.min(5, Math.floor(valid.length / 20)));
     picks.forEach((key) => {
       hexes[key].fortress = true;
+      hexes[key].terrain = "forest";
     });
   }
 
@@ -873,6 +879,8 @@
     });
   }
 
+  const CAPITAL_HEX_OFFSET_INDEX = 4;
+
   function placeTile(tileId, anchorKey, rotation, side, ownerId, forceCore) {
     const tile = state.setup.tiles[tileId];
     if (!tile) return false;
@@ -889,14 +897,17 @@
     cellKeys.forEach((key) => {
       const hex = state.map.hexes[key];
       if (!hex) return;
+      if (hex.city && hex.city.isCapital) return;
       hex.active = true;
       hex.revealed = true;
       hex.terrain = randomLandTerrain();
       hex.resource = null;
       hex.cityState = null;
       hex.barbarian = false;
-      hex.fortress = false;
-      hex.fortressOwnerId = null;
+      if (!hex.fortress) {
+        hex.fortress = false;
+        hex.fortressOwnerId = null;
+      }
       hex.control = null;
       hex.city = null;
       hex.tradeMarker = false;
@@ -916,9 +927,28 @@
           type: FOCUS_ORDER[Math.floor(Math.random() * FOCUS_ORDER.length)]
         };
       }
-      if (tile.type === "capital" && tile.ownerId) {
-        pivot.terrain = "grass";
-        pivot.city = { ownerId: tile.ownerId, isCapital: true, developed: false, wonder: null };
+    }
+
+    if (tile.type === "capital" && tile.ownerId) {
+      const capitalKey = cellKeys[CAPITAL_HEX_OFFSET_INDEX] || anchorKey;
+      const capitalHex = state.map.hexes[capitalKey];
+      if (capitalHex) {
+        capitalHex.active = true;
+        capitalHex.revealed = true;
+        capitalHex.terrain = "grass";
+        capitalHex.city = { ownerId: tile.ownerId, isCapital: true, developed: false, wonder: null };
+        capitalHex.resource = null;
+        capitalHex.cityState = null;
+        capitalHex.barbarian = false;
+        capitalHex.fortress = false;
+        capitalHex.fortressOwnerId = null;
+        tile.capitalKey = capitalKey;
+        revealAround(state.map, capitalKey, DEFAULTS.revealRadius);
+        const player = state.players.find((p) => p.id === tile.ownerId);
+        if (player) {
+          player.armies.forEach((u) => { if (!u.position) u.position = capitalKey; });
+          player.wagons.forEach((u) => { if (!u.position) u.position = capitalKey; });
+        }
       }
     }
     return true;
@@ -1169,12 +1199,12 @@
       if (activeNeighborCount(hex.q, hex.r) < 2) return;
       hex.active = true;
       hex.revealed = true;
-      hex.terrain = randomLandTerrain();
+      hex.terrain = "forest";
       hex.resource = null;
       hex.cityState = null;
       hex.barbarian = false;
       hex.fortress = true;
-      hex.fortressOwnerId = payload.playerId;
+      hex.fortressOwnerId = null;
       hex.control = null;
       hex.city = null;
       hex.tradeMarker = false;
@@ -1859,6 +1889,11 @@
       hex.barbarian = false;
       state.pendingBarbReward = { playerId: payload.attackerId };
       logEntry(`${attacker.name} defeated a barbarian! Choose a focus card for +1 trade.`);
+    }
+
+    if (payload.defender.type === "fortress") {
+      hex.city = { ownerId: payload.attackerId, isCapital: false, developed: false, wonder: null };
+      logEntry(`${attacker.name} captured a fortress and built a city on it.`);
     }
 
     if (payload.defender.type === "control") {
@@ -2592,7 +2627,7 @@
       const tokens = [];
       if (hex.city) {
         const owner = getPlayer(hex.city.ownerId);
-        tokens.push(tokenSpan("city", hex.city.isCapital ? "Cap" : "City", owner?.color));
+        tokens.push(tokenSpan(hex.city.isCapital ? "capital" : "city", hex.city.isCapital ? "Capital" : "City", owner?.color));
         if (hex.city.wonder) {
           tokens.push(tokenSpan("wonder", hex.city.wonder.name || "Wonder"));
         }
@@ -2619,9 +2654,8 @@
       if (hex.tradeMarker) {
         tokens.push(tokenSpan("resource", "Trade"));
       }
-      if (hex.fortress) {
-        const owner = hex.fortressOwnerId ? getPlayer(hex.fortressOwnerId) : null;
-        tokens.push(tokenSpan("fortress", "Fort", owner?.color));
+      if (hex.fortress && !hex.city) {
+        tokens.push(tokenSpan("fortress", "Fortress"));
       }
       const units = getUnitsAt(key);
       units.forEach((unit) => {
@@ -3803,8 +3837,9 @@
       lines.push(`<div class="action-row"><span class="label">Resource</span><span>${hex.resource}</span></div>`);
     }
     if (hex.fortress) {
-      const owner = hex.fortressOwnerId ? getPlayer(hex.fortressOwnerId) : null;
-      lines.push(`<div class="action-row"><span class="label">Fortress</span><span>${owner?.name || "Neutral"}</span></div>`);
+      const fOwner = hex.city ? getPlayer(hex.city.ownerId) : null;
+      const fStatus = fOwner ? `Controlled by ${fOwner.name}` : "Uncontrolled (Defense: 6)";
+      lines.push(`<div class="action-row"><span class="label">Fortress</span><span>${fStatus}</span></div>`);
     }
     if (hex.tradeMarker) {
       lines.push(`<div class="action-row"><span class="label">Trade Marker</span><span>Present</span></div>`);
@@ -4037,6 +4072,7 @@
     if (!hex) return null;
     if (hex.barbarian) return { type: "barbarian" };
     if (hex.cityState) return { type: "citystate" };
+    if (hex.fortress && !hex.city) return { type: "fortress" };
     if (hex.city && hex.city.ownerId !== attackerId) return { type: "city" };
     if (hex.control && hex.control.ownerId !== attackerId) return { type: "control" };
     const units = getUnitsAt(key).filter((u) => u.playerId !== attackerId);
@@ -4049,6 +4085,7 @@
     if (!hex) return 0;
     if (defender.type === "barbarian") return terrainDifficulty(hex.terrain);
     if (defender.type === "citystate") return DEFAULTS.cityStateDefense;
+    if (defender.type === "fortress") return 6;
     if (defender.type === "control") return terrainDifficulty(hex.terrain) + fortifiedBonus(key, hex.control?.ownerId);
     if (defender.type === "city") return terrainDifficulty(hex.terrain) * 2 + fortifiedBonus(key, hex.city?.ownerId);
     return terrainDifficulty(hex.terrain);
@@ -4074,6 +4111,7 @@
         if (!hex.revealed) return false;
         if (hex.terrain === "water") return false;
         if (hex.city || hex.cityState || hex.barbarian) return false;
+        if (hex.fortress && !hex.city) return false;
         if (hex.control && !allowReplace) return false;
         let td = terrainDifficulty(hex.terrain);
         if (hasKumasi && hex.terrain === "forest") td = 1;
@@ -4249,7 +4287,20 @@
   function validFortressPlacements() {
     return Object.values(state.map.hexes)
       .filter((hex) => !hex.active)
-      .filter((hex) => activeNeighborCount(hex.q, hex.r) >= 2)
+      .filter((hex) => {
+        const nKeys = neighbors(hex.q, hex.r);
+        let coreNeighborCount = 0;
+        let touchesFortress = false;
+        let touchesCityState = false;
+        nKeys.forEach((nk) => {
+          const nh = state.map.hexes[nk];
+          if (!nh || !nh.active) return;
+          if (nh.core || nh.coreAdjacent) coreNeighborCount++;
+          if (nh.fortress) touchesFortress = true;
+          if (nh.cityState) touchesCityState = true;
+        });
+        return coreNeighborCount >= 2 && !touchesFortress && !touchesCityState;
+      })
       .map((hex) => keyFrom(hex.q, hex.r));
   }
 
@@ -4290,7 +4341,10 @@
   }
 
   function adjacentToCity(hex) {
-    return neighbors(hex.q, hex.r).some((key) => state.map.hexes[key]?.city);
+    return neighbors(hex.q, hex.r).some((key) => {
+      const n = state.map.hexes[key];
+      return n && (n.city || (n.fortress && !n.city) || n.cityState);
+    });
   }
 
   function findDefaultStart(playerId) {
@@ -4506,8 +4560,6 @@
     const style = color ? ` style="--player-color:${color}"` : "";
     let iconKey = type;
     let cssClass = type;
-    if (type === "city" && label === "Cap") iconKey = "capital";
-    if (type === "city" && label !== "Cap") iconKey = "city";
     if (type === "control" && label && label.startsWith("Reinforced")) {
       iconKey = "fortified";
       cssClass = "control fortified";

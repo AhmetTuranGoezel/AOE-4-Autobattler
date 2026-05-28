@@ -503,13 +503,15 @@ body {
   color: #fff;
 }
 .token.city svg { width: 14px; height: 14px; }
-.token.city[title="Cap"] {
+.token.capital {
   width: 24px;
   height: 24px;
-  border-color: #ffd700;
+  background: var(--player-color, rgba(240, 220, 180, 0.5));
+  border: 2px solid #ffd700;
   box-shadow: 0 0 6px rgba(255, 215, 0, 0.5);
+  color: #ffd700;
 }
-.token.city[title="Cap"] svg { width: 16px; height: 16px; }
+.token.capital svg { width: 16px; height: 16px; }
 
 .token.control {
   background: var(--player-color, #c2432e);
