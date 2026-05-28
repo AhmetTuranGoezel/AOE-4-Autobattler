@@ -430,48 +430,167 @@ body {
   justify-items: center;
 }
 
-.terrain-grass { background: linear-gradient(160deg, #3f7b3a, #6fb463); }
-.terrain-hill { background: linear-gradient(160deg, #a0672d, #d1a05b); }
-.terrain-forest { background: linear-gradient(160deg, #1f5a3d, #4d8f5d); }
-.terrain-desert { background: linear-gradient(160deg, #caa567, #e2bf7c); }
-.terrain-mountain { background: linear-gradient(160deg, #6b6a6a, #b5b0ad); }
-.terrain-water { background: linear-gradient(160deg, #245a77, #6aa6c6); }
+.terrain-grass {
+  background:
+    radial-gradient(circle at 30% 40%, rgba(120,200,80,0.3) 0%, transparent 40%),
+    radial-gradient(circle at 70% 60%, rgba(80,160,60,0.3) 0%, transparent 35%),
+    linear-gradient(160deg, #3f7b3a, #6fb463);
+}
+.terrain-hill {
+  background:
+    radial-gradient(ellipse at 50% 30%, rgba(180,120,60,0.4) 0%, transparent 50%),
+    radial-gradient(ellipse at 40% 70%, rgba(140,90,40,0.3) 0%, transparent 40%),
+    linear-gradient(160deg, #a0672d, #d1a05b);
+}
+.terrain-forest {
+  background:
+    radial-gradient(circle at 25% 35%, rgba(30,100,50,0.5) 0%, transparent 30%),
+    radial-gradient(circle at 60% 25%, rgba(20,80,40,0.5) 0%, transparent 25%),
+    radial-gradient(circle at 50% 65%, rgba(40,110,60,0.4) 0%, transparent 30%),
+    radial-gradient(circle at 75% 55%, rgba(25,90,45,0.4) 0%, transparent 28%),
+    linear-gradient(160deg, #1f5a3d, #4d8f5d);
+}
+.terrain-desert {
+  background:
+    radial-gradient(ellipse at 60% 30%, rgba(210,180,100,0.4) 0%, transparent 45%),
+    radial-gradient(circle at 30% 70%, rgba(180,150,80,0.3) 0%, transparent 40%),
+    linear-gradient(160deg, #caa567, #e2bf7c);
+}
+.terrain-mountain {
+  background:
+    linear-gradient(180deg, rgba(200,200,210,0.5) 0%, transparent 30%),
+    radial-gradient(ellipse at 50% 40%, rgba(100,100,110,0.5) 0%, transparent 50%),
+    linear-gradient(160deg, #6b6a6a, #b5b0ad);
+}
+.terrain-water {
+  background:
+    radial-gradient(ellipse at 30% 40%, rgba(100,180,220,0.3) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 60%, rgba(60,140,200,0.3) 0%, transparent 40%),
+    linear-gradient(160deg, #245a77, #6aa6c6);
+}
 
 .token-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 2px;
   justify-content: center;
+  align-items: center;
 }
 
 .token {
-  padding: 2px 6px;
-  border-radius: 999px;
-  font-size: 0.62rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  background: rgba(255, 255, 255, 0.2);
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.25);
   color: #fef6e1;
+  border: 1.5px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+}
+.token svg {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
 }
 
 .token.city {
-  background: rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  width: 22px;
+  height: 22px;
+  background: var(--player-color, rgba(240, 220, 180, 0.5));
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  color: #fff;
 }
+.token.city svg { width: 14px; height: 14px; }
+.token.city[title="Cap"] {
+  width: 24px;
+  height: 24px;
+  border-color: #ffd700;
+  box-shadow: 0 0 6px rgba(255, 215, 0, 0.5);
+}
+.token.city[title="Cap"] svg { width: 16px; height: 16px; }
 
-.token.control,
-.token.army,
-.token.wagon,
+.token.control {
+  background: var(--player-color, #c2432e);
+  border-color: rgba(255, 255, 255, 0.5);
+  color: #fff;
+}
+.token.army {
+  width: 20px;
+  height: 20px;
+  background: var(--player-color, #c2432e);
+  border-color: rgba(255, 255, 255, 0.6);
+  color: #fff;
+  border-radius: 3px;
+}
+.token.army svg { width: 14px; height: 14px; }
+
+.token.wagon {
+  width: 20px;
+  height: 20px;
+  background: var(--player-color, #c2432e);
+  border-color: rgba(255, 255, 255, 0.5);
+  color: #fff;
+  border-radius: 4px;
+}
+.token.wagon svg { width: 13px; height: 13px; }
+
 .token.district {
   background: var(--player-color, #c2432e);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: #fff;
+  border-radius: 4px;
+}
+.token.fortified {
+  background: var(--player-color, #c2432e);
+  border-color: #ffd700;
+  border-width: 2px;
   color: #fff;
 }
 
-.token.barbarian { background: #40201b; }
-.token.citystate { background: #2b2b2b; }
-.token.resource { background: #805c35; }
-.token.fortress { background: #554d40; }
+.token.barbarian {
+  width: 20px;
+  height: 20px;
+  background: #5c1a10;
+  border-color: #ff4030;
+  color: #ff6050;
+}
+.token.barbarian svg { width: 14px; height: 14px; }
+
+.token.citystate {
+  width: 22px;
+  height: 22px;
+  background: #2a2a3a;
+  border: 2px solid #8888cc;
+  color: #aab8ff;
+}
+.token.citystate svg { width: 14px; height: 14px; }
+
+.token.resource {
+  background: #6b4e2a;
+  border-color: #d4a85a;
+  color: #f0d090;
+}
+
+.token.fortress {
+  width: 22px;
+  height: 22px;
+  background: #3a3530;
+  border: 2px solid #a09080;
+  color: #d0c0a0;
+}
+.token.fortress svg { width: 14px; height: 14px; }
+
+.token.wonder {
+  width: 16px;
+  height: 16px;
+  background: #7a5a20;
+  border-color: #ffd700;
+  color: #ffe870;
+  border-radius: 2px;
+}
+.token.wonder svg { width: 10px; height: 10px; }
 
 .action-panel {
   display: grid;
