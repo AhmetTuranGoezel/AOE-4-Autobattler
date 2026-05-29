@@ -879,7 +879,7 @@
     });
   }
 
-  const CAPITAL_HEX_OFFSET_INDEX = 4;
+  const CAPITAL_HEX_OFFSET_INDEX = 6;
 
   function placeTile(tileId, anchorKey, rotation, side, ownerId, forceCore) {
     const tile = state.setup.tiles[tileId];
