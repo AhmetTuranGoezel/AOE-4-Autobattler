@@ -2707,8 +2707,12 @@
           <div class="action-row scores">
             ${state.players.map((p) => `<div>${p.name}: ${computeScore(p)} pts</div>`).join("")}
           </div>
+          <button class="btn primary" id="new-game">New Game</button>
         </div>
       `;
+      document.getElementById("new-game")?.addEventListener("click", () => {
+        startLocalGame();
+      });
       return;
     }
 
@@ -2793,12 +2797,17 @@
             ${diploHtml}
             ${agendaHtml}
             <button class="btn" id="end-turn">End Turn</button>
+            <button class="btn ghost tiny" id="restart-game">New Game</button>
           ` : ""}
         </div>
       `;
       if (isMyTurn) {
         const endBtn = document.getElementById("end-turn");
         if (endBtn) endBtn.addEventListener("click", () => dispatch({ type: "END_TURN" }));
+        const restartBtn = document.getElementById("restart-game");
+        if (restartBtn) restartBtn.addEventListener("click", () => {
+          if (confirm("Start a new game? Current progress will be lost.")) startLocalGame();
+        });
         const raBtn = document.getElementById("recruit-army");
         if (raBtn) raBtn.addEventListener("click", () => dispatch({ type: "RECRUIT_ARMY", payload: { playerId: player.id } }));
         const rwBtn = document.getElementById("recruit-wagon");
