@@ -380,6 +380,26 @@
     });
   }
 
+  function resetUi() {
+    ui.mode = "inspect";
+    ui.activeCard = null;
+    ui.selectedUnit = null;
+    ui.selectable = new Set();
+    ui.tradeLocked = false;
+    ui.setup = { rotation: 0, side: "A", tileId: null };
+    ui.combatData = null;
+    ui.estadioPendingCard = null;
+    ui.estadioDone = false;
+    ui.exchangeResourceDone = false;
+    ui.globalDistrictDone = false;
+    ui.growthControlDone = false;
+    ui.cultureMoveDone = false;
+    ui.cultureExtraDone = false;
+    ui.spentResources = {};
+    ui.remaining = 0;
+    ui.districtType = null;
+  }
+
   function startLocalGame() {
     if (peer) {
       peer.destroy();
@@ -392,6 +412,7 @@
     state = buildInitialState(createPlayer(localPlayerId, name, color));
     dom.roomCode.textContent = "local";
     ui.viewPlayerId = localPlayerId;
+    resetUi();
     setStatus("Local game ready.");
     renderAll();
   }
