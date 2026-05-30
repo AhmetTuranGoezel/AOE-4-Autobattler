@@ -155,6 +155,30 @@ input, select {
   font-size: 11px;
 }
 #victory-tracker h3 { font-size: 11px; color: var(--accent); margin-bottom: 6px; }
+.agenda-row {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 6px;
+  padding: 6px 0;
+  border-top: 1px solid #ffffff12;
+  line-height: 1.35;
+}
+.agenda-row:first-of-type { border-top: 0; }
+.agenda-row strong { font-size: 11px; }
+.agenda-row span { color: var(--text2); font-size: 10px; }
+.agenda-row.claimed strong { color: var(--success); }
+.agenda-mark {
+  align-self: start;
+  text-align: center;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 2px;
+  font-size: 9px !important;
+}
+.agenda-row.claimed .agenda-mark {
+  color: var(--success);
+  border-color: var(--success);
+}
 .vtrack-row {
   display: flex;
   align-items: center;
@@ -291,6 +315,52 @@ input, select {
   grid-template-columns: 1fr 1fr;
   gap: 4px;
   margin: 6px 0;
+}
+
+.pending-select-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+  margin-top: 8px;
+}
+.pending-note {
+  color: var(--text2);
+  margin-top: 6px;
+  font-size: 11px;
+}
+.pending-options {
+  flex-wrap: wrap;
+}
+
+.host-tools {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 11px;
+}
+.host-tools summary {
+  cursor: pointer;
+  color: var(--warn);
+  font-weight: 700;
+}
+.host-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 8px;
+}
+.host-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: var(--text2);
+}
+.host-grid input,
+.host-grid select,
+.host-grid button {
+  width: 100%;
+  min-width: 0;
 }
 
 /* EVENT WHEEL */

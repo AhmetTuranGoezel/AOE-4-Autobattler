@@ -102,6 +102,7 @@ const UI = (() => {
     dom.map = document.getElementById("map");
     dom.mapTooltip = document.getElementById("map-tooltip");
     dom.wizard = document.getElementById("wizard");
+    dom.hostTools = document.getElementById("host-tools");
     dom.eventWheel = document.getElementById("event-wheel");
     dom.gameLog = document.getElementById("game-log");
     dom.focusRow = document.getElementById("focus-row");
@@ -123,7 +124,7 @@ const UI = (() => {
       onState: (payload) => {
         if (Net.getIsHost()) dispatch(payload);
         else {
-          state = payload;
+          state = Game.migrateState ? Game.migrateState(payload) : payload;
           try { localStorage.setItem("civ-nd-save", JSON.stringify({ state, localPlayerId })); } catch(e) {}
           render();
         }
@@ -135,7 +136,7 @@ const UI = (() => {
         render();
       },
       onDisconnect: () => {
-        document.getElementById("conn-banner").textContent = "Connection lost — attempting to reconnect...";
+        document.getElementById("conn-banner").textContent = "Connection lost - attempting to reconnect...";
         document.getElementById("conn-banner").classList.remove("hidden");
         showToast("Connection lost");
       },
@@ -168,7 +169,7 @@ const UI = (() => {
           dom.lobby.querySelector(".lobby-actions").appendChild(resumeBtn);
           dom.lobby.querySelector(".lobby-actions").appendChild(clearBtn);
           resumeBtn.addEventListener("click", () => {
-            state = data.state;
+            state = Game.migrateState ? Game.migrateState(data.state) : data.state;
             localPlayerId = data.localPlayerId;
             Net.startLocal();
             showGame();
@@ -785,6 +786,7 @@ const UI = (() => {
     renderPlayers();
     renderCanvas();
     renderWizard();
+    renderHostTools();
     renderEventWheel();
     renderLog();
 
@@ -844,18 +846,16 @@ const UI = (() => {
   function renderVictoryTracker() {
     const me = Game.getPlayer(state, localPlayerId);
     if (!me) { dom.victoryTracker.innerHTML = ""; return; }
-    const ctrl = Game.countControl(state, me.id);
-    const wonders = Game.countWonders(state, me.id);
-    const dev = Game.countDeveloped(state, me.id);
-    const rows = [
-      { label: "Military", val: ctrl, max: Game.CFG.victoryMilitary, color: "#ef5350" },
-      { label: "Science", val: me.tech, max: Game.CFG.victoryScience, color: "#4fc3f7" },
-      { label: "Culture", val: wonders, max: Game.CFG.victoryCulture, color: "#ce93d8" },
-      { label: "Economy", val: dev, max: Game.CFG.victoryEconomy, color: "#ffd54f" }
-    ];
-    dom.victoryTracker.innerHTML = `<h3>Victory Progress</h3>` + rows.map((r) => {
-      const pct = Math.min(100, (r.val / r.max) * 100);
-      return `<div class="vtrack-row"><span class="vlabel">${r.label}</span><div class="vtrack-bar"><div class="vtrack-fill" style="width:${pct}%;background:${r.color}"></div></div><span class="vtrack-val">${r.val}/${r.max}</span></div>`;
+    const agendaMap = Object.fromEntries((Game.AGENDA_CARDS || []).map((a) => [a.id, a]));
+    const active = state.agendaCards || [];
+    const claims = (state.claimedAgendas && state.claimedAgendas[me.id]) || me.agendaClaims || {};
+    const count = Game.getClaimedAgendaCount ? Game.getClaimedAgendaCount(state, me.id) : Object.values(claims).filter(Boolean).length;
+    dom.victoryTracker.innerHTML = `<h3>Agenda Victory ${count}/4</h3>` + active.map((id) => {
+      const agenda = agendaMap[id] || { name: id, text: "" };
+      return `<div class="agenda-row ${claims[id] ? "claimed" : ""}">
+        <span class="agenda-mark">${claims[id] ? "OK" : "--"}</span>
+        <div><strong>${agenda.name}</strong><br><span>${agenda.description || agenda.text || ""}</span></div>
+      </div>`;
     }).join("");
   }
 
@@ -867,17 +867,106 @@ const UI = (() => {
     const maxA = Game.CFG.maxArmies + (me.techTier >= 3 ? 1 : 0);
     const maxW = Game.CFG.maxCaravans + (me.techTier >= 3 ? 1 : 0);
     const tiers = me.cardTiers ? Game.FOCUS_TYPES.map((f) => `${Game.FOCUS_LABELS[f][0]}${me.cardTiers[f] || 1}`).join(" ") : "";
+    const dip = me.diplomacy && me.diplomacy.length ? me.diplomacy.map((d) => d.name || d.type).join(", ") : "none";
+    const csTokens = me.cityStateTokens && me.cityStateTokens.length ? me.cityStateTokens.join(", ") : "none";
     dom.myStats.innerHTML = `<h3>My Stats</h3><div class="stat-grid">
       <span>Tech:</span><span class="sv">${me.tech}/${Game.CFG.techWheelSize} (T${me.techTier})</span>
       <span>Card Tiers:</span><span class="sv">${tiers}</span>
       <span>Armies:</span><span class="sv">${me.armies.length}/${maxA}</span>
       <span>Caravans:</span><span class="sv">${me.caravans.length}/${maxW}</span>
       <span>Resources:</span><span class="sv">${res}</span>
+      <span>Diplomacy:</span><span class="sv">${dip}</span>
+      <span>CS Tokens:</span><span class="sv">${csTokens}</span>
       <span>Gov:</span><span class="sv">${gov}</span>
     </div>`;
   }
 
   // ── Wizard ────────────────────────────────────────────────
+
+  function renderHostTools() {
+    if (!dom.hostTools) return;
+    if (!state || !Net.getIsHost()) { dom.hostTools.innerHTML = ""; return; }
+    const playerOptions = state.players.map((p) => `<option value="${p.id}">${p.name}</option>`).join("");
+    const terrainOptions = Object.keys(Game.TERRAIN).map((t) => `<option value="${t}">${Game.TERRAIN_LABELS[t]}</option>`).join("");
+    const focusOptions = Game.FOCUS_TYPES.map((f) => `<option value="${f}">${Game.FOCUS_LABELS[f]}</option>`).join("");
+    const resourceOptions = ["", ...Game.RESOURCES, "wonder"].map((r) => `<option value="${r}">${r || "none"}</option>`).join("");
+    const districtOptions = ["", ...Game.DISTRICTS].map((d) => `<option value="${d}">${d ? Game.DISTRICT_LABELS[d] : "none"}</option>`).join("");
+    const eventOptions = Game.EVENTS.map((e) => `<option value="${e}">${Game.EVENT_LABELS[e]}</option>`).join("");
+    const cityStateOptions = ["", ...Object.keys(Game.CITY_STATE_DATA || {})].map((c) => `<option value="${c}">${c || "none"}</option>`).join("");
+
+    dom.hostTools.innerHTML = `
+      <details class="host-tools">
+        <summary>Host Tools</summary>
+        <div class="host-grid">
+          <label>Hex <input id="host-hex" placeholder="q,r" value="${mouseHex ? Game.key(mouseHex.q, mouseHex.r) : ""}"></label>
+          <label>Terrain <select id="host-terrain">${terrainOptions}</select></label>
+          <label>Resource <select id="host-resource">${resourceOptions}</select></label>
+          <button id="host-apply-hex">Apply Hex</button>
+          <button id="host-toggle-barb">Toggle Barb</button>
+          <button id="host-clear-hex">Clear Hex</button>
+          <label>Player <select id="host-player">${playerOptions}</select></label>
+          <label>District <select id="host-district">${districtOptions}</select></label>
+          <label><input type="checkbox" id="host-fortified"> Fortified</label>
+          <button id="host-control">Set Control</button>
+          <button id="host-city">Set City</button>
+          <label>City-state <select id="host-citystate">${cityStateOptions}</select></label>
+          <button id="host-citystate-btn">Set City-state</button>
+          <label>Focus <select id="host-focus">${focusOptions}</select></label>
+          <label>Amount <input id="host-amount" type="number" value="1"></label>
+          <button id="host-trade">Adjust Trade</button>
+          <button id="host-resource-player">Adjust Marble</button>
+          <label>Event <select id="host-event">${eventOptions}</select></label>
+          <button id="host-event-btn">Force Event</button>
+          <button id="host-agendas">Check Agendas</button>
+        </div>
+      </details>`;
+
+    const hexKey = () => document.getElementById("host-hex").value.trim();
+    const hostPlayer = () => document.getElementById("host-player").value;
+    document.getElementById("host-apply-hex").addEventListener("click", () => {
+      dispatch({ type: "HOST_EDIT_HEX", payload: { hexKey: hexKey(), changes: {
+        active: true,
+        revealed: true,
+        terrain: document.getElementById("host-terrain").value,
+        resource: document.getElementById("host-resource").value || null
+      }}});
+    });
+    document.getElementById("host-toggle-barb").addEventListener("click", () => {
+      const h = state.map.hexes[hexKey()];
+      dispatch({ type: "HOST_EDIT_HEX", payload: { hexKey: hexKey(), changes: { active: true, revealed: true, barbarian: !(h && h.barbarian) } } });
+    });
+    document.getElementById("host-clear-hex").addEventListener("click", () => {
+      dispatch({ type: "HOST_EDIT_HEX", payload: { hexKey: hexKey(), changes: { clearOccupants: true } } });
+    });
+    document.getElementById("host-control").addEventListener("click", () => {
+      dispatch({ type: "HOST_EDIT_HEX", payload: { hexKey: hexKey(), changes: {
+        active: true,
+        revealed: true,
+        controlOwnerId: hostPlayer(),
+        district: document.getElementById("host-district").value || null,
+        fortified: document.getElementById("host-fortified").checked
+      }}});
+    });
+    document.getElementById("host-city").addEventListener("click", () => {
+      dispatch({ type: "HOST_EDIT_HEX", payload: { hexKey: hexKey(), changes: { active: true, revealed: true, cityOwnerId: hostPlayer() } } });
+    });
+    document.getElementById("host-citystate-btn").addEventListener("click", () => {
+      dispatch({ type: "HOST_EDIT_HEX", payload: { hexKey: hexKey(), changes: { active: true, revealed: true, cityStateName: document.getElementById("host-citystate").value || null } } });
+    });
+    document.getElementById("host-trade").addEventListener("click", () => {
+      dispatch({ type: "HOST_ADJUST_PLAYER", payload: { playerId: hostPlayer(), tradeType: document.getElementById("host-focus").value, amount: Number(document.getElementById("host-amount").value || 0) } });
+    });
+    document.getElementById("host-resource-player").addEventListener("click", () => {
+      const resourceType = document.getElementById("host-resource").value;
+      dispatch({ type: "HOST_ADJUST_PLAYER", payload: { playerId: hostPlayer(), resourceType: resourceType && resourceType !== "wonder" ? resourceType : "marble", amount: Number(document.getElementById("host-amount").value || 0) } });
+    });
+    document.getElementById("host-event-btn").addEventListener("click", () => {
+      dispatch({ type: "FORCE_EVENT", payload: { event: document.getElementById("host-event").value } });
+    });
+    document.getElementById("host-agendas").addEventListener("click", () => {
+      dispatch({ type: "CHECK_AGENDAS", payload: { playerId: localPlayerId } });
+    });
+  }
 
   function renderWizard() {
     if (!state) return;
@@ -889,6 +978,8 @@ const UI = (() => {
 
     if (state.lastCombat) { renderCombatResult(); return; }
     if (state.pendingBarbReward && state.pendingBarbReward.playerId === localPlayerId) { renderBarbReward(me); return; }
+    const pending = getVisiblePendingChoice(me);
+    if (pending && sub.phase === "idle") { renderPendingChoice(pending); return; }
     if (sub.phase === "idle") { renderIdleWizard(isMyTurn, cp, me); }
     else if (sub.phase === "card_selected") { renderCardSelected(me); }
     else if (sub.phase === "placing_control") { renderPlacingControl(); }
@@ -952,9 +1043,9 @@ const UI = (() => {
           <div class="tile-preview">${renderTilePreview()}</div>
           <div class="trade-counter">
             <span>Rotation:</span>
-            <button id="rot-dec" class="sm">◄ Q</button>
+            <button id="rot-dec" class="sm">Q</button>
             <span class="tc-val">${sub.tileRotation + 1}/6</span>
-            <button id="rot-inc" class="sm">E ►</button>
+            <button id="rot-inc" class="sm">E</button>
           </div>
           <div class="trade-counter">
             <span>Side:</span>
@@ -993,6 +1084,63 @@ const UI = (() => {
     });
     svg += `</svg>`;
     return svg;
+  }
+
+  function getVisiblePendingChoice(me) {
+    const choices = state.pendingChoices || [];
+    if (!choices.length) return null;
+    if (me) {
+      const mine = choices.find((c) => c.playerId === me.id);
+      if (mine) return mine;
+    }
+    return Net.getIsHost() ? choices[0] : null;
+  }
+
+  function renderPendingChoice(choice) {
+    const owner = Game.getPlayer(state, choice.playerId);
+    const title = choice.title || "Pending Choice";
+    let body = `<div>${owner ? owner.name : "Player"}: ${choice.source || choice.kind}</div>`;
+    let controls = "";
+
+    if (choice.options && choice.options.length) {
+      controls = `<div class="wiz-actions pending-options">${choice.options.map((o) =>
+        `<button class="sm pending-option" data-option="${o.id}">${o.label || o.id}</button>`
+      ).join("")}</div>`;
+    } else if (choice.hexKeys && choice.hexKeys.length) {
+      controls = `
+        <div class="pending-select-row">
+          <select id="pending-hex">${choice.hexKeys.slice(0, 80).map((k) => `<option value="${k}">${k}</option>`).join("")}</select>
+          <button id="pending-hex-ok">Resolve</button>
+        </div>`;
+      body += `<div class="pending-note">${choice.hexKeys.length} valid hex(es).</div>`;
+    } else {
+      controls = `<div class="wiz-actions"><button id="pending-manual-ok">Resolve</button></div>`;
+    }
+
+    if (Net.getIsHost()) {
+      controls += `<div class="wiz-actions"><button class="ghost sm" id="pending-dismiss">Dismiss</button></div>`;
+    }
+
+    dom.wizard.innerHTML = `
+      <div class="wiz-title">${title}</div>
+      <div class="wiz-body">${body}</div>
+      ${controls}`;
+
+    document.querySelectorAll(".pending-option").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        dispatch({ type: "RESOLVE_PENDING_CHOICE", payload: { playerId: localPlayerId, choiceId: choice.id, optionId: btn.dataset.option, hostOverride: Net.getIsHost() } });
+      });
+    });
+    document.getElementById("pending-hex-ok")?.addEventListener("click", () => {
+      const select = document.getElementById("pending-hex");
+      dispatch({ type: "RESOLVE_PENDING_CHOICE", payload: { playerId: localPlayerId, choiceId: choice.id, hexKey: select.value, hostOverride: Net.getIsHost() } });
+    });
+    document.getElementById("pending-manual-ok")?.addEventListener("click", () => {
+      dispatch({ type: "RESOLVE_PENDING_CHOICE", payload: { playerId: localPlayerId, choiceId: choice.id, hostOverride: Net.getIsHost() } });
+    });
+    document.getElementById("pending-dismiss")?.addEventListener("click", () => {
+      dispatch({ type: "RESOLVE_PENDING_CHOICE", payload: { playerId: localPlayerId, choiceId: choice.id, dismiss: true, hostOverride: true } });
+    });
   }
 
   function renderBarbReward(me) {
@@ -1044,7 +1192,7 @@ const UI = (() => {
     document.getElementById("wiz-recruit-army")?.addEventListener("click", () => dispatch({ type: "RECRUIT_ARMY", payload: { playerId: localPlayerId } }));
     document.getElementById("wiz-recruit-caravan")?.addEventListener("click", () => dispatch({ type: "RECRUIT_CARAVAN", payload: { playerId: localPlayerId } }));
     document.getElementById("wiz-gov")?.addEventListener("click", showGovPicker);
-    document.getElementById("wiz-end-turn")?.addEventListener("click", () => dispatch({ type: "END_TURN", payload: {} }));
+    document.getElementById("wiz-end-turn")?.addEventListener("click", () => dispatch({ type: "END_TURN", payload: { playerId: localPlayerId } }));
   }
 
   function renderCardSelected(me) {
@@ -1057,7 +1205,7 @@ const UI = (() => {
         Trade available: <strong>${tradeAvail}</strong>
         <div class="trade-counter">
           <span>Spend:</span>
-          <button id="tc-dec" class="sm">−</button>
+          <button id="tc-dec" class="sm">-</button>
           <span class="tc-val" id="tc-val">${sub.tradeSpent}</span>
           <button id="tc-inc" class="sm">+</button>
         </div>
@@ -1169,7 +1317,7 @@ const UI = (() => {
       : `Remaining movement: <strong>${ms.remaining}</strong>`;
 
     dom.wizard.innerHTML = `
-      <div class="wiz-title">${unitLabel} ${defender ? "— Encounter!" : "Moved"}</div>
+      <div class="wiz-title">${unitLabel} ${defender ? "- Encounter!" : "Moved"}</div>
       <div class="wiz-body">${bodyText}</div>
       ${buttons}`;
 
@@ -1208,7 +1356,7 @@ const UI = (() => {
         <div style="margin-top:6px">Spend military trade for +1 combat each:</div>
         <div class="trade-counter">
           <span>Extra trade:</span>
-          <button id="ct-dec" class="sm">−</button>
+          <button id="ct-dec" class="sm">-</button>
           <span class="tc-val" id="ct-val">${sub.combatTradeSpent || 0}</span>
           <button id="ct-inc" class="sm">+</button>
           <span style="color:var(--text2);margin-left:4px">(${milTrade} available)</span>
@@ -1244,9 +1392,9 @@ const UI = (() => {
         <div class="tile-preview">${renderTilePreview()}</div>
         <div class="trade-counter">
           <span>Rotation:</span>
-          <button id="rot-dec" class="sm">◄ Q</button>
+          <button id="rot-dec" class="sm">Q</button>
           <span class="tc-val">${sub.tileRotation + 1}/6</span>
-          <button id="rot-inc" class="sm">E ►</button>
+          <button id="rot-inc" class="sm">E</button>
         </div>
         <div class="trade-counter">
           <span>Side:</span>
@@ -1315,29 +1463,8 @@ const UI = (() => {
 
   function computeStepDistance(st, fromKey, toKey, maxSteps, unitType, playerId) {
     if (fromKey === toKey) return 0;
-    const me = Game.getPlayer(st, playerId);
-    const waterOk = me && (() => {
-      const tier = Game.getCardTier(me, unitType === "caravan" ? "economy" : "military");
-      const wt = Game.CARD_TIERS[unitType === "caravan" ? "economy" : "military"].water;
-      return wt && tier >= wt;
-    })();
-    const visited = new Map([[fromKey, 0]]);
-    const queue = [{ key: fromKey, steps: 0 }];
-    while (queue.length) {
-      const cur = queue.shift();
-      if (cur.steps >= maxSteps) continue;
-      const neighbors = Game.hexNeighborKeys(Game.parseQ(cur.key), Game.parseR(cur.key));
-      for (const nk of neighbors) {
-        if (visited.has(nk)) continue;
-        const h = st.map.hexes[nk];
-        if (!h || !h.active) continue;
-        if (h.terrain === "water" && !waterOk) continue;
-        if (unitType === "caravan" && h.barbarian) continue;
-        visited.set(nk, cur.steps + 1);
-        if (nk === toKey) return cur.steps + 1;
-        queue.push({ key: nk, steps: cur.steps + 1 });
-      }
-    }
+    const distances = Game.getReachableWithDist(st, fromKey, maxSteps, unitType, playerId);
+    if (distances.has(toKey)) return distances.get(toKey);
     return maxSteps;
   }
 
@@ -1390,31 +1517,24 @@ const UI = (() => {
     const builtWonders = new Set();
     Object.values(state.map.hexes).forEach((h) => { if (h.city && h.city.wonder) builtWonders.add(h.city.wonder.name); });
 
-    const eras = Object.entries(Game.WONDER_ERAS).map(([eraName, eraData]) => {
-      const affordable = prod >= eraData.cost;
-      const available = eraData.wonders.filter((w) => !builtWonders.has(w.name));
-      return { eraName, cost: eraData.cost, affordable, available };
-    });
+    const visible = Game.getVisibleWonders(state).filter((w) => !builtWonders.has(w.name));
 
-    let html = `<div class="wiz-title">Choose Wonder (Production: ${prod})</div><div class="wiz-body" style="max-height:260px;overflow-y:auto">`;
-    eras.forEach((era) => {
-      html += `<div style="margin-bottom:8px"><strong>${era.eraName.charAt(0).toUpperCase() + era.eraName.slice(1)} (cost ${era.cost})</strong>`;
-      if (!era.affordable) html += ` <span style="color:var(--danger)">— need ${era.cost}</span>`;
-      html += `</div>`;
-      era.available.forEach((w) => {
-        const disabled = era.affordable ? "" : " disabled";
-        html += `<button class="sm wonder-pick${disabled}" data-name="${w.name}" style="margin:2px;text-align:left;display:block;width:100%"${disabled ? " disabled" : ""}>
-          <strong>${w.name}</strong><br><span style="font-size:10px;opacity:0.8">${w.effect}</span>
-        </button>`;
-      });
-      if (era.available.length === 0) html += `<div style="opacity:0.5;font-size:11px">All built</div>`;
+    let html = `<div class="wiz-title">Choose Visible Wonder (Production: ${prod})</div><div class="wiz-body" style="max-height:260px;overflow-y:auto">`;
+    visible.forEach((w) => {
+      const affordable = prod >= w.cost;
+      const disabled = affordable ? "" : " disabled";
+      html += `<button class="sm wonder-pick${disabled}" data-name="${w.name}" style="margin:2px;text-align:left;display:block;width:100%"${disabled ? " disabled" : ""}>
+        <strong>${w.name}</strong> (${w.type}, ${w.era}, cost ${w.cost})${affordable ? "" : ` <span style="color:var(--danger)">need ${w.cost}</span>`}<br>
+        <span style="font-size:10px;opacity:0.8">${w.effect}</span>
+      </button>`;
     });
+    if (!visible.length) html += `<div style="opacity:0.5;font-size:11px">No visible wonders left.</div>`;
     html += `</div><div class="wiz-actions"><button class="ghost" id="wiz-cancel-wonder">Cancel</button></div>`;
 
     dom.wizard.innerHTML = html;
     document.querySelectorAll(".wonder-pick:not([disabled])").forEach((btn) => {
       btn.addEventListener("click", () => {
-        const wonder = Game.ALL_WONDERS.find((w) => w.name === btn.dataset.name);
+        const wonder = Game.getVisibleWonders(state).find((w) => w.name === btn.dataset.name);
         if (!wonder) return;
         sub.selectedWonder = wonder;
         sub.phase = "placing_wonder";
@@ -1482,7 +1602,7 @@ const UI = (() => {
     const me = Game.getPlayer(state, localPlayerId);
     const slot = Game.getSlotValue(me, "growth", state);
     sub.phase = "placing_district";
-    sub.validHexes = Game.validDistrictHexes(state, localPlayerId, slot);
+    sub.validHexes = Game.validDistrictHexes(state, localPlayerId, slot + sub.tradeSpent);
     render();
   }
 

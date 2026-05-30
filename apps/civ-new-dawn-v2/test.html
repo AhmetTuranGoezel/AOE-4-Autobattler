@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Civ New Dawn v2 Tests</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 24px; background: #111827; color: #e5e7eb; }
+    h1 { font-size: 20px; }
+    .pass { color: #86efac; }
+    .fail { color: #fca5a5; }
+    li { margin: 6px 0; }
+    pre { background: #020617; padding: 12px; overflow: auto; }
+  </style>
+</head>
+<body>
+  <h1>Civ New Dawn v2 Rule Smoke Tests</h1>
+  <ol id="results"></ol>
+  <pre id="summary"></pre>
+
+  <script src="rules-data.js"></script>
+  <script src="game.js"></script>
+  <script>
+    const results = document.getElementById("results");
+    const summary = document.getElementById("summary");
+    let passed = 0;
+    let failed = 0;
+
+    function assert(name, condition) {
+      const li = document.createElement("li");
+      li.className = condition ? "pass" : "fail";
+      li.textContent = `${condition ? "PASS" : "FAIL"}: ${name}`;
+      results.appendChild(li);
+      if (condition) passed++; else failed++;
+    }
+
+    function players(n) {
+      return Array.from({ length: n }, (_, i) => Game.createPlayer(`p${i + 1}`, `P${i + 1}`, ["#e63946", "#457b9d", "#2a9d8f", "#e9c46a", "#9b5de5"][i]));
+    }
+
+    try {
+      const data = window.CivRulesData;
+      assert("rules data is loaded", !!data);
+      assert("21 physical tile entries", data.TILES.length === 21);
+      assert("every tile has two 10-cell sides", data.TILES.every((t) => t.sides && t.sides.A.cells.length === 10 && t.sides.B.cells.length === 10));
+      assert("five capital tiles", data.TILES.filter((t) => t.kind === "capital").length === 5);
+      assert("no removed wonders in Terra Incognita decks", !JSON.stringify(data.WONDER_DECKS).includes("Pentagon") && !JSON.stringify(data.WONDER_DECKS).includes("Machu Picchu"));
+
+      const s2 = Game.createState(players(2));
+      assert("2-player setup places two core tiles", s2.setup.coreTiles.length === 2);
+      assert("2-player setup starts with fortress placement", s2.setup.phase === "fortress");
+      assert("setup has five agenda cards", s2.agendaCards.length === 5);
+      assert("visible wonder tops equal deck types", Game.getVisibleWonders(s2).length === Object.keys(data.WONDER_DECKS).length);
+
+      const s4 = Game.createState(players(4));
+      assert("4-player setup places four core tiles", s4.setup.coreTiles.length === 4);
+
+      let st = Game.createState(players(2));
+      st.phase = "playing";
+      const first = st.turn.order[0];
+      st = Game.applyAction(st, { type: "END_TURN", payload: { playerId: first } });
+      assert("END_TURN accepts current playerId", st.turn.index === 1);
+
+      st = Game.applyAction(st, { type: "HOST_EDIT_HEX", payload: { hexKey: "0,0", changes: { active: true, revealed: true, terrain: "forest", resource: "marble" } } });
+      assert("host hex edit changes terrain/resource", st.map.hexes["0,0"].terrain === "forest" && st.map.hexes["0,0"].resource === "marble");
+
+      st.turn.index = st.turn.order.indexOf(first);
+      const p = Game.getPlayer(st, first);
+      p.tech = Game.CFG.techWheelSize - 1;
+      p.cardPlayed = false;
+      st = Game.applyAction(st, { type: "PLAY_SCIENCE", payload: { playerId: first, amount: 1, tradeSpent: 0 } });
+      assert("science wrap queues focus upgrade choice", st.pendingChoices.some((c) => c.kind === "science_upgrade" && c.playerId === first));
+      const choice = st.pendingChoices.find((c) => c.kind === "science_upgrade" && c.playerId === first);
+      st = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: { playerId: first, choiceId: choice.id, optionId: "science" } });
+      assert("science pending choice upgrades selected card", Game.getPlayer(st, first).cardTiers.science === 2);
+
+      const mover = Game.getPlayer(st, first);
+      mover.focusRow = ["military", "culture", "growth", "science", "economy", "industry"];
+      mover.cardPlayed = false;
+      mover.armies = [{ id: "a1", position: "0,0" }];
+      st.map.hexes["0,0"].active = true;
+      st.map.hexes["0,0"].terrain = "grass";
+      st.map.hexes["1,0"].active = true;
+      st.map.hexes["1,0"].terrain = "mountain";
+      assert("movement blocks terrain above resolving slot", !Game.getReachable(st, "0,0", 3, "army", first).has("1,0"));
+      mover.cardTiers.military = 3;
+      st.map.hexes["0,1"].active = true;
+      st.map.hexes["0,1"].terrain = "water";
+      assert("tier III military can enter water", Game.getReachable(st, "0,0", 3, "army", first).has("0,1"));
+
+      mover.cardPlayed = false;
+      mover.caravans = [{ id: "c1", position: "0,0" }];
+      st.map.hexes["1,0"].terrain = "grass";
+      st.map.hexes["1,0"].resource = null;
+      st.map.hexes["1,0"].naturalWonder = null;
+      st.map.hexes["1,0"].city = null;
+      st.map.hexes["1,0"].control = null;
+      st.map.hexes["1,0"].barbarian = false;
+      st.map.hexes["1,0"].cityState = { name: "Carthage", type: "military", diplomacyCards: 2 };
+      st = Game.applyAction(st, { type: "PLAY_ECONOMY", payload: { playerId: first, unitId: "c1", toKey: "1,0", tradeSpent: 0 } });
+      assert("city-state trade grants diplomacy", Game.getPlayer(st, first).diplomacy.some((d) => d.fromCityState === "Carthage"));
+
+      const districtState = Game.createState(players(2));
+      districtState.phase = "playing";
+      const dp = districtState.turn.order[0];
+      districtState.map.hexes["0,0"].active = true;
+      districtState.map.hexes["0,0"].terrain = "grass";
+      districtState.map.hexes["0,0"].city = { ownerId: dp, isCapital: true, developed: false, hasWonder: false, wonder: null };
+      districtState.map.hexes["1,0"].active = true;
+      districtState.map.hexes["1,0"].terrain = "grass";
+      districtState.map.hexes["1,0"].city = null;
+      districtState.map.hexes["1,0"].cityState = null;
+      districtState.map.hexes["1,0"].barbarian = false;
+      districtState.map.hexes["1,0"].fortress = false;
+      districtState.map.hexes["1,0"].control = { ownerId: dp, fortified: false, district: null };
+      assert("district placement can replace own control", Game.validDistrictHexes(districtState, dp, 5).has("1,0"));
+      districtState.map.hexes["1,0"].control.district = "trade";
+      districtState.map.hexes["2,0"].active = true;
+      districtState.map.hexes["2,0"].terrain = "desert";
+      const afterEvent = Game.applyAction(districtState, { type: "FORCE_EVENT", payload: { event: "district_event" } });
+      assert("district event queues player choice", afterEvent.pendingChoices.some((c) => c.kind === "trade_any" && c.playerId === dp));
+
+      const oldSave = {
+        phase: "playing",
+        map: { radius: 1, hexes: { "0,0": { q: 0, r: 0, active: true, terrain: "grass", city: { ownerId: "old", hasWonder: true }, control: null } } },
+        players: [{ id: "old", name: "Old", color: "#fff", focusRow: Game.FOCUS_TYPES.slice(), trade: {}, resources: {}, tech: 0, techTier: 1, armies: [], wagons: [{ id: "w1", position: null }], cardPlayed: false }],
+        turn: { order: ["old"], index: 0, round: 1 },
+        eventWheel: { position: 0, events: Game.EVENTS.slice() },
+        log: []
+      };
+      Game.migrateState(oldSave);
+      assert("save migration initializes Terra fields", oldSave.rulesVersion && oldSave.wonderDecks && oldSave.agendaCards && oldSave.players[0].caravans.length === 1);
+      assert("save migration normalizes city wonder state", !!oldSave.map.hexes["0,0"].city.wonder);
+
+      summary.textContent = `${passed} passed, ${failed} failed`;
+    } catch (err) {
+      failed++;
+      const li = document.createElement("li");
+      li.className = "fail";
+      li.textContent = `ERROR: ${err.stack || err.message}`;
+      results.appendChild(li);
+      summary.textContent = `${passed} passed, ${failed} failed`;
+    }
+  </script>
+</body>
+</html>
