@@ -677,7 +677,8 @@ const Game = (() => {
       const unit = player.caravans.find((u) => u.id === payload.unitId);
       if (!unit || !unit.position) return st;
       const ecoHex = st.map.hexes[payload.toKey];
-      if (!ecoHex || !ecoHex.active || ecoHex.terrain === "water") return st;
+      if (!ecoHex || !ecoHex.active) return st;
+      if (ecoHex.terrain === "water" && !canCrossWater(player, "caravan")) return st;
       unit.position = payload.toKey;
       const hex = st.map.hexes[payload.toKey];
       if (hex && hex.cityState) {
@@ -711,7 +712,8 @@ const Game = (() => {
       const unit = player.armies.find((u) => u.id === payload.unitId);
       if (!unit || !unit.position) return st;
       const moveHex = st.map.hexes[payload.toKey];
-      if (!moveHex || !moveHex.active || moveHex.terrain === "water") return st;
+      if (!moveHex || !moveHex.active) return st;
+      if (moveHex.terrain === "water" && !canCrossWater(player, "army")) return st;
       unit.position = payload.toKey; log(st, `${player.name} moved army.`);
       resolveCard(st, player, "military", payload.tradeSpent);
       return st;
@@ -748,6 +750,9 @@ const Game = (() => {
           log(st, `${player.name} defeated a barbarian! Choose a focus card for +1 trade.`);
         }
         if (hex.cityState) {
+          const csType = hex.cityState.type;
+          player.trade[csType] = Math.min(CFG.maxTrade, player.trade[csType] + 1);
+          log(st, `${player.name} gained +1 ${csType} trade from conquering ${hex.cityState.name}.`);
           hex.cityState = null;
           hex.city = { ownerId: payload.playerId, isCapital: false, developed: false, hasWonder: false };
         }
@@ -1334,7 +1339,17 @@ const Game = (() => {
     return new Set(valid);
   }
 
+  function canCrossWater(player, unitType) {
+    if (!player) return false;
+    const cardType = unitType === "caravan" ? "economy" : "military";
+    const tier = getCardTier(player, cardType);
+    const waterTier = CARD_TIERS[cardType].water;
+    return waterTier && tier >= waterTier;
+  }
+
   function getReachable(st, startKey, maxSteps, unitType, playerId) {
+    const player = getPlayer(st, playerId);
+    const waterOk = canCrossWater(player, unitType);
     const visited = new Set([startKey]);
     const reachable = new Set();
     const queue = [{ key: startKey, steps: 0 }];
@@ -1345,7 +1360,7 @@ const Game = (() => {
         if (visited.has(nk)) return;
         const h = st.map.hexes[nk];
         if (!h || !h.active) return;
-        if (h.terrain === "water") return;
+        if (h.terrain === "water" && !waterOk) return;
         if (unitType === "caravan" && h.barbarian) return;
         visited.add(nk);
         reachable.add(nk);
@@ -1574,6 +1589,8 @@ const Game = (() => {
   }
 
   function getReachableWithDist(st, startKey, maxSteps, unitType, playerId) {
+    const player = getPlayer(st, playerId);
+    const waterOk = canCrossWater(player, unitType);
     const distances = new Map([[startKey, 0]]);
     const queue = [{ key: startKey, steps: 0 }];
     while (queue.length) {
@@ -1583,7 +1600,7 @@ const Game = (() => {
         if (distances.has(nk)) return;
         const h = st.map.hexes[nk];
         if (!h || !h.active) return;
-        if (h.terrain === "water") return;
+        if (h.terrain === "water" && !waterOk) return;
         if (unitType === "caravan" && h.barbarian) return;
         distances.set(nk, cur.steps + 1);
         queue.push({ key: nk, steps: cur.steps + 1 });
@@ -1601,7 +1618,7 @@ const Game = (() => {
     createState, createPlayer, applyAction, currentPlayer, getPlayer,
     getSlotValue, getSlotIndex, getCardTier, getCardTierValue: getCardTier,
     getMilitaryMove, getEconomyMove, getCultureMarkers, getMilitaryCombatBonus,
-    getCityRange, getWonderCost, computeScore,
+    getCityRange, getWonderCost, canCrossWater, computeScore,
     validControlHexes, validDistrictHexes, validReinforceHexes,
     validCityHexes, validWonderHexes, getReachable, findDefender, getUnitsAt,
     adjacentToCityState, adjacentToFriendlyControl, terrainDifficulty,
