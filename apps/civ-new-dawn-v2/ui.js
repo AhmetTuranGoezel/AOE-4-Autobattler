@@ -1261,6 +1261,12 @@ const UI = (() => {
 
   function computeStepDistance(st, fromKey, toKey, maxSteps, unitType, playerId) {
     if (fromKey === toKey) return 0;
+    const me = Game.getPlayer(st, playerId);
+    const waterOk = me && (() => {
+      const tier = Game.getCardTier(me, unitType === "caravan" ? "economy" : "military");
+      const wt = Game.CARD_TIERS[unitType === "caravan" ? "economy" : "military"].water;
+      return wt && tier >= wt;
+    })();
     const visited = new Map([[fromKey, 0]]);
     const queue = [{ key: fromKey, steps: 0 }];
     while (queue.length) {
@@ -1270,7 +1276,8 @@ const UI = (() => {
       for (const nk of neighbors) {
         if (visited.has(nk)) continue;
         const h = st.map.hexes[nk];
-        if (!h || !h.active || h.terrain === "water") continue;
+        if (!h || !h.active) continue;
+        if (h.terrain === "water" && !waterOk) continue;
         if (unitType === "caravan" && h.barbarian) continue;
         visited.set(nk, cur.steps + 1);
         if (nk === toKey) return cur.steps + 1;
