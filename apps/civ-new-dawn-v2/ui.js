@@ -109,6 +109,15 @@ const UI = (() => {
     document.getElementById("btn-local").addEventListener("click", startLocal);
     document.getElementById("btn-create").addEventListener("click", startCreate);
     document.getElementById("btn-join").addEventListener("click", startJoin);
+    document.getElementById("btn-new-game").addEventListener("click", () => {
+      if (!confirm("Start a new game? Current progress will be lost.")) return;
+      state = null;
+      localPlayerId = null;
+      try { localStorage.removeItem("civ-nd-save"); } catch(e) {}
+      resetSub();
+      dom.game.classList.add("hidden");
+      dom.lobby.classList.remove("hidden");
+    });
 
     Net.init({
       onState: (payload) => {
@@ -148,11 +157,29 @@ const UI = (() => {
       if (saved) {
         const data = JSON.parse(saved);
         if (data.state && data.localPlayerId) {
-          state = data.state;
-          localPlayerId = data.localPlayerId;
-          Net.startLocal();
-          showGame();
-          render();
+          const resumeBtn = document.createElement("button");
+          resumeBtn.textContent = "Resume Saved Game";
+          resumeBtn.style.marginTop = "8px";
+          const clearBtn = document.createElement("button");
+          clearBtn.textContent = "Delete Save";
+          clearBtn.className = "ghost";
+          clearBtn.style.marginTop = "4px";
+          dom.lobbyStatus.textContent = "Saved game found.";
+          dom.lobby.querySelector(".lobby-actions").appendChild(resumeBtn);
+          dom.lobby.querySelector(".lobby-actions").appendChild(clearBtn);
+          resumeBtn.addEventListener("click", () => {
+            state = data.state;
+            localPlayerId = data.localPlayerId;
+            Net.startLocal();
+            showGame();
+            render();
+          });
+          clearBtn.addEventListener("click", () => {
+            localStorage.removeItem("civ-nd-save");
+            resumeBtn.remove();
+            clearBtn.remove();
+            dom.lobbyStatus.textContent = "Save deleted.";
+          });
         }
       }
     } catch(e) {}
@@ -171,6 +198,7 @@ const UI = (() => {
   }
 
   function startCreate() {
+    if (typeof Peer === "undefined") { dom.lobbyStatus.textContent = "Multiplayer unavailable (PeerJS not loaded). Use Local Solo."; return; }
     try { localStorage.removeItem("civ-nd-save"); } catch(e) {}
     const name = dom.inpName.value.trim() || "Host";
     const color = dom.inpColor.value;
@@ -186,6 +214,7 @@ const UI = (() => {
   }
 
   function startJoin() {
+    if (typeof Peer === "undefined") { dom.lobbyStatus.textContent = "Multiplayer unavailable (PeerJS not loaded). Use Local Solo."; return; }
     try { localStorage.removeItem("civ-nd-save"); } catch(e) {}
     const code = dom.inpJoin.value.trim();
     if (!code) { dom.lobbyStatus.textContent = "Enter a room code."; return; }
@@ -1648,6 +1677,6 @@ const UI = (() => {
     });
   }
 
-  window.addEventListener("load", init);
+  document.addEventListener("DOMContentLoaded", init);
   return { render, dispatch };
 })();

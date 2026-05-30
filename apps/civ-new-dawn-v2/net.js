@@ -20,6 +20,7 @@ const Net = (() => {
   }
 
   function createRoom(callback) {
+    if (typeof Peer === "undefined") { console.warn("PeerJS not loaded"); return; }
     if (peer) peer.destroy();
     isHost = true;
     peer = new Peer();
@@ -56,6 +57,7 @@ const Net = (() => {
   let reconnectAttempts = 0;
 
   function joinRoom(code, name, color, callback) {
+    if (typeof Peer === "undefined") { console.warn("PeerJS not loaded"); return; }
     if (peer) peer.destroy();
     isHost = false;
     lastRoomCode = code;
