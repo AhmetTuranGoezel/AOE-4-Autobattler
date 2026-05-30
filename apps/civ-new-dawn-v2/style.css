@@ -104,6 +104,7 @@ input, select {
 #hdr-room { color: var(--text2); }
 #hdr-round { color: var(--warn); }
 #hdr-turn { margin-left: auto; font-weight: 600; }
+#btn-new-game { margin-left: 8px; }
 
 #layout {
   flex: 1;
