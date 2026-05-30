@@ -184,24 +184,22 @@ const Game = (() => {
     if (cellKeys.some((k) => st.map.hexes[k].active)) return { ok: false };
 
     const cellSet = new Set(cellKeys);
-    let adjacentCount = 0;
+    const boardNeighbors = new Set();
     let touchesCore = false;
     let touchesCoreAdj = false;
 
     cellKeys.forEach((k) => {
-      let hasNeighbor = false;
       hexNeighborKeys(parseQ(k), parseR(k)).forEach((nk) => {
         if (cellSet.has(nk)) return;
         const nh = st.map.hexes[nk];
         if (!nh || !nh.active) return;
-        hasNeighbor = true;
+        boardNeighbors.add(nk);
         if (nh.core) touchesCore = true;
         if (nh.coreAdjacent) touchesCoreAdj = true;
       });
-      if (hasNeighbor) adjacentCount++;
     });
 
-    if (!tile.isCore && adjacentCount < 4) return { ok: false };
+    if (!tile.isCore && boardNeighbors.size < 4) return { ok: false };
     if (!tile.isCore && st.setup.phase !== "capital_tile" && !touchesCore && !touchesCoreAdj) return { ok: false };
     return { ok: true, touchesCore, touchesCoreAdj };
   }
@@ -2072,19 +2070,17 @@ const Game = (() => {
     if (cellKeys.some((k) => st.map.hexes[k].active)) return { ok: false };
 
     const cellSet = new Set(cellKeys);
-    let adjacentCount = 0;
+    const boardNeighbors = new Set();
     cellKeys.forEach((k) => {
-      let hasNeighbor = false;
       hexNeighborKeys(parseQ(k), parseR(k)).forEach((nk) => {
         if (cellSet.has(nk)) return;
         const nh = st.map.hexes[nk];
         if (!nh || !nh.active) return;
-        hasNeighbor = true;
+        boardNeighbors.add(nk);
       });
-      if (hasNeighbor) adjacentCount++;
     });
 
-    if (adjacentCount < 4) return { ok: false };
+    if (boardNeighbors.size < 4) return { ok: false };
     return { ok: true };
   }
 
