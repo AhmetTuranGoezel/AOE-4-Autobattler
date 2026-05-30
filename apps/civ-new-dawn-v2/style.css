@@ -437,3 +437,52 @@ input, select {
   padding: 4px; font-size: 11px; z-index: 1000;
 }
 #conn-banner.hidden { display: none; }
+
+/* ANIMATIONS */
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.9; }
+}
+@keyframes slide-up-in {
+  from { transform: translateY(10px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes card-played {
+  0% { transform: translateY(0) scale(1); }
+  30% { transform: translateY(-12px) scale(1.08); }
+  100% { transform: translateY(0) scale(1); }
+}
+@keyframes flash-hex {
+  0% { opacity: 0.9; }
+  100% { opacity: 0; }
+}
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-3px); }
+  40% { transform: translateX(3px); }
+  60% { transform: translateX(-2px); }
+  80% { transform: translateX(2px); }
+}
+@keyframes combat-hit {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+@keyframes dice-roll {
+  0% { transform: rotate(0deg) scale(0.8); opacity: 0; }
+  50% { transform: rotate(180deg) scale(1.2); opacity: 1; }
+  100% { transform: rotate(360deg) scale(1); opacity: 1; }
+}
+@keyframes pop-in {
+  0% { transform: scale(0.6); opacity: 0; }
+  60% { transform: scale(1.1); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.fcard.card-anim { animation: card-played 0.4s ease; }
+.wiz-title { animation: slide-up-in 0.25s ease; }
+.combat-result { animation: pop-in 0.3s ease; }
+.cr-win { animation: combat-hit 0.4s ease; color: var(--success); font-weight: bold; font-size: 18px; }
+.cr-lose { animation: shake 0.4s ease; color: var(--danger); font-weight: bold; font-size: 18px; }
+.log-entry { animation: slide-up-in 0.2s ease; }
+.player-card.active { animation: pulse-glow 1.5s ease infinite; border-color: var(--accent); }

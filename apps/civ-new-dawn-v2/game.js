@@ -187,24 +187,22 @@ const Game = (() => {
     if (cellKeys.some((k) => st.map.hexes[k].active)) return { ok: false };
 
     const cellSet = new Set(cellKeys);
-    let adjacentCount = 0;
+    const boardNeighbors = new Set();
     let touchesCore = false;
     let touchesCoreAdj = false;
 
     cellKeys.forEach((k) => {
-      let hasNeighbor = false;
       hexNeighborKeys(parseQ(k), parseR(k)).forEach((nk) => {
         if (cellSet.has(nk)) return;
         const nh = st.map.hexes[nk];
         if (!nh || !nh.active) return;
-        hasNeighbor = true;
+        boardNeighbors.add(nk);
         if (nh.core) touchesCore = true;
         if (nh.coreAdjacent) touchesCoreAdj = true;
       });
-      if (hasNeighbor) adjacentCount++;
     });
 
-    if (!tile.isCore && adjacentCount < 4) return { ok: false };
+    if (!tile.isCore && boardNeighbors.size < 4) return { ok: false };
     if (!tile.isCore && st.setup.phase !== "capital_tile" && !touchesCore && !touchesCoreAdj) return { ok: false };
     return { ok: true, touchesCore, touchesCoreAdj };
   }
@@ -224,6 +222,14 @@ const Game = (() => {
     return anchors;
   }
 
+  // Predetermined terrain for capital tiles (10 hexes)
+  // Layout: mixed terrain that gives a fair starting position
+  const CAPITAL_TILE_TERRAIN = [
+    "hill", "grass", "forest", "hill",      // row 0: indices 0-3
+    "forest", "grass", "grass", "desert",    // row 1: indices 4-7 (index 6 = capital = grass)
+    "hill", "grass"                          // row 2: indices 8-9
+  ];
+
   function placeTileOnMap(st, tileId, anchorKey, rotation, side) {
     const tile = st.setup ? st.setup.tiles[tileId] : (st.tiles ? st.tiles[tileId] : null);
     if (!tile) return;
@@ -233,12 +239,14 @@ const Game = (() => {
     tile.rotation = rotation;
     tile.side = side;
 
-    cellKeys.forEach((k) => {
+    const isCapitalTile = tile.type === "capital" && tile.ownerId;
+
+    cellKeys.forEach((k, i) => {
       const hex = st.map.hexes[k];
       if (hex.city && hex.city.isCapital) return;
       hex.active = true;
       hex.revealed = true;
-      hex.terrain = randomLandTerrain();
+      hex.terrain = isCapitalTile ? CAPITAL_TILE_TERRAIN[i] : randomLandTerrain();
       hex.core = tile.isCore;
       hex.tileId = tileId;
     });
@@ -1526,19 +1534,17 @@ const Game = (() => {
     if (cellKeys.some((k) => st.map.hexes[k].active)) return { ok: false };
 
     const cellSet = new Set(cellKeys);
-    let adjacentCount = 0;
+    const boardNeighbors = new Set();
     cellKeys.forEach((k) => {
-      let hasNeighbor = false;
       hexNeighborKeys(parseQ(k), parseR(k)).forEach((nk) => {
         if (cellSet.has(nk)) return;
         const nh = st.map.hexes[nk];
         if (!nh || !nh.active) return;
-        hasNeighbor = true;
+        boardNeighbors.add(nk);
       });
-      if (hasNeighbor) adjacentCount++;
     });
 
-    if (adjacentCount < 4) return { ok: false };
+    if (boardNeighbors.size < 4) return { ok: false };
     return { ok: true };
   }
 

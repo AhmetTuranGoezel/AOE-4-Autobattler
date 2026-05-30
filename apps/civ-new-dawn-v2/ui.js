@@ -33,6 +33,35 @@ const UI = (() => {
     movementState: null
   };
 
+  // Animation system
+  const anims = {
+    hexFlashes: [],  // { key, color, startTime, duration }
+    validPulse: 0
+  };
+
+  function flashHex(hexKey, color, duration) {
+    anims.hexFlashes.push({ key: hexKey, color, startTime: performance.now(), duration: duration || 600 });
+  }
+
+  function flashHexes(keys, color, duration) {
+    keys.forEach((k) => flashHex(k, color, duration));
+  }
+
+  let animFrameId = null;
+  function startAnimLoop() {
+    if (animFrameId) return;
+    (function tick() {
+      animFrameId = requestAnimationFrame(tick);
+      anims.validPulse = (performance.now() % 2000) / 2000;
+      const now = performance.now();
+      const hadFlashes = anims.hexFlashes.length > 0;
+      anims.hexFlashes = anims.hexFlashes.filter((f) => now - f.startTime < f.duration);
+      if (hadFlashes || anims.hexFlashes.length > 0 || sub.validHexes.size > 0) {
+        renderCanvas();
+      }
+    })();
+  }
+
   const dom = {};
 
   // Toast system
@@ -232,6 +261,7 @@ const UI = (() => {
     dom.lobby.classList.add("hidden");
     dom.game.classList.remove("hidden");
     initCanvas();
+    startAnimLoop();
   }
 
   function dispatch(action) {
@@ -411,15 +441,16 @@ const UI = (() => {
     // Layer 3: Tile boundaries
     drawTileBoundaries(cw, ch);
 
-    // Layer 4: Valid hex highlights
+    // Layer 4: Valid hex highlights (pulsing)
+    const pulseAlpha = 0.15 + 0.15 * Math.sin(anims.validPulse * Math.PI * 2);
     combinedValid.forEach((k) => {
       const h = hexes[k];
       if (!h) return;
       const p = axialToPixel(h.q, h.r);
       hexPath(p.x, p.y, HEX_SIZE - 2);
-      ctx.fillStyle = "rgba(102,187,106,0.2)";
+      ctx.fillStyle = `rgba(102,187,106,${pulseAlpha.toFixed(2)})`;
       ctx.fill();
-      ctx.strokeStyle = "#66bb6a";
+      ctx.strokeStyle = `rgba(102,187,106,${(0.5 + pulseAlpha).toFixed(2)})`;
       ctx.lineWidth = 2;
       ctx.stroke();
     });
@@ -473,6 +504,23 @@ const UI = (() => {
         ctx.stroke();
       }
     }
+
+    // Layer 9: Hex flash animations
+    const now = performance.now();
+    anims.hexFlashes.forEach((f) => {
+      const h = hexes[f.key];
+      if (!h) return;
+      const p = axialToPixel(h.q, h.r);
+      const progress = (now - f.startTime) / f.duration;
+      const alpha = 1.0 - progress;
+      const size = HEX_SIZE + progress * 8;
+      hexPath(p.x, p.y, size);
+      ctx.fillStyle = f.color.replace(")", `,${(alpha * 0.5).toFixed(2)})`).replace("rgb", "rgba");
+      ctx.fill();
+      ctx.strokeStyle = f.color.replace(")", `,${alpha.toFixed(2)})`).replace("rgb", "rgba");
+      ctx.lineWidth = 3 * alpha;
+      ctx.stroke();
+    });
   }
 
   function drawTileBoundaries(cw, ch) {
@@ -508,7 +556,6 @@ const UI = (() => {
     const fillColor = valid ? "rgba(102,187,106,0.25)" : "rgba(239,83,80,0.2)";
     const strokeColor = valid ? "#66bb6a" : "#ef5350";
 
-    // Get tile data for terrain preview
     let tileId = null;
     let tile = null;
     if (state.phase === "setup") {
@@ -520,22 +567,65 @@ const UI = (() => {
       tile = tileId ? state.tiles[tileId] : null;
     }
 
+    const ghostKeyArr = mouseHex ? Game.getTileHexKeys(
+      Game.key(mouseHex.q, mouseHex.r), sub.tileRotation, hexes
+    ) : [];
+    const isCapitalTile = tile && tile.type === "capital";
+    const capitalGhostKey = isCapitalTile ? ghostKeyArr[6] : null;
+    const anchorKey = mouseHex ? Game.key(mouseHex.q, mouseHex.r) : null;
+
+    const CAP_TERRAIN_COLORS = [
+      "#8b7355", "#4a7c3f", "#2d5a27", "#8b7355",
+      "#2d5a27", "#4a7c3f", "#4a7c3f", "#c4a35a",
+      "#8b7355", "#4a7c3f"
+    ];
+    const GENERIC_TERRAIN = [
+      "#4a7c3f", "#2d5a27", "#8b7355", "#4a7c3f",
+      "#c4a35a", "#4a7c3f", "#8b7355", "#2d5a27",
+      "#4a7c3f", "#8b7355"
+    ];
+
     ghostKeys.forEach((k) => {
       const h = hexes[k];
       if (!h) return;
       const p = axialToPixel(h.q, h.r);
       hexPath(p.x, p.y, HEX_SIZE);
-      ctx.fillStyle = h.active ? "rgba(239,83,80,0.3)" : fillColor;
-      ctx.fill();
 
-      // Show tile type indicator at anchor
-      if (tile && k === Game.key(mouseHex.q, mouseHex.r)) {
-        ctx.fillStyle = "#fff";
+      if (h.active) {
+        ctx.fillStyle = "rgba(239,83,80,0.3)";
+        ctx.fill();
+      } else if (valid && tile) {
+        const idx = ghostKeyArr.indexOf(k);
+        if (isCapitalTile) {
+          ctx.fillStyle = idx >= 0 ? CAP_TERRAIN_COLORS[idx] : fillColor;
+        } else if (tile.type === "natural" && k === anchorKey) {
+          ctx.fillStyle = "#9c27b0";
+        } else if (tile.type === "citystate" && k === anchorKey) {
+          ctx.fillStyle = "#ff9800";
+        } else {
+          ctx.fillStyle = idx >= 0 ? GENERIC_TERRAIN[idx] : fillColor;
+        }
+        ctx.globalAlpha = 0.7;
+        ctx.fill();
+        ctx.globalAlpha = 1.0;
+      } else {
+        ctx.fillStyle = fillColor;
+        ctx.fill();
+      }
+
+      if (!tile || !valid) return;
+      ctx.fillStyle = "#fff";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      if (k === capitalGhostKey) {
+        ctx.font = "bold 10px sans-serif";
+        ctx.fillText("★ CAP", p.x, p.y);
+      } else if (k === anchorKey && tile.type === "natural") {
+        ctx.font = "bold 10px sans-serif";
+        ctx.fillText("★ WND", p.x, p.y);
+      } else if (k === anchorKey && tile.type === "citystate") {
         ctx.font = "bold 9px sans-serif";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        const labels = { capital: "CAP", natural: "WND", citystate: "CS", normal: "" };
-        ctx.fillText(labels[tile.type] || "", p.x, p.y);
+        ctx.fillText("⬟ CS", p.x, p.y);
       }
     });
 
@@ -867,6 +957,21 @@ const UI = (() => {
     const maxA = Game.CFG.maxArmies + (me.techTier >= 3 ? 1 : 0);
     const maxW = Game.CFG.maxCaravans + (me.techTier >= 3 ? 1 : 0);
     const tiers = me.cardTiers ? Game.FOCUS_TYPES.map((f) => `${Game.FOCUS_LABELS[f][0]}${me.cardTiers[f] || 1}`).join(" ") : "";
+    const builtWonders = new Set();
+    const myWonders = [];
+    if (state) Object.values(state.map.hexes).forEach((h) => {
+      if (h.city && h.city.wonder) {
+        builtWonders.add(h.city.wonder.name);
+        if (h.city.ownerId === localPlayerId) myWonders.push(h.city.wonder.name);
+      }
+    });
+    const myWonderStr = myWonders.length ? myWonders.join(", ") : "none";
+    const availableWonders = Game.ALL_WONDERS.filter((w) => !builtWonders.has(w.name));
+    const wonderList = Object.entries(Game.WONDER_ERAS).map(([era, data]) => {
+      const avail = data.wonders.filter((w) => !builtWonders.has(w.name));
+      if (avail.length === 0) return "";
+      return `<div style="margin-top:2px"><strong style="font-size:10px">${era.charAt(0).toUpperCase() + era.slice(1)} (${data.cost})</strong>: ${avail.map((w) => `<span title="${w.effect}" style="cursor:help">${w.name}</span>`).join(", ")}</div>`;
+    }).join("");
     dom.myStats.innerHTML = `<h3>My Stats</h3><div class="stat-grid">
       <span>Tech:</span><span class="sv">${me.tech}/${Game.CFG.techWheelSize} (T${me.techTier})</span>
       <span>Card Tiers:</span><span class="sv">${tiers}</span>
@@ -874,7 +979,11 @@ const UI = (() => {
       <span>Caravans:</span><span class="sv">${me.caravans.length}/${maxW}</span>
       <span>Resources:</span><span class="sv">${res}</span>
       <span>Gov:</span><span class="sv">${gov}</span>
-    </div>`;
+      <span>My Wonders:</span><span class="sv">${myWonderStr}</span>
+    </div>
+    <details style="margin-top:6px;font-size:11px"><summary style="cursor:pointer;color:var(--accent)">Available Wonders (${availableWonders.length})</summary>
+      ${wonderList}
+    </details>`;
   }
 
   // ── Wizard ────────────────────────────────────────────────
@@ -975,10 +1084,22 @@ const UI = (() => {
     const offsets = Game.TILE_OFFSETS.map((off) => Game.rotateAxial(off, sub.tileRotation));
     const minQ = Math.min(...offsets.map((o) => o.q));
     const minR = Math.min(...offsets.map((o) => o.r));
-    const cells = offsets.map((o) => ({ q: o.q - minQ, r: o.r - minR }));
+    const cells = offsets.map((o, i) => ({ q: o.q - minQ, r: o.r - minR, idx: i }));
     const s = 10;
-    const w3 = SQRT3 * s;
     let svg = `<svg width="130" height="75" viewBox="-5 -5 130 75">`;
+
+    let tile = null;
+    if (state && state.phase === "setup") {
+      const playerTiles = state.setup.playerTiles[localPlayerId] || [];
+      tile = playerTiles[0] ? state.setup.tiles[playerTiles[0]] : null;
+    } else if (state && (sub.phase === "move_army_exploring" || sub.phase === "move_caravan_exploring")) {
+      const tid = state.tileStack ? state.tileStack[0] : null;
+      tile = tid ? state.tiles[tid] : null;
+    }
+    const capColors = ["#8b7355", "#4a7c3f", "#2d5a27", "#8b7355", "#2d5a27", "#4a7c3f", "#4a7c3f", "#c4a35a", "#8b7355", "#4a7c3f"];
+    const genColors = ["#4a7c3f", "#2d5a27", "#8b7355", "#4a7c3f", "#c4a35a", "#4a7c3f", "#8b7355", "#2d5a27", "#4a7c3f", "#8b7355"];
+    const tileType = tile ? tile.type : "normal";
+
     cells.forEach((c) => {
       const cx = s * SQRT3 * (c.q + c.r / 2) + 5;
       const cy = s * 1.5 * c.r + 15;
@@ -988,8 +1109,24 @@ const UI = (() => {
         pts.push(`${cx + s * Math.cos(a)},${cy + s * Math.sin(a)}`);
       }
       const isAnchor = (c.q === (0 - minQ) && c.r === (0 - minR));
-      const fill = isAnchor ? "#4fc3f7" : "#4a7c3f";
+      const isCapHex = c.idx === 6;
+      let fill, label = "";
+      if (tileType === "capital") {
+        fill = isCapHex ? "#ffd54f" : capColors[c.idx];
+        if (isCapHex) label = "C";
+      } else if (tileType === "natural") {
+        fill = isAnchor ? "#9c27b0" : genColors[c.idx];
+        if (isAnchor) label = "W";
+      } else if (tileType === "citystate") {
+        fill = isAnchor ? "#ff9800" : genColors[c.idx];
+        if (isAnchor) label = "CS";
+      } else {
+        fill = genColors[c.idx];
+      }
       svg += `<polygon points="${pts.join(" ")}" fill="${fill}" stroke="#fff3" stroke-width="0.5"/>`;
+      if (label) {
+        svg += `<text x="${cx}" y="${cy + 1}" fill="${tileType === "capital" ? "#000" : "#fff"}" font-size="6" font-weight="bold" text-anchor="middle" dominant-baseline="middle">${label}</text>`;
+      }
     });
     svg += `</svg>`;
     return svg;
@@ -1238,8 +1375,11 @@ const UI = (() => {
   }
 
   function renderExploring() {
+    const expTileId = state.tileStack ? state.tileStack[0] : null;
+    const expTile = expTileId ? state.tiles[expTileId] : null;
+    const expType = expTile ? expTile.type.charAt(0).toUpperCase() + expTile.type.slice(1) : "?";
     dom.wizard.innerHTML = `
-      <div class="wiz-title">Exploring</div>
+      <div class="wiz-title">Exploring: ${expType} Tile</div>
       <div class="wiz-body">
         <div class="tile-preview">${renderTilePreview()}</div>
         <div class="trade-counter">
@@ -1295,6 +1435,7 @@ const UI = (() => {
       const defender = Game.findDefender(state, ms.currentKey, localPlayerId);
       const slot = Game.getSlotValue(me, "military", state);
       if (defender) {
+        flashHex(ms.currentKey, "rgb(239,83,80)", 800);
         dispatch({ type: "PLAY_MILITARY_ATTACK", payload: {
           playerId: localPlayerId, unitId: ms.unitId, toKey: ms.currentKey,
           fromKey: ms.startKey, attackPower: slot + sub.tradeSpent,
@@ -1542,6 +1683,7 @@ const UI = (() => {
       if (activeId !== localPlayerId) return;
 
       if (state.setup.phase === "fortress") {
+        flashHex(hexKey, "rgb(255,213,79)", 600);
         dispatch({ type: "PLACE_FORTRESS", payload: { playerId: localPlayerId, hexKey } });
         return;
       }
@@ -1551,6 +1693,8 @@ const UI = (() => {
         const tileId = playerTiles[0];
         const result = Game.validateTilePlacement(state, tileId, hexKey, sub.tileRotation);
         if (!result.ok) return;
+        const tileKeys = Game.getTileHexKeys(hexKey, sub.tileRotation, state.map.hexes);
+        flashHexes(tileKeys, "rgb(102,187,106)", 600);
         dispatch({ type: "PLACE_TILE", payload: { playerId: localPlayerId, tileId, anchorKey: hexKey, rotation: sub.tileRotation, side: sub.tileSide } });
         return;
       }
@@ -1562,6 +1706,7 @@ const UI = (() => {
 
     if (sub.phase === "placing_control") {
       if (!sub.validHexes.has(hexKey)) { showToast("Must be adjacent to your city or control"); return; }
+      flashHex(hexKey, "rgb(102,187,106)", 500);
       sub.placedKeys.push(hexKey);
       sub.remaining--;
       sub.validHexes.delete(hexKey);
@@ -1579,6 +1724,7 @@ const UI = (() => {
     }
     if (sub.phase === "placing_district") {
       if (!sub.validHexes.has(hexKey)) { showToast("Must be adjacent to your city"); return; }
+      flashHex(hexKey, "rgb(79,195,247)", 600);
       dispatch({ type: "PLAY_GROWTH_DISTRICT", payload: { playerId: localPlayerId, hexKey, district: sub.districtType, tradeSpent: sub.tradeSpent } });
       resetSub(); return;
     }
@@ -1604,6 +1750,7 @@ const UI = (() => {
         if (!sub.validHexes.has(hexKey)) { showToast("Can't move there"); return; }
         const ms = sub.movementState;
         const dist = computeStepDistance(state, ms.currentKey, hexKey, ms.remaining, "caravan", localPlayerId);
+        flashHex(hexKey, "rgb(102,187,106)", 400);
         ms.remaining -= dist;
         ms.currentKey = hexKey;
         if (ms.remaining > 0) {
@@ -1628,6 +1775,7 @@ const UI = (() => {
         if (!sub.validHexes.has(hexKey)) return;
         const ms = sub.movementState;
         const dist = computeStepDistance(state, ms.currentKey, hexKey, ms.remaining, "army", localPlayerId);
+        flashHex(hexKey, "rgb(239,83,80)", 400);
         ms.remaining -= dist;
         ms.currentKey = hexKey;
         if (ms.remaining > 0) {
@@ -1660,12 +1808,14 @@ const UI = (() => {
     }
     if (sub.phase === "placing_city") {
       if (!sub.validHexes.has(hexKey)) { showToast("Invalid city location"); return; }
+      flashHex(hexKey, "rgb(255,213,79)", 800);
       const resources = {}; Object.entries(sub.spentResources).forEach(([r, spent]) => { if (spent) resources[r] = 1; });
       dispatch({ type: "PLAY_INDUSTRY_CITY", payload: { playerId: localPlayerId, hexKey, resources, tradeSpent: sub.tradeSpent } });
       resetSub(); return;
     }
     if (sub.phase === "placing_wonder") {
       if (!sub.validHexes.has(hexKey)) { showToast("Must be your city without a wonder"); return; }
+      flashHex(hexKey, "rgb(206,147,216)", 800);
       const resources = {}; Object.entries(sub.spentResources).forEach(([r, spent]) => { if (spent) resources[r] = 1; });
       dispatch({ type: "PLAY_INDUSTRY_WONDER", payload: {
         playerId: localPlayerId, hexKey, resources, tradeSpent: sub.tradeSpent,
@@ -1788,6 +1938,8 @@ const UI = (() => {
     if (canPlay) {
       document.querySelectorAll(".fcard:not(.disabled)").forEach((el) => {
         el.addEventListener("click", () => {
+          el.classList.add("card-anim");
+          setTimeout(() => el.classList.remove("card-anim"), 400);
           sub.phase = "card_selected";
           sub.cardType = el.dataset.card;
           sub.tradeSpent = 0;
