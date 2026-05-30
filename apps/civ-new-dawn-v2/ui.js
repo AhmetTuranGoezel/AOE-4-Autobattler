@@ -1430,7 +1430,7 @@ const UI = (() => {
     const tier = Game.getCardTier(player, cardType);
     switch (cardType) {
       case "culture": {
-        const markers = Game.getCultureMarkers(player, spend);
+        const markers = Game.getCultureMarkers(player, spend, state);
         return `Markers to place: <strong>${markers}</strong> (terrain ≤ ${slot + spend}) [Tier ${tier}]`;
       }
       case "growth": return `Place 1 district or reinforce ${slot + spend} markers. [Tier ${tier}]`;
@@ -1466,7 +1466,7 @@ const UI = (() => {
     if (sub.cardType === "culture") {
       sub.phase = "placing_control";
       const effectiveSlot = slot + sub.tradeSpent;
-      sub.remaining = Game.getCultureMarkers(me, sub.tradeSpent);
+      sub.remaining = Game.getCultureMarkers(me, sub.tradeSpent, state);
       sub.totalMarkers = sub.remaining;
       sub.placedKeys = [];
       sub.validHexes = Game.validControlHexes(state, localPlayerId, effectiveSlot);
@@ -1681,10 +1681,14 @@ const UI = (() => {
     const me = Game.getPlayer(state, localPlayerId);
     if (!me) return;
     let selected = me.govMarkers.slice();
+    const hasForbidden = Object.values(state.map.hexes).some((h) =>
+      h.city && h.city.ownerId === localPlayerId && h.city.wonder && h.city.wonder.name === "Forbidden City"
+    );
+    const maxGov = Game.CFG.maxGovMarkers + (hasForbidden ? 1 : 0);
     const renderPicker = () => {
       dom.wizard.innerHTML = `
-        <div class="wiz-title">Assign Gov Markers (max ${Game.CFG.maxGovMarkers})</div>
-        <div class="wiz-body">Each marker adds +1 to that focus card's slot value.</div>
+        <div class="wiz-title">Assign Gov Markers (max ${maxGov})</div>
+        <div class="wiz-body">Each marker adds +1 to that focus card's slot value.${hasForbidden ? " <em>(+1 from Forbidden City)</em>" : ""}</div>
         <div class="wiz-actions" style="flex-wrap:wrap">
           ${Game.FOCUS_TYPES.map((f) => {
             const active = selected.includes(f) ? " primary" : "";
@@ -1699,7 +1703,7 @@ const UI = (() => {
         btn.addEventListener("click", () => {
           const f = btn.dataset.f;
           if (selected.includes(f)) selected = selected.filter((x) => x !== f);
-          else if (selected.length < Game.CFG.maxGovMarkers) selected.push(f);
+          else if (selected.length < maxGov) selected.push(f);
           renderPicker();
         });
       });

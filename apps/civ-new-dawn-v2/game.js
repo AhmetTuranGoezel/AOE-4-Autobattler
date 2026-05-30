@@ -610,14 +610,15 @@ const Game = (() => {
       const player = getPlayer(st, payload.playerId);
       if (!player || player.cardPlayed) return st;
       const effectiveSlot = getSlotValue(player, "culture", st) + (payload.tradeSpent || 0);
-      const maxMarkers = 2 + (payload.tradeSpent || 0);
+      const maxMarkers = getCultureMarkers(player, payload.tradeSpent || 0, st);
       const hexKeys = (payload.hexKeys || []).slice(0, maxMarkers);
       let placed = 0;
+      const broadwayIgnore = playerHasWonder(st, payload.playerId, "Broadway");
       for (const k of hexKeys) {
         const hx = st.map.hexes[k];
         if (!hx || !hx.active || hx.terrain === "water" || hx.city || hx.barbarian || hx.cityState) continue;
         if (hx.control) continue;
-        if (terrainDifficulty(hx) > effectiveSlot) continue;
+        if (!broadwayIgnore && terrainDifficulty(hx) > effectiveSlot) continue;
         if (!adjacentToFriendlyCity(st, hx, payload.playerId) && !adjacentToFriendlyControl(st, hx, payload.playerId)) continue;
         if (hx.resource && hx.resource !== "wonder") {
           if (player.resources[hx.resource] !== undefined) player.resources[hx.resource]++;
@@ -640,7 +641,8 @@ const Game = (() => {
       if (!hex || !hex.active || hex.terrain === "water" || hex.city || hex.control) return st;
       if (!adjacentToFriendlyCity(st, hex, payload.playerId)) return st;
       const growthSlot = getSlotValue(player, "growth", st) + (payload.tradeSpent || 0);
-      if (terrainDifficulty(hex) > growthSlot) return st;
+      const hagiaSophia = playerHasWonder(st, payload.playerId, "Hagia Sophia") ? 1 : 0;
+      if (terrainDifficulty(hex) > growthSlot + hagiaSophia) return st;
       hex.control = { ownerId: payload.playerId, fortified: false, district: payload.district };
       resolveCard(st, player, "growth", payload.tradeSpent);
       log(st, `${player.name} placed a ${payload.district} district.`);
@@ -856,7 +858,8 @@ const Game = (() => {
     if (type === "ASSIGN_GOV") {
       const player = getPlayer(st, payload.playerId);
       if (!player) return st;
-      const markers = (payload.markers || []).slice(0, CFG.maxGovMarkers);
+      const maxGov = CFG.maxGovMarkers + (playerHasWonder(st, payload.playerId, "Forbidden City") ? 1 : 0);
+      const markers = (payload.markers || []).slice(0, maxGov);
       player.govMarkers = markers;
       FOCUS_TYPES.forEach((f) => { player.govBonus[f] = 0; });
       markers.forEach((f) => { player.govBonus[f] = (player.govBonus[f] || 0) + 1; });
@@ -1255,10 +1258,12 @@ const Game = (() => {
     return CARD_TIERS.economy.move[tier - 1];
   }
 
-  function getCultureMarkers(player, tradeSpent) {
+  function getCultureMarkers(player, tradeSpent, st) {
     const tier = getCardTier(player, "culture");
     const base = CARD_TIERS.culture.markers[tier - 1];
     let bonus = 0;
+    if (st && playerHasWonder(st, player.id, "Alhambra")) bonus += 1;
+    if (st && playerHasWonder(st, player.id, "Eiffel Tower")) bonus += 2;
     return base + tradeSpent + bonus;
   }
 
