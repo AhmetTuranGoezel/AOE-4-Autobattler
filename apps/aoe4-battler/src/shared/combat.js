@@ -90,7 +90,15 @@ export function applyBuffs(unitData, time) {
     rangedArmor += unitData.buffs.rangedArmor;
   }
 
-  return { hp, attack, attackSpeed, meleeArmor, rangedArmor, rangedResistance: unitData.stats.rangedResistance || 0 };
+  return {
+    hp,
+    attack,
+    attackSpeed,
+    meleeArmor,
+    rangedArmor,
+    rangedResistance: unitData.stats.rangedResistance || 0,
+    bonusDamageResistance: unitData.stats.bonusDamageResistance || 0,
+  };
 }
 
 export function calcEffectiveAttackSpeed(unit, baseAttackSpeed, time, team) {
@@ -170,13 +178,19 @@ export function calcWeaponDamage(
   armorPen = 0,
   damageMultiplier = 1,
 ) {
-  let damage = weaponAttack;
+  let bonusDamage = 0;
 
   for (let tag of enemyTags) {
     if (weaponBonus && weaponBonus[tag]) {
-      damage += weaponBonus[tag];
+      bonusDamage += weaponBonus[tag];
     }
   }
+
+  const bonusResistance = Math.max(
+    0,
+    Math.min(100, enemyStats.bonusDamageResistance || 0),
+  );
+  let damage = weaponAttack + bonusDamage * (1 - bonusResistance / 100);
 
   damage *= damageMultiplier;
 

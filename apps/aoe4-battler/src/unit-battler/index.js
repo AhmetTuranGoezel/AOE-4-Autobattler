@@ -126,6 +126,7 @@ const BUILDING_SIMULATED_TECHS = new Set([
   "Fine Tuned Guns",
   "College of Artillery",
   "Castle of the Crow Aura",
+  "Pili Pao",
 ]);
 const BUILDING_DISPLAY_ONLY_TECHS = new Set([
   "Greased Axles",
@@ -150,6 +151,7 @@ const RANGED_BUILDING_ATTACK_UNITS = new Set([
   "Springald",
   "Ribauldequin",
   "Ballista Elephant",
+  "Bed Crossbow",
 ]);
 const SIEGE_BUILDING_ATTACK_OVERRIDES = Object.freeze({
   "Battering Ram": { damageType: "siege", projectileCount: 1, buildingBonus: 198 },
@@ -157,6 +159,7 @@ const SIEGE_BUILDING_ATTACK_OVERRIDES = Object.freeze({
   "Springald": { damageType: "ranged", projectileCount: 1, buildingBonus: 0 },
   "Mangonel": { damageType: "siege", projectileCount: 3, perProjectileAttack: 10, buildingBonus: 30 },
   "Nest of Bees": { damageType: "siege", projectileCount: 7, perProjectileAttack: 6, buildingBonus: 0 },
+  "Mounted Grenadier": { damageType: "siege", projectileCount: 1, buildingBonus: 8 },
   "Ribauldequin": { damageType: "ranged", projectileCount: 12, perProjectileAttack: 42, buildingBonus: 0 },
   "Counterweight Trebuchet": { damageType: "siege", projectileCount: 1, buildingBonus: 350, setupUnit: true },
   "Traction Trebuchet": { damageType: "siege", projectileCount: 1, buildingBonus: 190, setupUnit: true },
@@ -500,6 +503,7 @@ function resolveRangedDefenseStats(unit, ageStats, displayedValue) {
 
 function getBuildingTechEffectState(item) {
   if (item?.pseudo) return "simulated";
+  if (item?.displayOnly) return "display-only";
   const torchMeta = getTorchTechMeta(item);
   if (torchMeta) return torchMeta.simulationMode;
   if (BUILDING_SIMULATED_TECHS.has(item.name)) return "simulated";
@@ -513,7 +517,7 @@ function getBuildingTechEffectState(item) {
 function getProjectileAttackValue(unitName, totalAttack, overrideProjectileCount = 1) {
   const count = Math.max(1, overrideProjectileCount || 1);
   if (count === 1) return totalAttack;
-  if (unitName === "Counterweight Trebuchet") return totalAttack;
+  if (unitName === "Counterweight Trebuchet" || unitName === "Bed Crossbow") return totalAttack;
   return totalAttack / count;
 }
 
@@ -567,6 +571,22 @@ function getSpecialAttackerDefenseStats(side, unitData, currentStats) {
   return nextStats;
 }
 
+function getJinSiegeMoveSpeedMultiplierForTechNames(hasTech) {
+  let multiplier = 1;
+  if (hasTech("Greased Axles")) multiplier *= 1.15;
+  if (hasTech("Lightweight Frames")) multiplier *= 1.1;
+  if (hasTech("Reinforced Axles")) multiplier *= 1.1;
+  if (hasTech("Wheelbarrow")) multiplier *= 1.15;
+  return multiplier;
+}
+
+function getActiveRangeBonusForTechNames(hasTech) {
+  let bonus = 0;
+  if (hasTech("Silk Bowstrings")) bonus += 0.5;
+  if (hasTech("Pili Pao")) bonus += 1;
+  return bonus;
+}
+
 function getBuildingAttackContext(unitData, side, time = 0) {
   const unitName = unitData.name || "";
   const isSiege = isSiegeUnit(unitData.tags || []);
@@ -614,6 +634,11 @@ function getBuildingAttackContext(unitData, side, time = 0) {
     hasActiveTech(side, "Counterweight Defenses")
   ) {
     projectileCount += 1;
+  }
+  if (unitName === "Traction Trebuchet" && hasActiveTech(side, "Pili Pao")) {
+    baseAttackPerProjectile = 13;
+    projectileCount = 3;
+    bonusVsBuilding = 65;
   }
 
   const specialDamage = getSpecialBuildingAttackMultiplier(
@@ -758,6 +783,7 @@ function renderTechButtons(side, unitName, unit) {
     armor: [],
     hitpoints: [],
     attackSpeed: [],
+    moveSpeed: [],
     range: [],
     nonCombat: [],
   };
@@ -766,6 +792,7 @@ function renderTechButtons(side, unitName, unit) {
     armor: "Armor",
     hitpoints: "Hitpoints",
     attackSpeed: "Attack Speed",
+    moveSpeed: "Move Speed",
     range: "Range",
     nonCombat: "Other",
   };
@@ -788,7 +815,7 @@ function renderTechButtons(side, unitName, unit) {
       const isCombat = isCombatCategory(item.category);
       const isActive = activeTechs[side].has(key);
       const isLocked = !!item.ktLocked;
-      const isUnmodeled = isCombat && !effects;
+      const isUnmodeled = item.displayOnly || (isCombat && !effects);
       const hasLevels =
         effects &&
         Object.values(effects).some(
@@ -802,7 +829,9 @@ function renderTechButtons(side, unitName, unit) {
       const tooltipSuffix = isLocked
         ? " (locked by Commanderie choice)"
         : isUnmodeled
-          ? " (not modeled)"
+          ? item.displayOnly
+            ? " (display-only)"
+            : " (not modeled)"
           : "";
       const tooltip =
         `${item.name}: ${item.description || ""}${tooltipSuffix}`.replace(
@@ -946,6 +975,7 @@ function renderBuildingUnitTechs(side) {
     armor: [],
     hitpoints: [],
     attackSpeed: [],
+    moveSpeed: [],
     range: [],
     nonCombat: [],
   };
@@ -954,6 +984,7 @@ function renderBuildingUnitTechs(side) {
     armor: "Armor",
     hitpoints: "Hitpoints",
     attackSpeed: "Attack Speed",
+    moveSpeed: "Move Speed",
     range: "Range",
     nonCombat: "Other",
   };
@@ -2385,6 +2416,18 @@ function renderEffectValueEditor(effectId, effect, options = {}) {
         ],
         1,
       );
+    case "bonusDamageResistance":
+      return renderBattlerFieldGrid(
+        [
+          renderEffectField(
+            effectId,
+            "reduction",
+            { label: "Bonus Damage", value: effect.reduction, suffix: "%" },
+            options,
+          ),
+        ],
+        1,
+      );
     case "shieldWall":
       return renderBattlerFieldGrid(
         [
@@ -2721,6 +2764,18 @@ function renderEffectValueEditor(effectId, effect, options = {}) {
           ),
         ],
         2,
+      );
+    case "meleeThorns":
+      return renderBattlerFieldGrid(
+        [
+          renderEffectField(
+            effectId,
+            "damage",
+            { label: "Return Damage", value: effect.damage },
+            options,
+          ),
+        ],
+        1,
       );
     case "spearwall":
       return renderBattlerFieldGrid(
@@ -3070,6 +3125,8 @@ function collectEffects(side) {
       effects.gunpowderResistance = { reduction: getVal("reduction") };
     } else if (effectId === "camelUnease") {
       effects.camelUnease = { reduction: getVal("reduction") };
+    } else if (effectId === "bonusDamageResistance") {
+      effects.bonusDamageResistance = { reduction: getVal("reduction") };
     } else if (effectId === "shieldWall") {
       effects.shieldWall = {
         atkSpeedPenalty: getVal("atkSpeedPenalty"),
@@ -3131,9 +3188,11 @@ function collectEffects(side) {
     } else if (effectId === "armorPenetration") {
       effects.armorPenetration = { penetration: getVal("penetration") };
     } else if (effectId === "dmgDebuffOnHit") {
+      const sourceEffect = unit?.effects?.[effectId] || {};
       effects.dmgDebuffOnHit = {
         reduction: getVal("reduction"),
         duration: getVal("duration"),
+        cavalryOnly: !!sourceEffect.cavalryOnly,
       };
     } else if (effectId === "spearwall") {
       effects.spearwall = { stunDuration: getVal("stunDuration") };
@@ -3154,8 +3213,24 @@ function collectEffects(side) {
         totalDamage: getVal("totalDamage"),
         duration: getVal("duration"),
       };
+    } else if (effectId === "meleeThorns") {
+      effects.meleeThorns = { damage: getVal("damage") };
     }
   });
+
+  if (hasActiveTech(side, "Quilted Armor")) {
+    effects.bonusDamageResistance = { reduction: 50 };
+  }
+  if (hasActiveTech(side, "Heaven Shaking Thunder")) {
+    effects.dmgDebuffOnHit = {
+      reduction: 20,
+      duration: 5,
+      cavalryOnly: true,
+    };
+  }
+  if (hasActiveTech(side, "Porcupine Defense")) {
+    effects.meleeThorns = { damage: 10 };
+  }
 
   if (isKnightsTemplarCiv(getSelectedCiv(side)) && unit) {
     Object.assign(
@@ -4198,6 +4273,8 @@ function getUnitData(side) {
         parseFloat(document.getElementById(`${side}_meleeArmor`).value) || 0,
       rangedArmor,
       rangedResistance,
+      bonusDamageResistance:
+        effects.bonusDamageResistance?.reduction || 0,
       attackSpeed:
         parseFloat(document.getElementById(`${side}_attackSpeed`).value) || 1,
       bonus: collectBonuses(side), // NEW: Custom bonuses from UI
@@ -4241,9 +4318,15 @@ function getUnitData(side) {
     effects,
     chargeDamage,
     weaponType: weaponData.type || "melee",
-    weaponRange: weaponData.range || 0,
+    weaponRange:
+      (weaponData.range || 0) +
+      getActiveRangeBonusForTechNames((techName) => hasActiveTech(side, techName)),
     weaponProjectiles: getWeaponProjectiles(weaponData),
-    speed: unit.speed || 1,
+    speed:
+      (unit.speed || 1) *
+      getJinSiegeMoveSpeedMultiplierForTechNames((techName) =>
+        hasActiveTech(side, techName),
+      ),
     secondaryWeapon: supportsBoth
       ? {
           name: getWeaponDisplayName(unit.weapons.secondary),
@@ -5019,9 +5102,21 @@ function runBattle() {
         teamB.atkSpeedDebuffReduction = unitA.effects.atkSpeedDebuff.reduction;
       }
       // Damage Debuff on Hit (Ruinous Blinding): reduce enemy damage output
-      if (unitA.effects.dmgDebuffOnHit) {
+      if (
+        unitA.effects.dmgDebuffOnHit &&
+        (!unitA.effects.dmgDebuffOnHit.cavalryOnly ||
+          teamB.tags.includes("Cavalry"))
+      ) {
         teamB.dmgDebuffUntil = time + unitA.effects.dmgDebuffOnHit.duration;
         teamB.dmgDebuffReduction = unitA.effects.dmgDebuffOnHit.reduction;
+      }
+      if (
+        unitB.effects.meleeThorns &&
+        unitA.weaponType === "melee" &&
+        primaryDamage > 0
+      ) {
+        damageToA += (unitB.effects.meleeThorns.damage || 0) * teamA.units;
+        logNotesB.push("Thorns");
       }
     }
 
@@ -5144,9 +5239,21 @@ function runBattle() {
         teamA.atkSpeedDebuffReduction = unitB.effects.atkSpeedDebuff.reduction;
       }
       // Damage Debuff on Hit (Ruinous Blinding): reduce enemy damage output
-      if (unitB.effects.dmgDebuffOnHit) {
+      if (
+        unitB.effects.dmgDebuffOnHit &&
+        (!unitB.effects.dmgDebuffOnHit.cavalryOnly ||
+          teamA.tags.includes("Cavalry"))
+      ) {
         teamA.dmgDebuffUntil = time + unitB.effects.dmgDebuffOnHit.duration;
         teamA.dmgDebuffReduction = unitB.effects.dmgDebuffOnHit.reduction;
+      }
+      if (
+        unitA.effects.meleeThorns &&
+        unitB.weaponType === "melee" &&
+        primaryDamage > 0
+      ) {
+        damageToB += (unitA.effects.meleeThorns.damage || 0) * teamB.units;
+        logNotesA.push("Thorns");
       }
     }
 
@@ -5668,9 +5775,19 @@ function runBattle() {
       logNotesA.push("ArmorPen");
     if (unitB.effects.armorPenetration && (bFiredPrimary || bFiredSecondary))
       logNotesB.push("ArmorPen");
-    if (unitA.effects.dmgDebuffOnHit && (aFiredPrimary || aFiredSecondary))
+    if (
+      unitA.effects.dmgDebuffOnHit &&
+      (!unitA.effects.dmgDebuffOnHit.cavalryOnly ||
+        teamB.tags.includes("Cavalry")) &&
+      (aFiredPrimary || aFiredSecondary)
+    )
       logNotesA.push("Weaken");
-    if (unitB.effects.dmgDebuffOnHit && (bFiredPrimary || bFiredSecondary))
+    if (
+      unitB.effects.dmgDebuffOnHit &&
+      (!unitB.effects.dmgDebuffOnHit.cavalryOnly ||
+        teamA.tags.includes("Cavalry")) &&
+      (bFiredPrimary || bFiredSecondary)
+    )
       logNotesB.push("Weaken");
     if (
       teamA.dmgDebuffUntil &&
@@ -6116,6 +6233,7 @@ function runBuildingBattle() {
   let repairActiveUntil = -Infinity;
   let repairReadyAt = 0;
   let poisonEffects = [];
+  let buildingDamageDebuffUntil = -Infinity;
 
   let nextAttackerHit = 0;
   let nextBaseArrow = building.baseArrows > 0 ? 0 : Infinity;
@@ -6251,6 +6369,13 @@ function runBuildingBattle() {
           );
       dmgToBuilding = perUnitDamage * teamA.units;
       logNotesA.push(liveAttackContext.label);
+      if (
+        hasActiveTech("A", "Pili Pao") &&
+        ["Traction Trebuchet", "Nest of Bees"].includes(unitA.name)
+      ) {
+        buildingDamageDebuffUntil = time + 8;
+        logNotesA.push("Pili Pao");
+      }
       if (building.attackerAttackSpeedSlowPct > 0) {
         notes.push(`Attack Slow -${building.attackerAttackSpeedSlowPct}%`);
       }
@@ -6269,11 +6394,14 @@ function runBuildingBattle() {
 
     if (building.baseArrows > 0 && nextBaseArrow <= time + EPSILON) {
       const baseBonus = getBonusDamageForTags(building.baseArrowBonus, teamA.tags);
+      const buildingDamageMultiplier =
+        buildingDamageDebuffUntil >= time - EPSILON ? 0.8 : 1;
       const dmgPerArrow = calcDamageToUnitFromBuilding(
         building.baseArrowDmg,
         baseBonus,
         building.baseAttackType || "ranged",
         teamA.stats,
+        buildingDamageMultiplier,
       );
       dmgToAttackers += dmgPerArrow * building.baseArrows;
       nextBaseArrow = time + building.baseArrowRate;
@@ -6286,11 +6414,14 @@ function runBuildingBattle() {
         building.garrisonArrowBonus,
         teamA.tags,
       );
+      const buildingDamageMultiplier =
+        buildingDamageDebuffUntil >= time - EPSILON ? 0.8 : 1;
       const dmgPerArrow = calcDamageToUnitFromBuilding(
         building.garrisonArrowDmg,
         garrisonBonus,
         building.garrisonAttackType || "ranged",
         teamA.stats,
+        buildingDamageMultiplier,
       );
       dmgToAttackers += dmgPerArrow * building.garrison;
       nextGarrisonArrow = time + building.garrisonArrowRate;
@@ -6306,11 +6437,14 @@ function runBuildingBattle() {
           continue;
         }
         const empBonus = getBonusDamageForTags(emp.bonus, teamA.tags);
+        const buildingDamageMultiplier =
+          buildingDamageDebuffUntil >= time - EPSILON ? 0.8 : 1;
         const dmgPerProjectile = calcDamageToUnitFromBuilding(
           emp.dmg,
           empBonus,
           emp.type,
           teamA.stats,
+          buildingDamageMultiplier,
         );
         dmgToAttackers += dmgPerProjectile * emp.projectiles;
         et.nextHit = time + emp.rate;
@@ -7224,6 +7358,7 @@ function collectEffectsFromCard(card) {
   const effects = {};
   const unitName =
     card.querySelector('[data-field="unitSelect"]')?.dataset.value || "";
+  const unit = units[unitName];
   const civ =
     card.querySelector('[data-field="civSelect"]')?.dataset.value || "";
   const activeEntries = card._groupRef?.unitData?.activeTechs || [];
@@ -7291,6 +7426,8 @@ function collectEffectsFromCard(card) {
       effects.gunpowderResistance = { reduction: getVal("reduction") };
     } else if (effectId === "camelUnease") {
       effects.camelUnease = { reduction: getVal("reduction") };
+    } else if (effectId === "bonusDamageResistance") {
+      effects.bonusDamageResistance = { reduction: getVal("reduction") };
     } else if (effectId === "shieldWall") {
       effects.shieldWall = {
         atkSpeedPenalty: getVal("atkSpeedPenalty"),
@@ -7352,9 +7489,11 @@ function collectEffectsFromCard(card) {
     } else if (effectId === "armorPenetration") {
       effects.armorPenetration = { penetration: getVal("penetration") };
     } else if (effectId === "dmgDebuffOnHit") {
+      const sourceEffect = unit?.effects?.[effectId] || {};
       effects.dmgDebuffOnHit = {
         reduction: getVal("reduction"),
         duration: getVal("duration"),
+        cavalryOnly: !!sourceEffect.cavalryOnly,
       };
     } else if (effectId === "spearwall") {
       effects.spearwall = { stunDuration: getVal("stunDuration") };
@@ -7375,8 +7514,25 @@ function collectEffectsFromCard(card) {
         totalDamage: getVal("totalDamage"),
         duration: getVal("duration"),
       };
+    } else if (effectId === "meleeThorns") {
+      effects.meleeThorns = { damage: getVal("damage") };
     }
   });
+  const hasMultiTech = (name) =>
+    activeEntries.some(([key]) => String(key || "").startsWith(`${name}|`));
+  if (hasMultiTech("Quilted Armor")) {
+    effects.bonusDamageResistance = { reduction: 50 };
+  }
+  if (hasMultiTech("Heaven Shaking Thunder")) {
+    effects.dmgDebuffOnHit = {
+      reduction: 20,
+      duration: 5,
+      cavalryOnly: true,
+    };
+  }
+  if (hasMultiTech("Porcupine Defense")) {
+    effects.meleeThorns = { damage: 10 };
+  }
   if (isKnightsTemplarCiv(civ) && unitName && activeEntries.length > 0) {
     Object.assign(effects, getKtDerivedEffectsFromEntries(activeEntries));
   }
@@ -7762,6 +7918,7 @@ function syncGroupFromCard(card, group) {
   const tags = collectTagsFromCard(card);
   const bonuses = collectBonusesFromCard(card);
   const effects = collectEffectsFromCard(card);
+  const activeEntries = card._groupRef?.unitData?.activeTechs || [];
   const chargeDamageMultiplier = 1 + ((effects.chargeDamagePct || 0) / 100);
   const ruleOfTemplarsBonus =
     effects.ruleOfTemplars && tags.includes("Cavalry")
@@ -7788,6 +7945,8 @@ function syncGroupFromCard(card, group) {
       meleeArmor: parseFloat(getMultiField(card, "meleeArmor").value) || 0,
       rangedArmor,
       rangedResistance,
+      bonusDamageResistance:
+        effects.bonusDamageResistance?.reduction || 0,
       attackSpeed: parseFloat(getMultiField(card, "attackSpeed").value) || 1,
       bonus: bonuses,
     },
@@ -7817,9 +7976,21 @@ function syncGroupFromCard(card, group) {
     chargeDamage:
       (ageStats.chargeDamage || 0) * chargeDamageMultiplier + ruleOfTemplarsBonus,
     weaponType: weaponData.type || "melee",
-    weaponRange: weaponData.range || 0,
+    weaponRange:
+      (weaponData.range || 0) +
+      getActiveRangeBonusForTechNames((techName) =>
+        activeEntries.some(([key]) =>
+          String(key || "").startsWith(`${techName}|`),
+        ),
+      ),
     weaponProjectiles: getWeaponProjectiles(weaponData),
-    speed: unit.speed || 1,
+    speed:
+      (unit.speed || 1) *
+      getJinSiegeMoveSpeedMultiplierForTechNames((techName) =>
+        activeEntries.some(([key]) =>
+          String(key || "").startsWith(`${techName}|`),
+        ),
+      ),
     secondaryWeapon: supportsBoth
       ? {
           name: getWeaponDisplayName(unit.weapons.secondary),

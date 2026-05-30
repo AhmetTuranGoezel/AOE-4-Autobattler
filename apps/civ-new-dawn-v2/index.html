@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Civ: New Dawn</title>
   <link rel="stylesheet" href="style.css">
-  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js" async></script>
 </head>
 <body>
   <div id="app">
@@ -37,12 +37,14 @@
     </div>
 
     <!-- GAME -->
+    <div id="conn-banner" class="hidden">Connection lost...</div>
     <div id="game" class="panel-game hidden">
       <header id="header">
         <span id="hdr-title">Civ: New Dawn</span>
         <span id="hdr-room"></span>
         <span id="hdr-round"></span>
         <span id="hdr-turn"></span>
+        <button id="btn-new-game" class="sm ghost">New Game</button>
       </header>
 
       <div id="layout">
@@ -59,18 +61,23 @@
 
         <aside id="right-panel">
           <section id="wizard"></section>
+          <section id="host-tools"></section>
           <section id="event-wheel"></section>
           <section id="game-log"></section>
+          <div id="chat-row"><input id="chat-input" placeholder="Chat..." maxlength="100"><button id="chat-send">Send</button></div>
         </aside>
       </div>
 
       <footer id="focus-bar">
         <div id="focus-row"></div>
       </footer>
+      <div id="toast" class="hidden"></div>
+      <div id="action-toast" class="hidden"></div>
     </div>
   </div>
 
   <script src="net.js"></script>
+  <script src="rules-data.js"></script>
   <script src="game.js"></script>
   <script src="ui.js"></script>
 </body>

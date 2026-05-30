@@ -19178,11 +19178,11 @@
       "Jin Dynasty"
     ],
     "costs": {
-      "food": 115,
+      "food": 140,
       "gold": 125
     },
-    "trainingTime": 30,
-    "population": 2,
+    "trainingTime": 40,
+    "population": 1,
     "speed": 1.625,
     "tags": [
       "Cavalry",
@@ -19193,7 +19193,7 @@
       "primary": {
         "type": "melee",
         "range": 0.29,
-        "attackSpeed": 1.625,
+        "attackSpeed": 1.5,
         "ages": {
           "2": {
             "hp": 200,
@@ -19222,17 +19222,24 @@
         }
       }
     },
-    "upgrades": []
+    "upgrades": [],
+    "effects": {
+      "aoeSplash": {
+        "name": "Pagoda Splash",
+        "description": "Moderate area splash damage around the target.",
+        "unitsHit": 2
+      }
+    }
   },
   "Mohe Tribesman": {
     "civs": [
       "Jin Dynasty"
     ],
     "costs": {
-      "food": 35,
+      "food": 60,
       "wood": 35
     },
-    "trainingTime": 18,
+    "trainingTime": 17,
     "population": 1,
     "speed": 1.625,
     "tags": [
@@ -19251,21 +19258,33 @@
             "meleeArmor": 0,
             "rangedArmor": 0,
             "attack": 5,
-            "bonus": {}
+            "bonus": {
+              "Light Infantry": 7,
+              "Light Gunpowder": 5,
+              "Ranged": 1
+            }
           },
           "3": {
             "hp": 70,
             "meleeArmor": 0,
             "rangedArmor": 0,
             "attack": 7,
-            "bonus": {}
+            "bonus": {
+              "Light Infantry": 10,
+              "Light Gunpowder": 7,
+              "Ranged": 1
+            }
           },
           "4": {
             "hp": 90,
             "meleeArmor": 0,
             "rangedArmor": 0,
             "attack": 8,
-            "bonus": {}
+            "bonus": {
+              "Light Infantry": 11,
+              "Light Gunpowder": 8,
+              "Ranged": 1
+            }
           }
         }
       }
@@ -19351,7 +19370,7 @@
       "wood": 125,
       "gold": 100
     },
-    "trainingTime": 30,
+    "trainingTime": 15,
     "population": 2,
     "speed": 0.91,
     "tags": [
@@ -19372,33 +19391,309 @@
         "ages": {
           "2": {
             "hp": 85,
-            "meleeArmor": 3,
+            "meleeArmor": 0,
             "rangedArmor": 0,
             "rangedResistance": 60,
-            "attack": 32,
+            "attack": 8,
             "bonus": {
-              "Melee Infantry": 8
+              "Melee Infantry": 4,
+              "Ship": 10
             }
           },
           "3": {
             "hp": 95,
-            "meleeArmor": 3,
+            "meleeArmor": 0,
             "rangedArmor": 0,
             "rangedResistance": 60,
-            "attack": 40,
+            "attack": 10,
             "bonus": {
-              "Melee Infantry": 8
+              "Melee Infantry": 4,
+              "Ship": 15
             }
           },
           "4": {
             "hp": 110,
-            "meleeArmor": 3,
+            "meleeArmor": 0,
             "rangedArmor": 0,
             "rangedResistance": 60,
-            "attack": 52,
+            "attack": 13,
             "bonus": {
-              "Melee Infantry": 10
+              "Melee Infantry": 5,
+              "Ship": 20
             }
+          }
+        },
+        "projectiles": 2
+      }
+    },
+    "upgrades": []
+  },
+  "Emissary": {
+    "civs": [
+      "Jin Dynasty"
+    ],
+    "costs": {
+      "gold": 150
+    },
+    "trainingTime": 20,
+    "population": 1,
+    "speed": 1.125,
+    "tags": [
+      "Civilian",
+      "Worker",
+      "Support"
+    ],
+    "effects": {
+      "establishTributary": {
+        "name": "Establish Tributary",
+        "description": "Display-only: establishes a Tributary Subject at a Trade Post."
+      },
+      "bribe": {
+        "name": "Bribe",
+        "description": "Display-only: neutralizes up to 750 resources of enemy military units for 125 gold."
+      }
+    },
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 0.29,
+        "attackSpeed": 3,
+        "ages": {
+          "3": {
+            "hp": 75,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 0,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 75,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 0,
+            "bonus": {}
+          }
+        }
+      }
+    },
+    "upgrades": []
+  },
+  "Meng'an Mouke Defender": {
+    "civs": [
+      "Jin Dynasty"
+    ],
+    "costs": {},
+    "trainingTime": 0,
+    "population": 0,
+    "speed": 1.9,
+    "tags": [
+      "Cavalry",
+      "Heavy",
+      "Melee"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 0.29,
+        "attackSpeed": 1.125,
+        "ages": {
+          "3": {
+            "hp": 160,
+            "meleeArmor": 4,
+            "rangedArmor": 4,
+            "attack": 20,
+            "chargeDamage": 30,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 192,
+            "meleeArmor": 5,
+            "rangedArmor": 6,
+            "attack": 25,
+            "chargeDamage": 30,
+            "bonus": {}
+          }
+        }
+      }
+    },
+    "upgrades": []
+  },
+  "Mounted Grenadier": {
+    "civs": [
+      "Jin Dynasty"
+    ],
+    "costs": {},
+    "trainingTime": 0,
+    "population": 0,
+    "speed": 1.9,
+    "tags": [
+      "Cavalry",
+      "Heavy",
+      "Ranged",
+      "Gunpowder"
+    ],
+    "effects": {
+      "aoeSplash": {
+        "name": "Grenade AoE",
+        "description": "Area siege damage in a 0.625 tile radius.",
+        "unitsHit": 3
+      }
+    },
+    "weapons": {
+      "primary": {
+        "type": "ranged",
+        "range": 3.5,
+        "attackSpeed": 2.12,
+        "ages": {
+          "4": {
+            "hp": 200,
+            "meleeArmor": 3,
+            "rangedArmor": 3,
+            "attack": 12,
+            "bonus": {
+              "Building": 8
+            }
+          }
+        }
+      }
+    },
+    "upgrades": []
+  },
+  "Mounted Villager": {
+    "civs": [
+      "Jin Dynasty"
+    ],
+    "costs": {
+      "food": 65,
+      "gold": 50
+    },
+    "trainingTime": 35,
+    "population": 1,
+    "speed": 1.42,
+    "tags": [
+      "Civilian",
+      "Worker",
+      "Melee",
+      "Ranged"
+    ],
+    "weapons": {
+      "primary": {
+        "name": "Spear",
+        "type": "melee",
+        "range": 0.38,
+        "attackSpeed": 3,
+        "ages": {
+          "1": {
+            "hp": 85,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 6,
+            "bonus": {}
+          },
+          "2": {
+            "hp": 85,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 6,
+            "bonus": {}
+          },
+          "3": {
+            "hp": 85,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 6,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 85,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 6,
+            "bonus": {}
+          }
+        }
+      },
+      "secondary": {
+        "name": "Bow",
+        "type": "ranged",
+        "range": 2.88,
+        "attackSpeed": 3.75,
+        "ages": {
+          "1": {
+            "hp": 85,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 3,
+            "bonus": {}
+          },
+          "2": {
+            "hp": 85,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 3,
+            "bonus": {}
+          },
+          "3": {
+            "hp": 85,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 3,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 85,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 3,
+            "bonus": {}
+          }
+        }
+      }
+    },
+    "upgrades": []
+  },
+  "Reindeer Trader": {
+    "civs": [
+      "Jin Dynasty"
+    ],
+    "costs": {
+      "food": 70,
+      "gold": 30
+    },
+    "trainingTime": 30,
+    "population": 1,
+    "speed": 1.1,
+    "tags": [
+      "Civilian",
+      "Worker",
+      "Trader"
+    ],
+    "weapons": {
+      "primary": {
+        "type": "melee",
+        "range": 0.29,
+        "attackSpeed": 3,
+        "ages": {
+          "2": {
+            "hp": 100,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 0,
+            "bonus": {}
+          },
+          "3": {
+            "hp": 100,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 0,
+            "bonus": {}
+          },
+          "4": {
+            "hp": 100,
+            "meleeArmor": 0,
+            "rangedArmor": 0,
+            "attack": 0,
+            "bonus": {}
           }
         }
       }
