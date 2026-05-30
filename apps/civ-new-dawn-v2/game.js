@@ -44,6 +44,7 @@ const Game = (() => {
     maxGovMarkers: 2,
     barbarianBase: 0,
     cityStateDefense: 8,
+    fortressDefense: 6,
     resourceProdValue: 2,
     techWheelSize: 24,
     techResetAt: 15,
@@ -53,6 +54,8 @@ const Game = (() => {
     victoryCulture: 3,
     victoryEconomy: 4
   };
+
+  const CAPITAL_HEX_OFFSET_INDEX = 6;
 
   const HEX_DIRS = [
     { dq: 1, dr: 0 }, { dq: -1, dr: 0 },
@@ -190,7 +193,7 @@ const Game = (() => {
   }
 
   function placeTileOnMap(st, tileId, anchorKey, rotation, side) {
-    const tile = st.setup.tiles[tileId];
+    const tile = st.setup ? st.setup.tiles[tileId] : (st.tiles ? st.tiles[tileId] : null);
     if (!tile) return;
     const cellKeys = getTileHexKeys(anchorKey, rotation, st.map.hexes);
     tile.placed = true;
@@ -200,6 +203,7 @@ const Game = (() => {
 
     cellKeys.forEach((k) => {
       const hex = st.map.hexes[k];
+      if (hex.city && hex.city.isCapital) return;
       hex.active = true;
       hex.revealed = true;
       hex.terrain = randomLandTerrain();
@@ -217,6 +221,21 @@ const Game = (() => {
           name: CITY_NAMES[Math.floor(Math.random() * CITY_NAMES.length)],
           type: FOCUS_TYPES[Math.floor(Math.random() * FOCUS_TYPES.length)]
         };
+      }
+    }
+
+    if (tile.type === "capital" && tile.ownerId) {
+      const capitalKey = cellKeys[CAPITAL_HEX_OFFSET_INDEX] || anchorKey;
+      const capitalHex = st.map.hexes[capitalKey];
+      if (capitalHex) {
+        capitalHex.terrain = "grass";
+        capitalHex.city = { ownerId: tile.ownerId, isCapital: true, developed: false, hasWonder: false };
+        capitalHex.resource = null;
+        capitalHex.cityState = null;
+        capitalHex.barbarian = false;
+        capitalHex.fortress = false;
+        capitalHex.fortressOwnerId = null;
+        revealAround(st.map, capitalKey, 2);
       }
     }
 
@@ -348,6 +367,7 @@ const Game = (() => {
       setup,
       eventWheel: { position: 0, events: EVENTS.slice() },
       lastCombat: null,
+      pendingBarbReward: null,
       winner: null,
       log: []
     };
@@ -389,10 +409,12 @@ const Game = (() => {
     st.tiles = st.setup.tiles;
     st.tileStack = st.setup.tileStack || [];
 
-    // Place caravans at each player's capital
     st.players.forEach((player) => {
       const capKey = findCapital(st, player.id);
       if (capKey) {
+        if (player.armies.length === 0) {
+          player.armies.push({ id: `army-1-${player.id.slice(0,4)}`, position: capKey });
+        }
         player.armies.forEach((u) => { if (!u.position) u.position = capKey; });
         player.caravans.forEach((u) => { if (!u.position) u.position = capKey; });
       }
@@ -461,18 +483,19 @@ const Game = (() => {
 
       hex.active = true;
       hex.revealed = true;
-      hex.terrain = "grass";
+      hex.terrain = "forest";
       hex.fortress = true;
-      hex.fortressOwnerId = payload.playerId;
-      hex.city = { ownerId: payload.playerId, isCapital: true, developed: false, hasWonder: false };
+      hex.fortressOwnerId = null;
       hex.tileId = "fortress";
       st.setup.fortressPlaced[payload.playerId] = true;
+      st.setup.fortressKeys = st.setup.fortressKeys || {};
+      st.setup.fortressKeys[payload.playerId] = payload.hexKey;
 
       updateCoreAdjacency(st);
       fillEnclosedHoles(st);
 
       const player = getPlayer(st, payload.playerId);
-      log(st, `${player ? player.name : "Player"} placed their capital.`);
+      log(st, `${player ? player.name : "Player"} placed a fortress.`);
 
       // Advance to next player or next phase
       const allPlaced = st.setup.order.every((id) => st.setup.fortressPlaced[id]);
@@ -675,11 +698,14 @@ const Game = (() => {
 
       if (win) {
         unit.position = payload.toKey;
+        if (hex.fortress && !hex.city) {
+          hex.city = { ownerId: payload.playerId, isCapital: false, developed: false, hasWonder: false };
+          log(st, `${player.name} captured the fortress!`);
+        }
         if (hex.barbarian) {
           hex.barbarian = false;
-          const t = FOCUS_TYPES[Math.floor(Math.random() * FOCUS_TYPES.length)];
-          player.trade[t] = Math.min(CFG.maxTrade, player.trade[t] + 1);
-          log(st, `${player.name} gained +1 ${t} trade from barbarian defeat.`);
+          st.pendingBarbReward = { playerId: payload.playerId };
+          log(st, `${player.name} defeated a barbarian! Choose a focus card for +1 trade.`);
         }
         if (hex.cityState) {
           hex.cityState = null;
@@ -779,6 +805,15 @@ const Game = (() => {
       const capitalKey = findCapital(st, payload.playerId);
       player.caravans.push({ id: `caravan-${player.caravans.length + 1}`, position: capitalKey });
       log(st, `${player.name} recruited a caravan.`);
+      return st;
+    }
+
+    if (type === "ADD_TRADE") {
+      const player = getPlayer(st, payload.playerId);
+      if (!player) return st;
+      player.trade[payload.cardType] = Math.min(CFG.maxTrade, player.trade[payload.cardType] + (payload.amount || 1));
+      st.pendingBarbReward = null;
+      log(st, `${player.name} gained +${payload.amount || 1} ${payload.cardType} trade.`);
       return st;
     }
 
@@ -1118,6 +1153,9 @@ const Game = (() => {
   function findDefender(st, hexKey, attackerId) {
     const h = st.map.hexes[hexKey];
     if (!h) return null;
+    if (h.fortress && !h.city) {
+      return { type: "fortress", label: "Fortress", power: CFG.fortressDefense };
+    }
     if (h.barbarian) {
       const terrainDiff = h.resource === "wonder" ? 5 : TERRAIN[h.terrain];
       return { type: "barbarian", label: "Barbarian", power: CFG.barbarianBase + terrainDiff };
@@ -1183,6 +1221,14 @@ const Game = (() => {
     return Object.values(st.map.hexes).some((h) =>
       h.city && h.city.ownerId === playerId && h.city.wonder && h.city.wonder.name === wonderName
     );
+  }
+
+  function revealAround(map, hexKey, radius) {
+    const h = map.hexes[hexKey];
+    if (!h) return;
+    Object.values(map.hexes).forEach((hex) => {
+      if (hexDist(h, hex) <= radius) hex.revealed = true;
+    });
   }
 
   // --- Hex Utilities ---
