@@ -886,6 +886,7 @@ const UI = (() => {
     const me = Game.getPlayer(state, localPlayerId);
 
     if (state.lastCombat) { renderCombatResult(); return; }
+    if (state.pendingBarbReward && state.pendingBarbReward.playerId === localPlayerId) { renderBarbReward(me); return; }
     if (sub.phase === "idle") { renderIdleWizard(isMyTurn, cp, me); }
     else if (sub.phase === "card_selected") { renderCardSelected(me); }
     else if (sub.phase === "placing_control") { renderPlacingControl(); }
@@ -919,6 +920,7 @@ const UI = (() => {
         <div class="wiz-title">Place Your Fortress</div>
         <div class="wiz-body">
           Click an <strong>inactive hex</strong> bordering at least 2 active hexes.<br>
+          This is a neutral defensive hex (defense ${Game.CFG.fortressDefense}). Your capital will go on your hometown tile next.<br>
           Valid positions glow <strong style="color:#66bb6a">green</strong>.
         </div>`;
       return;
@@ -987,6 +989,23 @@ const UI = (() => {
     });
     svg += `</svg>`;
     return svg;
+  }
+
+  function renderBarbReward(me) {
+    dom.wizard.innerHTML = `
+      <div class="wiz-title">Barbarian Defeated!</div>
+      <div class="wiz-body">Choose a focus card to receive +1 trade token:</div>
+      <div class="wiz-actions" style="flex-wrap:wrap">
+        ${Game.FOCUS_TYPES.map((f) => {
+          const current = me.trade[f];
+          return `<button class="sm barb-pick" data-type="${f}">${Game.FOCUS_LABELS[f]} (${current}/${Game.CFG.maxTrade})</button>`;
+        }).join("")}
+      </div>`;
+    document.querySelectorAll(".barb-pick").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        dispatch({ type: "ADD_TRADE", payload: { playerId: localPlayerId, cardType: btn.dataset.type, amount: 1 } });
+      });
+    });
   }
 
   function renderCombatResult() {
