@@ -715,6 +715,20 @@ const Game = (() => {
           hex.control = { ownerId: payload.playerId, fortified: false, district: null };
         }
         if (hex.city && hex.city.ownerId !== payload.playerId) {
+          const defenderId = hex.city.ownerId;
+          const defender = getPlayer(st, defenderId);
+          if (defender) {
+            defender.armies.forEach((u) => { if (u.position === payload.toKey) u.position = null; });
+            defender.caravans.forEach((u) => { if (u.position === payload.toKey) u.position = null; });
+          }
+          if (hex.city.isCapital && defender) {
+            let taken = 0;
+            FOCUS_TYPES.forEach((f) => {
+              if (taken >= 2 && defender.trade[f] > 0) return;
+              if (defender.trade[f] > 0) { defender.trade[f]--; player.trade[f] = Math.min(CFG.maxTrade, player.trade[f] + 1); taken++; }
+            });
+            if (taken > 0) log(st, `${player.name} seized ${taken} trade token(s) from ${defender.name}'s capital!`);
+          }
           hex.city.ownerId = payload.playerId;
           hex.city.developed = false;
         }
@@ -1081,7 +1095,7 @@ const Game = (() => {
     Object.entries(st.map.hexes).forEach(([k, h]) => {
       if (!h.active || h.terrain === "water") return;
       if (terrainDifficulty(h) > maxTerrain) return;
-      if (h.city || h.cityState || h.barbarian || h.control) return;
+      if (h.city || h.cityState || h.barbarian || h.control || (h.fortress && !h.city)) return;
       if (!adjacentToFriendlyCity(st, h, playerId) && !adjacentToFriendlyControl(st, h, playerId)) return;
       valid.push(k);
     });
@@ -1093,7 +1107,7 @@ const Game = (() => {
     Object.entries(st.map.hexes).forEach(([k, h]) => {
       if (!h.active || h.terrain === "water") return;
       if (terrainDifficulty(h) > maxTerrain) return;
-      if (h.city || h.cityState || h.barbarian || h.control) return;
+      if (h.city || h.cityState || h.barbarian || h.control || (h.fortress && !h.city)) return;
       if (!adjacentToFriendlyCity(st, h, playerId)) return;
       valid.push(k);
     });
@@ -1113,8 +1127,8 @@ const Game = (() => {
     Object.entries(st.map.hexes).forEach(([k, h]) => {
       if (!h.active || h.terrain === "water") return;
       if (terrainDifficulty(h) > production) return;
-      if (h.city || h.cityState || h.barbarian) return;
-      if (adjacentToAnyCity(st, h) || adjacentToCityState(st, h)) return;
+      if (h.city || h.cityState || h.barbarian || (h.fortress && !h.city)) return;
+      if (adjacentToAnyCity(st, h) || adjacentToCityState(st, h) || adjacentToFortress(st, h)) return;
       if (!withinRangeOfFriendly(st, h, playerId, 2)) return;
       valid.push(k);
     });
@@ -1162,12 +1176,14 @@ const Game = (() => {
     }
     if (h.cityState) return { type: "citystate", label: h.cityState.name, power: CFG.cityStateDefense };
     if (h.control && h.control.ownerId !== attackerId) {
-      const def = terrainDifficulty(h) + (h.control.fortified ? 2 : 0);
+      const reinforced = countAdjacentReinforced(st, hexKey, h.control.ownerId);
+      const def = terrainDifficulty(h) + (h.control.fortified ? 2 : 0) + reinforced;
       return { type: "control", label: "Control Marker", power: def };
     }
     if (h.city && h.city.ownerId !== attackerId) {
       const wallBonus = playerHasWonder(st, h.city.ownerId, "Great Wall") ? 2 : 0;
-      return { type: "city", label: "City", power: terrainDifficulty(h) * 2 + wallBonus };
+      const reinforced = countAdjacentReinforced(st, hexKey, h.city.ownerId);
+      return { type: "city", label: h.city.isCapital ? "Capital" : "City", power: terrainDifficulty(h) * 2 + wallBonus + reinforced };
     }
     for (const p of st.players) {
       if (p.id === attackerId) continue;
@@ -1204,6 +1220,9 @@ const Game = (() => {
   function adjacentToCityState(st, hex) {
     return hexNeighborKeys(hex.q, hex.r).some((nk) => { const n = st.map.hexes[nk]; return n && n.cityState; });
   }
+  function adjacentToFortress(st, hex) {
+    return hexNeighborKeys(hex.q, hex.r).some((nk) => { const n = st.map.hexes[nk]; return n && n.fortress && !n.city; });
+  }
   function adjacentToFriendlyControl(st, hex, playerId) {
     return hexNeighborKeys(hex.q, hex.r).some((nk) => {
       const n = st.map.hexes[nk]; return n && n.control && n.control.ownerId === playerId;
@@ -1221,6 +1240,15 @@ const Game = (() => {
     return Object.values(st.map.hexes).some((h) =>
       h.city && h.city.ownerId === playerId && h.city.wonder && h.city.wonder.name === wonderName
     );
+  }
+
+  function countAdjacentReinforced(st, hexKey, ownerId) {
+    let count = 0;
+    hexNeighborKeys(parseQ(hexKey), parseR(hexKey)).forEach((nk) => {
+      const nh = st.map.hexes[nk];
+      if (nh && nh.control && nh.control.ownerId === ownerId && nh.control.fortified) count++;
+    });
+    return count;
   }
 
   function revealAround(map, hexKey, radius) {
