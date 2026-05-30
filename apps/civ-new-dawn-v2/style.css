@@ -104,6 +104,7 @@ input, select {
 #hdr-room { color: var(--text2); }
 #hdr-round { color: var(--warn); }
 #hdr-turn { margin-left: auto; font-weight: 600; }
+#btn-new-game { margin-left: 8px; }
 
 #layout {
   flex: 1;
@@ -154,6 +155,30 @@ input, select {
   font-size: 11px;
 }
 #victory-tracker h3 { font-size: 11px; color: var(--accent); margin-bottom: 6px; }
+.agenda-row {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 6px;
+  padding: 6px 0;
+  border-top: 1px solid #ffffff12;
+  line-height: 1.35;
+}
+.agenda-row:first-of-type { border-top: 0; }
+.agenda-row strong { font-size: 11px; }
+.agenda-row span { color: var(--text2); font-size: 10px; }
+.agenda-row.claimed strong { color: var(--success); }
+.agenda-mark {
+  align-self: start;
+  text-align: center;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 2px;
+  font-size: 9px !important;
+}
+.agenda-row.claimed .agenda-mark {
+  color: var(--success);
+  border-color: var(--success);
+}
 .vtrack-row {
   display: flex;
   align-items: center;
@@ -292,6 +317,52 @@ input, select {
   margin: 6px 0;
 }
 
+.pending-select-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+  margin-top: 8px;
+}
+.pending-note {
+  color: var(--text2);
+  margin-top: 6px;
+  font-size: 11px;
+}
+.pending-options {
+  flex-wrap: wrap;
+}
+
+.host-tools {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 11px;
+}
+.host-tools summary {
+  cursor: pointer;
+  color: var(--warn);
+  font-weight: 700;
+}
+.host-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 8px;
+}
+.host-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: var(--text2);
+}
+.host-grid input,
+.host-grid select,
+.host-grid button {
+  width: 100%;
+  min-width: 0;
+}
+
 /* EVENT WHEEL */
 #event-wheel {
   background: var(--surface);
@@ -364,6 +435,7 @@ input, select {
 .fcard .fc-name { font-size: 10px; color: var(--text2); margin-top: 2px; }
 .fcard .fc-trade { font-size: 11px; margin-top: 3px; color: var(--warn); letter-spacing: 1px; }
 .fcard .fc-pos { position: absolute; top: 3px; right: 5px; font-size: 9px; color: var(--text2); }
+.fcard .fc-tier { font-size: 9px; color: var(--accent); font-weight: bold; }
 
 .fcard.type-culture { border-top: 3px solid #ce93d8; }
 .fcard.type-growth { border-top: 3px solid #66bb6a; }
@@ -394,3 +466,93 @@ input, select {
 .gameover-box .go-type { color: var(--warn); margin-bottom: 16px; }
 .gameover-scores { text-align: left; font-size: 12px; line-height: 2; }
 .gameover-actions { margin-top: 20px; display: flex; justify-content: center; gap: 8px; }
+
+/* TOAST */
+#toast {
+  position: fixed; bottom: 120px; left: 50%; transform: translateX(-50%);
+  background: var(--surface); border: 1px solid var(--danger); color: var(--danger);
+  padding: 8px 16px; border-radius: 8px; z-index: 500;
+  font-size: 12px; transition: opacity 0.3s;
+}
+#toast.hidden { opacity: 0; pointer-events: none; }
+
+/* ACTION TOAST */
+#action-toast {
+  position: fixed; top: 50px; left: 50%; transform: translateX(-50%);
+  background: var(--surface); border: 1px solid var(--accent); color: var(--accent);
+  padding: 6px 14px; border-radius: 6px; z-index: 500;
+  font-size: 12px; transition: opacity 0.3s;
+}
+#action-toast.hidden { opacity: 0; pointer-events: none; }
+
+/* CHAT */
+#chat-row {
+  display: flex; gap: 4px; padding: 4px 0;
+}
+#chat-row input { flex: 1; }
+#chat-row button { white-space: nowrap; }
+.chat-msg {
+  font-size: 10px; color: var(--text); padding: 2px 0;
+  border-bottom: 1px solid var(--bg);
+}
+.chat-msg .chat-name { font-weight: 700; margin-right: 4px; }
+
+/* HELP TEXT */
+.wiz-help { font-size: 10px; color: var(--text2); font-style: italic; margin-top: 6px; }
+
+/* CONNECTION BANNER */
+#conn-banner {
+  position: fixed; top: 0; left: 0; right: 0;
+  background: var(--danger); color: #fff; text-align: center;
+  padding: 4px; font-size: 11px; z-index: 1000;
+}
+#conn-banner.hidden { display: none; }
+
+/* ANIMATIONS */
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.9; }
+}
+@keyframes slide-up-in {
+  from { transform: translateY(10px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes card-played {
+  0% { transform: translateY(0) scale(1); }
+  30% { transform: translateY(-12px) scale(1.08); }
+  100% { transform: translateY(0) scale(1); }
+}
+@keyframes flash-hex {
+  0% { opacity: 0.9; }
+  100% { opacity: 0; }
+}
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-3px); }
+  40% { transform: translateX(3px); }
+  60% { transform: translateX(-2px); }
+  80% { transform: translateX(2px); }
+}
+@keyframes combat-hit {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+@keyframes dice-roll {
+  0% { transform: rotate(0deg) scale(0.8); opacity: 0; }
+  50% { transform: rotate(180deg) scale(1.2); opacity: 1; }
+  100% { transform: rotate(360deg) scale(1); opacity: 1; }
+}
+@keyframes pop-in {
+  0% { transform: scale(0.6); opacity: 0; }
+  60% { transform: scale(1.1); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.fcard.card-anim { animation: card-played 0.4s ease; }
+.wiz-title { animation: slide-up-in 0.25s ease; }
+.combat-result { animation: pop-in 0.3s ease; }
+.cr-win { animation: combat-hit 0.4s ease; color: var(--success); font-weight: bold; font-size: 18px; }
+.cr-lose { animation: shake 0.4s ease; color: var(--danger); font-weight: bold; font-size: 18px; }
+.log-entry { animation: slide-up-in 0.2s ease; }
+.player-card.active { animation: pulse-glow 1.5s ease infinite; border-color: var(--accent); }
