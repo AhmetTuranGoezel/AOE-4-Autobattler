@@ -365,6 +365,7 @@ input, select {
 .fcard .fc-name { font-size: 10px; color: var(--text2); margin-top: 2px; }
 .fcard .fc-trade { font-size: 11px; margin-top: 3px; color: var(--warn); letter-spacing: 1px; }
 .fcard .fc-pos { position: absolute; top: 3px; right: 5px; font-size: 9px; color: var(--text2); }
+.fcard .fc-tier { font-size: 9px; color: var(--accent); font-weight: bold; }
 
 .fcard.type-culture { border-top: 3px solid #ce93d8; }
 .fcard.type-growth { border-top: 3px solid #66bb6a; }

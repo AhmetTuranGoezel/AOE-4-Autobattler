@@ -17,24 +17,17 @@ const Game = (() => {
   const DISTRICTS = ["campus", "trade", "encampment", "industrial", "theater"];
   const DISTRICT_LABELS = { campus: "Campus", trade: "Market", encampment: "Encampment", industrial: "Industrial", theater: "Theater" };
   const DISTRICT_EFFECTS = {
-    campus: "+1 tech on district event",
-    trade: "+1 trade marker on district event",
-    encampment: "recruit army on district event",
-    industrial: "+1 industry bonus on district event",
-    theater: "+1 culture bonus on district event"
+    campus: "+1 trade (science) per adj. mountain/wonder (max 3)",
+    trade: "+1 trade per mature city OR adj. desert",
+    encampment: "defeat barb within 2, then reinforce 1 within 2",
+    industrial: "+1 trade per adj. forest (max 3)",
+    theater: "place 1 control within 2 of district"
   };
   const RESOURCES = ["marble", "mercury", "oil", "diamonds"];
   const EVENTS = ["barbarian_spawn", "barbarian_move", "district_event", "gov_change", "wonder_aging"];
   const EVENT_LABELS = { barbarian_spawn: "Barbarian Spawn", barbarian_move: "Barbarian Move", district_event: "District Event", gov_change: "Government Change", wonder_aging: "Wonder Aging" };
   const CITY_NAMES = ["Akkad", "Seoul", "Buenos Aires", "Venice", "Kabul", "Geneva", "Nan Madol", "Brussels", "Preslav", "Carthage", "Valletta", "Antananarivo"];
-  const WONDERS = [
-    { name: "Great Library", effect: "+2 tech per district event" },
-    { name: "Colosseum", effect: "+1 combat power for all armies" },
-    { name: "Great Wall", effect: "+2 defense for all cities" },
-    { name: "Oracle", effect: "+1 trade token of any type per round" },
-    { name: "Pyramids", effect: "+1 production for industry card" },
-    { name: "Hanging Gardens", effect: "+1 culture range" }
-  ];
+  let WONDERS; // set after ALL_WONDERS is defined
 
   const CFG = {
     mapRadius: 9,
@@ -54,6 +47,45 @@ const Game = (() => {
     victoryCulture: 3,
     victoryEconomy: 4
   };
+
+  const CARD_TIERS = {
+    culture:  { move: [0,0,0,0], markers: [2,2,2,3] },
+    growth:   { move: [0,0,0,0], markers: [1,1,1,1] },
+    science:  { move: [0,0,0,0], markers: [0,0,0,0] },
+    economy:  { move: [3,4,6,6], wagons: [1,2,2,3], water: 3 },
+    military: { move: [3,4,5,6], armies: [1,2,2,2], water: 3, combatBonus: [0,2,2,3] },
+    industry: { cityRange: [2,3,4,5], move: [0,0,0,0] }
+  };
+
+  const WONDER_ERAS = {
+    ancient: { cost: 7, wonders: [
+      { name: "Great Library", era: "ancient", type: "science", effect: "+2 tech per district event" },
+      { name: "Colosseum", era: "ancient", type: "military", effect: "+1 combat power for all armies" },
+      { name: "Pyramids", era: "ancient", type: "industry", effect: "+1 production for industry card" },
+      { name: "Stonehenge", era: "ancient", type: "culture", effect: "+1 culture control range" },
+      { name: "Oracle", era: "ancient", type: "science", effect: "+1 trade token of any type per round" },
+      { name: "Hanging Gardens", era: "ancient", type: "growth", effect: "+1 growth district range" }
+    ]},
+    medieval: { cost: 9, wonders: [
+      { name: "Great Wall", era: "medieval", type: "military", effect: "+2 defense for all your cities" },
+      { name: "Alhambra", era: "medieval", type: "culture", effect: "+1 control marker per culture action" },
+      { name: "Hagia Sophia", era: "medieval", type: "growth", effect: "districts cost -1 terrain" },
+      { name: "Forbidden City", era: "medieval", type: "industry", effect: "+1 gov marker slot" },
+      { name: "Machu Picchu", era: "medieval", type: "economy", effect: "+1 trade when caravan trades" },
+      { name: "Chichen Itza", era: "medieval", type: "science", effect: "+1 tech per science action" }
+    ]},
+    modern: { cost: 12, wonders: [
+      { name: "Eiffel Tower", era: "modern", type: "culture", effect: "+2 culture control markers" },
+      { name: "Big Ben", era: "modern", type: "economy", effect: "+1 trade of each type per round" },
+      { name: "Broadway", era: "modern", type: "culture", effect: "control markers ignore terrain cost" },
+      { name: "Ruhr Valley", era: "modern", type: "industry", effect: "+3 production for industry" },
+      { name: "Oxford University", era: "modern", type: "science", effect: "+3 tech per science action" },
+      { name: "Pentagon", era: "modern", type: "military", effect: "+2 combat for all armies" }
+    ]}
+  };
+
+  const ALL_WONDERS = Object.values(WONDER_ERAS).flatMap((era) => era.wonders);
+  WONDERS = ALL_WONDERS;
 
   const CAPITAL_HEX_OFFSET_INDEX = 6;
 
@@ -390,6 +422,7 @@ const Game = (() => {
       trade: { culture: 0, growth: 0, science: 0, economy: 0, military: 0, industry: 0 },
       resources: { marble: 0, mercury: 0, oil: 0, diamonds: 0 },
       tech: 0, techTier: 1,
+      cardTiers: { culture: 1, growth: 1, science: 1, economy: 1, military: 1, industry: 1 },
       govMarkers: [],
       govBonus: { culture: 0, growth: 0, science: 0, economy: 0, military: 0, industry: 0 },
       armies: [],
@@ -630,7 +663,10 @@ const Game = (() => {
     if (type === "PLAY_SCIENCE") {
       const player = getPlayer(st, payload.playerId);
       if (!player || player.cardPlayed) return st;
-      advanceTech(st, player, payload.amount);
+      let bonus = 0;
+      if (playerHasWonder(st, payload.playerId, "Chichen Itza")) bonus += 1;
+      if (playerHasWonder(st, payload.playerId, "Oxford University")) bonus += 3;
+      advanceTech(st, player, payload.amount + bonus);
       resolveCard(st, player, "science", payload.tradeSpent);
       return st;
     }
@@ -646,20 +682,22 @@ const Game = (() => {
       const hex = st.map.hexes[payload.toKey];
       if (hex && hex.cityState) {
         const tradeType = hex.cityState.type;
+        const machuBonus = playerHasWonder(st, payload.playerId, "Machu Picchu") ? 1 : 0;
         if (player.trade[tradeType] !== undefined) {
-          player.trade[tradeType] = Math.min(CFG.maxTrade, player.trade[tradeType] + 2);
+          player.trade[tradeType] = Math.min(CFG.maxTrade, player.trade[tradeType] + 2 + machuBonus);
         }
         const capKey = findCapital(st, payload.playerId);
         unit.position = capKey;
-        log(st, `${player.name}'s caravan traded at ${hex.cityState.name} (+2 ${tradeType} trade). Returned to capital.`);
+        log(st, `${player.name}'s caravan traded at ${hex.cityState.name} (+${2 + machuBonus} ${tradeType} trade). Returned to capital.`);
       } else if (hex && hex.city && hex.city.ownerId !== payload.playerId) {
         const tradeType = payload.tradeType || "economy";
+        const machuBonus = playerHasWonder(st, payload.playerId, "Machu Picchu") ? 1 : 0;
         if (player.trade[tradeType] !== undefined) {
-          player.trade[tradeType] = Math.min(CFG.maxTrade, player.trade[tradeType] + 2);
+          player.trade[tradeType] = Math.min(CFG.maxTrade, player.trade[tradeType] + 2 + machuBonus);
         }
         const capKey = findCapital(st, payload.playerId);
         unit.position = capKey;
-        log(st, `${player.name}'s caravan traded at foreign city (+2 ${tradeType} trade). Returned to capital.`);
+        log(st, `${player.name}'s caravan traded at foreign city (+${2 + machuBonus} ${tradeType} trade). Returned to capital.`);
       } else {
         log(st, `${player.name} moved caravan.`);
       }
@@ -690,7 +728,9 @@ const Game = (() => {
       const atkRoll = rollDie();
       const defRoll = rollDie();
       const colosseumBonus = playerHasWonder(st, payload.playerId, "Colosseum") ? 1 : 0;
-      const atkTotal = atkRoll + payload.attackPower + colosseumBonus;
+      const pentagonBonus = playerHasWonder(st, payload.playerId, "Pentagon") ? 2 : 0;
+      const tierCombatBonus = getMilitaryCombatBonus(player);
+      const atkTotal = atkRoll + payload.attackPower + colosseumBonus + pentagonBonus + tierCombatBonus;
       const defTotal = defRoll + payload.defensePower;
       const win = atkTotal > defTotal;
 
@@ -753,6 +793,8 @@ const Game = (() => {
       if (payload.resources) Object.values(payload.resources).forEach((v) => { if (v) resBonus += CFG.resourceProdValue; });
       const totalProd = slot + (payload.tradeSpent || 0) + resBonus;
       if (terrainDifficulty(hex) > totalProd) return st;
+      const range = getCityRange(player);
+      if (!withinRangeOfFriendly(st, hex, payload.playerId, range)) return st;
       if (payload.resources) {
         for (const [r, count] of Object.entries(payload.resources)) {
           if ((player.resources[r] || 0) < count) return st;
@@ -779,13 +821,28 @@ const Game = (() => {
           if ((player.resources[r] || 0) < count) return st;
         }
       }
-      spendResources(player, payload.resources);
       const builtWonders = new Set();
       Object.values(st.map.hexes).forEach((h) => { if (h.city && h.city.wonder) builtWonders.add(h.city.wonder.name); });
-      const available = WONDERS.filter((w) => !builtWonders.has(w.name));
-      const wonder = available.length > 0 ? available[Math.floor(Math.random() * available.length)] : WONDERS[0];
+
+      let wonder = null;
+      if (payload.wonderName) {
+        wonder = ALL_WONDERS.find((w) => w.name === payload.wonderName && !builtWonders.has(w.name));
+      }
+      if (!wonder) {
+        const available = ALL_WONDERS.filter((w) => !builtWonders.has(w.name));
+        wonder = available.length > 0 ? available[0] : ALL_WONDERS[0];
+      }
+
+      const cost = getWonderCost(wonder.name);
+      const slot = getSlotValue(player, "industry", st);
+      let resBonus = 0;
+      if (payload.resources) Object.values(payload.resources).forEach((v) => { if (v) resBonus += CFG.resourceProdValue; });
+      const totalProd = slot + (payload.tradeSpent || 0) + resBonus;
+      if (totalProd < cost) return st;
+
+      spendResources(player, payload.resources);
       hex.city.hasWonder = true;
-      hex.city.wonder = { name: wonder.name, effect: wonder.effect };
+      hex.city.wonder = { name: wonder.name, era: wonder.era, effect: wonder.effect };
       resolveCard(st, player, "industry", payload.tradeSpent);
       log(st, `${player.name} built ${wonder.name}! (${wonder.effect})`);
       return st;
@@ -843,6 +900,10 @@ const Game = (() => {
             const t = FOCUS_TYPES[Math.floor(Math.random() * FOCUS_TYPES.length)];
             p.trade[t] = Math.min(CFG.maxTrade, p.trade[t] + 1);
             log(st, `${p.name}: +1 ${t} trade (Oracle).`);
+          }
+          if (playerHasWonder(st, p.id, "Big Ben")) {
+            FOCUS_TYPES.forEach((f) => { p.trade[f] = Math.min(CFG.maxTrade, p.trade[f] + 1); });
+            log(st, `${p.name}: +1 trade of each type (Big Ben).`);
           }
         });
         advanceEventWheel(st);
@@ -902,6 +963,14 @@ const Game = (() => {
     if (player.tech >= CFG.techWheelSize) {
       player.tech = player.tech - CFG.techResetAt;
       player.techTier = Math.min(4, player.techTier + 1);
+      // Upgrade a card tier — pick the lowest-tier card
+      const lowestType = FOCUS_TYPES.reduce((best, f) =>
+        (player.cardTiers[f] || 1) < (player.cardTiers[best] || 1) ? f : best
+      );
+      if ((player.cardTiers[lowestType] || 1) < 4) {
+        player.cardTiers[lowestType] = (player.cardTiers[lowestType] || 1) + 1;
+        log(st, `${player.name} upgraded ${FOCUS_LABELS[lowestType]} to tier ${player.cardTiers[lowestType]}!`);
+      }
       log(st, `${player.name} advanced to tech tier ${player.techTier}!`);
     } else {
       log(st, `${player.name} advanced tech by ${amount}. (${player.tech}/${CFG.techWheelSize})`);
@@ -959,27 +1028,109 @@ const Game = (() => {
     }
     if (evt === "district_event") {
       st.players.forEach((player) => {
-        const counts = { campus: 0, trade: 0, encampment: 0, industrial: 0, theater: 0 };
-        Object.values(st.map.hexes).forEach((h) => {
-          if (h.control && h.control.ownerId === player.id && h.control.district) counts[h.control.district]++;
+        const districtHexes = { campus: [], trade: [], encampment: [], industrial: [], theater: [] };
+        Object.entries(st.map.hexes).forEach(([k, h]) => {
+          if (h.control && h.control.ownerId === player.id && h.control.district) {
+            districtHexes[h.control.district].push(k);
+          }
         });
-        if (counts.campus) {
+
+        // Campus: +1 trade (science) per adjacent mountain/wonder, max 3 per campus
+        if (districtHexes.campus.length) {
+          let total = 0;
+          districtHexes.campus.forEach((dk) => {
+            let adjCount = 0;
+            hexNeighborKeys(parseQ(dk), parseR(dk)).forEach((nk) => {
+              const nh = st.map.hexes[nk];
+              if (nh && (nh.terrain === "mountain" || nh.resource === "wonder")) adjCount++;
+            });
+            total += Math.min(3, adjCount);
+          });
           const libraryBonus = playerHasWonder(st, player.id, "Great Library") ? 2 : 0;
-          player.tech += counts.campus + libraryBonus;
-          log(st, `${player.name}: +${counts.campus + libraryBonus} tech (campus${libraryBonus ? " + Great Library" : ""}).`);
-        }
-        if (counts.trade) {
-          for (let i = 0; i < counts.trade; i++) {
-            const t = FOCUS_TYPES[i % FOCUS_TYPES.length];
-            player.trade[t] = Math.min(CFG.maxTrade, player.trade[t] + 1);
+          total += libraryBonus;
+          if (total > 0) {
+            player.trade.science = Math.min(CFG.maxTrade, player.trade.science + total);
+            log(st, `${player.name}: +${total} science trade (campus${libraryBonus ? " + Great Library" : ""}).`);
           }
         }
-        if (counts.encampment && player.armies.length < CFG.maxArmies + (player.techTier >= 3 ? 1 : 0)) {
-          player.armies.push({ id: `army-${player.armies.length + 1}`, position: findCapital(st, player.id) });
-          log(st, `${player.name}: recruited army (encampment).`);
+
+        // Commercial Hub (trade): +1 trade per mature city OR +1 per adjacent desert
+        if (districtHexes.trade.length) {
+          let total = 0;
+          const matureCities = countDeveloped(st, player.id);
+          districtHexes.trade.forEach((dk) => {
+            let adjDesert = 0;
+            hexNeighborKeys(parseQ(dk), parseR(dk)).forEach((nk) => {
+              const nh = st.map.hexes[nk];
+              if (nh && nh.terrain === "desert") adjDesert++;
+            });
+            total += Math.max(matureCities, adjDesert);
+          });
+          if (total > 0) {
+            const t = FOCUS_TYPES[Math.floor(Math.random() * FOCUS_TYPES.length)];
+            player.trade[t] = Math.min(CFG.maxTrade, player.trade[t] + total);
+            log(st, `${player.name}: +${total} ${t} trade (commercial hub).`);
+          }
         }
-        if (counts.industrial) player.govBonus.industry = Math.min(3, player.govBonus.industry + counts.industrial);
-        if (counts.theater) player.govBonus.culture = Math.min(3, player.govBonus.culture + counts.theater);
+
+        // Encampment: defeat barb within 2, then reinforce within 2
+        if (districtHexes.encampment.length) {
+          districtHexes.encampment.forEach((dk) => {
+            let barbKilled = false;
+            const nearby = hexesWithinRange(st.map, dk, 2);
+            for (const nk of nearby) {
+              const nh = st.map.hexes[nk];
+              if (nh && nh.barbarian) {
+                nh.barbarian = false;
+                barbKilled = true;
+                log(st, `${player.name}: encampment defeated barbarian!`);
+                break;
+              }
+            }
+            if (barbKilled) {
+              for (const nk of nearby) {
+                const nh = st.map.hexes[nk];
+                if (nh && nh.control && nh.control.ownerId === player.id && !nh.control.fortified) {
+                  nh.control.fortified = true;
+                  log(st, `${player.name}: encampment reinforced a marker.`);
+                  break;
+                }
+              }
+            }
+          });
+        }
+
+        // Industrial Zone: +1 trade per adjacent forest, max 3 per district
+        if (districtHexes.industrial.length) {
+          let total = 0;
+          districtHexes.industrial.forEach((dk) => {
+            let adjForest = 0;
+            hexNeighborKeys(parseQ(dk), parseR(dk)).forEach((nk) => {
+              const nh = st.map.hexes[nk];
+              if (nh && nh.terrain === "forest") adjForest++;
+            });
+            total += Math.min(3, adjForest);
+          });
+          if (total > 0) {
+            player.trade.industry = Math.min(CFG.maxTrade, player.trade.industry + total);
+            log(st, `${player.name}: +${total} industry trade (industrial zone).`);
+          }
+        }
+
+        // Theatre Square: place 1 control within 2 of district
+        if (districtHexes.theater.length) {
+          districtHexes.theater.forEach((dk) => {
+            const nearby = hexesWithinRange(st.map, dk, 2);
+            for (const nk of nearby) {
+              const nh = st.map.hexes[nk];
+              if (nh && nh.active && nh.terrain !== "water" && !nh.city && !nh.control && !nh.barbarian && !nh.cityState && !(nh.fortress && !nh.city)) {
+                nh.control = { ownerId: player.id, fortified: false, district: null };
+                log(st, `${player.name}: theater placed control marker.`);
+                break;
+              }
+            }
+          });
+        }
       });
     }
     if (evt === "gov_change") log(st, "Players may reassign gov markers.");
@@ -1074,14 +1225,53 @@ const Game = (() => {
     return st.players.find((p) => p.id === st.turn.order[st.turn.index]) || null;
   }
   function getPlayer(st, id) { return st.players.find((p) => p.id === id) || null; }
+  function getCardTier(player, cardType) {
+    return player.cardTiers ? (player.cardTiers[cardType] || 1) : 1;
+  }
+
   function getSlotValue(player, cardType, st) {
     const idx = player.focusRow.indexOf(cardType);
     if (idx < 0) return 1;
     const tierBonus = player.techTier >= 4 ? 2 : (player.techTier >= 2 ? 1 : 0);
     let wonderBonus = 0;
     if (st && cardType === "industry" && playerHasWonder(st, player.id, "Pyramids")) wonderBonus = 1;
-    if (st && cardType === "culture" && playerHasWonder(st, player.id, "Hanging Gardens")) wonderBonus = 1;
+    if (st && cardType === "culture" && (playerHasWonder(st, player.id, "Stonehenge") || playerHasWonder(st, player.id, "Hanging Gardens"))) wonderBonus = 1;
+    if (st && cardType === "industry" && playerHasWonder(st, player.id, "Ruhr Valley")) wonderBonus += 3;
     return Math.min(5, FOCUS_SLOTS[idx] + (player.govBonus[cardType] || 0) + tierBonus + wonderBonus);
+  }
+
+  function getMilitaryMove(player) {
+    const tier = getCardTier(player, "military");
+    return CARD_TIERS.military.move[tier - 1];
+  }
+
+  function getEconomyMove(player) {
+    const tier = getCardTier(player, "economy");
+    return CARD_TIERS.economy.move[tier - 1];
+  }
+
+  function getCultureMarkers(player, tradeSpent) {
+    const tier = getCardTier(player, "culture");
+    const base = CARD_TIERS.culture.markers[tier - 1];
+    let bonus = 0;
+    return base + tradeSpent + bonus;
+  }
+
+  function getMilitaryCombatBonus(player) {
+    const tier = getCardTier(player, "military");
+    return CARD_TIERS.military.combatBonus[tier - 1];
+  }
+
+  function getCityRange(player) {
+    const tier = getCardTier(player, "industry");
+    return CARD_TIERS.industry.cityRange[tier - 1];
+  }
+
+  function getWonderCost(wonderName) {
+    for (const [, eraData] of Object.entries(WONDER_ERAS)) {
+      if (eraData.wonders.some((w) => w.name === wonderName)) return eraData.cost;
+    }
+    return 7;
   }
   function getSlotIndex(player, cardType) { return player.focusRow.indexOf(cardType); }
 
@@ -1122,14 +1312,15 @@ const Game = (() => {
     return new Set(valid);
   }
 
-  function validCityHexes(st, playerId, production) {
+  function validCityHexes(st, playerId, production, cityRange) {
+    const range = cityRange || 2;
     const valid = [];
     Object.entries(st.map.hexes).forEach(([k, h]) => {
       if (!h.active || h.terrain === "water") return;
       if (terrainDifficulty(h) > production) return;
       if (h.city || h.cityState || h.barbarian || (h.fortress && !h.city)) return;
       if (adjacentToAnyCity(st, h) || adjacentToCityState(st, h) || adjacentToFortress(st, h)) return;
-      if (!withinRangeOfFriendly(st, h, playerId, 2)) return;
+      if (!withinRangeOfFriendly(st, h, playerId, range)) return;
       valid.push(k);
     });
     return new Set(valid);
@@ -1249,6 +1440,16 @@ const Game = (() => {
       if (nh && nh.control && nh.control.ownerId === ownerId && nh.control.fortified) count++;
     });
     return count;
+  }
+
+  function hexesWithinRange(map, hexKey, range) {
+    const h = map.hexes[hexKey];
+    if (!h) return [];
+    const result = [];
+    Object.entries(map.hexes).forEach(([k, hex]) => {
+      if (k !== hexKey && hexDist(h, hex) <= range) result.push(k);
+    });
+    return result;
   }
 
   function revealAround(map, hexKey, radius) {
@@ -1394,10 +1595,13 @@ const Game = (() => {
 
   return {
     TERRAIN, TERRAIN_LABELS, FOCUS_TYPES, FOCUS_LABELS, FOCUS_SLOTS, FOCUS_TRADE_DESC,
-    DISTRICTS, DISTRICT_LABELS, DISTRICT_EFFECTS, RESOURCES, EVENTS, EVENT_LABELS, CFG, WONDERS,
+    DISTRICTS, DISTRICT_LABELS, DISTRICT_EFFECTS, RESOURCES, EVENTS, EVENT_LABELS, CFG,
+    WONDERS, ALL_WONDERS, WONDER_ERAS, CARD_TIERS,
     TILE_OFFSETS, getCoreAnchors,
     createState, createPlayer, applyAction, currentPlayer, getPlayer,
-    getSlotValue, getSlotIndex, computeScore,
+    getSlotValue, getSlotIndex, getCardTier, getCardTierValue: getCardTier,
+    getMilitaryMove, getEconomyMove, getCultureMarkers, getMilitaryCombatBonus,
+    getCityRange, getWonderCost, computeScore,
     validControlHexes, validDistrictHexes, validReinforceHexes,
     validCityHexes, validWonderHexes, getReachable, findDefender, getUnitsAt,
     adjacentToCityState, adjacentToFriendlyControl, terrainDifficulty,

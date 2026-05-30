@@ -866,8 +866,10 @@ const UI = (() => {
     const gov = me.govMarkers.length ? me.govMarkers.map((m) => Game.FOCUS_LABELS[m]).join(", ") : "none";
     const maxA = Game.CFG.maxArmies + (me.techTier >= 3 ? 1 : 0);
     const maxW = Game.CFG.maxCaravans + (me.techTier >= 3 ? 1 : 0);
+    const tiers = me.cardTiers ? Game.FOCUS_TYPES.map((f) => `${Game.FOCUS_LABELS[f][0]}${me.cardTiers[f] || 1}`).join(" ") : "";
     dom.myStats.innerHTML = `<h3>My Stats</h3><div class="stat-grid">
       <span>Tech:</span><span class="sv">${me.tech}/${Game.CFG.techWheelSize} (T${me.techTier})</span>
+      <span>Card Tiers:</span><span class="sv">${tiers}</span>
       <span>Armies:</span><span class="sv">${me.armies.length}/${maxA}</span>
       <span>Caravans:</span><span class="sv">${me.caravans.length}/${maxW}</span>
       <span>Resources:</span><span class="sv">${res}</span>
@@ -900,6 +902,7 @@ const UI = (() => {
     else if (sub.phase === "industry_choice") { renderIndustryChoice(me); }
     else if (sub.phase === "placing_city") { renderPlacingCity(); }
     else if (sub.phase === "placing_wonder") { renderPlacingWonder(); }
+    else if (sub.phase === "picking_wonder") { renderPickingWonder(); }
     else { return; }
 
     const help = helpText(sub.phase);
@@ -1292,8 +1295,8 @@ const UI = (() => {
       <div class="wiz-title">Industry (Production: ${totalProd})</div>
       <div class="wiz-body">Base ${slot} + ${sub.tradeSpent} trade + ${spentBonus} resources<br><div style="margin:6px 0">${resHtml}</div></div>
       <div class="wiz-actions">
-        <button id="wiz-build-city">Build City (cost=terrain)</button>
-        <button id="wiz-build-wonder">Build Wonder (cost=6)</button>
+        <button id="wiz-build-city">Build City (cost=terrain, range=${Game.getCityRange(me)})</button>
+        <button id="wiz-build-wonder">Build Wonder (7/9/12)</button>
         <button class="ghost" id="wiz-cancel7">Cancel</button>
       </div>`;
     document.querySelectorAll(".res-btn").forEach((btn) => {
@@ -1313,22 +1316,77 @@ const UI = (() => {
   }
 
   function renderPlacingWonder() {
+    const wonderName = sub.selectedWonder ? sub.selectedWonder.name : "Wonder";
     dom.wizard.innerHTML = `
-      <div class="wiz-title">Build Wonder</div>
+      <div class="wiz-title">Build ${wonderName}</div>
       <div class="wiz-body">Click one of your <strong>cities</strong> to build the wonder.</div>
       <div class="wiz-actions"><button class="ghost" id="wiz-cancel9">Cancel</button></div>`;
     document.getElementById("wiz-cancel9").addEventListener("click", cancelAction);
   }
 
+  function renderPickingWonder() {
+    const prod = sub.wonderProduction || 0;
+    const builtWonders = new Set();
+    Object.values(state.map.hexes).forEach((h) => { if (h.city && h.city.wonder) builtWonders.add(h.city.wonder.name); });
+
+    const eras = Object.entries(Game.WONDER_ERAS).map(([eraName, eraData]) => {
+      const affordable = prod >= eraData.cost;
+      const available = eraData.wonders.filter((w) => !builtWonders.has(w.name));
+      return { eraName, cost: eraData.cost, affordable, available };
+    });
+
+    let html = `<div class="wiz-title">Choose Wonder (Production: ${prod})</div><div class="wiz-body" style="max-height:260px;overflow-y:auto">`;
+    eras.forEach((era) => {
+      html += `<div style="margin-bottom:8px"><strong>${era.eraName.charAt(0).toUpperCase() + era.eraName.slice(1)} (cost ${era.cost})</strong>`;
+      if (!era.affordable) html += ` <span style="color:var(--danger)">— need ${era.cost}</span>`;
+      html += `</div>`;
+      era.available.forEach((w) => {
+        const disabled = era.affordable ? "" : " disabled";
+        html += `<button class="sm wonder-pick${disabled}" data-name="${w.name}" style="margin:2px;text-align:left;display:block;width:100%"${disabled ? " disabled" : ""}>
+          <strong>${w.name}</strong><br><span style="font-size:10px;opacity:0.8">${w.effect}</span>
+        </button>`;
+      });
+      if (era.available.length === 0) html += `<div style="opacity:0.5;font-size:11px">All built</div>`;
+    });
+    html += `</div><div class="wiz-actions"><button class="ghost" id="wiz-cancel-wonder">Cancel</button></div>`;
+
+    dom.wizard.innerHTML = html;
+    document.querySelectorAll(".wonder-pick:not([disabled])").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const wonder = Game.ALL_WONDERS.find((w) => w.name === btn.dataset.name);
+        if (!wonder) return;
+        sub.selectedWonder = wonder;
+        sub.phase = "placing_wonder";
+        sub.validHexes = Game.validWonderHexes(state, localPlayerId);
+        render();
+      });
+    });
+    document.getElementById("wiz-cancel-wonder").addEventListener("click", cancelAction);
+  }
+
   function getCardPreview(cardType, player, slot) {
     const spend = sub.tradeSpent;
+    const tier = Game.getCardTier(player, cardType);
     switch (cardType) {
-      case "culture": return `Markers to place: <strong>${2 + spend}</strong> (terrain ≤ ${slot + spend})`;
-      case "growth": return `Place 1 district or reinforce ${slot + spend} markers.`;
-      case "science": return `Advance tech by <strong>${slot + spend}</strong>. Current: ${player.tech}/${Game.CFG.techWheelSize}`;
-      case "economy": return `Move caravan up to <strong>${slot + spend}</strong> hexes.`;
-      case "military": return `Move army up to <strong>${slot + spend}</strong> hexes. Combat: d6 + ${slot + spend}`;
-      case "industry": return `Production: <strong>${slot + spend}</strong>. Build city (terrain cost) or wonder (6).`;
+      case "culture": {
+        const markers = Game.getCultureMarkers(player, spend);
+        return `Markers to place: <strong>${markers}</strong> (terrain ≤ ${slot + spend}) [Tier ${tier}]`;
+      }
+      case "growth": return `Place 1 district or reinforce ${slot + spend} markers. [Tier ${tier}]`;
+      case "science": return `Advance tech by <strong>${slot + spend}</strong>. Current: ${player.tech}/${Game.CFG.techWheelSize} [Tier ${tier}]`;
+      case "economy": {
+        const move = Game.getEconomyMove(player) + spend;
+        return `Move caravan up to <strong>${move}</strong> hexes. [Tier ${tier}]`;
+      }
+      case "military": {
+        const move = Game.getMilitaryMove(player) + spend;
+        const combatBonus = Game.getMilitaryCombatBonus(player);
+        return `Move army up to <strong>${move}</strong> hexes. Combat: d6 + ${slot + spend}${combatBonus ? ` +${combatBonus} tier` : ""} [Tier ${tier}]`;
+      }
+      case "industry": {
+        const range = Game.getCityRange(player);
+        return `Production: <strong>${slot + spend}</strong>. City range: ${range}. [Tier ${tier}]`;
+      }
       default: return "";
     }
   }
@@ -1347,7 +1405,7 @@ const UI = (() => {
     if (sub.cardType === "culture") {
       sub.phase = "placing_control";
       const effectiveSlot = slot + sub.tradeSpent;
-      sub.remaining = 2 + sub.tradeSpent;
+      sub.remaining = Game.getCultureMarkers(me, sub.tradeSpent);
       sub.totalMarkers = sub.remaining;
       sub.placedKeys = [];
       sub.validHexes = Game.validControlHexes(state, localPlayerId, effectiveSlot);
@@ -1379,16 +1437,17 @@ const UI = (() => {
   }
 
   function startBuildCity(production) {
+    const me = Game.getPlayer(state, localPlayerId);
+    const range = me ? Game.getCityRange(me) : 2;
     sub.phase = "placing_city";
-    sub.validHexes = Game.validCityHexes(state, localPlayerId, production);
+    sub.validHexes = Game.validCityHexes(state, localPlayerId, production, range);
     render();
   }
 
   function startBuildWonder(production) {
-    if (production < 6) { dom.wizard.innerHTML += `<div style="color:var(--danger);margin-top:6px">Need 6 production!</div>`; return; }
-    sub.phase = "placing_wonder";
-    sub.validHexes = Game.validWonderHexes(state, localPlayerId);
-    render();
+    sub.phase = "picking_wonder";
+    sub.wonderProduction = production;
+    renderWizard();
   }
 
   function finishAction() {
@@ -1407,7 +1466,7 @@ const UI = (() => {
     sub.phase = "idle"; sub.cardType = null; sub.tradeSpent = 0; sub.remaining = 0;
     sub.totalMarkers = 0; sub.validHexes = new Set(); sub.selectedUnit = null;
     sub.districtType = null; sub.spentResources = {}; sub.placedKeys = [];
-    sub.movementState = null;
+    sub.movementState = null; sub.selectedWonder = null; sub.wonderProduction = 0;
     render();
   }
 
@@ -1475,8 +1534,7 @@ const UI = (() => {
         const unit = me.caravans.find((u) => u.position === hexKey);
         if (!unit) return;
         sub.selectedUnit = unit;
-        const slot = Game.getSlotValue(me, "economy", state);
-        const maxMove = slot + sub.tradeSpent;
+        const maxMove = Game.getEconomyMove(me) + sub.tradeSpent;
         sub.movementState = { unitType: "caravan", unitId: unit.id, maxMove, remaining: maxMove, currentKey: hexKey, startKey: hexKey, explored: false };
         sub.validHexes = Game.getReachable(state, hexKey, maxMove, "caravan", localPlayerId);
         render();
@@ -1500,8 +1558,7 @@ const UI = (() => {
         const unit = me.armies.find((u) => u.position === hexKey);
         if (!unit) return;
         sub.selectedUnit = unit;
-        const slot = Game.getSlotValue(me, "military", state);
-        const maxMove = slot + sub.tradeSpent;
+        const maxMove = Game.getMilitaryMove(me) + sub.tradeSpent;
         sub.movementState = { unitType: "army", unitId: unit.id, maxMove, remaining: maxMove, currentKey: hexKey, startKey: hexKey, explored: false };
         sub.validHexes = Game.getReachable(state, hexKey, maxMove, "army", localPlayerId);
         render();
@@ -1548,7 +1605,10 @@ const UI = (() => {
     if (sub.phase === "placing_wonder") {
       if (!sub.validHexes.has(hexKey)) { showToast("Must be your city without a wonder"); return; }
       const resources = {}; Object.entries(sub.spentResources).forEach(([r, spent]) => { if (spent) resources[r] = 1; });
-      dispatch({ type: "PLAY_INDUSTRY_WONDER", payload: { playerId: localPlayerId, hexKey, resources, tradeSpent: sub.tradeSpent } });
+      dispatch({ type: "PLAY_INDUSTRY_WONDER", payload: {
+        playerId: localPlayerId, hexKey, resources, tradeSpent: sub.tradeSpent,
+        wonderName: sub.selectedWonder ? sub.selectedWonder.name : null
+      }});
       resetSub(); return;
     }
   }
@@ -1635,10 +1695,12 @@ const UI = (() => {
       const trade = "●".repeat(me.trade[cardType]) + "○".repeat(Game.CFG.maxTrade - me.trade[cardType]);
       const disabled = !canPlay ? " disabled" : "";
       const selected = sub.cardType === cardType && sub.phase !== "idle" ? " selected" : "";
+      const tier = Game.getCardTier(me, cardType);
       return `<div class="fcard type-${cardType}${disabled}${selected}" data-card="${cardType}">
         <span class="fc-pos">#${idx + 1}</span>
         <span class="fc-slot">${effective}${bonus > 0 ? `<span class="gov-plus">+${bonus}</span>` : ""}</span>
         <span class="fc-name">${Game.FOCUS_LABELS[cardType]}</span>
+        <span class="fc-tier">T${tier}</span>
         <span class="fc-trade">${trade}</span>
       </div>`;
     }).join("");
