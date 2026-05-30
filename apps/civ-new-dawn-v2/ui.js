@@ -897,6 +897,7 @@ const UI = (() => {
     else if (sub.phase === "placing_district") { renderPlacingDistrict(); }
     else if (sub.phase === "reinforcing") { renderReinforcing(); }
     else if (sub.phase === "move_caravan" || sub.phase === "move_army") { renderMoving(); }
+    else if (sub.phase === "combat_prep") { renderCombatPrep(); }
     else if (sub.phase === "move_army_post" || sub.phase === "move_caravan_post") { renderPostMove(); }
     else if (sub.phase === "move_army_exploring" || sub.phase === "move_caravan_exploring") { renderExploring(); }
     else if (sub.phase === "industry_choice") { renderIndustryChoice(me); }
@@ -1172,13 +1173,66 @@ const UI = (() => {
       <div class="wiz-body">${bodyText}</div>
       ${buttons}`;
 
-    document.getElementById("wiz-attack")?.addEventListener("click", endMovement);
+    document.getElementById("wiz-attack")?.addEventListener("click", () => {
+      sub.phase = "combat_prep";
+      sub.combatTradeSpent = 0;
+      render();
+    });
     document.getElementById("wiz-continue-move")?.addEventListener("click", continueMovement);
     document.getElementById("wiz-explore")?.addEventListener("click", startExploration);
     document.getElementById("wiz-end-move").addEventListener("click", () => {
       if (defender) {
         ms.currentKey = ms.startKey;
       }
+      endMovement();
+    });
+  }
+
+  function renderCombatPrep() {
+    const ms = sub.movementState;
+    if (!ms) return;
+    const me = Game.getPlayer(state, localPlayerId);
+    if (!me) return;
+    const defender = Game.findDefender(state, ms.currentKey, localPlayerId);
+    if (!defender) { endMovement(); return; }
+    const slot = Game.getSlotValue(me, "military", state);
+    const tierBonus = Game.getMilitaryCombatBonus(me);
+    const totalAttack = slot + sub.tradeSpent + (sub.combatTradeSpent || 0);
+    const milTrade = me.trade.military;
+
+    dom.wizard.innerHTML = `
+      <div class="wiz-title">Combat Preparation</div>
+      <div class="wiz-body">
+        <div>Defender: <strong style="color:#ef5350">${defender.label}</strong> (power ${defender.power})</div>
+        <div>Your attack: d6 + <strong>${totalAttack}</strong>${tierBonus ? ` +${tierBonus} tier` : ""}</div>
+        <div style="margin-top:6px">Spend military trade for +1 combat each:</div>
+        <div class="trade-counter">
+          <span>Extra trade:</span>
+          <button id="ct-dec" class="sm">−</button>
+          <span class="tc-val" id="ct-val">${sub.combatTradeSpent || 0}</span>
+          <button id="ct-inc" class="sm">+</button>
+          <span style="color:var(--text2);margin-left:4px">(${milTrade} available)</span>
+        </div>
+      </div>
+      <div class="wiz-actions">
+        <button class="primary" id="wiz-fight">Fight!</button>
+        <button class="ghost" id="wiz-retreat">Retreat</button>
+      </div>`;
+    document.getElementById("ct-dec").addEventListener("click", () => {
+      sub.combatTradeSpent = Math.max(0, (sub.combatTradeSpent || 0) - 1);
+      renderWizard();
+    });
+    document.getElementById("ct-inc").addEventListener("click", () => {
+      sub.combatTradeSpent = Math.min(milTrade, (sub.combatTradeSpent || 0) + 1);
+      renderWizard();
+    });
+    document.getElementById("wiz-fight").addEventListener("click", () => {
+      const extraTrade = sub.combatTradeSpent || 0;
+      sub.tradeSpent += extraTrade;
+      endMovement();
+    });
+    document.getElementById("wiz-retreat").addEventListener("click", () => {
+      ms.currentKey = ms.startKey;
       endMovement();
     });
   }
@@ -1474,6 +1528,7 @@ const UI = (() => {
     sub.totalMarkers = 0; sub.validHexes = new Set(); sub.selectedUnit = null;
     sub.districtType = null; sub.spentResources = {}; sub.placedKeys = [];
     sub.movementState = null; sub.selectedWonder = null; sub.wonderProduction = 0;
+    sub.combatTradeSpent = 0;
     render();
   }
 
