@@ -8702,11 +8702,31 @@ function switchPage(pageName) {
   const rangedspeedToggle = document.getElementById("rangeSpeedToggleItem");
   if (autoBalanceToggle)
     autoBalanceToggle.style.display =
-      pageName === "vsBuilding" ? "none" : "Block";
+      pageName === "vsBuilding" ? "none" : "block";
   if (rangedspeedToggle)
     rangedspeedToggle.style.display =
       pageName === "vsBuilding" ? "none" : "block";
   syncResultsVisibilityForPage(pageName);
+
+  const rankingEls = document.querySelectorAll(".rankings-only");
+  if (pageName === "rankings") {
+    const hideEls = document.querySelectorAll(
+      ".single-only, .multi-only, .battle-only, .build-only",
+    );
+    hideEls.forEach((el) => {
+      el.style.display = "none";
+    });
+    rankingEls.forEach((el) => {
+      el.style.display = "";
+    });
+    if (window.Aoe4Rankings?.renderRankings) {
+      window.Aoe4Rankings.renderRankings();
+    }
+    return;
+  }
+  rankingEls.forEach((el) => {
+    el.style.display = "none";
+  });
 
   if (pageName === "buildOrder") {
     const buildEls = document.querySelectorAll(".build-only");
