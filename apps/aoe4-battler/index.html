@@ -29,6 +29,9 @@
       <button class="aoe4-nav-tab" type="button" data-page="buildOrder">
         <span class="nav-icon"><i class="fa-solid fa-clock"></i></span> Build Order <span class="beta-badge">BETA</span>
       </button>
+      <button class="aoe4-nav-tab" type="button" data-page="rankings">
+        <span class="nav-icon"><i class="fa-solid fa-ranking-star"></i></span> Rankings <span class="beta-badge">BETA</span>
+      </button>
     </div>
     <div class="aoe4-nav-support">
       <a href="https://ko-fi.com/owl1453" target="_blank" rel="noopener" class="kofi-btn kofi-btn--nav">
@@ -1766,6 +1769,105 @@
         </div>
       </div>
     </template>
+
+    <!-- ==================== LIVE RANKINGS ==================== -->
+    <div class="rankings-only" id="rankingsRow" style="display:none;">
+      <div class="rankings-shell">
+        <section class="rankings-hero">
+          <div>
+            <div class="rankings-kicker">Live simulator rankings</div>
+            <h3 class="mb-2">Unit Rankings</h3>
+            <p>
+              Compare offensive TTK and tankiness from current unit data. Pick modeled bonuses below
+              just like the battler instead of relying on stale saved numbers.
+            </p>
+          </div>
+          <div class="rankings-hero-stat">
+            <span id="rankingResultCount">0</span>
+            <small>ranked units</small>
+          </div>
+        </section>
+
+        <section class="rankings-control-card">
+          <div class="rankings-mode-tabs" role="group" aria-label="Ranking mode">
+            <button class="ranking-mode-btn active" type="button" data-ranking-mode="damage">Damage</button>
+            <button class="ranking-mode-btn" type="button" data-ranking-mode="tankiness">Tankiness</button>
+          </div>
+
+          <div class="rankings-controls">
+            <label>
+              <span>Ranked Group</span>
+              <select id="rankingGroupSelect" class="form-select form-select-sm"></select>
+            </label>
+            <label>
+              <span>Age</span>
+              <select id="rankingAgeSelect" class="form-select form-select-sm">
+                <option value="2">Feudal</option>
+                <option value="3">Castle</option>
+                <option value="4">Imperial</option>
+              </select>
+            </label>
+            <label>
+              <span id="rankingOpponentGroupLabel">Target Group</span>
+              <select id="rankingOpponentGroupSelect" class="form-select form-select-sm"></select>
+            </label>
+            <label>
+              <span id="rankingOpponentUnitLabel">Target Unit</span>
+              <select id="rankingOpponentUnitSelect" class="form-select form-select-sm"></select>
+            </label>
+            <label>
+              <span id="rankingWeaponModeLabel">Attacker Weapon</span>
+              <select id="rankingWeaponModeSelect" class="form-select form-select-sm">
+                <option value="primary">Primary</option>
+                <option value="secondary">Secondary if available</option>
+                <option value="both">Both if supported</option>
+              </select>
+            </label>
+            <label>
+              <span>Target Spread</span>
+              <input id="rankingTargetSpreadInput" class="form-control form-control-sm" type="number" value="1" min="1" max="50" step="1">
+            </label>
+          </div>
+
+          <div class="rankings-custom-row">
+            <label class="ranking-extra-picker">
+              <span>Extra Ranked Unit</span>
+              <div class="input-group input-group-sm">
+                <select id="rankingExtraUnitSelect" class="form-select"></select>
+                <button class="btn btn-outline-secondary" id="rankingAddExtraUnit" type="button">Add</button>
+              </div>
+            </label>
+            <div class="ranking-extra-chips" id="rankingExtraUnitChips"></div>
+          </div>
+
+          <div class="rankings-tech-layout">
+            <div class="tech-box ranking-tech-panel">
+              <div class="ranking-tech-head">
+                <h6 class="mb-0">Ranked Group Bonuses</h6>
+                <button class="btn btn-outline-secondary btn-sm" id="rankingClearRankedTechs" type="button">Clear</button>
+              </div>
+              <div class="small text-muted mb-2">
+                Icons apply only to units in the ranked group that actually have that tech or aura.
+              </div>
+              <div id="rankingRankedTechBox"></div>
+            </div>
+            <div class="tech-box ranking-tech-panel">
+              <div class="ranking-tech-head">
+                <h6 class="mb-0" id="rankingOpponentTechTitle">Target Bonuses</h6>
+                <button class="btn btn-outline-secondary btn-sm" id="rankingClearOpponentTechs" type="button">Clear</button>
+              </div>
+              <div class="small text-muted mb-2">
+                Use this when the target or tankiness attacker should have upgrades, armor auras, or attack-speed buffs.
+              </div>
+              <div id="rankingOpponentTechBox"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="rankings-summary-grid" id="rankingSummary"></section>
+        <section class="rankings-results" id="rankingResults"></section>
+      </div>
+    </div>
 
     <!-- ==================== RESULTS DISPLAY ==================== -->
     <div id="results" style="display: none;" class="results-card mt-4">
