@@ -593,9 +593,9 @@ const UI = (() => {
       hexPath(p.x, p.y, HEX_SIZE);
 
       if (h.active) {
-        ctx.fillStyle = "rgba(239,83,80,0.3)";
+        ctx.fillStyle = "rgba(239,83,80,0.35)";
         ctx.fill();
-      } else if (valid && tile) {
+      } else if (tile) {
         const idx = ghostKeyArr.indexOf(k);
         if (isCapitalTile) {
           ctx.fillStyle = idx >= 0 ? CAP_TERRAIN_COLORS[idx] : fillColor;
@@ -606,7 +606,7 @@ const UI = (() => {
         } else {
           ctx.fillStyle = idx >= 0 ? GENERIC_TERRAIN[idx] : fillColor;
         }
-        ctx.globalAlpha = 0.7;
+        ctx.globalAlpha = valid ? 0.7 : 0.4;
         ctx.fill();
         ctx.globalAlpha = 1.0;
       } else {
@@ -614,7 +614,7 @@ const UI = (() => {
         ctx.fill();
       }
 
-      if (!tile || !valid) return;
+      if (!tile) return;
       ctx.fillStyle = "#fff";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
@@ -1105,7 +1105,7 @@ const UI = (() => {
     else { return; }
 
     const help = helpText(sub.phase);
-    if (help) dom.wizard.innerHTML += `<div class="wiz-help">${help}</div>`;
+    if (help) dom.wizard.insertAdjacentHTML("beforeend", `<div class="wiz-help">${help}</div>`);
   }
 
   function renderSetupWizard() {
