@@ -6,6 +6,18 @@ const Game = (() => {
   const FOCUS_TYPES = ["culture", "growth", "science", "economy", "military", "industry"];
   const FOCUS_LABELS = { culture: "Culture", growth: "Growth", science: "Science", economy: "Economy", military: "Military", industry: "Industry" };
   const FOCUS_SLOTS = [1, 1, 2, 3, 4, 5];
+  const CARD_NAMES = {
+    culture:  ["Early Empire", "Drama & Poetry", "Civil Service", "Mass Media"],
+    growth:   ["Irrigation", "Engineering", "Sanitation", "Globalization"],
+    science:  ["Astrology", "Mathematics", "Replaceable Parts", "Nuclear Power"],
+    economy:  ["Foreign Trade", "Currency", "Steam Power", "Capitalism"],
+    military: ["Masonry", "Iron Working", "Mass Production", "Flight"],
+    industry: ["Pottery", "Animal Husbandry", "Nationalism", "Urbanization"]
+  };
+  const CARD_ICONS = {
+    culture: "🎭", growth: "🌿", science: "🔬",
+    economy: "💰", military: "⚔️", industry: "🏗️"
+  };
   const FOCUS_TRADE_DESC = {
     culture: "+1 effective slot value per trade spent",
     growth: "+1 extra district/reinforce per trade",
@@ -1622,7 +1634,7 @@ const Game = (() => {
   }
 
   return {
-    TERRAIN, TERRAIN_LABELS, FOCUS_TYPES, FOCUS_LABELS, FOCUS_SLOTS, FOCUS_TRADE_DESC,
+    TERRAIN, TERRAIN_LABELS, FOCUS_TYPES, FOCUS_LABELS, FOCUS_SLOTS, FOCUS_TRADE_DESC, CARD_NAMES, CARD_ICONS,
     DISTRICTS, DISTRICT_LABELS, DISTRICT_EFFECTS, RESOURCES, EVENTS, EVENT_LABELS, CFG,
     WONDERS, ALL_WONDERS, WONDER_ERAS, CARD_TIERS,
     TILE_OFFSETS, getCoreAnchors,

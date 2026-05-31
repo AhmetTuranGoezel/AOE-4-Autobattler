@@ -16,7 +16,7 @@
   --hex-gap: 2px;
   --panel-left: 260px;
   --panel-right: 320px;
-  --focus-height: 100px;
+  --focus-height: 155px;
   --header-height: 40px;
 }
 
@@ -335,44 +335,183 @@ input, select {
   align-items: center;
   justify-content: center;
   padding: 0 16px;
+  overflow: visible;
 }
 #focus-row {
   display: flex;
-  gap: 8px;
-  height: 80px;
+  gap: 10px;
+  height: 140px;
+  align-items: flex-end;
+  padding: 0 20px;
+  overflow: visible;
 }
 
+/* ── CARD BASE ── */
 .fcard {
-  width: 110px;
-  height: 100%;
-  background: var(--surface);
-  border: 2px solid var(--border);
-  border-radius: 8px;
+  width: 130px;
+  height: 135px;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  border: 2px solid rgba(255,255,255,0.12);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.1);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  flex-shrink: 0;
+}
+.fcard::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    135deg, transparent, transparent 18px,
+    rgba(255,255,255,0.03) 18px, rgba(255,255,255,0.03) 20px
+  );
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Fan arc: center cards float higher */
+.fcard:nth-child(1) { margin-bottom: 2px; }
+.fcard:nth-child(2) { margin-bottom: 6px; }
+.fcard:nth-child(3) { margin-bottom: 8px; }
+.fcard:nth-child(4) { margin-bottom: 8px; }
+.fcard:nth-child(5) { margin-bottom: 6px; }
+.fcard:nth-child(6) { margin-bottom: 2px; }
+
+.fcard:hover {
+  transform: translateY(-10px) scale(1.04);
+  box-shadow: 0 10px 28px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.15);
+  border-color: rgba(255,255,255,0.3);
+  z-index: 10;
+}
+.fcard.disabled {
+  opacity: 0.4;
+  pointer-events: none;
+  filter: grayscale(0.4) brightness(0.7);
+}
+.fcard.selected {
+  transform: translateY(-14px) scale(1.06);
+  border-color: var(--accent);
+  box-shadow: 0 0 24px rgba(79,195,247,0.5), 0 10px 28px rgba(0,0,0,0.5);
+  z-index: 11;
+}
+
+/* ── CARD HEADER ── */
+.fc-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: rgba(255,255,255,0.92);
+  background: rgba(0,0,0,0.3);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  position: relative;
+  z-index: 2;
+}
+.fc-icon { font-size: 14px; line-height: 1; }
+.fc-slot-num {
+  margin-left: auto;
+  font-size: 9px;
+  opacity: 0.6;
+  font-weight: 400;
+}
+
+/* ── CARD BODY ── */
+.fc-body {
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
-  transition: border-color 0.15s, transform 0.15s;
-  padding: 4px;
+  padding: 4px 6px 2px;
+  position: relative;
+  z-index: 2;
+}
+
+/* Power circle */
+.fc-power {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, rgba(255,255,255,0.2), rgba(0,0,0,0.4));
+  border: 2px solid rgba(255,255,255,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  font-weight: 900;
+  color: #fff;
+  text-shadow: 0 2px 6px rgba(0,0,0,0.5);
   position: relative;
 }
-.fcard:hover { border-color: var(--accent); transform: translateY(-3px); }
-.fcard.disabled { opacity: 0.5; pointer-events: none; }
-.fcard.selected { border-color: var(--accent); box-shadow: 0 0 12px var(--accent); transform: translateY(-4px); }
-.fcard .fc-slot { font-size: 20px; font-weight: 800; color: var(--text); }
-.fcard .fc-slot .gov-plus { font-size: 11px; color: var(--success); }
-.fcard .fc-name { font-size: 10px; color: var(--text2); margin-top: 2px; }
-.fcard .fc-trade { font-size: 11px; margin-top: 3px; color: var(--warn); letter-spacing: 1px; }
-.fcard .fc-pos { position: absolute; top: 3px; right: 5px; font-size: 9px; color: var(--text2); }
-.fcard .fc-tier { font-size: 9px; color: var(--accent); font-weight: bold; }
+.fc-power .gov-plus {
+  font-size: 10px;
+  color: var(--success);
+  position: absolute;
+  top: -3px;
+  right: -10px;
+  text-shadow: none;
+  font-weight: 700;
+}
 
-.fcard.type-culture { border-top: 3px solid #ce93d8; }
-.fcard.type-growth { border-top: 3px solid #66bb6a; }
-.fcard.type-science { border-top: 3px solid #4fc3f7; }
-.fcard.type-economy { border-top: 3px solid #ffd54f; }
-.fcard.type-military { border-top: 3px solid #ef5350; }
-.fcard.type-industry { border-top: 3px solid #ff8a65; }
+/* Card name */
+.fc-cardname {
+  font-size: 9px;
+  color: rgba(255,255,255,0.88);
+  margin-top: 4px;
+  text-align: center;
+  font-weight: 600;
+  line-height: 1.15;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+}
+
+/* Tier badge */
+.fc-tier-badge {
+  font-size: 7px;
+  padding: 1px 8px;
+  border-radius: 3px;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.7);
+  margin-top: 3px;
+  letter-spacing: 1.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+/* ── CARD FOOTER / TRADE ── */
+.fc-footer {
+  padding: 4px 8px;
+  text-align: center;
+  background: rgba(0,0,0,0.3);
+  border-top: 1px solid rgba(255,255,255,0.06);
+  font-size: 12px;
+  letter-spacing: 2px;
+  position: relative;
+  z-index: 2;
+}
+.fc-footer .trade-filled { color: #ffb300; }
+.fc-footer .trade-empty { color: rgba(255,255,255,0.2); }
+
+/* ── TYPE GRADIENTS ── */
+.fcard.type-culture  { background: linear-gradient(155deg, #7b1fa2 0%, #ab47bc 50%, #ce93d8 100%); }
+.fcard.type-growth   { background: linear-gradient(155deg, #1b5e20 0%, #388e3c 50%, #66bb6a 100%); }
+.fcard.type-science  { background: linear-gradient(155deg, #01579b 0%, #0288d1 50%, #4fc3f7 100%); }
+.fcard.type-economy  { background: linear-gradient(155deg, #e65100 0%, #f57c00 50%, #ffb74d 100%); }
+.fcard.type-military { background: linear-gradient(155deg, #b71c1c 0%, #d32f2f 50%, #ef5350 100%); }
+.fcard.type-industry { background: linear-gradient(155deg, #bf360c 0%, #e64a19 50%, #ff8a65 100%); }
+
+/* ── SHUFFLE TRANSITION ── */
+.fcard.shuffling {
+  transition: transform 0.55s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
 
 /* GAME OVER OVERLAY */
 .gameover-overlay {
@@ -479,7 +618,7 @@ input, select {
   100% { transform: scale(1); opacity: 1; }
 }
 
-.fcard.card-anim { animation: card-played 0.4s ease; }
+.fcard.card-anim { animation: card-played 0.4s ease; z-index: 20; }
 .wiz-title { animation: slide-up-in 0.25s ease; }
 .combat-result { animation: pop-in 0.3s ease; }
 .cr-win { animation: combat-hit 0.4s ease; color: var(--success); font-weight: bold; font-size: 18px; }
