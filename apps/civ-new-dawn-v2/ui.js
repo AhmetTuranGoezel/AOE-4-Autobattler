@@ -2015,6 +2015,8 @@ const UI = (() => {
     return p ? p.color : "var(--text)";
   }
 
+  let prevFocusOrder = [];
+
   function renderFocusRow() {
     if (!state || state.phase !== "playing") return;
     const me = Game.getPlayer(state, localPlayerId);
@@ -2022,29 +2024,84 @@ const UI = (() => {
     const cp = Game.currentPlayer(state);
     const isMyTurn = cp && cp.id === localPlayerId;
     const canPlay = isMyTurn && !me.cardPlayed && sub.phase === "idle";
+    const TIER_LABELS = ["I", "II", "III", "IV"];
+
+    const oldRects = {};
+    document.querySelectorAll(".fcard").forEach((el) => {
+      oldRects[el.dataset.card] = el.getBoundingClientRect();
+    });
 
     dom.focusRow.innerHTML = me.focusRow.map((cardType, idx) => {
       const effective = Game.getSlotValue(me, cardType, state);
       const bonus = me.govBonus[cardType] || 0;
-      const trade = "●".repeat(me.trade[cardType]) + "○".repeat(Game.CFG.maxTrade - me.trade[cardType]);
+      const tier = Game.getCardTier(me, cardType);
+      const cardName = Game.CARD_NAMES[cardType][tier - 1];
+      const icon = Game.CARD_ICONS[cardType];
+      const maxT = Game.CFG.maxTrade;
+      const filled = me.trade[cardType];
+      let tradeDots = "";
+      for (let i = 0; i < maxT; i++) {
+        tradeDots += i < filled
+          ? `<span class="trade-filled">●</span>`
+          : `<span class="trade-empty">●</span>`;
+      }
       const disabled = !canPlay ? " disabled" : "";
       const selected = sub.cardType === cardType && sub.phase !== "idle" ? " selected" : "";
-      const tier = Game.getCardTier(me, cardType);
-      return `<div class="fcard type-${cardType}${disabled}${selected}" data-card="${cardType}">
-        <span class="fc-pos">#${idx + 1}</span>
-        <span class="fc-slot">${effective}${bonus > 0 ? `<span class="gov-plus">+${bonus}</span>` : ""}</span>
-        <span class="fc-name">${Game.FOCUS_LABELS[cardType]}</span>
-        <span class="fc-tier">T${tier}</span>
-        <span class="fc-trade">${trade}</span>
+
+      return `<div class="fcard type-${cardType}${disabled}${selected}" data-card="${cardType}" data-idx="${idx}">
+        <div class="fc-header">
+          <span class="fc-icon">${icon}</span>
+          <span class="fc-type">${Game.FOCUS_LABELS[cardType]}</span>
+          <span class="fc-slot-num">#${idx + 1}</span>
+        </div>
+        <div class="fc-body">
+          <div class="fc-power">${effective}${bonus > 0 ? `<span class="gov-plus">+${bonus}</span>` : ""}</div>
+          <div class="fc-cardname">${cardName}</div>
+          <div class="fc-tier-badge">TIER ${TIER_LABELS[tier - 1]}</div>
+        </div>
+        <div class="fc-footer">${tradeDots}</div>
       </div>`;
     }).join("");
 
+    const orderChanged = prevFocusOrder.length > 0 &&
+      me.focusRow.some((c, i) => prevFocusOrder[i] !== c);
+
+    if (orderChanged && Object.keys(oldRects).length > 0) {
+      document.querySelectorAll(".fcard").forEach((el) => {
+        const cardType = el.dataset.card;
+        if (oldRects[cardType]) {
+          const oldR = oldRects[cardType];
+          const newR = el.getBoundingClientRect();
+          const dx = oldR.left - newR.left;
+          const dy = oldR.top - newR.top;
+          if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+            el.style.transform = `translate(${dx}px, ${dy}px)`;
+            el.style.transition = "none";
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => {
+                el.classList.add("shuffling");
+                el.style.transform = "";
+                el.addEventListener("transitionend", function handler() {
+                  el.classList.remove("shuffling");
+                  el.style.transition = "";
+                  el.removeEventListener("transitionend", handler);
+                }, { once: true });
+              });
+            });
+          }
+        }
+      });
+    }
+    prevFocusOrder = me.focusRow.slice();
+
     document.querySelectorAll(".fcard").forEach((el) => {
       const cardType = el.dataset.card;
-      el.addEventListener("mouseenter", (e) => {
+      el.addEventListener("mouseenter", () => {
         const slot = Game.getSlotValue(me, cardType, state);
+        const tier = Game.getCardTier(me, cardType);
+        const name = Game.CARD_NAMES[cardType][tier - 1];
         const desc = Game.FOCUS_TRADE_DESC[cardType];
-        dom.mapTooltip.innerHTML = `<strong>${Game.FOCUS_LABELS[cardType]}</strong> (Power: ${slot})<br>${desc}`;
+        dom.mapTooltip.innerHTML = `<strong>${name}</strong> (Power: ${slot})<br>${desc}`;
         dom.mapTooltip.classList.remove("hidden");
         const rect = el.getBoundingClientRect();
         dom.mapTooltip.style.left = rect.left + "px";
