@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-16T01:45:35.224394+00:00",
+  "generatedAt": "2026-06-02T00:31:08.970441+00:00",
   "generatedFrom": "units_restructured.json",
   "civOrder": [
     "Common",
@@ -35,9 +35,7 @@
     "Heavy Cavalry",
     "Ranged Cavalry",
     "Elephants",
-    "Siege",
-    "Worker",
-    "Trader"
+    "Siege"
   ],
   "unitReplacements": {
     "Chinese": {
@@ -46,10 +44,7 @@
     "Jin Dynasty": {
       "Archer": "Mohe Tribesman",
       "Knight/Lancer": "Iron Pagoda",
-      "Handcannoneer": "Eruptor",
-      "Springald": "Bed Crossbow",
-      "Mangonel": "Nest of Bees",
-      "Counterweight Trebuchet": "Traction Trebuchet"
+      "Handcannoneer": "Eruptor"
     }
   },
   "allTags": [
@@ -168,8 +163,8 @@
       "hasAuras": true,
       "hasEffects": true
     },
-    "Atgeirmaðr": {
-      "name": "Atgeirmaðr",
+    "Atgeirma\u00f0r": {
+      "name": "Atgeirma\u00f0r",
       "civs": [
         "Macedonian Dynasty"
       ],
@@ -206,10 +201,10 @@
       ],
       "exceptCivs": [],
       "costs": {
-        "food": 300,
+        "food": 250,
         "gold": 350
       },
-      "trainingTime": 45.0,
+      "trainingTime": 40.0,
       "population": 4,
       "speed": 1.0,
       "tags": [
@@ -314,8 +309,8 @@
       "hasAuras": true,
       "hasEffects": true
     },
-    "Bogmaðr": {
-      "name": "Bogmaðr",
+    "Bogma\u00f0r": {
+      "name": "Bogma\u00f0r",
       "civs": [
         "Macedonian Dynasty"
       ],
@@ -798,6 +793,34 @@
         4
       ],
       "hasAuras": true,
+      "hasEffects": true
+    },
+    "Emissary": {
+      "name": "Emissary",
+      "civs": [
+        "Jin Dynasty"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "gold": 150
+      },
+      "trainingTime": 20,
+      "population": 1,
+      "speed": 1.125,
+      "tags": [
+        "Civilian",
+        "Worker",
+        "Support"
+      ],
+      "category": "Light Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        3,
+        4
+      ],
+      "hasAuras": false,
       "hasEffects": true
     },
     "Eruptor": {
@@ -1906,6 +1929,32 @@
         4
       ],
       "hasAuras": true,
+      "hasEffects": true
+    },
+    "Meng'an Mouke Defender": {
+      "name": "Meng'an Mouke Defender",
+      "civs": [
+        "Jin Dynasty"
+      ],
+      "exceptCivs": [],
+      "costs": {},
+      "trainingTime": 0,
+      "population": 0,
+      "speed": 1.9,
+      "tags": [
+        "Cavalry",
+        "Heavy",
+        "Melee"
+      ],
+      "category": "Heavy Cavalry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        3,
+        4
+      ],
+      "hasAuras": false,
       "hasEffects": false
     },
     "Mohe Tribesman": {
@@ -1938,6 +1987,32 @@
       "hasAuras": false,
       "hasEffects": false
     },
+    "Mounted Grenadier": {
+      "name": "Mounted Grenadier",
+      "civs": [
+        "Jin Dynasty"
+      ],
+      "exceptCivs": [],
+      "costs": {},
+      "trainingTime": 0,
+      "population": 0,
+      "speed": 1.9,
+      "tags": [
+        "Cavalry",
+        "Heavy",
+        "Ranged",
+        "Gunpowder"
+      ],
+      "category": "Ranged Cavalry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        4
+      ],
+      "hasAuras": false,
+      "hasEffects": true
+    },
     "Mounted Samurai": {
       "name": "Mounted Samurai",
       "civs": [
@@ -1967,6 +2042,39 @@
       ],
       "hasAuras": true,
       "hasEffects": true
+    },
+    "Mounted Villager": {
+      "name": "Mounted Villager",
+      "civs": [
+        "Jin Dynasty"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 65,
+        "gold": 50
+      },
+      "trainingTime": 35,
+      "population": 1,
+      "speed": 1.42,
+      "tags": [
+        "Civilian",
+        "Worker",
+        "Melee",
+        "Ranged"
+      ],
+      "category": "Light Infantry",
+      "weaponModes": [
+        "primary",
+        "secondary"
+      ],
+      "ages": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "hasAuras": false,
+      "hasEffects": false
     },
     "Musofadi Gunner": {
       "name": "Musofadi Gunner",
@@ -2209,6 +2317,36 @@
       "hasAuras": true,
       "hasEffects": true
     },
+    "Reindeer Trader": {
+      "name": "Reindeer Trader",
+      "civs": [
+        "Jin Dynasty"
+      ],
+      "exceptCivs": [],
+      "costs": {
+        "food": 70,
+        "gold": 30
+      },
+      "trainingTime": 30,
+      "population": 1,
+      "speed": 1.1,
+      "tags": [
+        "Civilian",
+        "Worker",
+        "Trader"
+      ],
+      "category": "Light Infantry",
+      "weaponModes": [
+        "primary"
+      ],
+      "ages": [
+        2,
+        3,
+        4
+      ],
+      "hasAuras": false,
+      "hasEffects": false
+    },
     "Ribauldequin": {
       "name": "Ribauldequin",
       "civs": [
@@ -2366,9 +2504,9 @@
       "exceptCivs": [],
       "costs": {
         "food": 120,
-        "wood": 40
+        "wood": 45
       },
-      "trainingTime": 30.0,
+      "trainingTime": 31.0,
       "population": 1,
       "speed": 1.75,
       "tags": [
@@ -3037,149 +3175,6 @@
       ],
       "hasAuras": true,
       "hasEffects": false
-    },
-    "Emissary": {
-      "name": "Emissary",
-      "civs": [
-        "Jin Dynasty"
-      ],
-      "exceptCivs": [],
-      "costs": {
-        "gold": 150
-      },
-      "trainingTime": 20,
-      "population": 1,
-      "speed": 1.125,
-      "tags": [
-        "Civilian",
-        "Worker",
-        "Support"
-      ],
-      "category": "Worker",
-      "weaponModes": [
-        "primary"
-      ],
-      "ages": [
-        3,
-        4
-      ],
-      "hasAuras": false,
-      "hasEffects": true
-    },
-    "Meng'an Mouke Defender": {
-      "name": "Meng'an Mouke Defender",
-      "civs": [
-        "Jin Dynasty"
-      ],
-      "exceptCivs": [],
-      "costs": {},
-      "trainingTime": 0,
-      "population": 0,
-      "speed": 1.9,
-      "tags": [
-        "Cavalry",
-        "Heavy",
-        "Melee"
-      ],
-      "category": "Heavy Cavalry",
-      "weaponModes": [
-        "primary"
-      ],
-      "ages": [
-        3,
-        4
-      ],
-      "hasAuras": false,
-      "hasEffects": false
-    },
-    "Mounted Grenadier": {
-      "name": "Mounted Grenadier",
-      "civs": [
-        "Jin Dynasty"
-      ],
-      "exceptCivs": [],
-      "costs": {},
-      "trainingTime": 0,
-      "population": 0,
-      "speed": 1.9,
-      "tags": [
-        "Cavalry",
-        "Heavy",
-        "Ranged",
-        "Gunpowder"
-      ],
-      "category": "Ranged Cavalry",
-      "weaponModes": [
-        "primary"
-      ],
-      "ages": [
-        4
-      ],
-      "hasAuras": false,
-      "hasEffects": true
-    },
-    "Mounted Villager": {
-      "name": "Mounted Villager",
-      "civs": [
-        "Jin Dynasty"
-      ],
-      "exceptCivs": [],
-      "costs": {
-        "food": 65,
-        "gold": 50
-      },
-      "trainingTime": 35,
-      "population": 1,
-      "speed": 1.42,
-      "tags": [
-        "Civilian",
-        "Worker",
-        "Melee",
-        "Ranged"
-      ],
-      "category": "Worker",
-      "weaponModes": [
-        "primary",
-        "secondary"
-      ],
-      "ages": [
-        1,
-        2,
-        3,
-        4
-      ],
-      "hasAuras": false,
-      "hasEffects": false
-    },
-    "Reindeer Trader": {
-      "name": "Reindeer Trader",
-      "civs": [
-        "Jin Dynasty"
-      ],
-      "exceptCivs": [],
-      "costs": {
-        "food": 70,
-        "gold": 30
-      },
-      "trainingTime": 30,
-      "population": 1,
-      "speed": 1.1,
-      "tags": [
-        "Civilian",
-        "Worker",
-        "Trader"
-      ],
-      "category": "Trader",
-      "weaponModes": [
-        "primary"
-      ],
-      "ages": [
-        2,
-        3,
-        4
-      ],
-      "hasAuras": false,
-      "hasEffects": false
     }
   },
   "unitsByCiv": {
@@ -3187,12 +3182,12 @@
       "Akinji",
       "Arbaletrier",
       "Archer",
-      "Atgeirmaðr",
+      "Atgeirma\u00f0r",
       "Ballista Elephant",
       "Battering Ram",
       "Bed Crossbow",
       "Black Rider",
-      "Bogmaðr",
+      "Bogma\u00f0r",
       "Bombard",
       "Camel Archer",
       "Camel Lancer",
@@ -3208,6 +3203,7 @@
       "Desert Raider",
       "Donso",
       "Earls Guard",
+      "Emissary",
       "Eruptor",
       "Fire Lancer",
       "Genitour",
@@ -3244,8 +3240,11 @@
       "MAA",
       "Mangonel",
       "Mangudai",
+      "Meng'an Mouke Defender",
       "Mohe Tribesman",
+      "Mounted Grenadier",
       "Mounted Samurai",
+      "Mounted Villager",
       "Musofadi Gunner",
       "Musofadi Warrior",
       "Naginata Samurai",
@@ -3254,6 +3253,7 @@
       "Onna-Bugeisha",
       "Palace Guard",
       "Raider Elephant",
+      "Reindeer Trader",
       "Ribauldequin",
       "Riddari",
       "Royal Knight",
@@ -3611,8 +3611,8 @@
       "Traction Trebuchet"
     ],
     "Macedonian Dynasty": [
-      "Atgeirmaðr",
-      "Bogmaðr",
+      "Atgeirma\u00f0r",
+      "Bogma\u00f0r",
       "Bombard",
       "Cataphract",
       "Cheirosiphon",

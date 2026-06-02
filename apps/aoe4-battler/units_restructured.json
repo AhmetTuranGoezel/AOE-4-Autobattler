@@ -348,7 +348,7 @@
     "auras": [
       {
         "name": "Atabeg Supervision",
-        "description": "+20%, Ayyubids",
+        "description": "+25%, Ayyubids",
         "category": "hitpoints",
         "civs": [
           "Ayyubids"
@@ -380,7 +380,7 @@
       },
       {
         "name": "Triumph",
-        "description": "+2 hp/s while active, Byzantines",
+        "description": "+2.5 hp/s while active, Byzantines",
         "category": "hitpoints",
         "civs": [
           "Byzantines"
@@ -420,7 +420,7 @@
       },
       {
         "name": "Inspiration Bonus",
-        "description": "+15%, Holy Roman Empire",
+        "description": "+10%, Holy Roman Empire",
         "category": "attack",
         "civs": [
           "Holy Roman Empire"
@@ -903,7 +903,7 @@
       },
       {
         "name": "Inspiration Bonus",
-        "description": "+15%",
+        "description": "+10%",
         "category": "attack"
       },
       {
@@ -1122,7 +1122,7 @@
       },
       {
         "name": "Inspiration Bonus",
-        "description": "+15%, Holy Roman Empire",
+        "description": "+10%, Holy Roman Empire",
         "category": "attack",
         "civs": [
           "Holy Roman Empire"
@@ -1720,9 +1720,9 @@
     ],
     "costs": {
       "food": 120,
-      "wood": 40
+      "wood": 45
     },
-    "trainingTime": 30.0,
+    "trainingTime": 31.0,
     "population": 1,
     "speed": 1.75,
     "tags": [
@@ -2257,7 +2257,7 @@
       },
       {
         "name": "Inspiration Bonus",
-        "description": "+15%, Holy Roman Empire",
+        "description": "+10%, Holy Roman Empire",
         "category": "attack",
         "civs": [
           "Holy Roman Empire"
@@ -3788,7 +3788,7 @@
     "auras": [
       {
         "name": "Atabeg Supervision",
-        "description": "+20%, Ayyubids",
+        "description": "+25%, Ayyubids",
         "category": "hitpoints",
         "civs": [
           "Ayyubids"
@@ -3828,7 +3828,7 @@
       },
       {
         "name": "Inspiration Bonus",
-        "description": "+15%, Holy Roman Empire",
+        "description": "+10%, Holy Roman Empire",
         "category": "attack",
         "civs": [
           "Holy Roman Empire"
@@ -4937,7 +4937,7 @@
     "auras": [
       {
         "name": "Inspiration Bonus",
-        "description": "+15%",
+        "description": "+10%",
         "category": "attack"
       },
       {
@@ -5337,7 +5337,7 @@
     "auras": [
       {
         "name": "Atabeg Supervision",
-        "description": "+20%, Ayyubids",
+        "description": "+25%, Ayyubids",
         "category": "hitpoints",
         "civs": [
           "Ayyubids"
@@ -5393,7 +5393,7 @@
       },
       {
         "name": "Inspiration Bonus",
-        "description": "+15%, Holy Roman Empire",
+        "description": "+10%, Holy Roman Empire",
         "category": "attack",
         "civs": [
           "Holy Roman Empire"
@@ -5967,7 +5967,7 @@
       },
       {
         "name": "Inspiration Bonus",
-        "description": "+15%",
+        "description": "+10%",
         "category": "attack"
       },
       {
@@ -6215,7 +6215,7 @@
         "attackSpeed": 1.875,
         "ages": {
           "2": {
-            "hp": 100,
+            "hp": 105,
             "meleeArmor": 0,
             "rangedArmor": 0,
             "attack": 8,
@@ -6613,7 +6613,7 @@
       },
       {
         "name": "Inspiration Bonus",
-        "description": "+15%, Holy Roman Empire",
+        "description": "+10%, Holy Roman Empire",
         "category": "attack",
         "civs": [
           "Holy Roman Empire"
@@ -7071,7 +7071,7 @@
       },
       {
         "name": "Inspiration Bonus",
-        "description": "+15%",
+        "description": "+10%",
         "category": "attack"
       },
       {
@@ -7227,7 +7227,7 @@
     "auras": [
       {
         "name": "Atabeg Supervision",
-        "description": "+20%, Ayyubids",
+        "description": "+25%, Ayyubids",
         "category": "hitpoints",
         "civs": [
           "Ayyubids"
@@ -8504,7 +8504,7 @@
     "auras": [
       {
         "name": "Atabeg Supervision",
-        "description": "+20%, Ayyubids",
+        "description": "+25%, Ayyubids",
         "category": "hitpoints",
         "civs": [
           "Ayyubids"
@@ -8560,7 +8560,7 @@
       },
       {
         "name": "Inspiration Bonus",
-        "description": "+15%, Holy Roman Empire",
+        "description": "+10%, Holy Roman Empire",
         "category": "attack",
         "civs": [
           "Holy Roman Empire"
@@ -9469,7 +9469,7 @@
     "auras": [
       {
         "name": "Inspiration Bonus",
-        "description": "+15%",
+        "description": "+10%",
         "category": "attack"
       },
       {
@@ -9504,6 +9504,13 @@
       "Cavalry",
       "Ranged"
     ],
+    "effects": {
+      "movingAttack": {
+        "name": "Moving Attack",
+        "description": "Can fire while moving (attack speed capped at 1.66s while moving)",
+        "movingAttackSpeed": 1.66
+      }
+    },
     "weapons": {
       "primary": {
         "type": "ranged",
@@ -11043,7 +11050,7 @@
     "auras": [
       {
         "name": "Atabeg Supervision",
-        "description": "+20%, Ayyubids)",
+        "description": "+25%, Ayyubids",
         "category": "hitpoints",
         "civs": [
           "Ayyubids"
@@ -11091,7 +11098,7 @@
       },
       {
         "name": "Inspiration Bonus",
-        "description": "+15%, Holy Roman Empire",
+        "description": "+10%, Holy Roman Empire",
         "category": "attack",
         "civs": [
           "Holy Roman Empire"
@@ -12160,7 +12167,7 @@
         "attackSpeed": 1.375,
         "ages": {
           "2": {
-            "hp": 220,
+            "hp": 200,
             "meleeArmor": 3,
             "rangedArmor": 3,
             "attack": 10,
@@ -12881,10 +12888,10 @@
       "Tughlaq Dynasty"
     ],
     "costs": {
-      "food": 300,
+      "food": 250,
       "gold": 350
     },
-    "trainingTime": 45.0,
+    "trainingTime": 40.0,
     "population": 4,
     "speed": 1.0,
     "tags": [
@@ -13973,23 +13980,23 @@
     "effects": {
       "trample": {
         "name": "Trample",
-        "description": "Charges through enemies, dealing 12 damage to each (25s CD)",
-        "dps": 12,
+        "description": "Charges through enemies, dealing 10 damage to each (25s CD)",
+        "dps": 10,
         "duration": 1,
         "cooldown": 25,
         "unitsHit": 5
       },
       "numeri": {
         "name": "Numeri",
-        "description": "Trampled units receive +15% damage from all sources for 12s (Byzantines)",
-        "dmgIncrease": 15,
-        "duration": 12
+        "description": "Trampled units receive +10% damage from all sources for 10s (Byzantines)",
+        "dmgIncrease": 10,
+        "duration": 10
       },
       "triumph": {
         "name": "Triumph",
-        "description": "Boosts cavalry: +4 attack, +2 hp/s regen, +10% speed (variable duration, Byzantines)",
+        "description": "Boosts cavalry: +4 attack, +2.5 hp/s regen, +10% speed (variable duration, Byzantines)",
         "attackBonus": 4,
-        "hps": 2,
+        "hps": 2.5,
         "speedPct": 10,
         "duration": 30
       }
@@ -14130,7 +14137,7 @@
       },
       {
         "name": "Numeri",
-        "description": "trampled units receive +15% damage from all sources for 12 seconds, Byzantines",
+        "description": "trampled units receive +10% damage from all sources for 10 seconds, Byzantines",
         "category": "ability",
         "civs": [
           "Byzantines"
@@ -14140,7 +14147,7 @@
     "auras": [
       {
         "name": "Triumph",
-        "description": "+2 hp/s while active, Byzantines",
+        "description": "+2.5 hp/s while active, Byzantines",
         "category": "hitpoints",
         "civs": [
           "Byzantines"
@@ -17748,7 +17755,7 @@
     "auras": [
       {
         "name": "Inspiration Bonus",
-        "description": "+15%",
+        "description": "+10%",
         "category": "attack"
       },
       {
@@ -17958,7 +17965,7 @@
       },
       {
         "name": "Inspiration Bonus",
-        "description": "+15%",
+        "description": "+10%",
         "category": "attack"
       },
       {
@@ -18065,7 +18072,7 @@
     "auras": [
       {
         "name": "Inspiration Bonus",
-        "description": "+15%",
+        "description": "+10%",
         "category": "attack"
       },
       {
