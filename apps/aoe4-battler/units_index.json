@@ -448,10 +448,9 @@
       "speed": 1.625,
       "tags": [
         "Cavalry",
-        "Heavy",
         "Melee"
       ],
-      "category": "Heavy Cavalry",
+      "category": "Light Cavalry",
       "weaponModes": [
         "primary"
       ],
