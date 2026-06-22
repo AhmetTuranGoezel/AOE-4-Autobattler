@@ -16,7 +16,9 @@
     "Mongols",
     "Ottomans",
     "Rus",
-    "Tughlaq Dynasty"
+    "Tughlaq Dynasty",
+    "Sengoku Daimyo",
+    "Macedonian Dynasty"
   ],
   "civs": {
     "Abbasid Dynasty": {
@@ -80,15 +82,15 @@
       ]
     },
     "Golden Horde": {
-      "summary": "Golden Horde is selectable, but it is still in active recovery and should not be treated as fully modeled.",
+      "summary": "Golden Horde's stone/Stockyard economy is now wired into the sim (Ovoo stone, Stockyard gold, Muscovy Yasak wood, Yam Network gold, batch production). Several edict/spawn extras and the renewable Stockyard food supply remain simplified.",
       "items": [
-        { "id": "starting_state", "group": "Starting State", "label": "Starting resources, Ovoo baseline, and TC behavior", "status": "wrong", "note": "Golden Horde starting-state behavior is still being corrected and re-verified." },
-        { "id": "base_bonuses", "group": "Base Bonuses", "label": "Horde batching, movable dropoff, civ economy", "status": "wrong", "note": "Some Golden Horde core bonuses were implemented with wrong assumptions and still need a focused civ pass." },
-        { "id": "unique_buildings", "group": "Unique Buildings / Lanes", "label": "Golden Tent, Stockyard, Fortified Outpost, Prayer Tent", "status": "wrong", "note": "Golden Tent and related surfaces were previously modeled incorrectly; this civ still needs a structural cleanup pass." },
-        { "id": "trainables_spawns", "group": "Trainables / Spawns", "label": "Villager batches, Tent trainables, Rus Tribute", "status": "wrong", "note": "TC batch production was fixed, but the broader Golden Horde training flow still needs full verification." },
-        { "id": "unique_techs", "group": "Unique Techs", "label": "Golden Horde tech catalog", "status": "partial", "note": "Unique tech entries exist, but several still need correctness and site validation." },
-        { "id": "local_effects", "group": "Local Eco Effects", "label": "Fortified Outpost / edict local coverage", "status": "wrong", "note": "Local influence is still over-simplified globally in several Golden Horde systems." },
-        { "id": "known_gaps", "group": "Known Gaps", "label": "Known wrong behavior", "status": "wrong", "note": "Golden Horde should be treated as in-progress, not fully modeled." }
+        { "id": "starting_state", "group": "Starting State", "label": "Starting resources, Ovoo baseline, and TC behavior", "status": "partial", "note": "TC batch villager production and the no-farms/Mill baseline are modeled; the exact starting bank still needs a final live-value check." },
+        { "id": "base_bonuses", "group": "Base Bonuses", "label": "Horde batching, movable dropoff, civ economy", "status": "partial", "note": "Batch-of-2 production, Ger movable dropoff, Ovoo stone, Stockyard gold, Muscovy Yasak wood, and Yam Network gold are now simulated; values still want a live verification pass." },
+        { "id": "unique_buildings", "group": "Unique Buildings / Lanes", "label": "Golden Tent, Stockyard, Fortified Outpost, Prayer Tent", "status": "partial", "note": "Golden Tent age-up/edicts (stone-costed techs), Ovoo, Stockyard gold, and Fortified Outpost gating are wired; exact influence radius and Prayer Tent remain simplified." },
+        { "id": "trainables_spawns", "group": "Trainables / Spawns", "label": "Villager batches, Tent trainables, Rus Tribute", "status": "partial", "note": "Batch production and stone-costed Golden Tent units (Batu Khan / Rus Tribute / Traction Trebuchet) are present; Kharash Edict free spawns and building carts are still tracked-only." },
+        { "id": "unique_techs", "group": "Unique Techs", "label": "Golden Horde tech catalog", "status": "partial", "note": "Ovoo, Muscovy Yasak, Yam Network, and Stockyard Edict now have real eco effects; remaining unique techs are timing-only and need site validation." },
+        { "id": "local_effects", "group": "Local Eco Effects", "label": "Fortified Outpost / edict local coverage", "status": "partial", "note": "Stockyard gold now uses a manual Local Effect Coverage control (covered villagers under Fortified Outpost influence); other influence is still global-simplified." },
+        { "id": "known_gaps", "group": "Known Gaps", "label": "Known simplifications", "status": "partial", "note": "Renewable Stockyard carcass food, the 4-worker-per-Stockyard hard cap, Kharash free spawns, building carts, and exact influence geometry remain simplified." }
       ]
     },
     "Holy Roman Empire": {
@@ -116,15 +118,15 @@
       ]
     },
     "House of Lancaster": {
-      "summary": "House of Lancaster now has exact landmark pairs in Build Order, but its Manor economy is still not trustworthy enough to call complete.",
+      "summary": "House of Lancaster's Manor economy is now modeled (passive food + wood per Manor, plus a manual aura-villager bonus) on top of the inherited English farm economy. A few starting-state and unique-tech details still want verification.",
       "items": [
-        { "id": "starting_state", "group": "Starting State", "label": "Starting resources and sheep opener", "status": "partial", "note": "Starting-state pieces exist, but the civ still needs a dedicated accuracy pass." },
-        { "id": "base_bonuses", "group": "Base Bonuses", "label": "English farm inheritance and Wool Industries", "status": "partial", "note": "Inherited farm economy is in, but timing and civ-specific details still need review." },
-        { "id": "unique_buildings", "group": "Unique Buildings / Lanes", "label": "Manor and landmark fidelity", "status": "wrong", "note": "Named landmark authoring exists now, but the Manor economy and landmark-side effects still need a proper implementation pass." },
-        { "id": "trainables_spawns", "group": "Trainables / Spawns", "label": "Town Center sheep spawns and civ-specific outputs", "status": "partial", "note": "Some spawn rules are present, but the civ is not fully checked." },
-        { "id": "unique_techs", "group": "Unique Techs", "label": "House of Lancaster unique techs", "status": "partial", "note": "Unique techs are in the catalog, but Manor-side tech effects are still incomplete." },
-        { "id": "local_effects", "group": "Local Eco Effects", "label": "Manor villager coverage", "status": "wrong", "note": "Manor influence is not modeled as a reliable local villager effect yet." },
-        { "id": "known_gaps", "group": "Known Gaps", "label": "Known wrong behavior", "status": "wrong", "note": "House of Lancaster should be treated as still under construction." }
+        { "id": "starting_state", "group": "Starting State", "label": "Starting resources and sheep opener", "status": "partial", "note": "Inherited English start and +20% Sheep gather are present; the +4 starting Sheep and per-Town-Center Sheep spawns from Wool Industries still need a final check." },
+        { "id": "base_bonuses", "group": "Base Bonuses", "label": "English farm inheritance and Wool Industries", "status": "partial", "note": "Inherited farm economy (faster gather by Age, farm gold, cheaper farms) and Wool Industries +20% Sheep gather are modeled; remaining Wool Industries spawns are simplified." },
+        { "id": "unique_buildings", "group": "Unique Buildings / Lanes", "label": "Manor and landmark fidelity", "status": "partial", "note": "Manor passive economy (30 food + 10 wood per minute each) and named landmark pairs are wired; exact Manor cost/age and landmark-side effects still need review." },
+        { "id": "trainables_spawns", "group": "Trainables / Spawns", "label": "Town Center sheep spawns and civ-specific outputs", "status": "partial", "note": "Core production works; Wool Industries Town Center Sheep spawns and Demilancer/garrison specifics are not fully modeled." },
+        { "id": "unique_techs", "group": "Unique Techs", "label": "House of Lancaster unique techs", "status": "partial", "note": "Unique techs are in the catalog; Manor-side tech effects beyond the base passive economy are still timing-only." },
+        { "id": "local_effects", "group": "Local Eco Effects", "label": "Manor villager coverage", "status": "partial", "note": "Manor aura is now a manual Local Effect Coverage control (+4 food / +2 wood per minute per covered Villager, no stacking) rather than a geometric calculation." },
+        { "id": "known_gaps", "group": "Known Gaps", "label": "Known simplifications", "status": "partial", "note": "Manor aura coverage is manual, and exact Manor cost/age and Wool Industries Sheep spawns still need a live-value pass." }
       ]
     },
     "Japanese": {
@@ -152,15 +154,15 @@
       ]
     },
     "Knights Templar": {
-      "summary": "Knights Templar currently has very light coverage and still contains questionable civ assumptions.",
+      "summary": "Knights Templar's economic identity is now documented correctly: the lower Wood gather rate (0.60/s) is intentional and matches the live civ. Its trade, Pilgrim, and Commanderie systems are deferred like other trade-side mechanics rather than modeled in the eco sim.",
       "items": [
-        { "id": "starting_state", "group": "Starting State", "label": "Starting resources", "status": "partial", "note": "Starting bank is present, but the civ has not had a full correctness pass." },
-        { "id": "base_bonuses", "group": "Base Bonuses", "label": "Current civ-bonus handling", "status": "wrong", "note": "The current wood-rate override is not a trustworthy representation of the civ." },
-        { "id": "unique_buildings", "group": "Unique Buildings / Lanes", "label": "Unique buildings and civ lanes", "status": "missing", "note": "Knights Templar unique structures are not properly modeled yet." },
-        { "id": "trainables_spawns", "group": "Trainables / Spawns", "label": "Variant trainables and spawns", "status": "missing", "note": "Variant-specific production has not been implemented properly." },
-        { "id": "unique_techs", "group": "Unique Techs", "label": "Knights Templar unique tech catalog", "status": "partial", "note": "Timing entries exist, but the civ is still structurally incomplete." },
-        { "id": "local_effects", "group": "Local Eco Effects", "label": "Local effect coverage", "status": "missing", "note": "No local effect coverage controls exist for the civ because the core civ model is not there yet." },
-        { "id": "known_gaps", "group": "Known Gaps", "label": "Known wrong behavior", "status": "wrong", "note": "Knights Templar should be treated as not fully modeled." }
+        { "id": "starting_state", "group": "Starting State", "label": "Starting resources", "status": "modeled", "note": "Starting bank (200/100/100) is present and aligned with the variant." },
+        { "id": "base_bonuses", "group": "Base Bonuses", "label": "Wood gather rate and civ economy", "status": "partial", "note": "The 0.60/s Wood gather penalty is correct and intentional per the live civ; the offsetting trade/gold economy is deferred." },
+        { "id": "unique_buildings", "group": "Unique Buildings / Lanes", "label": "Fortress, Commanderie, Templar structures", "status": "partial", "note": "Generic landmark authoring is available; Commanderie age-up choices and Fortress-side effects are documented but not yet modeled." },
+        { "id": "trainables_spawns", "group": "Trainables / Spawns", "label": "Genitour, Serjeant, Templar Brother", "status": "partial", "note": "Templar units exist in the roster; Commanderie-gated unlocks and trade outputs are not fully modeled." },
+        { "id": "unique_techs", "group": "Unique Techs", "label": "Knights Templar unique tech catalog", "status": "partial", "note": "Safe Passage and Rule of Templars are tracked for timing; Pilgrim gold and Commanderie effects are not yet wired." },
+        { "id": "local_effects", "group": "Local Eco Effects", "label": "Pilgrim / Sacred Site coverage", "status": "partial", "note": "Safe Passage Pilgrim travel is tracked for timing; Pilgrim-to-Sacred-Site passive gold is deferred like other trade systems, not yet a modeled local effect." },
+        { "id": "known_gaps", "group": "Known Gaps", "label": "Known simplifications", "status": "partial", "note": "Trade, Pilgrim gold, and Commanderie age-up bonuses are deferred; the modeled eco core is the Wood penalty plus standard French-tree economy." }
       ]
     },
     "Malians": {
@@ -221,6 +223,30 @@
         { "id": "unique_techs", "group": "Unique Techs", "label": "Tughlaq unique tech catalog", "status": "partial", "note": "Timing coverage exists for many unique techs, but full fidelity is still pending." },
         { "id": "local_effects", "group": "Local Eco Effects", "label": "Worker Elephant / governor local coverage", "status": "partial", "note": "Some local behavior is simplified, and no general villager-count control exists for all Tughlaq local systems." },
         { "id": "known_gaps", "group": "Known Gaps", "label": "Known simplifications", "status": "partial", "note": "Several fort/governor and worker-placement details remain simplified." }
+      ]
+    },
+    "Sengoku Daimyo": {
+      "summary": "Sengoku Daimyo is now selectable with its signature Matsuri/Yatai economy modeled (Yatai passive food and the Matsuri gather aura), plus the shared Japanese Samurai/Barracks/Silver-Mining bonuses. The Daimyo clan estates and the Farmhouse/Forge building swaps are still simplified.",
+      "items": [
+        { "id": "starting_state", "group": "Starting State", "label": "Starting resources and Dark Age setup", "status": "partial", "note": "Japanese-style start with Samurai/Barracks in the Dark Age is modeled; exact Sengoku starting bank and opening still want a live check." },
+        { "id": "base_bonuses", "group": "Base Bonuses", "label": "Matsuri gather aura, Yatai food, shared Japanese bonuses", "status": "partial", "note": "Matsuri +5%/Yatai (cap +30%) gather aura, Yatai passive food, Barracks wood discount, and Silver Mining are modeled; values want live verification." },
+        { "id": "unique_buildings", "group": "Unique Buildings / Lanes", "label": "Matsuri, Daimyo Estates", "status": "partial", "note": "Matsuri (trains Yatai, gather aura) is modeled; the Hojo/Takeda/Oda Daimyo Estates are buildable but their military bonuses are deferred." },
+        { "id": "trainables_spawns", "group": "Trainables / Spawns", "label": "Yatai and Samurai outputs", "status": "partial", "note": "Yatai are trainable food workers and Samurai are available; clan-specific unit unlocks are not modeled." },
+        { "id": "unique_techs", "group": "Unique Techs", "label": "Sengoku Daimyo unique techs", "status": "missing", "note": "Yatai Farm Gather and Daimyo clan technologies are not yet authored." },
+        { "id": "local_effects", "group": "Local Eco Effects", "label": "Matsuri / estate local coverage", "status": "partial", "note": "The Matsuri aura is applied globally while a Matsuri exists rather than by villager position." },
+        { "id": "known_gaps", "group": "Known Gaps", "label": "Known simplifications", "status": "partial", "note": "Modeled with standard eco buildings (Farmhouse/Forge swaps simplified); Yatai food is a flat passive rate and Daimyo clan estate effects are deferred." }
+      ]
+    },
+    "Macedonian Dynasty": {
+      "summary": "Macedonian Dynasty is now selectable with its signature Silver economy modeled: mining Gold or Stone also yields Silver (40% of the amount mined), and Silver is exposed as a tracked resource. Byzantine Cistern boosts, the Varangian Arsenal, and Mercenary hiring are still deferred.",
+      "items": [
+        { "id": "starting_state", "group": "Starting State", "label": "Starting resources and Silver setup", "status": "partial", "note": "Byzantine-style starting bank with a starting Silver reserve is present; the exact opening still wants a live check." },
+        { "id": "base_bonuses", "group": "Base Bonuses", "label": "Silver-from-mining economy", "status": "partial", "note": "Silver = 40% of Gold/Stone mined is modeled as a real byproduct resource; the no-trade/fishing/farming restriction holds because only mining feeds it." },
+        { "id": "unique_buildings", "group": "Unique Buildings / Lanes", "label": "Cisterns, Varangian Arsenal, Aqueducts", "status": "missing", "note": "Cistern gather/production auras, Aqueduct links, and the Varangian Arsenal passive Silver are not yet authored." },
+        { "id": "trainables_spawns", "group": "Trainables / Spawns", "label": "Varangian and Mercenary outputs", "status": "missing", "note": "Varangian units and Mercenary hiring with Silver are not yet modeled." },
+        { "id": "unique_techs", "group": "Unique Techs", "label": "Macedonian Dynasty unique techs", "status": "missing", "note": "Macedonian unique technologies are not yet authored." },
+        { "id": "local_effects", "group": "Local Eco Effects", "label": "Cistern / Arsenal local coverage", "status": "missing", "note": "No local-effect control exists yet for Cistern aura coverage or Varangian Arsenal influence." },
+        { "id": "known_gaps", "group": "Known Gaps", "label": "Known simplifications", "status": "partial", "note": "Only the Silver-from-mining core is modeled; Cisterns, Aqueducts, Varangian Arsenal passive Silver, and Mercenary hiring remain deferred." }
       ]
     }
   }

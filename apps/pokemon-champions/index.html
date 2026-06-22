@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pokémon Champions · Stat Lab</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%23e3350d'/%3E%3Cpath d='M1 16h30' stroke='%23111' stroke-width='3'/%3E%3Ccircle cx='16' cy='16' r='5' fill='%23fff' stroke='%23111' stroke-width='3'/%3E%3C/svg%3E">
+  <meta name="description" content="Filter and sort the Pokémon Champions competitive roster by cleaned/effective stats, abilities, moves and rarity.">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0f0f0f">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="status" class="status"><div class="spinner"></div><p>Loading roster…</p></div>
+
+  <div id="app" class="app" style="display:none">
+    <header class="topbar">
+      <div class="brand">
+        <a class="back" href="../../">← Hub</a>
+        <h1>Pokémon Champions <span>Stat Lab</span></h1>
+        <nav class="tabs">
+          <button class="tab active" data-tab="pokemon">Pokémon</button>
+          <button class="tab" data-tab="moves">Moves</button>
+          <button class="tab" data-tab="abilities">Abilities</button>
+          <button class="tab" data-tab="calc">Damage</button>
+        </nav>
+        <p id="meta-line" class="meta"></p>
+      </div>
+      <div class="toolbar tb-pokemon">
+        <button id="btn-filters" class="btn">☰ Filters <span id="filter-badge" class="badge"></span></button>
+        <input id="search" class="search" type="search" placeholder="Search name…" autocomplete="off">
+        <div class="tb-toggles">
+          <div class="seg view-seg">
+            <button id="view-table" class="active">▤ Table</button>
+            <button id="view-grid">▦ Grid</button>
+          </div>
+          <div class="seg stat-seg" title="Base stats vs in-game stats at Level 50 (31 IV, 0 EV, neutral nature)">
+            <button data-statmode="base" class="active">Base</button>
+            <button data-statmode="lv50">Lv 50</button>
+          </div>
+          <div class="seg mega-seg">
+            <button data-mega="hide" class="active">Hide Mega</button>
+            <button data-mega="only">Only Mega</button>
+            <button data-mega="all">All</button>
+          </div>
+        </div>
+        <div class="tb-right">
+          <label class="sortwrap">Sort <select id="sort-key"></select></label>
+          <button id="sort-dir" class="btn">▼ Desc</button>
+          <span id="result-count" class="count"></span>
+        </div>
+      </div>
+      <div class="toolbar tb-moves" hidden></div>
+      <div class="toolbar tb-abilities" hidden></div>
+    </header>
+
+    <div class="main">
+      <aside id="filters" class="filters">
+        <div class="filters-head"><h2>Filters</h2><button id="btn-reset" class="btn-sm">Reset all</button></div>
+
+        <div class="fgroup wt-group">
+          <button class="wt-toggle" id="wt-toggle" aria-expanded="false">
+            <span>⚖ Cleaned stats</span><span class="wt-caret">▸</span>
+          </button>
+          <div class="wt-panel" id="wt-panel" hidden>
+            <p class="wt-intro">The <b>Cleaned total</b> ignores stats a Pokémon can't actually use:</p>
+            <label class="wt-switch"><input type="checkbox" id="wt-atk"><span>Treat lower attack stat as wasted</span></label>
+            <small class="wt-pdesc">Whichever of Attack / Sp.Atk is lower counts as 0 — you attack with one side.</small>
+            <label class="wt-switch"><input type="checkbox" id="wt-spe"><span>Treat low Speed as wasted</span></label>
+            <div class="wt-speed">
+              <div class="wt-top"><span>Speed at or below</span><span class="wt-val" id="wt-cap-val"></span></div>
+              <input type="range" id="wt-cap" min="0" max="120" step="5">
+              <small class="wt-pdesc">At or below this, Speed counts as 0 — you move last anyway.</small>
+            </div>
+          </div>
+        </div>
+
+        <div class="fgroup">
+          <h3>Types <small>pick 1–2 for a combo</small></h3>
+          <div id="f-types" class="chips"></div>
+        </div>
+        <div class="fgroup"><h3>Role</h3><div id="f-roles" class="chips"></div></div>
+        <div class="fgroup"><h3>Generation</h3><div id="f-gens" class="chips"></div></div>
+        <div class="fgroup">
+          <h3>Abilities <small>add several · matches any</small></h3>
+          <input id="f-ability" class="combo" list="ability-list" placeholder="add an ability…" autocomplete="off">
+          <datalist id="ability-list"></datalist>
+          <div class="ability-chips" id="ability-chips"></div>
+        </div>
+        <div class="fgroup">
+          <h3>Move <small>type a name</small></h3>
+          <input id="f-move" class="combo" list="move-list" placeholder="any move…" autocomplete="off">
+          <datalist id="move-list"></datalist>
+          <small class="combo-note" id="move-note"></small>
+        </div>
+        <div class="fgroup"><h3>Stat ranges</h3><div id="f-stats"></div></div>
+        <div class="fgroup">
+          <label class="fcheck"><input type="checkbox" id="f-available"> Available only</label>
+          <small class="fhint">Hides Pokémon that exist in the game's data but can't be obtained / aren't playable in Champions (e.g. Pawmot).</small>
+        </div>
+      </aside>
+
+      <main id="results" class="results"></main>
+      <main id="moves-results" class="results browse" hidden></main>
+      <main id="abilities-results" class="results browse" hidden></main>
+      <main id="calc-results" class="results browse" hidden></main>
+    </div>
+  </div>
+
+  <div id="detail" class="detail"><div id="detail-body" class="detail-body"></div></div>
+  <div id="popup" class="popup"><div id="popup-body" class="popup-body"></div></div>
+  <div id="compare" class="detail"><div id="compare-body" class="detail-body"></div></div>
+  <div id="compare-bar" class="compare-bar" hidden></div>
+
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>

@@ -595,7 +595,7 @@ export function getBoUnitAgeList(unitName, civ) {
   const resolved = resolveBoUnitName(unitName);
   if (resolved === "Villager" || resolved === "Scout") return [1, 2, 3, 4];
   if (civ === "Holy Roman Empire" && resolved === "MAA") return [2, 3, 4];
-  if (civ === "Japanese" && resolved === "Samurai") return [1, 2, 3, 4];
+  if ((civ === "Japanese" || civ === "Sengoku Daimyo") && resolved === "Samurai") return [1, 2, 3, 4];
   if (civ === "Rus" && resolved === "Knight/Lancer") return [2, 3, 4];
   const unit = getUnitMeta(resolved);
   if (Array.isArray(unit?.ages) && unit.ages.length) return unit.ages.slice();
