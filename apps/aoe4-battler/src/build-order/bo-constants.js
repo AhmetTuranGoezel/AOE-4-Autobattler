@@ -153,7 +153,14 @@ export const BO_TIMELINE_BUILDING_SET = new Set([
   "Floating Gate",
   "Koka Township",
   "Castle of the Crow",
-  "Tanegashima Gunsmith"
+  "Tanegashima Gunsmith",
+  "Matsuri",
+  "Hojo Clan Daimyo Estate",
+  "Takeda Clan Daimyo Estate",
+  "Oda Clan Daimyo Estate",
+  "Cistern of the First Hill",
+  "Mercenary House",
+  "Grand Winery"
 ]);
 export const BO_TRAINING_BUILDING_SET = new Set([
   "Town Center",
@@ -167,7 +174,8 @@ export const BO_TRAINING_BUILDING_SET = new Set([
   "Buddhist Temple",
   "Shinto Shrine",
   "Koka Township",
-  "Tanegashima Gunsmith"
+  "Tanegashima Gunsmith",
+  "Matsuri"
 ]);
 export const BO_PRODUCTION_BUILDINGS = new Set([
   "Town Center",
@@ -181,7 +189,8 @@ export const BO_PRODUCTION_BUILDINGS = new Set([
   "Buddhist Temple",
   "Shinto Shrine",
   "Koka Township",
-  "Tanegashima Gunsmith"
+  "Tanegashima Gunsmith",
+  "Matsuri"
 ]);
 export const BO_TECH_BUILDINGS = new Set([
   "Mill",
@@ -285,8 +294,12 @@ export const BO_SUPPORTED_CIVS = new Set([
   "Mongols",
   "Ottomans",
   "Rus",
-  "Tughlaq Dynasty"
+  "Tughlaq Dynasty",
+  "Sengoku Daimyo",
+  "Macedonian Dynasty"
 ]);
+export const BO_JAPANESE_FAMILY_CIVS = new Set(["Japanese", "Sengoku Daimyo"]);
+export const BO_BYZANTINE_FAMILY_CIVS = new Set(["Byzantines", "Macedonian Dynasty"]);
 export const BO_UNIT_ALIASES = {
   "Crossbowman": "Crossbow",
   "Man-at-Arms": "MAA",
@@ -371,6 +384,14 @@ export const BO_EXTRA_UNIT_SPECS = {
     ages: [1, 2, 3, 4],
     buildings: ["Mill"],
     population: 0
+  },
+  "Yatai": {
+    civs: ["Sengoku Daimyo"],
+    cost: { food: 0, wood: 50, gold: 0, stone: 0 },
+    time: 20,
+    ages: [1, 2, 3, 4],
+    buildings: ["Matsuri"],
+    population: 1
   },
   "Batu Khan": {
     civs: ["Golden Horde"],

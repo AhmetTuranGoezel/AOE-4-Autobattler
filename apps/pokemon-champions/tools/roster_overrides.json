@@ -1,0 +1,31 @@
+{
+  "_comment": "Fixes for Bulbapedia name->PokeAPI slug mismatches. _remap maps a generated slug to the correct PokeAPI slug (forms whose competitive default differs). _skip drops entries (cosmetic-only forms with identical stats to a base that is already included). Re-run the generator; any new misses are printed.",
+  "_remap": {
+    "aegislash": "aegislash-shield",
+    "lycanroc": "lycanroc-midday",
+    "mimikyu": "mimikyu-disguised",
+    "morpeko": "morpeko-full-belly",
+    "maushold": "maushold-family-of-four",
+    "palafin": "palafin-zero",
+    "tauros-paldea-combat": "tauros-paldea-combat-breed",
+    "tauros-paldea-blaze": "tauros-paldea-blaze-breed",
+    "tauros-paldea-aqua": "tauros-paldea-aqua-breed",
+    "pyroar": "pyroar-male",
+    "meowstic": "meowstic-male",
+    "gourgeist": "gourgeist-average",
+    "basculegion": "basculegion-male"
+  },
+  "_skip": [
+    "vivillon-high-plains", "vivillon-icy-snow", "vivillon-polar", "vivillon-tundra",
+    "vivillon-continental", "vivillon-garden", "vivillon-elegant", "vivillon-modern",
+    "vivillon-marine", "vivillon-archipelago", "vivillon-sandstorm", "vivillon-river",
+    "vivillon-monsoon", "vivillon-savanna", "vivillon-sun", "vivillon-ocean",
+    "vivillon-jungle", "vivillon-fancy", "vivillon-poke-ball",
+    "florges-yellow", "florges-orange", "florges-blue", "florges-white",
+    "furfrou-heart", "furfrou-star", "furfrou-diamond", "furfrou-debutante",
+    "furfrou-matron", "furfrou-dandy", "furfrou-la-reine", "furfrou-kabuki", "furfrou-pharaoh",
+    "alcremie-ruby-cream", "alcremie-matcha-cream", "alcremie-mint-cream", "alcremie-lemon-cream",
+    "alcremie-salted-cream", "alcremie-ruby-swirl", "alcremie-caramel-swirl", "alcremie-rainbow-swirl",
+    "pyroar-female", "maushold-three", "gourgeist-jumbo"
+  ]
+}

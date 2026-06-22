@@ -54,6 +54,8 @@ import {
   BO_ABBASID_HOW_WINGS, BO_ABBASID_HOW_CHOICE_DEFS,
   BO_AYYUBID_HOW_BRANCHES,
   BO_OTTOMAN_VIZIER_CHOICES, BO_OTTOMAN_VIZIER_LEVELS,
+  BO_GOLDEN_HORDE_HEAVY_UNITS,
+  BO_JAPANESE_FAMILY_CIVS, BO_BYZANTINE_FAMILY_CIVS,
   BO_CIV_AUDIT, BO_LANDMARK_AUTHORING,
   getBoBuildingDefaults, getBoTechDefaults,
   setBoBaseRatesMerge, setBoCivRateOverridesMerge, setBoNodeAmounts,
@@ -619,6 +621,19 @@ function renderBoCivBonuses(civ) {
       parts.push(`Zen active: +${(preview.zenGoldPerSec * 60).toFixed(0)} gold/min from ${preview.buddhistMonkCount} Buddhist Monk(s)`);
     }
   }
+  if (civ === "Sengoku Daimyo") {
+    parts.push("Japanese variant: Samurai available from the Dark Age; Barracks cost 50% less wood; Silver Mining converts +20% of dropped gold to stone and stone to gold");
+    parts.push("Matsuri: unique economy building that trains Yatai and buffs nearby Villager gather rate by +5% per Yatai (max +30%)");
+    parts.push("Yatai: worker that gathers food from sources without depleting them, modeled as ~60 food/min of passive food each");
+    parts.push("Daimyo Estates (Hojo / Takeda / Oda): clan specialisations for infantry, cavalry, or ranged units (military effects deferred)");
+    parts.push("Modeled with standard eco buildings; the Japanese Farmhouse/Forge replacements and Daimyo clan tech effects are simplified");
+  }
+  if (civ === "Macedonian Dynasty") {
+    parts.push("Byzantine variant: Silver is the unique resource (it replaces Olive Oil)");
+    parts.push("Silver Mining: mining Gold or Stone also yields Silver equal to 40% of the amount mined (Silver cannot come from trade, fishing, or farming)");
+    parts.push("Cisterns boost nearby Villager gather rate and building production (gather-aura and Aqueduct links are deferred)");
+    parts.push("Varangian Arsenal passive Silver generation and Mercenary hiring are not yet modeled");
+  }
   if (civ === "Malians") {
     const preview = getBoMalianPreviewState();
     parts.push("Houses are half cost and build 2x faster");
@@ -647,6 +662,28 @@ function renderBoCivBonuses(civ) {
     }
   }
   if (civ === "Mongols") parts.push("Pasture/Ovoo/Ger rules apply; farms disabled");
+  if (civ === "Knights Templar") {
+    parts.push("Villagers gather Wood slower (0.60/s vs the standard 0.75) - the civ leans on gold and trade instead");
+    parts.push("Commanderie age-up: choose 1 of 3 allies per Age, each granting a permanent bonus and unlocking a unique unit (Genitour, Serjeant, Templar Brother)");
+    parts.push("Safe Passage (Feudal): Pilgrims travel to Sacred Sites for passive gold (tracked for timing; Pilgrim/trade gold is not yet modeled in the eco sim)");
+    parts.push("Fortresses available in Feudal Age; the trade-focused economy is deferred like other trade systems");
+  }
+  if (civ === "House of Lancaster") {
+    parts.push("Inherits English farms: gather faster by Age, generate gold, and cost 50% less");
+    parts.push("Wool Industries: +20% Sheep gather; extra Town Centers spawn Sheep on completion");
+    parts.push("Manor: replaces the House and passively generates 30 food + 10 wood per minute each");
+    parts.push("Manor aura: +4 food and +2 wood per minute per Villager within 7.5 tiles (no stacking) - set the covered count under Local Effect Coverage");
+    parts.push("Landmarks: Abbey of Kings / Lancaster Castle, King's College / The White Tower, Berkshire Palace / Wynguard Palace");
+  }
+  if (civ === "Golden Horde") {
+    parts.push("No Farms or Mill: food is herded Sheep and the Stockyard; Ger is a movable dropoff");
+    parts.push("Ovoo: builds on Stone and generates stone passively (60/min base, boosted +30%/+30%/+20% by Ovoo Offering/Ceremony/Relic Ovoos), +1 max per Age");
+    parts.push("Stockyard: food hub; under Fortified Outpost influence with the Stockyard Edict each working Villager (max 4/Stockyard) generates 10 gold/min — set the covered count under Local Effect Coverage");
+    parts.push("Muscovy Yasak: Golden Tent generates 200 wood/min, reduced 2/min per active heavy unit");
+    parts.push("Yam Network Trade: Golden Tent generates 60 gold/min per Fortified Outpost (max 6)");
+    parts.push("Most units (Villagers, Traders, military) train in batches of 2");
+    parts.push("Golden Tent age-up and edict choices are researched at the Golden Tent (stone-costed)");
+  }
   if (civ === "Ottomans") {
     const school = civBonus.militarySchool || {};
     const costMult = civBonus.militaryInducementCostMult || 0.6;
@@ -2011,7 +2048,7 @@ function getBoBuildStepCost(step, civ, civBonus, options = {}) {
     if (civ === "Malians" && step.building === "Town Center" && civBonus?.townCenterCostOverride) {
       cost = { ...civBonus.townCenterCostOverride };
     }
-    if (civ === "Japanese" && step.building === "Barracks") {
+    if (BO_JAPANESE_FAMILY_CIVS.has(civ) && step.building === "Barracks") {
       cost.wood = Math.round((cost.wood || 0) * (civBonus?.barracksWoodCostMult || 0.5));
     }
     if (BO_ENGLISH_FARM_BONUS_CIVS.has(civ) && step.building === "Farm") {
@@ -6642,6 +6679,8 @@ function simulateBuildOrder(commands, config) {
   const civ = config.civ || "";
   const bonusData = config.bonusData || {};
   const civBonus = bonusData.civBonuses?.[civ] || BO_CIV_BONUSES?.[civ] || {};
+  const isJapaneseFamily = BO_JAPANESE_FAMILY_CIVS.has(civ);
+  const isByzantineFamily = BO_BYZANTINE_FAMILY_CIVS.has(civ);
   const noBoarCiv = bonusData.noBoarCivs ? bonusData.noBoarCivs.has(civ) : isBoNoBoarCiv(civ);
   const berryBonus = getBoBerryBonusConfig(civ);
   const howCiv = isBoHouseOfWisdomCiv(civ);
@@ -6720,6 +6759,7 @@ function simulateBuildOrder(commands, config) {
   let ovooCount = 0;
   let gerCount = 0;
   let workerElephantCount = 0;
+  let yataiCount = 0;
   let highTradeHouseCount = 0;
   let kuraStorehouseCount = 0;
   let kuraGeneratedFarms = 0;
@@ -6778,6 +6818,7 @@ function simulateBuildOrder(commands, config) {
     liveUnitCounts[resolved] = (liveUnitCounts[resolved] || 0) + safeCount;
     if (resolved === "Worker Elephant") workerElephantCount += safeCount;
     if (resolved === "Cattle") malianCattleCount += safeCount;
+    if (resolved === "Yatai") yataiCount += safeCount;
     if (resolved === "Buddhist Monk") japaneseBuddhistMonkCount += safeCount;
     if (options.free) addFreeUnitValue(resolved, safeCount);
   }
@@ -6940,6 +6981,63 @@ function simulateBuildOrder(commands, config) {
     return perMin;
   }
 
+  function getGoldenHordeActiveHeavyUnitCount() {
+    if (civ !== "Golden Horde") return 0;
+    let total = 0;
+    Object.entries(liveUnitCounts).forEach(([name, count]) => {
+      if (!(count > 0)) return;
+      if (BO_GOLDEN_HORDE_HEAVY_UNITS.has(name) || BO_GOLDEN_HORDE_HEAVY_UNITS.has(resolveBoUnitName(name))) {
+        total += count;
+      }
+    });
+    return total;
+  }
+
+  function getGoldenHordeStockyardGoldPerSec() {
+    if (civ !== "Golden Horde") return 0;
+    const stockyards = buildingCounts["Stockyard"] || 0;
+    if (stockyards <= 0) return 0;
+    if ((buildingCounts["Fortified Outpost"] || 0) <= 0) return 0;
+    if (!isTechResearched("Unlock Stockyard Edict")) return 0;
+    const cap = stockyards * Math.max(0, civBonus.stockyardWorkerCap || 4);
+    const eligible = Math.min(cap, Math.max(0, assignments.sheep || 0));
+    const workers = getConfiguredLocalEffectCount("stockyardGoldWorkers", eligible);
+    const perWorkerPerMin = Math.max(0, civBonus.stockyardEdictGoldPerWorkerPerMin || 10);
+    return (workers * perWorkerPerMin) / 60;
+  }
+
+  function getGoldenHordeMuscovyYasakWoodPerSec() {
+    if (civ !== "Golden Horde" || !isTechResearched("Muscovy Yasak")) return 0;
+    const base = Math.max(0, civBonus.muscovyYasakWoodPerMin || 0);
+    const penalty = getGoldenHordeActiveHeavyUnitCount() * Math.max(0, civBonus.muscovyYasakWoodPenaltyPerHeavyUnit || 0);
+    return Math.max(0, base - penalty) / 60;
+  }
+
+  function getGoldenHordeYamNetworkGoldPerSec() {
+    if (civ !== "Golden Horde" || !isTechResearched("Yam Network Trade")) return 0;
+    const cap = Math.max(0, civBonus.yamNetworkTradeOutpostCap || 6);
+    const outposts = Math.min(buildingCounts["Fortified Outpost"] || 0, cap);
+    const perOutpostPerMin = Math.max(0, civBonus.yamNetworkTradeGoldPerMinPerOutpost || 0);
+    return (outposts * perOutpostPerMin) / 60;
+  }
+
+  function getLancasterManorIncomePerSec() {
+    if (civ !== "House of Lancaster") return { food: 0, wood: 0 };
+    const manors = buildingCounts["Manor"] || 0;
+    if (manors <= 0) return { food: 0, wood: 0 };
+    const baseFoodPerMin = manors * Math.max(0, civBonus.manorFoodPerMin || 0);
+    const baseWoodPerMin = manors * Math.max(0, civBonus.manorWoodPerMin || 0);
+    // Manor aura: each Villager within a Manor's radius adds resources (no stacking across Manors).
+    const eligibleVills = Math.max(0, villagers || 0);
+    const auraVills = getConfiguredLocalEffectCount("manorAuraVillagers", eligibleVills);
+    const auraFoodPerMin = auraVills * Math.max(0, civBonus.manorAuraFoodPerVillPerMin || 0);
+    const auraWoodPerMin = auraVills * Math.max(0, civBonus.manorAuraWoodPerVillPerMin || 0);
+    return {
+      food: (baseFoodPerMin + auraFoodPerMin) / 60,
+      wood: (baseWoodPerMin + auraWoodPerMin) / 60
+    };
+  }
+
   function isHouseOfWisdomWingChosen(wing) {
     return houseOfWisdomState.wings.some((entry) => entry?.wing === wing);
   }
@@ -6969,7 +7067,7 @@ function simulateBuildOrder(commands, config) {
   }
 
   function getJapaneseSilverMiningPct() {
-    return civ === "Japanese" ? Math.max(0, civBonus.silverMiningPct || 0) : 0;
+    return isJapaneseFamily ? Math.max(0, civBonus.silverMiningPct || 0) : 0;
   }
 
   function getJapaneseZenGoldPerSec() {
@@ -6977,8 +7075,19 @@ function simulateBuildOrder(commands, config) {
     return japaneseBuddhistMonkCount * ((civBonus.zenGoldPerMinPerMonk || 25) / 60);
   }
 
+  function addMacedonianSilverFromMining(res, droppedAmount) {
+    if (civ !== "Macedonian Dynasty") return 0;
+    if (res !== "gold" && res !== "stone") return 0;
+    const pct = Math.max(0, civBonus.silverPerMiningPct || 40) / 100;
+    const bonus = Math.max(0, droppedAmount || 0) * pct;
+    if (bonus <= 0) return 0;
+    resources.silver = (resources.silver || 0) + bonus;
+    addGathered("silver", bonus);
+    return bonus;
+  }
+
   function addJapaneseSilverMiningBonus(res, droppedAmount) {
-    if (civ !== "Japanese") return 0;
+    if (!isJapaneseFamily) return 0;
     const pct = getJapaneseSilverMiningPct();
     if (!pct || !Number.isFinite(droppedAmount) || droppedAmount <= 0) return 0;
     const bonus = droppedAmount * (pct / 100);
@@ -6996,7 +7105,7 @@ function simulateBuildOrder(commands, config) {
   }
 
   function addJapaneseSilverMiningArrival(arrivalMap, timeVal, res, droppedAmount) {
-    if (civ !== "Japanese") return;
+    if (!isJapaneseFamily) return;
     const pct = getJapaneseSilverMiningPct();
     if (!pct || !Number.isFinite(timeVal) || !Number.isFinite(droppedAmount) || droppedAmount <= 0) return;
     const roundedTime = Math.round(timeVal * 1000) / 1000;
@@ -7608,6 +7717,13 @@ function simulateBuildOrder(commands, config) {
     if (civ === "Tughlaq Dynasty") {
       rate *= 1 + (getTughlaqWorkerElephantBonusLevel() * 0.05);
     }
+    if (civ === "Sengoku Daimyo" && (buildingCounts["Matsuri"] || 0) > 0) {
+      const matsuriPct = Math.min(
+        Math.max(0, civBonus.matsuriGatherPctCap || 30),
+        Math.max(0, civBonus.matsuriGatherPctPerYatai || 5) * Math.max(0, yataiCount)
+      );
+      if (matsuriPct > 0) rate *= 1 + matsuriPct / 100;
+    }
     return rate;
   }
 
@@ -7819,6 +7935,7 @@ function simulateBuildOrder(commands, config) {
         else resources[res] += gain;
         addGathered(isFood(res) ? "food" : res, gain);
         addJapaneseSilverMiningBonus(res, gain);
+        addMacedonianSilverFromMining(res, gain);
         addRusBountyGold(res, harvested);
         pushSample(now, resources);
       }
@@ -7867,6 +7984,43 @@ function simulateBuildOrder(commands, config) {
       const gain = (perMin / 60) * ovooCount * dt;
       resources.stone += gain;
       addGathered("stone", gain);
+    }
+    const ghStockyardGoldPerSec = getGoldenHordeStockyardGoldPerSec();
+    if (ghStockyardGoldPerSec > 0) {
+      const gain = ghStockyardGoldPerSec * dt;
+      resources.gold += gain;
+      addGathered("gold", gain);
+    }
+    const ghMuscovyWoodPerSec = getGoldenHordeMuscovyYasakWoodPerSec();
+    if (ghMuscovyWoodPerSec > 0) {
+      const gain = ghMuscovyWoodPerSec * dt;
+      resources.wood += gain;
+      addGathered("wood", gain);
+    }
+    const ghYamGoldPerSec = getGoldenHordeYamNetworkGoldPerSec();
+    if (ghYamGoldPerSec > 0) {
+      const gain = ghYamGoldPerSec * dt;
+      resources.gold += gain;
+      addGathered("gold", gain);
+    }
+    const lancasterManorIncome = getLancasterManorIncomePerSec();
+    if (lancasterManorIncome.food > 0) {
+      const gain = lancasterManorIncome.food * dt;
+      resources.food += gain;
+      addGathered("food", gain);
+    }
+    if (lancasterManorIncome.wood > 0) {
+      const gain = lancasterManorIncome.wood * dt;
+      resources.wood += gain;
+      addGathered("wood", gain);
+    }
+    if (civ === "Sengoku Daimyo" && yataiCount > 0) {
+      const perMin = Math.max(0, civBonus.yataiFoodPerMin || 0);
+      const gain = (perMin / 60) * yataiCount * dt;
+      if (gain > 0) {
+        resources.food += gain;
+        addGathered("food", gain);
+      }
     }
     if (sacredSites > 0) {
       const goldPerMin = sacredSiteGoldPerMin * (civ === "Delhi Sultanate" && sanctityActive ? (civBonus.sanctityGoldMult || 1.25) : 1);
@@ -8306,11 +8460,21 @@ function simulateBuildOrder(commands, config) {
     const malianMansaQuarryGoldRate = getMalianMansaQuarryGoldPerSec();
     const malianCattleFoodRate = getMalianCattleFoodPerSec();
     const malianGrandFulaniFoodRate = getMalianGrandFulaniFoodPerSec();
+    const ghStockyardGoldRate = getGoldenHordeStockyardGoldPerSec();
+    const ghMuscovyWoodRate = getGoldenHordeMuscovyYasakWoodPerSec();
+    const ghYamGoldRate = getGoldenHordeYamNetworkGoldPerSec();
+    const lancasterManorRate = getLancasterManorIncomePerSec();
+    const sengokuYataiFoodRate = (civ === "Sengoku Daimyo" && yataiCount > 0)
+      ? (Math.max(0, civBonus.yataiFoodPerMin || 0) / 60) * yataiCount
+      : 0;
     return {
-      food: depositRate("sheep") + depositRate("berries") + depositRate("deer") + depositRate("boar") + depositRate("farm") + malianCattleFoodRate + malianGrandFulaniFoodRate,
-      wood: depositRate("wood") + kuraWoodRate,
-      gold: depositRate("gold") + farmGoldRate + sacredGoldRate + rusBountyGoldRate + japaneseGoldStoneBonus + japaneseZenGoldRate + malianPitMineGoldRate + malianMansaQuarryGoldRate,
-      stone: depositRate("stone") + ovooStoneRate + japaneseStoneGoldBonus
+      food: depositRate("sheep") + depositRate("berries") + depositRate("deer") + depositRate("boar") + depositRate("farm") + malianCattleFoodRate + malianGrandFulaniFoodRate + lancasterManorRate.food + sengokuYataiFoodRate,
+      wood: depositRate("wood") + kuraWoodRate + ghMuscovyWoodRate + lancasterManorRate.wood,
+      gold: depositRate("gold") + farmGoldRate + sacredGoldRate + rusBountyGoldRate + japaneseGoldStoneBonus + japaneseZenGoldRate + malianPitMineGoldRate + malianMansaQuarryGoldRate + ghStockyardGoldRate + ghYamGoldRate,
+      stone: depositRate("stone") + ovooStoneRate + japaneseStoneGoldBonus,
+      silver: civ === "Macedonian Dynasty"
+        ? (Math.max(0, civBonus.silverPerMiningPct || 40) / 100) * (depositRate("gold") + depositRate("stone"))
+        : 0
     };
   }
 
@@ -8459,6 +8623,7 @@ function simulateBuildOrder(commands, config) {
       else resources[res] += deposit;
       addGathered(isFood(res) ? "food" : res, deposit);
       addJapaneseSilverMiningBonus(res, deposit);
+      addMacedonianSilverFromMining(res, deposit);
       addRusBountyGold(res, harvested);
       held[res] = 0;
     }
@@ -9240,7 +9405,7 @@ function simulateBuildOrder(commands, config) {
       const def = getBoBuildingDefaults(buildingName) || {};
       let minAge = def.minAge || 1;
       if (civ === "Mongols" && buildingName === "Stable") minAge = 1;
-      if (civ === "Japanese" && buildingName === "Barracks") minAge = 1;
+      if (isJapaneseFamily && buildingName === "Barracks") minAge = 1;
       const blockedFarm = buildSteps.find((step) => civBonus.farmsDisabled && step.building === "Farm");
       if (blockedFarm) {
         warnings.push(`Blocked: Build ${blockedFarm.building} (farms disabled)`);

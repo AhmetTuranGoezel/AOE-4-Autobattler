@@ -547,6 +547,62 @@
         "Japanese"
       ]
     },
+    "Matsuri": {
+      "cost": {
+        "food": 0,
+        "wood": 100,
+        "gold": 0,
+        "stone": 0
+      },
+      "time": 30,
+      "minAge": 1,
+      "type": "economic",
+      "civs": [
+        "Sengoku Daimyo"
+      ]
+    },
+    "Hojo Clan Daimyo Estate": {
+      "cost": {
+        "food": 0,
+        "wood": 150,
+        "gold": 50,
+        "stone": 0
+      },
+      "time": 30,
+      "minAge": 2,
+      "type": "military",
+      "civs": [
+        "Sengoku Daimyo"
+      ]
+    },
+    "Takeda Clan Daimyo Estate": {
+      "cost": {
+        "food": 0,
+        "wood": 150,
+        "gold": 50,
+        "stone": 0
+      },
+      "time": 30,
+      "minAge": 2,
+      "type": "military",
+      "civs": [
+        "Sengoku Daimyo"
+      ]
+    },
+    "Oda Clan Daimyo Estate": {
+      "cost": {
+        "food": 0,
+        "wood": 150,
+        "gold": 50,
+        "stone": 0
+      },
+      "time": 30,
+      "minAge": 2,
+      "type": "military",
+      "civs": [
+        "Sengoku Daimyo"
+      ]
+    },
     "Manor": {
       "cost": {
         "food": 0,
@@ -5364,6 +5420,20 @@
         "2": 190,
         "3": 220
       },
+      "manorFoodPerMin": 30,
+      "manorWoodPerMin": 10,
+      "manorAuraFoodPerVillPerMin": 4,
+      "manorAuraWoodPerVillPerMin": 2,
+      "localEffects": [
+        {
+          "effectId": "manorAuraVillagers",
+          "scope": "local",
+          "label": "Manor Aura Villagers",
+          "domain": "villagers",
+          "effectType": "passiveResource",
+          "help": "Set how many Villagers are within a Manor's 7.5-tile aura. Each adds +4 food and +2 wood per minute (no stacking across Manors). Leave blank to use all Villagers."
+        }
+      ],
       "landmarksByAge": {
         "2": [
           "Abbey of Kings",
@@ -5565,6 +5635,17 @@
         ]
       }
     },
+    "Sengoku Daimyo": {
+      "barracksWoodCostMult": 0.5,
+      "silverMiningPct": 20,
+      "matsuriGatherPctPerYatai": 5,
+      "matsuriGatherPctCap": 30,
+      "yataiFoodPerMin": 60,
+      "yataiCap": 8
+    },
+    "Macedonian Dynasty": {
+      "silverPerMiningPct": 40
+    },
     "Malians": {
       "houseWoodCostMult": 0.5,
       "houseBuildTimeMult": 0.5,
@@ -5717,6 +5798,17 @@
       "stockyardEdictGoldPerWorkerPerMin": 10,
       "stockyardEdictGoldCapPerStockyardPerMin": 40,
       "productionSpeedEdictPct": 20,
+      "localEffects": [
+        {
+          "effectId": "stockyardGoldWorkers",
+          "scope": "local",
+          "label": "Stockyard Gold (Fortified Outpost)",
+          "domain": "assignment",
+          "resource": "sheep",
+          "effectType": "passiveGold",
+          "help": "Set how many Stockyard food Villagers are within Fortified Outpost influence (max 4 per Stockyard). Each generates 10 gold/min once the Stockyard Edict is researched. Leave blank to use all eligible."
+        }
+      ],
       "rusTributeBaseStone": 350,
       "rusTributeBatchCount": 4,
       "rusTributeTickSeconds": 30,

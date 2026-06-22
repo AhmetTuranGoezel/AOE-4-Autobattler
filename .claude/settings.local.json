@@ -70,7 +70,21 @@
       "Bash(grep -A 5 '\"\"effects\"\"' units_restructured.json)",
       "WebFetch(domain:static.wikia.nocookie.net)",
       "Bash(node -c \"c:/Users/ahmet/Desktop/VSCode Stuff/Owl AoE4 Unit Battler/script.js\")",
-      "Bash(\"/c/Program Files/nodejs/node.exe\" -c \"c:/Users/ahmet/Desktop/VSCode Stuff/Owl AoE4 Unit Battler/script.js\")"
+      "Bash(\"/c/Program Files/nodejs/node.exe\" -c \"c:/Users/ahmet/Desktop/VSCode Stuff/Owl AoE4 Unit Battler/script.js\")",
+      "Bash(command -v node)",
+      "Bash(echo \"node: $\\(command -v node || echo MISSING\\)\")",
+      "Bash(command -v npx)",
+      "Bash(echo \"npx: $\\(command -v npx || echo MISSING\\)\")",
+      "Read(//c/Program Files/Google/Chrome/Application/**)",
+      "Read(//c/Program Files \\(x86\\)/Microsoft/Edge/Application/**)",
+      "Bash(rm -f apps/pokemon-champions/tools/_verify.py apps/pokemon-champions/tools/_verify2.py apps/pokemon-champions/tools/_shot_*.png)",
+      "Bash(pkill -f \"http.server 8137\")",
+      "Bash(rm -f /tmp/_v.py /tmp/_diag.py /tmp/_final.png /tmp/_tablefull.png /tmp/_tablescroll.png)",
+      "Bash(grep -nE '\\\\.poke-table|td\\\\.stat|\\\\.namecell|\\\\.nm |\\\\.nm\\\\{|\\\\.nm,|\\\\.mega-badge|\\\\.eff-dim|\\\\.delta|td\\\\.cleaned|td\\\\.bst|\\\\.spr ' apps/pokemon-champions/style.css)",
+      "Bash(rm -f /tmp/_v.py /tmp/_s2.py /tmp/_shot.py /tmp/t_table.png /tmp/t_detailmoves.png /tmp/r_table.png /tmp/r_table2.png /tmp/r_scroll.png /tmp/r_detail.png)",
+      "Bash(rm -f /tmp/_c.py /tmp/c1.png /tmp/c2.png)",
+      "Bash(rm -f /tmp/_calc.py /tmp/calc.png)",
+      "Bash(rm -f /tmp/_c.py /tmp/calc.png)"
     ]
   }
 }

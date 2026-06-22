@@ -7,6 +7,7 @@ This repo now groups the tools into separate app folders so work can stay scoped
 - `apps/civ-new-dawn/`
 - `apps/architzones/`
 - `apps/lohnrechner/`
+- `apps/pokemon-champions/` — Pokémon Champions stat filter/sort tool (see its README)
 
 ## Research
 - `research/aoe4-wiki/`
