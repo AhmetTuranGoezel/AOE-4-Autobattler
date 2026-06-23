@@ -91,7 +91,10 @@ export function renderDetail(mon, { data, all, simCtx, statMode }) {
           <div class="hl"><span class="t-lab">Cleaned total</span><span class="t-val">${e.cleaned}</span></div>
           <div class="wst"><span class="t-lab">Wasted</span><span class="t-val">${e.wasted}</span></div>
         </div>
-        <button class="btn cmp-detail" data-cmp="${mon.slug}" data-cmp-icon>＋ Compare</button>
+        <div class="detail-actions">
+          <button class="btn cmp-detail" data-cmp="${mon.slug}" data-cmp-icon>＋ Compare</button>
+          <button class="btn cmp-detail" data-team="${mon.slug}" data-team-icon>＋ Team</button>
+        </div>
       </div>
     </div>
 
@@ -123,6 +126,7 @@ export function renderDetail(mon, { data, all, simCtx, statMode }) {
       <div class="dm-head">
         <h4>Moves <span class="muted">${moves.length}</span></h4>
         <input class="mv-search" type="search" placeholder="Filter moves…" autocomplete="off">
+        <button class="btn-sm dm-browse" data-browse-moves="${mon.slug}" title="Open the Moves tab filtered to this Pokémon">↗ Moves tab</button>
       </div>
       <div class="dm-scroll">
         <table class="dm-table" data-dsort="type" data-ddir="asc">

@@ -1,7 +1,7 @@
 // Browsable Moves table: power / accuracy / PP / priority / flags / effect /
 // how many roster Pokemon learn it. Click a column to sort, Shift-click to add a
 // tiebreaker (multi-key). Defaults to grouped-by-type, then most-common first.
-import { TYPES, TYPE_COLORS, rarityTier } from "./data.js";
+import { TYPES, TYPE_COLORS, rarityTier, displayName } from "./data.js";
 
 const COLS = [
   { key: "name", label: "Move" },
@@ -22,10 +22,13 @@ const sortVal = (m, k) => (k === "name" || k === "type" ? (m[k] || "") : (m[k] =
 export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) {
   const moves = Object.entries(data.moves).map(([id, m]) => ({ id: Number(id), ...m }));
   const allFlags = [...new Set(moves.flatMap((m) => m.flags || []))].sort();
-  const state = { search: "", type: "", cat: "", flags: new Set(), sort: structuredClone(DEFAULT_SORT) };
+  const monByName = new Map(data.pokemon.map((m) => [(m._display || displayName(m)).toLowerCase(), m]));
+  const state = { search: "", type: "", cat: "", flags: new Set(), monMoves: null, sort: structuredClone(DEFAULT_SORT) };
 
   toolbarEl.innerHTML = `
     <input class="search mv-search" type="search" placeholder="Search move…" autocomplete="off">
+    <input class="search mv-mon" list="mv-mon-list" placeholder="Moves of… (Pokémon)" autocomplete="off">
+    <datalist id="mv-mon-list">${data.pokemon.map((m) => `<option value="${m._display || displayName(m)}">`).join("")}</datalist>
     <div class="seg mv-cat">
       <button data-cat="" class="active">All</button>
       <button data-cat="physical">Phys</button>
@@ -41,6 +44,11 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
 
   const $ = (s) => toolbarEl.querySelector(s);
   $(".mv-search").addEventListener("input", (e) => { state.search = e.target.value; draw(); });
+  $(".mv-mon").addEventListener("input", (e) => {
+    const mon = monByName.get(e.target.value.trim().toLowerCase());
+    state.monMoves = mon ? new Set(mon.moves) : null;
+    draw();
+  });
   toolbarEl.querySelectorAll("[data-mvtype]").forEach((b) => b.addEventListener("click", () => {
     state.type = state.type === b.dataset.mvtype ? "" : b.dataset.mvtype;
     toolbarEl.querySelectorAll("[data-mvtype]").forEach((x) => x.classList.toggle("on", x.dataset.mvtype === state.type));
@@ -89,6 +97,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
       if (q && !m.name.toLowerCase().includes(q)) return false;
       if (state.type && m.type !== state.type) return false;
       if (state.cat && m.class !== state.cat) return false;
+      if (state.monMoves && !state.monMoves.has(m.id)) return false;
       for (const f of state.flags) if (!(m.flags || []).includes(f)) return false;
       return true;
     });

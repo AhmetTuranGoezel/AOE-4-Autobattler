@@ -12,6 +12,8 @@ import { renderDetail } from "./detail.js";
 import { initMovesView } from "./moves-view.js";
 import { initAbilitiesView } from "./abilities-view.js";
 import { initCalcView } from "./calc-view.js";
+import { renderTeamView, TEAM_MAX } from "./team-view.js";
+import { initCoverageView } from "./coverage-view.js";
 import { renderMovePopup, renderAbilityPopup } from "./info.js";
 import { renderCompare } from "./compare.js";
 
@@ -30,6 +32,7 @@ const state = {
   statMode: "base",   // "base" | "lv50"
   compare: [],
   compareAnchor: null,   // slug used as the comparison baseline
+  team: [],              // slugs (persisted)
   selected: null,
   moveByName: new Map(),
   abilityByName: new Map(),
@@ -44,6 +47,7 @@ async function init() {
     state.data = data;
     state.all = data.pokemon;
     for (const m of state.all) { m._display = displayName(m); state.bySlug.set(m.slug, m); }
+    loadTeam();
     state.simCtx = buildSimContext(state.all);
     recomputeEffective();
     buildToolbar();
@@ -310,12 +314,34 @@ function openDetail(slug) {
   $("#detail-body").innerHTML = renderDetail(mon, state);
   $("#detail").classList.add("open");
   syncCmpButtons();
+  syncTeamButtons();
   filterDetailMoves(); // apply the default (type-grouped) move ordering
 }
 
 function closeDetail() {
   state.selected = null;
   $("#detail").classList.remove("open");
+}
+
+function browseMovesOf(slug) {
+  const mon = state.bySlug.get(slug);
+  if (!mon) return;
+  closeDetail();
+  switchTab("moves");
+  const inp = $(".mv-mon");
+  if (inp) { inp.value = mon._display; inp.dispatchEvent(new Event("input", { bubbles: true })); }
+}
+
+// Popup listing a set of Pokémon (used by the Coverage tab's clickable counts).
+function openMonListPopup(title, mons) {
+  const sprites = mons.map((m) =>
+    `<img class="lr" loading="lazy" alt="" title="${m._display}" data-slug="${m.slug}" src="${m.sprite || m.artwork || ""}">`).join("")
+    || "<span class='muted'>none</span>";
+  $("#popup-body").innerHTML = `<div class="info-card">
+    <button class="detail-close" data-close-popup aria-label="Close">✕</button>
+    <div class="info-head"><h3>${title}</h3><span class="rarity r-common">${mons.length}</span></div>
+    <div class="info-learners">${sprites}</div></div>`;
+  $("#popup").classList.add("open");
 }
 
 // Live filter/sort of a Pokemon's move list (sortable mini-table in the detail panel).
@@ -407,6 +433,35 @@ function openCompare() {
 }
 const closeCompare = () => $("#compare").classList.remove("open");
 
+// ---------------------------------------------------------------- team
+const TEAM_KEY = "pc-team";
+function loadTeam() {
+  try {
+    const arr = JSON.parse(localStorage.getItem(TEAM_KEY) || "[]");
+    state.team = arr.filter((s) => state.bySlug.has(s)).slice(0, TEAM_MAX);
+  } catch { state.team = []; }
+}
+function saveTeam() { try { localStorage.setItem(TEAM_KEY, JSON.stringify(state.team)); } catch { /* ignore */ } }
+function toggleTeam(slug) {
+  const i = state.team.indexOf(slug);
+  if (i >= 0) state.team.splice(i, 1);
+  else if (state.team.length < TEAM_MAX) state.team.push(slug);
+  saveTeam();
+  if (teamInited) renderTeam();
+  syncTeamButtons();
+}
+function renderTeam() {
+  const mons = state.team.map((s) => state.bySlug.get(s)).filter(Boolean);
+  renderTeamView($("#team-results"), { data: state.data, team: mons });
+}
+function syncTeamButtons() {
+  document.querySelectorAll("[data-team]").forEach((b) => {
+    const on = state.team.includes(b.dataset.team);
+    b.classList.toggle("on", on);
+    if (b.hasAttribute("data-team-icon")) b.textContent = on ? "✓ In team" : "＋ Team";
+  });
+}
+
 // ---------------------------------------------------------------- global events
 function bindGlobal() {
   // table/grid: compare button, header sort, row open
@@ -437,6 +492,10 @@ function bindGlobal() {
     if (th) { detailSort(th); return; }
     const c = e.target.closest("[data-cmp]");
     if (c) { toggleCompare(c.dataset.cmp); return; }
+    const tm = e.target.closest("[data-team]");
+    if (tm) { toggleTeam(tm.dataset.team); return; }
+    const bm = e.target.closest("[data-browse-moves]");
+    if (bm) { browseMovesOf(bm.dataset.browseMoves); return; }
     const mf = e.target.closest("[data-move-filter]");
     if (mf) { applyMoveFilter(Number(mf.dataset.moveFilter)); return; }
     const af = e.target.closest("[data-ability-filter]");
@@ -499,7 +558,7 @@ function applyMoveFilter(id) {
 }
 
 // ---------------------------------------------------------------- tabs / views
-let movesInited = false, abilInited = false, calcInited = false;
+let movesInited = false, abilInited = false, calcInited = false, teamInited = false, covInited = false;
 
 function setupTabs() {
   $$(".tab").forEach((b) => b.addEventListener("click", () => switchTab(b.dataset.tab)));
@@ -516,10 +575,34 @@ function switchTab(tab) {
   $("#moves-results").hidden = tab !== "moves";
   $("#abilities-results").hidden = tab !== "abilities";
   $("#calc-results").hidden = tab !== "calc";
+  $("#team-results").hidden = tab !== "team";
+  $("#coverage-results").hidden = tab !== "coverage";
+
+  if (tab === "coverage" && !covInited) {
+    covInited = true;
+    initCoverageView({ container: $("#coverage-results"), data: state.data, onShowMons: openMonListPopup });
+  }
 
   if (tab === "calc" && !calcInited) {
     calcInited = true;
     initCalcView({ container: $("#calc-results"), data: state.data });
+  }
+  if (tab === "team" && !teamInited) {
+    teamInited = true;
+    const tc = $("#team-results");
+    tc.addEventListener("change", (e) => {
+      if (!e.target.classList.contains("team-add")) return;
+      const slug = tc._nameToSlug?.get(e.target.value.trim().toLowerCase());
+      if (slug && !state.team.includes(slug)) toggleTeam(slug);
+      e.target.value = "";
+    });
+    tc.addEventListener("click", (e) => {
+      const rm = e.target.closest("[data-team-remove]");
+      if (rm) { toggleTeam(rm.dataset.teamRemove); return; }
+      const row = e.target.closest(".team-slot[data-slug], .spd-row[data-slug]");
+      if (row) openDetail(row.dataset.slug);
+    });
+    renderTeam();
   }
   if (tab === "moves" && !movesInited) {
     movesInited = true;
