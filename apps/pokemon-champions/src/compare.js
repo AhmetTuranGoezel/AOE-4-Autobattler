@@ -1,6 +1,6 @@
 // Side-by-side comparison of up to 4 Pokemon: overlaid radar + stat table
 // (best value per row highlighted) + abilities.
-import { STAT_KEYS, STAT_LABELS } from "./effective-stats.js";
+import { STAT_KEYS, STAT_LABELS, statsFor } from "./effective-stats.js";
 import { renderMultiRadar } from "./radar.js";
 import { displayName } from "./data.js";
 import { typeBadges, ROLE_META } from "./table.js";
@@ -22,12 +22,15 @@ export function renderCompare(mons, data, max = 200, anchorSlug = null) {
     <span class="cmp-anchor-tag">${i === aIdx ? "baseline" : "set baseline"}</span>
   </th>`).join("");
 
+  const ehp = (m, k) => { const lv = statsFor(m, "lv50"); return Math.round(lv.hp * lv[k] / 100); };
   const rowDefs = [
     ...STAT_KEYS.map((k) => [STAT_LABELS[k], (m) => m._eff.disp[k]]),
     ["Total", (m) => m._eff.bst],
     ["Cleaned", (m) => m._eff.cleaned, true],
+    ["Phys. eHP @50", (m) => ehp(m, "def"), false, "Effective HP vs physical = Lv50 HP × Defense ÷ 100 (physical bulk)"],
+    ["Spec. eHP @50", (m) => ehp(m, "spd"), false, "Effective HP vs special = Lv50 HP × Sp.Def ÷ 100 (special bulk)"],
   ];
-  const rows = rowDefs.map(([label, fn, hl]) => {
+  const rows = rowDefs.map(([label, fn, hl, title]) => {
     const vals = mons.map(fn);
     const max = Math.max(...vals);
     const base = vals[aIdx];
@@ -40,7 +43,7 @@ export function renderCompare(mons, data, max = 200, anchorSlug = null) {
       }
       return `<td class="num ${cls} ${i === aIdx ? "anchor-col" : ""}">${v}${delta}</td>`;
     }).join("");
-    return `<tr class="${hl ? "cmp-hl" : ""}"><th>${label}</th>${cells}</tr>`;
+    return `<tr class="${hl ? "cmp-hl" : ""}"><th title="${title || ""}">${label}</th>${cells}</tr>`;
   }).join("");
 
   const abil = `<tr class="cmp-abil"><th>Abilities</th>${mons.map((m) =>
