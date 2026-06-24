@@ -20,7 +20,7 @@ function pushMult(map, key, val) { (map.get(key) || map.set(key, []).get(key)).p
 export function initCoverageView({ container, data, onShowMons }) {
   const chart = data.typeChart;
   const roster = data.pokemon.filter((m) => m.available !== false);
-  const state = { mode: "offense", atk: new Set(["fire"]), def: new Set(["fire", "flying"]), lists: {} };
+  const state = { mode: "offense", atk: new Set(), def: new Set(), lists: {} };
 
   // best multiplier of the selected attacking types vs a (single) defending type
   const offVs = (d) => Math.max(0, ...[...state.atk].map((a) => chart[a]?.[d] ?? 1));
@@ -44,7 +44,7 @@ export function initCoverageView({ container, data, onShowMons }) {
       const t = chip.dataset.covType;
       const set = state.mode === "offense" ? state.atk : state.def;
       if (set.has(t)) set.delete(t);
-      else if (state.mode === "offense" || set.size < 2) set.add(t);
+      else { set.add(t); if (state.mode === "defense" && set.size > 2) set.delete([...set][0]); }
       render();
       return;
     }

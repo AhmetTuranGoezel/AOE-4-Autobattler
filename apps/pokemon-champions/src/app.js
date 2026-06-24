@@ -29,9 +29,10 @@ const state = {
   sort: { key: "cleaned", dir: "desc" },
   view: "table",
   tab: "pokemon",
-  statMode: "base",   // "base" | "lv50"
+  statMode: "lv50",   // "base" | "lv50" — Champions battles are always Level 50
   compare: [],
   compareAnchor: null,   // slug used as the comparison baseline
+  cmpMoves: "all",       // movepool matrix filter: "all" | "diff"
   team: [],              // slugs (persisted)
   selected: null,
   moveByName: new Map(),
@@ -63,6 +64,9 @@ async function init() {
       `Regulation ${data.meta.regulation} · data from Bulbapedia + PokéAPI`;
     syncTopbarH();
     window.addEventListener("resize", syncTopbarH);
+    // keep --topbar-h / --cmpbar-h exact as the toolbar / compare bar reflow
+    new ResizeObserver(syncTopbarH).observe($(".topbar"));
+    new ResizeObserver(syncCmpBarH).observe($("#compare-bar"));
   } catch (err) {
     $("#status").innerHTML =
       `<p class="err">Could not load data.<br><small>${err.message}</small><br>` +
@@ -409,9 +413,13 @@ function syncCmpButtons() {
     if (b.hasAttribute("data-cmp-icon")) b.textContent = on ? "✓ In compare" : "＋ Compare";
   });
 }
+function syncCmpBarH() {
+  const bar = $("#compare-bar");
+  document.documentElement.style.setProperty("--cmpbar-h", (bar.hidden ? 0 : bar.offsetHeight) + "px");
+}
 function renderCompareBar() {
   const bar = $("#compare-bar");
-  if (!state.compare.length) { bar.hidden = true; bar.innerHTML = ""; return; }
+  if (!state.compare.length) { bar.hidden = true; bar.innerHTML = ""; syncCmpBarH(); return; }
   bar.hidden = false;
   const chips = state.compare.map((slug) => {
     const m = state.bySlug.get(slug);
@@ -423,12 +431,13 @@ function renderCompareBar() {
       <button class="btn-sm" data-cmp-clear>Clear</button>
       <button class="btn accent" data-cmp-open ${state.compare.length < 2 ? "disabled" : ""}>Compare ${state.compare.length}</button>
     </div>`;
+  syncCmpBarH();
 }
 function openCompare() {
   if (state.compare.length < 2) return;
   if (!state.compare.includes(state.compareAnchor)) state.compareAnchor = state.compare[0];
   const mons = state.compare.map((s) => state.bySlug.get(s));
-  $("#compare-body").innerHTML = renderCompare(mons, state.data, statScaleMax(state.statMode), state.compareAnchor);
+  $("#compare-body").innerHTML = renderCompare(mons, state.data, statScaleMax(state.statMode), state.compareAnchor, state.cmpMoves);
   $("#compare").classList.add("open");
 }
 const closeCompare = () => $("#compare").classList.remove("open");
@@ -464,6 +473,14 @@ function syncTeamButtons() {
 
 // ---------------------------------------------------------------- global events
 function bindGlobal() {
+  // Logo = home: plain left-click resets in-app (no reload); modified/middle/right
+  // clicks fall through to the anchor's href so the browser can open a new tab.
+  $(".brand-home").addEventListener("click", (e) => {
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    switchTab("pokemon");
+    window.scrollTo({ top: 0 });
+  });
   // table/grid: compare button, header sort, row open
   $("#results").addEventListener("click", (e) => {
     const c = e.target.closest("[data-cmp]");
@@ -522,6 +539,10 @@ function bindGlobal() {
   // compare overlay + bar
   $("#compare").addEventListener("click", (e) => {
     if (e.target.id === "compare" || e.target.dataset.closeCompare !== undefined) { closeCompare(); return; }
+    const mi = e.target.closest("[data-move-info]");
+    if (mi) { openMovePopup(Number(mi.dataset.moveInfo)); return; }
+    const mv = e.target.closest("[data-cmp-moves]");
+    if (mv) { state.cmpMoves = mv.dataset.cmpMoves; openCompare(); return; }
     const a = e.target.closest("[data-anchor]");
     if (a) { state.compareAnchor = a.dataset.anchor; openCompare(); }
   });

@@ -87,7 +87,15 @@
       "Bash(rm -f /tmp/_c.py /tmp/calc.png)",
       "Bash(rm -f /tmp/_team.py /tmp/team.png)",
       "Bash(rm -f /tmp/_v.py /tmp/def.png)",
-      "Bash(rm -f /tmp/_v.py /tmp/off.png)"
+      "Bash(rm -f /tmp/_v.py /tmp/off.png)",
+      "Bash(rm -f /tmp/_v.py)",
+      "Bash(rm -f /tmp/_v.py /tmp/_d.py /tmp/top.png /tmp/scroll.png)",
+      "Bash(node -e \"console.log\\('node',process.version\\)\")",
+      "Bash(node -e \"require.resolve\\('playwright'\\); console.log\\('playwright: ok'\\)\")",
+      "Bash(ls apps/pokemon-champions/*.mjs apps/pokemon-champions/tools/*.mjs)",
+      "Bash(rm -f tools/_verify.py tools/_shot_compare.png)",
+      "Bash(ls tools/_verify.py)",
+      "Bash(ls tools/_shot_compare.png)"
     ]
   }
 }

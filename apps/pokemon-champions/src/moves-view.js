@@ -26,7 +26,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
   const state = { search: "", type: "", cat: "", flags: new Set(), monMoves: null, sort: structuredClone(DEFAULT_SORT) };
 
   toolbarEl.innerHTML = `
-    <input class="search mv-search" type="search" placeholder="Search move…" autocomplete="off">
+    <input class="search mv-search" type="search" placeholder="Search move or effect…" autocomplete="off">
     <input class="search mv-mon" list="mv-mon-list" placeholder="Moves of… (Pokémon)" autocomplete="off">
     <datalist id="mv-mon-list">${data.pokemon.map((m) => `<option value="${m._display || displayName(m)}">`).join("")}</datalist>
     <div class="seg mv-cat">
@@ -94,7 +94,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
   function apply() {
     const q = state.search.trim().toLowerCase();
     const list = moves.filter((m) => {
-      if (q && !m.name.toLowerCase().includes(q)) return false;
+      if (q && !m.name.toLowerCase().includes(q) && !(m.effect || "").toLowerCase().includes(q)) return false;
       if (state.type && m.type !== state.type) return false;
       if (state.cat && m.class !== state.cat) return false;
       if (state.monMoves && !state.monMoves.has(m.id)) return false;
