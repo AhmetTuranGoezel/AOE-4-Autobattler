@@ -12,6 +12,7 @@ and polite. Re-run after a balance patch to refresh the data.
 
 Usage:  python apps/pokemon-champions/tools/generate_data.py
 """
+import html
 import json
 import os
 import re
@@ -33,7 +34,12 @@ POKEAPI = "https://pokeapi.co/api/v2"
 BULBA = "https://bulbapedia.bulbagarden.net/w/api.php"
 ROSTER_PAGE = "List of Pokémon in Pokémon Champions"
 POKEBASE = "https://pokebase.app/pokemon-champions/pokemon"
+POKEBASE_ABILITY = "https://pokebase.app/pokemon-champions/abilities"
 MOVE_LINK_RE = re.compile(r"pokemon-champions/moves/([a-z0-9-]+)")
+META_DESC_RE = re.compile(r'<meta[^>]*name="description"[^>]*content="([^"]*)"', re.I)
+ABILITY_RE = re.compile(
+    r'class="min-w-0 text-sm font-semibold"\s+aria-label="([^"]+)"[^>]*>.*?'
+    r'<p class="mt-1 text-sm">([^<]+)</p>', re.S)
 
 ROMAN = {"i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5,
          "vi": 6, "vii": 7, "viii": 8, "ix": 9}
@@ -81,36 +87,79 @@ def http_json(url, cache_key=None, retries=4):
     raise last
 
 
-def fetch_champions_moves(slug):
-    """Each mon's real Champions movepool, scraped from pokebase's server-rendered
-    HTML (move slugs appear as /pokemon-champions/moves/<slug> links). Cached as a
-    move-slug list. Returns [] on 404/empty so the caller can fall back to PokeAPI."""
-    cp = _cache_path(f"pb_{slug}")
+def fetch_pokebase_mon(slug):
+    """Fetch a mon's pokebase Champions page once (cached) and pull out the two
+    things only pokebase has Champions-accurate: its real movepool (move slugs appear
+    as /pokemon-champions/moves/<slug> links) and its abilities with descriptions
+    (incl. Champions-original ones like Mega Eelektross's "Eelevate" that PokeAPI
+    doesn't know). Returns {"moves": [slug...], "abilities": [[name, desc]...]};
+    fields stay empty on 404 so callers can fall back to PokeAPI."""
+    cp = _cache_path(f"pbmon_{slug}")
     if os.path.exists(cp):
         with open(cp, "r", encoding="utf-8") as f:
             return json.load(f)
-    url = f"{POKEBASE}/{slug}"
+    out = {"moves": [], "abilities": []}
     for attempt in range(4):
         try:
-            req = urllib.request.Request(url, headers={"User-Agent": UA})
+            req = urllib.request.Request(f"{POKEBASE}/{slug}", headers={"User-Agent": UA})
             with urllib.request.urlopen(req, timeout=60) as r:
-                html = r.read().decode("utf-8", "ignore")
-            moves = sorted(set(MOVE_LINK_RE.findall(html)))
+                page = r.read().decode("utf-8", "ignore")
+            out["moves"] = sorted(set(MOVE_LINK_RE.findall(page)))
+            i = page.find("Abilities")
+            seg = page[i:i + 3000] if i >= 0 else ""
+            out["abilities"] = [[html.unescape(n).strip(), html.unescape(d).strip()]
+                                for n, d in ABILITY_RE.findall(seg)]
             os.makedirs(CACHE, exist_ok=True)
             with open(cp, "w", encoding="utf-8") as f:
-                json.dump(moves, f)
+                json.dump(out, f, ensure_ascii=False)
             time.sleep(0.1)  # be polite to pokebase
-            return moves
+            return out
         except urllib.error.HTTPError as e:
             if e.code == 404:
                 os.makedirs(CACHE, exist_ok=True)
                 with open(cp, "w", encoding="utf-8") as f:
-                    json.dump([], f)
-                return []
+                    json.dump(out, f)
+                return out
             time.sleep(1.5 * (attempt + 1))
         except Exception:  # noqa: BLE001
             time.sleep(1.5 * (attempt + 1))
-    return []
+    return out
+
+
+def fetch_champions_moves(slug):
+    return fetch_pokebase_mon(slug)["moves"]
+
+
+def fetch_pokebase_ability_desc(slug):
+    """Champions-accurate ability effect from pokebase's ability page meta
+    description. Cached as a string; returns None on 404/missing so the caller
+    falls back to PokeAPI."""
+    cp = _cache_path(f"pb_ability_{slug}")
+    if os.path.exists(cp):
+        with open(cp, "r", encoding="utf-8") as f:
+            return json.load(f)
+    for attempt in range(4):
+        try:
+            req = urllib.request.Request(f"{POKEBASE_ABILITY}/{slug}", headers={"User-Agent": UA})
+            with urllib.request.urlopen(req, timeout=60) as r:
+                page = r.read().decode("utf-8", "ignore")
+            m = META_DESC_RE.search(page)
+            desc = html.unescape(m.group(1)).strip() if m else None
+            os.makedirs(CACHE, exist_ok=True)
+            with open(cp, "w", encoding="utf-8") as f:
+                json.dump(desc, f)
+            time.sleep(0.1)  # be polite to pokebase
+            return desc
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                os.makedirs(CACHE, exist_ok=True)
+                with open(cp, "w", encoding="utf-8") as f:
+                    json.dump(None, f)
+                return None
+            time.sleep(1.5 * (attempt + 1))
+        except Exception:  # noqa: BLE001
+            time.sleep(1.5 * (attempt + 1))
+    return None
 
 
 # ----------------------------------------------------------------------------
@@ -275,15 +324,27 @@ def fetch_pokemon(entry, species_cache):
     bst = sum(stats.values())
 
     types = [t["type"]["name"] for t in p["types"]]
-    abilities = [{"slug": a["ability"]["name"], "hidden": a["is_hidden"]}
-                 for a in p["abilities"]]
-    # Real Champions movepool from pokebase; fall back to PokeAPI's general learnset.
-    pb_moves = fetch_champions_moves(slug)
-    if pb_moves:
-        moves, move_src = pb_moves, "pokebase"
+
+    # Real Champions movepool + abilities come from a single pokebase page fetch.
+    # PokeAPI is the fallback for the movepool and supplies the hidden-ability flag.
+    pb = fetch_pokebase_mon(slug)
+    if pb["moves"]:
+        moves, move_src = pb["moves"], "pokebase"
     else:
         moves = sorted({m["move"]["name"] for m in p["moves"]})
         move_src = "fallback"
+
+    poke_hidden = {a["ability"]["name"]: a["is_hidden"] for a in p["abilities"]}
+    if pb["abilities"]:
+        abilities = [{"slug": slugify(name),
+                      "hidden": poke_hidden.get(slugify(name), False),
+                      "_name": name, "_desc": re.sub(r"\s+", " ", desc).strip()}
+                     for name, desc in pb["abilities"]]
+        abil_src = "pokebase"
+    else:
+        abilities = [{"slug": a["ability"]["name"], "hidden": a["is_hidden"]}
+                     for a in p["abilities"]]
+        abil_src = "fallback"
 
     sp_name = p["species"]["name"]
     if sp_name not in species_cache:
@@ -311,7 +372,7 @@ def fetch_pokemon(entry, species_cache):
         "gen": sp["gen"], "legendary": sp["legendary"],
         "mythical": sp["mythical"],
         "sprite": sprite, "artwork": artwork,
-        "_movesrc": move_src,
+        "_movesrc": move_src, "_abilsrc": abil_src,
     }
 
 
@@ -390,10 +451,14 @@ def fetch_ability(slug):
     d = http_json(f"{POKEAPI}/ability/{slug}", cache_key=f"ability_{slug}")
     eng = next((n["name"] for n in d.get("names", [])
                 if n["language"]["name"] == "en"), None)
-    short = next((e["short_effect"] for e in d.get("effect_entries", [])
-                  if e["language"]["name"] == "en"), "")
-    return {"name": eng or slug.replace("-", " ").title(),
-            "desc": re.sub(r"\s+", " ", short).strip()}
+    pb = fetch_pokebase_ability_desc(slug)  # Champions-accurate effect
+    if pb:
+        desc, src = pb, "pokebase"
+    else:
+        short = next((e["short_effect"] for e in d.get("effect_entries", [])
+                      if e["language"]["name"] == "en"), "")
+        desc, src = re.sub(r"\s+", " ", short).strip(), "pokeapi"
+    return {"name": eng or slug.replace("-", " ").title(), "desc": desc, "src": src}
 
 
 # ----------------------------------------------------------------------------
@@ -425,6 +490,9 @@ def main():
     fb = [m["slug"] for m in mons if m["_movesrc"] == "fallback"]
     print(f"\nMovepools: {len(mons) - len(fb)} from pokebase, {len(fb)} fell back "
           f"to PokeAPI{(' -> ' + ', '.join(fb)) if fb else ''}")
+    afb = [m["slug"] for m in mons if m["_abilsrc"] == "fallback"]
+    print(f"Abilities: {len(mons) - len(afb)} mons from pokebase, {len(afb)} fell back "
+          f"to PokeAPI{(' -> ' + ', '.join(afb)) if afb else ''}")
 
     # ---- unique moves ----
     all_moves = sorted({m for mon in mons for m in mon["_moves"]})
@@ -461,16 +529,30 @@ def main():
     move_count = {mv: 0 for mv in all_moves}
 
     # ---- unique abilities ----
+    # Names + Champions-accurate descriptions already came from each mon's pokebase
+    # page (carried on the ability records as _name/_desc). Use those directly; only
+    # reach out to fetch_ability for any slug pokebase didn't supply (PokeAPI fallback).
+    pb_ability = {}
+    for mon in mons:
+        for a in mon["abilities"]:
+            if "_name" in a and a["slug"] not in pb_ability:
+                pb_ability[a["slug"]] = {"name": a["_name"], "desc": a["_desc"]}
     all_abils = sorted({a["slug"] for mon in mons for a in mon["abilities"]})
-    print(f"Fetching {len(all_abils)} unique abilities ...")
+    print(f"Resolving {len(all_abils)} unique abilities ...")
     abil_meta, abil_count = {}, {}
     for slug in all_abils:
-        try:
-            abil_meta[slug] = fetch_ability(slug)
-        except urllib.error.HTTPError:
-            abil_meta[slug] = {"name": slug.replace("-", " ").title(),
-                               "desc": ""}
+        if slug in pb_ability:
+            abil_meta[slug] = {"name": pb_ability[slug]["name"],
+                               "desc": pb_ability[slug]["desc"], "src": "pokebase"}
+        else:
+            try:
+                abil_meta[slug] = fetch_ability(slug)
+            except urllib.error.HTTPError:
+                abil_meta[slug] = {"name": slug.replace("-", " ").title(),
+                                   "desc": "", "src": "pokeapi"}
         abil_count[slug] = 0
+    ab_pb = sum(1 for a in abil_meta.values() if a.get("src") == "pokebase")
+    print(f"  ability effects: {ab_pb} from pokebase, {len(all_abils) - ab_pb} from PokeAPI")
 
     # ---- derived per-mon fields + rarity tallies ----
     out_mons = []
@@ -497,7 +579,9 @@ def main():
             "category": mon["category"], "isMega": mon["isMega"],
             "available": mon["available"], "types": mon["types"],
             "stats": mon["stats"], "bst": mon["bst"],
-            "abilities": mon["abilities"], "moves": sorted(ids),
+            "abilities": [{"slug": a["slug"], "hidden": a["hidden"]}
+                          for a in mon["abilities"]],
+            "moves": sorted(ids),
             "off": {"phys": phys, "spec": spec,
                     "physTop": phys_top, "specTop": spec_top},
             "gen": mon["gen"],
