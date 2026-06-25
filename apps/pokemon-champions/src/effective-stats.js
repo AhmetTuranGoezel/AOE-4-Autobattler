@@ -79,12 +79,19 @@ export function computeEffective(mon, w, mode = "base") {
   };
   const bst = STAT_KEYS.reduce((s, k) => s + ds[k], 0);
   const cleaned = STAT_KEYS.reduce((s, k) => s + eff[k], 0);
+  // Effective HP is a Lv50 concept (HP×Def / HP×SpD), independent of the display toggle.
+  const lv = statsFor(mon, "lv50");
+  const ehpPhys = lv.hp * lv.def, ehpSpec = lv.hp * lv.spd;
+  const ehpMixed = ehpPhys + ehpSpec ? Math.round((2 * ehpPhys * ehpSpec) / (ehpPhys + ehpSpec)) : 0;
   return {
     disp: ds,
     bst,
     eff,
     cleaned: Math.round(cleaned),
     wasted: Math.round(bst - cleaned),
+    ehpPhys,
+    ehpSpec,
+    ehpMixed,
     keepAtk,
     keepSpA,
     speMult,

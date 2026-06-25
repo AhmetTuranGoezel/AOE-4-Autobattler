@@ -187,10 +187,31 @@ select:focus, .combo:focus, .rng:focus { border-color: var(--accent); }
 .role-def { background: rgba(63,125,51,0.2); color: #98d986; }
 .mega-badge { flex-shrink: 0; display: inline-block; background: #e3350d; color: #fff; font-size: 0.54rem; font-weight: 700; padding: 1px 4px; border-radius: 3px; letter-spacing: 0.3px; line-height: 1.4; vertical-align: middle; }
 
+/* ---------- active-filters chip bar ---------- */
+.active-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 12px; }
+.af-lab { font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; color: var(--muted); margin-right: 2px; }
+.af-chip { display: inline-flex; align-items: center; gap: 6px; background: color-mix(in srgb, var(--accent) 15%, var(--panel)); border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border)); color: var(--text); border-radius: 999px; padding: 3px 7px 3px 10px; font-size: 0.76rem; font-weight: 600; cursor: pointer; }
+.af-chip:hover { border-color: var(--accent); }
+.af-x { color: var(--muted); font-size: 0.82rem; line-height: 1; }
+.af-chip:hover .af-x { color: var(--accent); }
+.af-clear { background: none; border: none; color: var(--muted); text-decoration: underline; cursor: pointer; font-size: 0.75rem; margin-left: 4px; }
+.af-clear:hover { color: var(--text); }
+
+/* visible clear (×) for every search box (the native control also fires `input`) */
+input[type=search]::-webkit-search-cancel-button {
+  -webkit-appearance: none; appearance: none; height: 14px; width: 14px; margin-left: 6px; cursor: pointer;
+  background: var(--muted);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z'/%3E%3C/svg%3E") center/contain no-repeat;
+          mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z'/%3E%3C/svg%3E") center/contain no-repeat;
+}
+input[type=search]:hover::-webkit-search-cancel-button, input[type=search]:focus::-webkit-search-cancel-button { background: var(--accent); }
+
 /* ---------- results: table ---------- */
 .results { flex: 1; padding: 14px 18px 96px; min-width: 0; }
-.poke-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; min-width: 860px; table-layout: fixed; }
-.poke-table td.stat, .poke-table td.bst, .poke-table td.cleaned, .poke-table td.wasted, .poke-table td.dex { white-space: nowrap; }
+.poke-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; min-width: 1080px; table-layout: fixed; }
+.poke-table td.stat, .poke-table td.bst, .poke-table td.cleaned, .poke-table td.wasted, .poke-table td.dex, .poke-table td.ehp { white-space: nowrap; }
+.poke-table td.ehp { font-variant-numeric: tabular-nums; color: var(--muted); }
+.poke-table td.ehp.ehp-mix { color: var(--accent-2); font-weight: 700; }
 .poke-table thead th {
   position: sticky; top: calc(var(--topbar-h) - 1px); background: #15151c; z-index: 5;
   text-align: left; padding: 11px 8px; color: var(--muted); font-size: 0.71rem;
@@ -448,6 +469,7 @@ td.wasted { color: #d9685b; font-weight: 600; }
 .mv-flags { display: flex; flex-wrap: wrap; gap: 3px; max-width: 180px; }
 .mflag { font-size: 0.6rem; font-weight: 700; background: #2e2e34; color: #c9c9d2; padding: 1px 6px; border-radius: 4px; white-space: nowrap; }
 .mv-eff { max-width: 300px; color: var(--muted); font-size: 0.78rem; line-height: 1.4; white-space: normal; }
+.mv-chance { display: inline-block; font-weight: 800; font-size: 0.68rem; color: var(--accent-2); background: color-mix(in srgb, var(--accent-2) 16%, transparent); border-radius: 4px; padding: 0 4px; }
 
 /* move targets — spread targets (hit >1 Pokémon) are highlighted in gold */
 .mv-tg { white-space: nowrap; }
@@ -501,6 +523,7 @@ td.wasted { color: #d9685b; font-weight: 600; }
 .info-stats .cap { text-transform: capitalize; font-size: 0.78rem; }
 .info-flags { margin-bottom: 10px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .il { font-size: 0.7rem; text-transform: uppercase; color: var(--muted); letter-spacing: 0.5px; }
+.info-secondaries { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .info-effect { color: var(--text); font-size: 0.85rem; line-height: 1.55; margin-bottom: 14px; }
 .filter-btn { width: 100%; justify-content: center; margin-bottom: 14px; }
 .info-learners { display: flex; flex-wrap: wrap; gap: 2px; align-items: center; }

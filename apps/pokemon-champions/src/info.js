@@ -32,6 +32,7 @@ export function renderMovePopup(move, learners, total) {
       <div><span class="t-lab">Target</span><span class="t-val mv-target ${isSpread(move.target) ? "spread" : ""}">${targetLabel(move.target)}</span></div>
     </div>
     <div class="info-flags"><span class="il">Flags</span> ${flags}</div>
+    ${(move.secondaries || []).length ? `<div class="info-secondaries">${move.secondaries.map(([c, l]) => `<span class="mv-chance">${c}%${l ? " " + l : ""}</span>`).join(" ")}</div>` : ""}
     <p class="info-effect">${move.effect || "No additional effect."}</p>
     <button class="btn accent filter-btn" data-move-filter="${move.id}">🔍 Show the ${learners.length} Pokémon that learn this</button>
     <div class="info-learners">${learnerSprites(learners, 48)}</div>

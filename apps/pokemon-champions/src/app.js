@@ -87,9 +87,9 @@ function render() {
   const sorted = sortMons(filtered, state.sort);
   const cmp = new Set(state.compare);
   const max = statScaleMax(state.statMode);
-  $("#results").innerHTML = state.view === "table"
+  $("#results").innerHTML = renderActiveFilters(state.filters) + (state.view === "table"
     ? renderTable(sorted, state.sort, cmp, max)
-    : renderGrid(sorted, cmp, max);
+    : renderGrid(sorted, cmp, max));
   $("#result-count").textContent = `${sorted.length} Pokémon`;
   const n = activeFilterCount(state.filters);
   const badge = $("#filter-badge");
@@ -102,6 +102,7 @@ function buildToolbar() {
   const sortKeys = [
     ["cleaned", "Cleaned total"], ["bst", "BST"], ["wasted", "Wasted stats"],
     ...STAT_KEYS.map((k) => [k, STAT_LABELS[k]]),
+    ["ehpMixed", "eHP (mixed)"], ["ehpPhys", "Phys eHP"], ["ehpSpec", "Spec eHP"],
     ["dex", "Dex #"], ["name", "Name"],
   ];
   $("#sort-key").innerHTML = sortKeys
@@ -262,17 +263,69 @@ function toggleSet(set, val, btn) {
 
 function resetFilters() {
   state.filters = createFilterState();
-  $("#search").value = "";
   $("#f-ability").value = "";
-  $("#f-move").value = "";
+  syncFilterControls();
+  render();
+}
+
+// Push the current state.filters back onto every sidebar control's visuals (used
+// after Reset and after removing an active-filter chip).
+function syncFilterControls() {
+  const f = state.filters;
+  $("#search").value = f.search;
+  $("#f-available").checked = f.availableOnly;
+  $$("#f-types .type-chip").forEach((b) => b.classList.toggle("inc", f.typesInclude.has(b.dataset.type)));
+  $$("#f-roles .role-chip").forEach((b) => b.classList.toggle("on", f.roles.has(b.dataset.role)));
+  $$("#f-gens .gen-chip").forEach((b) => b.classList.toggle("on", f.gens.has(Number(b.dataset.gen))));
+  $$("#f-stats .rng").forEach((inp) => {
+    const tgt = inp.dataset.bound === "min" ? f.statMin : f.statMax;
+    inp.value = tgt[inp.dataset.stat] ?? "";
+  });
+  $("#f-move").value = f.move != null ? (state.data.moves[f.move]?.name || "") : "";
+  setNote("#move-note", f.move != null ? `${state.data.moves[f.move].count} Pokémon learn this` : "");
+  $$(".mega-seg button").forEach((b) => b.classList.toggle("active", b.dataset.mega === f.mega));
   renderAbilityChips();
-  setNote("#move-note", "");
-  $$("#f-types .type-chip").forEach((b) => b.classList.remove("inc", "exc"));
-  $$("#f-roles .role-chip, #f-gens .gen-chip").forEach((b) => b.classList.remove("on"));
-  $$("#f-stats .rng").forEach((i) => (i.value = ""));
-  $("#f-available").checked = true;
-  $$(".mega-seg button").forEach((x) =>
-    x.classList.toggle("active", x.dataset.mega === "hide"));
+}
+
+// A removable chip per active filter, shown above the results.
+const capFirst = (s) => s[0].toUpperCase() + s.slice(1);
+function renderActiveFilters(f) {
+  const chips = [];
+  const add = (token, label) => chips.push(
+    `<button class="af-chip" data-rmfilter="${token}" title="Remove this filter">${label}<span class="af-x">✕</span></button>`);
+  const rangeLab = (k) => STAT_LABELS[k] || (k === "bst" ? "BST" : k === "cleaned" ? "Cleaned" : k);
+  if (f.search) add("search", `“${f.search}”`);
+  for (const t of f.typesInclude) add(`type:${t}`, capFirst(t));
+  if (f.mega === "only") add("mega:only", "Only Mega");
+  if (f.mega === "all") add("mega:all", "All forms");
+  for (const r of f.roles) add(`role:${r}`, ROLE_META[r].label);
+  for (const g of f.gens) add(`gen:${g}`, GEN_LABEL(g));
+  for (const slug of f.abilities) add(`ability:${slug}`, state.data.abilities[slug]?.name || slug);
+  if (f.move != null) add("move", `learns ${state.data.moves[f.move]?.name || "move"}`);
+  if (!f.availableOnly) add("available", "incl. unobtainable");
+  for (const k in f.statMin) add(`min:${k}`, `${rangeLab(k)} ≥ ${f.statMin[k]}`);
+  for (const k in f.statMax) add(`max:${k}`, `${rangeLab(k)} ≤ ${f.statMax[k]}`);
+  if (!chips.length) return "";
+  return `<div class="active-filters"><span class="af-lab">Filters</span>${chips.join("")}` +
+    `<button class="af-clear" data-clear-all>Clear all</button></div>`;
+}
+
+function removeFilter(token) {
+  const f = state.filters;
+  const i = token.indexOf(":");
+  const kind = i < 0 ? token : token.slice(0, i);
+  const val = i < 0 ? "" : token.slice(i + 1);
+  if (kind === "search") f.search = "";
+  else if (kind === "type") f.typesInclude.delete(val);
+  else if (kind === "role") f.roles.delete(val);
+  else if (kind === "gen") f.gens.delete(Number(val));
+  else if (kind === "ability") f.abilities.delete(val);
+  else if (kind === "move") f.move = null;
+  else if (kind === "mega") f.mega = "hide";
+  else if (kind === "available") f.availableOnly = true;
+  else if (kind === "min") delete f.statMin[val];
+  else if (kind === "max") delete f.statMax[val];
+  syncFilterControls();
   render();
 }
 
@@ -494,6 +547,9 @@ function bindGlobal() {
   });
   // table/grid: compare button, header sort, row open
   $("#results").addEventListener("click", (e) => {
+    if (e.target.closest("[data-clear-all]")) { resetFilters(); return; }
+    const rmf = e.target.closest("[data-rmfilter]");
+    if (rmf) { removeFilter(rmf.dataset.rmfilter); return; }
     const c = e.target.closest("[data-cmp]");
     if (c) { toggleCompare(c.dataset.cmp); return; }
     const th = e.target.closest("th.sortable");
