@@ -374,7 +374,8 @@ td.wasted { color: #d9685b; font-weight: 600; }
 .lab-reset { margin-left: auto; }
 
 /* ---------- competitive usage % ---------- */
-.detail-usage .use-cat { display: grid; grid-template-columns: 64px 1fr; gap: 10px; align-items: start; margin-bottom: 9px; }
+.detail-usage .use-cat { display: grid; grid-template-columns: 64px 1fr; gap: 10px; align-items: start; padding-bottom: 9px; margin-bottom: 9px; border-bottom: 1px solid var(--border); }
+.detail-usage .use-cat:last-child { padding-bottom: 0; margin-bottom: 0; border-bottom: none; }
 .use-lab { font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.3px; color: var(--muted); padding-top: 4px; }
 .use-items { display: flex; flex-wrap: wrap; gap: 6px; }
 .use-item { position: relative; display: inline-flex; align-items: center; gap: 7px; padding: 3px 9px; border: 1px solid var(--border); border-radius: 7px; background: var(--panel-2); overflow: hidden; font-size: 0.76rem; }
