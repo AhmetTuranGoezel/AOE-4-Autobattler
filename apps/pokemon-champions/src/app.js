@@ -16,6 +16,7 @@ import { renderTeamView, TEAM_MAX } from "./team-view.js";
 import { initCoverageView } from "./coverage-view.js";
 import { renderMovePopup, renderAbilityPopup } from "./info.js";
 import { renderCompare } from "./compare.js";
+import { tickStatLab, optimizeSpread, emptySpread, POOL, CAP, pointsUsed } from "./stat-lab.js";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 
@@ -35,6 +36,7 @@ const state = {
   cmpMoves: "all",       // movepool matrix filter: "all" | "diff"
   team: [],              // slugs (persisted)
   selected: null,
+  spread: emptySpread(), // eHP stat-point lab allocation for the open detail panel
   moveByName: new Map(),
   abilityByName: new Map(),
 };
@@ -314,12 +316,23 @@ function applyWeights() {
 function openDetail(slug) {
   const mon = state.bySlug.get(slug);
   if (!mon) return;
+  if (slug !== state.selected) state.spread = emptySpread(); // fresh mon → fresh points
   state.selected = slug;
   $("#detail-body").innerHTML = renderDetail(mon, state);
   $("#detail").classList.add("open");
   syncCmpButtons();
   syncTeamButtons();
   filterDetailMoves(); // apply the default (type-grouped) move ordering
+}
+
+// --- eHP stat-point lab (inside the detail panel) ---
+// Points available for stat k = the pool minus everything spent on the other stats.
+const clampPts = (k, v) => Math.max(0, Math.min(v, CAP, POOL - (pointsUsed(state.spread) - (state.spread[k] || 0))));
+// One live update for every interaction — refreshes eHP cards + pool + every row
+// from state.spread without rebuilding the DOM (inputs keep focus).
+function tickLab() {
+  const mon = state.bySlug.get(state.selected);
+  if (mon) tickStatLab($("#detail"), mon, state.spread);
 }
 
 function closeDetail() {
@@ -331,9 +344,7 @@ function browseMovesOf(slug) {
   const mon = state.bySlug.get(slug);
   if (!mon) return;
   closeDetail();
-  switchTab("moves");
-  const inp = $(".mv-mon");
-  if (inp) { inp.value = mon._display; inp.dispatchEvent(new Event("input", { bubbles: true })); }
+  browseMonsInMoves([mon]);
 }
 
 // Popup listing a set of Pokémon (used by the Coverage tab's clickable counts).
@@ -501,12 +512,28 @@ function bindGlobal() {
 
   // detail interactions
   $("#detail").addEventListener("input", (e) => {
-    if (e.target.classList.contains("mv-search")) filterDetailMoves();
+    if (e.target.classList.contains("mv-search")) { filterDetailMoves(); return; }
+    const num = e.target.closest("[data-pt-num]");
+    if (num) {
+      const k = num.dataset.ptNum;
+      state.spread[k] = clampPts(k, Number(num.value) || 0);
+      tickLab();
+    }
   });
   $("#detail").addEventListener("click", (e) => {
     if (e.target.id === "detail" || e.target.dataset.close !== undefined) { closeDetail(); return; }
     const th = e.target.closest(".dm-table th[data-dsort]");
     if (th) { detailSort(th); return; }
+    // eHP stat-point lab controls
+    const ptStep = e.target.closest("[data-pt-step]");
+    if (ptStep) { const k = ptStep.dataset.ptStep; state.spread[k] = clampPts(k, (state.spread[k] || 0) + Number(ptStep.dataset.dir)); tickLab(); return; }
+    const ptMax = e.target.closest("[data-pt-max]");
+    if (ptMax) { const k = ptMax.dataset.ptMax; state.spread[k] = clampPts(k, CAP); tickLab(); return; }
+    const ptClr = e.target.closest("[data-pt-clear]");
+    if (ptClr) { state.spread[ptClr.dataset.ptClear] = 0; tickLab(); return; }
+    const ptOpt = e.target.closest("[data-pt-opt]");
+    if (ptOpt) { state.spread = optimizeSpread(state.bySlug.get(state.selected), ptOpt.dataset.ptOpt); tickLab(); return; }
+    if (e.target.closest("[data-pt-reset]")) { state.spread = emptySpread(); tickLab(); return; }
     const c = e.target.closest("[data-cmp]");
     if (c) { toggleCompare(c.dataset.cmp); return; }
     const tm = e.target.closest("[data-team]");
@@ -539,6 +566,12 @@ function bindGlobal() {
   // compare overlay + bar
   $("#compare").addEventListener("click", (e) => {
     if (e.target.id === "compare" || e.target.dataset.closeCompare !== undefined) { closeCompare(); return; }
+    if (e.target.closest("[data-open-moves]")) {
+      const mons = state.compare.map((s) => state.bySlug.get(s));
+      closeCompare();
+      browseMonsInMoves(mons);
+      return;
+    }
     const mi = e.target.closest("[data-move-info]");
     if (mi) { openMovePopup(Number(mi.dataset.moveInfo)); return; }
     const mv = e.target.closest("[data-cmp-moves]");
@@ -580,6 +613,14 @@ function applyMoveFilter(id) {
 
 // ---------------------------------------------------------------- tabs / views
 let movesInited = false, abilInited = false, calcInited = false, teamInited = false, covInited = false;
+let movesView = null;  // controller from initMovesView (for the compare → Moves bridge)
+
+// Switch to the Moves tab and load a set of mons as ownership columns (lazy-inits
+// the view if needed). Used by the detail "browse moves" button and compare popup.
+function browseMonsInMoves(mons) {
+  switchTab("moves");
+  movesView?.browseMons(mons.filter(Boolean));
+}
 
 function setupTabs() {
   $$(".tab").forEach((b) => b.addEventListener("click", () => switchTab(b.dataset.tab)));
@@ -627,7 +668,7 @@ function switchTab(tab) {
   }
   if (tab === "moves" && !movesInited) {
     movesInited = true;
-    initMovesView({ toolbarEl: $(".tb-moves"), contentEl: $("#moves-results"), data: state.data,
+    movesView = initMovesView({ toolbarEl: $(".tb-moves"), contentEl: $("#moves-results"), data: state.data,
       onInfo: (id) => openMovePopup(id),
       onFilter: (id) => { switchTab("pokemon"); applyMoveFilter(id); } });
   }

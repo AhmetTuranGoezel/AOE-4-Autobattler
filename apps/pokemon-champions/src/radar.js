@@ -38,7 +38,10 @@ export function renderRadar(raw, eff, { size = 260, max = 200 } = {}) {
   const rawPts = ORDER.map(([k], i) => pt(cx, cy, R * frac(raw[k]), i));
   const effPts = ORDER.map(([k], i) => pt(cx, cy, R * frac(eff[k]), i));
 
-  return `<svg viewBox="0 0 ${size} ${size}" class="radar" role="img" aria-label="stat chart">
+  // Pad the viewBox horizontally so the axis labels (drawn outside R) aren't
+  // clipped by the SVG edge — the hexagon stays centred on size/2.
+  const PADX = 56, PADY = 12;
+  return `<svg viewBox="${-PADX} ${-PADY} ${size + PADX * 2} ${size + PADY * 2}" class="radar" role="img" aria-label="stat chart">
     ${grid}${spokes}
     <polygon class="radar-raw" points="${poly(rawPts)}"/>
     <polygon class="radar-eff" points="${poly(effPts)}"/>
@@ -71,5 +74,6 @@ export function renderMultiRadar(series, { size = 340, max = 200 } = {}) {
     const pts = ORDER.map(([k], i) => pt(cx, cy, R * frac(s.stats[k]), i));
     return `<polygon class="radar-multi" points="${poly(pts)}" style="stroke:${s.color};fill:${s.color}26"/>`;
   }).join("");
-  return `<svg viewBox="0 0 ${size} ${size}" class="radar">${grid}${spokes}${polys}${labels}</svg>`;
+  const PADX = 48, PADY = 12;
+  return `<svg viewBox="${-PADX} ${-PADY} ${size + PADX * 2} ${size + PADY * 2}" class="radar">${grid}${spokes}${polys}${labels}</svg>`;
 }

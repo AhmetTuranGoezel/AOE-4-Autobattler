@@ -35,11 +35,17 @@ BULBA = "https://bulbapedia.bulbagarden.net/w/api.php"
 ROSTER_PAGE = "List of Pokémon in Pokémon Champions"
 POKEBASE = "https://pokebase.app/pokemon-champions/pokemon"
 POKEBASE_ABILITY = "https://pokebase.app/pokemon-champions/abilities"
+POKEBASE_MOVE = "https://pokebase.app/pokemon-champions/moves"
 MOVE_LINK_RE = re.compile(r"pokemon-champions/moves/([a-z0-9-]+)")
 META_DESC_RE = re.compile(r'<meta[^>]*name="description"[^>]*content="([^"]*)"', re.I)
 ABILITY_RE = re.compile(
     r'class="min-w-0 text-sm font-semibold"\s+aria-label="([^"]+)"[^>]*>.*?'
     r'<p class="mt-1 text-sm">([^<]+)</p>', re.S)
+# Competitive-usage rows on a pokebase mon page. Items/Natures/Moves share a
+# "name span + NN<!-- -->% span" shape; ability usage is in an aria-label.
+USAGE_NAMEPCT_RE = re.compile(r'truncate font-medium[^"]*">([^<]+)</span>.*?([\d.]+)<!-- -->%', re.S)
+ABIL_USAGE_RE = re.compile(r'aria-label="([^",]+), ([\d.]+)% tournament usage"')
+USAGE_CAP = 8  # keep the top-N of each usage category
 
 ROMAN = {"i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5,
          "vi": 6, "vii": 7, "viii": 8, "ix": 9}
@@ -92,13 +98,14 @@ def fetch_pokebase_mon(slug):
     things only pokebase has Champions-accurate: its real movepool (move slugs appear
     as /pokemon-champions/moves/<slug> links) and its abilities with descriptions
     (incl. Champions-original ones like Mega Eelektross's "Eelevate" that PokeAPI
-    doesn't know). Returns {"moves": [slug...], "abilities": [[name, desc]...]};
+    doesn't know), plus competitive usage % (abilities/items/natures/moves).
+    Returns {"moves": [...], "abilities": [[name, desc]...], "usage": {...}};
     fields stay empty on 404 so callers can fall back to PokeAPI."""
     cp = _cache_path(f"pbmon_{slug}")
     if os.path.exists(cp):
         with open(cp, "r", encoding="utf-8") as f:
             return json.load(f)
-    out = {"moves": [], "abilities": []}
+    out = {"moves": [], "abilities": [], "usage": {}}
     for attempt in range(4):
         try:
             req = urllib.request.Request(f"{POKEBASE}/{slug}", headers={"User-Agent": UA})
@@ -109,6 +116,7 @@ def fetch_pokebase_mon(slug):
             seg = page[i:i + 3000] if i >= 0 else ""
             out["abilities"] = [[html.unescape(n).strip(), html.unescape(d).strip()]
                                 for n, d in ABILITY_RE.findall(seg)]
+            out["usage"] = parse_pb_usage(page)
             os.makedirs(CACHE, exist_ok=True)
             with open(cp, "w", encoding="utf-8") as f:
                 json.dump(out, f, ensure_ascii=False)
@@ -128,6 +136,78 @@ def fetch_pokebase_mon(slug):
 
 def fetch_champions_moves(slug):
     return fetch_pokebase_mon(slug)["moves"]
+
+
+def _between(page, a, b):
+    """The slice of `page` from header `a` up to the next header `b` (or end)."""
+    i = page.find(a)
+    if i < 0:
+        return ""
+    j = page.find(b, i + len(a))
+    return page[i:j] if j >= 0 else page[i:]
+
+
+def parse_pb_usage(page):
+    """Competitive usage % per category from a pokebase mon page. Each list is
+    [[name, pct], ...] sorted as shown (most-used first), capped to USAGE_CAP."""
+    def pairs(seg):
+        return [[html.unescape(n).strip(), round(float(p), 1)]
+                for n, p in USAGE_NAMEPCT_RE.findall(seg)][:USAGE_CAP]
+    usage = {
+        "abilities": [[html.unescape(n).strip(), round(float(p), 1)]
+                      for n, p in ABIL_USAGE_RE.findall(page)][:USAGE_CAP],
+        "items": pairs(_between(page, ">Items</h3>", ">Abilities</h3>")),
+        "natures": pairs(_between(page, ">Natures</h3>", ">Items</h3>")),
+        "moves": pairs(_between(page, ">Moves</h3>", ">Featured Teams</h3>")),
+    }
+    return {k: v for k, v in usage.items() if v}
+
+
+def _pb_move_stat(page, label):
+    """A move page's numeric stat (Power/Accuracy/PP); None when shown as "—"."""
+    m = re.search(r">" + re.escape(label) + r"</span><span[^>]*>([^<]+)</span>", page)
+    if not m:
+        return None
+    digits = re.sub(r"[^\d]", "", m.group(1))
+    return int(digits) if digits else None
+
+
+def fetch_pokebase_move(slug):
+    """Champions-accurate move numbers (power/accuracy/pp) + effect text from
+    pokebase's move page (mainline PokeAPI/Showdown values are often re-tuned in
+    Champions, e.g. Iron Head flinch 20% not 30%, PP 16 not 15). Cached; {} on 404."""
+    cp = _cache_path(f"pbmove_{slug}")
+    if os.path.exists(cp):
+        with open(cp, "r", encoding="utf-8") as f:
+            return json.load(f)
+    out = {}
+    for attempt in range(4):
+        try:
+            req = urllib.request.Request(f"{POKEBASE_MOVE}/{slug}", headers={"User-Agent": UA})
+            with urllib.request.urlopen(req, timeout=60) as r:
+                page = r.read().decode("utf-8", "ignore")
+            eff = META_DESC_RE.search(page)
+            out = {
+                "power": _pb_move_stat(page, "Power"),
+                "accuracy": _pb_move_stat(page, "Accuracy"),
+                "pp": _pb_move_stat(page, "PP"),
+                "effect": re.sub(r"\s+", " ", html.unescape(eff.group(1))).strip() if eff else None,
+            }
+            os.makedirs(CACHE, exist_ok=True)
+            with open(cp, "w", encoding="utf-8") as f:
+                json.dump(out, f, ensure_ascii=False)
+            time.sleep(0.1)  # be polite to pokebase
+            return out
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                os.makedirs(CACHE, exist_ok=True)
+                with open(cp, "w", encoding="utf-8") as f:
+                    json.dump(out, f)
+                return out
+            time.sleep(1.5 * (attempt + 1))
+        except Exception:  # noqa: BLE001
+            time.sleep(1.5 * (attempt + 1))
+    return out
 
 
 def fetch_pokebase_ability_desc(slug):
@@ -373,6 +453,7 @@ def fetch_pokemon(entry, species_cache):
         "mythical": sp["mythical"],
         "sprite": sprite, "artwork": artwork,
         "_movesrc": move_src, "_abilsrc": abil_src,
+        "usage": pb.get("usage", {}),
     }
 
 
@@ -418,6 +499,7 @@ def fetch_move(name):
         "pp": d.get("pp"),
         "accuracy": d.get("accuracy"),
         "priority": d.get("priority", 0),
+        "target": d["target"]["name"] if d.get("target") else None,
         "effect": re.sub(r"\s+", " ", short).strip(),
     }
 
@@ -525,6 +607,25 @@ def main():
         meta.setdefault("flags", [])
     print(f"  matched {matched}/{len(move_meta)} moves to Showdown flags")
 
+    # Champions re-tunes some moves vs mainline (power/accuracy/PP/effect). pokebase
+    # has the in-game numbers, so let it win over PokeAPI+Showdown. Only override
+    # when pokebase actually provides a value (never blank out good data on a miss).
+    print("Applying Champions-accurate move data from pokebase ...")
+    pb_hits = 0
+    for i, (mv, meta) in enumerate(move_meta.items(), 1):
+        pb = fetch_pokebase_move(mv)
+        if not pb:
+            continue
+        pb_hits += 1
+        for f in ("power", "accuracy", "pp"):
+            if pb.get(f) is not None:
+                meta[f] = pb[f]
+        if pb.get("effect"):
+            meta["effect"] = pb["effect"]
+        if i % 100 == 0 or i == len(move_meta):
+            print(f"  {i}/{len(move_meta)}")
+    print(f"  pokebase move pages used for {pb_hits}/{len(move_meta)} moves")
+
     move_id = {mv: idx for idx, mv in enumerate(all_moves)}
     move_count = {mv: 0 for mv in all_moves}
 
@@ -586,6 +687,8 @@ def main():
                     "physTop": phys_top, "specTop": spec_top},
             "gen": mon["gen"],
             "sprite": mon["sprite"], "artwork": mon["artwork"],
+            "usage": {k: sorted(v, key=lambda x: -x[1])
+                      for k, v in mon["usage"].items()},
         })
 
     moves_out = {}
@@ -594,7 +697,7 @@ def main():
         moves_out[idx] = {"name": m["name"], "type": m["type"],
                           "class": m["class"], "power": m["power"],
                           "pp": m.get("pp"), "accuracy": m.get("accuracy"),
-                          "priority": m.get("priority", 0),
+                          "priority": m.get("priority", 0), "target": m.get("target"),
                           "effect": m.get("effect", ""), "flags": m.get("flags", []),
                           "count": move_count[mv]}
     abils_out = {}

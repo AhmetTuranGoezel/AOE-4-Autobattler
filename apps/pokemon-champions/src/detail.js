@@ -1,10 +1,27 @@
 // Detail panel for a selected Pokemon: radar, cleaned-stat breakdown,
 // abilities + moves with rarity, and "find similar".
-import { STAT_KEYS, STAT_LABELS, explainEffective, statScaleMax } from "./effective-stats.js";
+import { statScaleMax } from "./effective-stats.js";
 import { displayName, rarityTier, TYPE_COLORS, GEN_LABEL } from "./data.js";
 import { renderRadar } from "./radar.js";
 import { findSimilar } from "./similarity.js";
-import { typeBadges, statColor, ROLE_META } from "./table.js";
+import { typeBadges, ROLE_META } from "./table.js";
+import { renderEhpCards, renderStatRows, emptySpread } from "./stat-lab.js";
+
+// Competitive usage % (from pokebase): which ability/item/nature/move a Pokémon
+// actually runs on ladder, and how often.
+function renderUsage(mon) {
+  const u = mon.usage || {};
+  const cat = (label, list) => (list && list.length ? `<div class="use-cat">
+    <span class="use-lab">${label}</span>
+    <div class="use-items">${list.map(([n, p]) =>
+      `<span class="use-item" title="${n}: ${p}%"><i class="use-fill" style="width:${p}%"></i><span class="use-name">${n}</span><span class="use-pct">${p}%</span></span>`).join("")}</div>
+  </div>` : "");
+  const body = cat("Ability", u.abilities) + cat("Item", u.items) + cat("Nature", u.natures) + cat("Moves", u.moves);
+  return `<section class="detail-usage">
+    <h4>Usage <span class="muted">ranked ladder · pokebase</span></h4>
+    ${body || '<p class="use-empty">No ranked usage data for this Pokémon yet.</p>'}
+  </section>`;
+}
 
 function rarityBadge(count, total) {
   const r = rarityTier(count, total);
@@ -28,25 +45,11 @@ function moveRow(id, data) {
   </tr>`;
 }
 
-export function renderDetail(mon, { data, all, simCtx, statMode }) {
+export function renderDetail(mon, { data, all, simCtx, statMode, spread }) {
   const e = mon._eff;
   const role = ROLE_META[e.role];
   const max = statScaleMax(statMode);
-
-  // stat breakdown bars (raw vs effective)
-  const bars = STAT_KEYS.map((k) => {
-    const v = e.disp[k];
-    const effV = Math.round(e.eff[k]);
-    const wasted = v - effV;
-    const rawPct = (Math.min(v, max) / max) * 100;
-    const effPct = (Math.min(effV, max) / max) * 100;
-    return `<div class="sb">
-      <span class="sb-lab">${STAT_LABELS[k]}</span>
-      <span class="sb-track"><i class="sb-raw" style="width:${rawPct}%"></i>
-        <i class="sb-eff" style="width:${effPct}%;background:${statColor(v, max)}"></i></span>
-      <span class="sb-val">${v}${wasted > 2 ? ` <em>→ ${effV}</em>` : ""}</span>
-    </div>`;
-  }).join("");
+  const sp = spread || emptySpread();
 
   const abilities = mon.abilities.map((a) => {
     const meta = data.abilities[a.slug] || { name: a.slug, desc: "" };
@@ -76,8 +79,6 @@ export function renderDetail(mon, { data, all, simCtx, statMode }) {
     </button>`;
   }).join("");
 
-  const reasons = explainEffective(mon, e).map((r) => `<li>${r}</li>`).join("");
-
   return `<div class="detail-card">
     <button class="detail-close" data-close aria-label="Close">✕</button>
     <div class="detail-head">
@@ -105,17 +106,23 @@ export function renderDetail(mon, { data, all, simCtx, statMode }) {
           <span><i class="lg-raw"></i> Base</span><span><i class="lg-eff"></i> Cleaned</span>
         </div>
       </section>
-      <section class="detail-bars">
-        <h4>Stat breakdown</h4>
-        ${bars}
-        <ul class="why">${reasons}</ul>
+      <section class="detail-ehp">
+        <h4>Effective HP <span class="muted">Lv 50</span></h4>
+        ${renderEhpCards(mon, sp)}
       </section>
     </div>
+
+    <section class="stat-lab">
+      <div class="lab-head"><h4>Stat spread</h4><span class="lab-hint">Distribute ${66} points (max 32 per stat) — eHP updates live.</span></div>
+      ${renderStatRows(mon, sp)}
+    </section>
 
     <section class="detail-ab">
       <h4>Abilities</h4>
       <div class="ab-list">${abilities}</div>
     </section>
+
+    ${renderUsage(mon)}
 
     <section class="detail-sim">
       <h4>Similar Pokémon</h4>
