@@ -41,6 +41,8 @@ function cmpBtn(mon, cmp, big) {
   return `<button class="cmp ${on ? "on" : ""}" data-cmp="${mon.slug}" title="Add to compare">${on ? "✓" : "＋"}</button>`;
 }
 
+const sep = (x) => Math.round(x).toLocaleString("en-US");
+
 // ---- Table view ----
 const COLS = [
   { key: "dex", label: "#", num: true },
@@ -50,14 +52,20 @@ const COLS = [
   { key: "bst", label: "BST", num: true },
   { key: "cleaned", label: "Cleaned", num: true },
   { key: "wasted", label: "Wasted", num: true },
+  { key: "ehpPhys", label: "Phys eHP", num: true, ehp: true, title: "Effective HP vs physical @Lv50 (HP × Def)" },
+  { key: "ehpSpec", label: "Spec eHP", num: true, ehp: true, title: "Effective HP vs special @Lv50 (HP × Sp.Def)" },
+  { key: "ehpMixed", label: "Mixed eHP", num: true, ehp: true, title: "Effective HP vs an even physical+special mix @Lv50 (harmonic mean)" },
 ];
-const COL_WIDTHS = ["3.5%", "23%", "7.5%", ...STAT_KEYS.map(() => "7%"), "6.5%", "9%", "8.5%"];
+const COL_WIDTHS = ["3%", "15%", "6.5%", ...STAT_KEYS.map(() => "6%"), "5.5%", "6.5%", "6%",
+  "7.7%", "7.7%", "7.6%"];
 
 const sumGet = (m, k) => (k === "bst" ? m._eff.bst : k === "cleaned" ? m._eff.cleaned
-  : k === "wasted" ? m._eff.wasted : m._eff.disp[k]);
+  : k === "wasted" ? m._eff.wasted
+  : (k === "ehpPhys" || k === "ehpSpec" || k === "ehpMixed") ? m._eff[k]
+  : m._eff.disp[k]);
 
 function summarize(list) {
-  const keys = [...STAT_KEYS, "bst", "cleaned", "wasted"];
+  const keys = [...STAT_KEYS, "bst", "cleaned", "wasted", "ehpPhys", "ehpSpec", "ehpMixed"];
   const out = {};
   for (const k of keys) {
     const xs = list.map((m) => sumGet(m, k)).sort((a, b) => a - b);
@@ -77,7 +85,7 @@ export function renderTable(list, sort, cmp, max = 200) {
     const active = sort.key === c.key;
     const arrow = active ? (sort.dir === "asc" ? " ▲" : " ▼") : "";
     const cls = `${c.num ? "num" : ""} ${c.nosort ? "" : "sortable"} ${active ? "active" : ""}`;
-    return `<th class="${cls}" ${c.nosort ? "" : `data-sort="${c.key}"`}>${c.label}${arrow}</th>`;
+    return `<th class="${cls}" ${c.title ? `title="${c.title}"` : ""} ${c.nosort ? "" : `data-sort="${c.key}"`}>${c.label}${arrow}</th>`;
   }).join("");
 
   const rows = list.map((m) => {
@@ -98,6 +106,9 @@ export function renderTable(list, sort, cmp, max = 200) {
       <td class="num bst">${e.bst}</td>
       <td class="num cleaned">${e.cleaned}</td>
       <td class="num wasted">${e.wasted > 0 ? "−" + e.wasted : "0"}</td>
+      <td class="num ehp">${sep(e.ehpPhys)}</td>
+      <td class="num ehp">${sep(e.ehpSpec)}</td>
+      <td class="num ehp ehp-mix">${sep(e.ehpMixed)}</td>
     </tr>`;
   }).join("");
 
@@ -105,12 +116,14 @@ export function renderTable(list, sort, cmp, max = 200) {
   if (list.length) {
     const s = summarize(list);
     const cell = (o) => `<td class="num"><b>${o.avg}</b><span class="sm-med">${o.med}</span></td>`;
+    const ecell = (o) => `<td class="num ehp"><b>${sep(o.avg)}</b><span class="sm-med">${sep(o.med)}</span></td>`;
     foot = `<tfoot><tr class="summary-row">
       <td class="num sum-n">${list.length}</td>
       <td class="sum-legend"><b>Average</b><span class="sm-med">median</span></td>
       <td></td>
       ${STAT_KEYS.map((k) => cell(s[k])).join("")}
       ${cell(s.bst)}${cell(s.cleaned)}${cell(s.wasted)}
+      ${ecell(s.ehpPhys)}${ecell(s.ehpSpec)}${ecell(s.ehpMixed)}
     </tr></tfoot>`;
   }
 

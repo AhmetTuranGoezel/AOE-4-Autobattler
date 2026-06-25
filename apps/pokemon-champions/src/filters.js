@@ -66,6 +66,7 @@ export function sortMons(list, sort) {
     if (sort.key === "cleaned") return m._eff.cleaned;
     if (sort.key === "wasted") return m._eff.wasted;
     if (sort.key === "bst") return m._eff.bst;
+    if (sort.key === "ehpPhys" || sort.key === "ehpSpec" || sort.key === "ehpMixed") return m._eff[sort.key];
     if (sort.key === "dex") return m.dex;
     if (sort.key === "name") return m._display;
     return m._eff.disp[sort.key];

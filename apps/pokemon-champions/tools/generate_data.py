@@ -46,6 +46,9 @@ ABILITY_RE = re.compile(
 USAGE_NAMEPCT_RE = re.compile(r'truncate font-medium[^"]*">([^<]+)</span>.*?([\d.]+)<!-- -->%', re.S)
 ABIL_USAGE_RE = re.compile(r'aria-label="([^",]+), ([\d.]+)% tournament usage"')
 USAGE_CAP = 8  # keep the top-N of each usage category
+# A secondary-effect probability stated in a pokebase move description, e.g.
+# Iron Head's "Has a 20% chance of making the target flinch." (Champions-exact).
+PB_CHANCE_RE = re.compile(r"(\d+)%\s+chance", re.I)
 
 ROMAN = {"i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5,
          "vi": 6, "vii": 7, "viii": 8, "ix": 9}
@@ -472,13 +475,41 @@ def sd_id(slug):
     return re.sub(r"[^a-z0-9]", "", slug.lower())
 
 
+SD_STATUS = {"brn": "burn", "par": "paralysis", "frz": "freeze", "psn": "poison",
+             "tox": "badly poisoned", "slp": "sleep"}
+SD_VOLATILE = {"flinch": "flinch", "confusion": "confusion"}
+SD_STAT = {"atk": "Atk", "def": "Def", "spa": "Sp.Atk", "spd": "Sp.Def",
+           "spe": "Spe", "accuracy": "Acc", "evasion": "Eva"}
+
+
+def _sec_label(s):
+    """A short label for what a secondary effect does (e.g. "burn", "−1 Def")."""
+    if s.get("status"):
+        return SD_STATUS.get(s["status"], s["status"])
+    if s.get("volatileStatus"):
+        return SD_VOLATILE.get(s["volatileStatus"], s["volatileStatus"])
+    if s.get("boosts"):
+        return ", ".join(f"{'+' if v > 0 else '−'}{abs(v)} {SD_STAT.get(k, k)}"
+                         for k, v in s["boosts"].items())
+    return ""  # e.g. Tri Attack (status chosen at random) — just the %
+
+
+def _sd_secondaries(m):
+    """Every secondary effect as [chance, label] (e.g. Fire Fang → [[10,"burn"],
+    [10,"flinch"]]); empty for guaranteed/no secondary effects."""
+    sec = m.get("secondary")
+    secs = m.get("secondaries") or ([sec] if isinstance(sec, dict) else [])
+    return [[s["chance"], _sec_label(s)] for s in secs if s.get("chance")]
+
+
 def fetch_showdown():
     d = http_json("https://play.pokemonshowdown.com/data/moves.json",
                   cache_key="showdown_moves")
     out = {}
     for sid, m in d.items():
         flags = sorted(SD_FLAGS[k] for k in (m.get("flags") or {}) if k in SD_FLAGS)
-        out[sid] = {"flags": flags, "short": (m.get("shortDesc") or "").strip()}
+        out[sid] = {"flags": flags, "short": (m.get("shortDesc") or "").strip(),
+                    "secondaries": _sd_secondaries(m)}
     return out
 
 
@@ -602,9 +633,11 @@ def main():
         if sd:
             matched += 1
             meta["flags"] = sd["flags"]
+            meta["secondaries"] = sd["secondaries"]   # [[%, label], ...] (mainline standard)
             if sd["short"]:
                 meta["effect"] = sd["short"]  # Showdown's wording is more concise
         meta.setdefault("flags", [])
+        meta.setdefault("secondaries", [])
     print(f"  matched {matched}/{len(move_meta)} moves to Showdown flags")
 
     # Champions re-tunes some moves vs mainline (power/accuracy/PP/effect). pokebase
@@ -622,6 +655,14 @@ def main():
                 meta[f] = pb[f]
         if pb.get("effect"):
             meta["effect"] = pb["effect"]
+            cm = PB_CHANCE_RE.search(pb["effect"])  # Champions states its own % for some moves
+            if cm:
+                n = int(cm.group(1))
+                secs = meta.get("secondaries") or []
+                if len(secs) == 1:
+                    secs[0][0] = n            # re-tune the single secondary (e.g. Iron Head 30→20)
+                elif not secs:
+                    meta["secondaries"] = [[n, ""]]
         if i % 100 == 0 or i == len(move_meta):
             print(f"  {i}/{len(move_meta)}")
     print(f"  pokebase move pages used for {pb_hits}/{len(move_meta)} moves")
@@ -698,6 +739,7 @@ def main():
                           "class": m["class"], "power": m["power"],
                           "pp": m.get("pp"), "accuracy": m.get("accuracy"),
                           "priority": m.get("priority", 0), "target": m.get("target"),
+                          "secondaries": m.get("secondaries", []),
                           "effect": m.get("effect", ""), "flags": m.get("flags", []),
                           "count": move_count[mv]}
     abils_out = {}

@@ -207,7 +207,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
         <td class="num">${m.priority ? (m.priority > 0 ? "+" + m.priority : m.priority) : "0"}</td>
         <td class="mv-flags">${flags || "<span class='muted'>—</span>"}</td>
         <td class="num"><span class="rarity ${rarityTier(m.count, data.total).cls}">${m.count}</span></td>
-        <td class="mv-eff">${m.effect || ""}</td>
+        <td class="mv-eff">${(m.secondaries || []).map(([c, l]) => `<span class="mv-chance" title="secondary-effect chance">${c}%${l ? " " + l : ""}</span>`).join(" ")} ${m.effect || ""}</td>
       </tr>`;
     }).join("");
     contentEl.innerHTML = `<table class="poke-table moves-table"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>`;
