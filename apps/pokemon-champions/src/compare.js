@@ -71,9 +71,12 @@ export function renderCompare(mons, data, max = 200, anchorSlug = null, movesFil
   const movesSection = `<section class="cmp-moves">
     <div class="cmp-moves-head">
       <h4>Movepool <span class="muted">${totalMoves} moves · ${sharedCount} shared by all</span></h4>
-      <div class="seg cm-toggle">
-        <button data-cmp-moves="all" class="${movesFilter === "all" ? "active" : ""}">All</button>
-        <button data-cmp-moves="diff" class="${movesFilter === "diff" ? "active" : ""}">Only differences</button>
+      <div class="cmp-moves-actions">
+        <div class="seg cm-toggle">
+          <button data-cmp-moves="all" class="${movesFilter === "all" ? "active" : ""}">All</button>
+          <button data-cmp-moves="diff" class="${movesFilter === "diff" ? "active" : ""}">Only differences</button>
+        </div>
+        <button class="btn-sm cm-open-moves" data-open-moves title="See these movepools with full detail (power, target, flags, effect…) and filter">Open in Moves page →</button>
       </div>
     </div>
     <div class="cm-scroll"><table class="cm-table"><thead><tr><th>Move</th>

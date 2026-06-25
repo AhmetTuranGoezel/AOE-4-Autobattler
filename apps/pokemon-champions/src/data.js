@@ -45,3 +45,29 @@ export const TYPE_COLORS = {
 };
 
 export const GEN_LABEL = (g) => "Gen " + ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX"][g];
+
+// Move targeting (from PokeAPI's move.target). "Spread" targets hit more than one
+// Pokémon — the competitively important distinction the table/popup highlight.
+export const TARGET_LABELS = {
+  "selected-pokemon": "Single",
+  "selected-pokemon-me-first": "Single",
+  "random-opponent": "Random foe",
+  "all-opponents": "All opponents",
+  "all-other-pokemon": "All others",
+  "all-pokemon": "All Pokémon",
+  "all-allies": "All allies",
+  "user-and-allies": "User & allies",
+  "ally": "Ally",
+  "user-or-ally": "Self or ally",
+  user: "Self",
+  "entire-field": "Whole field",
+  "users-field": "Your side",
+  "opponents-field": "Foes' side",
+  "specific-move": "Varies",
+  "fainting-pokemon": "Fainted target",
+};
+export const SPREAD_TARGETS = new Set([
+  "all-opponents", "all-other-pokemon", "all-pokemon", "all-allies", "user-and-allies",
+]);
+export const targetLabel = (t) => TARGET_LABELS[t] || (t ? t.replace(/-/g, " ") : "—");
+export const isSpread = (t) => SPREAD_TARGETS.has(t);

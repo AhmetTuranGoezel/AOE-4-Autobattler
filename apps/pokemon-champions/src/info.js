@@ -1,6 +1,6 @@
 // Detail popups for a single move or ability (shown on click; the lens button
 // elsewhere is what filters the roster).
-import { TYPE_COLORS, rarityTier, displayName } from "./data.js";
+import { TYPE_COLORS, rarityTier, displayName, targetLabel, isSpread } from "./data.js";
 
 function learnerSprites(mons, cap) {
   const shown = mons.slice(0, cap).map((m) =>
@@ -29,6 +29,7 @@ export function renderMovePopup(move, learners, total) {
       <div><span class="t-lab">PP</span><span class="t-val">${move.pp ?? "—"}</span></div>
       <div><span class="t-lab">Priority</span><span class="t-val">${prio}</span></div>
       <div><span class="t-lab">Category</span><span class="t-val cap">${move.class}</span></div>
+      <div><span class="t-lab">Target</span><span class="t-val mv-target ${isSpread(move.target) ? "spread" : ""}">${targetLabel(move.target)}</span></div>
     </div>
     <div class="info-flags"><span class="il">Flags</span> ${flags}</div>
     <p class="info-effect">${move.effect || "No additional effect."}</p>
