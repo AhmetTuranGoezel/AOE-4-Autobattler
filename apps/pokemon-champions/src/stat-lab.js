@@ -75,15 +75,20 @@ export function renderStatRows(mon, spread) {
   const e = mon._eff;
   const u = used(spread);
 
+  const metaSpread = mon.usage && mon.usage.spread;
   const rows = STAT_KEYS.map((k) => {
     const pts = spread[k] || 0;
     const bulk = BULK_KEYS.includes(k);
     const wasted = e && e.eff[k] === 0;          // cleaned to zero (lower attacker / too slow)
     const base = lv[k], cur = base + pts;
     const bp = barPct(base), inv = barPct(cur) - bp;
+    const meta = metaSpread && metaSpread[k];     // [pts, pct] the meta typically invests here
+    const metaPts = meta ? meta[0] : 0;
+    const metaTick = metaPts ? `<i class="pt-bar-meta" style="left:${barPct(base + metaPts)}%" title="Meta avg: +${metaPts} (${meta[1]}% of all points)"></i>` : "";
+    const metaLab = metaPts ? `<small class="pt-meta" title="${meta[1]}% of points">meta +${metaPts}</small>` : "";
     return `<div class="pt-row${wasted ? " is-wasted" : ""}">
       <span class="pt-lab">${STAT_LABELS[k]}${bulk ? '<i class="pt-bulk-dot" title="affects eHP"></i>' : ""}${wasted ? '<span class="pt-wtag" title="counts as 0 in the cleaned total">wasted</span>' : ""}</span>
-      <span class="pt-bar"><i class="pt-bar-base" style="width:${bp}%;background:${statColor(base, SCALE)}"></i><i class="pt-bar-inv" style="left:${bp}%;width:${inv}%"></i></span>
+      <span class="pt-bar"><i class="pt-bar-base" style="width:${bp}%;background:${statColor(base, SCALE)}"></i><i class="pt-bar-inv" style="left:${bp}%;width:${inv}%"></i>${metaTick}</span>
       <span class="pt-step">
         <button class="pt-pm" data-pt-step="${k}" data-dir="-1" aria-label="${STAT_LABELS[k]} minus">−</button>
         <input class="pt-num" type="number" min="0" max="${CAP}" value="${pts}" data-pt-num="${k}" aria-label="${STAT_LABELS[k]} points">
@@ -91,11 +96,12 @@ export function renderStatRows(mon, spread) {
       </span>
       <button class="pt-max" data-pt-max="${k}" title="Fill with the points you have left">MAX</button>
       <button class="pt-x" data-pt-clear="${k}" ${pts ? "" : "disabled"} title="Clear">✕</button>
-      <span class="pt-rl"><b class="pt-cur">${cur}</b><small class="pt-amt">${pts ? ` +${pts}` : ""}</small><small class="pt-raw">${base} base</small></span>
+      <span class="pt-rl"><b class="pt-cur">${cur}</b><small class="pt-amt">${pts ? ` +${pts}` : ""}</small><small class="pt-raw">${base} base</small>${metaLab}</span>
     </div>`;
   }).join("");
 
   const reasons = e ? explainEffective(mon, e).map((r) => `<li>${r}</li>`).join("") : "";
+  const metaNote = metaSpread ? '<p class="lab-meta-note"><i class="pt-bar-meta-legend"></i> caret marks the meta\'s typical point investment (pokebase)</p>' : "";
 
   return `<section class="stat-rows">
     <div class="pt-pool">
@@ -103,6 +109,7 @@ export function renderStatRows(mon, spread) {
       <span class="pt-pool-bar"><i style="width:${(u / POOL) * 100}%"></i></span>
     </div>
     <div class="pt-rows">${rows}</div>
+    ${metaNote}
     <ul class="why">${reasons}</ul>
     <div class="lab-actions">
       <span class="lab-opt-lab">Best spread for eHP</span>

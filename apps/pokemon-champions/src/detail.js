@@ -16,7 +16,8 @@ function renderUsage(mon) {
     <div class="use-items">${list.map(([n, p]) =>
       `<span class="use-item" title="${n}: ${p}%"><i class="use-fill" style="width:${p}%"></i><span class="use-name">${n}</span><span class="use-pct">${p}%</span></span>`).join("")}</div>
   </div>` : "");
-  const body = cat("Ability", u.abilities) + cat("Item", u.items) + cat("Nature", u.natures) + cat("Moves", u.moves);
+  // Ability % is shown on the Abilities list itself; here we keep item/nature/move.
+  const body = cat("Item", u.items) + cat("Nature", u.natures) + cat("Moves", u.moves);
   return `<section class="detail-usage">
     <h4>Usage <span class="muted">ranked ladder · pokebase</span></h4>
     ${body || '<p class="use-empty">No ranked usage data for this Pokémon yet.</p>'}
@@ -51,10 +52,12 @@ export function renderDetail(mon, { data, all, simCtx, statMode, spread }) {
   const max = statScaleMax(statMode);
   const sp = spread || emptySpread();
 
+  const usePct = new Map((mon.usage?.abilities || []).map(([n, p]) => [n, p]));
   const abilities = mon.abilities.map((a) => {
     const meta = data.abilities[a.slug] || { name: a.slug, desc: "" };
+    const pct = usePct.get(meta.name);
     return `<div class="ab-row" data-ability-info="${a.slug}" title="View ability details">
-      <span class="ab-name">${meta.name}${a.hidden ? ` <span class="hidden-tag">Hidden</span>` : ""}</span>
+      <span class="ab-name">${meta.name}${pct != null ? ` <span class="ab-use" title="ranked usage">${pct}%</span>` : ""}${a.hidden ? ` <span class="hidden-tag">Hidden</span>` : ""}</span>
       ${rarityBadge(meta.count, data.total)}
       <button class="lens" data-ability-filter="${a.slug}" title="Find Pokémon with this ability">🔍</button>
       <span class="ab-desc">${meta.desc || ""}</span>
