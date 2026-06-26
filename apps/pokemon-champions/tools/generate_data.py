@@ -46,6 +46,13 @@ ABILITY_RE = re.compile(
 USAGE_NAMEPCT_RE = re.compile(r'truncate font-medium[^"]*">([^<]+)</span>.*?([\d.]+)<!-- -->%', re.S)
 ABIL_USAGE_RE = re.compile(r'aria-label="([^",]+), ([\d.]+)% tournament usage"')
 USAGE_CAP = 8  # keep the top-N of each usage category
+# The meta's typical point investment per stat (pokebase "stat points allocator").
+# Note pokebase naming: SPD = Speed, "Sp. Def" = special defense.
+SPREAD_RE = re.compile(
+    r'aria-label="(HP|ATK|DEF|Sp\. Atk|Sp\. Def|SPD) stat points allocator, '
+    r'featured team usage ([^"]*?)% of featured team stat points"')
+SPREAD_KEY = {"HP": "hp", "ATK": "atk", "DEF": "def",
+              "Sp. Atk": "spa", "Sp. Def": "spd", "SPD": "spe"}
 # A secondary-effect probability stated in a pokebase move description, e.g.
 # Iron Head's "Has a 20% chance of making the target flinch." (Champions-exact).
 PB_CHANCE_RE = re.compile(r"(\d+)%\s+chance", re.I)
@@ -163,7 +170,17 @@ def parse_pb_usage(page):
         "natures": pairs(_between(page, ">Natures</h3>", ">Items</h3>")),
         "moves": pairs(_between(page, ">Moves</h3>", ">Featured Teams</h3>")),
     }
-    return {k: v for k, v in usage.items() if v}
+    # meta point allocation per stat -> {hp:[pts,pct], ...}
+    spread = {}
+    for label, mid in SPREAD_RE.findall(page):
+        pm = re.search(r"\+(\d+)", mid)
+        cm = re.search(r"([\d.]+)\s*$", mid)
+        spread[SPREAD_KEY[label]] = [int(pm.group(1)) if pm else 0,
+                                     round(float(cm.group(1)), 1) if cm else 0.0]
+    out = {k: v for k, v in usage.items() if v}
+    if any(p for _, p in spread.values()):
+        out["spread"] = spread
+    return out
 
 
 def _pb_move_stat(page, label):
@@ -728,7 +745,7 @@ def main():
                     "physTop": phys_top, "specTop": spec_top},
             "gen": mon["gen"],
             "sprite": mon["sprite"], "artwork": mon["artwork"],
-            "usage": {k: sorted(v, key=lambda x: -x[1])
+            "usage": {k: (sorted(v, key=lambda x: -x[1]) if isinstance(v, list) else v)
                       for k, v in mon["usage"].items()},
         })
 
