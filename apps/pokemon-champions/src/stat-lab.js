@@ -33,24 +33,31 @@ export function ehpValues(mon, spread) {
   return cur;
 }
 
-// Best bulk spread for a metric, brute-forced over HP/Def/SpD within the budget.
-export function optimizeSpread(mon, metric) {
+// Best use of the REMAINING (unspent) points for a metric: keep everything the user
+// has already allocated (incl. offense) and distribute only the leftover into HP/Def/
+// SpD, brute-forcing the additions on top of the current bulk (each capped at 32).
+export function optimizeSpread(mon, metric, current = emptySpread()) {
   const lv = statsFor(mon, "lv50");
+  const hp0 = current.hp || 0, def0 = current.def || 0, spd0 = current.spd || 0;
+  const rem = POOL - pointsUsed(current);
   const score = (h, d, s) => {
     const hp = lv.hp + h, phys = hp * (lv.def + d), spec = hp * (lv.spd + s);
     if (metric === "phys") return phys;
     if (metric === "spec") return spec;
     return phys + spec ? (2 * phys * spec) / (phys + spec) : 0;  // mixed (harmonic mean)
   };
-  let best = { h: 0, d: 0, s: 0, v: -1 };
-  for (let h = 0; h <= CAP; h++) {
-    for (let d = 0; d <= Math.min(CAP, POOL - h); d++) {
-      const s = Math.min(CAP, POOL - h - d);
+  let best = { h: hp0, d: def0, s: spd0, v: -1 };
+  const maxH = Math.min(CAP - hp0, rem);
+  for (let addH = 0; addH <= maxH; addH++) {
+    const maxD = Math.min(CAP - def0, rem - addH);
+    for (let addD = 0; addD <= maxD; addD++) {
+      const addS = Math.min(CAP - spd0, rem - addH - addD);
+      const h = hp0 + addH, d = def0 + addD, s = spd0 + addS;
       const v = score(h, d, s);
       if (v > best.v) best = { h, d, s, v };
     }
   }
-  return { ...emptySpread(), hp: best.h, def: best.d, spd: best.s };
+  return { ...current, hp: best.h, def: best.d, spd: best.s };
 }
 
 // --- the three eHP cards (live region; updated by tick, never re-rendered) ---
@@ -84,11 +91,11 @@ export function renderStatRows(mon, spread) {
     const bp = barPct(base), inv = barPct(cur) - bp;
     const meta = metaSpread && metaSpread[k];     // [pts, pct] the meta typically invests here
     const metaPts = meta ? meta[0] : 0;
-    const metaTick = metaPts ? `<i class="pt-bar-meta" style="left:${barPct(base + metaPts)}%" title="Meta avg: +${metaPts} (${meta[1]}% of all points)"></i>` : "";
-    const metaLab = metaPts ? `<small class="pt-meta" title="${meta[1]}% of points">meta +${metaPts}</small>` : "";
+    // Simple, readable: "how much of the meta's points went to this stat".
+    const metaLab = metaPts ? `<small class="pt-meta" title="share of the meta's stat points (pokebase)">meta +${metaPts} · ${meta[1]}%</small>` : "";
     return `<div class="pt-row${wasted ? " is-wasted" : ""}">
       <span class="pt-lab">${STAT_LABELS[k]}${bulk ? '<i class="pt-bulk-dot" title="affects eHP"></i>' : ""}${wasted ? '<span class="pt-wtag" title="counts as 0 in the cleaned total">wasted</span>' : ""}</span>
-      <span class="pt-bar"><i class="pt-bar-base" style="width:${bp}%;background:${statColor(base, SCALE)}"></i><i class="pt-bar-inv" style="left:${bp}%;width:${inv}%"></i>${metaTick}</span>
+      <span class="pt-bar"><i class="pt-bar-base" style="width:${bp}%;background:${statColor(base, SCALE)}"></i><i class="pt-bar-inv" style="left:${bp}%;width:${inv}%"></i></span>
       <span class="pt-step">
         <button class="pt-pm" data-pt-step="${k}" data-dir="-1" aria-label="${STAT_LABELS[k]} minus">−</button>
         <input class="pt-num" type="number" min="0" max="${CAP}" value="${pts}" data-pt-num="${k}" aria-label="${STAT_LABELS[k]} points">
@@ -101,7 +108,7 @@ export function renderStatRows(mon, spread) {
   }).join("");
 
   const reasons = e ? explainEffective(mon, e).map((r) => `<li>${r}</li>`).join("") : "";
-  const metaNote = metaSpread ? '<p class="lab-meta-note"><i class="pt-bar-meta-legend"></i> caret marks the meta\'s typical point investment (pokebase)</p>' : "";
+  const metaNote = metaSpread ? '<p class="lab-meta-note">“meta” = how the community spreads its 66 points on this Pokémon (share per stat, pokebase)</p>' : "";
 
   return `<section class="stat-rows">
     <div class="pt-pool">
