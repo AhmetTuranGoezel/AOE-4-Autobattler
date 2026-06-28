@@ -588,7 +588,7 @@ function bindGlobal() {
     const ptClr = e.target.closest("[data-pt-clear]");
     if (ptClr) { state.spread[ptClr.dataset.ptClear] = 0; tickLab(); return; }
     const ptOpt = e.target.closest("[data-pt-opt]");
-    if (ptOpt) { state.spread = optimizeSpread(state.bySlug.get(state.selected), ptOpt.dataset.ptOpt); tickLab(); return; }
+    if (ptOpt) { state.spread = optimizeSpread(state.bySlug.get(state.selected), ptOpt.dataset.ptOpt, state.spread); tickLab(); return; }
     if (e.target.closest("[data-pt-reset]")) { state.spread = emptySpread(); tickLab(); return; }
     const c = e.target.closest("[data-cmp]");
     if (c) { toggleCompare(c.dataset.cmp); return; }

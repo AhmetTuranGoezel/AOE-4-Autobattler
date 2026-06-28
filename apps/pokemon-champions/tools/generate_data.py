@@ -36,6 +36,10 @@ ROSTER_PAGE = "List of Pokémon in Pokémon Champions"
 POKEBASE = "https://pokebase.app/pokemon-champions/pokemon"
 POKEBASE_ABILITY = "https://pokebase.app/pokemon-champions/abilities"
 POKEBASE_MOVE = "https://pokebase.app/pokemon-champions/moves"
+# Open, structured Champions dataset (Showdown-derived + community-verified). Has
+# mechanically PRECISE move/ability descriptions ("Raises Attack by 2 stages", etc.)
+# that the in-game flavor text (pokebase) lacks. MIT-style open data, fetched as JSON.
+CHAMP_REPO = "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main"
 MOVE_LINK_RE = re.compile(r"pokemon-champions/moves/([a-z0-9-]+)")
 META_DESC_RE = re.compile(r'<meta[^>]*name="description"[^>]*content="([^"]*)"', re.I)
 ABILITY_RE = re.compile(
@@ -146,6 +150,11 @@ def fetch_pokebase_mon(slug):
 
 def fetch_champions_moves(slug):
     return fetch_pokebase_mon(slug)["moves"]
+
+
+def fetch_champ_repo(path):
+    """A JSON file from the open Champions dataset repo (cached)."""
+    return http_json(f"{CHAMP_REPO}/{path}", cache_key=f"repo_{path.replace('/', '_')}")
 
 
 def _between(page, a, b):
@@ -684,6 +693,24 @@ def main():
             print(f"  {i}/{len(move_meta)}")
     print(f"  pokebase move pages used for {pb_hits}/{len(move_meta)} moves")
 
+    # Precise effect text from the open Champions dataset (pokebase's in-game flavor
+    # is vague for stat/status moves). Keep Champions' own secondary % (re-tuned into
+    # meta["secondaries"] above) by patching the "N% chance" number in the repo text.
+    print("Applying precise move descriptions from the Champions dataset ...")
+    repo_moves = {slugify(m["name"]): m for m in fetch_champ_repo("moves/moves.json")}
+    repo_hits = 0
+    for mv, meta in move_meta.items():
+        rm = repo_moves.get(mv)
+        if not rm or not rm.get("description"):
+            continue
+        repo_hits += 1
+        desc = rm["description"]
+        secs = meta.get("secondaries") or []
+        if len(secs) == 1 and re.search(r"\d+%\s+chance", desc):
+            desc = re.sub(r"\d+%\s+chance", f"{secs[0][0]}% chance", desc, count=1)
+        meta["effect"] = desc
+    print(f"  precise descriptions for {repo_hits}/{len(move_meta)} moves")
+
     move_id = {mv: idx for idx, mv in enumerate(all_moves)}
     move_count = {mv: 0 for mv in all_moves}
 
@@ -712,6 +739,19 @@ def main():
         abil_count[slug] = 0
     ab_pb = sum(1 for a in abil_meta.values() if a.get("src") == "pokebase")
     print(f"  ability effects: {ab_pb} from pokebase, {len(all_abils) - ab_pb} from PokeAPI")
+
+    # Prefer the open dataset's precise ability text where it has it (pokebase's is the
+    # vague in-game flavor). pokebase stays the fallback for Champions-original mega
+    # abilities (e.g. Eelevate) that the repo doesn't list.
+    repo_abils = {slugify(a["name"]): a.get("description", "")
+                  for a in fetch_champ_repo("abilities/abilities.json")}
+    ab_repo = 0
+    for slug, meta in abil_meta.items():
+        rd = repo_abils.get(slug)
+        if rd:
+            meta["desc"], meta["src"], ab_repo = rd, "repo", ab_repo + 1
+    print(f"  ability descriptions: {ab_repo} precise from dataset, "
+          f"{len(all_abils) - ab_repo} kept from pokebase/PokeAPI")
 
     # ---- derived per-mon fields + rarity tallies ----
     out_mons = []
