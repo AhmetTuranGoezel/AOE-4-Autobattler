@@ -12,6 +12,7 @@ and polite. Re-run after a balance patch to refresh the data.
 
 Usage:  python apps/pokemon-champions/tools/generate_data.py
 """
+import collections
 import html
 import json
 import os
@@ -155,6 +156,57 @@ def fetch_champions_moves(slug):
 def fetch_champ_repo(path):
     """A JSON file from the open Champions dataset repo (cached)."""
     return http_json(f"{CHAMP_REPO}/{path}", cache_key=f"repo_{path.replace('/', '_')}")
+
+
+def _norm_key(s):
+    return re.sub(r"[^a-z0-9]", "", s.lower())
+
+
+def apply_repo_learnsets(mons):
+    """Replace each mon's movepool with the curated Champions learnset (Serebii-
+    Champions, community-verified) from the dataset repo. pokebase lists the *full*
+    mainline movepool (e.g. Aegislash with Autotomize), which isn't Champions-legal;
+    the repo learnsets are reg-accurate. Mons the repo doesn't cover keep the pokebase
+    movepool (strictly >= current accuracy)."""
+    ls = fetch_champ_repo("learnsets/learnsets.json")
+    name_idx = {_norm_key(k): v.get("moves", []) for k, v in ls.items()}
+    dex_base = {}
+    for v in ls.values():
+        if str(v.get("form", "")).lower() in ("base", "normal", "") and v.get("dexNumber"):
+            dex_base.setdefault(v["dexNumber"], v.get("moves", []))
+
+    def candidates(m):
+        nm, fl = m["species"], m["formLabel"]
+        out = []
+        if m["isMega"]:
+            out.append(f"Mega {nm} X" if fl == "Mega X" else
+                       f"Mega {nm} Y" if fl == "Mega Y" else f"Mega {nm}")
+        if fl in ("Alolan", "Galarian", "Hisuian", "Paldean"):
+            out.append(f"{fl} {nm}")
+        if "Paldea" in fl:
+            out.append(f"Paldean {nm}")
+        if fl and not m["isMega"]:
+            out.append(f"{nm} {fl}")
+        out.append(nm)
+        return out
+
+    hits, miss = 0, []
+    for m in mons:
+        learn = None
+        for c in candidates(m):
+            learn = name_idx.get(_norm_key(c))
+            if learn:
+                break
+        if learn is None and not m["isMega"]:
+            learn = dex_base.get(m["dex"])
+        if learn:
+            m["_moves"] = sorted({slugify(x["name"]) for x in learn})
+            m["_movesrc"] = "repo"
+            hits += 1
+        else:
+            miss.append(m["slug"])  # keep pokebase movepool
+    print(f"\nLearnsets: {hits}/{len(mons)} from the Champions dataset, "
+          f"{len(miss)} kept pokebase{(' -> ' + ', '.join(miss)) if miss else ''}")
 
 
 def _between(page, a, b):
@@ -477,6 +529,7 @@ def fetch_pokemon(entry, species_cache):
         "isMega": entry["category"] == "mega",
         "available": entry["available"],
         "types": types, "stats": stats, "bst": bst,
+        "weight": round(p.get("weight", 0) / 10, 1),  # hectograms -> kg (Grass Knot etc.)
         "abilities": abilities, "_moves": moves,
         "gen": sp["gen"], "legendary": sp["legendary"],
         "mythical": sp["mythical"],
@@ -633,6 +686,9 @@ def main():
     print(f"Abilities: {len(mons) - len(afb)} mons from pokebase, {len(afb)} fell back "
           f"to PokeAPI{(' -> ' + ', '.join(afb)) if afb else ''}")
 
+    # Replace pokebase's mainline movepools with the curated Champions learnsets.
+    apply_repo_learnsets(mons)
+
     # ---- unique moves ----
     all_moves = sorted({m for mon in mons for m in mon["_moves"]})
     print(f"\nFetching {len(all_moves)} unique moves ...")
@@ -777,7 +833,7 @@ def main():
             "dex": mon["dex"], "formLabel": mon["formLabel"],
             "category": mon["category"], "isMega": mon["isMega"],
             "available": mon["available"], "types": mon["types"],
-            "stats": mon["stats"], "bst": mon["bst"],
+            "stats": mon["stats"], "bst": mon["bst"], "weight": mon["weight"],
             "abilities": [{"slug": a["slug"], "hidden": a["hidden"]}
                           for a in mon["abilities"]],
             "moves": sorted(ids),
@@ -804,6 +860,19 @@ def main():
         a = abil_meta[slug]
         abils_out[slug] = {"name": a["name"], "desc": a["desc"],
                            "count": abil_count[slug]}
+
+    # Distinguish forms whose *default* entry is itself a named form (e.g. dex 681 has
+    # "aegislash-shield" with no label next to "aegislash-blade"). For any unlabeled
+    # entry that shares its dex with another and whose slug carries a suffix beyond the
+    # bare species, derive the label from that suffix (Shield / Male / Zero / …). The
+    # shared-dex + suffix guards leave single hyphenated names (Kommo-o, Mr. Rime) alone.
+    dex_counts = collections.Counter(m["dex"] for m in out_mons)
+    for m in out_mons:
+        if m["formLabel"] or m["isMega"] or dex_counts[m["dex"]] < 2:
+            continue
+        prefix = slugify(m["name"]) + "-"
+        if m["slug"].startswith(prefix) and len(m["slug"]) > len(prefix):
+            m["formLabel"] = form_label(m["slug"][len(prefix):])
 
     out_mons.sort(key=lambda m: (m["dex"], 0 if not m["isMega"] else 1,
                                  m["formLabel"]))

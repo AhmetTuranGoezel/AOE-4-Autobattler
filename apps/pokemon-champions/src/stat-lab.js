@@ -33,31 +33,29 @@ export function ehpValues(mon, spread) {
   return cur;
 }
 
-// Best use of the REMAINING (unspent) points for a metric: keep everything the user
-// has already allocated (incl. offense) and distribute only the leftover into HP/Def/
-// SpD, brute-forcing the additions on top of the current bulk (each capped at 32).
+// The eHP optimizer OWNS the bulk stats (HP/Def/SpD) and re-derives them for the
+// chosen metric every time it's clicked, while KEEPING the user's offensive
+// investment (Atk/SpA/Speed). So Physical→Special→Mixed can be switched freely, and
+// the budget left for bulk is whatever isn't already spent on offense.
 export function optimizeSpread(mon, metric, current = emptySpread()) {
   const lv = statsFor(mon, "lv50");
-  const hp0 = current.hp || 0, def0 = current.def || 0, spd0 = current.spd || 0;
-  const rem = POOL - pointsUsed(current);
+  const atk = current.atk || 0, spa = current.spa || 0, spe = current.spe || 0;
+  const rem = POOL - (atk + spa + spe);   // points available for HP/Def/SpD
   const score = (h, d, s) => {
     const hp = lv.hp + h, phys = hp * (lv.def + d), spec = hp * (lv.spd + s);
     if (metric === "phys") return phys;
     if (metric === "spec") return spec;
     return phys + spec ? (2 * phys * spec) / (phys + spec) : 0;  // mixed (harmonic mean)
   };
-  let best = { h: hp0, d: def0, s: spd0, v: -1 };
-  const maxH = Math.min(CAP - hp0, rem);
-  for (let addH = 0; addH <= maxH; addH++) {
-    const maxD = Math.min(CAP - def0, rem - addH);
-    for (let addD = 0; addD <= maxD; addD++) {
-      const addS = Math.min(CAP - spd0, rem - addH - addD);
-      const h = hp0 + addH, d = def0 + addD, s = spd0 + addS;
+  let best = { h: 0, d: 0, s: 0, v: -1 };
+  for (let h = 0; h <= Math.min(CAP, rem); h++) {
+    for (let d = 0; d <= Math.min(CAP, rem - h); d++) {
+      const s = Math.min(CAP, rem - h - d);
       const v = score(h, d, s);
       if (v > best.v) best = { h, d, s, v };
     }
   }
-  return { ...current, hp: best.h, def: best.d, spd: best.s };
+  return { ...emptySpread(), atk, spa, spe, hp: best.h, def: best.d, spd: best.s };
 }
 
 // --- the three eHP cards (live region; updated by tick, never re-rendered) ---
@@ -119,11 +117,11 @@ export function renderStatRows(mon, spread) {
     ${metaNote}
     <ul class="why">${reasons}</ul>
     <div class="lab-actions">
-      <span class="lab-opt-lab">Best spread for eHP</span>
+      <span class="lab-opt-lab" title="Optimizes HP/Def/SpD for the chosen bulk; keeps your Atk/SpA/Speed points">Best spread for eHP</span>
       <div class="seg lab-opt">
-        <button data-pt-opt="phys">Physical</button>
-        <button data-pt-opt="spec">Special</button>
-        <button data-pt-opt="mixed">Mixed</button>
+        <button data-pt-opt="phys" title="Maximize physical eHP (HP·Def)">Physical</button>
+        <button data-pt-opt="spec" title="Maximize special eHP (HP·SpD)">Special</button>
+        <button data-pt-opt="mixed" title="Maximize mixed eHP (balanced Def/SpD)">Mixed</button>
       </div>
       <button class="btn-sm lab-reset" data-pt-reset>Clear all</button>
     </div>

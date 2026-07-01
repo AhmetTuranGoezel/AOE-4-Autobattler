@@ -472,6 +472,8 @@ td.wasted { color: #d9685b; font-weight: 600; }
 .mv-flags { display: flex; flex-wrap: wrap; gap: 3px; max-width: 180px; }
 .mflag { font-size: 0.6rem; font-weight: 700; background: #2e2e34; color: #c9c9d2; padding: 1px 6px; border-radius: 4px; white-space: nowrap; }
 .mv-eff { max-width: 300px; color: var(--muted); font-size: 0.78rem; line-height: 1.4; white-space: normal; }
+.mv-varies { font-size: 0.66rem; font-weight: 700; font-style: italic; color: var(--accent-2); }
+.wt-bp { display: block; color: var(--muted); font-size: 0.62rem; font-weight: 600; }
 .mv-chance { display: inline-block; font-weight: 800; font-size: 0.68rem; color: var(--accent-2); background: color-mix(in srgb, var(--accent-2) 16%, transparent); border-radius: 4px; padding: 0 4px; }
 
 /* move targets — spread targets (hit >1 Pokémon) are highlighted in gold */
@@ -827,20 +829,113 @@ td.wasted { color: #d9685b; font-weight: 600; }
 
 /* ---------- responsive ---------- */
 .btn#btn-filters { display: none; }
+.filters-head-btns { display: flex; align-items: center; gap: 6px; }
+.filters-close { display: none; }
+.filters-backdrop { display: none; }
+
+/* Tablet & below: the filters sidebar becomes an off-canvas drawer with a backdrop. */
 @media (max-width: 920px) {
   .detail-grid { grid-template-columns: 1fr; }
   .compare-grid { grid-template-columns: 1fr; }
   .filters {
-    position: fixed; top: 0; left: 0; height: 100vh; z-index: 50; width: 290px;
+    position: fixed; top: 0; left: 0; height: 100dvh; z-index: 50; width: min(88vw, 320px);
     background: var(--panel); transform: translateX(-105%); transition: transform 0.25s;
-    box-shadow: 10px 0 40px rgba(0,0,0,0.4);
+    box-shadow: 10px 0 40px rgba(0,0,0,0.45); -webkit-overflow-scrolling: touch;
   }
   .filters.open { transform: none; }
   .btn#btn-filters { display: inline-flex; }
+  .filters-close { display: inline-flex; }
+  .filters-backdrop:not([hidden]) {
+    display: block; position: fixed; inset: 0; z-index: 49;
+    background: rgba(0,0,0,0.5); backdrop-filter: blur(2px);
+  }
+  /* Wide data tables scroll inside their own region so they never force horizontal
+     page scroll (the roster stays a table on tablets; on phones it's the card grid).
+     Viewport-sticky header is traded away below 920px. */
+  #results, #moves-results, #abilities-results { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 }
-@media (max-width: 560px) {
-  .toolbar { gap: 8px; }
-  .search { max-width: none; }
-  .detail { padding: 16px 8px; }
-  .detail-card { padding: 16px; }
+
+/* Phone: the main pass. Roster defaults to the card grid (set in app.js). */
+@media (max-width: 640px) {
+  /* topbar / tabs / toolbars */
+  .topbar { padding: 10px 12px; }
+  h1 { font-size: 1.05rem; }
+  .brand { gap: 6px 10px; }
+  .meta { display: none; }
+  .tabs { margin-left: 0; max-width: 100%; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { padding: 8px 13px; font-size: 0.82rem; white-space: nowrap; }
+  .toolbar { gap: 8px; margin-top: 10px; }
+  .search { flex: 1 1 160px; max-width: none; min-width: 0; }
+  .tb-toggles { width: 100%; gap: 8px; }
+  .tb-right { width: 100%; margin-left: 0; justify-content: flex-start; }
+  .seg button { padding: 9px 12px; }
+  .btn, .btn-sm { padding: 9px 12px; }
+
+  /* roster cards */
+  .results { padding: 12px 12px 96px; }
+  .grid-view { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .pcard { padding: 10px; border-radius: 12px; }
+  .pcard-art { width: 74px; height: 74px; }
+  .pcard-name { font-size: 0.92rem; }
+
+  /* detail panel -> full-bleed sheet */
+  .detail { padding: 0; }
+  .detail-body { max-width: 100%; }
+  .detail-card { padding: 14px; border-radius: 0; min-height: 100dvh; }
+  .detail-head { gap: 12px; }
+  .detail-art { width: 92px; height: 92px; }
+  .detail-name { font-size: 1.15rem; }
+  .detail-totals { gap: 14px; flex-wrap: wrap; }
+  .radar { max-width: 100%; }
+  .dm-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .sim-list { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+
+  /* stat lab: stack each stepper row (label+values / bar / controls) */
+  .pt-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--border); }
+  .pt-lab { order: 1; flex: 1 1 auto; }
+  .pt-rl { order: 2; text-align: right; }
+  .pt-bar { order: 3; flex: 1 1 100%; }
+  .pt-step { order: 4; }
+  .pt-max { order: 5; }
+  .pt-x { order: 6; }
+  .pt-pm { width: 34px; height: 32px; }
+  .pt-num { width: 46px; height: 32px; }
+  .pt-max, .pt-x { height: 32px; }
+
+  /* popups */
+  .popup { padding: 12px 10px; }
+  .popup-body { max-width: 100%; }
+  .info-card { padding: 16px; border-radius: 14px; }
+  .info-head h3 { font-size: 1.1rem; }
+  .info-stats { grid-template-columns: repeat(3, 1fr); }
+
+  /* compare overlay + bottom bar */
+  .compare-card { padding: 16px; }
+  .compare-table thead img { width: 40px; height: 40px; }
+  .compare-bar { flex-wrap: wrap; padding: 8px 10px; gap: 8px; }
+  .cmp-chips { flex: 1 1 100%; max-height: 84px; overflow-y: auto; }
+  .cmp-actions { width: 100%; }
+  .cmp-actions > .btn, .cmp-actions > .btn-sm { flex: 1; justify-content: center; }
+
+  /* coverage */
+  .cov-sec-note, .lab-hint { font-size: 0.72rem; }
+  .type-chip .type { padding: 9px 12px; min-width: 60px; font-size: 0.78rem; }
+  .cov-next-cols { display: none; }
+  .cov-next-row { display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
+  .cov-next-row .def-badge.sm { align-self: flex-start; }
+  .cov-bar-cell { width: 100%; }
+  .cov-neu { text-align: right; }
+  .lab-actions { gap: 8px; }
+  .lab-reset { margin-left: 0; }
+
+  /* team */
+  .team-slot { width: calc(50% - 5px); }
+}
+
+@media (max-width: 380px) {
+  h1 { font-size: 0.98rem; }
+  .grid-view { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); }
+  .info-stats { grid-template-columns: repeat(2, 1fr); }
+  .ehp-cards { grid-template-columns: 1fr; }
 }

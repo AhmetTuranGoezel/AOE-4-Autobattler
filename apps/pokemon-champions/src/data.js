@@ -1,7 +1,9 @@
 // Data loading + small shared helpers.
 
 export async function loadData() {
-  const res = await fetch("./champions-data.json");
+  // `no-cache` = revalidate every load (cheap 304 when unchanged) so a data regen
+  // always reaches the browser instead of a stale cached champions-data.json.
+  const res = await fetch("./champions-data.json", { cache: "no-cache" });
   if (!res.ok) throw new Error(`Failed to load data (${res.status})`);
   const d = await res.json();
   d.total = d.pokemon.length;
@@ -71,3 +73,11 @@ export const SPREAD_TARGETS = new Set([
 ]);
 export const targetLabel = (t) => TARGET_LABELS[t] || (t ? t.replace(/-/g, " ") : "—");
 export const isSpread = (t) => SPREAD_TARGETS.has(t);
+
+// Base power of weight-based moves (Grass Knot, Low Kick) against a target of the
+// given weight in kg — the standard breakpoint table.
+export const GRASS_KNOT_BP = [[10, 20], [25, 40], [50, 60], [100, 80], [200, 100]];
+export function grassKnotBP(kg) {
+  for (const [max, bp] of GRASS_KNOT_BP) if (kg < max) return bp;
+  return 120;
+}

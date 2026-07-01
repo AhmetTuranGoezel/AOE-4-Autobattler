@@ -58,6 +58,7 @@ async function init() {
     buildWeights();
     setupTabs();
     bindGlobal();
+    setupMobileView();
     render();
     $("#status").style.display = "none";
     $("#app").style.display = "flex";
@@ -138,14 +139,31 @@ function buildToolbar() {
     if (state.selected) openDetail(state.selected);
   }));
 
-  $("#btn-filters").addEventListener("click", () =>
-    $("#filters").classList.toggle("open"));
+  $("#btn-filters").addEventListener("click", () => toggleFilters());
+  $("#filters-close").addEventListener("click", () => toggleFilters(false));
+  $("#filters-backdrop").addEventListener("click", () => toggleFilters(false));
 }
 
-function setView(v) {
+// Filters drawer (mobile/tablet): open with a dimmed backdrop; close on ✕, backdrop tap, or Escape.
+function toggleFilters(force) {
+  const open = force === undefined ? !$("#filters").classList.contains("open") : force;
+  $("#filters").classList.toggle("open", open);
+  $("#filters-backdrop").hidden = !open;
+}
+
+// The roster table has 12+ columns and can't fit a phone, so default to the card
+// (grid) view on small screens and switch automatically when crossing the breakpoint.
+function setupMobileView() {
+  const mq = window.matchMedia("(max-width: 640px)");
+  if (mq.matches) setView("grid", true);   // init render() runs right after
+  mq.addEventListener("change", (e) => setView(e.matches ? "grid" : "table"));
+}
+
+function setView(v, skipRender) {
   state.view = v;
   $("#view-table").classList.toggle("active", v === "table");
   $("#view-grid").classList.toggle("active", v === "grid");
+  if (skipRender) return;
   render();
 }
 
@@ -646,6 +664,7 @@ function bindGlobal() {
     if (e.key !== "Escape") return;
     if ($("#compare").classList.contains("open")) closeCompare();
     else if ($("#popup").classList.contains("open")) closePopup();
+    else if ($("#filters").classList.contains("open")) toggleFilters(false);
     else closeDetail();
   });
 }
@@ -654,7 +673,7 @@ function applyAbilityFilter(slug) {
   state.filters.abilities.add(slug);
   renderAbilityChips();
   closeDetail();
-  $("#filters").classList.add("open");
+  toggleFilters(true);
   render();
 }
 
@@ -663,7 +682,7 @@ function applyMoveFilter(id) {
   const meta = state.data.moves[id];
   if (meta) { $("#f-move").value = meta.name; setNote("#move-note", `${meta.count} Pokémon learn this`); }
   closeDetail();
-  $("#filters").classList.add("open");
+  toggleFilters(true);
   render();
 }
 

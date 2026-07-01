@@ -201,7 +201,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
         <td>${m.type ? `<span class="type" style="background:${TYPE_COLORS[m.type]}">${m.type}</span>` : "—"}</td>
         <td><span class="mv-class mv-${m.class}" title="${m.class}">${cat}</span></td>
         <td class="mv-tg">${tgt}</td>
-        <td class="num">${m.power ?? "—"}</td>
+        <td class="num">${m.power == null ? (m.class === "status" ? "—" : '<span class="mv-varies" title="Power varies — see effect">varies</span>') : m.power}</td>
         <td class="num">${m.accuracy ?? "—"}</td>
         <td class="num">${m.pp ?? "—"}</td>
         <td class="num">${m.priority ? (m.priority > 0 ? "+" + m.priority : m.priority) : "0"}</td>
