@@ -58,8 +58,14 @@
     </header>
 
     <div class="main">
+      <div id="filters-backdrop" class="filters-backdrop" hidden></div>
       <aside id="filters" class="filters">
-        <div class="filters-head"><h2>Filters</h2><button id="btn-reset" class="btn-sm">Reset all</button></div>
+        <div class="filters-head"><h2>Filters</h2>
+          <div class="filters-head-btns">
+            <button id="btn-reset" class="btn-sm">Reset all</button>
+            <button id="filters-close" class="btn-sm filters-close" aria-label="Close filters">✕</button>
+          </div>
+        </div>
 
         <div class="fgroup wt-group">
           <button class="wt-toggle" id="wt-toggle" aria-expanded="false">

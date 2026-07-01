@@ -95,7 +95,27 @@
       "Bash(ls apps/pokemon-champions/*.mjs apps/pokemon-champions/tools/*.mjs)",
       "Bash(rm -f tools/_verify.py tools/_shot_compare.png)",
       "Bash(ls tools/_verify.py)",
-      "Bash(ls tools/_shot_compare.png)"
+      "Bash(ls tools/_shot_compare.png)",
+      "Bash(python tools/generate_data.py)",
+      "Bash(python -c ' *)",
+      "Bash(cd:*)",
+      "Bash(tail:*)",
+      "Bash(head:*)",
+      "Bash(grep:*)",
+      "Bash(cat:*)",
+      "Bash(ls:*)",
+      "Bash(echo:*)",
+      "Bash(sleep:*)",
+      "Bash(mkdir:*)",
+      "Bash(sed:*)",
+      "Bash(wc:*)",
+      "Bash(rm -f:*)",
+      "Bash(kill:*)",
+      "Bash(pkill:*)",
+      "Bash(taskkill:*)",
+      "Bash(netstat:*)",
+      "PowerShell(Get-NetTCPConnection:*)",
+      "PowerShell(Stop-Process:*)"
     ]
   }
 }

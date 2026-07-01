@@ -1,7 +1,7 @@
 // Detail panel for a selected Pokemon: radar, cleaned-stat breakdown,
 // abilities + moves with rarity, and "find similar".
 import { statScaleMax } from "./effective-stats.js";
-import { displayName, rarityTier, TYPE_COLORS, GEN_LABEL } from "./data.js";
+import { displayName, rarityTier, TYPE_COLORS, GEN_LABEL, grassKnotBP } from "./data.js";
 import { renderRadar } from "./radar.js";
 import { findSimilar } from "./similarity.js";
 import { typeBadges, ROLE_META } from "./table.js";
@@ -41,7 +41,7 @@ function moveRow(id, data) {
     <td class="dm-name"><button class="lens" data-move-filter="${id}" title="Find Pokémon that learn this">🔍</button>${mv.name}</td>
     <td>${type}</td>
     <td><span class="mv-class mv-${mv.class}" title="${mv.class}">${mv.class[0].toUpperCase()}</span></td>
-    <td class="num">${mv.power ?? "—"}</td>
+    <td class="num">${mv.power == null ? (mv.class === "status" ? "—" : '<span class="mv-varies">var</span>') : mv.power}</td>
     <td class="num"><span class="rarity ${r.cls}">${mv.count}</span></td>
   </tr>`;
 }
@@ -94,6 +94,8 @@ export function renderDetail(mon, { data, all, simCtx, statMode, spread }) {
           <div><span class="t-lab">${statMode === "lv50" ? "Total" : "BST"}</span><span class="t-val">${e.bst}</span></div>
           <div class="hl"><span class="t-lab">Cleaned total</span><span class="t-val">${e.cleaned}</span></div>
           <div class="wst"><span class="t-lab">Wasted</span><span class="t-val">${e.wasted}</span></div>
+          ${mon.weight != null ? `<div title="Weight ${mon.weight} kg → Grass Knot / Low Kick hit this Pokémon for ${grassKnotBP(mon.weight)} base power (20≤10kg · 40≤25 · 60≤50 · 80≤100 · 100≤200 · 120>200)">
+            <span class="t-lab">Weight</span><span class="t-val">${mon.weight} kg <small class="wt-bp">Grass Knot ${grassKnotBP(mon.weight)} BP</small></span></div>` : ""}
         </div>
         <div class="detail-actions">
           <button class="btn cmp-detail" data-cmp="${mon.slug}" data-cmp-icon>＋ Compare</button>

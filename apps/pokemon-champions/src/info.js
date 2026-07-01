@@ -24,7 +24,7 @@ export function renderMovePopup(move, learners, total) {
       <span class="rarity ${r.cls}">${r.label} · ${move.count} learn it</span>
     </div>
     <div class="info-stats">
-      <div><span class="t-lab">Power</span><span class="t-val">${move.power ?? "—"}</span></div>
+      <div><span class="t-lab">Power</span><span class="t-val">${move.power == null ? (move.class === "status" ? "—" : '<span class="mv-varies">varies</span>') : move.power}</span></div>
       <div><span class="t-lab">Accuracy</span><span class="t-val">${move.accuracy ?? "—"}</span></div>
       <div><span class="t-lab">PP</span><span class="t-val">${move.pp ?? "—"}</span></div>
       <div><span class="t-lab">Priority</span><span class="t-val">${prio}</span></div>
