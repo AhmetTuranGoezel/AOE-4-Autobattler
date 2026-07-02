@@ -13,6 +13,7 @@ import { initMovesView } from "./moves-view.js";
 import { initAbilitiesView } from "./abilities-view.js";
 import { initCalcView } from "./calc-view.js";
 import { renderTeamView, TEAM_MAX } from "./team-view.js";
+import { attachAutocomplete } from "./autocomplete.js";
 import { initCoverageView } from "./coverage-view.js";
 import { renderMovePopup, renderAbilityPopup } from "./info.js";
 import { renderCompare } from "./compare.js";
@@ -34,7 +35,8 @@ const state = {
   compare: [],
   compareAnchor: null,   // slug used as the comparison baseline
   cmpMoves: "all",       // movepool matrix filter: "all" | "diff"
-  team: [],              // slugs (persisted)
+  team: [],              // [{ slug, moves: [moveId,...] }] (working team, persisted)
+  savedTeams: [],        // [{ id, name, members: [{slug,moves}] }] (persisted)
   selected: null,
   spread: emptySpread(), // eHP stat-point lab allocation for the open detail panel
   moveByName: new Map(),
@@ -51,6 +53,7 @@ async function init() {
     state.all = data.pokemon;
     for (const m of state.all) { m._display = displayName(m); state.bySlug.set(m.slug, m); }
     loadTeam();
+    loadSavedTeams();
     state.simCtx = buildSimContext(state.all);
     recomputeEffective();
     buildToolbar();
@@ -525,31 +528,124 @@ function openCompare() {
 const closeCompare = () => $("#compare").classList.remove("open");
 
 // ---------------------------------------------------------------- team
-const TEAM_KEY = "pc-team";
+const TEAM_KEY = "pc-team";       // working team
+const TEAMS_KEY = "pc-teams";     // saved teams
+
+// Coerce a stored member to {slug, moves[]}; supports the old string-array format.
+function normMember(m) {
+  const slug = typeof m === "string" ? m : m && m.slug;
+  if (!slug || !state.bySlug.has(slug)) return null;
+  const moves = (m && Array.isArray(m.moves) ? m.moves : [])
+    .filter((id) => state.data.moves[id]).slice(0, 4);
+  return { slug, moves };
+}
 function loadTeam() {
   try {
     const arr = JSON.parse(localStorage.getItem(TEAM_KEY) || "[]");
-    state.team = arr.filter((s) => state.bySlug.has(s)).slice(0, TEAM_MAX);
+    state.team = arr.map(normMember).filter(Boolean).slice(0, TEAM_MAX);
+    saveTeam();  // upgrade legacy string-array storage to the {slug,moves} format
   } catch { state.team = []; }
 }
 function saveTeam() { try { localStorage.setItem(TEAM_KEY, JSON.stringify(state.team)); } catch { /* ignore */ } }
-function toggleTeam(slug) {
-  const i = state.team.indexOf(slug);
-  if (i >= 0) state.team.splice(i, 1);
-  else if (state.team.length < TEAM_MAX) state.team.push(slug);
-  saveTeam();
-  if (teamInited) renderTeam();
-  syncTeamButtons();
+function loadSavedTeams() {
+  try {
+    const arr = JSON.parse(localStorage.getItem(TEAMS_KEY) || "[]");
+    state.savedTeams = arr.map((t) => ({
+      id: t.id || String(Date.now() + Math.random()),
+      name: String(t.name || "Team"),
+      members: (t.members || []).map(normMember).filter(Boolean).slice(0, TEAM_MAX),
+    }));
+  } catch { state.savedTeams = []; }
 }
+function persistSavedTeams() { try { localStorage.setItem(TEAMS_KEY, JSON.stringify(state.savedTeams)); } catch { /* ignore */ } }
+
+function teamAfterChange() { saveTeam(); if (teamInited) renderTeam(); syncTeamButtons(); }
+
+function toggleTeam(slug) {
+  const i = state.team.findIndex((t) => t.slug === slug);
+  if (i >= 0) state.team.splice(i, 1);
+  else if (state.team.length < TEAM_MAX) state.team.push({ slug, moves: [] });
+  teamAfterChange();
+}
+function addMove(slug, id) {
+  const t = state.team.find((x) => x.slug === slug);
+  const mon = state.bySlug.get(slug);
+  if (!t || !mon || !mon.moves.includes(id) || t.moves.includes(id) || t.moves.length >= 4) return;
+  t.moves.push(id);
+  teamAfterChange();
+}
+function removeMove(slug, id) {
+  const t = state.team.find((x) => x.slug === slug);
+  if (!t) return;
+  t.moves = t.moves.filter((m) => m !== id);
+  teamAfterChange();
+}
+function clearTeam() { state.team = []; teamAfterChange(); }
+function saveWorkingTeam(name) {
+  name = (name || "").trim();
+  if (!name || !state.team.length) return;
+  const members = state.team.map((t) => ({ slug: t.slug, moves: [...t.moves] }));
+  const existing = state.savedTeams.find((t) => t.name.toLowerCase() === name.toLowerCase());
+  if (existing) existing.members = members;
+  else state.savedTeams.push({ id: String(Date.now()) + Math.random().toString(36).slice(2), name, members });
+  persistSavedTeams();
+  renderTeam();
+}
+function loadSavedTeam(id) {
+  const t = state.savedTeams.find((x) => x.id === id);
+  if (!t) return;
+  state.team = t.members.map((m) => ({ slug: m.slug, moves: [...m.moves] })).slice(0, TEAM_MAX);
+  teamAfterChange();
+}
+function deleteSavedTeam(id) {
+  state.savedTeams = state.savedTeams.filter((x) => x.id !== id);
+  persistSavedTeams();
+  renderTeam();
+}
+
 function renderTeam() {
-  const mons = state.team.map((s) => state.bySlug.get(s)).filter(Boolean);
-  renderTeamView($("#team-results"), { data: state.data, team: mons });
+  const team = state.team
+    .map((t) => ({ mon: state.bySlug.get(t.slug), moveIds: t.moves }))
+    .filter((x) => x.mon);
+  renderTeamView($("#team-results"), { data: state.data, team, savedTeams: state.savedTeams });
+  attachTeamAutocompletes();
 }
 function syncTeamButtons() {
   document.querySelectorAll("[data-team]").forEach((b) => {
-    const on = state.team.includes(b.dataset.team);
+    const on = state.team.some((t) => t.slug === b.dataset.team);
     b.classList.toggle("on", on);
     if (b.hasAttribute("data-team-icon")) b.textContent = on ? "✓ In team" : "＋ Team";
+  });
+}
+
+// Wire the icon dropdowns after each team render (inputs are freshly created).
+let teamDetachers = [];
+function attachTeamAutocompletes() {
+  teamDetachers.forEach((d) => d());
+  teamDetachers = [];
+  const add = $("#team-results .team-add");
+  if (add && !add.disabled) {
+    teamDetachers.push(attachAutocomplete(add, {
+      items: () => state.all
+        .filter((m) => m.available !== false && !state.team.some((t) => t.slug === m.slug))
+        .map((m) => ({ value: m.slug, name: m._display,
+          icon: `<img src="${m.sprite || m.artwork || ""}" alt="">` })),
+      onPick: toggleTeam,
+    }));
+  }
+  $$("#team-results .tm-move-add").forEach((inp) => {
+    const slug = inp.dataset.slug;
+    const mon = state.bySlug.get(slug);
+    if (!mon) return;
+    const chosen = new Set(state.team.find((t) => t.slug === slug)?.moves || []);
+    teamDetachers.push(attachAutocomplete(inp, {
+      items: () => mon.moves
+        .map((id) => ({ id, mv: state.data.moves[id] }))
+        .filter((x) => x.mv && !chosen.has(x.id))
+        .map((x) => ({ value: x.id, name: x.mv.name,
+          icon: x.mv.type ? `<span class="type tiny" style="background:${TYPE_COLORS[x.mv.type]}">${x.mv.type}</span>` : "" })),
+      onPick: (id) => addMove(slug, Number(id)),
+    }));
   });
 }
 
@@ -727,16 +823,23 @@ function switchTab(tab) {
   if (tab === "team" && !teamInited) {
     teamInited = true;
     const tc = $("#team-results");
-    tc.addEventListener("change", (e) => {
-      if (!e.target.classList.contains("team-add")) return;
-      const slug = tc._nameToSlug?.get(e.target.value.trim().toLowerCase());
-      if (slug && !state.team.includes(slug)) toggleTeam(slug);
-      e.target.value = "";
-    });
     tc.addEventListener("click", (e) => {
       const rm = e.target.closest("[data-team-remove]");
       if (rm) { toggleTeam(rm.dataset.teamRemove); return; }
-      const row = e.target.closest(".team-slot[data-slug], .spd-row[data-slug]");
+      const mr = e.target.closest("[data-move-remove]");
+      if (mr) { removeMove(mr.dataset.slug, Number(mr.dataset.moveRemove)); return; }
+      const lt = e.target.closest("[data-load-team]");
+      if (lt) { loadSavedTeam(lt.dataset.loadTeam); return; }
+      const dt = e.target.closest("[data-del-team]");
+      if (dt) { deleteSavedTeam(dt.dataset.delTeam); return; }
+      if (e.target.closest("[data-new-team]")) { clearTeam(); return; }
+      if (e.target.closest("[data-save-team]")) {
+        saveWorkingTeam($("#team-results .team-name")?.value);
+        return;
+      }
+      const open = e.target.closest("[data-open]");
+      if (open) { openDetail(open.dataset.open); return; }
+      const row = e.target.closest(".spd-row[data-slug]");
       if (row) openDetail(row.dataset.slug);
     });
     renderTeam();
