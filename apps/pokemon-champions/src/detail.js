@@ -46,11 +46,41 @@ function moveRow(id, data) {
   </tr>`;
 }
 
-export function renderDetail(mon, { data, all, simCtx, statMode, spread }) {
+// Derive a shiny artwork/sprite URL from a PokeAPI sprite path by inserting /shiny/.
+function shinyUrl(url) {
+  if (!url) return "";
+  if (url.includes("/official-artwork/")) return url.replace("/official-artwork/", "/official-artwork/shiny/");
+  return url.replace("/pokemon/", "/pokemon/shiny/");
+}
+
+export function renderDetail(mon, { data, all, simCtx, statMode, spread, detailShiny }) {
   const e = mon._eff;
   const role = ROLE_META[e.role];
   const max = statScaleMax(statMode);
   const sp = spread || emptySpread();
+  const shiny = !!detailShiny;
+
+  // Shiny artwork with a graceful fallback: shiny art → shiny sprite → normal art.
+  const artNormal = mon.artwork || mon.sprite || "";
+  const artSrc = shiny ? shinyUrl(mon.artwork || mon.sprite || "") : artNormal;
+  const artOnErr = shiny
+    ? `this.onerror=function(){this.onerror=null;this.src='${artNormal}'};this.src='${shinyUrl(mon.sprite || "")}'`
+    : `this.onerror=null;this.src='${mon.sprite || ""}'`;
+
+  // Form switch: base ⇄ its Mega form(s), sharing the National Dex number.
+  const base = all.find((m) => m.dex === mon.dex && !m.isMega);
+  const megas = all.filter((m) => m.dex === mon.dex && m.isMega);
+  const formList = [];
+  if (base) formList.push(base);
+  formList.push(...megas);
+  const formBtns = formList.length > 1 ? formList.map((f) => {
+    const label = f.isMega ? (f.formLabel || "Mega") : "Base";
+    return `<button class="df-btn ${f.slug === mon.slug ? "on" : ""}" data-form="${f.slug}">${label}</button>`;
+  }).join("") : "";
+  const formBar = `<div class="detail-forms">
+    <button class="df-btn ${shiny ? "on" : ""}" data-shiny title="Toggle shiny artwork">✨ Shiny</button>
+    ${formBtns}
+  </div>`;
 
   const usePct = new Map((mon.usage?.abilities || []).map(([n, p]) => [n, p]));
   const abilities = mon.abilities.map((a) => {
@@ -85,7 +115,10 @@ export function renderDetail(mon, { data, all, simCtx, statMode, spread }) {
   return `<div class="detail-card">
     <button class="detail-close" data-close aria-label="Close">✕</button>
     <div class="detail-head">
-      <img class="detail-art" alt="" src="${mon.artwork || mon.sprite || ""}">
+      <div class="detail-artwrap">
+        <img class="detail-art ${shiny ? "is-shiny" : ""}" alt="" src="${artSrc}" onerror="${artOnErr}">
+        ${formBar}
+      </div>
       <div class="detail-meta">
         <div class="detail-name">${displayName(mon)} ${mon.isMega ? '<span class="mega-badge">MEGA</span>' : ""}</div>
         <div class="detail-sub">#${mon.dex} · ${GEN_LABEL(mon.gen)} · <span class="role ${role.cls}">${role.label}</span></div>

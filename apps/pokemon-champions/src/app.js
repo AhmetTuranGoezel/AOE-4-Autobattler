@@ -14,6 +14,7 @@ import { initAbilitiesView } from "./abilities-view.js";
 import { initCalcView } from "./calc-view.js";
 import { renderTeamView, TEAM_MAX } from "./team-view.js";
 import { attachAutocomplete } from "./autocomplete.js";
+import { typingAbilities, defaultAbility } from "./type-defense.js";
 import { initCoverageView } from "./coverage-view.js";
 import { renderMovePopup, renderAbilityPopup } from "./info.js";
 import { renderCompare } from "./compare.js";
@@ -390,13 +391,20 @@ function applyWeights() {
 function openDetail(slug) {
   const mon = state.bySlug.get(slug);
   if (!mon) return;
+  const prev = state.bySlug.get(state.selected);
   if (slug !== state.selected) state.spread = emptySpread(); // fresh mon → fresh points
+  if (!prev || prev.dex !== mon.dex) state.detailShiny = false; // reset shiny only for a new species (keep across base⇄mega)
   state.selected = slug;
   $("#detail-body").innerHTML = renderDetail(mon, state);
   $("#detail").classList.add("open");
   syncCmpButtons();
   syncTeamButtons();
   filterDetailMoves(); // apply the default (type-grouped) move ordering
+}
+
+function toggleDetailShiny() {
+  state.detailShiny = !state.detailShiny;
+  if (state.selected) openDetail(state.selected);
 }
 
 // --- eHP stat-point lab (inside the detail panel) ---
@@ -531,13 +539,18 @@ const closeCompare = () => $("#compare").classList.remove("open");
 const TEAM_KEY = "pc-team";       // working team
 const TEAMS_KEY = "pc-teams";     // saved teams
 
-// Coerce a stored member to {slug, moves[]}; supports the old string-array format.
+// Coerce a stored member to {slug, moves[], ability}; supports the old string-array
+// and the {slug,moves} formats. ability: null = types-only, else a typing-ability slug.
 function normMember(m) {
   const slug = typeof m === "string" ? m : m && m.slug;
   if (!slug || !state.bySlug.has(slug)) return null;
+  const mon = state.bySlug.get(slug);
   const moves = (m && Array.isArray(m.moves) ? m.moves : [])
     .filter((id) => state.data.moves[id]).slice(0, 4);
-  return { slug, moves };
+  let ability = m && typeof m === "object" && "ability" in m ? m.ability : undefined;
+  if (ability === undefined) ability = defaultAbility(mon);
+  else if (ability !== null && !typingAbilities(mon).includes(ability)) ability = defaultAbility(mon);
+  return { slug, moves, ability };
 }
 function loadTeam() {
   try {
@@ -564,7 +577,13 @@ function teamAfterChange() { saveTeam(); if (teamInited) renderTeam(); syncTeamB
 function toggleTeam(slug) {
   const i = state.team.findIndex((t) => t.slug === slug);
   if (i >= 0) state.team.splice(i, 1);
-  else if (state.team.length < TEAM_MAX) state.team.push({ slug, moves: [] });
+  else if (state.team.length < TEAM_MAX) state.team.push({ slug, moves: [], ability: defaultAbility(state.bySlug.get(slug)) });
+  teamAfterChange();
+}
+function setMemberAbility(slug, ability) {
+  const t = state.team.find((x) => x.slug === slug);
+  if (!t) return;
+  t.ability = ability === "null" ? null : ability;
   teamAfterChange();
 }
 function addMove(slug, id) {
@@ -584,7 +603,7 @@ function clearTeam() { state.team = []; teamAfterChange(); }
 function saveWorkingTeam(name) {
   name = (name || "").trim();
   if (!name || !state.team.length) return;
-  const members = state.team.map((t) => ({ slug: t.slug, moves: [...t.moves] }));
+  const members = state.team.map((t) => ({ slug: t.slug, moves: [...t.moves], ability: t.ability }));
   const existing = state.savedTeams.find((t) => t.name.toLowerCase() === name.toLowerCase());
   if (existing) existing.members = members;
   else state.savedTeams.push({ id: String(Date.now()) + Math.random().toString(36).slice(2), name, members });
@@ -594,7 +613,7 @@ function saveWorkingTeam(name) {
 function loadSavedTeam(id) {
   const t = state.savedTeams.find((x) => x.id === id);
   if (!t) return;
-  state.team = t.members.map((m) => ({ slug: m.slug, moves: [...m.moves] })).slice(0, TEAM_MAX);
+  state.team = t.members.map((m) => ({ slug: m.slug, moves: [...m.moves], ability: m.ability })).slice(0, TEAM_MAX);
   teamAfterChange();
 }
 function deleteSavedTeam(id) {
@@ -605,7 +624,7 @@ function deleteSavedTeam(id) {
 
 function renderTeam() {
   const team = state.team
-    .map((t) => ({ mon: state.bySlug.get(t.slug), moveIds: t.moves }))
+    .map((t) => ({ mon: state.bySlug.get(t.slug), moveIds: t.moves, ability: t.ability }))
     .filter((x) => x.mon);
   renderTeamView($("#team-results"), { data: state.data, team, savedTeams: state.savedTeams });
   attachTeamAutocompletes();
@@ -692,6 +711,9 @@ function bindGlobal() {
   });
   $("#detail").addEventListener("click", (e) => {
     if (e.target.id === "detail" || e.target.dataset.close !== undefined) { closeDetail(); return; }
+    if (e.target.closest("[data-shiny]")) { toggleDetailShiny(); return; }
+    const fm = e.target.closest("[data-form]");
+    if (fm) { openDetail(fm.dataset.form); $("#detail-body").scrollTop = 0; return; }
     const th = e.target.closest(".dm-table th[data-dsort]");
     if (th) { detailSort(th); return; }
     // eHP stat-point lab controls
@@ -818,7 +840,7 @@ function switchTab(tab) {
 
   if (tab === "calc" && !calcInited) {
     calcInited = true;
-    initCalcView({ container: $("#calc-results"), data: state.data });
+    initCalcView({ container: $("#calc-results"), data: state.data, onOpen: openDetail, onMoveInfo: openMovePopup });
   }
   if (tab === "team" && !teamInited) {
     teamInited = true;
@@ -828,6 +850,10 @@ function switchTab(tab) {
       if (rm) { toggleTeam(rm.dataset.teamRemove); return; }
       const mr = e.target.closest("[data-move-remove]");
       if (mr) { removeMove(mr.dataset.slug, Number(mr.dataset.moveRemove)); return; }
+      const mi = e.target.closest("[data-move-info]");
+      if (mi) { openMovePopup(Number(mi.dataset.moveInfo)); return; }
+      const sa = e.target.closest("[data-set-ability]");
+      if (sa) { setMemberAbility(sa.dataset.slug, sa.dataset.setAbility); return; }
       const lt = e.target.closest("[data-load-team]");
       if (lt) { loadSavedTeam(lt.dataset.loadTeam); return; }
       const dt = e.target.closest("[data-del-team]");
