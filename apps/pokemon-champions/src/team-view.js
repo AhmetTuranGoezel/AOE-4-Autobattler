@@ -4,6 +4,7 @@
 // and attaches the add/move autocompletes after each render.
 import { TYPES, TYPE_COLORS, displayName } from "./data.js";
 import { statsFor, roleOf, speedTier } from "./effective-stats.js";
+import { typingAbilities, applyAbility } from "./type-defense.js";
 
 export const TEAM_MAX = 6;
 const ROLE_LABELS = { physical: "Physical", special: "Special", mixed: "Mixed", defensive: "Defensive" };
@@ -53,18 +54,25 @@ export function renderTeamView(container, { data, team, savedTeams = [] }) {
     <span class="team-count">${team.length} / ${TEAM_MAX}</span>
   </div>`;
 
-  // --- member cards (sprite + types + moveset) ---
-  const members = team.map(({ mon, moveIds }) => {
+  // --- member cards (sprite + types + ability + moveset) ---
+  const members = team.map(({ mon, moveIds, ability }) => {
     const chips = moveIds.map((id) => {
       const mv = data.moves[id];
       if (!mv) return "";
-      return `<span class="tm-move" style="--tc:${TYPE_COLORS[mv.type] || "#555"}">
-        <span class="tm-move-name">${mv.name}</span>
+      const pow = mv.power != null ? mv.power : (mv.class === "status" ? "" : "~");
+      return `<span class="tm-move" data-move-info="${id}" style="--tc:${TYPE_COLORS[mv.type] || "#555"}" title="${mv.name} · ${mv.type || ""} · ${mv.class} · view details">
+        <span class="tm-move-name">${mv.name}</span>${pow !== "" ? `<small class="tm-move-pow">${pow}</small>` : ""}
         <button class="tm-move-x" data-move-remove="${id}" data-slug="${mon.slug}" aria-label="Remove move">✕</button></span>`;
     }).join("");
     const addMove = moveIds.length < 4
       ? `<div class="ac-wrap tm-move-addwrap"><input class="tm-move-add" data-slug="${mon.slug}" placeholder="+ add move…" autocomplete="off"></div>`
       : "";
+    // ability selector — only when a member has an ability that changes type effectiveness
+    const tas = typingAbilities(mon);
+    const abilSel = tas.length ? `<div class="tm-abil" title="Affects how this Pokémon takes damage">
+      <button class="tm-abil-chip ${ability == null ? "on" : ""}" data-set-ability="null" data-slug="${mon.slug}">Types only</button>
+      ${tas.map((slug) => `<button class="tm-abil-chip ${ability === slug ? "on" : ""}" data-set-ability="${slug}" data-slug="${mon.slug}">${(data.abilities[slug] || {}).name || slug}</button>`).join("")}
+    </div>` : "";
     return `<div class="team-member">
       <div class="tm-head" data-open="${mon.slug}" title="Open details">
         <img class="tm-spr" src="${mon.sprite || mon.artwork || ""}" alt="">
@@ -72,6 +80,7 @@ export function renderTeamView(container, { data, team, savedTeams = [] }) {
           <span class="types">${mon.types.map(typePill).join("")}</span></div>
         <button class="team-remove" data-team-remove="${mon.slug}" aria-label="Remove">✕</button>
       </div>
+      ${abilSel}
       <div class="tm-moves">${chips}${addMove}</div>
     </div>`;
   }).join("") || `<p class="team-empty">No Pokémon yet — add up to ${TEAM_MAX} above to analyse the team.</p>`;
@@ -86,9 +95,10 @@ export function renderTeamView(container, { data, team, savedTeams = [] }) {
 
   const mons = team.map((t) => t.mon);
 
-  // --- defensive matrix ---
+  // --- defensive matrix (ability-aware: Levitate → Ground ×0, Thick Fat → ½ Fire/Ice, …) ---
   const rows = TYPES.map((atk) => {
-    const cells = mons.map((m) => m.types.reduce((x, t) => x * (chart[atk]?.[t] ?? 1), 1));
+    const cells = team.map(({ mon, ability }) =>
+      applyAbility(mon.types.reduce((x, t) => x * (chart[atk]?.[t] ?? 1), 1), atk, ability));
     const weak = cells.filter((v) => v > 1).length;
     const resist = cells.filter((v) => v < 1).length;
     return { atk, cells, weak, resist };
@@ -110,18 +120,53 @@ export function renderTeamView(container, { data, team, savedTeams = [] }) {
     ? `<div class="team-callout warn">⚠ Shared weaknesses: ${topWeak}</div>`
     : `<div class="team-callout ok">✓ No type weakness shared by 2+ members.</div>`;
 
-  // --- offensive coverage: from each member's damaging moves, STAB where none set ---
-  let usesMoves = false;
-  const attackTypes = new Set();
-  for (const { mon, moveIds } of team) {
-    const dmg = [...new Set(moveIds.map((id) => data.moves[id])
-      .filter((mv) => mv && mv.class !== "status" && mv.type).map((mv) => mv.type))];
-    if (dmg.length) usesMoves = true;
-    (dmg.length ? dmg : mon.types).forEach((t) => attackTypes.add(t));
-  }
-  const covered = TYPES.filter((d) => [...attackTypes].some((a) => (chart[a]?.[d] ?? 1) >= 2));
-  const notCovered = TYPES.filter((d) => !covered.includes(d));
-  const covNote = usesMoves ? "from selected moves (STAB where none set)" : "(STAB — add moves for exact coverage)";
+  // --- offensive coverage MATRIX: defending types × members, from SELECTED damaging
+  // moves only. Each super-effective cell is marked ★ when it comes from a STAB move
+  // (move type ∈ the member's types) vs a plain coverage move. No STAB fallback.
+  const offContrib = team.map(({ mon, moveIds }) => ({
+    mon,
+    dmg: moveIds.map((id) => data.moves[id]).filter((mv) => mv && mv.class !== "status" && mv.type),
+  }));
+  const anyDamaging = offContrib.some((c) => c.dmg.length);
+
+  const offRows = TYPES.map((def) => {
+    const cells = offContrib.map(({ mon, dmg }) => {
+      const se = dmg.filter((mv) => (chart[mv.type]?.[def] ?? 1) >= 2);
+      if (!se.length) return { mult: 0 };
+      const mult = Math.max(...se.map((mv) => chart[mv.type][def]));
+      const stabMv = se.find((mv) => mon.types.includes(mv.type));
+      const bestMv = stabMv || se.slice().sort((a, b) => chart[b.type][def] - chart[a.type][def])[0];
+      return { mult, stab: !!stabMv, name: bestMv.name, mon };
+    });
+    const tally = cells.filter((c) => c.mult >= 2).length;
+    return { def, cells, tally };
+  }).sort((a, b) => b.tally - a.tally || TYPES.indexOf(a.def) - TYPES.indexOf(b.def));
+
+  const offMatrix = `<table class="team-matrix team-off"><thead><tr><th>Type</th>
+    ${mons.map((m) => `<th><img src="${m.sprite || m.artwork || ""}" alt="" title="${nameOf(m)}"></th>`).join("")}
+    <th class="tm-tally">SE</th></tr></thead><tbody>
+    ${offRows.map((r) => `<tr>
+      <td class="tm-type ${r.tally ? "" : "co-gap"}">${typePill(r.def)}</td>
+      ${r.cells.map((c) => {
+        if (!c.mult) return `<td class="tm-cell co-none">·</td>`;
+        const cls = c.stab ? "co-stab" : "co-cover";
+        const txt = (c.stab ? "★" : "") + (c.mult >= 4 ? "4" : "2");
+        return `<td class="tm-cell ${cls}" title="${nameOf(c.mon)} · ${c.name} (${c.stab ? "STAB" : "coverage"}) ×${c.mult}">${txt}</td>`;
+      }).join("")}
+      <td class="tm-tally ${r.tally ? "" : "hot"}">${r.tally || "⚠"}</td>
+    </tr>`).join("")}
+  </tbody></table>
+  <div class="tm-legend co-legend"><span class="tm-cell co-stab">★2</span> STAB
+    <span class="tm-cell co-cover">2</span> coverage <span class="co-dim">· = can't</span></div>`;
+
+  const offGapTypes = offRows.filter((r) => !r.tally).map((r) => r.def);
+  const covGap = offGapTypes.length
+    ? `<div class="team-callout warn cov-gap">⚠ No super-effective answer to: ${offGapTypes.map((g) => g[0].toUpperCase() + g.slice(1)).join(" · ")}</div>`
+    : `<div class="team-callout ok">✓ Something on the team hits every type super-effectively.</div>`;
+
+  const offBody = anyDamaging
+    ? `${covGap}${offMatrix}`
+    : `<p class="cov-help cov-empty">Add damaging moves to your team to see super-effective coverage.</p>`;
 
   // --- speed tiers ---
   const bySpeed = [...mons].sort((a, b) => b.stats.spe - a.stats.spe);
@@ -148,18 +193,19 @@ export function renderTeamView(container, { data, team, savedTeams = [] }) {
     ${head}${manager}${addRow}
     <div class="team-members">${members}</div>
     <div class="team-grid">
-      <section class="team-card team-def">
-        <h3>Defensive coverage <small>— how each member takes hits of every type</small></h3>
-        ${callout}
-        ${matrix}
-        <div class="tm-legend"><span class="tm-cell weak2">×4</span><span class="tm-cell weak">×2</span><span class="tm-cell neu">×1</span><span class="tm-cell res">×½</span><span class="tm-cell res2">×¼</span><span class="tm-cell x0">×0</span></div>
-      </section>
-      <div class="team-col">
-        <section class="team-card">
-          <h3>Offensive coverage <small>${covNote}</small></h3>
-          <div class="cov-row"><span class="cov-lab se">Super-effective</span><span class="type-chips">${covered.map(typePill).join("") || "<span class='muted'>none</span>"}</span></div>
-          <div class="cov-row"><span class="cov-lab gap">Can't hit SE</span><span class="type-chips dim">${notCovered.map(typePill).join("") || "<span class='muted'>none</span>"}</span></div>
+      <div class="team-col team-col-matrix">
+        <section class="team-card team-def">
+          <h3>Defensive coverage <small>— how each member takes hits of every type</small></h3>
+          ${callout}
+          ${matrix}
+          <div class="tm-legend"><span class="tm-cell weak2">×4</span><span class="tm-cell weak">×2</span><span class="tm-cell neu">×1</span><span class="tm-cell res">×½</span><span class="tm-cell res2">×¼</span><span class="tm-cell x0">×0</span></div>
         </section>
+        <section class="team-card team-off-card">
+          <h3>Offensive coverage <small>— which types each member hits super-effectively (★ = via a STAB move)</small></h3>
+          ${offBody}
+        </section>
+      </div>
+      <div class="team-col">
         <section class="team-card">
           <h3>Speed tiers</h3>
           <div class="spd-list">${speedList}</div>
