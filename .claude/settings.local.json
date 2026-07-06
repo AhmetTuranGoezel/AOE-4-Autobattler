@@ -115,7 +115,11 @@
       "Bash(taskkill:*)",
       "Bash(netstat:*)",
       "PowerShell(Get-NetTCPConnection:*)",
-      "PowerShell(Stop-Process:*)"
+      "PowerShell(Stop-Process:*)",
+      "Bash(taskkill //F //IM python.exe)",
+      "Bash(python -m http.server 8853 --directory \"apps/pokemon-champions\")",
+      "Bash(python \"C:/Users/ahmet/AppData/Local/Temp/claude/c--Users-ahmet-Desktop-VSCode-Stuff-Owl-AoE4-Unit-Battler/86e555fd-9664-4fa4-9d7d-eebcb04470c9/scratchpad/verifyC.py\")",
+      "Bash(git -C \"c:/Users/ahmet/Desktop/VSCode Stuff/Owl AoE4 Unit Battler\" status --short)"
     ]
   }
 }
