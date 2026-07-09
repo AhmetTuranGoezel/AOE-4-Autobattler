@@ -1,6 +1,9 @@
 # Counters lab — coverage ledger
 
-**Framework:** every number assumes a single hit, turn 1, both Pokémon at full HP, 1v1 (doubles spread ×0.75 as a toggle).
+**Framework:** every number assumes turn 1, both Pokémon at full HP, 1v1 (doubles spread ×0.75 as a toggle).
+KO verdicts (2HKO…) come from a **sequential simulation**: one-time shields (Multiscale/Shadow Shield, resist berry,
+Focus Sash/Sturdy/Disguise) apply once, Leftovers heals 6.25%/turn, Sitrus +25% once at ≤50%. **Burn** halves the burned
+side's physical damage (Guts/Facade exempt); **paralysis** halves Speed (Quick Feet exempt) — both directions.
 Within that frame each ability/move is **modeled** (applied to the numbers), **flagged** (condition we can't verify — shown
 as an explicit flag on the row), or **no-op** (genuinely cannot change a first-hit number — reason given).
 Champions data: 199 abilities, 523 moves. Regenerate with `python tools/generate_coverage.py`.
@@ -235,7 +238,10 @@ Champions data: 199 abilities, 523 moves. Regenerate with `python tools/generate
 | OHKO moves (Fissure, Sheer Cold, Horn Drill, Guillotine) | ✅ | included, 100% listed, accuracy-weighted in ranking; blocked by Sturdy |
 | Weather Ball | ✅/≈ | ×2 in weather — type change approximated (stays Normal) |
 | Terrain Pulse | ✅/≈ | ×2 in terrain — type change approximated |
-| Solar Beam / Solar Blade | ✅ | halved in non-sun weather; charge turn = risky flag |
+| Electro Shot | ✅ | +1 SpA from the charge applies to the hit; in RAIN it fires instantly (no charge, not risky) |
+| Meteor Beam | ✅ | +1 SpA from the charge applies to the hit; always charges (Power Herb not in Champions) → risky |
+| Solar Beam / Solar Blade | ✅ | fire instantly in SUN (not risky); halved in bad weather; else charge turn = risky flag |
+| Fly / Dig / Dive / Bounce / Phantom Force / Sky Attack | ⚠ risky | two-turn (semi-invulnerable) — turn cost keeps them deprioritized |
 | Facade / Hex / Venoshock / Barb Barrage / Infernal Parade / Dream Eater / Nightmare | ✅ | status-conditional — driven by the Target/Attacker status controls |
 | Acrobatics | ✅ | ×2 when the ATTACKER (per-mon item honoured) holds nothing |
 | Knock Off | ✅ | ×1.5 only when the target's item is removable — no boost vs a Mega (stone) or an itemless target |
@@ -259,4 +265,7 @@ _Every other damaging move is standard (base power × category × type) and comp
 ## Items (Champions-only)
 - Life Orb ×1.3 · Expert Belt ×1.2 (SE) · type items ×1.2 · Muscle Band / Wise Glasses ×1.1 — damage
 - **Choice Scarf** Spe ×1.5 (both sides — feeds the ⚡/🐢 order) · Focus Sash survives a would-be OHKO · resist berry halves one SE hit
+- **Leftovers** +6.25%/turn and **Sitrus Berry** +25% once at ≤50% — counted in the KO simulation
 - Klutz negates the holder's item. Assault Vest / Eviolite / Choice Band / Specs are **not in Champions** and deliberately absent.
+
+_Source-data corrections (PokeAPI errors) are patched at load in `src/data.js` `MOVE_FIXES` — currently: Matcha Gotcha → all-opponents (spread)._

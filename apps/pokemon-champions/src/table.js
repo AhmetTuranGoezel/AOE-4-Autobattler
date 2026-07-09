@@ -56,8 +56,8 @@ const COLS = [
   { key: "ehpSpec", label: "Spec eHP", num: true, ehp: true, title: "Effective HP vs special @Lv50 (HP × Sp.Def)" },
   { key: "ehpMixed", label: "Mixed eHP", num: true, ehp: true, title: "Effective HP vs an even physical+special mix @Lv50 (harmonic mean)" },
 ];
-const COL_WIDTHS = ["3%", "15%", "6.5%", ...STAT_KEYS.map(() => "6%"), "5.5%", "6.5%", "6%",
-  "7.7%", "7.7%", "7.6%"];
+const COL_WIDTHS = ["3%", "17.4%", "6%", ...STAT_KEYS.map(() => "5.6%"), "5%", "6.8%", "5.6%",
+  "7.2%", "7.2%", "7.2%"];
 
 const sumGet = (m, k) => (k === "bst" ? m._eff.bst : k === "cleaned" ? m._eff.cleaned
   : k === "wasted" ? m._eff.wasted
@@ -83,7 +83,7 @@ export function renderTable(list, sort, cmp, max = 200) {
 
   const head = COLS.map((c) => {
     const active = sort.key === c.key;
-    const arrow = active ? (sort.dir === "asc" ? " ▲" : " ▼") : "";
+    const arrow = active ? `<span class="th-arrow">${sort.dir === "asc" ? "▴" : "▾"}</span>` : "";
     const cls = `${c.num ? "num" : ""} ${c.nosort ? "" : "sortable"} ${active ? "active" : ""}`;
     return `<th class="${cls}" ${c.title ? `title="${c.title}"` : ""} ${c.nosort ? "" : `data-sort="${c.key}"`}>${c.label}${arrow}</th>`;
   }).join("");
@@ -105,7 +105,7 @@ export function renderTable(list, sort, cmp, max = 200) {
       ${statCells}
       <td class="num bst">${e.bst}</td>
       <td class="num cleaned">${e.cleaned}</td>
-      <td class="num wasted">${e.wasted > 0 ? "−" + e.wasted : "0"}</td>
+      <td class="num wasted">${e.wasted > 0 ? e.wasted : "0"}</td>
       <td class="num ehp">${sep(e.ehpPhys)}</td>
       <td class="num ehp">${sep(e.ehpSpec)}</td>
       <td class="num ehp ehp-mix">${sep(e.ehpMixed)}</td>
