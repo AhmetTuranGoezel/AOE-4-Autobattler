@@ -187,7 +187,10 @@ MOVE_ROWS = [
     ("OHKO moves (Fissure, Sheer Cold, Horn Drill, Guillotine)", "✅", "included, 100% listed, accuracy-weighted in ranking; blocked by Sturdy"),
     ("Weather Ball", "✅/≈", "×2 in weather — type change approximated (stays Normal)"),
     ("Terrain Pulse", "✅/≈", "×2 in terrain — type change approximated"),
-    ("Solar Beam / Solar Blade", "✅", "halved in non-sun weather; charge turn = risky flag"),
+    ("Electro Shot", "✅", "+1 SpA from the charge applies to the hit; in RAIN it fires instantly (no charge, not risky)"),
+    ("Meteor Beam", "✅", "+1 SpA from the charge applies to the hit; always charges (Power Herb not in Champions) → risky"),
+    ("Solar Beam / Solar Blade", "✅", "fire instantly in SUN (not risky); halved in bad weather; else charge turn = risky flag"),
+    ("Fly / Dig / Dive / Bounce / Phantom Force / Sky Attack", "⚠ risky", "two-turn (semi-invulnerable) — turn cost keeps them deprioritized"),
     ("Facade / Hex / Venoshock / Barb Barrage / Infernal Parade / Dream Eater / Nightmare", "✅", "status-conditional — driven by the Target/Attacker status controls"),
     ("Acrobatics", "✅", "×2 when the ATTACKER (per-mon item honoured) holds nothing"),
     ("Knock Off", "✅", "×1.5 only when the target's item is removable — no boost vs a Mega (stone) or an itemless target"),
@@ -216,7 +219,10 @@ lines.append("")
 lines.append("## Items (Champions-only)")
 lines.append("- Life Orb ×1.3 · Expert Belt ×1.2 (SE) · type items ×1.2 · Muscle Band / Wise Glasses ×1.1 — damage")
 lines.append("- **Choice Scarf** Spe ×1.5 (both sides — feeds the ⚡/🐢 order) · Focus Sash survives a would-be OHKO · resist berry halves one SE hit")
+lines.append("- **Leftovers** +6.25%/turn and **Sitrus Berry** +25% once at ≤50% — counted in the KO simulation")
 lines.append("- Klutz negates the holder's item. Assault Vest / Eviolite / Choice Band / Specs are **not in Champions** and deliberately absent.")
+lines.append("")
+lines.append("_Source-data corrections (PokeAPI errors) are patched at load in `src/data.js` `MOVE_FIXES` — currently: Matcha Gotcha → all-opponents (spread)._")
 
 open(OUT, "w", encoding="utf-8").write("\n".join(lines) + "\n")
 print("COVERAGE.md written:", len(lines), "lines;", sum(1 for s in abils if s in MODELED), "abilities modeled of", len(abils))

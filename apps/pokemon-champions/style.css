@@ -176,6 +176,7 @@ select:focus, .combo:focus, .rng:focus { border-color: var(--accent); }
   display: inline-block; color: #fff; font-size: 0.65rem; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.4px; padding: 2px 7px; border-radius: 5px;
   text-shadow: 0 1px 1px rgba(0,0,0,0.35);
+  line-height: 1.4;   /* own line box — parents with line-height:0 (.type-chips) must not collapse the pill */
 }
 .type.tiny { font-size: 0.6rem; padding: 1px 5px; }
 .types { display: inline-flex; gap: 4px; flex-wrap: wrap; }
@@ -214,7 +215,7 @@ input[type=search]:hover::-webkit-search-cancel-button, input[type=search]:focus
 .poke-table td.ehp.ehp-mix { color: var(--accent-2); font-weight: 700; }
 .poke-table thead th {
   position: sticky; top: calc(var(--topbar-h) - 1px); background: #15151c; z-index: 5;
-  text-align: left; padding: 11px 8px; color: var(--muted); font-size: 0.71rem;
+  text-align: left; padding: 11px 6px; color: var(--muted); font-size: 0.68rem;
   text-transform: uppercase; letter-spacing: 0.2px; border-bottom: 2px solid var(--border-2);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
@@ -222,6 +223,7 @@ input[type=search]:hover::-webkit-search-cancel-button, input[type=search]:focus
 .poke-table th.sortable { cursor: pointer; user-select: none; }
 .poke-table th.sortable:hover { color: var(--text); }
 .poke-table th.active { color: var(--accent-2); }
+.th-arrow { font-size: 0.85em; margin-left: 1px; letter-spacing: 0; }
 .poke-table thead th + th, .poke-table tbody td + td { border-left: 1px solid rgba(255,255,255,0.045); }
 .poke-table tbody tr { border-bottom: 1px solid #202028; cursor: pointer; }
 .poke-table tbody tr:hover { background: #1b1b24; }
@@ -319,6 +321,8 @@ td.wasted { color: #d9685b; font-weight: 600; }
 .detail-art { width: 130px; height: 130px; flex-shrink: 0; }
 .detail-artwrap { position: relative; }
 .detail-art.is-shiny { filter: drop-shadow(0 1px 3px rgba(242,194,24,0.35)); }
+/* CDN failed (rate limit etc.) → dim Pokéball placeholder instead of a blank gap */
+.detail-art.img-missing { background: var(--panel-2) center/56px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%23494952' stroke-width='2'/%3E%3Cpath d='M3 16h26' stroke='%23494952' stroke-width='2'/%3E%3Ccircle cx='16' cy='16' r='4.5' fill='%231a1a1a' stroke='%23494952' stroke-width='2'/%3E%3C/svg%3E"); border-radius: 16px; }
 .shiny-glitter { position: absolute; top: -2px; right: -2px; font-size: 0.95rem; line-height: 1; pointer-events: none; filter: drop-shadow(0 0 3px rgba(242,194,24,0.8)); animation: shiny-twinkle 1.8s ease-in-out infinite; }
 @keyframes shiny-twinkle { 0%, 100% { opacity: 0.5; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.1); } }
 .detail-forms { display: inline-flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
@@ -480,7 +484,8 @@ td.wasted { color: #d9685b; font-weight: 600; }
 .mv-nm { font-weight: 700; white-space: nowrap; }
 .mv-flags { display: flex; flex-wrap: wrap; gap: 3px; max-width: 180px; }
 .mflag { font-size: 0.6rem; font-weight: 700; background: #2e2e34; color: #c9c9d2; padding: 1px 6px; border-radius: 4px; white-space: nowrap; }
-.mv-eff { max-width: 300px; color: var(--muted); font-size: 0.78rem; line-height: 1.4; white-space: normal; }
+.mv-eff { max-width: 300px; color: var(--muted); font-size: 0.78rem; line-height: 1.4; white-space: normal;
+  overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }   /* full text in the move popup (row click) */
 .mv-varies { font-size: 0.66rem; font-weight: 700; font-style: italic; color: var(--accent-2); }
 .wt-bp { display: block; color: var(--muted); font-size: 0.62rem; font-weight: 600; }
 .mv-chance { display: inline-block; font-weight: 800; font-size: 0.68rem; color: var(--accent-2); background: color-mix(in srgb, var(--accent-2) 16%, transparent); border-radius: 4px; padding: 0 4px; }
@@ -511,12 +516,13 @@ td.wasted { color: #d9685b; font-weight: 600; }
 
 /* ---------- abilities browser ---------- */
 .browse { padding-top: 16px; }
-.ability-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.ability-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; align-items: start; }   /* cards size independently */
 .ability-card { text-align: left; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px; color: var(--text); display: flex; flex-direction: column; gap: 8px; }
 .ability-card:hover { border-color: var(--accent); transform: translateY(-2px); transition: transform 0.12s, border-color 0.2s; }
 .ac-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .ac-name { font-weight: 700; font-size: 1rem; }
-.ac-desc { color: var(--muted); font-size: 0.8rem; line-height: 1.5; flex: 1; }
+.ac-desc { color: var(--muted); font-size: 0.8rem; line-height: 1.5; flex: 1;
+  overflow: hidden; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; }   /* full text in the ability popup */
 .ac-mons { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; }
 .ac-mons img { width: 34px; height: 34px; }
 .ab-more { color: var(--muted); font-size: 0.72rem; font-weight: 600; margin-left: 4px; }
@@ -950,10 +956,11 @@ td.wasted { color: #d9685b; font-weight: 600; }
 .team-callout.warn { background: rgba(217,104,91,0.14); color: #f0998c; }
 .team-callout.ok { background: rgba(106,192,106,0.14); color: #8fe08f; }
 
-.team-matrix { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+.team-matrix { width: 100%; border-collapse: separate; border-spacing: 0 3px; font-size: 0.78rem; }
 .team-matrix th { padding: 4px 6px; color: var(--muted); font-weight: 600; }
 .team-matrix thead img { width: 34px; height: 34px; display: block; margin: 0 auto; }
 .team-matrix td { padding: 3px; text-align: center; }
+.team-matrix tbody tr:nth-child(odd) { background: rgba(255,255,255,0.03); }   /* zebra lanes keep rows traceable (colored cells paint over) */
 .tm-type { text-align: left !important; }
 .tm-cell { font-weight: 800; border-radius: 5px; color: #15161a; }
 .tm-cell.weak2 { background: #c0392b; color: #fff; }
@@ -1106,7 +1113,8 @@ td.wasted { color: #d9685b; font-weight: 600; }
   h1 { font-size: 1.05rem; }
   .brand { gap: 6px 10px; }
   .meta { display: none; }
-  .tabs { margin-left: 0; max-width: 100%; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .tabs { margin-left: 0; max-width: 100%; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 28px), transparent); }   /* edge fade = "more tabs" affordance */
   .tabs::-webkit-scrollbar { display: none; }
   .tab { padding: 8px 13px; font-size: 0.82rem; white-space: nowrap; }
   .toolbar { gap: 8px; margin-top: 10px; }

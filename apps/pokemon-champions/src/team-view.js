@@ -86,7 +86,7 @@ export function renderTeamView(container, { data, team, savedTeams = [] }) {
   }).join("") || `<p class="team-empty">No Pokémon yet — add up to ${TEAM_MAX} above to analyse the team.</p>`;
 
   const head = `<div class="team-head"><h2>Team Builder</h2>
-    <p class="calc-note">Add up to 6 Pokémon (give each a moveset), analyse coverage, and save multiple teams. Your working team is kept automatically.</p></div>`;
+    <p class="calc-note">Up to 6 Pokémon with movesets — coverage and speed update live. Saved automatically.</p></div>`;
 
   if (!team.length) {
     container.innerHTML = `<div class="team">${head}${manager}${addRow}<div class="team-members">${members}</div></div>`;

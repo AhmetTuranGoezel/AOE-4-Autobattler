@@ -63,6 +63,15 @@ const isOHKO = (mv) => /equal to the target's maximum hp/i.test(mv.effect || "")
 // charge/recharge turns, fails-if-hit, user faints, ½-max-HP cost, crash on miss.
 const RISKY_MOVES = new Set(["Focus Punch", "Explosion", "Self-Destruct", "Misty Explosion", "Final Gambit", "Steel Beam", "Mind Blown", "High Jump Kick", "Jump Kick"]);
 const isDrawback = (mv) => (mv.flags || []).includes("Recharge") || (mv.flags || []).includes("Two-turn") || RISKY_MOVES.has(mv.name);
+// Charge moves with special handling: `skip` = weather that removes the charge turn
+// (fires instantly — no longer a drawback); `boost` = stat stage gained while charging
+// that applies to the hit itself (+1 = ×1.5). Power Herb is not in Champions.
+const CHARGE_MOVES = {
+  "Electro Shot": { boost: "spa", skip: "rain" },
+  "Meteor Beam": { boost: "spa" },
+  "Solar Beam": { skip: "sun" },
+  "Solar Blade": { skip: "sun" },
+};
 
 // Classify a move's base output. ctx = { userWeight, targetWeight, userSpe, targetSpe }.
 // Returns one of: {kind:'normal', bp, hits, notes} | {kind:'fixed', dmg, notes}
@@ -344,7 +353,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
     overrides: new Map(), expanded: null,
     // rules + filters
     useAccuracy: true, excluded: loadExcluded(),
-    threshold: "any", fTypesOff: new Set(), fTypeMode: "strict", moveTypesOff: new Set(), fCat: "any", fRole: "any", fAvail: false, fMega: "all", fSurvive: false, fFaster: false, fSearch: "",
+    threshold: "any", fTypesOff: new Set(), fTypeMode: "any", moveTypesOff: new Set(), fCat: "any", fRole: "any", fAvail: false, fMega: "all", fSurvive: false, fFaster: false, fSearch: "",
   };
   const saveExcluded = () => { try { localStorage.setItem(EXCLUDE_KEY, JSON.stringify([...eb.excluded])); } catch { /* ignore */ } };
 
@@ -863,7 +872,9 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
     else {
       const am = abilityMods(th.ability, { mv, cat, bp: ep.bp, weather: eb.weather, terrain: eb.terrain, typeEff, first: true, hiStat: hiStatOf(th.mon), status: eb.targetStatus });
       const stab = th.types.includes(mv.type) ? (am.stab || 1.5) : 1;
-      const atk = mv.name === "Foul Play" ? defEntry.lv.atk : mv.name === "Body Press" ? th.def : cat === "physical" ? th.atk : th.spa;
+      let atk = mv.name === "Foul Play" ? defEntry.lv.atk : mv.name === "Body Press" ? th.def : cat === "physical" ? th.atk : th.spa;
+      const chg = CHARGE_MOVES[mv.name];
+      if (chg && chg.boost && defaultAbility(defEntry.mon) !== "unaware") atk = Math.floor(atk * stageMult(1));   // its charge boost hits back too
       const def = cat === "physical" || PSY_DEF.has(mv.name) ? defEntry.lv.def : defEntry.lv.spd;
       let other = am.mult * cond.mult;
       if (th.item && th.ability !== "klutz" && OFF_ITEMS[th.item]) { const r = OFF_ITEMS[th.item].mult(se, cat); if (r && r.m) other *= r.m; }   // target's offensive item
@@ -905,8 +916,12 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
     const cond = conditionalMods(mv, { eb, first: speFirst, st, target });
     if (cond.blocked) return null;
     const realHP = target.lv.hp;
-    const risky = isDrawback(mv);
+    const charge = CHARGE_MOVES[mv.name];
+    const chargeSkipped = !!(charge && charge.skip && eb.weather === charge.skip);
+    let risky = isDrawback(mv);
+    if (chargeSkipped) risky = false;   // Electro Shot in rain / Solar Beam in sun fire instantly
     let minPct, maxPct, laterMin = null, laterMax = null, notes = [...(ep.notes || []), ...cond.notes];
+    if (chargeSkipped) notes.push(`fires instantly (${eb.weather})`);
     let noInvMax = 0, stab = 1, asNote = null, pw = null;
     if (moldBreaker) notes.push("Mold Breaker");
     // accuracy layer: No Guard (either side) → always hits; Hustle costs phys acc; weather evasion abilities
@@ -932,8 +947,12 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
         // "auto" = +10% to whatever stat the move uses (Atk / SpA / Def for Body Press); named natures via natureMult
         const natM = st.nature === "auto" ? 1.1 : natureMult(st.nature, as.key);
         atk = Math.floor((atk + st.invest) * natM);
-        // Unaware target ignores the attacker's stat boosts
+        // Unaware target ignores the attacker's stat boosts (setup AND charge-turn boosts)
         if (st.boost && !(target.ability === "unaware")) atk = Math.max(1, Math.floor(atk * stageMult(st.boost)));
+        if (charge && charge.boost === as.key && target.ability !== "unaware") {   // Electro Shot / Meteor Beam +1 SpA from the charge
+          atk = Math.floor(atk * stageMult(1));
+          notes.push("+1 SpA (charge)");
+        }
       }
       let other = am.mult * cond.mult;
       am.notes.forEach((n) => notes.push(n));
@@ -1181,9 +1200,9 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
       <div class="cl-typerow" title="Lit types are allowed; click a type to toggle it">
         <div class="cl-typectl">
           <span class="cl-typelab">Attacker type</span>
-          <div class="seg cl-typemode" title="Strict: every type of the attacker must be lit. Any: one lit type is enough.">
-            <button data-ftypemode="strict" class="${eb.fTypeMode === "strict" ? "active" : ""}">Strict</button>
-            <button data-ftypemode="any" class="${eb.fTypeMode === "any" ? "active" : ""}">Any</button>
+          <div class="seg cl-typemode">
+            <button data-ftypemode="any" class="${eb.fTypeMode === "any" ? "active" : ""}" title="Keep attackers that have at least one lit type (Flying lit → every Flying-type)">Any of</button>
+            <button data-ftypemode="strict" class="${eb.fTypeMode === "strict" ? "active" : ""}" title="Every one of the attacker's types must be lit — note: no mono-Flying exists, so 'Exact only' with just Flying lit matches nothing">Exact only</button>
           </div>
           <button class="btn-sm" data-typeset="atk.all">All</button>
           <button class="btn-sm" data-typeset="atk.none">None</button>
@@ -1231,6 +1250,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
       if (r.se) fl.push(`<span class="ehp-flag se">SE ×${r.typeEff}</span>`);
       if (r.stab > 1) fl.push(`<span class="ehp-flag stab">STAB</span>`);
       if (eb.useAccuracy && r.acc < 100) fl.push(`<span class="ehp-flag acc">${r.acc}%</span>`);
+      if (r.risky) fl.push(`<span class="ehp-flag risky">risky</span>`);
       r.notes.forEach((n) => fl.push(`<span class="ehp-flag mh">${n}</span>`));
       const excl = eb.excluded.has(r.id);
       return `<div class="apm-move ${excl ? "excl" : ""}" data-move-info="${r.id}">
@@ -1318,7 +1338,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
     const threshLabel = { any: "damage", ohko: "OHKO", "2hko": "2HKO+", "3hko": "3HKO+" }[eb.threshold];
     const filtered = eb.fTypesOff.size || eb.moveTypesOff.size || eb.fCat !== "any" || eb.fRole !== "any" || eb.fAvail || eb.fSurvive || eb.fFaster || eb.fSearch || eb.fMega !== "all";
     $("#ehp-results").innerHTML = `
-      <div class="ehp-summary"><b>${ranked.length}</b> Pokémon reach <b>${threshLabel}</b> on <b>${nameOf(target.mon)}</b> (HP ${target.hp} · Def ${target.def} · Sp.Def ${target.spd})${eb.atkBoost ? ` · attackers at +${eb.atkBoost}` : ""}${filtered ? " · filtered" : ""}.</div>
+      <div class="ehp-summary"><b>${ranked.length}</b> Pokémon reach <b>${threshLabel}</b> on <b>${nameOf(target.mon)}</b> (HP ${target.hp} · Def ${target.def} · Sp.Def ${target.spd})${eb.atkBoost ? ` · attackers at +${eb.atkBoost}` : ""}${eb.candBulk === "hp" ? " · candidates +32 HP" : ""}${filtered ? " · filtered" : ""}.</div>
       ${ranked.length ? `<div class="ehp-list">${rows}</div>` : `<p class="ehp-empty">No attacker meets the current filters/threshold — loosen them or edit the target's bulk.</p>`}
       ${ranked.length > CAP ? `<p class="ehp-more">Showing the top ${CAP} of ${ranked.length} by max %. Filter to narrow it down.</p>` : ""}
       <p class="ehp-approx">Real Gen-9 damage (exact formula, 0.85–1.00 roll) vs the target's effective HP. Best <b>reliable</b> move per attacker (all move types considered incl. weight/fixed/%HP/OHKO — flagged & accuracy-weighted). <b>⚡/🐢</b> = who moves first (speed + priority); <b>survives/revenge only</b> = how hard the target hits back with its usage set. Conditions (weather/terrain/screens/status/item/boosts) auto-apply; ✕ removes a move for good; only Champions items offered.</p>`;

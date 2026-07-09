@@ -1,5 +1,11 @@
 // Data loading + small shared helpers.
 
+// Corrections for source-data errors (PokeAPI) — applied over the fetched moves at load.
+// Keep this the single place such fixes live so a data regen can't silently undo them.
+const MOVE_FIXES = {
+  "Matcha Gotcha": { target: "all-opponents" },   // PokeAPI says single-target; in-game it hits all adjacent foes
+};
+
 export async function loadData() {
   // `no-cache` = revalidate every load (cheap 304 when unchanged) so a data regen
   // always reaches the browser instead of a stale cached champions-data.json.
@@ -7,6 +13,10 @@ export async function loadData() {
   if (!res.ok) throw new Error(`Failed to load data (${res.status})`);
   const d = await res.json();
   d.total = d.pokemon.length;
+  for (const mv of Object.values(d.moves)) {
+    const fix = MOVE_FIXES[mv.name];
+    if (fix) Object.assign(mv, fix);
+  }
   return d;
 }
 

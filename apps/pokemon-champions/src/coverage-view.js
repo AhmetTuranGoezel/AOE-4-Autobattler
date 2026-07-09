@@ -165,19 +165,18 @@ export function initCoverageView({ container, data, onShowMons }) {
   function render() {
     state.lists = {};
     container.innerHTML = `<div class="cov">
-      <div class="team-head"><h2>Type coverage</h2>
-        <p class="calc-note">Two independent tools, both live here — your offensive coverage up top, a defensive typing's matchups below.</p></div>
+      <div class="team-head"><h2>Type coverage</h2></div>
 
       <section class="cov-section">
         <div class="cov-sec-head"><h3>⚔ Offense</h3>
-          <p class="cov-sec-note">Pick your attacking type(s) — see what your <b>best</b> hit deals to every defending type, and how it fares across the roster.</p></div>
+          <p class="cov-sec-note">Pick attacking type(s) — best hit vs every defending type.</p></div>
         <div class="cov-pick">${chipRow(state.atk, "cov-atk")}</div>
         ${renderOffense()}
       </section>
 
       <section class="cov-section">
         <div class="cov-sec-head"><h3>🛡 Defense</h3>
-          <p class="cov-sec-note">Pick a defending typing (1–2) — see how hard each attacking type hits it.</p></div>
+          <p class="cov-sec-note">Pick a defending typing (1–2) — how hard each type hits it.</p></div>
         <div class="cov-pick">${chipRow(state.def, "cov-def")}</div>
         ${renderDefense()}
       </section>

@@ -60,12 +60,15 @@ export function renderDetail(mon, { data, all, simCtx, statMode, spread, detailS
   const sp = spread || emptySpread();
   const shiny = !!detailShiny;
 
-  // Shiny artwork with a graceful fallback: shiny art → shiny sprite → normal art.
+  // Shiny artwork with a graceful fallback: shiny art → shiny sprite → normal art → placeholder.
+  // The chain ends in .img-missing (CSS Pokéball placeholder) so a rate-limited CDN never
+  // leaves a silent blank gap.
   const artNormal = mon.artwork || mon.sprite || "";
   const artSrc = shiny ? shinyUrl(mon.artwork || mon.sprite || "") : artNormal;
+  const missing = "this.onerror=null;this.classList.add('img-missing')";
   const artOnErr = shiny
-    ? `this.onerror=function(){this.onerror=null;this.src='${artNormal}'};this.src='${shinyUrl(mon.sprite || "")}'`
-    : `this.onerror=null;this.src='${mon.sprite || ""}'`;
+    ? `this.onerror=function(){this.onerror=function(){${missing}};this.src='${artNormal}'};this.src='${shinyUrl(mon.sprite || "")}'`
+    : `this.onerror=function(){${missing}};this.src='${mon.sprite || ""}'`;
 
   // Form switch: base ⇄ its Mega form(s), sharing the National Dex number.
   const base = all.find((m) => m.dex === mon.dex && !m.isMega);
