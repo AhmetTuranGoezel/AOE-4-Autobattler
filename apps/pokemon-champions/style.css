@@ -881,21 +881,36 @@ tr.pin-end td { padding: 0; height: 8px; border-bottom: 2px solid color-mix(in s
 .cl-exchip { display: inline-flex; align-items: center; gap: 5px; background: color-mix(in srgb, var(--accent) 14%, var(--panel-2)); border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border)); border-radius: 999px; padding: 2px 6px 2px 10px; font-size: 0.72rem; font-weight: 600; }
 .cl-exchip button { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.72rem; padding: 0 1px; }
 .cl-exchip button:hover { color: var(--accent); }
-/* filter bar */
-.cl-filter-bar { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; }
+/* filter bar — grouped into aligned rows: segs on one line, toggles on the next */
+.cl-filter-bar { display: flex; flex-direction: column; gap: 9px; }
+.cl-filtrow { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; }
 .cl-catseg button, .cl-megaseg button, .cl-filter-bar .ehp-thresh button { padding: 6px 11px; font-size: 0.76rem; }
 .cl-avail { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; font-weight: 600; color: var(--text); cursor: pointer; }
 .cl-avail input { width: 15px; height: 15px; accent-color: var(--accent); }
+/* checkbox filters styled as consistent pill toggles (match .cl-acc / segs) */
+.cl-toggle { display: inline-flex; align-items: center; gap: 7px; font-size: 0.76rem; font-weight: 700; color: var(--muted); cursor: pointer; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 6px 11px; user-select: none; }
+.cl-toggle:hover { border-color: var(--border-2); color: var(--text); }
+.cl-toggle input { width: 14px; height: 14px; accent-color: var(--accent); margin: 0; }
+.cl-toggle:has(input:checked) { background: color-mix(in srgb, var(--accent) 16%, var(--panel)); border-color: color-mix(in srgb, var(--accent) 50%, var(--border)); color: var(--text); }
+/* type-filters disclosure toggle + its collapsed grids */
+.cl-typetoggle { display: inline-flex; align-items: center; gap: 6px; font-size: 0.76rem; font-weight: 700; color: var(--muted); cursor: pointer; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 6px 11px; }
+.cl-typetoggle:hover { border-color: var(--border-2); color: var(--text); }
+.cl-typetoggle.open { background: color-mix(in srgb, var(--accent-2) 12%, var(--panel)); border-color: color-mix(in srgb, var(--accent-2) 45%, var(--border)); color: var(--text); }
+.cl-tt-ico { color: var(--accent-2); font-size: 0.9rem; line-height: 1; }
+.cl-tt-caret { color: var(--muted); font-size: 0.62rem; margin-left: 1px; }
+.cl-tt-badge { background: var(--accent-2); color: #1a1a1a; font-size: 0.62rem; font-weight: 800; border-radius: 999px; padding: 0 6px; line-height: 1.5; }
+.cl-typefilters { display: flex; flex-direction: column; gap: 8px; }
+.cl-typefilters[hidden] { display: none; }
 .cl-typerow { display: flex; flex-direction: column; gap: 6px; flex-basis: 100%; padding-top: 8px; border-top: 1px solid var(--border); }
 .cl-typectl { display: flex; align-items: center; gap: 8px; }
 .cl-typectl .btn-sm { padding: 3px 10px; font-size: 0.7rem; }
 .cl-typemode button { padding: 4px 10px; font-size: 0.7rem; }
 .cl-typelab { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.4px; color: var(--muted); font-weight: 700; min-width: 82px; flex-shrink: 0; }
 .cl-ftypes { display: flex; flex-wrap: wrap; gap: 4px; }
-/* titled sections inside the target card */
-.cl-sec { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
-.cl-sec-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
-.cl-sec-head > span:first-child { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: var(--accent-2); }
+/* titled sections inside the target card — nested sub-cards so each group reads distinctly */
+.cl-sec { margin-top: 12px; padding: 12px 13px 13px; border-radius: 11px; background: color-mix(in srgb, var(--panel-2) 55%, transparent); border: 1px solid var(--border); }
+.cl-sec-head { display: flex; align-items: center; gap: 12px; margin-bottom: 11px; }
+.cl-sec-head > span:first-child { font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; color: var(--accent-2); }
 .cl-points { font-size: 0.72rem; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
 .cl-points.over { color: #ff8a7a; }
 .cl-sec-head .btn-sm, .cl-sec-head .cl-acc { margin-left: auto; }
@@ -907,7 +922,9 @@ tr.pin-end td { padding: 0; height: 8px; border-bottom: 2px solid color-mix(in s
 .ehp-summary { font-size: 0.9rem; color: var(--text); margin-bottom: 12px; }
 .ehp-summary b { color: var(--accent-2); }
 .ehp-list { display: flex; flex-direction: column; gap: 5px; }
-.ehp-row { display: grid; grid-template-columns: 40px minmax(96px, 1.1fr) minmax(120px, 1.5fr) 84px 92px auto; align-items: center; gap: 10px; padding: 5px 10px; border-radius: 9px; background: var(--panel); border: 1px solid var(--border); cursor: pointer; }
+/* name(flex) | move(content) | % | verdict | flags(flex) — move hugs its content so
+   the %/verdict/flags stay a tight right cluster (no dead gap mid-row) */
+.ehp-row { display: grid; grid-template-columns: 40px minmax(150px, 1.3fr) max-content 82px 92px minmax(0, 1.2fr); align-items: center; gap: 10px; padding: 6px 12px; border-radius: 9px; background: var(--panel); border: 1px solid var(--border); cursor: pointer; }
 .ehp-row:hover { border-color: var(--border-2); background: var(--panel-2); }
 .ehp-spr { width: 40px; height: 40px; }
 .ehp-name { font-weight: 700; font-size: 0.86rem; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
@@ -944,19 +961,20 @@ tr.pin-end td { padding: 0; height: 8px; border-bottom: 2px solid color-mix(in s
 .ap-speed b { color: var(--accent-2); font-variant-numeric: tabular-nums; }
 .ap-speed .sp-fast { color: #8fe08f; } .ap-speed .sp-slow { color: #f0998c; }
 .ap-moves { display: flex; flex-direction: column; gap: 4px; }
-.apm-move { display: grid; grid-template-columns: minmax(140px, 1.6fr) 84px 88px auto 20px; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 7px; background: var(--panel); cursor: pointer; }
+.apm-move { display: grid; grid-template-columns: minmax(0, 1.2fr) 76px 84px minmax(0, 1.5fr) 20px; align-items: center; gap: 8px; padding: 5px 9px; border-radius: 7px; background: var(--panel); cursor: pointer; }
 .apm-move:hover { background: #20202a; }
 .apm-move.excl { opacity: 0.4; }
-.apm-mv { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; font-weight: 600; min-width: 0; }
+.apm-mv { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; font-weight: 600; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .apm-mv:hover { color: var(--accent-2); }
 .apm-pct { font-weight: 800; font-variant-numeric: tabular-nums; text-align: right; color: var(--accent-2); font-size: 0.82rem; }
 .apm-fl { display: flex; flex-wrap: wrap; gap: 3px; }
 .cl-doubles { white-space: nowrap; }
-/* two-way matchup in the expander */
-.ap-matchup { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+/* two-way matchup in the expander — the busy attacker column gets more room */
+.ap-matchup { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.ap-col { min-width: 0; }
 .ap-col-h { font-size: 0.7rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 5px; }
 .ap-col-h.back { color: #f0998c; }
-.apm-move.back { grid-template-columns: minmax(120px, 1.6fr) 84px auto; cursor: default; }
+.apm-move.back { grid-template-columns: minmax(0, 1.3fr) 76px minmax(0, 1fr); cursor: default; }
 .apm-move.back:hover { background: var(--panel); }
 /* target's return-move chips + tmove picker */
 .cl-tmoves { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 10px; }

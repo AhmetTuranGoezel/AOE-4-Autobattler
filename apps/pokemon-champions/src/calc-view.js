@@ -375,6 +375,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
     // rules + filters
     useAccuracy: true, excluded: loadExcluded(),
     threshold: "any", fTypesOff: new Set(), fTypeMode: "any", moveTypesOff: new Set(), fCat: "any", fRole: "any", fAvail: false, fMega: "all", fSurvive: false, fFaster: false, fSearch: "",
+    showTypeFilters: false,   // the two 18-chip type grids collapse behind a toggle (both modes)
   };
   const tc = () => eb.targets[eb.editing];   // the target config the editor is bound to
   const TCFG_KEYS = new Set(["nature", "item", "defStage", "spdStage", "speStage"]);   // per-target scalars routed through the generic select/stage handlers
@@ -387,7 +388,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
     // surviving into the next session halves physical damage and reads like a bug.
     "weather", "terrain", "screen", "doubles",
     "atkInvest", "atkNature", "atkItem", "atkBoost", "atkSpeed", "candBulk", "useAccuracy",
-    "threshold", "fTypeMode", "fCat", "fRole", "fAvail", "fMega", "fSurvive", "fFaster"];
+    "threshold", "fTypeMode", "fCat", "fRole", "fAvail", "fMega", "fSurvive", "fFaster", "showTypeFilters"];
   function serializeLab() {
     const out = { mode: s.mode, targets: eb.targets.map((c) => (c ? { ...c, spread: { ...c.spread } } : null)),
       fTypesOff: [...eb.fTypesOff], moveTypesOff: [...eb.moveTypesOff], revTypesOff: [...eb.revTypesOff],
@@ -753,6 +754,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
     const ai = e.target.closest("[data-atkinvest]");
     if (ai) { eb.atkInvest = Number(ai.dataset.atkinvest); renderEb(); return; }
     if (e.target.closest("[data-acc-toggle]")) { eb.useAccuracy = !eb.useAccuracy; renderActive(); return; }
+    if (e.target.closest("[data-toggle-typefilters]")) { eb.showTypeFilters = !eb.showTypeFilters; renderActive(); return; }
     // filters
     const ft = e.target.closest("[data-ftype]");
     if (ft) { const t = ft.dataset.ftype; eb.fTypesOff.has(t) ? eb.fTypesOff.delete(t) : eb.fTypesOff.add(t); renderEb(); return; }
@@ -1331,16 +1333,29 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
     </section>`;
   }
 
+  // The two 18-chip type grids (attacker types + move types) collapse behind one toggle so
+  // results sit far higher up. Badge = how many types are currently filtered out.
+  function typeFilterToggle() {
+    const n = eb.fTypesOff.size + eb.moveTypesOff.size;
+    return `<button class="cl-typetoggle ${eb.showTypeFilters ? "open" : ""} ${n ? "has" : ""}" data-toggle-typefilters title="Filter by attacker type / move type">
+      <span class="cl-tt-ico">◧</span> Type filters ${n ? `<span class="cl-tt-badge">${n}</span>` : ""}<span class="cl-tt-caret">${eb.showTypeFilters ? "▾" : "▸"}</span></button>`;
+  }
   function renderFilters() {
     const roleOpts = { any: "Any role", physical: "Physical", special: "Special", mixed: "Mixed", defensive: "Defensive" };
     return `<div class="cl-filter-bar">
-      <div class="seg cl-catseg">${[["any", "All"], ["physical", "Phys"], ["special", "Spec"]].map(([v, l]) => `<button data-fcat="${v}" class="${eb.fCat === v ? "active" : ""}">${l}</button>`).join("")}</div>
-      <div class="seg cl-megaseg">${[["all", "All"], ["hide", "No mega"], ["only", "Only mega"]].map(([v, l]) => `<button data-fmega="${v}" class="${eb.fMega === v ? "active" : ""}">${l}</button>`).join("")}</div>
-      ${seg("fRole", roleOpts, eb.fRole)}
-      <label class="cl-avail"><input type="checkbox" data-ebsel="fAvail" ${eb.fAvail ? "checked" : ""}> Available</label>
-      <label class="cl-avail" title="Hide attackers the target OHKOs back"><input type="checkbox" data-ebsel="fSurvive" ${eb.fSurvive ? "checked" : ""}> Survives target</label>
-      <label class="cl-avail" title="Only attackers that move first"><input type="checkbox" data-ebsel="fFaster" ${eb.fFaster ? "checked" : ""}> Outspeeds</label>
-      <div class="seg ehp-thresh">${[["any", "Any dmg"], ["ohko", "OHKO"], ["2hko", "2HKO"], ["3hko", "3HKO"]].map(([v, l]) => `<button data-thresh="${v}" class="${eb.threshold === v ? "active" : ""}">${l}</button>`).join("")}</div>
+      <div class="cl-filtrow">
+        <div class="seg cl-catseg">${[["any", "All"], ["physical", "Phys"], ["special", "Spec"]].map(([v, l]) => `<button data-fcat="${v}" class="${eb.fCat === v ? "active" : ""}">${l}</button>`).join("")}</div>
+        <div class="seg cl-megaseg">${[["all", "All"], ["hide", "No mega"], ["only", "Only mega"]].map(([v, l]) => `<button data-fmega="${v}" class="${eb.fMega === v ? "active" : ""}">${l}</button>`).join("")}</div>
+        ${seg("fRole", roleOpts, eb.fRole)}
+        <div class="seg ehp-thresh">${[["any", "Any dmg"], ["ohko", "OHKO"], ["2hko", "2HKO"], ["3hko", "3HKO"]].map(([v, l]) => `<button data-thresh="${v}" class="${eb.threshold === v ? "active" : ""}">${l}</button>`).join("")}</div>
+      </div>
+      <div class="cl-filtrow">
+        <label class="cl-toggle"><input type="checkbox" data-ebsel="fAvail" ${eb.fAvail ? "checked" : ""}> Available</label>
+        <label class="cl-toggle" title="Hide attackers the target OHKOs back"><input type="checkbox" data-ebsel="fSurvive" ${eb.fSurvive ? "checked" : ""}> Survives target</label>
+        <label class="cl-toggle" title="Only attackers that move first"><input type="checkbox" data-ebsel="fFaster" ${eb.fFaster ? "checked" : ""}> Outspeeds</label>
+        ${typeFilterToggle()}
+      </div>
+      <div class="cl-typefilters" ${eb.showTypeFilters ? "" : "hidden"}>
       <div class="cl-typerow" title="Lit types are allowed; click a type to toggle it">
         <div class="cl-typectl">
           <span class="cl-typelab">Attacker type</span>
@@ -1360,6 +1375,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
           <button class="btn-sm" data-typeset="mv.none">None</button>
         </div>
         <div class="cl-ftypes">${TYPES.map((t) => `<button class="type-chip ${eb.moveTypesOff.has(t) ? "off" : "on"}" data-fmtype="${t}"><span class="type" style="background:${TYPE_COLORS[t]}">${t}</span></button>`).join("")}</div>
+      </div>
       </div>
     </div>`;
   }
@@ -1695,8 +1711,11 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
           <div class="seg ehp-thresh">${[["usage", "Usage ↓"], ["dmg", "Damage ↓"], ["tough", "Toughest ↑"]].map(([v, l]) => `<button data-revsort="${v}" class="${eb.revSort === v ? "active" : ""}">${l}</button>`).join("")}</div>
           <div class="seg">${[["all", "All"], ["hide", "No mega"], ["only", "Only mega"]].map(([v, l]) => `<button data-revmega="${v}" class="${eb.revMega === v ? "active" : ""}">${l}</button>`).join("")}</div>
           <div class="seg ehp-thresh">${[["any", "Any dmg"], ["ohko", "OHKO"], ["2hko", "2HKO"], ["3hko", "3HKO"]].map(([v, l]) => `<button data-thresh="${v}" class="${eb.threshold === v ? "active" : ""}">${l}</button>`).join("")}</div>
-          <label class="cl-avail" title="Only defenders with real ladder usage data"><input type="checkbox" data-revsel="revLaddered" ${eb.revLaddered ? "checked" : ""}> Laddered only</label>
+          <label class="cl-toggle" title="Only defenders with real ladder usage data"><input type="checkbox" data-revsel="revLaddered" ${eb.revLaddered ? "checked" : ""}> Laddered only</label>
+          <button class="cl-typetoggle ${eb.showTypeFilters ? "open" : ""} ${eb.revTypesOff.size + eb.moveTypesOff.size ? "has" : ""}" data-toggle-typefilters title="Filter by defender type / move type">
+            <span class="cl-tt-ico">◧</span> Type filters ${eb.revTypesOff.size + eb.moveTypesOff.size ? `<span class="cl-tt-badge">${eb.revTypesOff.size + eb.moveTypesOff.size}</span>` : ""}<span class="cl-tt-caret">${eb.showTypeFilters ? "▾" : "▸"}</span></button>
         </div>
+        <div class="cl-typefilters" ${eb.showTypeFilters ? "" : "hidden"}>
         <div class="cl-typerow" title="Lit types are shown; click a type to toggle it">
           <div class="cl-typectl">
             <span class="cl-typelab">Defender type</span>
@@ -1712,6 +1731,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
             <button class="btn-sm" data-typeset="mv.none">None</button>
           </div>
           <div class="cl-ftypes">${TYPES.map((t) => `<button class="type-chip ${eb.moveTypesOff.has(t) ? "off" : "on"}" data-fmtype="${t}"><span class="type" style="background:${TYPE_COLORS[t]}">${t}</span></button>`).join("")}</div>
+        </div>
         </div>
       </div>
     </section>`;
