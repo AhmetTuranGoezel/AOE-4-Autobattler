@@ -34,7 +34,7 @@ export function attachAutocomplete(input, opts) {
     if (!matches.length) { close(); return; }
     menu.innerHTML = matches.map((it, i) =>
       `<li class="ac-row ${i === active ? "active" : ""}" data-i="${i}">
-        <span class="ac-icon">${it.icon || ""}</span><span class="ac-name">${it.name}</span></li>`).join("");
+        <span class="ac-icon">${it.icon || ""}</span><span class="ac-name">${it.name}</span>${it.meta ? `<span class="ac-meta">${it.meta}</span>` : ""}</li>`).join("");
     menu.hidden = false;
   }
   function close() { menu.hidden = true; menu.innerHTML = ""; active = -1; }

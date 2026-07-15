@@ -6,6 +6,7 @@
 // for effects that key off the incoming multiplier (Filter, Wonder Guard).
 export const DEF_ABILITIES = {
   levitate: { ground: 0 },
+  eelevate: { ground: 0 },   // Mega Eelektross (Champions-original): floats — Ground immunity
   "flash-fire": { fire: 0 },
   "well-baked-body": { fire: 0 },
   heatproof: { fire: 0.5 },

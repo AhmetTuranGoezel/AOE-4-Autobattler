@@ -2,7 +2,7 @@
 // chips: the move type + defender type(s) auto-compute effectiveness, stat stages
 // give effective Atk/Def, and STAB/Crit/Weather/Burn are chip toggles. Shows the
 // Gen-9 formula and the min–max range from the 16 damage rolls (0.85–1.00).
-import { TYPES, TYPE_COLORS, displayName, grassKnotBP } from "./data.js";
+import { TYPES, TYPE_COLORS, displayName, grassKnotBP, formFamily } from "./data.js";
 import { statsFor, roleOf } from "./effective-stats.js";
 import { attachAutocomplete } from "./autocomplete.js";
 import { defaultAbility, applyAbility } from "./type-defense.js";
@@ -10,15 +10,6 @@ import { POOL, CAP, pointsUsed } from "./stat-lab.js";
 
 const pokeRound = (v) => { const f = Math.floor(v); return v - f > 0.5 ? f + 1 : f; };
 const stageMult = (n) => (n >= 0 ? (2 + n) / 2 : 2 / (2 - n));
-const fmtMult = (v) => (v === 0.25 ? "¼" : v === 0.5 ? "½" : v === 0.75 ? "¾" : String(v));
-
-const MODGROUPS = {
-  stab: { label: "STAB", opts: [["None", 1], ["×1.5", 1.5], ["×2 Adapt.", 2]] },
-  crit: { label: "Crit", opts: [["No crit", 1], ["Crit ×1.5", 1.5]] },
-  weather: { label: "Weather", opts: [["None", 1], ["Boost ×1.5", 1.5], ["Weaken ×0.5", 0.5]] },
-  burn: { label: "Burn", opts: [["None", 1], ["Burn ×0.5", 0.5]] },
-};
-
 function computeDamage(p) {
   let base = 0;
   if (p.power && p.atk && p.def) {
@@ -52,16 +43,16 @@ const NUMWORD = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, 
 // Moves whose damage is a flat amount or a fraction of HP, and unmodelable "return" moves.
 const FIXED_DMG = { "Seismic Toss": 50, "Night Shade": 50, "Sonic Boom": 20, "Dragon Rage": 40 };  // Lv50
 const FRAC_HP = { "Super Fang": 0.5, "Nature's Madness": 0.5, Ruination: 0.5, "Guardian of Alola": 0.75 };
-const FIXED_BP = { Return: 102, Frustration: 102, "Hidden Power": 60 };   // variable BP → representative value
+const FIXED_BP = { Return: 102, Frustration: 102, "Hidden Power": 60, "Hard Press": 100 };   // variable BP → representative value (Hard Press: target at full HP = max 100)
 const LOWHP_BP = new Set(["Flail", "Reversal"]);                          // BP rises as HP drops — assume full HP (weakest)
 const SE_BOOST_MOVES = new Set(["Collision Course", "Electro Drift"]);    // ×1.3333 when super-effective
-const COUNTER_MOVES = new Set(["Counter", "Mirror Coat", "Metal Burst"]);
+const COUNTER_MOVES = new Set(["Counter", "Mirror Coat", "Metal Burst", "Comeuppance"]);
 // Damaging moves whose special mechanic isn't fully modeled → surface a "~approx" flag so the number isn't trusted blindly.
 const UNMODELED = new Set(["Beat Up", "Fling", "Present", "Spit Up", "Trump Card", "Natural Gift", "Wring Out", "Crush Grip", "Punishment", "Stored Power", "Power Trip", "Grass Pledge", "Fire Pledge", "Water Pledge", "Eruption", "Water Spout", "Dragon Energy", "Final Gambit", "Endeavor"]);
 const isOHKO = (mv) => /equal to the target's maximum hp/i.test(mv.effect || "");
 // Turn-wasting / self-risking moves that shouldn't be a mon's headline threat:
 // charge/recharge turns, fails-if-hit, user faints, ½-max-HP cost, crash on miss.
-const RISKY_MOVES = new Set(["Focus Punch", "Explosion", "Self-Destruct", "Misty Explosion", "Final Gambit", "Steel Beam", "Mind Blown", "High Jump Kick", "Jump Kick"]);
+const RISKY_MOVES = new Set(["Focus Punch", "Explosion", "Self-Destruct", "Misty Explosion", "Final Gambit", "Steel Beam", "Mind Blown", "High Jump Kick", "Jump Kick", "Future Sight"]);   // Future Sight: hits 2 turns late
 const isDrawback = (mv) => (mv.flags || []).includes("Recharge") || (mv.flags || []).includes("Two-turn") || RISKY_MOVES.has(mv.name);
 // Charge moves with special handling: `skip` = weather that removes the charge turn
 // (fires instantly — no longer a drawback); `boost` = stat stage gained while charging
@@ -112,7 +103,8 @@ function effectivePower(mv, ctx) {
   } else if (fixedH && NUMWORD[fixedH[1]]) hits = NUMWORD[fixedH[1]];
   else if (/hits twice/.test(eff)) hits = 2;
   if (hits !== 1) notes.push(`${hits % 1 ? hits.toFixed(1) : hits}× hits`);
-  return done(mv.power || 0, hits);
+  if (!mv.power) return { kind: "skip", note: "variable power (unmodeled)" };   // never emit phantom 1-pw rows
+  return done(mv.power, hits);
 }
 
 // Conditional-damage effects, resolved from the real battle state we track. Each fn gets
@@ -146,20 +138,29 @@ const CONDITIONAL = {
   // boosts
   "Stored Power": (c) => (c.st.boost > 0 ? { bpMul: 1 + c.st.boost, note: `+${c.st.boost} boosts` } : null),
   "Power Trip": (c) => (c.st.boost > 0 ? { bpMul: 1 + c.st.boost, note: `+${c.st.boost} boosts` } : null),
-  // terrain
-  "Rising Voltage": (c) => (c.eb.terrain === "electric" ? { mult: 2, note: "×2 terrain" } : null),
-  "Expanding Force": (c) => (c.eb.terrain === "psychic" ? { mult: 1.5, note: "×1.5 terrain" } : null),
-  "Terrain Pulse": (c) => (c.eb.terrain !== "none" ? { mult: 2, note: "×2 terrain (type change ~approx)" } : null),
-  "Misty Explosion": (c) => (c.eb.terrain === "misty" ? { mult: 1.5, note: "×1.5 terrain" } : null),
+  // terrain (grounded-gated: the boosted/protected side must be on the ground)
+  "Rising Voltage": (c) => (c.eb.terrain === "electric" && (c.grounded || {}).target !== false ? { mult: 2, note: "×2 terrain (grounded target)" } : null),
+  "Expanding Force": (c) => (c.eb.terrain === "psychic" && (c.grounded || {}).user !== false ? { mult: 1.5, note: "×1.5 terrain" } : null),
+  "Terrain Pulse": (c) => (c.eb.terrain !== "none" && (c.grounded || {}).user !== false ? { mult: 2, note: "×2 terrain (type change ~approx)" } : null),
+  "Misty Explosion": (c) => (c.eb.terrain === "misty" && (c.grounded || {}).user !== false ? { mult: 1.5, note: "×1.5 terrain" } : null),
   // conditions we can't verify from tracked state — surfaced as explicit flags
   Assurance: () => ({ note: "×2 if target already hit this turn" }),
   "Lash Out": () => ({ note: "×2 if its stats were lowered this turn" }),
   "Sucker Punch": () => ({ note: "fails unless the target attacks" }),
+  "Upper Hand": () => ({ note: "fails unless the target uses a priority move" }),
   "Fake Out": () => ({ note: "turn 1 only · flinches" }),
   "First Impression": () => ({ note: "turn 1 only" }),
   Belch: () => ({ note: "needs a berry eaten first" }),
   "Stomping Tantrum": () => ({ note: "×2 after a failed move" }),
+  "Temper Flare": () => ({ note: "×2 after a failed move" }),
+  Retaliate: () => ({ note: "×2 if an ally fainted last turn" }),
   "Last Resort": () => ({ note: "needs all other moves used" }),
+  // variable-power mechanics we can't track — representative BP + explicit flag
+  "Rage Fist": () => ({ note: "+50 BP per hit taken (not counted)" }),
+  "Last Respects": () => ({ note: "+50 BP per fainted ally (not counted)" }),
+  "Fickle Beam": () => ({ note: "30%: ×2 power (not counted)" }),
+  "Shell Side Arm": () => ({ note: "picks phys/spec — special assumed" }),
+  "Salt Cure": () => ({ note: "+12.5–25%/turn chip (not counted)" }),
 };
 function conditionalMods(mv, ctx) {
   const fn = CONDITIONAL[mv.name];
@@ -187,6 +188,11 @@ const hasFlag = (mv, f) => (mv.flags || []).includes(f);
 const SPEED_ABIL = { "sand-rush": "sand", "swift-swim": "rain", chlorophyll: "sun", "slush-rush": "snow" };  // ×2 Spe in that weather
 const MOLD_BREAKER = new Set(["mold-breaker", "teravolt", "turboblaze"]);   // ignore the target's ability
 const PRIO_BLOCK = new Set(["dazzling", "queenly-majesty", "armor-tail"]);  // priority moves fail against these
+const DAMP_BLOCKED = new Set(["Explosion", "Self-Destruct", "Mind Blown", "Misty Explosion"]);  // Damp shuts these down
+// Heavy Metal doubles the holder's weight, Light Metal halves it (Grass Knot / Heavy Slam math)
+const abilWeight = (w, ab) => (ab === "heavy-metal" ? w * 2 : ab === "light-metal" ? Math.max(0.1, Math.floor(w * 5) / 10) : w);
+// Terrain only affects GROUNDED Pokémon: Flying-types and Levitate/Eelevate holders float.
+const grounded = (types, ability) => !types.includes("flying") && ability !== "levitate" && ability !== "eelevate";
 const OFF_ABIL = {
   "huge-power": ({ cat }) => (cat === "physical" ? { mult: 2, note: "Huge Power" } : null),
   "pure-power": ({ cat }) => (cat === "physical" ? { mult: 2, note: "Pure Power" } : null),
@@ -226,6 +232,11 @@ const OFF_ABIL = {
   "gorilla-tactics": ({ cat }) => (cat === "physical" ? { mult: 1.5, note: "Gorilla Tactics" } : null),
   // hits twice (2nd at 25%) — Mega Kangaskhan
   "parental-bond": () => ({ mult: 1.25, note: "2 hits (Parental Bond)" }),
+  // Kingambit: ×1.1 per fainted ally — team state we can't know; numbers show 0 fallen
+  "supreme-overlord": () => ({ mult: 1, note: "×1.1/fallen ally not counted" }),
+  // Champions-original mega abilities
+  "fairy-aura": ({ mv }) => (mv.type === "fairy" ? { mult: 4 / 3, note: "Fairy Aura" } : null),
+  "fire-mane": ({ mv }) => (mv.type === "fire" ? { mult: 1.5, note: "Fire Mane" } : null),
   // effectiveness / order based
   "tinted-lens": ({ typeEff }) => (typeEff < 1 ? { mult: 2, note: "Tinted Lens" } : null),
   neuroforce: ({ typeEff }) => (typeEff > 1 ? { mult: 1.25, note: "Neuroforce" } : null),
@@ -242,19 +253,21 @@ function abilityMods(ability, ctx) {
 // Highest non-HP base stat key (for Protosynthesis / Quark Drive).
 const hiStatOf = (mon) => { const s = mon.stats; return ["atk", "def", "spa", "spd", "spe"].reduce((m, k) => (s[k] > s[m] ? k : m), "atk"); };
 // -ate abilities retype Normal moves (and ×1.2); Protean/Libero give STAB to every move.
-const ATE_ABIL = { aerilate: "flying", pixilate: "fairy", refrigerate: "ice", galvanize: "electric" };
+const ATE_ABIL = { aerilate: "flying", pixilate: "fairy", refrigerate: "ice", galvanize: "electric", dragonize: "dragon" };   // dragonize = Mega Feraligatr (Champions)
 const PROTEAN = new Set(["protean", "libero"]);
 // Moves that ignore the target's defensive stat changes (so a Def boost doesn't help).
 const STAT_IGNORE = new Set(["Sacred Sword", "Chip Away", "Darkest Lariat"]);
+// Attackers whose ability ignores (or punishes) Intimidate's Atk drop.
+const INTIM_IMMUNE = new Set(["clear-body", "white-smoke", "hyper-cutter", "inner-focus", "own-tempo", "oblivious", "scrappy", "guard-dog", "defiant", "competitive", "contrary"]);
 // Target abilities that scale INCOMING damage (category / HP / field / status based).
 const TARGET_DMG = {
   "fur-coat": ({ cat }) => (cat === "physical" ? 0.5 : 1),
   "ice-scales": ({ cat }) => (cat === "special" ? 0.5 : 1),
   multiscale: () => 0.5,          // assume full HP (a counter's first hit)
   "shadow-shield": () => 0.5,
-  fluffy: ({ mv }) => (hasFlag(mv, "Contact") ? 0.5 : 1),   // ½ contact (its ×2 Fire is in DEF_ABILITIES)
+  fluffy: ({ mv, noContact }) => (hasFlag(mv, "Contact") && !noContact ? 0.5 : 1),   // ½ contact (Long Reach attackers bypass); its ×2 Fire is in DEF_ABILITIES
   "punk-rock": ({ mv }) => (hasFlag(mv, "Sound") ? 0.5 : 1),
-  intimidate: ({ cat }) => (cat === "physical" ? 2 / 3 : 1),
+  intimidate: ({ cat, atkAbility }) => (cat === "physical" && !INTIM_IMMUNE.has(atkAbility) ? 2 / 3 : 1),   // many abilities shrug it off
   "grass-pelt": ({ cat, terrain }) => (terrain === "grassy" && cat === "physical" ? 2 / 3 : 1),
   "marvel-scale": ({ cat, tStatus }) => (tStatus !== "none" && cat === "physical" ? 2 / 3 : 1),
 };
@@ -312,16 +325,19 @@ const isSpread = (mv) => mv.target === "all-opponents" || mv.target === "all-oth
 
 // Weather/terrain/screen multiplier on an attacker's damage for one move.
 // Screens protect the TARGET only (skip via applyScreens=false for the target's own return
-// damage); Infiltrator bypasses them.
-function fieldOffenseMult(mv, cat, eb, infiltrator = false, applyScreens = true) {
+// damage); Infiltrator bypasses them. Terrain effects require the relevant side GROUNDED:
+// the user for the 1.3 boosts, the target for the grassy-EQ and misty-Dragon reductions.
+function fieldOffenseMult(mv, cat, eb, infiltrator = false, applyScreens = true, userGrounded = true, targetGrounded = true) {
   let m = 1; const notes = [];
   if (eb.weather === "rain") m *= mv.type === "water" ? 1.5 : mv.type === "fire" ? 0.5 : 1;
   else if (eb.weather === "sun") m *= mv.type === "fire" ? 1.5 : mv.type === "water" ? 0.5 : 1;
   if (m !== 1) notes.push(WEATHERS[eb.weather]);
-  if (eb.terrain === "grassy") { if (mv.type === "grass") { m *= 1.3; notes.push("grassy"); } if (EQ_MOVES.has(mv.name)) { m *= 0.5; notes.push("grassy"); } }
-  else if (eb.terrain === "electric" && mv.type === "electric") { m *= 1.3; notes.push("terrain"); }
-  else if (eb.terrain === "psychic" && mv.type === "psychic") { m *= 1.3; notes.push("terrain"); }
-  else if (eb.terrain === "misty" && mv.type === "dragon") { m *= 0.5; notes.push("misty"); }
+  if (eb.terrain === "grassy") {
+    if (mv.type === "grass" && userGrounded) { m *= 1.3; notes.push("grassy"); }
+    if (EQ_MOVES.has(mv.name) && targetGrounded) { m *= 0.5; notes.push("grassy"); }
+  } else if (eb.terrain === "electric" && mv.type === "electric" && userGrounded) { m *= 1.3; notes.push("terrain"); }
+  else if (eb.terrain === "psychic" && mv.type === "psychic" && userGrounded) { m *= 1.3; notes.push("terrain"); }
+  else if (eb.terrain === "misty" && mv.type === "dragon" && targetGrounded) { m *= 0.5; notes.push("misty"); }
   if (applyScreens && !infiltrator) {
     if ((eb.screen === "reflect" || eb.screen === "both") && cat === "physical") { m *= 0.5; notes.push("Reflect"); }
     if ((eb.screen === "light-screen" || eb.screen === "both") && cat === "special") { m *= 0.5; notes.push("Screen"); }
@@ -331,12 +347,7 @@ function fieldOffenseMult(mv, cat, eb, infiltrator = false, applyScreens = true)
 
 export function initCalcView({ container, data, onOpen, onMoveInfo }) {
   const s = {
-    level: 50, power: 90, category: "physical",
-    atkStat: 150, atkStage: 0, defStat: 100, defStage: 0, hp: 0, other: 1,
-    moveType: "", defTypes: [],
-    stab: 1.5, crit: 1, weather: 1, burn: 1,
-    showFormula: false,
-    mode: "calc", // "calc" (manual) | "ehp" (eHP breaker)
+    mode: "ehp", // "ehp" (Counters) | "rev" (One vs all)
   };
   // Counters lab: rank the roster against a chosen target under editable conditions.
   const EXCLUDE_KEY = "pc-move-exclude";
@@ -352,8 +363,10 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
     // global attacker offense preset
     atkInvest: 32, atkNature: "auto", atkItem: "none", atkBoost: 0, atkSpeed: "base", candBulk: "base",  // atkNature "auto" boosts the used stat; candBulk: candidates' HP for the survive math (base | hp = +32)
     // "One vs all" reverse mode: one attacker vs the whole roster
-    revSlug: null, revSort: "dmg", revLaddered: false, revSearch: "", revMega: "all", revTypesOff: new Set(),
-    revCfg: { ability: null, invest: 32, nature: "auto", item: "none", boost: 0, speed: "base" },
+    revSlug: null, revSort: "usage", revLaddered: false, revSearch: "", revMega: "all", revTypesOff: new Set(), revBasis: "ladder",
+    revCfg: { ability: null, invest: 32, nature: "auto", item: "none", boost: 0, speed: "base", stages: { atk: 0, spa: 0, def: 0, spd: 0, spe: 0 }, movepool: "all", moveset: null,
+      custom: [] },   // invented moves [{type, class, power}] — evaluated alongside the movepool
+    movepool: "all",   // attackers use every learnable move | only their ladder set
     revOverrides: new Map(),   // per-defender config overrides (bulk/boosts/ability/item/nature)
     // pinned rows: stay on top of the results regardless of filters/search/threshold
     pinned: new Set(), revPinned: new Set(),
@@ -369,8 +382,10 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
 
   // ---- lab persistence: the working setup survives reloads; named target presets ----
   const STATE_KEY = "pc-counters-state", PRESETS_KEY = "pc-counters-presets";
-  const LAB_FIELDS = ["editing", "revSlug", "revSort", "revLaddered", "revCfg", "revMega",
-    "weather", "terrain", "screen", "targetStatus", "userStatus", "doubles",
+  const LAB_FIELDS = ["editing", "revSlug", "revSort", "revLaddered", "revCfg", "revMega", "revBasis", "movepool",
+    // NOTE: targetStatus/userStatus are deliberately NOT persisted — a burn silently
+    // surviving into the next session halves physical damage and reads like a bug.
+    "weather", "terrain", "screen", "doubles",
     "atkInvest", "atkNature", "atkItem", "atkBoost", "atkSpeed", "candBulk", "useAccuracy",
     "threshold", "fTypeMode", "fCat", "fRole", "fAvail", "fMega", "fSurvive", "fFaster"];
   function serializeLab() {
@@ -390,7 +405,8 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
       if (eb.targets.length < 2) eb.targets[1] = null;
     }
     LAB_FIELDS.forEach((k) => { if (st[k] !== undefined) eb[k] = st[k]; });
-    if (st.mode) s.mode = st.mode;
+    if (!Array.isArray(eb.revCfg.custom)) eb.revCfg.custom = [];   // pre-custom-move stored states
+    if (st.mode) s.mode = st.mode === "calc" ? "ehp" : st.mode;   // the manual calculator is gone
     if (eb.editing > 1 || !eb.targets[eb.editing]) eb.editing = 0;
     if (eb.revSlug && !bySlug.has(eb.revSlug)) eb.revSlug = null;
     eb.fTypesOff = new Set(st.fTypesOff || []);
@@ -400,6 +416,9 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
     eb.revPinned = new Set((st.revPinned || []).filter((sl) => bySlug.has(sl)));
     eb.overrides = new Map(Object.entries(st.overrides || {}));
     eb.revOverrides = new Map(Object.entries(st.revOverrides || {}));
+    // statuses always start Healthy — never restored from storage or old/legacy values
+    eb.userStatus = "none";
+    eb.targetStatus = "none";
     eb.expanded = null;
   }
   const saveLab = () => { try { localStorage.setItem(STATE_KEY, JSON.stringify(serializeLab())); } catch { /* ignore */ } };
@@ -420,27 +439,12 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
     return `<select class="cl-sel" ${dataAttr}>${Object.entries(opts).map(([v, l]) => `<option value="${v}" ${v === cur ? "selected" : ""}>${l}</option>`).join("")}</select>`;
   };
 
-  const typeChips = (attr) => TYPES.map((t) =>
-    `<button class="type-chip" data-${attr}="${t}"><span class="type" style="background:${TYPE_COLORS[t]}">${t}</span></button>`).join("");
-
-  const modGroups = Object.entries(MODGROUPS).map(([k, g]) => `<div class="mod-group">
-    <span class="mod-label">${g.label}</span>
-    <div class="seg mod-seg">${g.opts.map(([n, v]) =>
-      `<button class="mod-opt" data-mod="${k}" data-val="${v}">${n}</button>`).join("")}</div>
-  </div>`).join("");
-
-  const stage = (which) => `<div class="stage"><button class="stage-btn" data-stage="${which}" data-dir="-1">−</button>` +
-    `<span class="stage-val" id="${which}-stage">+0</span><button class="stage-btn" data-stage="${which}" data-dir="1">+</button></div>`;
-
   container.innerHTML = `<div class="calc">
     <div class="calc-head">
       <div class="calc-modes seg">
-        <button data-calcmode="calc" class="active">Calculator</button>
-        <button data-calcmode="ehp">Counters</button>
+        <button data-calcmode="ehp" class="active">Counters</button>
         <button data-calcmode="rev">One vs all</button>
       </div>
-      <h2 class="calc-title-calc">Damage calculator</h2>
-      <p class="calc-note calc-title-calc">Type the stats, pick the types &amp; modifiers with chips. Range = the 16 rolls (0.85–1.00). Champions battles are Level 50.</p>
       <h2 class="calc-title-ehp" hidden>Counters <small class="muted">— who breaks one or two popular targets, under your conditions</small></h2>
       <p class="calc-note calc-title-ehp" hidden>Pick a target — its defensive set prefills from real ladder usage; edit its investment, nature, boosts, ability and field conditions. Add a 2nd target to find counters that handle both. Real Gen-9 damage (0.85–1.00 roll) vs its real HP.</p>
       <h2 class="calc-title-rev" hidden>One vs all <small class="muted">— your attacker's damage into the whole roster</small></h2>
@@ -452,20 +456,23 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
         <div class="ci cl-pick-target">Target Pokémon
           <div class="ac-wrap"><input class="ehp-target-input" placeholder="Search a popular target…" autocomplete="off"></div>
         </div>
-        <div class="ci cl-pick-search">Filter attackers by name
-          <input class="ehp-atk-search" placeholder="type a name…" autocomplete="off">
-        </div>
-        <div class="ci cl-pick-exclude">Exclude an attack <small>(saved)</small>
-          <div class="ac-wrap"><input class="ehp-exclude-input" placeholder="add a move to ignore…" autocomplete="off"></div>
-        </div>
-        <div class="ci cl-pick-tmove">Add a target move <small>(what it hits back with)</small>
-          <div class="ac-wrap"><input class="ehp-tmove-input" placeholder="add a move to the target…" autocomplete="off"></div>
-        </div>
-        <div class="ci cl-pick-target2">2nd target <small>(counter both)</small>
-          <div class="ac-wrap"><input class="ehp-target2-input" placeholder="add a 2nd target…" autocomplete="off"></div>
+        <button class="btn cl-setup-btn" data-setup="ehp-setup">⚙ More setup</button>
+        <div class="cl-setup" id="ehp-setup">
+          <div class="ci cl-pick-search">Filter attackers by name
+            <input class="ehp-atk-search" placeholder="type a name…" autocomplete="off">
+          </div>
+          <div class="ci cl-pick-exclude">Exclude an attack <small>(saved)</small>
+            <div class="ac-wrap"><input class="ehp-exclude-input" placeholder="add a move to ignore…" autocomplete="off"></div>
+          </div>
+          <div class="ci cl-pick-tmove">Add a target move <small>(what it hits back with)</small>
+            <div class="ac-wrap"><input class="ehp-tmove-input" placeholder="add a move to the target…" autocomplete="off"></div>
+          </div>
+          <div class="ci cl-pick-target2">2nd target <small>(counter both)</small>
+            <div class="ac-wrap"><input class="ehp-target2-input" placeholder="add a 2nd target…" autocomplete="off"></div>
+          </div>
+          <div id="ehp-presets" class="cl-presets"></div>
         </div>
       </div>
-      <div id="ehp-presets" class="cl-presets"></div>
       <div id="ehp-controls" class="cl-controls"></div>
       <div id="ehp-filters" class="cl-filters"></div>
       <div class="ehp-results" id="ehp-results"></div>
@@ -476,63 +483,21 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
         <div class="ci cl-pick-target">Attacker
           <div class="ac-wrap"><input class="rev-atk-input" placeholder="Search an attacker…" autocomplete="off"></div>
         </div>
-        <div class="ci cl-pick-search">Filter defenders by name
-          <input class="rev-def-search" placeholder="type a name…" autocomplete="off">
+        <button class="btn cl-setup-btn" data-setup="rev-setup">⚙ More setup</button>
+        <div class="cl-setup" id="rev-setup">
+          <div class="ci cl-pick-search">Filter defenders by name
+            <input class="rev-def-search" placeholder="type a name…" autocomplete="off">
+          </div>
+          <div class="ci cl-pick-tmove">Assign an attack <small>(lock its moveset)</small>
+            <div class="ac-wrap"><input class="rev-move-input" placeholder="add one of its moves…" autocomplete="off"></div>
+          </div>
+          <div id="rev-presets" class="cl-presets"></div>
         </div>
       </div>
       <div id="rev-controls" class="cl-controls"></div>
       <div class="ehp-results" id="rev-results"></div>
     </div>
 
-    <div class="calc-grid" id="calc-mode-calc">
-      <div class="calc-form">
-        <section class="calc-card">
-          <h3>Move</h3>
-          <div class="calc-row">
-            <label class="ci">Base power<input type="number" data-in="power" min="0" value="${s.power}"></label>
-            <div class="ci">Category<div class="seg calc-cat"><button data-cat="physical" class="active">Physical</button><button data-cat="special">Special</button></div></div>
-          </div>
-          <div class="ci">Move type<div class="type-chips" id="mtype">${typeChips("mtype")}</div></div>
-        </section>
-
-        <section class="calc-card">
-          <h3>Attacker</h3>
-          <div class="calc-row">
-            <label class="ci">Level<input type="number" data-in="level" min="1" max="100" value="${s.level}"></label>
-            <div class="ci"><span class="lbl-a">Attack</span>
-              <div class="stat-stage"><input type="number" data-in="atkStat" min="1" value="${s.atkStat}">${stage("atk")}</div>
-              <span class="eff-readout" id="eff-atk"></span></div>
-          </div>
-        </section>
-
-        <section class="calc-card">
-          <h3>Defender</h3>
-          <div class="calc-row">
-            <div class="ci"><span class="lbl-d">Defense</span>
-              <div class="stat-stage"><input type="number" data-in="defStat" min="1" value="${s.defStat}">${stage("def")}</div>
-              <span class="eff-readout" id="eff-def"></span></div>
-            <label class="ci">Target HP <small>(optional)</small><input type="number" data-in="hp" min="0" value="${s.hp}"></label>
-          </div>
-          <div class="ci">Defender type(s) <small>up to 2</small><div class="type-chips" id="dtype">${typeChips("dtype")}</div>
-            <span class="type-eff" id="type-eff"></span></div>
-        </section>
-
-        <section class="calc-card">
-          <h3>Modifiers</h3>
-          ${modGroups}
-          <label class="ci other-row">Other multiplier <small>(item / ability)</small><input type="number" data-in="other" min="0" step="0.05" value="${s.other}"></label>
-        </section>
-      </div>
-
-      <div class="calc-result-wrap">
-        <div class="calc-result">
-          <div class="calc-dmg" id="calc-dmg"></div>
-          <div class="hp-wrap" id="hp-wrap"></div>
-          <div class="calc-pct" id="calc-pct"></div>
-        </div>
-        <div class="calc-formula" id="calc-formula"></div>
-      </div>
-    </div>
   </div>`;
 
   const $ = (sel) => container.querySelector(sel);
@@ -581,7 +546,10 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
     renderEb();
   }
   function clearTarget2() { eb.targets[1] = null; eb.editing = 0; eb.expanded = null; renderEb(); }
-  const monItems = () => data.pokemon.map((m) => ({ value: m.slug, name: nameOf(m), icon: `<img src="${m.sprite || m.artwork || ""}" alt="">` }));
+  // popular first: real M-B usage rate sorts the suggestions, shown as a right-aligned %
+  const monItems = () => [...data.pokemon]
+    .sort((a, b) => ((b.usagePct != null ? b.usagePct : -1) - (a.usagePct != null ? a.usagePct : -1)))
+    .map((m) => ({ value: m.slug, name: nameOf(m), icon: `<img src="${m.sprite || m.artwork || ""}" alt="" loading="lazy" decoding="async">`, meta: m.usagePct != null ? `${m.usagePct}%` : "" }));
   attachAutocomplete(container.querySelector(".ehp-target-input"), {
     items: monItems,
     onPick: (slug) => setTarget(slug),
@@ -592,7 +560,16 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
   });
   attachAutocomplete(container.querySelector(".rev-atk-input"), {
     items: monItems,
-    onPick: (slug) => { eb.revSlug = slug; eb.revCfg.ability = offDefaultAbility(bySlug.get(slug)); eb.expanded = null; renderRev(); },
+    onPick: (slug) => { eb.revSlug = slug; eb.revCfg.ability = offDefaultAbility(bySlug.get(slug)); eb.revCfg.moveset = null; eb.expanded = null; renderRev(); },
+  });
+  attachAutocomplete(container.querySelector(".rev-move-input"), {
+    items: () => {
+      const mon = eb.revSlug ? bySlug.get(eb.revSlug) : null;
+      if (!mon) return [];
+      return mon.moves.map((id) => ({ id, mv: data.moves[id] })).filter(({ mv }) => mv && mv.class !== "status" && mv.type)
+        .map(({ id, mv }) => ({ value: id, name: mv.name, icon: `<span class="type tiny" style="background:${TYPE_COLORS[mv.type]}">${mv.type}</span>` }));
+    },
+    onPick: (id) => { if (!Array.isArray(eb.revCfg.moveset)) eb.revCfg.moveset = []; if (!eb.revCfg.moveset.includes(id)) eb.revCfg.moveset.push(id); renderRev(); },
   });
   // exclude any attack (not just the ones showing) — persisted
   const damagingMoves = Object.entries(data.moves).filter(([, mv]) => mv && mv.class !== "status" && mv.type)
@@ -616,10 +593,6 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
   container.addEventListener("input", (e) => {
     if (e.target.classList.contains("ehp-atk-search")) { eb.fSearch = e.target.value.trim().toLowerCase(); renderResults(); return; }
     if (e.target.classList.contains("rev-def-search")) { eb.revSearch = e.target.value.trim().toLowerCase(); renderRevResults(); return; }
-    const k = e.target.dataset.in;
-    if (!k) return;
-    s[k] = e.target.value === "" ? 0 : Number(e.target.value);
-    render();
   });
   container.addEventListener("change", (e) => {
     const ovr = e.target.dataset.ovrsel;
@@ -687,8 +660,15 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
     if (oi) { setOverride("invest", Number(oi.dataset.ovrinvest)); return; }
     const osp = e.target.closest("[data-ovrspeed]");
     if (osp) { setOverride("speed", osp.dataset.ovrspeed); return; }
-    const ost = e.target.closest("[data-ovrstep]");
-    if (ost) { const cur = (eb.overrides.get(eb.expanded) || {}).boost; const bse = cur !== undefined ? cur : eb.atkBoost; setOverride("boost", Math.max(-6, Math.min(6, bse + Number(ost.dataset.ovrstep)))); return; }
+    const ostg = e.target.closest("[data-ovrstage]");
+    if (ostg) {   // per-stat setup stage (Iron Defense = +2 def)
+      const k = ostg.dataset.ovrstage;
+      const cur = ((eb.overrides.get(eb.expanded) || {}).stages || {})[k] || 0;
+      const stages = { ...((eb.overrides.get(eb.expanded) || {}).stages || {}), [k]: Math.max(-6, Math.min(6, cur + Number(ostg.dataset.dir))) };
+      setOverride("stages", stages); return;
+    }
+    const opl = e.target.closest("[data-ovrpool]");
+    if (opl) { setOverride("movepool", opl.dataset.ovrpool); return; }
     if (e.target.closest("[data-ovrreset]")) { eb.overrides.delete(eb.expanded); renderResults(); return; }
     const rmi = e.target.closest("[data-move-info]");
     if (rmi) { onMoveInfo && onMoveInfo(Number(rmi.dataset.moveInfo)); return; }
@@ -696,6 +676,8 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
     if (op) { onOpen && onOpen(op.dataset.open); return; }
     const cm = e.target.closest("[data-calcmode]");
     if (cm) { s.mode = cm.dataset.calcmode; eb.expanded = null; syncMode(); return; }
+    const su = e.target.closest("[data-setup]");
+    if (su) { const box = $("#" + su.dataset.setup); const open = box.classList.toggle("open"); su.classList.toggle("active", open); return; }   // mobile "More setup" disclosure
     // --- counters-lab controls ---
     const tf = e.target.closest("[data-target-form]");
     if (tf) { setTarget(tf.dataset.targetForm, true); return; }
@@ -708,8 +690,29 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
     if (rin) { eb.revCfg.invest = Number(rin.dataset.revinvest); renderRev(); return; }
     const rsp = e.target.closest("[data-revspeed]");
     if (rsp) { eb.revCfg.speed = rsp.dataset.revspeed; renderRev(); return; }
-    const rst = e.target.closest("[data-revstep]");
-    if (rst) { eb.revCfg.boost = Math.max(-6, Math.min(6, eb.revCfg.boost + Number(rst.dataset.revstep))); renderRev(); return; }
+    const rvstg = e.target.closest("[data-revstage]");
+    if (rvstg) {
+      const k = rvstg.dataset.revstage;
+      if (!eb.revCfg.stages) eb.revCfg.stages = { atk: 0, spa: 0, def: 0, spd: 0, spe: 0 };
+      eb.revCfg.stages[k] = Math.max(-6, Math.min(6, (eb.revCfg.stages[k] || 0) + Number(rvstg.dataset.dir)));
+      renderRev(); return;
+    }
+    const rvpl = e.target.closest("[data-revpool]");
+    if (rvpl) { eb.revCfg.movepool = rvpl.dataset.revpool; renderRev(); return; }
+    const rvb = e.target.closest("[data-revbasis]");
+    if (rvb) { eb.revBasis = rvb.dataset.revbasis; renderRev(); return; }
+    const rmr = e.target.closest("[data-rmv-remove]");
+    if (rmr) { const id = Number(rmr.dataset.rmvRemove); eb.revCfg.moveset = (eb.revCfg.moveset || []).filter((x) => x !== id); if (!eb.revCfg.moveset.length) eb.revCfg.moveset = null; renderRev(); return; }
+    // invented-move builder (One vs all): add from the three inputs / remove by index
+    if (e.target.closest("[data-addcustom]")) {
+      const type = $(".cmv-type").value, cls = $(".cmv-class").value;
+      const power = Math.max(1, Math.min(250, Number($(".cmv-pow").value) || 80));
+      if (!Array.isArray(eb.revCfg.custom)) eb.revCfg.custom = [];
+      eb.revCfg.custom.push({ type, class: cls, power });
+      renderRev(); return;
+    }
+    const rcm = e.target.closest("[data-rmv-custom]");
+    if (rcm) { (eb.revCfg.custom || []).splice(Number(rcm.dataset.rmvCustom), 1); renderRev(); return; }
     const rso = e.target.closest("[data-revsort]");
     if (rso) { eb.revSort = rso.dataset.revsort; renderRev(); return; }
     const rmg = e.target.closest("[data-revmega]");
@@ -749,12 +752,12 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
     if (e.target.closest("[data-target2-clear]")) { clearTarget2(); return; }
     const ai = e.target.closest("[data-atkinvest]");
     if (ai) { eb.atkInvest = Number(ai.dataset.atkinvest); renderEb(); return; }
-    if (e.target.closest("[data-acc-toggle]")) { eb.useAccuracy = !eb.useAccuracy; renderEb(); return; }
+    if (e.target.closest("[data-acc-toggle]")) { eb.useAccuracy = !eb.useAccuracy; renderActive(); return; }
     // filters
     const ft = e.target.closest("[data-ftype]");
     if (ft) { const t = ft.dataset.ftype; eb.fTypesOff.has(t) ? eb.fTypesOff.delete(t) : eb.fTypesOff.add(t); renderEb(); return; }
     const fmt = e.target.closest("[data-fmtype]");
-    if (fmt) { const t = fmt.dataset.fmtype; eb.moveTypesOff.has(t) ? eb.moveTypesOff.delete(t) : eb.moveTypesOff.add(t); renderEb(); return; }
+    if (fmt) { const t = fmt.dataset.fmtype; eb.moveTypesOff.has(t) ? eb.moveTypesOff.delete(t) : eb.moveTypesOff.add(t); renderActive(); return; }
     const ftm = e.target.closest("[data-ftypemode]");
     if (ftm) { eb.fTypeMode = ftm.dataset.ftypemode; renderEb(); return; }
     const tset = e.target.closest("[data-typeset]");
@@ -763,7 +766,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
       const set = row === "atk" ? eb.fTypesOff : eb.moveTypesOff;
       set.clear();
       if (act === "none") TYPES.forEach((t) => set.add(t));
-      renderEb(); return;
+      row === "mv" ? renderActive() : renderEb(); return;
     }
     const fc = e.target.closest("[data-fcat]");
     if (fc) { eb.fCat = fc.dataset.fcat; renderEb(); return; }
@@ -773,133 +776,29 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
     if (asp) { eb.atkSpeed = asp.dataset.atkspeed; renderEb(); return; }
     const cb = e.target.closest("[data-candbulk]");
     if (cb) { eb.candBulk = cb.dataset.candbulk; renderEb(); return; }
+    const apl = e.target.closest("[data-atkpool]");
+    if (apl) { eb.movepool = apl.dataset.atkpool; renderEb(); return; }
     if (e.target.closest("[data-preset-save]")) {
-      const inp = $("#ehp-presets .cl-preset-name");
-      const name = (inp && inp.value.trim()) || (tc().slug ? `${nameOf(bySlug.get(tc().slug))} setup` : "Preset");
+      const inp = $(`${s.mode === "rev" ? "#rev-presets" : "#ehp-presets"} .cl-preset-name`);
+      const baseSlug = s.mode === "rev" ? eb.revSlug : tc().slug;
+      const name = (inp && inp.value.trim()) || (baseSlug ? `${nameOf(bySlug.get(baseSlug))} ${s.mode === "rev" ? "sweep" : "setup"}` : "Preset");
       const list = loadPresets(); list.push({ id: Date.now(), name, state: serializeLab() });
       savePresets(list); renderPresets(); return;
     }
     const pl = e.target.closest("[data-preset-load]");
-    if (pl) { const p = loadPresets().find((x) => String(x.id) === pl.dataset.presetLoad); if (p) { applyLab(p.state); renderEb(); } return; }
+    if (pl) { const p = loadPresets().find((x) => String(x.id) === pl.dataset.presetLoad); if (p) { applyLab(p.state); syncMode(); } return; }
     const pd = e.target.closest("[data-preset-del]");
     if (pd) { savePresets(loadPresets().filter((x) => String(x.id) !== pd.dataset.presetDel)); renderPresets(); return; }
-    const cat = e.target.closest(".calc-cat button");
-    if (cat) { s.category = cat.dataset.cat; render(); return; }
-    const mt = e.target.closest("[data-mtype]");
-    if (mt) { s.moveType = s.moveType === mt.dataset.mtype ? "" : mt.dataset.mtype; render(); return; }
-    const dt = e.target.closest("[data-dtype]");
-    if (dt) {
-      const t = dt.dataset.dtype, i = s.defTypes.indexOf(t);
-      if (i >= 0) s.defTypes.splice(i, 1);
-      else if (s.defTypes.length < 2) s.defTypes.push(t);
-      render(); return;
-    }
-    const mo = e.target.closest(".mod-opt");
-    if (mo) { s[mo.dataset.mod] = Number(mo.dataset.val); render(); return; }
-    const st = e.target.closest(".stage-btn");
-    if (st) {
-      const key = st.dataset.stage === "atk" ? "atkStage" : "defStage";
-      s[key] = Math.max(-6, Math.min(6, s[key] + Number(st.dataset.dir)));
-      render();
-      return;
-    }
-    if (e.target.closest(".fmono-toggle")) { s.showFormula = !s.showFormula; render(); }
   });
 
-  function typeEff() {
-    if (!s.moveType || !s.defTypes.length) return 1;
-    return s.defTypes.reduce((e, t) => e * (data.typeChart[s.moveType]?.[t] ?? 1), 1);
-  }
-
-  function render() {
-    const eff = typeEff();
-    const effAtk = Math.floor(s.atkStat * stageMult(s.atkStage));
-    const effDef = Math.max(1, Math.floor(s.defStat * stageMult(s.defStage)));
-    const r = computeDamage({
-      level: s.level, power: s.power, atk: effAtk, def: effDef, type: eff,
-      stab: s.stab, crit: s.crit, weather: s.weather, burn: s.burn, other: s.other,
-    });
-
-    // selection highlights
-    $(".lbl-a").textContent = s.category === "physical" ? "Attack" : "Sp. Atk";
-    $(".lbl-d").textContent = s.category === "physical" ? "Defense" : "Sp. Def";
-    container.querySelectorAll(".calc-cat button").forEach((b) => b.classList.toggle("active", b.dataset.cat === s.category));
-    container.querySelectorAll("[data-mtype]").forEach((b) => b.classList.toggle("on", b.dataset.mtype === s.moveType));
-    container.querySelectorAll("[data-dtype]").forEach((b) => b.classList.toggle("on", s.defTypes.includes(b.dataset.dtype)));
-    container.querySelectorAll(".mod-opt").forEach((b) => b.classList.toggle("active", Number(b.dataset.val) === s[b.dataset.mod]));
-    $("#atk-stage").textContent = (s.atkStage >= 0 ? "+" : "") + s.atkStage;
-    $("#def-stage").textContent = (s.defStage >= 0 ? "+" : "") + s.defStage;
-    $("#eff-atk").textContent = s.atkStage ? `→ ${effAtk}` : "";
-    $("#eff-def").textContent = s.defStage ? `→ ${effDef}` : "";
-
-    // type effectiveness read-out
-    const effLabel = eff === 0 ? "Immune ×0" : `×${fmtMult(eff)}`;
-    const effClass = eff === 0 ? "imm" : eff > 1 ? "se" : eff < 1 ? "nve" : "neutral";
-    $("#type-eff").innerHTML = s.moveType
-      ? `Effectiveness <span class="type-eff-badge ${effClass}">${effLabel}</span>`
-      : `<span class="muted">pick a move type for effectiveness</span>`;
-
-    const avg = r.max ? Math.round(r.rolls.reduce((a, b) => a + b, 0) / r.rolls.length) : 0;
-    const aLbl = s.category === "physical" ? "Atk" : "Sp.Atk";
-    const dLbl = s.category === "physical" ? "Def" : "Sp.Def";
-
-    // result hero
-    if (r.max === 0) {
-      $("#calc-dmg").innerHTML = `<span class="calc-zero">0</span><span class="dmg-lab">no damage</span>`;
-      $("#hp-wrap").innerHTML = ""; $("#calc-pct").textContent = "";
-    } else {
-      $("#calc-dmg").innerHTML = `<span class="dmg-nums">${r.min}<span class="dash">–</span>${r.max}</span>` +
-        `<span class="dmg-lab">damage · effective ø ${avg}</span>`;
-      if (s.hp > 0) {
-        const minPct = Math.min(100, r.min / s.hp * 100);
-        const maxPct = Math.min(100, r.max / s.hp * 100);
-        $("#hp-wrap").innerHTML = `<div class="hpbar"><i class="hp-range" style="width:${maxPct}%"></i><i class="hp-min" style="width:${minPct}%"></i></div>`;
-        const p = (x) => Math.round(x / s.hp * 1000) / 10;
-        const hits = Math.ceil(s.hp / r.min);
-        const ko = r.min >= s.hp ? "guaranteed OHKO"
-          : r.max >= s.hp ? `possible OHKO · guaranteed ${hits}HKO`
-            : `${hits}HKO`;
-        const remMin = Math.max(0, s.hp - r.max), remMax = Math.max(0, s.hp - r.min);
-        $("#calc-pct").innerHTML = `${p(r.min)}% – ${p(r.max)}% of ${s.hp} HP · <b>${ko}</b>` +
-          `<span class="calc-remain">Health left after the hit: <b>${remMin} – ${remMax}</b> HP</span>`;
-      } else {
-        $("#hp-wrap").innerHTML = ""; $("#calc-pct").innerHTML = `<span class="muted">Enter Target HP to see % and remaining health.</span>`;
-      }
-    }
-
-    // formula: plain-language explanation (+ exact formula behind a toggle)
-    const pills = [["Base", r.base, "base"]];
-    const add = (l, v) => { if (v !== 1) pills.push([l, "×" + fmtMult(v), v > 1 ? "up" : "down"]); };
-    add("STAB", s.stab); add("Type", eff); add("Crit", s.crit);
-    add("Weather", s.weather); add("Burn", s.burn); add("Other", s.other);
-    pills.push(["random", "×0.85–1.00", "rand"]);
-
-    const words = [];
-    if (s.stab !== 1) words.push(`STAB ×${s.stab}`);
-    if (eff !== 1) words.push(eff === 0 ? "immune" : eff > 1 ? `super-effective ×${fmtMult(eff)}` : `resisted ×${fmtMult(eff)}`);
-    if (s.crit !== 1) words.push("crit ×1.5");
-    if (s.weather !== 1) words.push(s.weather > 1 ? "weather ×1.5" : "weather ×0.5");
-    if (s.burn !== 1) words.push("burn ×0.5");
-    if (s.other !== 1) words.push(`other ×${s.other}`);
-    const wordStr = words.length ? words.join(", ") + ", " : "";
-
-    $("#calc-formula").innerHTML = `
-      <div class="fpills">${pills.map(([l, v, c]) => `<span class="fpill ${c}"><span class="fpill-l">${l}</span><span class="fpill-v">${v}</span></span>`).join("")}</div>
-      <div class="fexplain"><b>Base ${r.base}</b> from Level ${s.level}, ${s.power} power, ${effAtk} ${aLbl} vs ${effDef} ${dLbl}. Then ${wordStr}× the random roll (0.85–1.00) → <b>${r.min}–${r.max}</b> damage (effective ø ${avg}).</div>
-      <button class="fmono-toggle">${s.showFormula ? "Hide" : "Show"} exact game formula</button>
-      <div class="fmono" ${s.showFormula ? "" : "hidden"}>⌊⌊(⌊2·${s.level}÷5+2⌋ · ${s.power} · ${effAtk}) ÷ ${effDef}⌋ ÷ 50⌋ + 2 = ${r.base} → × STAB ${s.stab} × type ${fmtMult(eff)} × crit ${s.crit} × weather ${s.weather} × burn ${s.burn} × other ${s.other} × roll</div>`;
-  }
-
-  // ---- eHP breaker ----
+  // ---- mode switch (Counters | One vs all) ----
   function syncMode() {
     container.querySelectorAll("[data-calcmode]").forEach((b) => b.classList.toggle("active", b.dataset.calcmode === s.mode));
-    container.querySelectorAll(".calc-title-calc").forEach((el) => (el.hidden = s.mode !== "calc"));
     container.querySelectorAll(".calc-title-ehp").forEach((el) => (el.hidden = s.mode !== "ehp"));
     container.querySelectorAll(".calc-title-rev").forEach((el) => (el.hidden = s.mode !== "rev"));
-    $("#calc-mode-calc").hidden = s.mode !== "calc";
     $("#calc-mode-ehp").hidden = s.mode !== "ehp";
     $("#calc-mode-rev").hidden = s.mode !== "rev";
-    if (s.mode === "ehp") renderEb(); else if (s.mode === "rev") renderRev(); else render();
+    if (s.mode === "rev") renderRev(); else renderEb();
   }
 
   // Resolve a defensive CONFIG into effective Lv50 stats + its own offense (the "what it does
@@ -922,6 +821,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
     if (eb.weather !== "none" && SPEED_ABIL[abil] === eb.weather) spe *= 2;
     else if (abil === "surge-surfer" && eb.terrain === "electric") spe *= 2;
     else if (abil === "quick-feet" && eb.targetStatus !== "none") spe = Math.floor(spe * 1.5);
+    if (abil === "unburden" && item === "none") spe *= 2;   // assumed: its Gem/Berry was already consumed
     if (item === "choice-scarf" && abil !== "klutz") spe = Math.floor(spe * 1.5);
     if (eb.targetStatus === "par" && abil !== "quick-feet") spe = Math.floor(spe / 2);   // paralysis halves Speed
     // the threat's own attacking set (editable; prefilled from usage) for the reverse calc
@@ -936,8 +836,15 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
       lv: { hp, def: effDef, spd: effSpd, atk: base.atk, spe } };
   }
   const currentTarget = (i = eb.editing) => targetFromCfg(eb.targets[i]);
-  // Reverse mode: a roster mon at its ladder set, with any per-defender overrides applied.
-  const defenderTarget = (mon) => targetFromCfg({ ...usageCfg(mon), ...(eb.revOverrides.get(mon.slug) || {}) });
+  // Reverse mode: a defender at the chosen basis (ladder set | base 0-invest), plus any
+  // per-defender overrides. defenderCfg is also what the row set-line and panel display.
+  function defenderCfg(mon) {
+    const basis = eb.revBasis === "base"
+      ? { ...newTargetCfg(), slug: mon.slug, ability: offDefaultAbility(mon) }
+      : usageCfg(mon);
+    return { ...basis, ...(eb.revOverrides.get(mon.slug) || {}) };
+  }
+  const defenderTarget = (mon) => targetFromCfg(defenderCfg(mon));
 
   // Per-attacker effective settings: overrides merged over the global preset.
   // Default ability: the override, else — when the field matches one of the mon's weather/terrain
@@ -949,6 +856,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
     }
     return offDefaultAbility(mon);
   }
+  const NO_STAGES = { atk: 0, spa: 0, def: 0, spd: 0, spe: 0 };
   function atkSettings(entry) {
     const o = eb.overrides.get(entry.mon.slug) || {};
     return {
@@ -958,11 +866,14 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
       item: o.item !== undefined ? o.item : eb.atkItem,
       boost: o.boost !== undefined ? o.boost : eb.atkBoost,
       speed: o.speed !== undefined ? o.speed : eb.atkSpeed,
+      stages: { ...NO_STAGES, ...(o.stages || {}) },   // per-stat setup (Iron Defense = +2 def)
+      movepool: o.movepool !== undefined ? o.movepool : eb.movepool,
     };
   }
-  // Effective attacker Speed (invest + speed-boosting abilities + Choice Scarf).
+  // Effective attacker Speed (invest + stages + speed-boosting abilities + Choice Scarf).
   function attackerSpe(entry, st) {
     let spe = entry.lv.spe + (st.speed === "max" ? 32 : 0);
+    if (st.stages && st.stages.spe) spe = Math.max(1, Math.floor(spe * stageMult(st.stages.spe)));
     const a = st.ability;
     if (eb.weather !== "none" && SPEED_ABIL[a] === eb.weather) spe *= 2;         // Sand Rush / Swift Swim / Chlorophyll / Slush Rush
     else if (a === "surge-surfer" && eb.terrain === "electric") spe *= 2;         // Surge Surfer
@@ -970,9 +881,19 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
     else if ((a === "protosynthesis" && eb.weather === "sun") || (a === "quark-drive" && eb.terrain === "electric")) {
       if (hiStatOf(entry.mon) === "spe") spe = Math.floor(spe * 1.3);            // Paradox: Speed boosted if it's the highest stat
     }
+    if (a === "unburden" && st.item === "none") spe *= 2;   // assumed: its Gem/Berry was already consumed
     if (st.item === "choice-scarf" && a !== "klutz") spe = Math.floor(spe * 1.5);
     if (eb.userStatus === "par" && a !== "quick-feet") spe = Math.floor(spe / 2);   // paralysis halves Speed (Quick Feet ignores)
     return spe;
+  }
+  // Effective attacking stats after invest/nature/stages — what the damage math actually uses.
+  function effOffense(entry, st) {
+    const eff = (base, key) => {
+      const nat = st.nature === "auto" ? 1.1 : natureMult(st.nature, key);
+      const stg = Math.max(-6, Math.min(6, (st.boost || 0) + ((st.stages || NO_STAGES)[key] || 0)));
+      return Math.max(1, Math.floor(Math.floor((base + st.invest) * nat) * stageMult(stg)));
+    };
+    return { atk: eff(entry.lv.atk, "atk"), spa: eff(entry.lv.spa, "spa") };
   }
 
   // Type effectiveness of a move vs a defender — with per-move overrides (Freeze-Dry, Flying Press,
@@ -992,20 +913,29 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
 
   // The THREAT's damage onto a candidate for one move (%HP min/max) — mirror of the forward calc,
   // honouring the target's ability/item/nature/spread + the candidate's defensive abilities.
-  function threatEval(th, defEntry, mv) {
+  function threatEval(th, defEntry, mv, defStages = null) {
     const defHP = defEntry.lv.hp + (eb.candBulk === "hp" ? 32 : 0);   // candidates' bulk preset
-    const ctx = { userWeight: th.weight, targetWeight: defEntry.mon.weight, userSpe: th.spe, targetSpe: defEntry.lv.spe, skillLink: th.ability === "skill-link" };
+    const defAbil = defaultAbility(defEntry.mon);
+    const ctx = { userWeight: abilWeight(th.weight, th.ability), targetWeight: abilWeight(defEntry.mon.weight, defAbil), userSpe: th.spe, targetSpe: defEntry.lv.spe, skillLink: th.ability === "skill-link" };
     const ep = effectivePower(mv, ctx);
     if (ep.kind === "skip" || ep.kind === "ohko") return null;
     const cat = mv.class;
     const moldBreaker = MOLD_BREAKER.has(th.ability);
-    const typeEff = typeEffOf(mv.type, mv.name, defEntry.mon.types, defaultAbility(defEntry.mon), moldBreaker, th.ability === "scrappy");
+    if (!moldBreaker) {   // the candidate's move-class immunities block the return hit
+      if (defAbil === "bulletproof" && hasFlag(mv, "Bomb/Ball")) return null;
+      if (defAbil === "soundproof" && hasFlag(mv, "Sound")) return null;
+      if (defAbil === "damp" && DAMP_BLOCKED.has(mv.name)) return null;
+    }
+    const ebW = th.ability === "mega-sol" && eb.weather !== "sun" ? { ...eb, weather: "sun" } : eb;
+    // Liquid Voice (e.g. target Primarina): its Sound moves hit back as Water
+    const mvType = th.ability === "liquid-voice" && (mv.flags || []).includes("Sound") && mv.type !== "water" ? "water" : mv.type;
+    const typeEff = typeEffOf(mvType, mv.name, defEntry.mon.types, defAbil, moldBreaker, th.ability === "scrappy");
     if (typeEff === 0) return null;
     const se = typeEff > 1;
     // conditionals with roles swapped: the TARGET is the user here (its status, its item as the
     // held item; the candidate's item/mega-ness for Knock Off etc.; "first" = target outspeeds)
     const cond = conditionalMods(mv, {
-      eb: { ...eb, userStatus: eb.targetStatus, targetStatus: eb.userStatus, item: eb.atkItem },
+      eb: { ...ebW, userStatus: eb.targetStatus, targetStatus: eb.userStatus, item: eb.atkItem },
       first: th.spe > defEntry.lv.spe,
       st: { item: th.item, ability: th.ability, boost: 0 },
       target: { mon: defEntry.mon },
@@ -1015,31 +945,42 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
     if (ep.kind === "fixed") minPct = maxPct = (ep.dmg / defHP) * 100;
     else if (ep.kind === "frac") minPct = maxPct = ep.frac * 100;
     else {
-      const am = abilityMods(th.ability, { mv, cat, bp: ep.bp, weather: eb.weather, terrain: eb.terrain, typeEff, first: true, hiStat: hiStatOf(th.mon), status: eb.targetStatus });
-      const stab = th.types.includes(mv.type) ? (am.stab || 1.5) : 1;
+      const am = abilityMods(th.ability, { mv, cat, bp: ep.bp, weather: ebW.weather, terrain: eb.terrain, typeEff, first: true, hiStat: hiStatOf(th.mon), status: eb.targetStatus });
+      const stab = th.types.includes(mvType) ? (am.stab || 1.5) : 1;
       let atk = mv.name === "Foul Play" ? defEntry.lv.atk : mv.name === "Body Press" ? th.def : cat === "physical" ? th.atk : th.spa;
       const chg = CHARGE_MOVES[mv.name];
-      if (chg && chg.boost && defaultAbility(defEntry.mon) !== "unaware") atk = Math.floor(atk * stageMult(1));   // its charge boost hits back too
-      const def = cat === "physical" || PSY_DEF.has(mv.name) ? defEntry.lv.def : defEntry.lv.spd;
+      if (chg && chg.boost && defAbil !== "unaware") atk = Math.floor(atk * stageMult(1));   // its charge boost hits back too
+      // the candidate's own setup stages harden it (Iron Defense = less taken)
+      const dst = defStages || NO_STAGES;
+      const def = cat === "physical" || PSY_DEF.has(mv.name)
+        ? Math.max(1, Math.floor(defEntry.lv.def * stageMult(dst.def || 0)))
+        : Math.max(1, Math.floor(defEntry.lv.spd * stageMult(dst.spd || 0)));
       let other = am.mult * cond.mult;
+      // Merciless target: guaranteed crit onto a poisoned candidate (unless crit-proof)
+      if (th.ability === "merciless" && eb.userStatus === "psn" && !["shell-armor", "battle-armor"].includes(defAbil)) other *= 1.5;
+      if (defAbil === "fairy-aura" && mvType === "fairy") other *= 4 / 3;   // the candidate's aura boosts the threat's fairy moves too
       if (th.item && th.ability !== "klutz" && OFF_ITEMS[th.item]) { const r = OFF_ITEMS[th.item].mult(se, cat); if (r && r.m) other *= r.m; }   // target's offensive item
-      const field = fieldOffenseMult(mv, cat, eb, false, false); other *= field.m;   // screens protect the target, not the candidate
+      const field = fieldOffenseMult(mv, cat, ebW, false, false); other *= field.m;   // screens protect the target, not the candidate
       if (eb.doubles && isSpread(mv)) other *= 0.75;
-      if (TARGET_DMG[defaultAbility(defEntry.mon)]) other *= TARGET_DMG[defaultAbility(defEntry.mon)]({ mv, cat, terrain: eb.terrain, tStatus: "none" });  // candidate's Multiscale/Fur Coat/…
+      if (TARGET_DMG[defAbil]) other *= TARGET_DMG[defAbil]({ mv, cat, terrain: eb.terrain, tStatus: "none", atkAbility: th.ability });  // candidate's Multiscale/Fur Coat/…
       const burn = eb.targetStatus === "brn" && cat === "physical" && th.ability !== "guts" && mv.name !== "Facade" ? 0.5 : 1;   // burned target's physical return is halved
       const r = computeDamage({ level: 50, power: Math.max(1, Math.round(ep.bp * cond.bpMul)), atk, def, type: typeEff, stab, crit: 1, weather: 1, burn, other });
       const hits = ep.hits || 1;
       minPct = (r.min * hits / defHP) * 100; maxPct = (r.max * hits / defHP) * 100;
     }
-    return { mv, minPct, maxPct, prio: (mv.priority || 0) + (th.ability === "gale-wings" && mv.type === "flying" ? 1 : 0) };
+    return { mv, minPct, maxPct, prio: (mv.priority || 0)
+      + (th.ability === "gale-wings" && mvType === "flying" ? 1 : 0)
+      + (mv.name === "Grassy Glide" && eb.terrain === "grassy" && grounded(th.types, th.ability) ? 1 : 0) };
   }
   // The target's move list onto a candidate, best-first (for the survive readout + expander).
-  function threatMovesOnto(defEntry, target) {
-    const rows = target.threat.moves.map((mv) => threatEval(target.threat, defEntry, mv)).filter(Boolean).sort((a, b) => b.maxPct - a.maxPct);
+  // The candidate's own setup stages (Iron Defense…) harden it here.
+  function threatMovesOnto(defEntry, target, stOverride = null) {
+    const dst = (stOverride || atkSettings(defEntry)).stages;
+    const rows = target.threat.moves.map((mv) => threatEval(target.threat, defEntry, mv, dst)).filter(Boolean).sort((a, b) => b.maxPct - a.maxPct);
     return rows;
   }
-  function threatBestOnto(entry, target) {
-    const rows = threatMovesOnto(entry, target);
+  function threatBestOnto(entry, target, stOverride = null) {
+    const rows = threatMovesOnto(entry, target, stOverride);
     const b = rows[0];
     return b ? { pct: b.maxPct, minPct: b.minPct, mv: b.mv, prio: b.prio } : { pct: 0, minPct: 0, mv: null, prio: 0 };
   }
@@ -1047,22 +988,32 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
   // Evaluate one move for an attacker vs the target under `st` (per-attacker settings). null = unusable.
   function evalMove(entry, target, mv, st, ctx, speFirst) {
     if (!mv || mv.class === "status" || !mv.type) return null;
-    // -ate abilities retype Normal moves (Aerilate/Pixilate/…); the effective type drives eff/STAB.
+    // -ate abilities retype Normal moves (Aerilate/Pixilate/…); Liquid Voice retypes Sound
+    // moves to Water (no ×1.2). The effective type drives eff/STAB.
     const ate = ATE_ABIL[st.ability] && mv.type === "normal" ? ATE_ABIL[st.ability] : null;
-    const mvType = ate || mv.type;
+    const liquid = st.ability === "liquid-voice" && (mv.flags || []).includes("Sound") && mv.type !== "water" ? "water" : null;
+    const mvType = liquid || ate || mv.type;
     if (eb.moveTypesOff.has(mvType)) return null;   // move-type filter: don't use moves of dropped types
     const cat = mv.class;
     const ep = effectivePower(mv, ctx);
     if (ep.kind === "skip") return null;
     const moldBreaker = MOLD_BREAKER.has(st.ability);
+    if (!moldBreaker) {   // move-class immunities on the target
+      if (target.ability === "bulletproof" && hasFlag(mv, "Bomb/Ball")) return null;
+      if (target.ability === "soundproof" && hasFlag(mv, "Sound")) return null;
+      if (target.ability === "damp" && DAMP_BLOCKED.has(mv.name)) return null;
+    }
     const typeEff = typeEffOf(mvType, mv.name, target.mon.types, target.ability, moldBreaker, st.ability === "scrappy");
     if (typeEff === 0) return null;
+    // Mega Sol: the HOLDER's own moves behave as if it were sunny (offense-side only)
+    const ebW = st.ability === "mega-sol" && eb.weather !== "sun" ? { ...eb, weather: "sun" } : eb;
+    const uGrd = grounded(entry.mon.types, st.ability), tGrd = grounded(target.mon.types, target.ability);
     const se = typeEff > 1;
-    const cond = conditionalMods(mv, { eb, first: speFirst, st, target });
+    const cond = conditionalMods(mv, { eb: ebW, first: speFirst, st, target, grounded: { user: uGrd, target: tGrd } });
     if (cond.blocked) return null;
     const realHP = target.lv.hp;
     const charge = CHARGE_MOVES[mv.name];
-    const chargeSkipped = !!(charge && charge.skip && eb.weather === charge.skip);
+    const chargeSkipped = !!(charge && charge.skip && ebW.weather === charge.skip);
     let risky = isDrawback(mv);
     if (chargeSkipped) risky = false;   // Electro Shot in rain / Solar Beam in sun fire instantly
     let minPct, maxPct, laterMin = null, laterMax = null, notes = [...(ep.notes || []), ...cond.notes];
@@ -1081,7 +1032,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
     else if (ep.kind === "fixed") { const p = (ep.dmg / realHP) * 100; minPct = maxPct = p; noInvMax = p; }
     else if (ep.kind === "frac") { const p = ep.frac * 100; minPct = maxPct = p; noInvMax = p; }
     else {
-      const am = abilityMods(st.ability, { mv, cat, bp: ep.bp, weather: eb.weather, terrain: eb.terrain, typeEff, first: speFirst, hiStat: hiStatOf(entry.mon), status: eb.userStatus });
+      const am = abilityMods(st.ability, { mv, cat, bp: ep.bp, weather: ebW.weather, terrain: eb.terrain, typeEff, first: speFirst, hiStat: hiStatOf(entry.mon), status: eb.userStatus });
       const protean = PROTEAN.has(st.ability);
       stab = protean || entry.mon.types.includes(mvType) ? (am.stab || 1.5) : 1;
       const as = attackStat(entry, target, mv, cat);
@@ -1092,8 +1043,11 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
         // "auto" = +10% to whatever stat the move uses (Atk / SpA / Def for Body Press); named natures via natureMult
         const natM = st.nature === "auto" ? 1.1 : natureMult(st.nature, as.key);
         atk = Math.floor((atk + st.invest) * natM);
-        // Unaware target ignores the attacker's stat boosts (setup AND charge-turn boosts)
-        if (st.boost && !(target.ability === "unaware")) atk = Math.max(1, Math.floor(atk * stageMult(st.boost)));
+        // Unaware target ignores the attacker's stat boosts (setup AND charge-turn boosts).
+        // Stage = global "+attacking stat" preset + this mon's per-stat stage for the stat
+        // THIS move uses (Body Press reads the Def stage — Iron Defense setups work).
+        const stg = Math.max(-6, Math.min(6, (st.boost || 0) + ((st.stages || NO_STAGES)[as.key] || 0)));
+        if (stg && !(target.ability === "unaware")) atk = Math.max(1, Math.floor(atk * stageMult(stg)));
         if (charge && charge.boost === as.key && target.ability !== "unaware") {   // Electro Shot / Meteor Beam +1 SpA from the charge
           atk = Math.floor(atk * stageMult(1));
           notes.push("+1 SpA (charge)");
@@ -1105,9 +1059,12 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
       if (SE_BOOST_MOVES.has(mv.name) && se) { other *= 4 / 3; notes.push("×1.33 SE"); }
       if (UNMODELED.has(mv.name)) notes.push("~approx");
       if (ate) { other *= 1.2; notes.push(`→ ${mvType}`); }   // -ate retype + ×1.2
+      if (liquid) notes.push("→ water (Liquid Voice)");
+      if (st.ability === "merciless" && eb.targetStatus === "psn" && target.ability !== "shell-armor" && target.ability !== "battle-armor") { other *= 1.5; notes.push("crit (Merciless)"); }
       if (protean && !entry.mon.types.includes(mvType)) notes.push("Protean");
       if (st.item !== "none" && st.ability !== "klutz" && OFF_ITEMS[st.item]) { const r = OFF_ITEMS[st.item].mult(se, cat); if (r && r.m) { other *= r.m; if (r.note) notes.push(r.note); } }
-      const field = fieldOffenseMult(mv, cat, eb, st.ability === "infiltrator"); other *= field.m; field.notes.forEach((n) => notes.push(n));
+      if (target.ability === "fairy-aura" && mvType === "fairy") { other *= 4 / 3; notes.push("Fairy Aura (aura is field-wide)"); }   // the aura boosts EVERYONE's fairy moves
+      const field = fieldOffenseMult(mv, cat, ebW, st.ability === "infiltrator", true, uGrd, tGrd); other *= field.m; field.notes.forEach((n) => notes.push(n));
       if (eb.doubles && isSpread(mv)) { other *= 0.75; notes.push("spread"); }   // doubles spread reduction
       // one-time reductions apply to the FIRST hit only (full-HP shields / a consumed berry);
       // later hits in the KO simulation use the unshielded number.
@@ -1115,18 +1072,23 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
       if (eb.item === "resist-berry" && eb.ability !== "klutz" && se) { oneTime *= 0.5; notes.push("berry ½ (1st hit)"); }
       if (!moldBreaker && (target.ability === "multiscale" || target.ability === "shadow-shield")) { oneTime *= 0.5; notes.push(`${(data.abilities[target.ability] || {}).name} ½ (1st hit)`); }
       if (!moldBreaker && TARGET_DMG[target.ability] && target.ability !== "multiscale" && target.ability !== "shadow-shield") {
-        const tdm = TARGET_DMG[target.ability]({ mv, cat, terrain: eb.terrain, tStatus: eb.targetStatus });
+        const tdm = TARGET_DMG[target.ability]({ mv, cat, terrain: eb.terrain, tStatus: eb.targetStatus, noContact: st.ability === "long-reach", atkAbility: st.ability });
         if (tdm !== 1) { other *= tdm; notes.push(`${(data.abilities[target.ability] || {}).name || target.ability} ×${tdm.toFixed(2).replace(/\.?0+$/, "")}`); }
+        else if (target.ability === "intimidate" && cat === "physical" && INTIM_IMMUNE.has(st.ability)) {
+          notes.push(["defiant", "competitive", "contrary"].includes(st.ability) ? "Intimidate backfires (+boost)" : "ignores Intimidate");
+        }
       }
       pw = Math.max(1, Math.round(ep.bp * cond.bpMul));
       // burn halves the burned user's physical damage — Guts and Facade ignore it
       const burn = eb.userStatus === "brn" && cat === "physical" && st.ability !== "guts" && mv.name !== "Facade" ? 0.5 : 1;
       if (burn < 1) notes.push("burn ½");
-      const r = computeDamage({ level: 50, power: pw, atk, def, type: typeEff, stab, crit: 1, weather: 1, burn, other: other * oneTime });
-      if (!r.max) return null;
+      // one-time shields (Multiscale/berry) only cover the FIRST strike of a multi-hit move
       const hits = ep.hits || 1;
+      const shieldMult = hits > 1 ? (oneTime + (hits - 1)) / hits : oneTime;
+      const r = computeDamage({ level: 50, power: pw, atk, def, type: typeEff, stab, crit: 1, weather: 1, burn, other: other * shieldMult });
+      if (!r.max) return null;
       minPct = (r.min * hits / realHP) * 100; maxPct = (r.max * hits / realHP) * 100;
-      if (oneTime !== 1) {   // unshielded later-hit damage for the KO simulation
+      if (shieldMult !== 1) {   // unshielded later-hit damage for the KO simulation
         const rl = computeDamage({ level: 50, power: pw, atk, def, type: typeEff, stab, crit: 1, weather: 1, burn, other });
         laterMin = (rl.min * hits / realHP) * 100; laterMax = (rl.max * hits / realHP) * 100;
       }
@@ -1141,15 +1103,25 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
       if (eb.item === "focus-sash" && eb.ability !== "klutz") guard = "Sash";
       else if (target.ability === "sturdy" && !moldBreaker) guard = "Sturdy";
     }
-    // honest KO count: sequential hits with one-time shields, Leftovers/Sitrus recovery
+    // honest KO count: sequential hits with one-time shields, Leftovers/Sitrus recovery,
+    // and per-turn status chip on the target (burn −6.25%, poison −12.5%; Magic Guard blocks
+    // chip, Poison Heal turns poison into +12.5%, Ice Body/Rain Dish heal in their weather)
+    let chip = 0;
+    if (eb.targetStatus === "brn" && target.ability !== "magic-guard") chip -= 6.25;
+    else if (eb.targetStatus === "psn") chip += target.ability === "poison-heal" ? 12.5 : (target.ability === "magic-guard" ? 0 : -12.5);
+    if (target.ability === "ice-body" && eb.weather === "snow") chip += 6.25;
+    if (target.ability === "rain-dish" && eb.weather === "rain") chip += 6.25;
     const simOpts = {
       block: guard === "Disguise", absorb: guard === "Sash" || guard === "Sturdy",
       leftovers: eb.item === "leftovers" && eb.ability !== "klutz",
       sitrus: eb.item === "sitrus-berry" && eb.ability !== "klutz",
+      chip,
     };
     const nMin = simKO(minPct, laterMin ?? minPct, simOpts);
     const nBest = simKO(maxPct, laterMax ?? maxPct, simOpts);
-    const prio = (mv.priority || 0) + (st.ability === "gale-wings" && mvType === "flying" ? 1 : 0);   // Gale Wings
+    const prio = (mv.priority || 0)
+      + (st.ability === "gale-wings" && mvType === "flying" ? 1 : 0)                       // Gale Wings
+      + (mv.name === "Grassy Glide" && eb.terrain === "grassy" && uGrd ? 1 : 0);           // Grassy Glide in terrain
     if (prio > 0 && PRIO_BLOCK.has(target.ability) && !moldBreaker) return null;   // Dazzling & co: priority moves fail
     const accW = eb.useAccuracy ? acc / 100 : 1;
     const expected = maxPct * accW * (risky ? 0.5 : 1);
@@ -1175,6 +1147,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
       }
       if (sitrus && hp <= 50) { hp = Math.min(100, hp + 25); sitrus = false; }
       if (o.leftovers) hp = Math.min(100, hp + 6.25);
+      if (o.chip) { hp = Math.min(100, hp + o.chip); if (hp <= 0) return n; }   // status chip can finish the KO
     }
     return 99;
   }
@@ -1183,16 +1156,31 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
   // stOverride lets the "into range" ladder simulate hypothetical settings.
   function movesVsTarget(entry, target, includeExcluded = false, stOverride = null) {
     const st = stOverride || atkSettings(entry);
-    const ctx = { userWeight: entry.mon.weight, targetWeight: target.mon.weight, userSpe: attackerSpe(entry, st), targetSpe: target.spe, skillLink: st.ability === "skill-link" };
+    const ctx = { userWeight: abilWeight(entry.mon.weight, st.ability), targetWeight: abilWeight(target.mon.weight, target.ability), userSpe: attackerSpe(entry, st), targetSpe: target.spe, skillLink: st.ability === "skill-link" };
     const speFirst = attackerSpe(entry, st) > target.spe;
+    let pool = entry.mon.moves;
+    if (Array.isArray(st.moveset) && st.moveset.length) pool = st.moveset;   // explicit custom moveset wins
+    else if (st.movepool === "ladder") {   // else restrict to the mon's real ladder moveset (falls back to all if unladdered)
+      const um = ((entry.mon.usage || {}).moves || []).map(([nm]) => moveIdByName.get(nm)).filter((id) => id != null);
+      if (um.length) pool = um;
+    }
     const rows = [];
-    for (const id of entry.mon.moves) {
+    for (const id of pool) {
       if (!includeExcluded && eb.excluded.has(id)) continue;
       const row = evalMove(entry, target, data.moves[id], st, ctx, speFirst);
       if (row) { row.id = id; rows.push(row); }
     }
+    // invented moves (One vs all builder) — evaluated like real moves, flagged "custom"
+    (st.custom || []).forEach((c, i) => {
+      const row = evalMove(entry, target, customMove(c), st, ctx, speFirst);
+      if (row) { row.id = "c" + i; row.custom = true; row.notes.push("custom"); rows.push(row); }
+    });
     return rows.sort((a, b) => b.maxPct - a.maxPct);
   }
+  // A synthetic move object for the builder — plain single hit, no flags/secondaries,
+  // so none of the special-case tables match and evalMove treats it as a vanilla attack.
+  const customMove = (c) => ({ name: `Custom ${c.power}`, type: c.type, class: c.class, power: c.power,
+    accuracy: 100, pp: null, priority: 0, target: "selected-pokemon", flags: [], secondaries: [], effect: "" });
 
   // Best move each attacker has vs the target (null if none), + speed/survivability.
   function bestVsTarget(entry, target, stOverride = null) {
@@ -1202,7 +1190,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
     const reliable = cands.filter((c) => !c.risky);
     const best = (reliable.length ? reliable : cands).sort((a, b) => b.expected - a.expected)[0];
     const aSpe = attackerSpe(entry, st);
-    const back = threatBestOnto(entry, target);
+    const back = threatBestOnto(entry, target, st);
     // who moves first: higher move priority wins (Gale Wings included on both sides); else raw Speed
     const aPrio = best.prio || 0, tPrio = back.prio || 0;
     best.first = aPrio > tPrio ? true : aPrio < tPrio ? false : aSpe === target.spe ? "tie" : aSpe > target.spe;
@@ -1253,10 +1241,10 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
   // Controls: target card + defenses editor + conditions + attacker preset + rules.
   function renderControls(target) {
     const mon = target.mon;
+    const fam = formFamily(mon, data.pokemon);   // slug-derived: regionals never offer a Mega
     const forms = [];
-    const base = data.pokemon.find((m) => m.dex === mon.dex && !m.isMega);
-    if (base) forms.push(base);
-    forms.push(...data.pokemon.filter((m) => m.dex === mon.dex && m.isMega));
+    if (fam.base) forms.push(fam.base);
+    forms.push(...fam.megas);
     const formBtns = forms.length > 1 ? forms.map((f) =>
       `<button class="df-btn ${f.slug === mon.slug ? "on" : ""}" data-target-form="${f.slug}">${f.isMega ? (f.formLabel || "Mega") : "Base"}</button>`).join("") : "";
     const cfg = tc();
@@ -1335,6 +1323,8 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
           <div class="cl-stat"><span class="cl-stat-lab">Item</span>${seg("atkItem", Object.fromEntries(Object.entries(OFF_ITEMS).map(([k, v]) => [k, v.label])), eb.atkItem)}</div>
           <div class="cl-stat" title="How bulky the candidates are for the 'survives' math"><span class="cl-stat-lab">Their bulk</span>
             <div class="seg cl-invest">${[["base", "Base"], ["hp", "+32 HP"]].map(([v, l]) => `<button data-candbulk="${v}" class="${eb.candBulk === v ? "active" : ""}">${l}</button>`).join("")}</div></div>
+          <div class="cl-stat" title="All learnable moves or only each mon's real ladder set"><span class="cl-stat-lab">Movepool</span>
+            <div class="seg cl-invest">${[["all", "All"], ["ladder", "Ladder"]].map(([v, l]) => `<button data-atkpool="${v}" class="${eb.movepool === v ? "active" : ""}">${l}</button>`).join("")}</div></div>
         </div>
         ${excludedChips}
       </div>
@@ -1390,20 +1380,25 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
       const v = verdict(r);
       const fl = [];
       if (r.se) fl.push(`<span class="ehp-flag se">SE ×${r.typeEff}</span>`);
+      else if (r.typeEff < 1) fl.push(`<span class="ehp-flag nve" title="Not very effective — the target resists this type">resisted ×${fracMult(r.typeEff)}</span>`);
       if (r.stab > 1) fl.push(`<span class="ehp-flag stab">STAB</span>`);
       if (eb.useAccuracy && r.acc < 100) fl.push(`<span class="ehp-flag acc">${r.acc}%</span>`);
       if (r.risky) fl.push(`<span class="ehp-flag risky">risky</span>`);
       r.notes.forEach((n) => fl.push(`<span class="ehp-flag mh">${n}</span>`));
-      const excl = eb.excluded.has(r.id);
-      return `<div class="apm-move ${excl ? "excl" : ""}" data-move-info="${r.id}">
+      const excl = !r.custom && eb.excluded.has(r.id);
+      // custom moves: no popup, and ✕ removes the invented move instead of excluding
+      const xBtn = r.custom
+        ? `<button class="ehp-x" data-rmv-custom="${r.id.slice(1)}" title="remove this custom move">✕</button>`
+        : `<button class="ehp-x" ${excl ? `data-unexclude="${r.id}"` : `data-exclude="${r.id}"`} title="${excl ? "re-include this move" : "exclude this move"}">${excl ? "＋" : "✕"}</button>`;
+      return `<div class="apm-move ${excl ? "excl" : ""}" ${r.custom ? "" : `data-move-info="${r.id}"`}>
         <span class="apm-mv"><span class="type tiny" style="background:${TYPE_COLORS[r.effType]}">${r.effType}</span>${r.mv.name}${r.pw ? `<small class="ehp-pw">${r.pw}</small>` : ""}</span>
         <span class="apm-pct">${r.minPct.toFixed(0)}–${r.maxPct.toFixed(0)}%</span>
         <span class="ehp-ko ${v.cls}">${v.txt}</span>
         <span class="apm-fl">${fl.join("")}</span>
-        <button class="ehp-x" ${excl ? `data-unexclude="${r.id}"` : `data-exclude="${r.id}"`} title="${excl ? "re-include this move" : "exclude this move"}">${excl ? "＋" : "✕"}</button>
+        ${xBtn}
       </div>`;
     }).join("");
-    const back = threatMovesOnto(entry, target).map((r) => {
+    const back = threatMovesOnto(entry, target, stOverride).map((r) => {
       const ko = r.maxPct >= 100 ? "faints you" : `you keep ${Math.round(100 - r.maxPct)}%`;
       const cls = r.maxPct >= 100 ? "ko-o" : 2 * r.minPct >= 100 ? "ko-2" : "ko-n";
       return `<div class="apm-move back" data-move-info="${moveIdByName.get(r.mv.name)}">
@@ -1458,7 +1453,10 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
     const speedSeg = `<div class="seg cl-invest">${[["base", "Base"], ["max", "Max"]].map(([v, l]) => `<button data-ovrspeed="${v}" class="${st.speed === v ? "active" : ""}">${l}</button>`).join("")}</div>`;
     const natSel = natSelect('data-ovrsel="nature"', st.nature, true);
     const itemSel = `<select class="cl-sel" data-ovrsel="item">${Object.entries(OFF_ITEMS).map(([k, val]) => `<option value="${k}" ${st.item === k ? "selected" : ""}>${val.label}</option>`).join("")}</select>`;
-    const boostStep = `<div class="cl-step"><button data-ovrstep="-1">−</button><b>${st.boost >= 0 ? "+" : ""}${st.boost}</b><button data-ovrstep="1">+</button></div>`;
+    // per-stat setup stages: Iron Defense = +2 Def → powers Body Press AND halves physical taken
+    const stageStep = (k, label, title = "") => `<div class="cl-stat"${title ? ` title="${title}"` : ""}><span class="cl-stat-lab">${label}</span>
+      <div class="cl-step"><button data-ovrstage="${k}" data-dir="-1">−</button><b>${st.stages[k] >= 0 ? "+" : ""}${st.stages[k]}</b><button data-ovrstage="${k}" data-dir="1">+</button></div></div>`;
+    const poolSeg = `<div class="seg cl-invest">${[["all", "All"], ["ladder", "Ladder"]].map(([v, l]) => `<button data-ovrpool="${v}" class="${st.movepool === v ? "active" : ""}">${l}</button>`).join("")}</div>`;
     const aSpe = attackerSpe(entry, st);
     const abilName = (data.abilities[st.ability] || {}).name || st.ability || "—";
     const speVs = (t) => { const v = aSpe > t.spe ? `<b class="sp-fast">outspeeds</b>` : aSpe < t.spe ? `<b class="sp-slow">slower</b>` : `<b>speed tie</b>`; return `${nameOf(t.mon)} <b>${t.spe}</b> → ${v}`; };
@@ -1467,16 +1465,37 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
       <div class="ap-controls">
         <div class="cl-stat"><span class="cl-stat-lab">Ability</span><div class="ap-abils">${abilChips}</div></div>
         <div class="cl-stat"><span class="cl-stat-lab">Invest</span>${investSeg}</div>
-        <div class="cl-stat"><span class="cl-stat-lab">Atk boost</span>${boostStep}</div>
         <div class="cl-stat"><span class="cl-stat-lab">Atk nature</span>${natSel}</div>
         <div class="cl-stat"><span class="cl-stat-lab">Speed</span>${speedSeg}</div>
         <div class="cl-stat"><span class="cl-stat-lab">Item</span>${itemSel}</div>
+        <div class="cl-stat" title="All learnable moves or only its real ladder set"><span class="cl-stat-lab">Movepool</span>${poolSeg}</div>
         <button class="btn-sm" data-ovrreset title="Reset this attacker to the global preset">↺ reset</button>
       </div>
-      <div class="ap-speed">Spe <b>${aSpe}</b> <small>(${abilName}${(eb.weather !== "none" && SPEED_ABIL[st.ability] === eb.weather) ? " ×2 " + eb.weather : (st.ability === "surge-surfer" && eb.terrain === "electric") ? " ×2 terrain" : ""})</small> vs ${targets.map(speVs).join(" · ")}</div>
+      <div class="ap-controls" title="Setup stages — the stat each move actually uses (Iron Defense = +2 Def → powers Body Press and halves physical damage taken)">
+        ${stageStep("atk", "Atk stage")}
+        ${stageStep("spa", "Sp.Atk stage")}
+        ${stageStep("def", "Def stage", "Body Press scales with this; also hardens it defensively")}
+        ${stageStep("spe", "Spe stage", "Decides who moves first")}
+      </div>
+      <div class="ap-speed">Spe <b>${aSpe}</b> <small>(${abilName}${(eb.weather !== "none" && SPEED_ABIL[st.ability] === eb.weather) ? " ×2 " + eb.weather : (st.ability === "surge-surfer" && eb.terrain === "electric") ? " ×2 terrain" : (st.ability === "unburden" && st.item === "none") ? " ×2 — item used" : ""})</small> vs ${targets.map(speVs).join(" · ")}
+        &ensp;·&ensp;eff Atk <b>${effOffense(entry, st).atk}</b> · eff Sp.A <b>${effOffense(entry, st).spa}</b> <small>(after invest/nature/stages)</small></div>
       <div class="ap-intorange">Into range: ${intoRange(entry, targets)}</div>
       ${targets.map((t) => matchupBlock(entry, t)).join("")}
     </div>`;
+  }
+
+  // Every globally active condition, as unmissable chips in the results summary — a
+  // persisted burn or screen silently reshaping all numbers is worse than clutter.
+  function condChips() {
+    const c = [];
+    if (eb.weather !== "none") c.push([WEATHERS[eb.weather], ""]);
+    if (eb.terrain !== "none") c.push([TERRAINS[eb.terrain], ""]);
+    if (eb.screen !== "none") c.push([SCREENS[eb.screen] + " (dmg ×0.5)", "warn"]);
+    if (eb.targetStatus !== "none") c.push([`target ${{ brn: "burned", psn: "poisoned", par: "paralyzed", slp: "asleep" }[eb.targetStatus]}`, ""]);
+    if (eb.userStatus !== "none") c.push([`attackers ${{ brn: "BURNED — phys ×0.5", psn: "poisoned", par: "paralyzed — Spe ×0.5" }[eb.userStatus]}`, "warn"]);
+    if (eb.doubles) c.push(["doubles: spread ×0.75", ""]);
+    if (eb.movepool === "ladder") c.push(["ladder movesets", ""]);
+    return c.length ? `<span class="ehp-conds">${c.map(([x, w]) => `<span class="cond-chip ${w}">${x}</span>`).join("")}</span>` : "";
   }
 
   // Speed/survive badges for one attacker-vs-one-target row.
@@ -1494,20 +1513,25 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
           : `<span class="ehp-surv ok" title="${backTxt}">survives · takes ${backTxt.replace(nameOf(tgt.mon) + " ", "")}</span>`;
     return spd + surv;
   }
+  const fracMult = (v) => (v === 0.25 ? "¼" : v === 0.5 ? "½" : String(v));
   // The move/%/verdict/flags cluster for one attacker-vs-one-target row.
   // sepX = emit the exclude ✕ as its OWN grid cell (dual lines) instead of inside the move cell.
   function moveCells(row, sepX = false) {
     const v = verdict(row);
     const flags = [`<span class="ehp-flag cat ${row.cat}">${row.cat === "physical" ? "Phys" : "Spec"}</span>`];
     if (row.se) flags.push(`<span class="ehp-flag se">SE ×${row.typeEff}</span>`);
+    else if (row.typeEff < 1) flags.push(`<span class="ehp-flag nve" title="Not very effective — the target resists this type">resisted ×${fracMult(row.typeEff)}</span>`);
     if (row.stab > 1) flags.push(`<span class="ehp-flag stab">STAB</span>`);
     if (eb.useAccuracy && row.acc < 100) flags.push(`<span class="ehp-flag acc">acc ${row.acc}%</span>`);
     if (row.risky) flags.push(`<span class="ehp-flag risky">risky</span>`);
     if (row.asNote) flags.push(`<span class="ehp-flag ab">${row.asNote}</span>`);
     if (row.noInvMax < 100 && row.maxPct >= 100) flags.push(`<span class="ehp-flag inv">needs invest</span>`);
     row.notes.forEach((n) => flags.push(`<span class="ehp-flag mh">${n}</span>`));
-    const x = `<button class="ehp-x" data-exclude="${row.id}" title="Exclude this move (saved)">✕</button>`;
-    return `<span class="ehp-move" data-move-info="${row.id}" title="${row.mv.name} — view move details"><span class="type tiny" style="background:${TYPE_COLORS[row.effType]}">${row.effType}</span>${row.mv.name}${row.pw ? `<small class="ehp-pw">${row.pw} pw</small>` : ""}${sepX ? "" : x}</span>
+    // custom (invented) moves: no popup to open, and ✕ removes the move instead of excluding it
+    const x = row.custom
+      ? `<button class="ehp-x" data-rmv-custom="${row.id.slice(1)}" title="Remove this custom move">✕</button>`
+      : `<button class="ehp-x" data-exclude="${row.id}" title="Exclude this move (saved)">✕</button>`;
+    return `<span class="ehp-move" ${row.custom ? "" : `data-move-info="${row.id}"`} title="${row.mv.name}${row.custom ? "" : " — view move details"}"><span class="type tiny" style="background:${TYPE_COLORS[row.effType]}">${row.effType}</span>${row.mv.name}${row.pw ? `<small class="ehp-pw">${row.pw} pw</small>` : ""}${sepX ? "" : x}</span>
       <span class="ehp-pct">${row.minPct.toFixed(0)}–${row.maxPct.toFixed(0)}%</span>
       <span class="ehp-ko ${v.cls}">${v.txt}</span>
       <span class="ehp-flags">${flags.join("")}</span>${sepX ? `<span class="ehp-xcell">${x}</span>` : ""}`;
@@ -1536,13 +1560,13 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
       const nameCell = `<span class="ehp-name"><span class="ehp-nm-row"><button class="ehp-caret" data-expand="${slug}" title="Adjust this attacker (ability, moves, EVs…)">${open ? "▾" : "▸"}</button><button class="ehp-pin ${pinned ? "on" : ""}" data-pin="${slug}" title="${pinned ? "Unpin" : "Pin — stays on top through any filters"}">📌</button>${nameOf(entry.mon)}</span><span class="ehp-badges">${badgesFor(worst, worst === r2 ? t2 : t1)}</span></span>`;
       const body = t2
         ? `<div class="ehp-dual">
-             <div class="ehp-dline"><img class="ehp-dspr" src="${t1.mon.sprite || t1.mon.artwork || ""}" alt="" title="${nameOf(t1.mon)}">${moveCells(r1, true)}</div>
-             <div class="ehp-dline"><img class="ehp-dspr" src="${t2.mon.sprite || t2.mon.artwork || ""}" alt="" title="${nameOf(t2.mon)}">${moveCells(r2, true)}</div>
+             <div class="ehp-dline"><img class="ehp-dspr" src="${t1.mon.sprite || t1.mon.artwork || ""}" alt="" loading="lazy" decoding="async" title="${nameOf(t1.mon)}">${moveCells(r1, true)}</div>
+             <div class="ehp-dline"><img class="ehp-dspr" src="${t2.mon.sprite || t2.mon.artwork || ""}" alt="" loading="lazy" decoding="async" title="${nameOf(t2.mon)}">${moveCells(r2, true)}</div>
            </div>`
         : moveCells(r1);
       return `<div class="ehp-item ${open ? "open" : ""} ${t2 ? "dual" : ""}">
         <div class="ehp-row" data-open="${slug}">
-          <img class="ehp-spr" src="${entry.mon.sprite || entry.mon.artwork || ""}" alt="">
+          <img class="ehp-spr" loading="lazy" decoding="async" src="${entry.mon.sprite || entry.mon.artwork || ""}" alt="">
           ${nameCell}
           ${body}
         </div>
@@ -1561,19 +1585,26 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
     const who = t2 ? `<b>${nameOf(t1.mon)}</b> AND <b>${nameOf(t2.mon)}</b>` : `<b>${nameOf(t1.mon)}</b> (HP ${t1.hp} · Def ${t1.def} · Sp.Def ${t1.spd})`;
     $("#ehp-results").innerHTML = `
       ${pinnedBlock}
-      <div class="ehp-summary"><b>${ranked.length}</b> Pokémon reach <b>${threshLabel}</b> on ${who}${eb.atkBoost ? ` · attackers at +${eb.atkBoost}` : ""}${eb.candBulk === "hp" ? " · candidates +32 HP" : ""}${filtered ? " · filtered" : ""}.</div>
+      <div class="ehp-summary"><b>${ranked.length}</b> Pokémon reach <b>${threshLabel}</b> on ${who}${eb.atkBoost ? ` · attackers at +${eb.atkBoost}` : ""}${eb.candBulk === "hp" ? " · candidates +32 HP" : ""}${filtered ? " · filtered" : ""}.${condChips()}</div>
       ${unpinned.length ? `<div class="ehp-list">${rows}</div>` : `<p class="ehp-empty">No attacker meets the current filters/threshold${t2 ? " on both targets" : ""} — loosen them or edit the target's bulk.</p>`}
       ${unpinned.length > CAP ? `<p class="ehp-more">Showing the top ${CAP} of ${unpinned.length} by worst-case %. Filter to narrow it down.</p>` : ""}
       <p class="ehp-approx">Real Gen-9 damage (exact formula, 0.85–1.00 roll) vs effective HP. Best <b>reliable</b> move per attacker.${t2 ? " With two targets, ranking uses the <b>worse</b> of the two and both must meet the threshold." : ""} <b>⚡/🐢</b> = who moves first; <b>survives</b> = how hard the target hits back with its usage set. 📌 pins a row on top; ✕ removes a move for good.</p>`;
   }
 
-  // Named target presets (save/load/delete the whole lab setup).
+  // Named presets (save/load/delete the whole lab setup — both modes).
   function renderPresets() {
     const list = loadPresets();
-    $("#ehp-presets").innerHTML = `
+    const savable = s.mode === "rev" ? !!eb.revSlug : !!tc().slug;
+    const html = `
       <input class="cl-preset-name" placeholder="Preset name…" maxlength="24" autocomplete="off">
-      <button class="btn-sm" data-preset-save ${tc().slug ? "" : "disabled"}>Save preset</button>
+      <button class="btn-sm" data-preset-save ${savable ? "" : "disabled"}>Save preset</button>
       ${list.map((p) => `<span class="cl-exchip cl-preset"><button class="cl-preset-load" data-preset-load="${p.id}" title="Load this setup">${p.name}</button><button data-preset-del="${p.id}" aria-label="delete" title="Delete">✕</button></span>`).join("")}`;
+    ["#ehp-presets", "#rev-presets"].forEach((sel) => { const el = $(sel); if (el) el.innerHTML = html; });
+    // the mobile "More setup" button carries a badge so hidden state is never misleading
+    const nEhp = eb.excluded.size + (eb.targets[1] ? 1 : 0) + (eb.fSearch ? 1 : 0);
+    const nRev = ((eb.revCfg.moveset || []).length ? 1 : 0) + eb.excluded.size + (eb.revSearch ? 1 : 0);
+    const be = container.querySelector('[data-setup="ehp-setup"]'); if (be) be.textContent = `⚙ More setup${nEhp ? ` · ${nEhp}` : ""}`;
+    const br = container.querySelector('[data-setup="rev-setup"]'); if (br) br.textContent = `⚙ More setup${nRev ? ` · ${nRev}` : ""}`;
   }
 
   const renderActive = () => { if (s.mode === "rev") renderRev(); else renderEb(); };   // shared field handlers re-render the active mode
@@ -1593,7 +1624,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
   }
 
   // ---------- "One vs all" reverse mode ----------
-  const revSt = () => ({ ...eb.revCfg });   // settings object for evalMove (same shape atkSettings returns)
+  const revSt = () => ({ ...eb.revCfg, stages: { ...NO_STAGES, ...(eb.revCfg.stages || {}) } });   // settings object for evalMove (same shape atkSettings returns)
   function renderRevControls(entry) {
     const mon = entry.mon;
     const c = eb.revCfg;
@@ -1606,23 +1637,44 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
           <div class="ehp-target-types">${mon.types.map(typeSpan).join("")}</div>
         </div>
         <div class="ehp-target-bulk">
-          <div class="ehp-bulk phys"><span class="ehp-bulk-lab">Atk</span><span class="ehp-bulk-val">${entry.lv.atk}</span></div>
-          <div class="ehp-bulk spec"><span class="ehp-bulk-lab">Sp.Atk</span><span class="ehp-bulk-val">${entry.lv.spa}</span></div>
-          <div class="ehp-bulk spe"><span class="ehp-bulk-lab">Spe</span><span class="ehp-bulk-val">${entry.lv.spe}</span></div>
+          <div class="ehp-bulk phys" title="base → effective (after invest/nature/stages)"><span class="ehp-bulk-lab">Atk</span><span class="ehp-bulk-val">${entry.lv.atk}<small class="eff-arrow">→${effOffense(entry, revSt()).atk}</small></span></div>
+          <div class="ehp-bulk spec" title="base → effective (after invest/nature/stages)"><span class="ehp-bulk-lab">Sp.Atk</span><span class="ehp-bulk-val">${entry.lv.spa}<small class="eff-arrow">→${effOffense(entry, revSt()).spa}</small></span></div>
+          <div class="ehp-bulk spe" title="base → effective (after speed invest/stages/item)"><span class="ehp-bulk-lab">Spe</span><span class="ehp-bulk-val">${entry.lv.spe}<small class="eff-arrow">→${attackerSpe(entry, revSt())}</small></span></div>
         </div>
       </div>
       <div class="cl-sec">
-        <div class="cl-sec-head"><span>Attacker offense</span></div>
+        <div class="cl-sec-head"><span>Attacker offense</span>
+          <button class="cl-acc ${eb.useAccuracy ? "on" : ""}" data-acc-toggle title="Weight ranking by accuracy">Accuracy ${eb.useAccuracy ? "on" : "off"}</button></div>
         <div class="cl-attacker">
           <div class="cl-stat"><span class="cl-stat-lab">Invest</span>
             <div class="seg cl-invest">${[[32, "Max"], [16, "Half"], [0, "None"]].map(([v, l]) => `<button data-revinvest="${v}" class="${c.invest === v ? "active" : ""}">${l}</button>`).join("")}</div></div>
           <div class="cl-stat"><span class="cl-stat-lab">Nature</span>${natSelect('data-revsel="nature"', c.nature, true)}</div>
-          <div class="cl-stat"><span class="cl-stat-lab">Boost</span><div class="cl-step"><button data-revstep="-1">−</button><b>${c.boost >= 0 ? "+" : ""}${c.boost}</b><button data-revstep="1">+</button></div></div>
           <div class="cl-stat"><span class="cl-stat-lab">Speed</span>
             <div class="seg cl-invest">${[["base", "Base"], ["max", "Max"]].map(([v, l]) => `<button data-revspeed="${v}" class="${c.speed === v ? "active" : ""}">${l}</button>`).join("")}</div></div>
           <div class="cl-stat"><span class="cl-stat-lab">Item</span><select class="cl-sel" data-revsel="item">${Object.entries(OFF_ITEMS).map(([k, v]) => `<option value="${k}" ${c.item === k ? "selected" : ""}>${v.label}</option>`).join("")}</select></div>
+          <div class="cl-stat" title="All learnable moves or only its real ladder set"><span class="cl-stat-lab">Movepool</span>
+            <div class="seg cl-invest">${[["all", "All"], ["ladder", "Ladder"]].map(([v, l]) => `<button data-revpool="${v}" class="${(c.movepool || "all") === v ? "active" : ""}">${l}</button>`).join("")}</div></div>
+        </div>
+        <div class="cl-attacker" title="Setup stages — the stat each move actually uses (Iron Defense = +2 Def powers Body Press and halves physical taken)">
+          ${["atk", "spa", "def", "spe"].map((k) => `<div class="cl-stat"><span class="cl-stat-lab">${{ atk: "Atk stage", spa: "Sp.Atk stage", def: "Def stage", spe: "Spe stage" }[k]}</span>
+            <div class="cl-step"><button data-revstage="${k}" data-dir="-1">−</button><b>${(c.stages?.[k] || 0) >= 0 ? "+" : ""}${c.stages?.[k] || 0}</b><button data-revstage="${k}" data-dir="1">+</button></div></div>`).join("")}
         </div>
         ${abilChips ? `<div class="cl-abil"><span class="cl-stat-lab">Ability</span>${abilChips}</div>` : ""}
+        <div class="cl-tmoves"><span class="cl-stat-lab">Its attacks</span>
+          ${Array.isArray(c.moveset) && c.moveset.length
+            ? c.moveset.map((id) => { const mv = data.moves[id]; return mv ? `<span class="cl-exchip"><span class="type tiny" style="background:${TYPE_COLORS[mv.type]}">${mv.type}</span>${mv.name}<button data-rmv-remove="${id}" aria-label="remove">✕</button></span>` : ""; }).join("")
+            : `<small class="muted">using ${(c.movepool || "all") === "ladder" ? "its ladder set" : "all learnable moves"} — add specific attacks to lock the set</small>`}
+          ${(c.custom || []).map((cm, i) => `<span class="cl-exchip cl-cmv-chip" title="Invented move — not in its real movepool"><span class="type tiny" style="background:${TYPE_COLORS[cm.type]}">${cm.type}</span>Custom ${cm.power} <small>${cm.class === "physical" ? "Phys" : "Spec"}</small><button data-rmv-custom="${i}" aria-label="remove">✕</button></span>`).join("")}
+        </div>
+        <div class="cl-custommv" title="Invent a move to test: type + category + base power. Plain single hit, 100% accuracy; STAB applies if the type matches.">
+          <span class="cl-stat-lab">Custom move</span>
+          <select class="cl-sel cmv-type">${TYPES.map((t) => `<option value="${t}">${t}</option>`).join("")}</select>
+          <select class="cl-sel cmv-class"><option value="physical">Physical</option><option value="special">Special</option></select>
+          <input class="cmv-pow" type="number" min="1" max="250" value="80" aria-label="base power">
+          <button class="btn-sm" data-addcustom>＋ Add</button>
+        </div>
+        ${eb.excluded.size ? `<div class="cl-excluded"><span class="cl-stat-lab">Excluded moves</span>
+          ${[...eb.excluded].map((id) => data.moves[id] ? `<span class="cl-exchip">${data.moves[id].name}<button data-unexclude="${id}" aria-label="restore">✕</button></span>` : "").join("")}</div>` : ""}
       </div>
       <div class="cl-sec">
         <div class="cl-sec-head"><span>Field conditions</span></div>
@@ -1630,13 +1682,17 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
           <div class="cl-stat"><span class="cl-stat-lab">Weather</span>${seg("weather", WEATHERS, eb.weather)}</div>
           <div class="cl-stat"><span class="cl-stat-lab">Terrain</span>${seg("terrain", TERRAINS, eb.terrain)}</div>
           <div class="cl-stat"><span class="cl-stat-lab">Screen</span>${seg("screen", SCREENS, eb.screen)}</div>
+          <div class="cl-stat" title="Burn halves the attacker's physical damage (Guts/Facade exempt); paralysis halves its Speed"><span class="cl-stat-lab">Attacker status</span>${seg("userStatus", { none: "Healthy", brn: "Burned", psn: "Poisoned", par: "Paralyzed" }, eb.userStatus)}</div>
+          <div class="cl-stat"><span class="cl-stat-lab">Defender status</span>${seg("targetStatus", { none: "Healthy", psn: "Poisoned", brn: "Burned", par: "Paralyzed", slp: "Asleep" }, eb.targetStatus)}</div>
           <label class="cl-avail cl-doubles" title="Champions is doubles (Reg M-B): spread moves like Earthquake do ×0.75"><input type="checkbox" data-ebsel="doubles" ${eb.doubles ? "checked" : ""}> Doubles spread ×0.75</label>
         </div>
       </div>
       <div class="cl-sec">
         <div class="cl-sec-head"><span>Defenders — filter &amp; sort</span></div>
         <div class="cl-conditions">
-          <div class="seg ehp-thresh">${[["dmg", "Damage ↓"], ["tough", "Toughest ↑"]].map(([v, l]) => `<button data-revsort="${v}" class="${eb.revSort === v ? "active" : ""}">${l}</button>`).join("")}</div>
+          <div class="cl-stat" title="What set every defender is assumed to run — Ladder = its real usage spread/nature/ability; Base = 0 investment, neutral nature"><span class="cl-stat-lab">Defenders</span>
+            <div class="seg cl-invest">${[["ladder", "Ladder set"], ["base", "Base 0-invest"]].map(([v, l]) => `<button data-revbasis="${v}" class="${eb.revBasis === v ? "active" : ""}">${l}</button>`).join("")}</div></div>
+          <div class="seg ehp-thresh">${[["usage", "Usage ↓"], ["dmg", "Damage ↓"], ["tough", "Toughest ↑"]].map(([v, l]) => `<button data-revsort="${v}" class="${eb.revSort === v ? "active" : ""}">${l}</button>`).join("")}</div>
           <div class="seg">${[["all", "All"], ["hide", "No mega"], ["only", "Only mega"]].map(([v, l]) => `<button data-revmega="${v}" class="${eb.revMega === v ? "active" : ""}">${l}</button>`).join("")}</div>
           <div class="seg ehp-thresh">${[["any", "Any dmg"], ["ohko", "OHKO"], ["2hko", "2HKO"], ["3hko", "3HKO"]].map(([v, l]) => `<button data-thresh="${v}" class="${eb.threshold === v ? "active" : ""}">${l}</button>`).join("")}</div>
           <label class="cl-avail" title="Only defenders with real ladder usage data"><input type="checkbox" data-revsel="revLaddered" ${eb.revLaddered ? "checked" : ""}> Laddered only</label>
@@ -1649,6 +1705,14 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
           </div>
           <div class="cl-ftypes">${TYPES.map((t) => `<button class="type-chip ${eb.revTypesOff.has(t) ? "off" : "on"}" data-revftype="${t}"><span class="type" style="background:${TYPE_COLORS[t]}">${t}</span></button>`).join("")}</div>
         </div>
+        <div class="cl-typerow" title="Lit move types are used by YOUR attacker; click a type to stop using moves of that type">
+          <div class="cl-typectl">
+            <span class="cl-typelab">Move type</span>
+            <button class="btn-sm" data-typeset="mv.all">All</button>
+            <button class="btn-sm" data-typeset="mv.none">None</button>
+          </div>
+          <div class="cl-ftypes">${TYPES.map((t) => `<button class="type-chip ${eb.moveTypesOff.has(t) ? "off" : "on"}" data-fmtype="${t}"><span class="type" style="background:${TYPE_COLORS[t]}">${t}</span></button>`).join("")}</div>
+        </div>
       </div>
     </section>`;
   }
@@ -1657,7 +1721,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
     const st = revSt();
     const slug = d.mon.slug;
     const ovr = eb.revOverrides.get(slug) || {};
-    const cfg = { ...usageCfg(d.mon), ...ovr };
+    const cfg = defenderCfg(d.mon);   // honors the Ladder/Base basis + overrides
     const edited = Object.keys(ovr).length > 0;
     const abilChips = (d.mon.abilities || []).map((a) => `<button class="tm-abil-chip ${cfg.ability === a.slug ? "on" : ""}" data-dovrability="${a.slug}">${(data.abilities[a.slug] || {}).name || a.slug}</button>`).join("");
     const itemSel = `<select class="cl-sel" data-dovrsel="item">${Object.entries(DEF_ITEMS).map(([k, l]) => `<option value="${k}" ${cfg.item === k ? "selected" : ""}>${l}</option>`).join("")}</select>`;
@@ -1694,15 +1758,23 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
     const entry = { mon, lv: statsFor(mon, "lv50") };
     const st = revSt();
     const evalDef = (d) => { const dt = defenderTarget(d.mon); return { d, dt, row: dt ? bestVsTarget(entry, dt, st) : null }; };
-    const bySort = (a, b) => eb.revSort === "tough" ? a.row.maxPct - b.row.maxPct : b.row.maxPct - a.row.maxPct;
+    const usageOf = (d) => (d.mon.usagePct != null ? d.mon.usagePct : -1);
+    const bySort = (a, b) => eb.revSort === "tough" ? a.row.maxPct - b.row.maxPct
+      : eb.revSort === "usage" ? (usageOf(b.d) - usageOf(a.d)) || (b.row.maxPct - a.row.maxPct)
+      : b.row.maxPct - a.row.maxPct;
     const revRow = ({ d, dt, row }) => {
       const slug = d.mon.slug;
       const open = eb.expanded === slug;
       const pinned = eb.revPinned.has(slug);
+      const use = d.mon.usagePct != null ? `<span class="ehp-use" title="M-B ladder usage (pokebase)">${d.mon.usagePct}%</span>` : "";
+      // the assumed defender set, visible WITHOUT opening the expander — no hidden assumptions
+      const cfg = defenderCfg(d.mon);
+      const edited = eb.revOverrides.has(slug) && Object.keys(eb.revOverrides.get(slug)).length > 0;
+      const setLine = `<span class="ehp-setline" title="The set this row assumes (edit via ▸)">${dt.hp} HP · ${dt.def} Def · ${dt.spd} SpD · ${dt.spe} Spe · ${cfg.nature === "Serious" ? "Neutral" : cfg.nature} · ${(data.abilities[cfg.ability] || {}).name || "—"}${edited ? ' · <b class="ap-edited">edited</b>' : ""}</span>`;
       return `<div class="ehp-item ${open ? "open" : ""}">
         <div class="ehp-row" data-open="${slug}">
-          <img class="ehp-spr" src="${d.mon.sprite || d.mon.artwork || ""}" alt="">
-          <span class="ehp-name"><span class="ehp-nm-row"><button class="ehp-caret" data-expand="${slug}" title="Full matchup vs this defender — bulk/speed/ability editable">${open ? "▾" : "▸"}</button><button class="ehp-pin ${pinned ? "on" : ""}" data-pin="${slug}" title="${pinned ? "Unpin" : "Pin — stays on top through any filters"}">📌</button>${nameOf(d.mon)}</span><span class="ehp-badges">${badgesFor(row, dt)}</span></span>
+          <img class="ehp-spr" loading="lazy" decoding="async" src="${d.mon.sprite || d.mon.artwork || ""}" alt="">
+          <span class="ehp-name"><span class="ehp-nm-row"><button class="ehp-caret" data-expand="${slug}" title="Full matchup vs this defender — bulk/speed/ability editable">${open ? "▾" : "▸"}</button><button class="ehp-pin ${pinned ? "on" : ""}" data-pin="${slug}" title="${pinned ? "Unpin" : "Pin — stays on top through any filters"}">📌</button>${nameOf(d.mon)}${use}</span><span class="ehp-badges">${badgesFor(row, dt)}</span>${setLine}</span>
           ${moveCells(row)}
         </div>
         ${open ? renderDefenderPanel(entry, d, dt) : ""}</div>`;
@@ -1728,13 +1800,14 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
     const rows = scored.slice(0, CAP).map(revRow).join("");
     $("#rev-results").innerHTML = `
       ${pinnedBlock}
-      <div class="ehp-summary"><b>${nameOf(mon)}</b> reaches <b>${{ any: "damage", ohko: "OHKO", "2hko": "2HKO+", "3hko": "3HKO+" }[eb.threshold]}</b> on <b>${scored.length}</b> defenders${eb.revLaddered ? " (laddered)" : ""}${eb.revMega !== "all" || eb.revTypesOff.size || eb.revSearch ? " · filtered" : ""}.</div>
+      <div class="ehp-summary"><b>${nameOf(mon)}</b> reaches <b>${{ any: "damage", ohko: "OHKO", "2hko": "2HKO+", "3hko": "3HKO+" }[eb.threshold]}</b> on <b>${scored.length}</b> defenders${eb.revLaddered ? " (laddered)" : ""}${eb.revMega !== "all" || eb.revTypesOff.size || eb.revSearch ? " · filtered" : ""}.${condChips()}</div>
       ${scored.length ? `<div class="ehp-list">${rows}</div>` : `<p class="ehp-empty">No defender meets the threshold/filters — loosen them.</p>`}
       ${scored.length > CAP ? `<p class="ehp-more">Showing the top ${CAP} of ${scored.length}. Search or filter to narrow it down.</p>` : ""}
       <p class="ehp-approx">Every defender is built from its own ladder set (spread/nature/ability) — the caret opens the full two-way matchup where its bulk, boosts, Speed, ability and item are editable. Champions exposes per-mon usage, not a global usage share, so this is ranked by damage, not popularity. 📌 pins a defender on top through any filters.</p>`;
   }
   function renderRev() {
     saveLab();
+    renderPresets();
     const mon = eb.revSlug ? bySlug.get(eb.revSlug) : null;
     if (!mon) {
       $("#rev-controls").innerHTML = "";
