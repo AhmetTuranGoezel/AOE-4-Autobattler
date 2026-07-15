@@ -345,9 +345,10 @@ function fieldOffenseMult(mv, cat, eb, infiltrator = false, applyScreens = true,
   return { m, notes };
 }
 
-export function initCalcView({ container, data, onOpen, onMoveInfo }) {
+export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onGotoTeam }) {
+  const team = () => (getTeam ? getTeam() : []);   // live saved team from the Team builder
   const s = {
-    mode: "ehp", // "ehp" (Counters) | "rev" (One vs all)
+    mode: "ehp", // "ehp" (Counters) | "rev" (One vs all) | "team" (Team check)
   };
   // Counters lab: rank the roster against a chosen target under editable conditions.
   const EXCLUDE_KEY = "pc-move-exclude";
@@ -376,6 +377,10 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
     useAccuracy: true, excluded: loadExcluded(),
     threshold: "any", fTypesOff: new Set(), fTypeMode: "any", moveTypesOff: new Set(), fCat: "any", fRole: "any", fAvail: false, fMega: "all", fSurvive: false, fFaster: false, fSearch: "",
     showTypeFilters: false,   // the two 18-chip type grids collapse behind a toggle (both modes)
+    // invented Pokémon (usable as target / defender / attacker / threat) + the builder's draft
+    customMons: [], customDraft: null,
+    // "Team check" mode: opponents to test the saved team against
+    threats: [],
   };
   const tc = () => eb.targets[eb.editing];   // the target config the editor is bound to
   const TCFG_KEYS = new Set(["nature", "item", "defStage", "spdStage", "speStage"]);   // per-target scalars routed through the generic select/stage handlers
@@ -388,7 +393,8 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
     // surviving into the next session halves physical damage and reads like a bug.
     "weather", "terrain", "screen", "doubles",
     "atkInvest", "atkNature", "atkItem", "atkBoost", "atkSpeed", "candBulk", "useAccuracy",
-    "threshold", "fTypeMode", "fCat", "fRole", "fAvail", "fMega", "fSurvive", "fFaster", "showTypeFilters"];
+    "threshold", "fTypeMode", "fCat", "fRole", "fAvail", "fMega", "fSurvive", "fFaster", "showTypeFilters",
+    "customMons", "threats"];
   function serializeLab() {
     const out = { mode: s.mode, targets: eb.targets.map((c) => (c ? { ...c, spread: { ...c.spread } } : null)),
       fTypesOff: [...eb.fTypesOff], moveTypesOff: [...eb.moveTypesOff], revTypesOff: [...eb.revTypesOff],
@@ -399,22 +405,26 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
   }
   function applyLab(st) {
     if (!st) return;
-    if (st.targets) {   // validate each slug still exists; drop unknowns
-      eb.targets = st.targets.map((c) => (c && c.slug && bySlug.has(c.slug)
+    LAB_FIELDS.forEach((k) => { if (st[k] !== undefined) eb[k] = st[k]; });
+    if (!Array.isArray(eb.customMons)) eb.customMons = [];
+    eb.customDraft = null;   // never restore a half-finished builder draft
+    syncCustom();   // custom mons must resolve BEFORE any slug validation below
+    if (st.targets) {   // validate each slug still exists (roster or custom); drop unknowns
+      eb.targets = st.targets.map((c) => (c && c.slug && hasMon(c.slug)
         ? { ...newTargetCfg(), ...c, spread: { hp: 0, def: 0, spd: 0, spe: 0, atk: 0, spa: 0, ...(c.spread || {}) } } : null));
       if (!eb.targets[0]) eb.targets[0] = newTargetCfg();
       if (eb.targets.length < 2) eb.targets[1] = null;
     }
-    LAB_FIELDS.forEach((k) => { if (st[k] !== undefined) eb[k] = st[k]; });
     if (!Array.isArray(eb.revCfg.custom)) eb.revCfg.custom = [];   // pre-custom-move stored states
     if (st.mode) s.mode = st.mode === "calc" ? "ehp" : st.mode;   // the manual calculator is gone
     if (eb.editing > 1 || !eb.targets[eb.editing]) eb.editing = 0;
-    if (eb.revSlug && !bySlug.has(eb.revSlug)) eb.revSlug = null;
+    if (eb.revSlug && !hasMon(eb.revSlug)) eb.revSlug = null;
+    eb.threats = (Array.isArray(eb.threats) ? eb.threats : []).filter((sl) => hasMon(sl));
     eb.fTypesOff = new Set(st.fTypesOff || []);
     eb.moveTypesOff = new Set(st.moveTypesOff || []);
     eb.revTypesOff = new Set(st.revTypesOff || []);
-    eb.pinned = new Set((st.pinned || []).filter((sl) => bySlug.has(sl)));
-    eb.revPinned = new Set((st.revPinned || []).filter((sl) => bySlug.has(sl)));
+    eb.pinned = new Set((st.pinned || []).filter((sl) => hasMon(sl)));
+    eb.revPinned = new Set((st.revPinned || []).filter((sl) => hasMon(sl)));
     eb.overrides = new Map(Object.entries(st.overrides || {}));
     eb.revOverrides = new Map(Object.entries(st.revOverrides || {}));
     // statuses always start Healthy — never restored from storage or old/legacy values
@@ -430,6 +440,30 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
   const movesByName = new Map(Object.values(data.moves).map((m) => [m.name, m]));  // for the target's usage moveset
   const moveIdByName = new Map(Object.entries(data.moves).map(([id, m]) => [m.name, Number(id)]));
   const nameOf = (m) => m._display || displayName(m);
+
+  // ---- custom (invented) Pokémon ----------------------------------------------------------
+  // A user-built mon usable anywhere a real one is: Counters target, One-vs-all attacker/defender,
+  // Team-check threat. Names are user input → escape everywhere they hit innerHTML (security).
+  const esc = (str) => String(str == null ? "" : str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const CUSTOM_STATS = ["hp", "atk", "def", "spa", "spd", "spe"];
+  const clampStat = (v) => Math.max(1, Math.min(255, Math.round(Number(v) || 1)));
+  // Shape a stored custom into a data.pokemon-compatible object the engine already accepts.
+  function customMon(c) {
+    const stats = {}; CUSTOM_STATS.forEach((k) => { stats[k] = clampStat(c.stats && c.stats[k]); });
+    const nm = esc((c.name || "").trim() || "Custom");
+    const types = (c.types || []).filter((t) => TYPES.includes(t)).slice(0, 2);
+    return { slug: "custom:" + c.id, name: nm, _display: nm, types: types.length ? types : ["normal"], stats,
+      bst: CUSTOM_STATS.reduce((sum, k) => sum + stats[k], 0), weight: 50, isMega: false, available: true,
+      dex: 0, gen: 0, usagePct: null, usage: {}, sprite: "", artwork: "",
+      abilities: c.ability && data.abilities[c.ability] ? [{ slug: c.ability, hidden: false }] : [],
+      moves: (c.moves || []).filter((id) => data.moves[id]), isCustom: true };
+  }
+  let customIdx = new Map();   // slug → synthesized custom mon; rebuilt whenever eb.customMons changes
+  const syncCustom = () => { customIdx = new Map(eb.customMons.map((c) => { const m = customMon(c); return [m.slug, m]; })); };
+  const resolveMon = (slug) => bySlug.get(slug) || (slug && slug.startsWith("custom:") ? customIdx.get(slug) : undefined);
+  const hasMon = (slug) => !!resolveMon(slug);
+  const customMons = () => [...customIdx.values()];
+  const nextCustomId = () => String(Date.now()) + Math.random().toString(36).slice(2, 6);
   const capNat = (x) => x[0].toUpperCase() + x.slice(1);
   const NAT_NAMES = Object.fromEntries(Object.keys(NATURE_MODS).map((n) => [capNat(n), capNat(n)]));   // all named natures
   // Attacker natures include the smart "auto" (+10% to whatever stat the move uses — Def for Body Press);
@@ -445,12 +479,16 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
       <div class="calc-modes seg">
         <button data-calcmode="ehp" class="active">Counters</button>
         <button data-calcmode="rev">One vs all</button>
+        <button data-calcmode="team">Team check</button>
       </div>
       <h2 class="calc-title-ehp" hidden>Counters <small class="muted">— who breaks one or two popular targets, under your conditions</small></h2>
       <p class="calc-note calc-title-ehp" hidden>Pick a target — its defensive set prefills from real ladder usage; edit its investment, nature, boosts, ability and field conditions. Add a 2nd target to find counters that handle both. Real Gen-9 damage (0.85–1.00 roll) vs its real HP.</p>
       <h2 class="calc-title-rev" hidden>One vs all <small class="muted">— your attacker's damage into the whole roster</small></h2>
       <p class="calc-note calc-title-rev" hidden>Pick an attacker and set its offense; every defender is built from its own ladder set (Champions exposes per-mon usage, not a global usage share). Ranked by damage.</p>
+      <h2 class="calc-title-team" hidden>Team check <small class="muted">— can your team handle these threats?</small></h2>
+      <p class="calc-note calc-title-team" hidden>Uses your saved team from the Team tab. Add the opponents you're worried about (or import your pinned mons); each teammate's best answer to every threat is scored so you can see instantly what's covered and what isn't.</p>
     </div>
+    <div id="calc-custom" class="calc-custom"></div>
 
     <div class="ehp-breaker" id="calc-mode-ehp" hidden>
       <div class="cl-pick">
@@ -499,6 +537,17 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
       <div class="ehp-results" id="rev-results"></div>
     </div>
 
+    <div class="ehp-breaker" id="calc-mode-team" hidden>
+      <div class="cl-pick">
+        <div class="ci cl-pick-target">Add a threat
+          <div class="ac-wrap"><input class="team-threat-input" placeholder="Search an opponent…" autocomplete="off"></div>
+        </div>
+        <button class="btn tc-import" data-import-pinned title="Add every mon you've pinned in Counters / One-vs-all">⇩ Import pinned</button>
+      </div>
+      <div id="team-controls"></div>
+      <div class="ehp-results" id="team-results-calc"></div>
+    </div>
+
   </div>`;
 
   const $ = (sel) => container.querySelector(sel);
@@ -527,7 +576,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
     };
   }
   function setTarget(slug, keepConfig = false) {
-    const mon = bySlug.get(slug);
+    const mon = resolveMon(slug);
     if (!mon) return;
     if (keepConfig) { tc().slug = slug; }   // form switch keeps the current spread/ability/etc.
     else { eb.targets[eb.editing] = usageCfg(mon); }
@@ -540,17 +589,21 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
   }
   // Add / edit / drop the 2nd target.
   function setTarget2(slug) {
-    const mon = bySlug.get(slug);
+    const mon = resolveMon(slug);
     if (!mon) return;
     eb.targets[1] = usageCfg(mon);
     eb.editing = 1; eb.expanded = null;
     renderEb();
   }
   function clearTarget2() { eb.targets[1] = null; eb.editing = 0; eb.expanded = null; renderEb(); }
-  // popular first: real M-B usage rate sorts the suggestions, shown as a right-aligned %
-  const monItems = () => [...data.pokemon]
-    .sort((a, b) => ((b.usagePct != null ? b.usagePct : -1) - (a.usagePct != null ? a.usagePct : -1)))
-    .map((m) => ({ value: m.slug, name: nameOf(m), icon: `<img src="${m.sprite || m.artwork || ""}" alt="" loading="lazy" decoding="async">`, meta: m.usagePct != null ? `${m.usagePct}%` : "" }));
+  // popular first: real M-B usage rate sorts the suggestions, shown as a right-aligned %.
+  // Custom mons sort to the very top with a "CUSTOM" tag so they're easy to find.
+  const monItems = () => [
+    ...customMons().map((m) => ({ value: m.slug, name: nameOf(m), icon: `<span class="ac-custico">★</span>`, meta: "CUSTOM" })),
+    ...[...data.pokemon]
+      .sort((a, b) => ((b.usagePct != null ? b.usagePct : -1) - (a.usagePct != null ? a.usagePct : -1)))
+      .map((m) => ({ value: m.slug, name: nameOf(m), icon: `<img src="${m.sprite || m.artwork || ""}" alt="" loading="lazy" decoding="async">`, meta: m.usagePct != null ? `${m.usagePct}%` : "" })),
+  ];
   attachAutocomplete(container.querySelector(".ehp-target-input"), {
     items: monItems,
     onPick: (slug) => setTarget(slug),
@@ -559,13 +612,17 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
     items: monItems,
     onPick: (slug) => setTarget2(slug),
   });
+  attachAutocomplete(container.querySelector(".team-threat-input"), {
+    items: () => monItems().filter((it) => !eb.threats.includes(it.value)),
+    onPick: (slug) => addThreat(slug),
+  });
   attachAutocomplete(container.querySelector(".rev-atk-input"), {
     items: monItems,
-    onPick: (slug) => { eb.revSlug = slug; eb.revCfg.ability = offDefaultAbility(bySlug.get(slug)); eb.revCfg.moveset = null; eb.expanded = null; renderRev(); },
+    onPick: (slug) => { eb.revSlug = slug; eb.revCfg.ability = offDefaultAbility(resolveMon(slug)); eb.revCfg.moveset = null; eb.expanded = null; renderRev(); },
   });
   attachAutocomplete(container.querySelector(".rev-move-input"), {
     items: () => {
-      const mon = eb.revSlug ? bySlug.get(eb.revSlug) : null;
+      const mon = eb.revSlug ? resolveMon(eb.revSlug) : null;
       if (!mon) return [];
       return mon.moves.map((id) => ({ id, mv: data.moves[id] })).filter(({ mv }) => mv && mv.class !== "status" && mv.type)
         .map(({ id, mv }) => ({ value: id, name: mv.name, icon: `<span class="type tiny" style="background:${TYPE_COLORS[mv.type]}">${mv.type}</span>` }));
@@ -582,7 +639,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
   // add a move to the TARGET's return set (only among moves it can learn)
   attachAutocomplete(container.querySelector(".ehp-tmove-input"), {
     items: () => {
-      const mon = tc().slug ? bySlug.get(tc().slug) : null;
+      const mon = tc().slug ? resolveMon(tc().slug) : null;
       if (!mon) return [];
       return mon.moves.map((id) => data.moves[id]).filter((mv) => mv && mv.class !== "status" && mv.type)
         .map((mv) => ({ value: moveIdByName.get(mv.name), name: mv.name, icon: `<span class="type tiny" style="background:${TYPE_COLORS[mv.type]}">${mv.type}</span>` }));
@@ -594,8 +651,23 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
   container.addEventListener("input", (e) => {
     if (e.target.classList.contains("ehp-atk-search")) { eb.fSearch = e.target.value.trim().toLowerCase(); renderResults(); return; }
     if (e.target.classList.contains("rev-def-search")) { eb.revSearch = e.target.value.trim().toLowerCase(); renderRevResults(); return; }
+    // custom-mon draft fields: update the draft live WITHOUT re-rendering (inputs keep focus)
+    const cf = e.target.dataset.cdraft;
+    if (cf && eb.customDraft) {
+      if (cf === "name") eb.customDraft.name = e.target.value.slice(0, 24);
+      else if (cf.startsWith("stat.")) eb.customDraft.stats[cf.slice(5)] = clampStat(e.target.value);
+      return;
+    }
   });
   container.addEventListener("change", (e) => {
+    // custom-mon draft selects (types / ability) — re-render so the preview updates
+    const cf = e.target.dataset.cdraft;
+    if (cf && eb.customDraft) {
+      if (cf === "type1") eb.customDraft.types[0] = e.target.value;
+      else if (cf === "type2") eb.customDraft.types = e.target.value ? [eb.customDraft.types[0], e.target.value] : [eb.customDraft.types[0]];
+      else if (cf === "ability") eb.customDraft.ability = e.target.value || null;
+      renderCustom(); return;
+    }
     const ovr = e.target.dataset.ovrsel;
     if (ovr) { setOverride(ovr, e.target.value); return; }
     const sel = e.target.dataset.ebsel;
@@ -714,6 +786,27 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
     }
     const rcm = e.target.closest("[data-rmv-custom]");
     if (rcm) { (eb.revCfg.custom || []).splice(Number(rcm.dataset.rmvCustom), 1); renderRev(); return; }
+    // ---- Team check: threat list ----
+    if (e.target.closest("[data-import-pinned]")) {
+      [...eb.pinned, ...eb.revPinned].forEach((sl) => { if (hasMon(sl) && !eb.threats.includes(sl)) eb.threats.push(sl); });
+      renderTeam(); return;
+    }
+    const trm = e.target.closest("[data-threat-remove]");
+    if (trm) { eb.threats = eb.threats.filter((sl) => sl !== trm.dataset.threatRemove); renderTeam(); return; }
+    if (e.target.closest("[data-threats-clear]")) { eb.threats = []; renderTeam(); return; }
+    if (e.target.closest("[data-goto-team]")) { onGotoTeam && onGotoTeam(); return; }
+    const t2c = e.target.closest("[data-threat2counter]");
+    if (t2c) { eb.editing = 0; s.mode = "ehp"; eb.expanded = null; setTarget(t2c.dataset.threat2counter); syncMode(); return; }
+    // ---- custom Pokémon builder ----
+    if (e.target.closest("[data-custom-new]")) { eb.customDraft = newCustomDraft(); renderCustom(); return; }
+    if (e.target.closest("[data-custom-cancel]")) { eb.customDraft = null; renderCustom(); return; }
+    const ced = e.target.closest("[data-custom-edit]");
+    if (ced) { const c = eb.customMons.find((x) => x.id === ced.dataset.customEdit); if (c) { eb.customDraft = { ...c, stats: { ...c.stats }, types: [...c.types], moves: [...(c.moves || [])] }; renderCustom(); } return; }
+    const cdl = e.target.closest("[data-custom-del]");
+    if (cdl) { removeCustom(cdl.dataset.customDel); return; }
+    const cmr = e.target.closest("[data-cdraft-move-remove]");
+    if (cmr && eb.customDraft) { eb.customDraft.moves = eb.customDraft.moves.filter((x) => x !== Number(cmr.dataset.cdraftMoveRemove)); renderCustom(); return; }
+    if (e.target.closest("[data-custom-save]")) { saveCustomDraft(); return; }
     const rso = e.target.closest("[data-revsort]");
     if (rso) { eb.revSort = rso.dataset.revsort; renderRev(); return; }
     const rmg = e.target.closest("[data-revmega]");
@@ -783,7 +876,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
     if (e.target.closest("[data-preset-save]")) {
       const inp = $(`${s.mode === "rev" ? "#rev-presets" : "#ehp-presets"} .cl-preset-name`);
       const baseSlug = s.mode === "rev" ? eb.revSlug : tc().slug;
-      const name = (inp && inp.value.trim()) || (baseSlug ? `${nameOf(bySlug.get(baseSlug))} ${s.mode === "rev" ? "sweep" : "setup"}` : "Preset");
+      const name = (inp && inp.value.trim()) || (baseSlug && resolveMon(baseSlug) ? `${nameOf(resolveMon(baseSlug))} ${s.mode === "rev" ? "sweep" : "setup"}` : "Preset");
       const list = loadPresets(); list.push({ id: Date.now(), name, state: serializeLab() });
       savePresets(list); renderPresets(); return;
     }
@@ -793,20 +886,21 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
     if (pd) { savePresets(loadPresets().filter((x) => String(x.id) !== pd.dataset.presetDel)); renderPresets(); return; }
   });
 
-  // ---- mode switch (Counters | One vs all) ----
+  // ---- mode switch (Counters | One vs all | Team check) ----
   function syncMode() {
     container.querySelectorAll("[data-calcmode]").forEach((b) => b.classList.toggle("active", b.dataset.calcmode === s.mode));
-    container.querySelectorAll(".calc-title-ehp").forEach((el) => (el.hidden = s.mode !== "ehp"));
-    container.querySelectorAll(".calc-title-rev").forEach((el) => (el.hidden = s.mode !== "rev"));
-    $("#calc-mode-ehp").hidden = s.mode !== "ehp";
-    $("#calc-mode-rev").hidden = s.mode !== "rev";
-    if (s.mode === "rev") renderRev(); else renderEb();
+    ["ehp", "rev", "team"].forEach((m) => {
+      container.querySelectorAll(`.calc-title-${m}`).forEach((el) => (el.hidden = s.mode !== m));
+      $(`#calc-mode-${m}`).hidden = s.mode !== m;
+    });
+    renderCustom();
+    if (s.mode === "rev") renderRev(); else if (s.mode === "team") renderTeam(); else renderEb();
   }
 
   // Resolve a defensive CONFIG into effective Lv50 stats + its own offense (the "what it does
   // back" reverse calc). Used by both the editable targets and the reverse-mode defenders.
   function targetFromCfg(cfg) {
-    const mon = cfg && cfg.slug ? bySlug.get(cfg.slug) : null;
+    const mon = cfg && cfg.slug ? resolveMon(cfg.slug) : null;
     if (!mon) return null;
     const sp = cfg.spread, nat = cfg.nature, abil = cfg.ability, item = cfg.item;
     const base = statsFor(mon, "lv50");
@@ -1243,7 +1337,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
   // Controls: target card + defenses editor + conditions + attacker preset + rules.
   function renderControls(target) {
     const mon = target.mon;
-    const fam = formFamily(mon, data.pokemon);   // slug-derived: regionals never offer a Mega
+    const fam = mon.isCustom ? { base: null, megas: [] } : formFamily(mon, data.pokemon);   // slug-derived: regionals never offer a Mega
     const forms = [];
     if (fam.base) forms.push(fam.base);
     forms.push(...fam.megas);
@@ -1259,7 +1353,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
     // target 1/2 tabs (only when a 2nd target exists)
     const t2 = eb.targets[1];
     const tabRow = t2 ? `<div class="cl-ttabs">
-      ${[0, 1].map((i) => { const c = eb.targets[i]; const m = c && bySlug.get(c.slug); return `<button class="cl-ttab ${eb.editing === i ? "on" : ""}" data-target-tab="${i}"><img src="${m ? (m.sprite || m.artwork || "") : ""}" alt="">T${i + 1} ${m ? nameOf(m) : ""}</button>`; }).join("")}
+      ${[0, 1].map((i) => { const c = eb.targets[i]; const m = c && resolveMon(c.slug); return `<button class="cl-ttab ${eb.editing === i ? "on" : ""}" data-target-tab="${i}"><img src="${m ? (m.sprite || m.artwork || "") : ""}" alt="">T${i + 1} ${m ? nameOf(m) : ""}</button>`; }).join("")}
       <button class="cl-ttab-x" data-target2-clear title="Remove the 2nd target">✕ 2nd</button>
     </div>` : "";
 
@@ -1623,7 +1717,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
     const br = container.querySelector('[data-setup="rev-setup"]'); if (br) br.textContent = `⚙ More setup${nRev ? ` · ${nRev}` : ""}`;
   }
 
-  const renderActive = () => { if (s.mode === "rev") renderRev(); else renderEb(); };   // shared field handlers re-render the active mode
+  const renderActive = () => { if (s.mode === "rev") renderRev(); else if (s.mode === "team") renderTeam(); else renderEb(); };   // shared field handlers re-render the active mode
   function renderEb() {
     saveLab();   // the working setup survives reloads
     renderPresets();
@@ -1773,7 +1867,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
   }
 
   function renderRevResults() {
-    const mon = eb.revSlug ? bySlug.get(eb.revSlug) : null;
+    const mon = eb.revSlug ? resolveMon(eb.revSlug) : null;
     if (!mon) { $("#rev-results").innerHTML = ""; return; }
     const entry = { mon, lv: statsFor(mon, "lv50") };
     const st = revSt();
@@ -1799,7 +1893,8 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
         </div>
         ${open ? renderDefenderPanel(entry, d, dt) : ""}</div>`;
     };
-    const scored = roster
+    const defenders = [...roster, ...customMons().map((m) => ({ mon: m, lv: statsFor(m, "lv50") }))];   // custom mons join the roster as defenders
+    const scored = defenders
       .filter((d) => d.mon.slug !== mon.slug)
       .filter((d) => !eb.revLaddered || (d.mon.usage && (d.mon.usage.moves || []).length))
       .filter((d) => eb.revMega === "all" || (eb.revMega === "hide" ? !d.mon.isMega : d.mon.isMega))
@@ -1811,7 +1906,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
     scored.sort(bySort);
     // pinned defenders: always shown on top, no filters/threshold
     const pinnedRows = [...eb.revPinned].filter((sl) => sl !== mon.slug)
-      .map((sl) => { const d = roster.find((r) => r.mon.slug === sl); return d ? evalDef(d) : null; })
+      .map((sl) => { const d = defenders.find((r) => r.mon.slug === sl); return d ? evalDef(d) : null; })
       .filter((x) => x && x.row).sort(bySort);
     const pinnedBlock = pinnedRows.length ? `
       <div class="ehp-pinhead">📌 Pinned (${pinnedRows.length}) <small>ignores filters &amp; threshold</small><button class="btn-sm" data-pin-clear>clear all</button></div>
@@ -1828,7 +1923,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
   function renderRev() {
     saveLab();
     renderPresets();
-    const mon = eb.revSlug ? bySlug.get(eb.revSlug) : null;
+    const mon = eb.revSlug ? resolveMon(eb.revSlug) : null;
     if (!mon) {
       $("#rev-controls").innerHTML = "";
       $("#rev-results").innerHTML = `<p class="ehp-empty ehp-pick-hint">Pick an attacker above to see its damage into every defender.</p>`;
@@ -1838,6 +1933,150 @@ export function initCalcView({ container, data, onOpen, onMoveInfo }) {
     renderRevResults();
   }
 
+  // ---------- custom Pokémon builder (shared across all three modes) ----------
+  const newCustomDraft = () => ({ id: null, name: "", types: ["normal"], stats: { hp: 100, atk: 100, def: 100, spa: 100, spd: 100, spe: 100 }, ability: null, moves: [] });
+  function saveCustomDraft() {
+    const d = eb.customDraft; if (!d) return;
+    const clean = { id: d.id || nextCustomId(), name: (d.name || "").trim().slice(0, 24) || "Custom",
+      types: (d.types || []).filter((t) => TYPES.includes(t)).slice(0, 2),
+      stats: Object.fromEntries(CUSTOM_STATS.map((k) => [k, clampStat(d.stats && d.stats[k])])),
+      ability: d.ability && data.abilities[d.ability] ? d.ability : null,
+      moves: (d.moves || []).filter((id) => data.moves[id]).slice(0, 8) };
+    if (!clean.types.length) clean.types = ["normal"];
+    const i = eb.customMons.findIndex((x) => x.id === clean.id);
+    if (i >= 0) eb.customMons[i] = clean; else eb.customMons.push(clean);
+    eb.customDraft = null; syncCustom(); saveLab(); renderCustom(); renderActive();
+  }
+  function removeCustom(id) {
+    eb.customMons = eb.customMons.filter((c) => c.id !== id);
+    const slug = "custom:" + id;
+    eb.threats = eb.threats.filter((sl) => sl !== slug);
+    eb.targets = eb.targets.map((c) => (c && c.slug === slug ? null : c));
+    if (!eb.targets[0]) eb.targets[0] = newTargetCfg();
+    if (eb.revSlug === slug) eb.revSlug = null;
+    eb.pinned.delete(slug); eb.revPinned.delete(slug);
+    syncCustom(); saveLab(); renderCustom(); renderActive();
+  }
+  const cdMoveInput = { detach: null };   // the draft's move-adder autocomplete (re-attached each render)
+  function renderCustom() {
+    const el = $("#calc-custom"); if (!el) return;
+    const chips = customMons().map((m) => `<span class="cx-chip"><span class="cx-star">★</span>${nameOf(m)}<button data-custom-edit="${m.slug.slice(7)}" title="Edit" aria-label="Edit">✎</button><button data-custom-del="${m.slug.slice(7)}" title="Delete" aria-label="Delete">✕</button></span>`).join("");
+    const d = eb.customDraft;
+    const form = d ? (() => {
+      const typeSel = (which, cur, allowNone) => `<select class="cl-sel" data-cdraft="${which}">${(allowNone ? `<option value="">— none —</option>` : "") + TYPES.map((t) => `<option value="${t}" ${t === cur ? "selected" : ""}>${t}</option>`).join("")}</select>`;
+      const statBox = (k, lab) => `<div class="cl-stat"><span class="cl-stat-lab">${lab}</span><input class="cx-stat" type="number" min="1" max="255" value="${clampStat(d.stats[k])}" data-cdraft="stat.${k}" aria-label="${lab}"></div>`;
+      const abilOpts = `<option value="">— none —</option>` + Object.entries(data.abilities).map(([slug, a]) => `<option value="${slug}" ${d.ability === slug ? "selected" : ""}>${a.name}</option>`).sort().join("");
+      const moveChips = (d.moves || []).map((id) => { const mv = data.moves[id]; return mv ? `<span class="cl-exchip"><span class="type tiny" style="background:${TYPE_COLORS[mv.type]}">${mv.type}</span>${mv.name}<button data-cdraft-move-remove="${id}" aria-label="remove">✕</button></span>` : ""; }).join("");
+      return `<div class="cx-form">
+        <div class="cx-form-head"><b>${d.id ? "Edit" : "New"} custom Pokémon</b><span class="muted cx-bst">BST ${CUSTOM_STATS.reduce((s2, k) => s2 + clampStat(d.stats[k]), 0)}</span></div>
+        <div class="cx-form-grid">
+          <div class="cl-stat cx-name"><span class="cl-stat-lab">Name</span><input class="cx-nameinp" type="text" maxlength="24" placeholder="e.g. Threat-mon" value="${esc(d.name)}" data-cdraft="name"></div>
+          <div class="cl-stat"><span class="cl-stat-lab">Type 1</span>${typeSel("type1", d.types[0], false)}</div>
+          <div class="cl-stat"><span class="cl-stat-lab">Type 2</span>${typeSel("type2", d.types[1] || "", true)}</div>
+          <div class="cl-stat cx-abil"><span class="cl-stat-lab">Ability <small>(optional)</small></span><select class="cl-sel" data-cdraft="ability">${abilOpts}</select></div>
+        </div>
+        <div class="cx-stats">${[["hp", "HP"], ["atk", "Atk"], ["def", "Def"], ["spa", "Sp.Atk"], ["spd", "Sp.Def"], ["spe", "Spe"]].map(([k, l]) => statBox(k, l)).join("")}</div>
+        <div class="cl-tmoves"><span class="cl-stat-lab">Moves <small>(optional — needed to use it as an attacker)</small></span>
+          ${moveChips || '<small class="muted">no moves yet</small>'}
+          <div class="ac-wrap cx-movewrap"><input class="cx-move-input" placeholder="+ add a move…" autocomplete="off"></div>
+        </div>
+        <div class="cx-form-actions"><button class="btn accent" data-custom-save>Save Pokémon</button><button class="btn" data-custom-cancel>Cancel</button></div>
+      </div>`;
+    })() : "";
+    el.innerHTML = `<div class="cx-bar"><span class="cx-lab">Custom Pokémon</span>${chips}<button class="btn-sm cx-new" data-custom-new>＋ New</button></div>${form}`;
+    // (re)attach the draft move adder
+    if (cdMoveInput.detach) { cdMoveInput.detach(); cdMoveInput.detach = null; }
+    const mi = el.querySelector(".cx-move-input");
+    if (mi) cdMoveInput.detach = attachAutocomplete(mi, {
+      items: () => damagingMoves.filter((m) => !(eb.customDraft.moves || []).includes(m.value)),
+      onPick: (id) => { if (!eb.customDraft.moves) eb.customDraft.moves = []; if (!eb.customDraft.moves.includes(id)) eb.customDraft.moves.push(id); renderCustom(); },
+    });
+  }
+
+  // ---------- "Team check" mode: your team vs a list of threats ----------
+  function addThreat(slug) { if (hasMon(slug) && !eb.threats.includes(slug)) { eb.threats.push(slug); renderTeam(); } }
+  // One attacker (team member) vs one threat → a scored cell.
+  function teamCell(memberMon, memberMoveIds, threatTarget) {
+    const entry = { mon: memberMon, lv: statsFor(memberMon, "lv50") };
+    const st = { ...atkSettings(entry) };
+    if (Array.isArray(memberMoveIds) && memberMoveIds.length) st.moveset = memberMoveIds;   // lock to the team's chosen moves
+    const row = bestVsTarget(entry, threatTarget, st);
+    if (!row) return { tier: 1, label: "—", note: "no damaging move" };
+    const v = verdict(row);
+    const kos = row.nMin;   // best-case-min hits to KO (1=OHKO)
+    const safe = row.first === true || !row.ohkoBack;   // outspeeds, or survives the threat's best hit
+    // tier: 3 handled cleanly · 2 trades/risky · 1 chip only · (verdict "no KO" → 1)
+    let tier;
+    if (row.nMin >= 99 && row.nBest >= 99) tier = 1;
+    else if (kos <= 2 && safe) tier = 3;
+    else if (kos <= 2 || row.nBest <= 2) tier = 2;
+    else tier = 1;
+    return { tier, label: v.txt, ko: kos, first: row.first, ohkoBack: row.ohkoBack,
+      mv: row.mv, pct: row.maxPct, threatPct: row.threatPct, threatMv: row.threatMv };
+  }
+  function renderTeam() {
+    saveLab();
+    const roster2 = team().map((t) => ({ mon: bySlug.get(t.slug), moves: (t.moves || []) })).filter((t) => t.mon);
+    const controls = $("#team-controls"), out = $("#team-results-calc");
+    // threat chips + clear
+    const threatChips = eb.threats.map((sl) => { const m = resolveMon(sl); return m
+      ? `<span class="tc-threat"><img src="${m.sprite || m.artwork || ""}" alt="">${nameOf(m)}<button data-threat-remove="${sl}" aria-label="remove">✕</button></span>` : ""; }).join("");
+    controls.innerHTML = `<div class="tc-threatbar">
+      <span class="cl-stat-lab">Threats (${eb.threats.length})</span>${threatChips || '<small class="muted">none yet — search above or import your pinned mons</small>'}
+      ${eb.threats.length ? `<button class="btn-sm" data-threats-clear>clear</button>` : ""}
+    </div>`;
+
+    if (!roster2.length) {
+      out.innerHTML = `<div class="tc-empty"><p>Your saved team is empty.</p><button class="btn accent" data-goto-team>Build a team in the Team tab</button></div>`;
+      return;
+    }
+    if (!eb.threats.length) {
+      out.innerHTML = `<p class="ehp-empty">Add the opponents you want to check — search above, or <b>⇩ Import pinned</b> to pull the mons you've pinned in Counters / One-vs-all. Each teammate's best answer to every threat is then scored below.</p>`;
+      return;
+    }
+
+    // header: team member sprites
+    const memberHead = roster2.map(({ mon }) => `<th class="tc-mhead" title="${nameOf(mon)}"><img src="${mon.sprite || mon.artwork || ""}" alt="">${mon.types.map((t) => `<span class="type tiny" style="background:${TYPE_COLORS[t]}">${t}</span>`).join("")}</th>`).join("");
+
+    const rows = eb.threats.map((sl) => {
+      const tmon = resolveMon(sl); if (!tmon) return "";
+      const target = defenderTarget(tmon);
+      const cells = roster2.map(({ mon, moves }) => teamCell(mon, moves, target));
+      const handlers = roster2.filter((_, i) => cells[i].tier === 3).map(({ mon }) => nameOf(mon));
+      const riskers = roster2.filter((_, i) => cells[i].tier === 2).map(({ mon }) => nameOf(mon));
+      const vtier = handlers.length ? 3 : riskers.length ? 2 : 1;
+      const verdictTxt = vtier === 3 ? `handled by ${handlers.slice(0, 3).join(", ")}${handlers.length > 3 ? " +" + (handlers.length - 3) : ""}`
+        : vtier === 2 ? `risky — only ${riskers.slice(0, 3).join(", ")}` : "✗ nobody handles this";
+      const cellHtml = cells.map((c) => {
+        const spd = c.first === true ? "⚡" : c.first === false ? "🐢" : "";
+        return `<td class="tc-cell tier-${c.tier}" title="${c.mv ? esc(c.mv.name) + " · " + Math.round(c.pct || 0) + "% max" + (c.threatMv ? " · takes " + esc(c.threatMv.name) : "") : "no damaging move"}"><b>${c.label}</b><span class="tc-spd">${spd}${c.ohkoBack ? " ⚠" : ""}</span></td>`;
+      }).join("");
+      return `<tr>
+        <td class="tc-threatcell"><img src="${tmon.sprite || tmon.artwork || ""}" alt=""><span class="tc-tname">${nameOf(tmon)}${tmon.isCustom ? '<span class="cx-star">★</span>' : ""}</span>
+          <button class="tc-open" data-threat2counter="${sl}" title="Open in Counters">⚔</button></td>
+        ${cellHtml}
+        <td class="tc-verdict v-${vtier}">${verdictTxt}</td>
+      </tr>`;
+    }).join("");
+
+    const uncovered = eb.threats.filter((sl) => { const m = resolveMon(sl); if (!m) return false;
+      const target = defenderTarget(m); return !roster2.some(({ mon, moves }) => teamCell(mon, moves, target).tier === 3); });
+    const summary = uncovered.length
+      ? `<div class="team-callout warn">⚠ ${uncovered.length} threat${uncovered.length > 1 ? "s" : ""} not cleanly handled: ${uncovered.map((sl) => nameOf(resolveMon(sl))).join(" · ")}</div>`
+      : `<div class="team-callout ok">✓ Every threat is handled by at least one teammate.</div>`;
+
+    out.innerHTML = `${summary}
+      <div class="tc-matrix-wrap"><table class="tc-matrix">
+        <thead><tr><th class="tc-corner">Threat \\ Team</th>${memberHead}<th class="tc-vhead">Verdict</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>
+      <div class="tc-legend"><span class="tc-key tier-3">handled</span><span class="tc-key tier-2">risky</span><span class="tc-key tier-1">can't</span>
+        <span class="tc-note">cell = best KO · ⚡ outspeeds · 🐢 slower · ⚠ gets OHKO'd back</span></div>
+      <p class="ehp-approx">Each teammate uses its chosen team moves (or its full movepool if none set) at the global attacker preset. Threats use their real ladder set. Real Gen-9 damage vs real HP.</p>`;
+  }
+
   try { applyLab(JSON.parse(localStorage.getItem(STATE_KEY) || "null")); } catch { /* ignore */ }
   syncMode();
+
+  return { refresh: () => { if (s.mode === "team") renderTeam(); } };
 }

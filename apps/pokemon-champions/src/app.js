@@ -855,6 +855,7 @@ function applyMoveFilter(id) {
 // ---------------------------------------------------------------- tabs / views
 let movesInited = false, abilInited = false, calcInited = false, teamInited = false, covInited = false;
 let movesView = null;  // controller from initMovesView (for the compare → Moves bridge)
+let calcView = null;   // controller from initCalcView (for Team-check live refresh)
 
 // Switch to the Moves tab and load a set of mons as ownership columns (lazy-inits
 // the view if needed). Used by the detail "browse moves" button and compare popup.
@@ -888,8 +889,10 @@ function switchTab(tab) {
 
   if (tab === "calc" && !calcInited) {
     calcInited = true;
-    initCalcView({ container: $("#calc-results"), data: state.data, onOpen: openDetail, onMoveInfo: openMovePopup });
+    calcView = initCalcView({ container: $("#calc-results"), data: state.data, onOpen: openDetail, onMoveInfo: openMovePopup,
+      getTeam: () => state.team.map((t) => ({ slug: t.slug, moves: t.moves })), onGotoTeam: () => switchTab("team") });
   }
+  if (tab === "calc" && calcView) calcView.refresh();   // Team check reflects live team edits on entry
   if (tab === "team" && !teamInited) {
     teamInited = true;
     const tc = $("#team-results");
