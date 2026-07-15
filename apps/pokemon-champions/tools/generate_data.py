@@ -153,6 +153,45 @@ def fetch_champions_moves(slug):
     return fetch_pokebase_mon(slug)["moves"]
 
 
+# Global M-B usage rate per mon, from the pokebase pokemon LIST page: each row is
+# href="/pokemon-champions/pokemon/<slug>" followed by its rate as
+# <span class="text-xs tabular-nums">NN.N<!-- -->%</span> before the next row's link.
+def fetch_usage_rates():
+    """Fetch the pokemon list page once (cached) -> {pokebase slug: usage %}."""
+    cp = _cache_path("pb_usage_rates")
+    if os.path.exists(cp):
+        with open(cp, "r", encoding="utf-8") as f:
+            return json.load(f)
+    rates = {}
+    for attempt in range(4):
+        try:
+            req = urllib.request.Request(POKEBASE, headers={"User-Agent": UA})
+            with urllib.request.urlopen(req, timeout=120) as r:
+                page = r.read().decode("utf-8", "ignore")
+            # pair-up: a slug binds to the FIRST rate after it, but only if no other
+            # mon link sits in between (a row without a rate must not steal the next's).
+            link_re = re.compile(r'href="/pokemon-champions/pokemon/([a-z0-9\-]+)"')
+            links = [(m.start(), m.group(1)) for m in link_re.finditer(page)]
+            rate_re = re.compile(r'tabular-nums">([\d.]+)<!-- -->%')
+            rate_list = [(m.start(), float(m.group(1))) for m in rate_re.finditer(page)]
+            ri = 0
+            for li, (lpos, slug) in enumerate(links):
+                nxt = links[li + 1][0] if li + 1 < len(links) else len(page)
+                while ri < len(rate_list) and rate_list[ri][0] < lpos:
+                    ri += 1
+                if ri < len(rate_list) and rate_list[ri][0] < nxt and slug not in rates:
+                    rates[slug] = rate_list[ri][1]
+            os.makedirs(CACHE, exist_ok=True)
+            with open(cp, "w", encoding="utf-8") as f:
+                json.dump(rates, f)
+            print(f"  usage rates: {len(rates)} mons from the pokebase list page")
+            return rates
+        except Exception:  # noqa: BLE001
+            time.sleep(1.5 * (attempt + 1))
+    print("  WARNING: usage rates unavailable (pokebase list fetch failed)")
+    return rates
+
+
 def fetch_champ_repo(path):
     """A JSON file from the open Champions dataset repo (cached)."""
     return http_json(f"{CHAMP_REPO}/{path}", cache_key=f"repo_{path.replace('/', '_')}")
@@ -160,6 +199,13 @@ def fetch_champ_repo(path):
 
 def _norm_key(s):
     return re.sub(r"[^a-z0-9]", "", s.lower())
+
+
+# Moves the dataset repo omits from EVERY learnset while listing them in its own
+# moves.json — an upstream generator bug (the move "Psychic" collides with the type
+# name: 0/240 repo learnsets contain it, yet 23 mons' real ladder usage sets run it,
+# e.g. Alakazam 16.7%). For these, keep the pokebase movepool as the source of truth.
+REPO_OMITTED_MOVES = {"psychic"}
 
 
 def apply_repo_learnsets(mons):
@@ -200,13 +246,28 @@ def apply_repo_learnsets(mons):
         if learn is None and not m["isMega"]:
             learn = dex_base.get(m["dex"])
         if learn:
-            m["_moves"] = sorted({slugify(x["name"]) for x in learn})
+            new = {slugify(x["name"]) for x in learn}
+            # re-add moves the repo omits globally, but only if pokebase agrees
+            new |= REPO_OMITTED_MOVES & set(m["_moves"])
+            m["_moves"] = sorted(new)
             m["_movesrc"] = "repo"
             hits += 1
         else:
             miss.append(m["slug"])  # keep pokebase movepool
     print(f"\nLearnsets: {hits}/{len(mons)} from the Champions dataset, "
           f"{len(miss)} kept pokebase{(' -> ' + ', '.join(miss)) if miss else ''}")
+    # Diagnostic: a mon's real ladder usage moves are legal by definition — any of
+    # them missing from its final learnset signals another repo omission to vet.
+    gaps = collections.Counter()
+    for m in mons:
+        have = set(m["_moves"])
+        for nm, _pct in (m.get("usage", {}).get("moves") or []):
+            if slugify(nm) not in have:
+                gaps[nm] += 1
+    if gaps:
+        print("  WARNING: usage-set moves missing from learnsets (possible repo omissions):")
+        for nm, n in gaps.most_common(10):
+            print(f"    {nm}: {n} mons")
 
 
 def _between(page, a, b):
@@ -810,6 +871,7 @@ def main():
           f"{len(all_abils) - ab_repo} kept from pokebase/PokeAPI")
 
     # ---- derived per-mon fields + rarity tallies ----
+    usage_rates = fetch_usage_rates()
     out_mons = []
     for mon in mons:
         phys = spec = 0
@@ -828,12 +890,19 @@ def main():
                 spec_top = max(spec_top, pw)
         for a in mon["abilities"]:
             abil_count[a["slug"]] += 1
+        # global M-B usage rate: own list-page row, else inherit the base form's
+        # (megas share their base mon's ladder identity)
+        pct = usage_rates.get(mon["slug"])
+        if pct is None:
+            base_slug = mon["slug"].split("-mega")[0]
+            pct = usage_rates.get(base_slug)
         out_mons.append({
             "id": mon["pid"], "slug": mon["slug"], "name": mon["species"],
             "dex": mon["dex"], "formLabel": mon["formLabel"],
             "category": mon["category"], "isMega": mon["isMega"],
             "available": mon["available"], "types": mon["types"],
             "stats": mon["stats"], "bst": mon["bst"], "weight": mon["weight"],
+            "usagePct": pct,
             "abilities": [{"slug": a["slug"], "hidden": a["hidden"]}
                           for a in mon["abilities"]],
             "moves": sorted(ids),

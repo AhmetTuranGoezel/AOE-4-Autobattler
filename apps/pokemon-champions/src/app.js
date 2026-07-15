@@ -33,8 +33,10 @@ const state = {
   view: "table",
   tab: "pokemon",
   statMode: "lv50",   // "base" | "lv50" — Champions battles are always Level 50
+  extras: localStorage.getItem("pc-extra-cols") === "1",   // optional Weight/Usage table columns
   compare: [],
   compareAnchor: null,   // slug used as the comparison baseline
+  pinned: new Set(),     // roster pins: stay on top of the list through any filters (persisted)
   cmpMoves: "all",       // movepool matrix filter: "all" | "diff"
   team: [],              // [{ slug, moves: [moveId,...] }] (working team, persisted)
   savedTeams: [],        // [{ id, name, members: [{slug,moves}] }] (persisted)
@@ -53,6 +55,7 @@ async function init() {
     state.data = data;
     state.all = data.pokemon;
     for (const m of state.all) { m._display = displayName(m); state.bySlug.set(m.slug, m); }
+    loadPins();
     loadTeam();
     loadSavedTeams();
     state.simCtx = buildSimContext(state.all);
@@ -87,14 +90,31 @@ function recomputeEffective() {
 }
 
 // ---------------------------------------------------------------- render
+// Roster pins: pinned mons render on top (current sort applied), ignoring every filter.
+const PINS_KEY = "pc-pins";
+function loadPins() {
+  try {
+    state.pinned = new Set(JSON.parse(localStorage.getItem(PINS_KEY) || "[]")
+      .filter((s) => state.bySlug.has(s)));
+  } catch { state.pinned = new Set(); }
+}
+const savePins = () => { try { localStorage.setItem(PINS_KEY, JSON.stringify([...state.pinned])); } catch { /* ignore */ } };
+function togglePin(slug) {
+  state.pinned.has(slug) ? state.pinned.delete(slug) : state.pinned.add(slug);
+  savePins();
+  render();
+}
+
 function render() {
   const filtered = applyFilters(state.all, state.filters);
   const sorted = sortMons(filtered, state.sort);
+  const pinned = sortMons(state.all.filter((m) => state.pinned.has(m.slug)), state.sort);
+  const unpinned = pinned.length ? sorted.filter((m) => !state.pinned.has(m.slug)) : sorted;
   const cmp = new Set(state.compare);
   const max = statScaleMax(state.statMode);
   $("#results").innerHTML = renderActiveFilters(state.filters) + (state.view === "table"
-    ? renderTable(sorted, state.sort, cmp, max)
-    : renderGrid(sorted, cmp, max));
+    ? renderTable(unpinned, state.sort, cmp, max, state.extras, pinned)
+    : renderGrid(unpinned, cmp, max, pinned));
   $("#result-count").textContent = `${sorted.length} Pokémon`;
   const n = activeFilterCount(state.filters);
   const badge = $("#filter-badge");
@@ -108,6 +128,7 @@ function buildToolbar() {
     ["cleaned", "Cleaned total"], ["bst", "BST"], ["wasted", "Wasted stats"],
     ...STAT_KEYS.map((k) => [k, STAT_LABELS[k]]),
     ["ehpMixed", "eHP (mixed)"], ["ehpPhys", "Phys eHP"], ["ehpSpec", "Spec eHP"],
+    ["weight", "Weight"], ["usagePct", "Usage %"],
     ["dex", "Dex #"], ["name", "Name"],
   ];
   $("#sort-key").innerHTML = sortKeys
@@ -115,6 +136,14 @@ function buildToolbar() {
   $("#sort-key").value = state.sort.key;
   $("#sort-key").addEventListener("change", (e) => {
     state.sort.key = e.target.value; render();
+  });
+  const xb = $("#tb-extras");
+  xb.classList.toggle("active", state.extras);
+  xb.addEventListener("click", () => {
+    state.extras = !state.extras;
+    try { localStorage.setItem("pc-extra-cols", state.extras ? "1" : "0"); } catch { /* ignore */ }
+    xb.classList.toggle("active", state.extras);
+    render();
   });
   $("#sort-dir").addEventListener("click", () => {
     state.sort.dir = state.sort.dir === "asc" ? "desc" : "asc";
@@ -213,6 +242,10 @@ function buildFilters() {
   state.moveByName = new Map(moves.map((m) => [m.name.toLowerCase(), m.id]));
   $("#move-list").innerHTML = moves.map((m) => `<option value="${m.name}">`).join("");
   $("#f-move").addEventListener("input", onMoveInput);
+  $("#move-chips").addEventListener("click", (e) => {
+    const rm = e.target.closest("[data-move-remove]");
+    if (rm) { state.filters.moves.delete(Number(rm.dataset.moveRemove)); renderMoveChips(); render(); }
+  });
 
   // stat range inputs
   const ranges = [["cleaned", "Cleaned"], ["bst", "BST"],
@@ -264,11 +297,23 @@ function renderAbilityChips() {
 function onMoveInput(e) {
   const val = e.target.value.trim();
   const id = state.moveByName.get(val.toLowerCase());
-  state.filters.move = id != null ? id : null;
-  setNote("#move-note", id != null
-    ? `${state.data.moves[id].count} Pokémon learn this`
-    : (val ? "No exact match — pick from the list" : ""));
+  if (id == null) {                       // only react to an exact (picked) name
+    setNote("#move-note", val ? "No exact match — pick from the list" : "");
+    return;
+  }
+  state.filters.moves.add(id);
+  e.target.value = "";
+  setNote("#move-note", "");
+  renderMoveChips();
   render();
+}
+
+function renderMoveChips() {
+  $("#move-chips").innerHTML = [...state.filters.moves].map((id) => {
+    const m = state.data.moves[id] || { name: `#${id}`, count: 0 };
+    return `<span class="fchip"><span>${m.name}</span><small>${m.count}</small>` +
+      `<button data-move-remove="${id}" aria-label="Remove">✕</button></span>`;
+  }).join("");
 }
 
 function cycleType(t, btn) {
@@ -303,10 +348,11 @@ function syncFilterControls() {
     const tgt = inp.dataset.bound === "min" ? f.statMin : f.statMax;
     inp.value = tgt[inp.dataset.stat] ?? "";
   });
-  $("#f-move").value = f.move != null ? (state.data.moves[f.move]?.name || "") : "";
-  setNote("#move-note", f.move != null ? `${state.data.moves[f.move].count} Pokémon learn this` : "");
+  $("#f-move").value = "";
+  setNote("#move-note", "");
   $$(".mega-seg button").forEach((b) => b.classList.toggle("active", b.dataset.mega === f.mega));
   renderAbilityChips();
+  renderMoveChips();
 }
 
 // A removable chip per active filter, shown above the results.
@@ -323,7 +369,7 @@ function renderActiveFilters(f) {
   for (const r of f.roles) add(`role:${r}`, ROLE_META[r].label);
   for (const g of f.gens) add(`gen:${g}`, GEN_LABEL(g));
   for (const slug of f.abilities) add(`ability:${slug}`, state.data.abilities[slug]?.name || slug);
-  if (f.move != null) add("move", `learns ${state.data.moves[f.move]?.name || "move"}`);
+  for (const id of f.moves) add(`move:${id}`, `learns ${state.data.moves[id]?.name || "move"}`);
   if (!f.availableOnly) add("available", "incl. unobtainable");
   for (const k in f.statMin) add(`min:${k}`, `${rangeLab(k)} ≥ ${f.statMin[k]}`);
   for (const k in f.statMax) add(`max:${k}`, `${rangeLab(k)} ≤ ${f.statMax[k]}`);
@@ -342,7 +388,7 @@ function removeFilter(token) {
   else if (kind === "role") f.roles.delete(val);
   else if (kind === "gen") f.gens.delete(Number(val));
   else if (kind === "ability") f.abilities.delete(val);
-  else if (kind === "move") f.move = null;
+  else if (kind === "move") f.moves.delete(Number(val));
   else if (kind === "mega") f.mega = "hide";
   else if (kind === "available") f.availableOnly = true;
   else if (kind === "min") delete f.statMin[val];
@@ -683,6 +729,9 @@ function bindGlobal() {
     if (e.target.closest("[data-clear-all]")) { resetFilters(); return; }
     const rmf = e.target.closest("[data-rmfilter]");
     if (rmf) { removeFilter(rmf.dataset.rmfilter); return; }
+    const pn = e.target.closest("[data-pin]");
+    if (pn) { togglePin(pn.dataset.pin); return; }
+    if (e.target.closest("[data-pin-clear]")) { state.pinned.clear(); savePins(); render(); return; }
     const c = e.target.closest("[data-cmp]");
     if (c) { toggleCompare(c.dataset.cmp); return; }
     const th = e.target.closest("th.sortable");
@@ -796,9 +845,8 @@ function applyAbilityFilter(slug) {
 }
 
 function applyMoveFilter(id) {
-  state.filters.move = id;
-  const meta = state.data.moves[id];
-  if (meta) { $("#f-move").value = meta.name; setNote("#move-note", `${meta.count} Pokémon learn this`); }
+  state.filters.moves.add(id);
+  renderMoveChips();
   closeDetail();
   toggleFilters(true);
   render();

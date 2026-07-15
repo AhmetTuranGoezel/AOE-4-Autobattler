@@ -9,6 +9,7 @@
   <meta name="color-scheme" content="dark">
   <meta name="theme-color" content="#0f0f0f">
   <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://raw.githubusercontent.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
@@ -48,6 +49,7 @@
           </div>
         </div>
         <div class="tb-right">
+          <button id="tb-extras" class="btn" title="Show Weight (kg) and M-B usage % columns in the table">＋ kg/％</button>
           <label class="sortwrap">Sort <select id="sort-key"></select></label>
           <button id="sort-dir" class="btn">▼ Desc</button>
           <span id="result-count" class="count"></span>
@@ -97,10 +99,11 @@
           <div class="ability-chips" id="ability-chips"></div>
         </div>
         <div class="fgroup">
-          <h3>Move <small>type a name</small></h3>
-          <input id="f-move" class="combo" list="move-list" placeholder="any move…" autocomplete="off">
+          <h3>Moves <small>add several · matches all</small></h3>
+          <input id="f-move" class="combo" list="move-list" placeholder="add a move…" autocomplete="off">
           <datalist id="move-list"></datalist>
           <small class="combo-note" id="move-note"></small>
+          <div class="ability-chips" id="move-chips"></div>
         </div>
         <div class="fgroup"><h3>Stat ranges</h3><div id="f-stats"></div></div>
         <div class="fgroup">

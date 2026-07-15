@@ -1,7 +1,7 @@
 // Detail panel for a selected Pokemon: radar, cleaned-stat breakdown,
 // abilities + moves with rarity, and "find similar".
 import { statScaleMax } from "./effective-stats.js";
-import { displayName, rarityTier, TYPE_COLORS, GEN_LABEL } from "./data.js";
+import { displayName, rarityTier, TYPE_COLORS, GEN_LABEL, formFamily } from "./data.js";
 import { renderRadar } from "./radar.js";
 import { findSimilar } from "./similarity.js";
 import { typeBadges, ROLE_META } from "./table.js";
@@ -47,6 +47,9 @@ function moveRow(id, data) {
 }
 
 // Derive a shiny artwork/sprite URL from a PokeAPI sprite path by inserting /shiny/.
+// NOTE: official-artwork/shiny/ images are fan-made recolors (no official painted shiny
+// art exists), so a few palettes deviate from the in-game shiny — accepted by the user,
+// who prefers the consistent painted style over 3D game renders.
 function shinyUrl(url) {
   if (!url) return "";
   if (url.includes("/official-artwork/")) return url.replace("/official-artwork/", "/official-artwork/shiny/");
@@ -70,9 +73,9 @@ export function renderDetail(mon, { data, all, simCtx, statMode, spread, detailS
     ? `this.onerror=function(){this.onerror=function(){${missing}};this.src='${artNormal}'};this.src='${shinyUrl(mon.sprite || "")}'`
     : `this.onerror=function(){${missing}};this.src='${mon.sprite || ""}'`;
 
-  // Form switch: base ⇄ its Mega form(s), sharing the National Dex number.
-  const base = all.find((m) => m.dex === mon.dex && !m.isMega);
-  const megas = all.filter((m) => m.dex === mon.dex && m.isMega);
+  // Form switch: base ⇄ its Mega form(s) — slug-derived family, so regional variants
+  // (Galarian Slowbro, Alolan Raichu) never offer another form's Mega.
+  const { base, megas } = formFamily(mon, all);
   const formList = [];
   if (base) formList.push(base);
   formList.push(...megas);
@@ -80,6 +83,12 @@ export function renderDetail(mon, { data, all, simCtx, statMode, spread, detailS
     const label = f.isMega ? (f.formLabel || "Mega") : "Base";
     return `<button class="df-btn ${f.slug === mon.slug ? "on" : ""}" data-form="${f.slug}">${label}</button>`;
   }).join("") : "";
+  // warm the caches the user is one click away from: the shiny variant + sibling forms'
+  // artwork — the GitHub CDN rate-limits cold bursts, so fetch them early, one at a time
+  try {
+    if (!shiny && artNormal) { const i = new Image(); i.src = shinyUrl(artNormal); }
+    formList.forEach((f) => { if (f.slug !== mon.slug && f.artwork) { const i = new Image(); i.src = f.artwork; } });
+  } catch { /* prefetch is best-effort */ }
   const formBar = `<div class="detail-forms">
     <button class="df-btn ${shiny ? "on" : ""}" data-shiny title="Toggle shiny artwork">✨ Shiny</button>
     ${formBtns}
@@ -120,7 +129,7 @@ export function renderDetail(mon, { data, all, simCtx, statMode, spread, detailS
     <div class="detail-head">
       <div class="detail-artwrap">
         ${shiny ? '<span class="shiny-glitter" aria-hidden="true">✨</span>' : ""}
-        <img class="detail-art ${shiny ? "is-shiny" : ""}" alt="" src="${artSrc}" onerror="${artOnErr}">
+        <img class="detail-art ${shiny ? "is-shiny" : ""}" alt="" src="${artSrc}" onerror="${artOnErr}" decoding="async" fetchpriority="high">
         ${formBar}
       </div>
       <div class="detail-meta">
@@ -132,6 +141,7 @@ export function renderDetail(mon, { data, all, simCtx, statMode, spread, detailS
           <div class="hl"><span class="t-lab">Cleaned total</span><span class="t-val">${e.cleaned}</span></div>
           <div class="wst"><span class="t-lab">Wasted</span><span class="t-val">${e.wasted}</span></div>
           ${mon.weight != null ? `<div><span class="t-lab">Weight</span><span class="t-val">${mon.weight} kg</span></div>` : ""}
+      ${mon.usagePct != null ? `<div title="M-B ladder usage (pokebase)"><span class="t-lab">Usage</span><span class="t-val">${mon.usagePct}%</span></div>` : ""}
         </div>
         <div class="detail-actions">
           <button class="btn cmp-detail" data-cmp="${mon.slug}" data-cmp-icon>＋ Compare</button>

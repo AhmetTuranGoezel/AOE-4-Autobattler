@@ -41,10 +41,20 @@ function cmpBtn(mon, cmp, big) {
   return `<button class="cmp ${on ? "on" : ""}" data-cmp="${mon.slug}" title="Add to compare">${on ? "✓" : "＋"}</button>`;
 }
 
+// Pin: keeps the mon on top of the list through any filters/search (stat comparison).
+function pinBtn(mon, on) {
+  return `<button class="pin ${on ? "on" : ""}" data-pin="${mon.slug}" title="${on ? "Unpin" : "Pin — stays on top through any filters"}">📌</button>`;
+}
+
 const sep = (x) => Math.round(x).toLocaleString("en-US");
 
 // ---- Table view ----
-const COLS = [
+// Optional secondary-info columns (Weight / Usage %) toggled from the toolbar.
+const EXTRA_COLS = [
+  { key: "weight", label: "kg", num: true, title: "Weight — drives Grass Knot / Low Kick power" },
+  { key: "usagePct", label: "Usage", num: true, title: "M-B ladder usage rate (pokebase)" },
+];
+const colsFor = (extras) => [
   { key: "dex", label: "#", num: true },
   { key: "name", label: "Name" },
   { key: "role", label: "Role", nosort: true },
@@ -52,12 +62,14 @@ const COLS = [
   { key: "bst", label: "BST", num: true },
   { key: "cleaned", label: "Cleaned", num: true },
   { key: "wasted", label: "Wasted", num: true },
+  ...(extras ? EXTRA_COLS : []),
   { key: "ehpPhys", label: "Phys eHP", num: true, ehp: true, title: "Effective HP vs physical @Lv50 (HP × Def)" },
   { key: "ehpSpec", label: "Spec eHP", num: true, ehp: true, title: "Effective HP vs special @Lv50 (HP × Sp.Def)" },
   { key: "ehpMixed", label: "Mixed eHP", num: true, ehp: true, title: "Effective HP vs an even physical+special mix @Lv50 (harmonic mean)" },
 ];
-const COL_WIDTHS = ["3%", "17.4%", "6%", ...STAT_KEYS.map(() => "5.6%"), "5%", "6.8%", "5.6%",
-  "7.2%", "7.2%", "7.2%"];
+const widthsFor = (extras) => (extras
+  ? ["3%", "12.6%", "5.4%", ...STAT_KEYS.map(() => "5.2%"), "4.6%", "6.8%", "5.8%", "4.6%", "5%", "6.6%", "6.6%", "7%"]
+  : ["3%", "17.4%", "6%", ...STAT_KEYS.map(() => "5.6%"), "5%", "6.8%", "5.6%", "7.2%", "7.2%", "7.2%"]);
 
 const sumGet = (m, k) => (k === "bst" ? m._eff.bst : k === "cleaned" ? m._eff.cleaned
   : k === "wasted" ? m._eff.wasted
@@ -78,17 +90,17 @@ function summarize(list) {
   return out;
 }
 
-export function renderTable(list, sort, cmp, max = 200) {
-  const cols = `<colgroup>${COL_WIDTHS.map((w) => `<col style="width:${w}">`).join("")}</colgroup>`;
+export function renderTable(list, sort, cmp, max = 200, extras = false, pinned = []) {
+  const cols = `<colgroup>${widthsFor(extras).map((w) => `<col style="width:${w}">`).join("")}</colgroup>`;
 
-  const head = COLS.map((c) => {
+  const head = colsFor(extras).map((c) => {
     const active = sort.key === c.key;
     const arrow = active ? `<span class="th-arrow">${sort.dir === "asc" ? "▴" : "▾"}</span>` : "";
     const cls = `${c.num ? "num" : ""} ${c.nosort ? "" : "sortable"} ${active ? "active" : ""}`;
     return `<th class="${cls}" ${c.title ? `title="${c.title}"` : ""} ${c.nosort ? "" : `data-sort="${c.key}"`}>${c.label}${arrow}</th>`;
   }).join("");
 
-  const rows = list.map((m) => {
+  const row = (m, isPinned) => {
     const e = m._eff;
     const statCells = STAT_KEYS.map((k) => {
       const v = e.disp[k];
@@ -96,9 +108,9 @@ export function renderTable(list, sort, cmp, max = 200) {
       return `<td class="num stat" style="--bar:${bar}%;--c:${statColor(v, max)}"><span>${v}</span></td>`;
     }).join("");
     const role = ROLE_META[e.role];
-    return `<tr data-slug="${m.slug}">
+    return `<tr data-slug="${m.slug}" class="${isPinned ? "pinned" : ""}">
       <td class="num dex">${m.dex}</td>
-      <td class="namecell">${cmpBtn(m, cmp)}${spriteTag(m, "spr")}
+      <td class="namecell"><span class="row-btns">${pinBtn(m, isPinned)}${cmpBtn(m, cmp)}</span>${spriteTag(m, "spr")}
         <span class="nm"><span class="nm-top">${m._display}${megaBadge(m)}</span>
         <span class="types">${typeBadges(m.types)}</span></span></td>
       <td><span class="role ${role.cls}">${role.label}</span></td>
@@ -106,11 +118,21 @@ export function renderTable(list, sort, cmp, max = 200) {
       <td class="num bst">${e.bst}</td>
       <td class="num cleaned">${e.cleaned}</td>
       <td class="num wasted">${e.wasted > 0 ? e.wasted : "0"}</td>
+      ${extras ? `<td class="num xtra">${m.weight != null ? m.weight : "—"}</td>
+      <td class="num xtra">${m.usagePct != null ? m.usagePct + "%" : "—"}</td>` : ""}
       <td class="num ehp">${sep(e.ehpPhys)}</td>
       <td class="num ehp">${sep(e.ehpSpec)}</td>
       <td class="num ehp ehp-mix">${sep(e.ehpMixed)}</td>
     </tr>`;
-  }).join("");
+  };
+
+  // pinned rows sit on top inside the same table (aligned columns), behind a labeled divider
+  const nCols = colsFor(extras).length;
+  const pinBlock = pinned.length ? `
+    <tr class="pin-head"><td colspan="${nCols}">📌 Pinned (${pinned.length}) <small>ignores filters &amp; search</small><button class="btn-sm" data-pin-clear>clear all</button></td></tr>
+    ${pinned.map((m) => row(m, true)).join("")}
+    <tr class="pin-end"><td colspan="${nCols}"></td></tr>` : "";
+  const rows = pinBlock + list.map((m) => row(m, false)).join("");
 
   let foot = "";
   if (list.length) {
@@ -123,6 +145,7 @@ export function renderTable(list, sort, cmp, max = 200) {
       <td></td>
       ${STAT_KEYS.map((k) => cell(s[k])).join("")}
       ${cell(s.bst)}${cell(s.cleaned)}${cell(s.wasted)}
+      ${extras ? "<td></td><td></td>" : ""}
       ${ecell(s.ehpPhys)}${ecell(s.ehpSpec)}${ecell(s.ehpMixed)}
     </tr></tfoot>`;
   }
@@ -131,8 +154,8 @@ export function renderTable(list, sort, cmp, max = 200) {
 }
 
 // ---- Grid view ----
-export function renderGrid(list, cmp, max = 200) {
-  return `<div class="grid-view">${list.map((m) => {
+export function renderGrid(list, cmp, max = 200, pinned = []) {
+  const card = (m, isPinned) => {
     const e = m._eff;
     const role = ROLE_META[e.role];
     const bars = STAT_KEYS.map((k) => {
@@ -145,10 +168,10 @@ export function renderGrid(list, cmp, max = 200) {
           <i class="gbar-eff" style="width:${effPct}%;background:${statColor(v, max)}"></i></span>
         <span class="gbar-val">${v}</span></div>`;
     }).join("");
-    return `<div class="pcard" data-slug="${m.slug}">
+    return `<div class="pcard ${isPinned ? "pinned" : ""}" data-slug="${m.slug}">
       <div class="pcard-top">
         ${spriteTag(m, "pcard-art")}
-        <div class="pcard-corner">${cmpBtn(m, cmp)}<div class="pcard-id">#${m.dex}${megaBadge(m)}</div></div>
+        <div class="pcard-corner"><div class="pcard-btns">${pinBtn(m, isPinned)}${cmpBtn(m, cmp)}</div><div class="pcard-id">#${m.dex}${megaBadge(m)}</div></div>
       </div>
       <div class="pcard-name">${m._display}</div>
       <div class="types">${typeBadges(m.types)}</div>
@@ -159,5 +182,9 @@ export function renderGrid(list, cmp, max = 200) {
         <div class="hl"><span class="t-lab">Cleaned</span><span class="t-val">${e.cleaned}</span></div>
       </div>
     </div>`;
-  }).join("")}</div>`;
+  };
+  const pinBlock = pinned.length ? `
+    <div class="pin-grid-head">📌 Pinned (${pinned.length}) <small>ignores filters &amp; search</small><button class="btn-sm" data-pin-clear>clear all</button></div>
+    <div class="grid-view pinned-grid">${pinned.map((m) => card(m, true)).join("")}</div>` : "";
+  return `${pinBlock}<div class="grid-view">${list.map((m) => card(m, false)).join("")}</div>`;
 }

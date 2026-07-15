@@ -45,11 +45,31 @@ MODELED = {
     "sand-rush": "Spe ×2 in sand", "swift-swim": "Spe ×2 in rain (auto-selected when rain is set)",
     "chlorophyll": "Spe ×2 in sun", "slush-rush": "Spe ×2 in snow",
     "surge-surfer": "Spe ×2 in Electric Terrain", "quick-feet": "Spe ×1.5 when statused",
+    "unburden": "Spe ×2 when its item slot is empty — ASSUMES the held Gem/Berry was already consumed (holding nothing from turn 1 wouldn't activate it in-game)",
+    "merciless": "guaranteed crit vs a poisoned target → ×1.5 (blocked by Shell Armor / Battle Armor)",
+    "fairy-aura": "Fairy moves ×1.33 — field-wide aura (applies whichever side holds it)",
+    "fire-mane": "Fire moves ×1.5 (Mega Pyroar, Champions-original)",
+    "dragonize": "Normal moves become Dragon ×1.2 (Mega Feraligatr, Champions-original)",
+    "mega-sol": "its own moves behave as if sunny: Fire ×1.5, Water ×0.5, Solar Beam fires instantly (Mega Meganium)",
+    "eelevate": "immune to Ground (Mega Eelektross, Champions-original)",
+    "bulletproof": "immune to Bomb/Ball moves (Shadow Ball, Sludge Bomb…)",
+    "soundproof": "immune to Sound moves (Hyper Voice…)",
+    "damp": "blocks Explosion / Self-Destruct / Mind Blown / Misty Explosion",
+    "heavy-metal": "weight ×2 (Grass Knot / Low Kick take more; its Heavy Slam hits harder)",
+    "light-metal": "weight ×0.5 (Grass Knot / Low Kick take less)",
+    "liquid-voice": "Sound moves become Water (type/STAB re-evaluated)",
+    "long-reach": "its moves never make contact → Fluffy's contact-halving doesn't apply",
+    "supreme-overlord": "×1.1 per fainted ally — team state unknowable here; numbers assume 0 fallen, rows carry the flag",
+    "magic-guard": "no indirect damage → status chip is skipped in the KO simulation (the hit itself was always unchanged)",
+    "poison-heal": "poisoned → +12.5%/turn healing in the KO simulation (instead of poison chip)",
+    "ice-body": "+6.25%/turn healing in snow (KO simulation)",
+    "rain-dish": "+6.25%/turn healing in rain (KO simulation)",
     "gale-wings": "Flying moves +1 priority (feeds the ⚡ badge)",
     # target defense (damage taken)
     "fur-coat": "physical taken ×0.5", "ice-scales": "special taken ×0.5",
     "multiscale": "×0.5 at full HP (assumed full)", "shadow-shield": "×0.5 at full HP",
-    "fluffy": "contact taken ×0.5 · Fire taken ×2", "intimidate": "physical taken ×⅔ (post-drop)",
+    "fluffy": "contact taken ×0.5 (bypassed by Long Reach) · Fire taken ×2",
+    "intimidate": "physical taken ×⅔ — except vs Clear Body/White Smoke/Hyper Cutter/Inner Focus/Own Tempo/Oblivious/Scrappy (immune) and Defiant/Competitive/Contrary (backfires, flagged)",
     "grass-pelt": "physical taken ×⅔ in Grassy Terrain", "marvel-scale": "physical taken ×⅔ when statused",
     "sturdy": "survives a would-be OHKO from full HP", "disguise": "blocks the first single hit",
     "sand-veil": "incoming accuracy ×0.8 in sand", "snow-cloak": "incoming accuracy ×0.8 in snow",
@@ -79,10 +99,9 @@ CURATED = {
     "electric-surge": "sets Electric Terrain on entry — use the Terrain control",
     "grassy-surge": "sets Grassy Terrain — use the Terrain control", "psychic-surge": "sets Psychic Terrain — use the Terrain control",
     "misty-surge": "sets Misty Terrain — use the Terrain control",
-    "speed-boost": "+1 Spe per turn — turn-1 speeds shown; model later turns with the Speed boost stepper",
     "moody": "random stat changes each turn — not deterministic, can't be honestly averaged",
-    "sniper": "boosts critical hits only — crits aren't simulated (ranges would be misleading); use the manual Calculator's crit toggle",
-    "super-luck": "raises crit chance — crits aren't simulated; use the manual Calculator's crit toggle",
+    "sniper": "boosts critical hits only — random crits aren't simulated in the ranking (only Merciless's guaranteed crit is)",
+    "super-luck": "raises crit chance — random crits aren't simulated in the ranking",
     "serene-grace": "doubles secondary-effect chances (flinch/burn…) — affects odds, not damage",
     "rivalry": "±25% by gender — the dataset has no gender information",
     "battle-bond": "form change on KO — Ash-Greninja isn't a separate roster entry in Champions data",
@@ -96,19 +115,18 @@ CURATED = {
     "neutralizing-gas": "not present on any Champions Pokémon",
     "wonder-skin": "affects status moves only — this tool ranks damaging moves",
     "prankster": "priority for status moves only — damaging moves are unaffected",
-    "magic-guard": "prevents indirect damage (Life Orb recoil, weather chip) — the hit itself is unchanged",
     "rock-head": "prevents recoil to the user — outgoing damage unchanged",
     "magic-bounce": "reflects status moves — no effect on damaging moves",
-    "unburden": "Spe ×2 after the held item is consumed/lost — needs an item-loss event we don't track",
-    "defiant": "+2 Atk when stats are lowered — reactive; set it via the Atk boost stepper if assumed",
-    "competitive": "+2 SpA when stats are lowered — reactive; use the boost stepper",
-    "justified": "+1 Atk when hit by Dark — reactive on-hit; use the boost stepper",
-    "stamina": "+1 Def when hit — applies after the first hit; first-hit numbers unchanged",
-    "weak-armor": "-Def/+Spe when hit — applies after the first hit",
-    "berserk": "+1 SpA below half HP — full-HP assumption",
-    "anger-point": "+6 Atk on being crit — crits aren't simulated",
+    "defiant": "+2 Atk when stats are lowered — reactive; model it with the Atk stage stepper",
+    "competitive": "+2 SpA when stats are lowered — reactive; model it with the Sp.Atk stage stepper",
+    "justified": "+1 Atk when hit by Dark — reactive on-hit; model it with the Atk stage stepper",
+    "stamina": "+1 Def when hit — applies after the first hit; model it with the Def stage stepper",
+    "weak-armor": "-Def/+Spe when hit — applies after the first hit; model it with the Def/Spe stage steppers",
+    "berserk": "+1 SpA below half HP — full-HP assumption; model it with the Sp.Atk stage stepper",
+    "anger-point": "+6 Atk on being crit — crits aren't simulated; model it with the Atk stage stepper",
     "flash-fire": None,  # modeled (immunity); boost-after-absorb not modeled: covered in modeled text
-    "steam-engine": "+6 Spe when hit by Fire/Water — reactive on-hit",
+    "speed-boost": "+1 Spe per turn — turn-1 speeds shown; model later turns with the Spe stage stepper",
+    "steam-engine": "+6 Spe when hit by Fire/Water — reactive; model it with the Spe stage stepper",
     "thermal-exchange": "+1 Atk when hit by Fire — reactive; its burn immunity has no damage effect",
     "toxic-debris": "sets Toxic Spikes when hit — hazards aren't simulated",
     "stakeout": "×2 vs a Pokémon that switched in this turn — switch state isn't tracked",
@@ -122,7 +140,7 @@ CATEGORIES = [
     (r"contact with the pok|on contact|makes contact with", "punishes the attacker after contact — doesn't change the damage of the calculated hit"),
     (r"switch|flee|escape|trapped", "controls switching/trapping — no damage effect"),
     (r"lowers? the (foe|opponent|target)'?s? .* stat|raises? .* stat", "stat-stage side effect — both sides' stages are inputs here (steppers); reactive changes apply after the first hit"),
-    (r"critical hit", "crit-related — crits aren't simulated in the ranking (use the manual Calculator's crit toggle)"),
+    (r"critical hit", "crit-related — random crits aren't simulated in the ranking (only Merciless's guaranteed crit is)"),
     (r"accuracy|evasion", "accuracy/evasion niche — not part of the modeled accuracy layer (No Guard / Hustle / Sand Veil / Snow Cloak are)"),
     (r"weather|sandstorm|hail|snow|rain|sunlight", "weather utility (immunity/chip healing) — no effect on hit damage; weather itself is a control"),
     (r"priority", "priority interaction — only Gale Wings and the Dazzling family change the modeled speed layer"),
@@ -144,8 +162,10 @@ lines.append("# Counters lab — coverage ledger")
 lines.append("")
 lines.append("**Framework:** every number assumes turn 1, both Pokémon at full HP, 1v1 (doubles spread ×0.75 as a toggle).")
 lines.append("KO verdicts (2HKO…) come from a **sequential simulation**: one-time shields (Multiscale/Shadow Shield, resist berry,")
-lines.append("Focus Sash/Sturdy/Disguise) apply once, Leftovers heals 6.25%/turn, Sitrus +25% once at ≤50%. **Burn** halves the burned")
-lines.append("side's physical damage (Guts/Facade exempt); **paralysis** halves Speed (Quick Feet exempt) — both directions.")
+lines.append("Focus Sash/Sturdy/Disguise) apply once, Leftovers heals 6.25%/turn, Sitrus +25% once at ≤50%, and **status chip** counts")
+lines.append("(burned target −6.25%/turn, poisoned −12.5%; Magic Guard blocks it, Poison Heal inverts poison to +12.5%, Ice Body/Rain")
+lines.append("Dish heal in their weather). **Burn** halves the burned side's physical damage (Guts/Facade exempt); **paralysis** halves")
+lines.append("Speed (Quick Feet exempt) — both directions.")
 lines.append("Within that frame each ability/move is **modeled** (applied to the numbers), **flagged** (condition we can't verify — shown")
 lines.append("as an explicit flag on the row), or **no-op** (genuinely cannot change a first-hit number — reason given).")
 lines.append(f"Champions data: {len(abils)} abilities, {len(moves)} moves. Regenerate with `python tools/generate_coverage.py`.")
@@ -181,6 +201,12 @@ MOVE_ROWS = [
     ("Thousand Arrows / Smack Down", "✅", "Ground hits Flying at ×1"),
     ("Collision Course / Electro Drift", "✅", "×1.33 when super-effective"),
     ("Return / Frustration", "✅", "BP 102 (max happiness)"),
+    ("Hard Press", "✅", "BP 100 (target at full HP — the first-hit assumption)"),
+    ("Grassy Glide", "✅", "+1 priority in Grassy Terrain (grounded user) — feeds the ⚡ badge"),
+    ("Rage Fist / Last Respects / Fickle Beam / Shell Side Arm / Salt Cure", "🚩 flagged", "battle-state power mechanics we can't track — base BP + explicit flag"),
+    ("Upper Hand / Temper Flare / Retaliate", "🚩 flagged", "conditional (target priority / after fail / ally fainted) — flagged"),
+    ("Future Sight", "⚠ risky", "hits 2 turns late — deprioritized"),
+    ("Comeuppance", "➖ skipped", "counter-style — depends on the hit received"),
     ("Hidden Power", "✅", "BP 60 (type kept as Normal — pick per set in-game)"),
     ("Multi-hit family (Bullet Seed, Icicle Spear, Rock Blast…)", "✅", "×3.1 expected hits (×5 with Skill Link)"),
     ("Triple Axel / Triple Kick", "✅", "escalating total BP 120 / 60"),
@@ -223,6 +249,11 @@ lines.append("- **Leftovers** +6.25%/turn and **Sitrus Berry** +25% once at ≤5
 lines.append("- Klutz negates the holder's item. Assault Vest / Eviolite / Choice Band / Specs are **not in Champions** and deliberately absent.")
 lines.append("")
 lines.append("_Source-data corrections (PokeAPI errors) are patched at load in `src/data.js` `MOVE_FIXES` — currently: Matcha Gotcha → all-opponents (spread)._")
+lines.append("")
+lines.append("## Movesets & usage")
+lines.append("- **Movepool control**: attackers can use every learnable move, only their **ladder set** (usage top moves), or — in One vs all — an exactly assigned custom moveset.")
+lines.append("- **Usage %** shown across the app is the real M-B ladder usage rate scraped from the pokebase pokemon list (~100 rated mons; megas without their own row inherit the base form's).")
+lines.append("- **Per-stat setup stages** (Atk/Sp.Atk/Def/Spe) model Iron Defense/Nasty Plot/etc. — the Def stage powers Body Press AND reduces physical damage taken.")
 
 open(OUT, "w", encoding="utf-8").write("\n".join(lines) + "\n")
 print("COVERAGE.md written:", len(lines), "lines;", sum(1 for s in abils if s in MODELED), "abilities modeled of", len(abils))

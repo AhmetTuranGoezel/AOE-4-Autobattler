@@ -22,6 +22,23 @@ export async function loadData() {
 
 const REGION_ADJ = new Set(["Alolan", "Hisuian", "Galarian", "Paldean"]);
 
+// A Mega belongs to the base form its slug derives from (slowbro-mega → slowbro), NOT to
+// everything sharing its dex number — Galarian Slowbro / Alolan Raichu cannot Mega Evolve.
+// Gender-split bases (pyroar-mega has no "pyroar" entry) fall back to the non-regional
+// same-dex form.
+export const megaBaseSlug = (slug) => slug.replace(/-mega(-[a-z0-9]+)?$/, "");
+export function formFamily(mon, all) {
+  const strip = mon.isMega ? megaBaseSlug(mon.slug) : mon.slug;
+  const base = all.find((m) => !m.isMega && m.slug === strip)
+    || (mon.isMega ? all.find((m) => !m.isMega && m.dex === mon.dex && !REGION_ADJ.has(m.formLabel)) : mon)
+    || mon;
+  if (REGION_ADJ.has(base.formLabel)) return { base, megas: [] };   // regional variants never mega evolve
+  const megas = all.filter((m) => m.isMega && (
+    megaBaseSlug(m.slug) === base.slug ||
+    (m.dex === base.dex && !all.some((x) => !x.isMega && x.slug === megaBaseSlug(m.slug)))));
+  return { base, megas };
+}
+
 export function displayName(mon) {
   if (mon.isMega) {
     const suffix = mon.formLabel.replace(/mega/i, "").trim();
@@ -64,18 +81,18 @@ export const TARGET_LABELS = {
   "selected-pokemon": "Single",
   "selected-pokemon-me-first": "Single",
   "random-opponent": "Random foe",
-  "all-opponents": "All opponents",
-  "all-other-pokemon": "All others",
-  "all-pokemon": "All Pokémon",
-  "all-allies": "All allies",
-  "user-and-allies": "User & allies",
+  "all-opponents": "All foes",
+  "all-other-pokemon": "All nearby (ally too)",
+  "all-pokemon": "Everyone",
+  "all-allies": "Allies",
+  "user-and-allies": "Self & allies",
   "ally": "Ally",
   "user-or-ally": "Self or ally",
   user: "Self",
-  "entire-field": "Whole field",
+  "entire-field": "Field",
   "users-field": "Your side",
   "opponents-field": "Foes' side",
-  "specific-move": "Varies",
+  "specific-move": "Counter-style",
   "fainting-pokemon": "Fainted target",
 };
 export const SPREAD_TARGETS = new Set([
@@ -83,6 +100,14 @@ export const SPREAD_TARGETS = new Set([
 ]);
 export const targetLabel = (t) => TARGET_LABELS[t] || (t ? t.replace(/-/g, " ") : "—");
 export const isSpread = (t) => SPREAD_TARGETS.has(t);
+// Human filter groups over the raw PokeAPI targets — what players actually ask for.
+export const TARGET_GROUPS = {
+  single: { label: "Single", set: new Set(["selected-pokemon", "selected-pokemon-me-first", "random-opponent", "specific-move", "fainting-pokemon"]) },
+  foes: { label: "All foes", set: new Set(["all-opponents", "opponents-field"]) },
+  nearby: { label: "All nearby", set: new Set(["all-other-pokemon", "all-pokemon"]) },
+  selfally: { label: "Self / allies", set: new Set(["user", "user-and-allies", "all-allies", "ally", "user-or-ally", "users-field"]) },
+  field: { label: "Field", set: new Set(["entire-field"]) },
+};
 
 // Base power of weight-based moves (Grass Knot, Low Kick) against a target of the
 // given weight in kg — the standard breakpoint table.

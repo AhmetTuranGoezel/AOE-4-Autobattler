@@ -119,7 +119,11 @@
       "Bash(taskkill //F //IM python.exe)",
       "Bash(python -m http.server 8853 --directory \"apps/pokemon-champions\")",
       "Bash(python \"C:/Users/ahmet/AppData/Local/Temp/claude/c--Users-ahmet-Desktop-VSCode-Stuff-Owl-AoE4-Unit-Battler/86e555fd-9664-4fa4-9d7d-eebcb04470c9/scratchpad/verifyC.py\")",
-      "Bash(git -C \"c:/Users/ahmet/Desktop/VSCode Stuff/Owl AoE4 Unit Battler\" status --short)"
+      "Bash(git -C \"c:/Users/ahmet/Desktop/VSCode Stuff/Owl AoE4 Unit Battler\" status --short)",
+      "Bash(python \"apps/pokemon-champions/tools/generate_coverage.py\")",
+      "Bash(python \"C:/Users/ahmet/AppData/Local/Temp/claude/c--Users-ahmet-Desktop-VSCode-Stuff-Owl-AoE4-Unit-Battler/86e555fd-9664-4fa4-9d7d-eebcb04470c9/scratchpad/verifyM.py\")",
+      "Bash(python \"C:/Users/ahmet/AppData/Local/Temp/claude/c--Users-ahmet-Desktop-VSCode-Stuff-Owl-AoE4-Unit-Battler/86e555fd-9664-4fa4-9d7d-eebcb04470c9/scratchpad/verifyN.py\")",
+      "PowerShell(python \"C:\\\\Users\\\\ahmet\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-ahmet-Desktop-VSCode-Stuff-Owl-AoE4-Unit-Battler\\\\3519afb2-013c-4076-b610-5925fdd3bf61\\\\scratchpad\\\\check_pokebase_shiny.py\")"
     ]
   }
 }
