@@ -7,6 +7,7 @@ import { statsFor, roleOf } from "./effective-stats.js";
 import { attachAutocomplete } from "./autocomplete.js";
 import { defaultAbility, applyAbility } from "./type-defense.js";
 import { POOL, CAP, pointsUsed } from "./stat-lab.js";
+import { hasFlag, OFF_ABIL, abilityMods, hiStatOf, ATE_ABIL, PROTEAN, offDefaultAbility } from "./offense-model.js";
 
 const pokeRound = (v) => { const f = Math.floor(v); return v - f > 0.5 ? f + 1 : f; };
 const stageMult = (n) => (n >= 0 ? (2 + n) / 2 : 2 / (2 - n));
@@ -182,9 +183,8 @@ const defendStat = (target, mv, cat) => (PSY_DEF.has(mv.name) ? target.lv.def : 
 // Same, but ignoring the target's boost stages (Sacred Sword / Chip Away / Darkest Lariat).
 const defendStatRaw = (target, mv, cat) => (PSY_DEF.has(mv.name) ? target.defRaw : cat === "physical" ? target.defRaw : target.spdRaw);
 
-// Offensive abilities. A mon has exactly ONE active ability (default = most-used from
-// usage, overridable per attacker). ctx = { mv, cat, bp, weather }.
-const hasFlag = (mv, f) => (mv.flags || []).includes(f);
+// Offensive abilities: shared model (OFF_ABIL / abilityMods / -ate / Protean / default
+// ability) lives in offense-model.js so the Moves table computes with the same rules.
 const SPEED_ABIL = { "sand-rush": "sand", "swift-swim": "rain", chlorophyll: "sun", "slush-rush": "snow" };  // ×2 Spe in that weather
 const MOLD_BREAKER = new Set(["mold-breaker", "teravolt", "turboblaze"]);   // ignore the target's ability
 const PRIO_BLOCK = new Set(["dazzling", "queenly-majesty", "armor-tail"]);  // priority moves fail against these
@@ -193,68 +193,6 @@ const DAMP_BLOCKED = new Set(["Explosion", "Self-Destruct", "Mind Blown", "Misty
 const abilWeight = (w, ab) => (ab === "heavy-metal" ? w * 2 : ab === "light-metal" ? Math.max(0.1, Math.floor(w * 5) / 10) : w);
 // Terrain only affects GROUNDED Pokémon: Flying-types and Levitate/Eelevate holders float.
 const grounded = (types, ability) => !types.includes("flying") && ability !== "levitate" && ability !== "eelevate";
-const OFF_ABIL = {
-  "huge-power": ({ cat }) => (cat === "physical" ? { mult: 2, note: "Huge Power" } : null),
-  "pure-power": ({ cat }) => (cat === "physical" ? { mult: 2, note: "Pure Power" } : null),
-  "water-bubble": ({ mv }) => (mv.type === "water" ? { mult: 2, note: "Water Bubble" } : null),
-  adaptability: () => ({ stab: 2, note: "Adaptability" }),
-  technician: ({ bp }) => (bp <= 60 ? { mult: 1.5, note: "Technician" } : null),
-  transistor: ({ mv }) => (mv.type === "electric" ? { mult: 1.5, note: "Transistor" } : null),
-  "dragons-maw": ({ mv }) => (mv.type === "dragon" ? { mult: 1.5, note: "Dragon's Maw" } : null),
-  "rocky-payload": ({ mv }) => (mv.type === "rock" ? { mult: 1.5, note: "Rocky Payload" } : null),
-  steelworker: ({ mv }) => (mv.type === "steel" ? { mult: 1.5, note: "Steelworker" } : null),
-  "steely-spirit": ({ mv }) => (mv.type === "steel" ? { mult: 1.5, note: "Steely Spirit" } : null),
-  // weather-conditional
-  "sand-force": ({ mv, weather }) => (weather === "sand" && ["ground", "rock", "steel"].includes(mv.type) ? { mult: 1.3, note: "Sand Force" } : null),
-  "solar-power": ({ cat, weather }) => (weather === "sun" && cat === "special" ? { mult: 1.5, note: "Solar Power" } : null),
-  // move-flag based
-  "iron-fist": ({ mv }) => (hasFlag(mv, "Punch") ? { mult: 1.2, note: "Iron Fist" } : null),
-  "tough-claws": ({ mv }) => (hasFlag(mv, "Contact") ? { mult: 1.3, note: "Tough Claws" } : null),
-  "strong-jaw": ({ mv }) => (hasFlag(mv, "Bite") ? { mult: 1.5, note: "Strong Jaw" } : null),
-  "mega-launcher": ({ mv }) => (hasFlag(mv, "Pulse") ? { mult: 1.5, note: "Mega Launcher" } : null),
-  sharpness: ({ mv }) => (hasFlag(mv, "Slicing") ? { mult: 1.5, note: "Sharpness" } : null),
-  "punk-rock": ({ mv }) => (hasFlag(mv, "Sound") ? { mult: 1.3, note: "Punk Rock" } : null),
-  "sheer-force": ({ mv }) => ((mv.secondaries || []).length ? { mult: 1.3, note: "Sheer Force" } : null),
-  // pinch boosters (assume active, flagged)
-  overgrow: ({ mv }) => (mv.type === "grass" ? { mult: 1.5, note: "Overgrow" } : null),
-  blaze: ({ mv }) => (mv.type === "fire" ? { mult: 1.5, note: "Blaze" } : null),
-  torrent: ({ mv }) => (mv.type === "water" ? { mult: 1.5, note: "Torrent" } : null),
-  swarm: ({ mv }) => (mv.type === "bug" ? { mult: 1.5, note: "Swarm" } : null),
-  // paradox — boost the highest offensive stat in sun (Proto) / electric terrain (Quark)
-  protosynthesis: ({ cat, weather, hiStat }) => (weather === "sun" && ((hiStat === "atk" && cat === "physical") || (hiStat === "spa" && cat === "special")) ? { mult: 1.3, note: "Protosynthesis" } : null),
-  "quark-drive": ({ cat, terrain, hiStat }) => (terrain === "electric" && ((hiStat === "atk" && cat === "physical") || (hiStat === "spa" && cat === "special")) ? { mult: 1.3, note: "Quark Drive" } : null),
-  // status-boosted (ctx.status = the user's specific status: none|brn|psn|par)
-  guts: ({ cat, status }) => (status !== "none" && cat === "physical" ? { mult: 1.5, note: "Guts" } : null),
-  "toxic-boost": ({ cat, status }) => (status === "psn" && cat === "physical" ? { mult: 1.5, note: "Toxic Boost" } : null),
-  "flare-boost": ({ cat, status }) => (status === "brn" && cat === "special" ? { mult: 1.5, note: "Flare Boost" } : null),
-  // raw attack boosters
-  hustle: ({ cat }) => (cat === "physical" ? { mult: 1.5, note: "Hustle" } : null),
-  "gorilla-tactics": ({ cat }) => (cat === "physical" ? { mult: 1.5, note: "Gorilla Tactics" } : null),
-  // hits twice (2nd at 25%) — Mega Kangaskhan
-  "parental-bond": () => ({ mult: 1.25, note: "2 hits (Parental Bond)" }),
-  // Kingambit: ×1.1 per fainted ally — team state we can't know; numbers show 0 fallen
-  "supreme-overlord": () => ({ mult: 1, note: "×1.1/fallen ally not counted" }),
-  // Champions-original mega abilities
-  "fairy-aura": ({ mv }) => (mv.type === "fairy" ? { mult: 4 / 3, note: "Fairy Aura" } : null),
-  "fire-mane": ({ mv }) => (mv.type === "fire" ? { mult: 1.5, note: "Fire Mane" } : null),
-  // effectiveness / order based
-  "tinted-lens": ({ typeEff }) => (typeEff < 1 ? { mult: 2, note: "Tinted Lens" } : null),
-  neuroforce: ({ typeEff }) => (typeEff > 1 ? { mult: 1.25, note: "Neuroforce" } : null),
-  analytic: ({ first }) => (first === false ? { mult: 1.3, note: "Analytic" } : null),
-  reckless: ({ mv }) => (/recoil/i.test(mv.effect || "") ? { mult: 1.2, note: "Reckless" } : null),
-};
-// Damage effect of the ONE active ability.
-function abilityMods(ability, ctx) {
-  const fn = ability && OFF_ABIL[ability];
-  const res = fn && fn(ctx);
-  if (!res) return { mult: 1, stab: null, notes: [] };
-  return { mult: res.mult || 1, stab: res.stab || null, notes: res.note ? [res.note] : [] };
-}
-// Highest non-HP base stat key (for Protosynthesis / Quark Drive).
-const hiStatOf = (mon) => { const s = mon.stats; return ["atk", "def", "spa", "spd", "spe"].reduce((m, k) => (s[k] > s[m] ? k : m), "atk"); };
-// -ate abilities retype Normal moves (and ×1.2); Protean/Libero give STAB to every move.
-const ATE_ABIL = { aerilate: "flying", pixilate: "fairy", refrigerate: "ice", galvanize: "electric", dragonize: "dragon" };   // dragonize = Mega Feraligatr (Champions)
-const PROTEAN = new Set(["protean", "libero"]);
 // Moves that ignore the target's defensive stat changes (so a Def boost doesn't help).
 const STAT_IGNORE = new Set(["Sacred Sword", "Chip Away", "Darkest Lariat"]);
 // Attackers whose ability ignores (or punishes) Intimidate's Atk drop.
@@ -271,20 +209,6 @@ const TARGET_DMG = {
   "grass-pelt": ({ cat, terrain }) => (terrain === "grassy" && cat === "physical" ? 2 / 3 : 1),
   "marvel-scale": ({ cat, tStatus }) => (tStatus !== "none" && cat === "physical" ? 2 / 3 : 1),
 };
-// The attacker's default active ability: its most-used from usage, else its first.
-function offDefaultAbility(mon) {
-  const abils = (mon.abilities || []).map((a) => a.slug);
-  if (!abils.length) return null;
-  const used = mon.usage && mon.usage.abilities;
-  if (used && used.length) {
-    for (const [name] of used) {
-      const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-      if (abils.includes(slug)) return slug;
-    }
-  }
-  return abils[0];
-}
-
 // --- nature / item / field-condition model (items verified present in Champions) ----
 // Natures: +10% / -10% on the [plus, minus] stats. Neutral natures omitted (no effect).
 const NATURE_MODS = {
@@ -345,7 +269,7 @@ function fieldOffenseMult(mv, cat, eb, infiltrator = false, applyScreens = true,
   return { m, notes };
 }
 
-export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onGotoTeam }) {
+export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onGotoTeam, onAddTeamMove }) {
   const team = () => (getTeam ? getTeam() : []);   // live saved team from the Team builder
   const s = {
     mode: "ehp", // "ehp" (Counters) | "rev" (One vs all) | "team" (Team check)
@@ -379,8 +303,9 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
     showTypeFilters: false,   // the two 18-chip type grids collapse behind a toggle (both modes)
     // invented Pokémon (usable as target / defender / attacker / threat) + the builder's draft
     customMons: [], customDraft: null,
-    // "Team check" mode: opponents to test the saved team against
-    threats: [],
+    // "Team check" mode: opponents to test the saved team against; teamExpanded = the
+    // "memberSlug|threatSlug" cell whose fix-it detail panel is open (transient, not persisted)
+    threats: [], teamExpanded: null,
   };
   const tc = () => eb.targets[eb.editing];   // the target config the editor is bound to
   const TCFG_KEYS = new Set(["nature", "item", "defStage", "spdStage", "speStage"]);   // per-target scalars routed through the generic select/stage handlers
@@ -682,6 +607,10 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
     }
   });
   container.addEventListener("click", (e) => {
+    // Team-check "add to team" buttons live inside move rows that also carry data-move-info —
+    // handle the add first so the button doesn't open the move popup instead.
+    const admEarly = e.target.closest("[data-addteammove]");
+    if (admEarly) { const [slug, id] = admEarly.dataset.addteammove.split(":"); if (onAddTeamMove) onAddTeamMove(slug, Number(id)); renderTeam(); return; }
     // result rows: ✕ excludes the move, caret/controls adjust the attacker, the move opens
     // the move popup, the name/rest opens the mon.
     const rex = e.target.closest("[data-exclude]");
@@ -786,17 +715,20 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
     }
     const rcm = e.target.closest("[data-rmv-custom]");
     if (rcm) { (eb.revCfg.custom || []).splice(Number(rcm.dataset.rmvCustom), 1); renderRev(); return; }
-    // ---- Team check: threat list ----
+    // ---- Team check: threat list + per-cell fix-it detail ----
     if (e.target.closest("[data-import-pinned]")) {
       [...eb.pinned, ...eb.revPinned].forEach((sl) => { if (hasMon(sl) && !eb.threats.includes(sl)) eb.threats.push(sl); });
       renderTeam(); return;
     }
     const trm = e.target.closest("[data-threat-remove]");
-    if (trm) { eb.threats = eb.threats.filter((sl) => sl !== trm.dataset.threatRemove); renderTeam(); return; }
-    if (e.target.closest("[data-threats-clear]")) { eb.threats = []; renderTeam(); return; }
+    if (trm) { eb.threats = eb.threats.filter((sl) => sl !== trm.dataset.threatRemove); eb.teamExpanded = null; renderTeam(); return; }
+    if (e.target.closest("[data-threats-clear]")) { eb.threats = []; eb.teamExpanded = null; renderTeam(); return; }
     if (e.target.closest("[data-goto-team]")) { onGotoTeam && onGotoTeam(); return; }
     const t2c = e.target.closest("[data-threat2counter]");
     if (t2c) { eb.editing = 0; s.mode = "ehp"; eb.expanded = null; setTarget(t2c.dataset.threat2counter); syncMode(); return; }
+    if (e.target.closest("[data-tcell-close]")) { eb.teamExpanded = null; renderTeam(); return; }
+    const tcl = e.target.closest("[data-tcell]");
+    if (tcl) { eb.teamExpanded = eb.teamExpanded === tcl.dataset.tcell ? null : tcl.dataset.tcell; renderTeam(); return; }
     // ---- custom Pokémon builder ----
     if (e.target.closest("[data-custom-new]")) { eb.customDraft = newCustomDraft(); renderCustom(); return; }
     if (e.target.closest("[data-custom-cancel]")) { eb.customDraft = null; renderCustom(); return; }
@@ -2047,9 +1979,11 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       const vtier = handlers.length ? 3 : riskers.length ? 2 : 1;
       const verdictTxt = vtier === 3 ? `handled by ${handlers.slice(0, 3).join(", ")}${handlers.length > 3 ? " +" + (handlers.length - 3) : ""}`
         : vtier === 2 ? `risky — only ${riskers.slice(0, 3).join(", ")}` : "✗ nobody handles this";
-      const cellHtml = cells.map((c) => {
+      const cellHtml = roster2.map(({ mon }, i) => {
+        const c = cells[i];
         const spd = c.first === true ? "⚡" : c.first === false ? "🐢" : "";
-        return `<td class="tc-cell tier-${c.tier}" title="${c.mv ? esc(c.mv.name) + " · " + Math.round(c.pct || 0) + "% max" + (c.threatMv ? " · takes " + esc(c.threatMv.name) : "") : "no damaging move"}"><b>${c.label}</b><span class="tc-spd">${spd}${c.ohkoBack ? " ⚠" : ""}</span></td>`;
+        const key = mon.slug + "|" + sl;
+        return `<td class="tc-cell tier-${c.tier} ${eb.teamExpanded === key ? "expanded" : ""}" data-tcell="${key}" title="Click to see how ${esc(nameOf(mon))} could better handle ${esc(nameOf(tmon))}"><b>${c.label}</b><span class="tc-spd">${spd}${c.ohkoBack ? " ⚠" : ""}</span></td>`;
       }).join("");
       return `<tr>
         <td class="tc-threatcell"><img src="${tmon.sprite || tmon.artwork || ""}" alt=""><span class="tc-tname">${nameOf(tmon)}${tmon.isCustom ? '<span class="cx-star">★</span>' : ""}</span>
@@ -2065,14 +1999,122 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       ? `<div class="team-callout warn">⚠ ${uncovered.length} threat${uncovered.length > 1 ? "s" : ""} not cleanly handled: ${uncovered.map((sl) => nameOf(resolveMon(sl))).join(" · ")}</div>`
       : `<div class="team-callout ok">✓ Every threat is handled by at least one teammate.</div>`;
 
+    // fix-it detail for the expanded cell — validate the pair still exists
+    let detail = "";
+    if (eb.teamExpanded) {
+      const [mslug, tslug] = eb.teamExpanded.split("|");
+      const member = roster2.find((r) => r.mon.slug === mslug);
+      const tmon = resolveMon(tslug);
+      if (member && tmon && eb.threats.includes(tslug)) detail = renderTeamDetail(member.mon, member.moves, tmon);
+      else eb.teamExpanded = null;
+    }
+
     out.innerHTML = `${summary}
       <div class="tc-matrix-wrap"><table class="tc-matrix">
         <thead><tr><th class="tc-corner">Threat \\ Team</th>${memberHead}<th class="tc-vhead">Verdict</th></tr></thead>
         <tbody>${rows}</tbody>
       </table></div>
       <div class="tc-legend"><span class="tc-key tier-3">handled</span><span class="tc-key tier-2">risky</span><span class="tc-key tier-1">can't</span>
-        <span class="tc-note">cell = best KO · ⚡ outspeeds · 🐢 slower · ⚠ gets OHKO'd back</span></div>
+        <span class="tc-note">click a cell to see how to fix it · ⚡ outspeeds · 🐢 slower · ⚠ gets OHKO'd back</span></div>
+      ${detail}
       <p class="ehp-approx">Each teammate uses its chosen team moves (or its full movepool if none set) at the global attacker preset. Threats use their real ladder set. Real Gen-9 damage vs real HP.</p>`;
+  }
+
+  // Setup moves that grant a boost, for naming the "boost fix" (best-effort).
+  const SETUP_MOVES = {
+    "Swords Dance": { key: "atk", n: 2 }, "Nasty Plot": { key: "spa", n: 2 }, "Dragon Dance": { key: "atk", n: 1 },
+    "Bulk Up": { key: "atk", n: 1 }, "Calm Mind": { key: "spa", n: 1 }, "Quiver Dance": { key: "spa", n: 1 },
+    "Work Up": { key: "atk", n: 1 }, "Howl": { key: "atk", n: 1 }, "Growth": { key: "atk", n: 1 },
+    "Tail Glow": { key: "spa", n: 3 }, "Victory Dance": { key: "atk", n: 1 }, "Shift Gear": { key: "atk", n: 1 },
+    "Clangorous Soul": { key: "atk", n: 1 }, "Fillet Away": { key: "atk", n: 2 }, "Belly Drum": { key: "atk", n: 6 },
+  };
+  // The "fix-it" detail: how this teammate could better handle this threat (add a move / set up).
+  function renderTeamDetail(memberMon, memberMoves, threatMon) {
+    const entry = { mon: memberMon, lv: statsFor(memberMon, "lv50") };
+    const threatTarget = defenderTarget(threatMon);
+    const teamSet = new Set(memberMoves || []);
+    const cur = teamCell(memberMon, memberMoves, threatTarget);   // current locked-moveset result
+    const curKO = cur.ko != null ? cur.ko : 99;
+    // full learnable pool at the same global preset (no moveset lock) — reveals alternatives
+    const stFull = { ...atkSettings(entry), movepool: "all", moveset: null };
+    const all = movesVsTarget(entry, threatTarget, false, stFull);
+    const cat = (row) => (row.cat === "physical" ? "atk" : "spa");
+
+    // ---- fix 1: best learnable move NOT on the team that improves the KO ----
+    const better = all.filter((r) => !teamSet.has(r.id) && r.nMin < curKO);
+    const moveFix = (better.find((r) => !r.risky) || better[0]);
+    const canAdd = (memberMoves || []).length < 4;
+    const moveFixHtml = moveFix
+      ? `<div class="tc-fix good"><span class="tc-fix-ico">⊕</span><span class="type tiny" style="background:${TYPE_COLORS[moveFix.effType]}">${moveFix.effType}</span><b>${moveFix.mv.name}</b> → ${verdict(moveFix).txt} <small class="muted">(now ${cur.label})</small>
+          ${canAdd ? `<button class="btn-sm tc-addmove" data-addteammove="${memberMon.slug}:${moveFix.id}">＋ add to team</button>` : `<small class="muted tc-swap">team full — swap a move for it</small>`}</div>`
+      : "";
+    // ---- fix 2: minimal setup boost (on the current team moves) that reaches the threshold ----
+    const thr = eb.threshold === "any" ? 2 : eb.threshold === "ohko" ? 1 : eb.threshold === "2hko" ? 2 : 3;
+    const stLock = { ...atkSettings(entry) };
+    if (Array.isArray(memberMoves) && memberMoves.length) stLock.moveset = memberMoves;
+    let boostFix = "";
+    for (const b of [1, 2]) {
+      const r = bestVsTarget(entry, threatTarget, { ...stLock, boost: b });
+      if (r && r.nMin <= thr && (curKO > thr || curKO > r.nMin)) {
+        const stat = r.cat === "physical" ? "Atk" : "Sp.Atk";
+        const setup = Object.entries(SETUP_MOVES).find(([nm, v]) => v.key === (r.cat === "physical" ? "atk" : "spa") && v.n >= b && (memberMon.moves || []).includes(moveIdByName.get(nm)));
+        boostFix = `<div class="tc-fix good"><span class="tc-fix-ico">↑</span><b>+${b} ${stat}</b> → ${verdict(r).txt} <small class="muted">(now ${cur.label})</small>${setup ? ` <small class="muted">via ${setup[0]}</small>` : ""}</div>`;
+        break;
+      }
+    }
+    const handlesClean = cur.tier >= 3;
+    const fixes = [moveFixHtml, boostFix].filter(Boolean).join("");
+    const thrLab = { any: "2HKO", ohko: "OHKO", "2hko": "2HKO", "3hko": "3HKO" }[eb.threshold];
+    const fixesBlock = fixes
+      ? (handlesClean ? `<div class="tc-fix ok">✓ Already handles this — options to hit even harder:</div>${fixes}` : fixes)
+      : (handlesClean
+        ? `<div class="tc-fix ok">✓ Already handles this threat cleanly.</div>`
+        : `<div class="tc-fix none">No single added move or setup boost reaches ${thrLab} range — consider a different teammate for this threat.</div>`);
+
+    // ---- full move list vs the threat (alternatives visible; team moves tagged) ----
+    const moveRows = all.map((r) => {
+      const v = verdict(r);
+      const fl = [];
+      if (r.se) fl.push(`<span class="ehp-flag se">SE ×${r.typeEff}</span>`);
+      else if (r.typeEff < 1) fl.push(`<span class="ehp-flag nve">resisted ×${fracMult(r.typeEff)}</span>`);
+      if (r.stab > 1) fl.push(`<span class="ehp-flag stab">STAB</span>`);
+      if (r.risky) fl.push(`<span class="ehp-flag risky">risky</span>`);
+      const inTeam = teamSet.has(r.id);
+      const tag = inTeam ? `<span class="tc-inteam">in team</span>`
+        : ((memberMoves || []).length < 4 ? `<button class="tc-addmini" data-addteammove="${memberMon.slug}:${r.id}" title="Add to team">＋</button>` : "");
+      return `<div class="tc-mrow ${inTeam ? "in" : ""}" ${`data-move-info="${r.id}"`}>
+        <span class="apm-mv"><span class="type tiny" style="background:${TYPE_COLORS[r.effType]}">${r.effType}</span>${r.mv.name}</span>
+        <span class="apm-pct">${r.minPct.toFixed(0)}–${r.maxPct.toFixed(0)}%</span>
+        <span class="ehp-ko ${v.cls}">${v.txt}</span>
+        <span class="apm-fl">${fl.join("")}</span>${tag}</div>`;
+    }).join("") || `<p class="ehp-empty">No usable damaging move in its whole pool.</p>`;
+
+    // ---- what it survives (threat's best return) ----
+    const back = threatMovesOnto(entry, threatTarget).slice(0, 3).map((r) => {
+      const ko = r.maxPct >= 100 ? "faints you" : `you keep ${Math.round(100 - r.maxPct)}%`;
+      const cls = r.maxPct >= 100 ? "ko-o" : 2 * r.minPct >= 100 ? "ko-2" : "ko-n";
+      return `<div class="tc-mrow" data-move-info="${moveIdByName.get(r.mv.name)}">
+        <span class="apm-mv"><span class="type tiny" style="background:${TYPE_COLORS[r.mv.type]}">${r.mv.type}</span>${r.mv.name}</span>
+        <span class="apm-pct">${r.minPct.toFixed(0)}–${r.maxPct.toFixed(0)}%</span>
+        <span class="ehp-ko ${cls}">${ko}</span></div>`;
+    }).join("") || `<p class="ehp-empty">This threat has no damaging move set.</p>`;
+
+    return `<div class="tc-detail">
+      <div class="tc-detail-head"><img src="${memberMon.sprite || memberMon.artwork || ""}" alt=""><b>${nameOf(memberMon)}</b> <span class="muted">vs</span> <img src="${threatMon.sprite || threatMon.artwork || ""}" alt=""><b>${nameOf(threatMon)}</b>
+        <button class="tc-detail-x" data-tcell-close aria-label="Close">✕</button></div>
+      <div class="tc-detail-grid">
+        <div class="tc-detail-col">
+          <div class="tc-sec-lab">How to fix it</div>
+          ${fixesBlock}
+          <div class="tc-sec-lab">${nameOf(threatMon)} → ${nameOf(memberMon)} <small>(what you survive)</small></div>
+          <div class="tc-mlist">${back}</div>
+        </div>
+        <div class="tc-detail-col">
+          <div class="tc-sec-lab">All of ${nameOf(memberMon)}'s moves vs ${nameOf(threatMon)}</div>
+          <div class="tc-mlist">${moveRows}</div>
+        </div>
+      </div>
+    </div>`;
   }
 
   try { applyLab(JSON.parse(localStorage.getItem(STATE_KEY) || "null")); } catch { /* ignore */ }

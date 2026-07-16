@@ -890,7 +890,8 @@ function switchTab(tab) {
   if (tab === "calc" && !calcInited) {
     calcInited = true;
     calcView = initCalcView({ container: $("#calc-results"), data: state.data, onOpen: openDetail, onMoveInfo: openMovePopup,
-      getTeam: () => state.team.map((t) => ({ slug: t.slug, moves: t.moves })), onGotoTeam: () => switchTab("team") });
+      getTeam: () => state.team.map((t) => ({ slug: t.slug, moves: t.moves })), onGotoTeam: () => switchTab("team"),
+      onAddTeamMove: (slug, id) => addMove(slug, id) });
   }
   if (tab === "calc" && calcView) calcView.refresh();   // Team check reflects live team edits on entry
   if (tab === "team" && !teamInited) {
