@@ -7,10 +7,9 @@ import { statsFor, roleOf } from "./effective-stats.js";
 import { attachAutocomplete } from "./autocomplete.js";
 import { defaultAbility, applyAbility } from "./type-defense.js";
 import { POOL, CAP, pointsUsed } from "./stat-lab.js";
-import { hasFlag, OFF_ABIL, abilityMods, hiStatOf, ATE_ABIL, PROTEAN, offDefaultAbility } from "./offense-model.js";
+import { hasFlag, OFF_ABIL, abilityMods, hiStatOf, ATE_ABIL, PROTEAN, offDefaultAbility, stageMult, OFF_ITEMS } from "./offense-model.js";
 
 const pokeRound = (v) => { const f = Math.floor(v); return v - f > 0.5 ? f + 1 : f; };
-const stageMult = (n) => (n >= 0 ? (2 + n) / 2 : 2 / (2 - n));
 function computeDamage(p) {
   let base = 0;
   if (p.power && p.atk && p.def) {
@@ -226,16 +225,7 @@ function natureMult(nature, stat) {
 // Defensively-relevant natures for the target's picker (raise Def or SpD, or neutral).
 const DEF_NATURES = ["Bold", "Impish", "Lax", "Relaxed", "Calm", "Careful", "Gentle", "Sassy", "Serious"];
 
-// Offensive item presets (each ∈ Champions). mult folds into computeDamage's `other`;
-// Choice Scarf has no damage mult — it feeds the speed layer instead.
-const OFF_ITEMS = {
-  none: { label: "No item", mult: () => 1 },
-  "life-orb": { label: "Life Orb", mult: () => ({ m: 1.3, note: "Life Orb" }) },
-  "expert-belt": { label: "Expert Belt", mult: (se) => (se ? { m: 1.2, note: "Expert Belt" } : 1) },
-  "type-item": { label: "Type item ×1.2", mult: () => ({ m: 1.2, note: "type item" }) },   // assume the move-type booster (Charcoal/Magnet/…)
-  "band-glasses": { label: "Band / Glasses", mult: (se, cat) => ({ m: 1.1, note: cat === "physical" ? "Muscle Band" : "Wise Glasses" }) },
-  "choice-scarf": { label: "Choice Scarf (Spe ×1.5)", mult: () => 1 },
-};
+// Offensive items (OFF_ITEMS) are shared via offense-model.js — the Moves table uses the same list.
 // The target holds ONE item (Champions-only). Offensive ones (Life Orb…) boost its return damage;
 // defensive ones (Focus Sash / resist berry) help it take a hit; Scarf boosts its Speed.
 const DEF_ITEMS = { none: "No item", "life-orb": "Life Orb", "expert-belt": "Expert Belt", "type-item": "Type item", "choice-scarf": "Choice Scarf (Spe ×1.5)", "focus-sash": "Focus Sash", "resist-berry": "Resist berry (½ SE)", leftovers: "Leftovers (+6% per turn)", "sitrus-berry": "Sitrus Berry (+25% once)" };
