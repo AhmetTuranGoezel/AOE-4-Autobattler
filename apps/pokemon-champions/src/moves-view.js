@@ -6,7 +6,7 @@
 // rather than crammed into the compare popup.
 import { TYPES, TYPE_COLORS, displayName, targetLabel, isSpread, rarityTier, TARGET_GROUPS } from "./data.js";
 import { statsFor } from "./effective-stats.js";
-import { damageAbilities, offenseMult, offDefaultAbility } from "./offense-model.js";
+import { damageAbilities, offenseMult, offDefaultAbility, stageMult, OFF_ITEMS } from "./offense-model.js";
 
 const COLS = [
   { key: "name", label: "Move" },
@@ -131,7 +131,8 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
   const monByName = new Map(data.pokemon.map((m) => [(m._display || displayName(m)).toLowerCase(), m]));
   const state = { search: "", type: "", cat: "", flags: new Set(), tgroup: "", facets: new Set(), chance: "",
     mons: [], ownMode: "any", focus: null, sort: structuredClone(DEFAULT_SORT),
-    expBest: false };   // best case: conditional move effects AND conditional abilities assumed active
+    expBest: false,     // best case: conditional move effects AND conditional abilities assumed active
+    cfgOpen: null };    // slug whose ⚙ customize popover (stats/boosts/item/ability) is open
 
   // Move-intrinsic power: BP × accuracy(×accMult) × crit × multi-hit × spread(0.75) × best-case cond.
   function intrinsicPower(m, accMult = 1) {
@@ -151,16 +152,31 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
     const ip = intrinsicPower(m, o.acc);
     if (ip == null) return null;
     const stab = o.stab || (mon && mon.types.includes(o.retype || m.type) ? 1.5 : 1);
-    return { power: ip * stab * o.mult, stab, note: o.note };
+    let itemM = 1, itemNote = "";
+    if (mon && mon.cfg.item !== "none") {   // the mon's item is part of its effective power too
+      const r = OFF_ITEMS[mon.cfg.item].mult(state.expBest, m.class);   // Expert Belt: SE assumed only in best-case
+      if (r && r.m) { itemM = r.m; itemNote = r.note; }
+    }
+    return { power: ip * stab * o.mult * itemM, stab, note: [o.note, itemNote].filter(Boolean).join(" · ") };
   }
-  // Effective damage for ONE mon = 0.44 (Gen-9 Lv50 coeff) × its Exp.Pow (STAB + ability already in)
-  // × its Lv50 Atk|SpA. Compare against effective HP (HP×Def). null = doesn't learn / no BP.
+  // The stat a move actually attacks with (Body Press = the user's Defense);
+  // Foul Play uses the TARGET's Atk — no target exists here, so it gets no Eff. Dmg.
+  const ATK_STAT_OVERRIDE = { "Body Press": "def" };
+  const TARGET_STAT_MOVES = new Set(["Foul Play"]);
+  // Effective damage for ONE mon = 0.44 (Gen-9 Lv50 coeff) × its Exp.Pow (STAB + ability + item in)
+  // × its EFFECTIVE attacking stat (invest / +10% nature / boost stages from the ⚙ setup).
   function monDmg(mon, m) {
-    if (!m._ep || !mon.moves.has(m.id)) return null;
+    if (!m._ep || !mon.moves.has(m.id) || TARGET_STAT_MOVES.has(m.name)) return null;
     const pf = powerFor(m, mon);
     if (!pf) return null;
-    const v = Math.round(0.44 * pf.power * (m.class === "physical" ? mon.lvAtk : mon.lvSpa));
+    const key = ATK_STAT_OVERRIDE[m.name] || (m.class === "physical" ? "atk" : "spa");
+    const base = key === "def" ? mon.lvDef : key === "atk" ? mon.lvAtk : mon.lvSpa;
+    const c = mon.cfg;
+    const stat = Math.floor(Math.floor((base + c.invest) * (c.nature ? 1.1 : 1)) * stageMult(c.stages[key] || 0));
+    const v = Math.round(0.44 * pf.power * stat);
     const notes = [];
+    if (key === "def") notes.push("uses Def");
+    if (c.stages[key]) notes.push(`${c.stages[key] > 0 ? "+" : ""}${c.stages[key]} boost`);
     if (pf.stab > 1) notes.push(pf.stab >= 2 ? "STAB ×2" : "STAB");
     if (pf.note) notes.push(pf.note);
     return { v, note: notes.join(" · ") };
@@ -181,9 +197,9 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
     if (state.expBest && ep.cond) notes.push(ep.cond.note);
     return `<b class="mv-expv">${m._expp}</b>${notes.length ? `<small class="mv-exp-note">${notes.slice(0, 2).join(" · ")}</small>` : ""}`;
   }
-  // Eff. Dmg cell (the focused/first mon): full number + STAB/ability note.
+  // Eff. Dmg cell (the focused/first mon): full number + STAB/ability/boost note.
   function expdCell(m) {
-    if (m._expd == null) return `<span class="muted">—</span>`;
+    if (m._expd == null) return `<span class="muted" ${TARGET_STAT_MOVES.has(m.name) ? `title="${m.name} attacks with the TARGET's stat — no target here"` : ""}>—</span>`;
     return `<b class="mv-expv">${sep(m._expd)}</b>${m._expdNote ? `<small class="mv-exp-note">${m._expdNote}</small>` : ""}`;
   }
   // ownMode: "any" | "all" | "diff" (some but not all) | "1".."9" (owned by exactly k of the loaded mons).
@@ -211,6 +227,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
     <span class="mv-hint">Click a column to sort · Shift-click adds a tiebreaker · <button class="mv-reset">reset</button></span>
     <span class="count mv-count"></span>
     <div class="mv-mon-chips"></div>
+    <div class="mv-cfg-wrap"></div>
     <div class="type-chips mv-types">${TYPES.map((t) =>
       `<button class="type-chip" data-mvtype="${t}"><span class="type" style="background:${TYPE_COLORS[t]}">${t}</span></button>`).join("")}</div>
     <div class="mv-finder">
@@ -232,13 +249,19 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
     const n = state.mons.length;
     // focus only makes sense with ≥2 loaded mons, while its mon is still loaded
     if (state.focus && (n < 2 || !state.mons.some((m) => m.slug === state.focus))) state.focus = null;
+    if (state.cfgOpen && !state.mons.some((m) => m.slug === state.cfgOpen)) state.cfgOpen = null;
     $(".mv-mon-chips").innerHTML = state.mons.map((m) => {
-      // ability picker: only abilities that can change damage; "no ability" = plain stats
-      const abilSel = m.dmgAbils && m.dmgAbils.length
-        ? `<select class="mon-abil" data-mon-abil="${m.slug}" title="Ability used for ${m.name}'s Eff. Dmg"><option value="">no ability</option>${m.dmgAbils.map((a) => `<option value="${a.slug}" ${m.ability === a.slug ? "selected" : ""}>${a.name}</option>`).join("")}</select>`
-        : "";
-      return `<span class="mon-chip ${state.focus === m.slug ? "focus" : ""}" data-focus-mon="${m.slug}" ${n >= 2 ? `title="${state.focus === m.slug ? "Unfocus" : `Focus — group the table around ${m.name}'s moves`}"` : ""}><img src="${m.sprite}" alt="">${m.name}${abilSel}<button data-rm-mon="${m.slug}" aria-label="Remove ${m.name}">✕</button></span>`;
+      // ⚙ opens the customize popover; a tiny badge summarizes any non-default setup
+      const c = m.cfg, parts = [];
+      if (m.ability !== m.defAbility) parts.push(m.ability ? (m.dmgAbils.find((a) => a.slug === m.ability) || {}).name : "no abil.");
+      if (c.invest) parts.push(`+${c.invest}`);
+      if (c.nature) parts.push("+nat");
+      ["atk", "spa", "def"].forEach((k) => { if (c.stages[k]) parts.push(`${c.stages[k] > 0 ? "+" : ""}${c.stages[k]} ${{ atk: "Atk", spa: "SpA", def: "Def" }[k]}`); });
+      if (c.item !== "none") parts.push((OFF_ITEMS[c.item] || {}).label);
+      const badge = parts.length ? `<small class="mon-cfg-badge">${parts.join(" · ")}</small>` : "";
+      return `<span class="mon-chip ${state.focus === m.slug ? "focus" : ""}" data-focus-mon="${m.slug}" ${n >= 2 ? `title="${state.focus === m.slug ? "Unfocus" : `Focus — group the table around ${m.name}'s moves`}"` : ""}><img src="${m.sprite}" alt="">${m.name}${badge}<button class="mon-cfg ${state.cfgOpen === m.slug ? "on" : ""}" data-mon-cfg="${m.slug}" title="Customize ${m.name} — stats, boosts, item, ability">⚙</button><button data-rm-mon="${m.slug}" aria-label="Remove ${m.name}">✕</button></span>`;
     }).join("");
+    renderCfgPop();
     // "any/all" toggle is irrelevant below 2 mons and superseded by the grouped view while focused
     $(".mv-own").hidden = n < 2 || !!state.focus;
     toolbarEl.querySelectorAll(".mv-own button").forEach((x) => x.classList.toggle("active", x.dataset.own === state.ownMode));
@@ -248,16 +271,37 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
     state.focus = state.focus === slug ? null : slug;
     updateMonUI(); draw();
   }
+  // ⚙ customize popover: pops up under the chips only when needed, one mon at a time.
+  function renderCfgPop() {
+    const el = $(".mv-cfg-wrap");
+    const m = state.cfgOpen && state.mons.find((x) => x.slug === state.cfgOpen);
+    if (!m) { el.innerHTML = ""; return; }
+    const c = m.cfg;
+    const step = (k, lab, extra = "") => `<div class="cl-stat"${extra ? ` title="${extra}"` : ""}><span class="cl-stat-lab">${lab}</span><div class="cl-step"><button data-cfg-stage="${k}" data-dir="-1">−</button><b>${c.stages[k] >= 0 ? "+" : ""}${c.stages[k]}</b><button data-cfg-stage="${k}" data-dir="1">+</button></div></div>`;
+    el.innerHTML = `<div class="mv-cfg-pop">
+      <div class="mv-cfg-head"><img src="${m.sprite}" alt=""><b>${m.name}</b><small class="muted">expected-damage setup — Atk ${m.lvAtk} · Sp.A ${m.lvSpa} · Def ${m.lvDef} @50</small><button class="tc-detail-x" data-cfg-close aria-label="Close">✕</button></div>
+      <div class="mv-cfg-grid">
+        ${m.dmgAbils.length ? `<div class="cl-stat"><span class="cl-stat-lab">Ability</span><select class="cl-sel" data-cfg-abil><option value="">no ability</option>${m.dmgAbils.map((a) => `<option value="${a.slug}" ${m.ability === a.slug ? "selected" : ""}>${a.name}</option>`).join("")}</select></div>` : ""}
+        <div class="cl-stat" title="Points into the attacking stat (Champions caps a stat at +32)"><span class="cl-stat-lab">Invest</span><div class="seg cl-invest">${[[0, "None"], [16, "+16"], [32, "Max"]].map(([v, l]) => `<button data-cfg-invest="${v}" class="${c.invest === v ? "active" : ""}">${l}</button>`).join("")}</div></div>
+        <label class="cl-toggle" title="+10% on the attacking stat"><input type="checkbox" data-cfg-nature ${c.nature ? "checked" : ""}> +10% nature</label>
+        ${step("atk", "Atk boost")}${step("spa", "Sp.Atk boost")}${step("def", "Def boost", "Body Press attacks with Defense — this boosts it")}
+        <div class="cl-stat"><span class="cl-stat-lab">Item</span><select class="cl-sel" data-cfg-item>${Object.entries(OFF_ITEMS).map(([k, v]) => `<option value="${k}" ${c.item === k ? "selected" : ""}>${v.label}</option>`).join("")}</select></div>
+        <button class="btn-sm" data-cfg-reset title="Back to defaults">↺ reset</button>
+      </div>
+    </div>`;
+  }
   // The per-mon context the Expected columns need: Lv50 attacking stats, typing (STAB),
   // raw stats (Protosynthesis picks the highest), damage-relevant abilities + the default.
   function monEntry(mon) {
     const lv = statsFor(mon, "lv50");
     const da = damageAbilities(mon).map((s) => ({ slug: s, name: (data.abilities[s] || {}).name || s }));
     const def = offDefaultAbility(mon);
+    const ability = da.some((a) => a.slug === def) ? def : null;
     return { slug: mon.slug, name: mon._display || displayName(mon),
       sprite: mon.sprite || mon.artwork || "", moves: new Set(mon.moves),
-      lvAtk: lv.atk, lvSpa: lv.spa, types: mon.types, stats: mon.stats,
-      dmgAbils: da, ability: da.some((a) => a.slug === def) ? def : null };
+      lvAtk: lv.atk, lvSpa: lv.spa, lvDef: lv.def, types: mon.types, stats: mon.stats,
+      dmgAbils: da, ability, defAbility: ability,
+      cfg: { invest: 0, nature: false, stages: { atk: 0, spa: 0, def: 0 }, item: "none" } };
   }
   function addMon(mon) {
     if (!mon || state.mons.some((x) => x.slug === mon.slug)) return;
@@ -277,12 +321,27 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
 
   $(".mv-search").addEventListener("input", (e) => { state.search = e.target.value; draw(); });
   $(".mv-exp-best").addEventListener("change", (e) => { state.expBest = e.target.checked; draw(); });
-  // per-mon ability picker inside the chips (change must not toggle focus)
-  $(".mv-mon-chips").addEventListener("change", (e) => {
-    const sel = e.target.closest(".mon-abil");
-    if (!sel) return;
-    const mon = state.mons.find((x) => x.slug === sel.dataset.monAbil);
-    if (mon) { mon.ability = sel.value || null; draw(); }
+  // ⚙ customize popover controls
+  const cfgMon = () => state.mons.find((x) => x.slug === state.cfgOpen);
+  const cfgApply = () => { updateMonUI(); draw(); };   // updateMonUI re-renders chips (badge) + popover
+  $(".mv-cfg-wrap").addEventListener("change", (e) => {
+    const m = cfgMon(); if (!m) return;
+    if (e.target.matches("[data-cfg-abil]")) { m.ability = e.target.value || null; cfgApply(); }
+    else if (e.target.matches("[data-cfg-item]")) { m.cfg.item = e.target.value; cfgApply(); }
+    else if (e.target.matches("[data-cfg-nature]")) { m.cfg.nature = e.target.checked; cfgApply(); }
+  });
+  $(".mv-cfg-wrap").addEventListener("click", (e) => {
+    const m = cfgMon(); if (!m) return;
+    if (e.target.closest("[data-cfg-close]")) { state.cfgOpen = null; updateMonUI(); return; }
+    const inv = e.target.closest("[data-cfg-invest]");
+    if (inv) { m.cfg.invest = Number(inv.dataset.cfgInvest); cfgApply(); return; }
+    const st = e.target.closest("[data-cfg-stage]");
+    if (st) { const k = st.dataset.cfgStage; m.cfg.stages[k] = Math.max(-6, Math.min(6, (m.cfg.stages[k] || 0) + Number(st.dataset.dir))); cfgApply(); return; }
+    if (e.target.closest("[data-cfg-reset]")) {
+      m.cfg = { invest: 0, nature: false, stages: { atk: 0, spa: 0, def: 0 }, item: "none" };
+      m.ability = m.defAbility;
+      cfgApply();
+    }
   });
   $(".mv-mon").addEventListener("change", (e) => {
     const mon = monByName.get(e.target.value.trim().toLowerCase());
@@ -296,7 +355,8 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
       updateMonUI(); draw();
       return;
     }
-    if (e.target.closest(".mon-abil")) return;         // ability picker clicks don't toggle focus
+    const cfg = e.target.closest("[data-mon-cfg]");    // ⚙ toggles the customize popover, not focus
+    if (cfg) { state.cfgOpen = state.cfgOpen === cfg.dataset.monCfg ? null : cfg.dataset.monCfg; updateMonUI(); return; }
     const fc = e.target.closest("[data-focus-mon]");   // chip body = focus toggle
     if (fc) toggleFocus(fc.dataset.focusMon);
   });

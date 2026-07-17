@@ -20,7 +20,7 @@ function effInfo(mult) {
 const typePill = (t) => `<span class="type" style="background:${TYPE_COLORS[t]}">${t}</span>`;
 const nameOf = (m) => m._display || displayName(m);
 
-export function renderTeamView(container, { data, team, savedTeams = [] }) {
+export function renderTeamView(container, { data, team, savedTeams = [], notice = "" }) {
   const chart = data.typeChart;
   const bySlug = new Map(data.pokemon.map((m) => [m.slug, m]));
 
@@ -34,6 +34,7 @@ export function renderTeamView(container, { data, team, savedTeams = [] }) {
             return mo ? `<img src="${mo.sprite || mo.artwork || ""}" alt="" title="${nameOf(mo)}">` : "";
           }).join("")}</span>
         </button>
+        <button class="tm-share" data-share-team="${t.id}" aria-label="Share team" title="Copy a share link — opening it imports this team anywhere">⤴</button>
         <button class="tm-del" data-del-team="${t.id}" aria-label="Delete team" title="Delete">✕</button>
       </div>`).join("")
     : `<p class="muted tm-none">No saved teams yet — build one below and press Save.</p>`;
@@ -43,7 +44,10 @@ export function renderTeamView(container, { data, team, savedTeams = [] }) {
       <input class="team-name" placeholder="Team name…" maxlength="30" autocomplete="off">
       <button class="btn-sm" data-save-team ${team.length ? "" : "disabled"}>Save</button>
       <button class="btn-sm" data-new-team ${team.length ? "" : "disabled"}>New</button>
+      <button class="btn-sm" data-share-working ${team.length ? "" : "disabled"} title="Copy a share link for the current team — opening it imports the team on any browser/PC">⤴ Share</button>
+      <input class="tm-import" placeholder="paste a share link/code to import…" autocomplete="off" spellcheck="false">
     </div>
+    ${notice ? `<div class="tm-notice">${notice}</div>` : ""}
     <div class="tm-saved">${savedRows}</div>
   </div>`;
 

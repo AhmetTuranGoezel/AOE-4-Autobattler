@@ -5,6 +5,20 @@
 
 export const hasFlag = (mv, f) => (mv.flags || []).includes(f);
 
+// Stat-stage multiplier (+1 = ×1.5, −1 = ×⅔ …).
+export const stageMult = (n) => (n >= 0 ? (2 + n) / 2 : 2 / (2 - n));
+
+// Offensive item presets (each ∈ Champions). mult(se, cat) → 1 | { m, note };
+// Choice Scarf has no damage mult — it feeds the speed layer instead.
+export const OFF_ITEMS = {
+  none: { label: "No item", mult: () => 1 },
+  "life-orb": { label: "Life Orb", mult: () => ({ m: 1.3, note: "Life Orb" }) },
+  "expert-belt": { label: "Expert Belt", mult: (se) => (se ? { m: 1.2, note: "Expert Belt" } : 1) },
+  "type-item": { label: "Type item ×1.2", mult: () => ({ m: 1.2, note: "type item" }) },
+  "band-glasses": { label: "Band / Glasses", mult: (se, cat) => ({ m: 1.1, note: cat === "physical" ? "Muscle Band" : "Wise Glasses" }) },
+  "choice-scarf": { label: "Choice Scarf (Spe ×1.5)", mult: () => 1 },
+};
+
 export const OFF_ABIL = {
   "huge-power": ({ cat }) => (cat === "physical" ? { mult: 2, note: "Huge Power" } : null),
   "pure-power": ({ cat }) => (cat === "physical" ? { mult: 2, note: "Pure Power" } : null),

@@ -69,6 +69,13 @@ async function init() {
     render();
     $("#status").style.display = "none";
     $("#app").style.display = "flex";
+    // shared-team link: #team=<code> imports the team and opens the Team tab
+    if (location.hash.startsWith("#team=")) {
+      const code = location.hash.slice(6);
+      history.replaceState(null, "", location.pathname + location.search);
+      switchTab("team");
+      importTeam(code);
+    }
     $("#meta-line").textContent =
       `${data.meta.count} species · ${data.meta.megaCount} Megas · ` +
       `Regulation ${data.meta.regulation} · data from Bulbapedia + PokéAPI`;
@@ -668,11 +675,61 @@ function deleteSavedTeam(id) {
   renderTeam();
 }
 
+// ---- team sharing: the team encoded as a URL-safe code (works across browsers/PCs) ----
+// Moves are encoded by NAME (ids are index-based and could shift on a data regen);
+// mon + ability slugs are stable. Decoding validates everything against the loaded data.
+const b64u = (s) => btoa(unescape(encodeURIComponent(s))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const unb64u = (s) => decodeURIComponent(escape(atob(s.replace(/-/g, "+").replace(/_/g, "/"))));
+function encodeTeam(name, members) {
+  const m = members.map((t) => ({ s: t.slug, a: t.ability || null,
+    v: (t.moves || []).map((id) => state.data.moves[id]?.name).filter(Boolean) }));
+  return b64u(JSON.stringify({ n: name || "Shared team", m }));
+}
+const teamShareUrl = (code) => `${location.origin}${location.pathname}#team=${code}`;
+// → { name, members, dropped: [names…] } or null when the code is unusable.
+function decodeTeam(codeOrUrl) {
+  try {
+    const raw = codeOrUrl.trim();
+    const code = raw.includes("#team=") ? raw.slice(raw.indexOf("#team=") + 6) : raw;
+    const d = JSON.parse(unb64u(code));
+    if (!Array.isArray(d.m)) return null;
+    const dropped = [];
+    const members = d.m.slice(0, TEAM_MAX).map((e) => {
+      if (!state.bySlug.has(e.s)) { dropped.push(e.s); return null; }
+      const moves = (Array.isArray(e.v) ? e.v : [])
+        .map((nm) => { const id = state.moveByName.get(String(nm).toLowerCase()); if (id == null) dropped.push(nm); return id; })
+        .filter((id) => id != null);
+      return normMember({ slug: e.s, moves, ability: e.a ?? undefined });
+    }).filter(Boolean);
+    if (!members.length) return null;
+    return { name: String(d.n || "Shared team").slice(0, 30), members, dropped };
+  } catch { return null; }
+}
+function importTeam(codeOrUrl) {
+  const t = decodeTeam(codeOrUrl);
+  if (!t) { state.teamNotice = "⚠ Couldn't read that team code."; if (teamInited) renderTeam(); return; }
+  state.team = t.members;
+  // auto-save under its name (suffix if taken)
+  let name = t.name;
+  if (state.savedTeams.some((x) => x.name.toLowerCase() === name.toLowerCase())) name += " (2)";
+  saveWorkingTeam(name);
+  state.teamNotice = `✓ Imported “${name}” — ${t.members.length} Pokémon` +
+    (t.dropped.length ? ` · dropped (unknown here): ${t.dropped.join(", ")}` : "");
+  teamAfterChange();
+}
+// copy a share link; fallback shows the URL in a prompt-style inline field via the notice
+function shareTeam(name, members) {
+  const url = teamShareUrl(encodeTeam(name, members));
+  const done = () => { state.teamNotice = `✓ Share link copied — send it anywhere: opening it imports “${name || "your team"}”.`; if (teamInited) renderTeam(); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, () => { state.teamNotice = url; if (teamInited) renderTeam(); });
+  else { state.teamNotice = url; if (teamInited) renderTeam(); }
+}
+
 function renderTeam() {
   const team = state.team
     .map((t) => ({ mon: state.bySlug.get(t.slug), moveIds: t.moves, ability: t.ability }))
     .filter((x) => x.mon);
-  renderTeamView($("#team-results"), { data: state.data, team, savedTeams: state.savedTeams });
+  renderTeamView($("#team-results"), { data: state.data, team, savedTeams: state.savedTeams, notice: state.teamNotice });
   attachTeamAutocompletes();
 }
 function syncTeamButtons() {
@@ -915,10 +972,22 @@ function switchTab(tab) {
         saveWorkingTeam($("#team-results .team-name")?.value);
         return;
       }
+      if (e.target.closest("[data-share-working]")) {
+        shareTeam($("#team-results .team-name")?.value.trim() || "My team", state.team);
+        return;
+      }
+      const sh = e.target.closest("[data-share-team]");
+      if (sh) { const t = state.savedTeams.find((x) => x.id === sh.dataset.shareTeam); if (t) shareTeam(t.name, t.members); return; }
       const open = e.target.closest("[data-open]");
       if (open) { openDetail(open.dataset.open); return; }
       const row = e.target.closest(".spd-row[data-slug]");
       if (row) openDetail(row.dataset.slug);
+    });
+    tc.addEventListener("change", (e) => {   // paste a share link/code → import
+      if (e.target.classList.contains("tm-import") && e.target.value.trim()) {
+        importTeam(e.target.value);
+        e.target.value = "";
+      }
     });
     renderTeam();
   }
