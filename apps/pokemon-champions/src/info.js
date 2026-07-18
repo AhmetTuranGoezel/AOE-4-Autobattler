@@ -1,6 +1,7 @@
 // Detail popups for a single move or ability (shown on click; the lens button
 // elsewhere is what filters the roster).
 import { TYPE_COLORS, rarityTier, displayName, targetLabel, isSpread } from "./data.js";
+import { DYNAMIC_BP } from "./moves-view.js";
 
 function learnerSprites(mons, cap) {
   const shown = mons.slice(0, cap).map((m) =>
@@ -35,6 +36,7 @@ export function renderMovePopup(move, learners, total) {
     ${(move.secondaries || []).length ? `<div class="info-secondaries">${move.secondaries.map(([c, l]) => `<span class="mv-chance">${c}%${l ? " " + l : ""}</span>`).join(" ")}</div>` : ""}
     <p class="info-effect">${move.effect || "No additional effect."}</p>
     <button class="btn accent filter-btn" data-move-filter="${move.id}">🔍 Show the ${learners.length} Pokémon that learn this</button>
+    ${move.class !== "status" && (move.power != null || DYNAMIC_BP.has(move.name)) ? `<button class="btn filter-btn" data-move-rank="${move.id}" title="Rank every Pokémon's effective damage with this move">🏆 Who uses it best</button>` : ""}
     <div class="info-learners">${learnerSprites(learners, 48)}</div>
   </div>`;
 }
