@@ -135,8 +135,12 @@ export function offenseMult(ability, mon, mv, bp, bestCase) {
     if (r.mult > best.mult || (r.stab && !best.stab)) best = r;
   }
   out.mult *= best.mult;
-  if (best.stab) out.stab = best.stab;
-  if (best.notes.length) out.note = out.note ? `${out.note} · ${best.notes[0]}` : best.notes[0];
+  // a stab-modifying ability (Adaptability) only upgrades REAL STAB — the mon must have the
+  // move's (post--ate) type, exactly like the calc's matchup math gates it
+  const stabOk = best.stab && mon.types.includes(out.retype || mv.type);
+  if (stabOk) out.stab = best.stab;
+  // drop the ability's note when its only contribution was a stab boost that didn't apply
+  if (best.notes.length && (best.mult !== 1 || stabOk)) out.note = out.note ? `${out.note} · ${best.notes[0]}` : best.notes[0];
   if (ability === "hustle" && cat === "physical") out.acc = 0.8;   // Hustle's accuracy cost
   return out;
 }

@@ -9,15 +9,22 @@ import { renderEhpCards, renderStatRows, emptySpread } from "./stat-lab.js";
 
 // Competitive usage % (from pokebase): which ability/item/nature/move a Pokémon
 // actually runs on ladder, and how often.
-function renderUsage(mon) {
+function renderUsage(mon, data) {
   const u = mon.usage || {};
-  const cat = (label, list) => (list && list.length ? `<div class="use-cat">
+  // name → id so the usage "Moves" list links to the same move popup as everywhere else
+  const moveIdByName = new Map(Object.entries(data.moves).map(([id, m]) => [m.name.toLowerCase(), Number(id)]));
+  const cat = (label, list, link) => (list && list.length ? `<div class="use-cat">
     <span class="use-lab">${label}</span>
-    <div class="use-items">${list.map(([n, p]) =>
-      `<span class="use-item" title="${n}: ${p}%"><i class="use-fill" style="width:${p}%"></i><span class="use-name">${n}</span><span class="use-pct">${p}%</span></span>`).join("")}</div>
+    <div class="use-items">${list.map(([n, p]) => {
+      const id = link ? moveIdByName.get(String(n).toLowerCase()) : undefined;
+      const nameCell = id != null
+        ? `<button class="use-name use-link" data-move-info="${id}" title="Open ${n}">${n}</button>`
+        : `<span class="use-name">${n}</span>`;
+      return `<span class="use-item" title="${n}: ${p}%"><i class="use-fill" style="width:${p}%"></i>${nameCell}<span class="use-pct">${p}%</span></span>`;
+    }).join("")}</div>
   </div>` : "");
   // Ability % is shown on the Abilities list itself; here we keep item/nature/move.
-  const body = cat("Item", u.items) + cat("Nature", u.natures) + cat("Moves", u.moves);
+  const body = cat("Item", u.items) + cat("Nature", u.natures) + cat("Moves", u.moves, true);
   return `<section class="detail-usage">
     <h4>Usage <span class="muted">ranked ladder · pokebase</span></h4>
     ${body || '<p class="use-empty">No ranked usage data for this Pokémon yet.</p>'}
@@ -173,7 +180,7 @@ export function renderDetail(mon, { data, all, simCtx, statMode, spread, detailS
       <div class="ab-list">${abilities}</div>
     </section>
 
-    ${renderUsage(mon)}
+    ${renderUsage(mon, data)}
 
     <section class="detail-sim">
       <h4>Similar Pokémon</h4>

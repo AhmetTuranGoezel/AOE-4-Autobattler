@@ -8,6 +8,7 @@ import { TYPES, TYPE_COLORS, displayName, targetLabel, isSpread, rarityTier, TAR
 import { statsFor } from "./effective-stats.js";
 import { damageAbilities, offenseMult, offDefaultAbility, stageMult, OFF_ITEMS } from "./offense-model.js";
 import { POOL, CAP, pointsUsed } from "./stat-lab.js";
+import { attachAutocomplete } from "./autocomplete.js";
 
 const COLS = [
   { key: "name", label: "Move" },
@@ -108,7 +109,8 @@ const COND_DMG = {
   "Lash Out": { mult: 2, note: "×2 if stats lowered" },
 };
 // Weight/speed-scaled moves: no fixed BP, but computable per mon + the popover's assumed target.
-const DYNAMIC_BP = new Set(["Grass Knot", "Low Kick", "Heavy Slam", "Heat Crash", "Gyro Ball", "Electro Ball"]);
+// Exported for info.js (the move popup's "Best users" button needs the same "rankable" test).
+export const DYNAMIC_BP = new Set(["Grass Knot", "Low Kick", "Heavy Slam", "Heat Crash", "Gyro Ball", "Electro Ball"]);
 // Precompute a move's expected-power modifiers (null = no BP-based expected: status / variable power).
 function expData(m) {
   if (m.class === "status" || (m.power == null && !DYNAMIC_BP.has(m.name))) return null;
@@ -128,16 +130,29 @@ function expData(m) {
   return { hits, hitNote, crit, critNote, cond: COND_DMG[m.name] || null, dynamic: m.power == null && DYNAMIC_BP.has(m.name) };
 }
 
-export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) {
+export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, onMon, onAbil }) {
   const moves = Object.entries(data.moves).map(([id, m]) => ({ id: Number(id), ...m, _fx: classifyMove(m), _ep: expData(m) }));
   const allFlags = [...new Set(moves.flatMap((m) => m.flags || []))].sort();
   const monByName = new Map(data.pokemon.map((m) => [(m._display || displayName(m)).toLowerCase(), m]));
+  const RANK_EXCL_KEY = "pc-mvrank-exclude";   // its OWN saved list — deliberately not the Damage tab's
+  const RANK_ABIL_KEY = "pc-mvrank-abil-ignore";
+  const loadRankExcluded = () => new Set(JSON.parse(localStorage.getItem(RANK_EXCL_KEY) || "[]"));
+  const loadRankAbils = () => new Set(JSON.parse(localStorage.getItem(RANK_ABIL_KEY) || "[]"));
   const state = { search: "", type: "", cat: "", flags: new Set(), tgroup: "", facets: new Set(), chance: "",
     mons: [], ownMode: "any", focus: null, sort: structuredClone(DEFAULT_SORT),
     expBest: false,     // best case: conditional move effects AND conditional abilities assumed active
+    useAcc: true,       // × accuracy in Exp. Pow — off = potential damage (low-acc moves at full power)
     cfgOpen: null,      // slug whose ⚙ customize popover (stats/boosts/item/ability) is open
     customMoves: [],    // invented what-if moves — pinned on top of the table, session-only
-    cmvSeq: 1 };
+    cmvSeq: 1,
+    mode: "browse",     // "browse" (the table) | "rank" (Best users — whole-roster Eff.Dmg ranking)
+    rq: { moveId: null, type: "", cat: "", mega: "all", avail: false, tw: 70, ts: 100,
+      excluded: loadRankExcluded(),      // move ids kept out of the archetype best-move pick
+      ignoredAbils: loadRankAbils(),     // ability slugs treated as None for every ranked mon
+      editing: null,                     // slug whose inline per-mon ⚙ panel is open
+      preset: { invest: 0, nature: false, boost: 0, item: "none" } } };   // global build applied to every un-customized mon
+  const saveRankExcluded = () => localStorage.setItem(RANK_EXCL_KEY, JSON.stringify([...state.rq.excluded]));
+  const saveRankAbils = () => localStorage.setItem(RANK_ABIL_KEY, JSON.stringify([...state.rq.ignoredAbils]));
 
   // Move-intrinsic power: BP × accuracy(×accMult) × crit × multi-hit × spread(0.75) × best-case cond.
   // `bpOverride` feeds weight/speed moves their computed BP.
@@ -145,7 +160,8 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
     const ep = m._ep;
     const bp = bpOverride != null ? bpOverride : m.power;
     if (!ep || bp == null) return null;
-    const acc = (m.accuracy == null ? 1 : m.accuracy / 100) * accMult;
+    // "× accuracy" toggle off → potential damage: every move counted as if it always hits
+    const acc = state.useAcc ? (m.accuracy == null ? 1 : m.accuracy / 100) * accMult : 1;
     let v = bp * acc * ep.crit * ep.hits;
     if (isSpread(m.target)) v *= 0.75;                       // Champions is doubles (Reg M-B)
     if (state.expBest && ep.cond) v *= ep.cond.mult;         // conditional signature effects
@@ -209,7 +225,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
     if (c.stages[key]) notes.push(`${c.stages[key] > 0 ? "+" : ""}${c.stages[key]} boost`);
     if (pf.stab > 1) notes.push(pf.stab >= 2 ? "STAB ×2" : "STAB");
     if (pf.note) notes.push(pf.note);
-    return { v, note: notes.join(" · ") };
+    return { v, pw: Math.round(pf.power), note: notes.join(" · ") };
   }
   // The mon whose Exp.Pow STAB + Eff. Dmg column reflect: the focused one, else the first loaded.
   const expMon = () => (state.focus && state.mons.find((x) => x.slug === state.focus)) || state.mons[0] || null;
@@ -237,51 +253,105 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
   // "his unique moves" (1), "he + exactly 1 more" (2), … the compare-detail workflow.
 
   toolbarEl.innerHTML = `
-    <input class="search mv-search" type="search" placeholder="Search move or effect…" autocomplete="off">
-    <input class="search mv-mon" list="mv-mon-list" placeholder="Add Pokémon owners…" autocomplete="off">
-    <datalist id="mv-mon-list">${data.pokemon.map((m) => `<option value="${m._display || displayName(m)}">`).join("")}</datalist>
-    <div class="seg mv-cat">
-      <button data-cat="" class="active">All</button>
-      <button data-cat="physical">Phys</button>
-      <button data-cat="special">Spec</button>
-      <button data-cat="status">Status</button>
-    </div>
-    <div class="seg mv-own" hidden>
-      <button data-own="any" class="active">Owned by any</button>
-      <button data-own="all">Owned by all</button>
+    <div class="seg mv-mode" title="Browse = the move table · Best users = rank every Pokémon's effective damage for one move or an archetype">
+      <button data-mvmode="browse" class="active">Browse moves</button>
+      <button data-mvmode="rank">🏆 Best users</button>
     </div>
     <div class="mv-expctl" title="Exp. Pow = Power × Accuracy × crit × multi-hit × spread(×0.75). Eff. Dmg = 0.44 × Exp. Pow × the mon's effective Atk/Sp.Atk (⚙ setup) with its STAB + ability — compare against effective HP (HP×Def).">
       <label class="mv-exp-bestwrap"><input type="checkbox" class="mv-exp-best"> best case <small>(conditions + abilities)</small></label>
-      <button class="btn-sm mv-cmv-btn" title="Invent a move to theorize — pinned on top of the table and computed for every loaded Pokémon as if all could learn it">＋ custom move</button>
+      <label class="mv-exp-bestwrap" title="Off = potential damage: low-accuracy moves count as if they always hit"><input type="checkbox" class="mv-exp-acc" checked> × accuracy</label>
     </div>
-    <button class="btn mv-filter-btn" title="More filters — mechanical flags (Sound, Contact, …); on phones also the type & finder rows">☰ Filters</button>
-    <span class="mv-hint">Click a column to sort · Shift-click adds a tiebreaker · <button class="mv-reset">reset</button></span>
     <span class="count mv-count"></span>
-    <div class="mv-mon-chips"></div>
-    <div class="mv-cfg-wrap"></div>
-    <div class="mv-cmv" hidden>
-      <span class="mv-lab">Custom move</span>
-      <select class="cl-sel mv-cmv-type">${TYPES.map((t) => `<option value="${t}">${t}</option>`).join("")}</select>
-      <select class="cl-sel mv-cmv-class"><option value="physical">Physical</option><option value="special">Special</option></select>
-      <input class="mv-cmv-pow" type="number" min="1" max="250" value="80" aria-label="base power" title="Base power (1–250)">
-      <input class="mv-cmv-name" type="text" maxlength="24" placeholder="name (optional)" aria-label="move name">
-      <button class="btn-sm" data-cmv-add>＋ Add</button>
-      <small class="muted">plain single hit · 100% acc · STAB if the type matches · treated as learnable by all loaded mons</small>
+    <div class="mv-browse-ctls">
+      <input class="search mv-search" type="search" placeholder="Search move or effect…" autocomplete="off">
+      <input class="search mv-mon" list="mv-mon-list" placeholder="Add Pokémon owners…" autocomplete="off">
+      <datalist id="mv-mon-list">${data.pokemon.map((m) => `<option value="${m._display || displayName(m)}">`).join("")}</datalist>
+      <div class="seg mv-cat">
+        <button data-cat="" class="active">All</button>
+        <button data-cat="physical">Phys</button>
+        <button data-cat="special">Spec</button>
+        <button data-cat="status">Status</button>
+      </div>
+      <div class="seg mv-own" hidden>
+        <button data-own="any" class="active">Owned by any</button>
+        <button data-own="all">Owned by all</button>
+      </div>
+      <button class="btn-sm mv-cmv-btn" title="Invent a move to theorize — pinned on top of the table and computed for every loaded Pokémon as if all could learn it">＋ custom move</button>
+      <button class="btn mv-filter-btn" title="More filters — mechanical flags (Sound, Contact, …); on phones also the type & finder rows">☰ Filters</button>
+      <span class="mv-hint">Click a column to sort · Shift-click adds a tiebreaker · <button class="mv-reset">reset</button></span>
+      <div class="mv-mon-chips"></div>
+      <div class="mv-cfg-wrap"></div>
+      <div class="mv-cmv" hidden>
+        <span class="mv-lab">Custom move</span>
+        <select class="cl-sel mv-cmv-type">${TYPES.map((t) => `<option value="${t}">${t}</option>`).join("")}</select>
+        <select class="cl-sel mv-cmv-class"><option value="physical">Physical</option><option value="special">Special</option></select>
+        <input class="mv-cmv-pow" type="number" min="1" max="250" value="80" aria-label="base power" title="Base power (1–250)">
+        <input class="mv-cmv-name" type="text" maxlength="24" placeholder="name (optional)" aria-label="move name">
+        <button class="btn-sm" data-cmv-add>＋ Add</button>
+        <small class="muted">plain single hit · 100% acc · STAB if the type matches · treated as learnable by all loaded mons</small>
+      </div>
+      <div class="type-chips mv-types">${TYPES.map((t) =>
+        `<button class="type-chip" data-mvtype="${t}"><span class="type" style="background:${TYPE_COLORS[t]}">${t}</span></button>`).join("")}</div>
+      <div class="mv-finder">
+        <div class="mv-finder-item"><span class="mv-lab">Affects</span>
+          <div class="seg mv-tgroup"><button data-tgroup="" class="active">Any</button>${Object.entries(TARGET_GROUPS).map(([k, g]) =>
+            `<button data-tgroup="${k}">${g.label}</button>`).join("")}</div></div>
+        <div class="mv-finder-item"><span class="mv-lab">Does</span>
+          <div class="mv-facets">${Object.entries(FACETS).map(([k, l]) =>
+            `<button class="chip facet-chip" data-facet="${k}">${l}</button>`).join("")}</div></div>
+        <div class="mv-finder-item"><span class="mv-lab">Chance</span>
+          <div class="seg mv-chanceseg"><button data-chance="" class="active">Any</button><button data-chance="100">100%</button><button data-chance="50">≥50%</button></div></div>
+      </div>
+      <div class="flag-chips">${allFlags.map((f) =>
+        `<button class="chip flag-chip" data-flag="${f}">${f}</button>`).join("")}</div>
     </div>
-    <div class="type-chips mv-types">${TYPES.map((t) =>
-      `<button class="type-chip" data-mvtype="${t}"><span class="type" style="background:${TYPE_COLORS[t]}">${t}</span></button>`).join("")}</div>
-    <div class="mv-finder">
-      <div class="mv-finder-item"><span class="mv-lab">Affects</span>
-        <div class="seg mv-tgroup"><button data-tgroup="" class="active">Any</button>${Object.entries(TARGET_GROUPS).map(([k, g]) =>
-          `<button data-tgroup="${k}">${g.label}</button>`).join("")}</div></div>
-      <div class="mv-finder-item"><span class="mv-lab">Does</span>
-        <div class="mv-facets">${Object.entries(FACETS).map(([k, l]) =>
-          `<button class="chip facet-chip" data-facet="${k}">${l}</button>`).join("")}</div></div>
-      <div class="mv-finder-item"><span class="mv-lab">Chance</span>
-        <div class="seg mv-chanceseg"><button data-chance="" class="active">Any</button><button data-chance="100">100%</button><button data-chance="50">≥50%</button></div></div>
+    <div class="mv-rank-ctls" hidden>
+      <div class="ac-wrap mvr-acwrap"><input class="search mvr-move-input" placeholder="Rank a specific move…" autocomplete="off"></div>
+      <div class="mvr-chipwrap"></div>
+      <div class="mvr-arch">
+        <span class="mv-lab">or best move of</span>
+        <div class="seg mvr-cat">
+          <button data-mvrcat="" class="active">Phys + Spec</button>
+          <button data-mvrcat="physical">Phys</button>
+          <button data-mvrcat="special">Spec</button>
+        </div>
+        <div class="type-chips mvr-types">${TYPES.map((t) =>
+          `<button class="type-chip" data-mvrtype="${t}"><span class="type" style="background:${TYPE_COLORS[t]}">${t}</span></button>`).join("")}</div>
+        <div class="mvr-exclrow">
+          <div class="ac-wrap mvr-acwrap"><input class="search mvr-excl-input" placeholder="Exclude a move (saved)…" autocomplete="off" title="Take drawback moves (charge, recharge …) out of the best-move pick — saved list, separate from the Damage tab's"></div>
+          <div class="mvr-exchips"></div>
+        </div>
+      </div>
+      <div class="mvr-preset" title="Applied to every Pokémon that you haven't individually customized — so stat-multiplying abilities (Huge Power …) and setups rank the way they really play.">
+        <span class="mv-lab">Everyone runs</span>
+        <div class="seg mvr-invest">
+          <button data-mvrinvest="0" class="active">No invest</button>
+          <button data-mvrinvest="16">+16</button>
+          <button data-mvrinvest="32">Max +32</button>
+        </div>
+        <label class="cl-toggle" title="+10% on the attacking stat"><input type="checkbox" class="mvr-nature"> +10% nature</label>
+        <div class="cl-stat" title="Global boost stages (Swords Dance / Nasty Plot …) on the attacking stat"><span class="cl-stat-lab">Boost</span><div class="cl-step"><button data-mvrboost="-1">−</button><b class="mvr-boostv">+0</b><button data-mvrboost="1">+</button></div></div>
+        <div class="cl-abil"><span class="cl-stat-lab">Item</span>${Object.entries(OFF_ITEMS).map(([k, v]) => `<button class="tm-abil-chip" data-mvritem="${k}">${v.label}</button>`).join("")}</div>
+      </div>
+      <div class="mvr-opts">
+        <div class="seg mvr-mega">
+          <button data-mvrmega="all" class="active">All</button>
+          <button data-mvrmega="hide">No mega</button>
+          <button data-mvrmega="only">Only mega</button>
+        </div>
+        <label class="cl-toggle" title="Only Pokémon currently obtainable in Champions"><input type="checkbox" class="mvr-avail"> Available</label>
+        <span class="mvr-assume" title="For weight/speed-scaled moves (Grass Knot, Heavy Slam, Gyro Ball …)">
+          <span class="mv-lab">Assumed target</span>
+          <span class="mv-cfg-num"><input type="number" class="mvr-tw" value="70" min="0.1" max="999.9" step="0.1" inputmode="decimal"> kg</span>
+          <span class="mv-cfg-num"><input type="number" class="mvr-ts" value="100" min="1" max="400" step="1" inputmode="numeric"> Spe</span>
+        </span>
+      </div>
+      <div class="mvr-abilrow">
+        <div class="ac-wrap mvr-acwrap"><input class="search mvr-abil-input" placeholder="Ignore an ability (saved)…" autocomplete="off" title="Treat an ability as inactive for EVERY ranked Pokémon — e.g. Torrent/Overgrow rarely trigger. Saved list."></div>
+        <div class="mvr-abchips"></div>
+      </div>
     </div>
-    <div class="flag-chips">${allFlags.map((f) =>
-      `<button class="chip flag-chip" data-flag="${f}">${f}</button>`).join("")}</div>`;
+    <span class="count mv-count"></span>`;
 
   const $ = (s) => toolbarEl.querySelector(s);
 
@@ -292,13 +362,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
     if (state.cfgOpen && !state.mons.some((m) => m.slug === state.cfgOpen)) state.cfgOpen = null;
     $(".mv-mon-chips").innerHTML = state.mons.map((m) => {
       // ⚙ opens the customize popover; a tiny badge summarizes any non-default setup
-      const c = m.cfg, parts = [];
-      if (m.ability !== m.defAbility) parts.push(m.ability ? (m.dmgAbils.find((a) => a.slug === m.ability) || {}).name : "no abil.");
-      const pts = pointsUsed(c.spread);
-      if (pts) parts.push(`${pts} pts`);
-      if (c.nature) parts.push("+nat");
-      ["atk", "spa", "def", "spe"].forEach((k) => { if (c.stages[k]) parts.push(`${c.stages[k] > 0 ? "+" : ""}${c.stages[k]} ${{ atk: "Atk", spa: "SpA", def: "Def", spe: "Spe" }[k]}`); });
-      if (c.item !== "none") parts.push((OFF_ITEMS[c.item] || {}).label);
+      const c = m.cfg, parts = cfgBadgeParts(m);
       if (c.tw !== 70) parts.push(`tgt ${c.tw}kg`);
       if (c.ts !== 100) parts.push(`tgt ${c.ts} Spe`);
       const badge = parts.length ? `<small class="mon-cfg-badge">${parts.join(" · ")}</small>` : "";
@@ -314,23 +378,24 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
     state.focus = state.focus === slug ? null : slug;
     updateMonUI(); draw();
   }
-  // ⚙ customize popover: pops up under the chips only when needed, one mon at a time.
-  // Same freedom as the Damage tab's set editors: full 66-point distribution, ±6 boost
-  // stages (incl. Speed), item, ability, and the assumed target for weight/speed moves.
-  function renderCfgPop() {
-    const el = $(".mv-cfg-wrap");
-    const m = state.cfgOpen && state.mons.find((x) => x.slug === state.cfgOpen);
-    if (!m) { el.innerHTML = ""; return; }
-    const c = m.cfg;
+  // ---- Shared per-mon customize editor (used by the browse ⚙ popover AND the rank inline editor) ----
+  // Everything is chips / steppers / a checkbox — no free-text (except the browse-only assumed-target
+  // inputs) — so re-rendering after a change never steals focus.
+  const abilChipsHtml = (e) => `<div class="cl-abil"><span class="cl-stat-lab">Ability</span>
+    <button class="tm-abil-chip ${!e.ability ? "on" : ""}" data-cfg-abil="" title="Attack with no ability">None</button>
+    ${e.dmgAbils.map((a) => `<button class="tm-abil-chip ${e.ability === a.slug ? "on" : ""}" data-cfg-abil="${a.slug}">${a.name}</button>`).join("")}</div>`;
+  const itemChipsHtml = (e) => `<div class="cl-abil"><span class="cl-stat-lab">Item</span>
+    ${Object.entries(OFF_ITEMS).map(([k, v]) => `<button class="tm-abil-chip ${e.cfg.item === k ? "on" : ""}" data-cfg-item="${k}">${v.label}</button>`).join("")}</div>`;
+  function cfgEditorBody(e, { assume = false } = {}) {
+    const c = e.cfg;
     const used = pointsUsed(c.spread);
     const pt = (k, lab, extra = "") => `<div class="cl-stat"${extra ? ` title="${extra}"` : ""}><span class="cl-stat-lab">${lab}</span><div class="cl-step"><button data-cfg-spread="${k}" data-dir="-1">−</button><b>${c.spread[k] || 0}</b><button data-cfg-spread="${k}" data-dir="1">+</button></div></div>`;
     const step = (k, lab, extra = "") => `<div class="cl-stat"${extra ? ` title="${extra}"` : ""}><span class="cl-stat-lab">${lab}</span><div class="cl-step"><button data-cfg-stage="${k}" data-dir="-1">−</button><b>${c.stages[k] >= 0 ? "+" : ""}${c.stages[k]}</b><button data-cfg-stage="${k}" data-dir="1">+</button></div></div>`;
-    el.innerHTML = `<div class="mv-cfg-pop">
-      <div class="mv-cfg-head"><img src="${m.sprite}" alt=""><b>${m.name}</b><small class="muted">@50 — Atk ${m.lvAtk} · Sp.A ${m.lvSpa} · Def ${m.lvDef} · Spe ${m.lvSpe}${m.weight ? ` · ${m.weight} kg` : ""}</small><button class="tc-detail-x" data-cfg-close aria-label="Close">✕</button></div>
+    return `
+      ${e.dmgAbils.length ? abilChipsHtml(e) : ""}
+      ${itemChipsHtml(e)}
       <div class="mv-cfg-grid">
-        ${m.dmgAbils.length ? `<div class="cl-stat"><span class="cl-stat-lab">Ability</span><select class="cl-sel" data-cfg-abil><option value="">no ability</option>${m.dmgAbils.map((a) => `<option value="${a.slug}" ${m.ability === a.slug ? "selected" : ""}>${a.name}</option>`).join("")}</select></div>` : ""}
         <label class="cl-toggle" title="+10% on the attacking stat"><input type="checkbox" data-cfg-nature ${c.nature ? "checked" : ""}> +10% nature</label>
-        <div class="cl-stat"><span class="cl-stat-lab">Item</span><select class="cl-sel" data-cfg-item>${Object.entries(OFF_ITEMS).map(([k, v]) => `<option value="${k}" ${c.item === k ? "selected" : ""}>${v.label}</option>`).join("")}</select></div>
         <button class="btn-sm" data-cfg-reset title="Back to defaults">↺ reset</button>
       </div>
       <div class="mv-cfg-sec">
@@ -341,15 +406,60 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
         <div class="mv-cfg-sec-head"><span>Boost stages</span></div>
         <div class="mv-cfg-grid">${step("atk", "Atk")}${step("spa", "Sp.Atk")}${step("def", "Def", "Body Press attacks with Defense — this boosts it")}${step("spe", "Speed", "changes Gyro Ball / Electro Ball power")}</div>
       </div>
-      <div class="mv-cfg-sec">
+      ${assume ? `<div class="mv-cfg-sec">
         <div class="mv-cfg-sec-head"><span>Assumed target</span><small class="muted">Grass Knot · Low Kick · Heavy Slam · Heat Crash · Gyro Ball · Electro Ball</small></div>
         <div class="mv-cfg-grid">
-          <div class="cl-stat" title="The defender's weight — Grass Knot/Low Kick scale with it; Heavy Slam/Heat Crash compare ${m.name}'s ${m.weight} kg against it"><span class="cl-stat-lab">Weight</span><span class="mv-cfg-num"><input type="number" data-cfg-tw value="${c.tw}" min="0.1" max="999.9" step="0.1" inputmode="decimal"> kg</span></div>
-          <div class="cl-stat" title="The defender's Speed — Gyro Ball grows the slower ${m.name} is vs it, Electro Ball the faster"><span class="cl-stat-lab">Speed</span><span class="mv-cfg-num"><input type="number" data-cfg-ts value="${c.ts}" min="1" max="400" step="1" inputmode="numeric"></span></div>
+          <div class="cl-stat" title="The defender's weight — Grass Knot/Low Kick scale with it; Heavy Slam/Heat Crash compare ${e.name}'s ${e.weight} kg against it"><span class="cl-stat-lab">Weight</span><span class="mv-cfg-num"><input type="number" data-cfg-tw value="${c.tw}" min="0.1" max="999.9" step="0.1" inputmode="decimal"> kg</span></div>
+          <div class="cl-stat" title="The defender's Speed — Gyro Ball grows the slower ${e.name} is vs it, Electro Ball the faster"><span class="cl-stat-lab">Speed</span><span class="mv-cfg-num"><input type="number" data-cfg-ts value="${c.ts}" min="1" max="400" step="1" inputmode="numeric"></span></div>
         </div>
-      </div>
+      </div>` : ""}`;
+  }
+  // Apply a click/change from either editor onto its entry. Returns true when something changed.
+  function cfgClick(e, target) {
+    const ab = target.closest("[data-cfg-abil]");
+    if (ab) { e.ability = ab.dataset.cfgAbil || null; return true; }
+    const it = target.closest("[data-cfg-item]");
+    if (it) { e.cfg.item = it.dataset.cfgItem; return true; }
+    const sp = target.closest("[data-cfg-spread]");
+    if (sp) {   // ±2 points per click, ≤32 into one stat, 66-point pool shared with the other stats
+      const k = sp.dataset.cfgSpread, cur = e.cfg.spread[k] || 0, others = pointsUsed(e.cfg.spread) - cur;
+      e.cfg.spread[k] = Math.max(0, Math.min(cur + 2 * Number(sp.dataset.dir), CAP, POOL - others));
+      return true;
+    }
+    const st = target.closest("[data-cfg-stage]");
+    if (st) { const k = st.dataset.cfgStage; e.cfg.stages[k] = Math.max(-6, Math.min(6, (e.cfg.stages[k] || 0) + Number(st.dataset.dir))); return true; }
+    if (target.closest("[data-cfg-reset]")) { e.cfg = defaultCfg(); e.ability = e.defAbility; return true; }
+    return false;
+  }
+  function cfgChange(e, target) {
+    if (target.matches("[data-cfg-nature]")) { e.cfg.nature = target.checked; return true; }
+    if (target.matches("[data-cfg-tw],[data-cfg-ts]")) return readAssume(e, target);
+    return false;
+  }
+  // ⚙ customize popover: pops up under the chips only when needed, one mon at a time.
+  function renderCfgPop() {
+    const el = $(".mv-cfg-wrap");
+    const m = state.cfgOpen && state.mons.find((x) => x.slug === state.cfgOpen);
+    if (!m) { el.innerHTML = ""; return; }
+    el.innerHTML = `<div class="mv-cfg-pop">
+      <div class="mv-cfg-head"><img src="${m.sprite}" alt=""><b>${m.name}</b><small class="muted">@50 — Atk ${m.lvAtk} · Sp.A ${m.lvSpa} · Def ${m.lvDef} · Spe ${m.lvSpe}${m.weight ? ` · ${m.weight} kg` : ""}</small><button class="tc-detail-x" data-cfg-close aria-label="Close">✕</button></div>
+      ${cfgEditorBody(m, { assume: true })}
     </div>`;
   }
+  // A compact summary of a ⚙ setup — the stat half (points / nature / boosts / item) and, with the
+  // ability prepended, the whole thing (browse chips). Split so rank rows can hide the stat half when
+  // it just mirrors the global preset.
+  function cfgStatParts(e) {
+    const c = e.cfg, parts = [];
+    const pts = pointsUsed(c.spread);
+    if (pts) parts.push(`${pts} pts`);
+    if (c.nature) parts.push("+nat");
+    ["atk", "spa", "def", "spe"].forEach((k) => { if (c.stages[k]) parts.push(`${c.stages[k] > 0 ? "+" : ""}${c.stages[k]} ${{ atk: "Atk", spa: "SpA", def: "Def", spe: "Spe" }[k]}`); });
+    if (c.item !== "none") parts.push((OFF_ITEMS[c.item] || {}).label);
+    return parts;
+  }
+  function cfgAbilPart(e) { return e.ability !== e.defAbility ? [e.ability ? abilName(e.ability) : "no abil."] : []; }
+  function cfgBadgeParts(e) { return [...cfgAbilPart(e), ...cfgStatParts(e)]; }
   // The per-mon context the Expected columns need: Lv50 attacking stats, typing (STAB),
   // raw stats (Protosynthesis picks the highest), damage-relevant abilities + the default,
   // weight + Lv50 Spe for the weight/speed-scaled moves.
@@ -394,8 +504,244 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
     toolbarEl.querySelectorAll("[data-chance]").forEach((x) => x.classList.toggle("active", x.dataset.chance === ""));
   }
 
+  // ---------- "Best users" ranking: the whole roster's Eff.Dmg for one move / an archetype ----------
+  const moveById = new Map(moves.map((m) => [m.id, m]));
+  // every rankable (damaging, incl. weight/speed-scaled) move as autocomplete items
+  const rankableMoves = moves.filter((m) => m._ep).map((m) => ({ value: m.id, name: m.name,
+    icon: `<span class="type tiny" style="background:${TYPE_COLORS[m.type]}">${m.type}</span>` }));
+  // every damage-relevant ability on the roster — for the "ignore an ability" autocomplete
+  const rankableAbils = [...new Set(data.pokemon.flatMap((m) => damageAbilities(m)))]
+    .map((slug) => ({ value: slug, name: (data.abilities[slug] || {}).name || slug }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  // One entry per roster mon, same shape the browse math uses — powerFor/monDmg work unchanged.
+  // `ability` starts at the mon's real default (most-used); the user overrides it per-mon in the ⚙
+  // editor — no auto "best ability" pick, so pinch abilities (Torrent …) don't silently inflate ranks.
+  let rankMons = null;
+  const getRankMons = () => {
+    if (!rankMons) {
+      rankMons = data.pokemon.map((mon) => Object.assign(monEntry(mon),
+        { usagePct: mon.usagePct, isMega: mon.isMega, available: mon.available, touched: false }));
+      applyPreset();
+    }
+    return rankMons;
+  };
+  // The global preset as a cfg: invest goes into BOTH offense stats (each move uses whichever it
+  // attacks with), nature/boost too; item as-is. Weight/speed target stays global (set in rankFor).
+  function presetToCfg() {
+    const p = state.rq.preset;
+    return { spread: { atk: p.invest, spa: p.invest, def: 0, spe: 0 }, nature: p.nature,
+      stages: { atk: p.boost, spa: p.boost, def: 0, spe: 0 }, item: p.item, tw: state.rq.tw, ts: state.rq.ts };
+  }
+  // Seed the preset onto every mon the user hasn't individually customized (touched).
+  function applyPreset() { if (rankMons) for (const e of rankMons) if (!e.touched) e.cfg = presetToCfg(); }
+  const presetActive = () => { const p = state.rq.preset; return p.invest || p.nature || p.boost || p.item !== "none"; };
+  const abilName = (slug) => (data.abilities[slug] || {}).name || slug;
+  // Damage for one mon + move using its CHOSEN ability, minus any globally-ignored ability (→ None).
+  function rankDmg(e, m) {
+    const saved = e.ability;
+    const eff = saved && state.rq.ignoredAbils.has(saved) ? null : saved;
+    e.ability = eff;
+    const d = monDmg(e, m);
+    e.ability = saved;
+    return d ? { d, ability: eff } : null;
+  }
+  function rankFor() {
+    const q = state.rq;
+    const mons = getRankMons().filter((e) =>
+      (q.mega === "hide" ? !e.isMega : q.mega === "only" ? e.isMega : true) && (!q.avail || e.available !== false));
+    const rows = [];
+    const exact = q.moveId != null ? moveById.get(q.moveId) : null;
+    for (const e of mons) {
+      e.cfg.tw = q.tw; e.cfg.ts = q.ts;   // rank-level assumed target for weight/speed moves
+      let top = null;
+      if (exact) {
+        if (!exact._ep || !e.moves.has(exact.id)) continue;
+        const b = rankDmg(e, exact);
+        if (b) top = { m: exact, ...b };
+      } else {
+        for (const id of e.moves) {   // archetype: the mon's best QUALIFYING move (ability is fixed)
+          const m = moveById.get(id);
+          if (!m || !m._ep || q.excluded.has(m.id) || TARGET_STAT_MOVES.has(m.name)) continue;
+          if (q.type && m.type !== q.type) continue;
+          if (q.cat && m.class !== q.cat) continue;
+          const b = rankDmg(e, m);
+          if (b && (!top || b.d.v > top.d.v)) top = { m, ...b };
+        }
+      }
+      if (top) rows.push({ e, ...top });
+    }
+    rows.sort((a, b) => b.d.v - a.d.v || a.e.name.localeCompare(b.e.name));
+    return rows;
+  }
+  // Only the dynamic bits re-render (chips, actives) — the inputs/autocompletes are attached once.
+  function renderRankCtls() {
+    const q = state.rq;
+    const m = q.moveId != null ? moveById.get(q.moveId) : null;
+    $(".mvr-chipwrap").innerHTML = m
+      ? `<span class="cl-exchip mvr-movechip"><span class="type tiny" style="background:${TYPE_COLORS[m.type]}">${m.type}</span><b>${m.name}</b><button data-mvr-clear aria-label="Clear — back to archetype ranking">✕</button></span>`
+      : `<small class="muted">no move picked — ranking each Pokémon's best move of:</small>`;
+    $(".mvr-arch").classList.toggle("dim", !!m);
+    $(".mvr-exchips").innerHTML = [...q.excluded].map((id) => { const x = moveById.get(id);
+      return x ? `<span class="cl-exchip">${x.name}<button data-mvr-unexclude="${id}" aria-label="restore ${x.name}">✕</button></span>` : ""; }).join("");
+    $(".mvr-abchips").innerHTML = [...q.ignoredAbils].map((slug) =>
+      `<span class="cl-exchip">🚫 ${abilName(slug)}<button data-mvr-unignore="${slug}" aria-label="restore ${abilName(slug)}">✕</button></span>`).join("");
+    toolbarEl.querySelectorAll("[data-mvrcat]").forEach((b) => b.classList.toggle("active", b.dataset.mvrcat === q.cat));
+    toolbarEl.querySelectorAll("[data-mvrtype]").forEach((b) => b.classList.toggle("on", b.dataset.mvrtype === q.type));
+    toolbarEl.querySelectorAll("[data-mvrmega]").forEach((b) => b.classList.toggle("active", b.dataset.mvrmega === q.mega));
+    // global preset actives
+    toolbarEl.querySelectorAll("[data-mvrinvest]").forEach((b) => b.classList.toggle("active", Number(b.dataset.mvrinvest) === q.preset.invest));
+    toolbarEl.querySelectorAll("[data-mvritem]").forEach((b) => b.classList.toggle("on", b.dataset.mvritem === q.preset.item));
+    const bv = $(".mvr-boostv"); if (bv) bv.textContent = `${q.preset.boost >= 0 ? "+" : ""}${q.preset.boost}`;
+    const nat = $(".mvr-nature"); if (nat) nat.checked = q.preset.nature;
+  }
+  // Every damaging move the mon learns, with its Eff.Dmg under the mon's current setup — sorted desc.
+  // Same math as the ranking (rankDmg respects ability / cfg / useAcc / expBest / ignored abilities).
+  function monMoveList(e) {
+    const out = [];
+    for (const id of e.moves) {
+      const mv = moveById.get(id);
+      if (!mv || !mv._ep || TARGET_STAT_MOVES.has(mv.name)) continue;
+      const b = rankDmg(e, mv);
+      if (b) out.push({ mv, ...b });
+    }
+    out.sort((a, b) => b.d.v - a.d.v || a.mv.name.localeCompare(b.mv.name));
+    return out;
+  }
+  // The full details panel for one expanded mon: all-moves damage + the customize controls.
+  function monPanel(e, rankedId) {
+    const list = monMoveList(e);
+    const mvRow = ({ mv, d, ability }) => {
+      const nm = ability ? abilName(ability) : null;
+      const fl = (d.note ? d.note.split(" · ") : []).filter((x) => x !== nm)
+        .map((x) => `<span class="ehp-flag">${x}</span>`).join("");
+      return `<div class="mvr-mvrow ${mv.id === rankedId ? "is-ranked" : ""}">
+        <span class="mvr-mv-nm"><span class="type tiny" style="background:${TYPE_COLORS[mv.type]}">${mv.type}</span><button class="mvr-mvname" data-info-move="${mv.id}" title="Open ${mv.name}">${mv.name}</button></span>
+        <span class="mvr-mv-pw" title="Expected power (STAB/ability in)">${d.pw} pw</span>
+        <span class="mvr-mv-dmg" title="Effective damage — compare against effective HP (HP×Def)"><b>${sep(d.v)}</b></span>
+        <span class="mvr-mv-fl">${fl}</span>
+      </div>`;
+    };
+    return `<div class="mvr-panel" data-cfg-slug="${e.slug}">
+      <div class="mvr-panel-head">
+        <img src="${e.sprite}" alt=""><b>${e.name}</b>
+        <small class="muted">@50 — Atk ${e.lvAtk} · Sp.A ${e.lvSpa} · Def ${e.lvDef} · Spe ${e.lvSpe}${e.weight ? ` · ${e.weight} kg` : ""}</small>
+        <button class="btn-sm mvr-openfull" data-mon-open="${e.slug}" title="Open ${e.name}'s full page in the Pokédex">↗ Full page</button>
+        <button class="tc-detail-x" data-cfg-close aria-label="Close">✕</button>
+      </div>
+      <div class="mvr-panel-sec"><div class="mv-cfg-sec-head"><span>All moves — effective damage</span><small class="muted">${list.length} damaging</small></div>
+        <div class="mvr-mvlist">${list.length ? list.map(mvRow).join("") : '<p class="ehp-empty">No damaging moves.</p>'}</div>
+      </div>
+      <div class="mvr-panel-sec"><div class="mv-cfg-sec-head"><span>Customize</span>
+        <small class="muted">${e.touched ? "custom — ↺ reset rejoins the global preset" : presetActive() ? "following the global preset — change anything to override just this Pokémon" : "base Lv50 — change anything to customize just this Pokémon"}</small></div>
+        ${cfgEditorBody(e, { assume: false })}
+      </div>
+    </div>`;
+  }
+  function drawRank() {
+    renderRankCtls();
+    const q = state.rq;
+    const rows = rankFor();
+    const top = rows.slice(0, 75);
+    const max = rows.length ? rows[0].d.v : 0;
+    const m = q.moveId != null ? moveById.get(q.moveId) : null;
+    const desc = m ? m.name
+      : `best ${q.cat === "physical" ? "physical" : q.cat === "special" ? "special" : "phys/spec"} ${q.type || "any-type"} move`;
+    $(".mv-count").textContent = `${rows.length} Pokémon ranked — ${desc}${state.useAcc ? "" : " · accuracy ignored"}${state.expBest ? " · best case" : ""}`;
+    const rowHtml = ({ e, m: mv, d, ability }, i) => {
+      const editing = state.rq.editing === e.slug;
+      // notes minus the ability's own name (the ability gets its own clickable chip)
+      const nm = ability ? abilName(ability) : null;
+      const noteChips = (d.note ? d.note.split(" · ") : []).filter((x) => x !== nm)
+        .slice(0, 3).map((x) => `<span class="ehp-flag">${x}</span>`).join("");
+      const abilChip = ability ? `<button class="ehp-flag ab mvr-abil" data-info-abil="${ability}" title="${abilName(ability)} — open ability">${abilName(ability)}</button>` : "";
+      // badge = ability if non-default + (only for individually-customized mons) its stat overrides,
+      // so rows stay clean when everyone shares the global preset
+      const badge = [...cfgAbilPart(e), ...(e.touched ? [...cfgStatParts(e), "✎ custom"] : [])];
+      return `
+      <div class="mvr-row ${editing ? "editing" : ""}" style="--bar:${max ? Math.round((d.v / max) * 100) : 0}%">
+        <span class="mvr-rank">${i + 1}</span>
+        <button class="mvr-cog ${editing ? "on" : ""}" data-cfg-toggle="${e.slug}" title="See every move's damage & customize ${e.name}">⚙</button>
+        <span class="mvr-idn" data-panel-toggle="${e.slug}" title="${editing ? "Hide" : "Show every move's damage &"} customize ${e.name}"><img class="ehp-spr" loading="lazy" src="${e.sprite}" alt="">
+          <span class="mvr-name">${e.name}${e.isMega ? ' <span class="mega-badge">MEGA</span>' : ""}${e.usagePct != null ? ` <span class="ehp-use" title="ladder usage">${e.usagePct}%</span>` : ""}${badge.length ? `<small class="mvr-setline">${badge.join(" · ")}</small>` : ""}</span></span>
+        <span class="mvr-move"><span class="type tiny" style="background:${TYPE_COLORS[mv.type]}">${mv.type}</span><button class="mvr-mvname" data-info-move="${mv.id}" title="Open ${mv.name}">${mv.name}</button><small class="mvr-pw" title="Exp. Pow for this Pokémon (STAB/ability in)">${d.pw} pw</small>${m ? "" : `<button class="mvr-ignore" data-mvr-ignore="${mv.id}" title="Ignore ${mv.name} — drop it from the best-move pick" aria-label="Ignore ${mv.name}">✕</button>`}</span>
+        <span class="mvr-dmg" title="Effective damage — compare against effective HP (HP×Def)"><b>${sep(d.v)}</b></span>
+        <span class="mvr-chips">${abilChip}${noteChips}</span>
+      </div>${editing ? monPanel(e, mv.id) : ""}`;
+    };
+    const presetNote = presetActive()
+      ? `Global build: <b>${q.preset.invest ? `+${q.preset.invest} invest` : "no invest"}${q.preset.nature ? " · +nat" : ""}${q.preset.boost ? ` · ${q.preset.boost > 0 ? "+" : ""}${q.preset.boost} boost` : ""}${q.preset.item !== "none" ? ` · ${(OFF_ITEMS[q.preset.item] || {}).label}` : ""}</b> on every Pokémon (individually-customized ✎ ones keep their own).`
+      : `Base Lv50 stats — set a global build above (<b>Everyone runs</b>) so stat-multiplying abilities rank realistically.`;
+    contentEl.innerHTML = `
+      <p class="mvr-note">${presetNote} Click a <b>Pokémon</b> (or <b>⚙</b>) to see <b>every move's effective damage</b> and override its ability/stats/boosts/item; click a move to open it${m ? "" : ", or <b>✕</b> to drop it from the pick"}${state.useAcc ? "" : "; accuracy is ignored (potential damage)"}.</p>
+      ${top.length ? `<div class="mvr-list">${top.map(rowHtml).join("")}</div>` : `<p class="ehp-empty">${m ? "No Pokémon learns this move under the current Mega/Available filters." : "No match — pick a move above, or a type/category."}</p>`}
+      ${rows.length > 75 ? `<p class="ehp-more">Showing the top 75 of ${rows.length}.</p>` : ""}`;
+  }
+  function syncMvMode() {
+    toolbarEl.querySelectorAll("[data-mvmode]").forEach((b) => b.classList.toggle("active", b.dataset.mvmode === state.mode));
+    $(".mv-browse-ctls").hidden = state.mode !== "browse";
+    $(".mv-rank-ctls").hidden = state.mode !== "rank";
+    draw();
+  }
+  function rankMove(id) {
+    state.mode = "rank";
+    state.rq.moveId = id;
+    syncMvMode();
+    window.scrollTo({ top: 0 });
+  }
+
   $(".mv-search").addEventListener("input", (e) => { state.search = e.target.value; draw(); });
   $(".mv-exp-best").addEventListener("change", (e) => { state.expBest = e.target.checked; draw(); });
+  $(".mv-exp-acc").addEventListener("change", (e) => { state.useAcc = e.target.checked; draw(); });
+  // ---- Best users (rank) controls ----
+  toolbarEl.querySelectorAll("[data-mvmode]").forEach((b) => b.addEventListener("click", () => {
+    if (state.mode === b.dataset.mvmode) return;
+    state.mode = b.dataset.mvmode;
+    syncMvMode();
+  }));
+  attachAutocomplete($(".mvr-move-input"), {
+    items: () => rankableMoves,
+    onPick: (id) => { state.rq.moveId = id; draw(); },
+  });
+  attachAutocomplete($(".mvr-excl-input"), {
+    items: () => rankableMoves.filter((x) => !state.rq.excluded.has(x.value)),
+    onPick: (id) => { state.rq.excluded.add(id); saveRankExcluded(); draw(); },
+  });
+  attachAutocomplete($(".mvr-abil-input"), {
+    items: () => rankableAbils.filter((x) => !state.rq.ignoredAbils.has(x.value)),
+    onPick: (slug) => { state.rq.ignoredAbils.add(slug); saveRankAbils(); draw(); },
+  });
+  $(".mvr-chipwrap").addEventListener("click", (e) => {
+    if (e.target.closest("[data-mvr-clear]")) { state.rq.moveId = null; draw(); }
+  });
+  $(".mvr-exchips").addEventListener("click", (e) => {
+    const u = e.target.closest("[data-mvr-unexclude]");
+    if (u) { state.rq.excluded.delete(Number(u.dataset.mvrUnexclude)); saveRankExcluded(); draw(); }
+  });
+  $(".mvr-abchips").addEventListener("click", (e) => {
+    const u = e.target.closest("[data-mvr-unignore]");
+    if (u) { state.rq.ignoredAbils.delete(u.dataset.mvrUnignore); saveRankAbils(); draw(); }
+  });
+  toolbarEl.querySelectorAll("[data-mvrcat]").forEach((b) => b.addEventListener("click", () => { state.rq.cat = b.dataset.mvrcat; draw(); }));
+  toolbarEl.querySelectorAll("[data-mvrmega]").forEach((b) => b.addEventListener("click", () => { state.rq.mega = b.dataset.mvrmega; draw(); }));
+  toolbarEl.querySelectorAll("[data-mvrtype]").forEach((b) => b.addEventListener("click", () => {
+    state.rq.type = state.rq.type === b.dataset.mvrtype ? "" : b.dataset.mvrtype;
+    draw();
+  }));
+  $(".mvr-avail").addEventListener("change", (e) => { state.rq.avail = e.target.checked; draw(); });
+  // global preset — re-seeds every un-customized mon, then re-ranks
+  const applyPresetDraw = () => { applyPreset(); draw(); };
+  toolbarEl.querySelectorAll("[data-mvrinvest]").forEach((b) => b.addEventListener("click", () => { state.rq.preset.invest = Number(b.dataset.mvrinvest); applyPresetDraw(); }));
+  toolbarEl.querySelectorAll("[data-mvritem]").forEach((b) => b.addEventListener("click", () => { state.rq.preset.item = state.rq.preset.item === b.dataset.mvritem ? "none" : b.dataset.mvritem; applyPresetDraw(); }));
+  toolbarEl.querySelectorAll("[data-mvrboost]").forEach((b) => b.addEventListener("click", () => { state.rq.preset.boost = Math.max(-6, Math.min(6, state.rq.preset.boost + Number(b.dataset.mvrboost))); applyPresetDraw(); }));
+  $(".mvr-nature").addEventListener("change", (e) => { state.rq.preset.nature = e.target.checked; applyPresetDraw(); });
+  // assumed-target inputs: live-update on input; the fields are never re-rendered, so no focus loss
+  const readRankAssume = () => {
+    const tw = parseFloat($(".mvr-tw").value), ts = parseFloat($(".mvr-ts").value);
+    state.rq.tw = Number.isFinite(tw) ? Math.min(999.9, Math.max(0.1, Math.round(tw * 10) / 10)) : 70;
+    state.rq.ts = Number.isFinite(ts) ? Math.min(400, Math.max(1, Math.round(ts))) : 100;
+  };
+  $(".mvr-tw").addEventListener("input", () => { readRankAssume(); draw(); });
+  $(".mvr-ts").addEventListener("input", () => { readRankAssume(); draw(); });
   // ＋ custom move: toggle the builder row, add an invented move (pinned row in the table)
   $(".mv-cmv-btn").addEventListener("click", () => {
     const box = $(".mv-cmv");
@@ -410,11 +756,11 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
     draw();
   });
   $(".mv-cmv-name").addEventListener("keydown", (e) => { if (e.key === "Enter") $("[data-cmv-add]").click(); });
-  // ⚙ customize popover controls
+  // ⚙ customize popover controls — the mutation logic lives in cfgClick/cfgChange (shared with rank).
   const cfgMon = () => state.mons.find((x) => x.slug === state.cfgOpen);
   const cfgApply = () => { updateMonUI(); draw(); };   // updateMonUI re-renders chips (badge) + popover
   // assumed-target inputs: clamp + write into cfg. Returns true when the value changed.
-  const readAssume = (m, el) => {
+  function readAssume(m, el) {
     const v = parseFloat(el.value);
     if (el.matches("[data-cfg-tw]")) {
       const tw = Number.isFinite(v) ? Math.min(999.9, Math.max(0.1, Math.round(v * 10) / 10)) : 70;
@@ -422,16 +768,13 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
     }
     const ts = Number.isFinite(v) ? Math.min(400, Math.max(1, Math.round(v))) : 100;
     if (ts === m.cfg.ts) return false; m.cfg.ts = ts; return true;
-  };
+  }
   $(".mv-cfg-wrap").addEventListener("change", (e) => {
     const m = cfgMon(); if (!m) return;
-    if (e.target.matches("[data-cfg-abil]")) { m.ability = e.target.value || null; cfgApply(); }
-    else if (e.target.matches("[data-cfg-item]")) { m.cfg.item = e.target.value; cfgApply(); }
-    else if (e.target.matches("[data-cfg-nature]")) { m.cfg.nature = e.target.checked; cfgApply(); }
-    // commit (blur/Enter): sync badge + snap the field to the clamped value. Deferred a tick:
-    // replacing the still-focused input inside its own change event re-fires change from the
-    // blur and crashes the innerHTML teardown mid-flight.
-    else if (e.target.matches("[data-cfg-tw],[data-cfg-ts]")) { readAssume(m, e.target); setTimeout(cfgApply, 0); }
+    // commit (blur/Enter) on a number field: snap to the clamped value. Deferred a tick — replacing
+    // the still-focused input inside its own change event re-fires change and crashes the teardown.
+    if (e.target.matches("[data-cfg-tw],[data-cfg-ts]")) { readAssume(m, e.target); setTimeout(cfgApply, 0); }
+    else if (cfgChange(m, e.target)) cfgApply();
   });
   // while typing in the number fields, refresh the table live but do NOT re-render the
   // popover (that would steal focus mid-keystroke)
@@ -442,20 +785,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
   $(".mv-cfg-wrap").addEventListener("click", (e) => {
     const m = cfgMon(); if (!m) return;
     if (e.target.closest("[data-cfg-close]")) { state.cfgOpen = null; updateMonUI(); return; }
-    const sp = e.target.closest("[data-cfg-spread]");
-    if (sp) {   // ±2 points per click, ≤32 into one stat, 66-point pool shared with the other stats
-      const k = sp.dataset.cfgSpread, cur = m.cfg.spread[k] || 0;
-      const others = pointsUsed(m.cfg.spread) - cur;
-      m.cfg.spread[k] = Math.max(0, Math.min(cur + 2 * Number(sp.dataset.dir), CAP, POOL - others));
-      cfgApply(); return;
-    }
-    const st = e.target.closest("[data-cfg-stage]");
-    if (st) { const k = st.dataset.cfgStage; m.cfg.stages[k] = Math.max(-6, Math.min(6, (m.cfg.stages[k] || 0) + Number(st.dataset.dir))); cfgApply(); return; }
-    if (e.target.closest("[data-cfg-reset]")) {
-      m.cfg = defaultCfg();
-      m.ability = m.defAbility;
-      cfgApply();
-    }
+    if (cfgClick(m, e.target)) cfgApply();
   });
   $(".mv-mon").addEventListener("change", (e) => {
     const mon = monByName.get(e.target.value.trim().toLowerCase());
@@ -524,7 +854,36 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
       draw();
     }));
 
+  const rankEntry = (slug) => getRankMons().find((x) => x.slug === slug);
+  const togglePanel = (slug) => { state.rq.editing = state.rq.editing === slug ? null : slug; drawRank(); };
   contentEl.addEventListener("click", (e) => {
+    // --- Best-users rank interactions (specific targets before the generic panel-cfg catch) ---
+    if (e.target.closest("[data-cfg-close]")) { state.rq.editing = null; drawRank(); return; }
+    const of = e.target.closest("[data-mon-open]");      // ↗ the only path that leaves for the Pokédex
+    if (of) { onMon && onMon(of.dataset.monOpen); return; }
+    const cog = e.target.closest("[data-cfg-toggle]");   // ⚙ toggles the in-place details panel
+    if (cog) { togglePanel(cog.dataset.cfgToggle); return; }
+    const pt = e.target.closest("[data-panel-toggle]");  // sprite/name → same panel, stays in place
+    if (pt) { togglePanel(pt.dataset.panelToggle); return; }
+    const ig = e.target.closest("[data-mvr-ignore]");    // ✕ on a ranked move → ignore it
+    if (ig) { state.rq.excluded.add(Number(ig.dataset.mvrIgnore)); saveRankExcluded(); drawRank(); return; }
+    const ia = e.target.closest("[data-info-abil]");     // ability chip → ability popup
+    if (ia) { onAbil && onAbil(ia.dataset.infoAbil); return; }
+    const im = e.target.closest("[data-info-move]");     // move name (row OR panel list) → move popup
+    if (im) { onInfo && onInfo(Number(im.dataset.infoMove)); return; }
+    const ed = e.target.closest(".mvr-panel[data-cfg-slug]");   // cfg controls inside the panel
+    if (ed) {
+      const en = rankEntry(ed.dataset.cfgSlug); if (!en) return;
+      // reset means "rejoin the global preset" here, not "back to base zero"
+      if (e.target.closest("[data-cfg-reset]")) { en.touched = false; en.cfg = presetToCfg(); en.ability = en.defAbility; drawRank(); return; }
+      if (cfgClick(en, e.target)) {
+        if (e.target.closest("[data-cfg-spread],[data-cfg-stage],[data-cfg-item]")) en.touched = true;  // stat override (not ability)
+        drawRank();
+      }
+      return;
+    }
+    const rk = e.target.closest("[data-rank]");          // 🏆 on a browse row → rank this move
+    if (rk) { rankMove(Number(rk.dataset.rank)); return; }
     const rmc = e.target.closest("[data-rm-custom]");   // ✕ on an invented move's pinned row
     if (rmc) { state.customMoves = state.customMoves.filter((c) => c.id !== Number(rmc.dataset.rmCustom)); draw(); return; }
     const fo = e.target.closest("th[data-focus]");   // owner sprite header = focus toggle
@@ -535,6 +894,11 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
     if (lens) { onFilter && onFilter(Number(lens.dataset.filter)); return; }
     const row = e.target.closest("tr[data-move]");
     if (row && onInfo) onInfo(Number(row.dataset.move));
+  });
+  // the only change-based control in the rank panel is the +nature checkbox (a stat override → touched)
+  contentEl.addEventListener("change", (e) => {
+    const ed = e.target.closest(".mvr-panel[data-cfg-slug]");
+    if (ed) { const en = rankEntry(ed.dataset.cfgSlug); if (en && cfgChange(en, e.target)) { en.touched = true; drawRank(); } }
   });
 
   function onHeaderClick(k, shift) {
@@ -598,7 +962,11 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
     return list;
   }
 
+  // Every control funnels through draw(); it renders whichever sub-view is active.
   function draw() {
+    if (state.mode === "rank") drawRank(); else drawBrowse();
+  }
+  function drawBrowse() {
     const list = apply();
     const n = state.mons.length;
     const fi = state.focus ? state.mons.findIndex((m) => m.slug === state.focus) : -1;
@@ -650,7 +1018,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
       const tgt = m.target ? `<span class="mv-target ${isSpread(m.target) ? "spread" : ""}">${targetLabel(m.target)}</span>` : "—";
       const nameCell = custom
         ? `<td class="mv-nm"><button class="mv-cmv-x" data-rm-custom="${m.id}" title="Remove this invented move" aria-label="Remove ${m.name}">✕</button>${m.name}<span class="mv-cmv-tag" title="Invented here — not a real move">invented</span></td>`
-        : `<td class="mv-nm"><button class="lens" data-filter="${m.id}" title="Filter roster by this move">🔍</button>${m.name}</td>`;
+        : `<td class="mv-nm"><button class="lens" data-filter="${m.id}" title="Filter roster by this move">🔍</button>${m._ep ? `<button class="lens" data-rank="${m.id}" title="Best users — rank every Pokémon's damage with this move">🏆</button>` : ""}${m.name}</td>`;
       return `<tr ${custom ? 'class="mv-custom-row"' : `data-move="${m.id}" title="View move details"`}>
         ${nameCell}
         ${ownerCells}
@@ -718,11 +1086,12 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
     state.ownMode = "any";
     state.focus = null;
     state.mons = (list || []).filter(Boolean).map(monEntry);
+    state.mode = "browse";   // the compare bridge always lands on the table
     updateMonUI();
-    draw();
+    syncMvMode();
     window.scrollTo({ top: 0 });
   }
 
   draw();
-  return { browseMons };
+  return { browseMons, rankMove };
 }

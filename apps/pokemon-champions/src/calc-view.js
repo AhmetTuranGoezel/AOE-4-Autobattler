@@ -1271,7 +1271,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       <button class="tm-abil-chip ${cfg.ability == null ? "on" : ""}" data-ebability="null">None</button>
       ${tabils.map((slug) => `<button class="tm-abil-chip ${cfg.ability === slug ? "on" : ""}" data-ebability="${slug}">${(data.abilities[slug] || {}).name || slug}</button>`).join("")}</div>` : "";
     const excludedChips = eb.excluded.size ? `<div class="cl-excluded"><span class="cl-stat-lab">Excluded moves</span>
-      ${[...eb.excluded].map((id) => data.moves[id] ? `<span class="cl-exchip">${data.moves[id].name}<button data-unexclude="${id}" aria-label="restore">✕</button></span>` : "").join("")}</div>` : "";
+      ${[...eb.excluded].map((id) => data.moves[id] ? `<span class="cl-exchip"><span class="cl-exchip-nm" data-move-info="${id}" title="Open ${data.moves[id].name}">${data.moves[id].name}</span><button data-unexclude="${id}" aria-label="restore">✕</button></span>` : "").join("")}</div>` : "";
     // target 1/2 tabs (only when a 2nd target exists)
     const t2 = eb.targets[1];
     const tabRow = t2 ? `<div class="cl-ttabs">
@@ -1312,7 +1312,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
           ${stageStepper("Speed boost", "speStage", cfg.speStage)}
         </div>
         <div class="cl-tmoves"><span class="cl-stat-lab">Its moves</span>
-          ${(target.threat.moves || []).map((mv) => `<span class="cl-exchip"><span class="type tiny" style="background:${TYPE_COLORS[mv.type]}">${mv.type}</span>${mv.name}<button data-tmove-remove="${moveIdByName.get(mv.name)}" aria-label="remove">✕</button></span>`).join("") || '<small class="muted">no damaging moves</small>'}
+          ${(target.threat.moves || []).map((mv) => `<span class="cl-exchip"><span class="type tiny" style="background:${TYPE_COLORS[mv.type]}">${mv.type}</span><span class="cl-exchip-nm" data-move-info="${moveIdByName.get(mv.name)}" title="Open ${mv.name}">${mv.name}</span><button data-tmove-remove="${moveIdByName.get(mv.name)}" aria-label="remove">✕</button></span>`).join("") || '<small class="muted">no damaging moves</small>'}
         </div>
         ${abilRow}
       </div>
@@ -1696,7 +1696,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
         ${abilChips ? `<div class="cl-abil"><span class="cl-stat-lab">Ability</span>${abilChips}</div>` : ""}
         <div class="cl-tmoves"><span class="cl-stat-lab">Its attacks</span>
           ${Array.isArray(c.moveset) && c.moveset.length
-            ? c.moveset.map((id) => { const mv = data.moves[id]; return mv ? `<span class="cl-exchip"><span class="type tiny" style="background:${TYPE_COLORS[mv.type]}">${mv.type}</span>${mv.name}<button data-rmv-remove="${id}" aria-label="remove">✕</button></span>` : ""; }).join("")
+            ? c.moveset.map((id) => { const mv = data.moves[id]; return mv ? `<span class="cl-exchip"><span class="type tiny" style="background:${TYPE_COLORS[mv.type]}">${mv.type}</span><span class="cl-exchip-nm" data-move-info="${id}" title="Open ${mv.name}">${mv.name}</span><button data-rmv-remove="${id}" aria-label="remove">✕</button></span>` : ""; }).join("")
             : `<small class="muted">using ${(c.movepool || "all") === "ladder" ? "its ladder set" : "all learnable moves"} — add specific attacks to lock the set</small>`}
           ${(c.custom || []).map((cm, i) => `<span class="cl-exchip cl-cmv-chip" title="Invented move — not in its real movepool"><span class="type tiny" style="background:${TYPE_COLORS[cm.type]}">${cm.type}</span>Custom ${cm.power} <small>${cm.class === "physical" ? "Phys" : "Spec"}</small><button data-rmv-custom="${i}" aria-label="remove">✕</button></span>`).join("")}
         </div>
@@ -1708,7 +1708,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
           <button class="btn-sm" data-addcustom>＋ Add</button>
         </div>
         ${eb.excluded.size ? `<div class="cl-excluded"><span class="cl-stat-lab">Excluded moves</span>
-          ${[...eb.excluded].map((id) => data.moves[id] ? `<span class="cl-exchip">${data.moves[id].name}<button data-unexclude="${id}" aria-label="restore">✕</button></span>` : "").join("")}</div>` : ""}
+          ${[...eb.excluded].map((id) => data.moves[id] ? `<span class="cl-exchip"><span class="cl-exchip-nm" data-move-info="${id}" title="Open ${data.moves[id].name}">${data.moves[id].name}</span><button data-unexclude="${id}" aria-label="restore">✕</button></span>` : "").join("")}</div>` : ""}
       </div>
       <div class="cl-sec">
         <div class="cl-sec-head"><span>Field conditions</span></div>
@@ -1890,7 +1890,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       const typeSel = (which, cur, allowNone) => `<select class="cl-sel" data-cdraft="${which}">${(allowNone ? `<option value="">— none —</option>` : "") + TYPES.map((t) => `<option value="${t}" ${t === cur ? "selected" : ""}>${t}</option>`).join("")}</select>`;
       const statBox = (k, lab) => `<div class="cl-stat"><span class="cl-stat-lab">${lab}</span><input class="cx-stat" type="number" min="1" max="255" value="${clampStat(d.stats[k])}" data-cdraft="stat.${k}" aria-label="${lab}"></div>`;
       const abilOpts = `<option value="">— none —</option>` + Object.entries(data.abilities).map(([slug, a]) => `<option value="${slug}" ${d.ability === slug ? "selected" : ""}>${a.name}</option>`).sort().join("");
-      const moveChips = (d.moves || []).map((id) => { const mv = data.moves[id]; return mv ? `<span class="cl-exchip"><span class="type tiny" style="background:${TYPE_COLORS[mv.type]}">${mv.type}</span>${mv.name}<button data-cdraft-move-remove="${id}" aria-label="remove">✕</button></span>` : ""; }).join("");
+      const moveChips = (d.moves || []).map((id) => { const mv = data.moves[id]; return mv ? `<span class="cl-exchip"><span class="type tiny" style="background:${TYPE_COLORS[mv.type]}">${mv.type}</span><span class="cl-exchip-nm" data-move-info="${id}" title="Open ${mv.name}">${mv.name}</span><button data-cdraft-move-remove="${id}" aria-label="remove">✕</button></span>` : ""; }).join("");
       return `<div class="cx-form">
         <div class="cx-form-head"><b>${d.id ? "Edit" : "New"} custom Pokémon</b><span class="muted cx-bst">BST ${CUSTOM_STATS.reduce((s2, k) => s2 + clampStat(d.stats[k]), 0)}</span></div>
         <div class="cx-form-grid">

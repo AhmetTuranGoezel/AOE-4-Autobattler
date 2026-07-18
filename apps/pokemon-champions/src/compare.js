@@ -52,7 +52,7 @@ export function renderCompare(mons, data, max = 200, anchorSlug = null, movesFil
   const abil = `<tr class="cmp-abil"><th>Abilities</th>${mons.map((m) =>
     `<td>${m.abilities.map((a) => {
       const meta = data.abilities[a.slug] || { name: a.slug };
-      return `<span class="cmp-ab" title="${(meta.desc || "")}">${meta.name}${a.hidden ? " *" : ""}</span>`;
+      return `<span class="cmp-ab" data-ability-info="${a.slug}" title="${(meta.desc || "")} — open ability">${meta.name}${a.hidden ? " *" : ""}</span>`;
     }).join("")}</td>`).join("")}</tr>`;
 
   // --- movepool presence matrix ---

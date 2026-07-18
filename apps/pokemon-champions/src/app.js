@@ -881,6 +881,8 @@ function bindGlobal() {
     if (e.target.id === "popup" || e.target.dataset.closePopup !== undefined) { closePopup(); return; }
     const mf = e.target.closest("[data-move-filter]");
     if (mf) { closePopup(); switchTab("pokemon"); applyMoveFilter(Number(mf.dataset.moveFilter)); return; }
+    const mr = e.target.closest("[data-move-rank]");   // 🏆 → Moves tab "Best users" (switchTab first: it lazily inits movesView)
+    if (mr) { closePopup(); switchTab("moves"); movesView?.rankMove(Number(mr.dataset.moveRank)); return; }
     const af = e.target.closest("[data-ability-filter]");
     if (af) { closePopup(); switchTab("pokemon"); applyAbilityFilter(af.dataset.abilityFilter); return; }
     const lr = e.target.closest(".lr[data-slug]");
@@ -898,6 +900,8 @@ function bindGlobal() {
     }
     const mi = e.target.closest("[data-move-info]");
     if (mi) { openMovePopup(Number(mi.dataset.moveInfo)); return; }
+    const ai = e.target.closest("[data-ability-info]");
+    if (ai) { openAbilityPopup(ai.dataset.abilityInfo); return; }
     const mv = e.target.closest("[data-cmp-moves]");
     if (mv) { state.cmpMoves = mv.dataset.cmpMoves; openCompare(); return; }
     const a = e.target.closest("[data-anchor]");
@@ -1030,7 +1034,9 @@ function switchTab(tab) {
     movesInited = true;
     movesView = initMovesView({ toolbarEl: $(".tb-moves"), contentEl: $("#moves-results"), data: state.data,
       onInfo: (id) => openMovePopup(id),
-      onFilter: (id) => { switchTab("pokemon"); applyMoveFilter(id); } });
+      onAbil: (slug) => openAbilityPopup(slug),
+      onFilter: (id) => { switchTab("pokemon"); applyMoveFilter(id); },
+      onMon: (slug) => { switchTab("pokemon"); openDetail(slug); } });
   }
   if (tab === "abilities" && !abilInited) {
     abilInited = true;
