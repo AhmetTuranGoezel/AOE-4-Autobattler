@@ -262,7 +262,7 @@ function fieldOffenseMult(mv, cat, eb, infiltrator = false, applyScreens = true,
 export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onGotoTeam, onAddTeamMove }) {
   const team = () => (getTeam ? getTeam() : []);   // live saved team from the Team builder
   const s = {
-    mode: "ehp", // "ehp" (Counters) | "rev" (One vs all) | "team" (Team check)
+    mode: "ehp", // "ehp" (All vs one — historical key, kept for saved states) | "rev" (One vs all) | "team" (Team check)
   };
   // Counters lab: rank the roster against a chosen target under editable conditions.
   const EXCLUDE_KEY = "pc-move-exclude";
@@ -392,12 +392,12 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
   container.innerHTML = `<div class="calc">
     <div class="calc-head">
       <div class="calc-modes seg">
-        <button data-calcmode="ehp" class="active">Counters</button>
+        <button data-calcmode="ehp" class="active">All vs one</button>
         <button data-calcmode="rev">One vs all</button>
         <button data-calcmode="team">Team check</button>
       </div>
-      <h2 class="calc-title-ehp" hidden>Counters <small class="muted">— who breaks one or two popular targets, under your conditions</small></h2>
-      <p class="calc-note calc-title-ehp" hidden>Pick a target — its defensive set prefills from real ladder usage; edit its investment, nature, boosts, ability and field conditions. Add a 2nd target to find counters that handle both. Real Gen-9 damage (0.85–1.00 roll) vs its real HP.</p>
+      <h2 class="calc-title-ehp" hidden>All vs one <small class="muted">— the whole roster's damage into one or two targets</small></h2>
+      <p class="calc-note calc-title-ehp" hidden>Pick a target — its defensive set prefills from real ladder usage; edit its investment, nature, boosts, ability and field conditions. Add a 2nd target to find attackers that break both. Real Gen-9 damage (0.85–1.00 roll) vs its real HP.</p>
       <h2 class="calc-title-rev" hidden>One vs all <small class="muted">— your attacker's damage into the whole roster</small></h2>
       <p class="calc-note calc-title-rev" hidden>Pick an attacker and set its offense; every defender is built from its own ladder set (Champions exposes per-mon usage, not a global usage share). Ranked by damage.</p>
       <h2 class="calc-title-team" hidden>Team check <small class="muted">— can your team handle these threats?</small></h2>
@@ -457,7 +457,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
         <div class="ci cl-pick-target">Add a threat
           <div class="ac-wrap"><input class="team-threat-input" placeholder="Search an opponent…" autocomplete="off"></div>
         </div>
-        <button class="btn tc-import" data-import-pinned title="Add every mon you've pinned in Counters / One-vs-all">⇩ Import pinned</button>
+        <button class="btn tc-import" data-import-pinned title="Add every mon you've pinned in All-vs-one / One-vs-all">⇩ Import pinned</button>
       </div>
       <div id="team-controls"></div>
       <div class="ehp-results" id="team-results-calc"></div>
@@ -1346,6 +1346,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
         </div>
         ${excludedChips}
       </div>
+      ${renderFilters()}
     </section>`;
   }
 
@@ -1356,16 +1357,17 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
     return `<button class="cl-typetoggle ${eb.showTypeFilters ? "open" : ""} ${n ? "has" : ""}" data-toggle-typefilters title="Filter by attacker type / move type">
       <span class="cl-tt-ico">◧</span> Type filters ${n ? `<span class="cl-tt-badge">${n}</span>` : ""}<span class="cl-tt-caret">${eb.showTypeFilters ? "▾" : "▸"}</span></button>`;
   }
+  // "Attackers — filter & sort": lives INSIDE the target card as its last section —
+  // the exact mirror of One-vs-all's "Defenders — filter & sort".
   function renderFilters() {
     const roleOpts = { any: "Any role", physical: "Physical", special: "Special", mixed: "Mixed", defensive: "Defensive" };
-    return `<div class="cl-filter-bar">
-      <div class="cl-filtrow">
+    return `<div class="cl-sec">
+      <div class="cl-sec-head"><span>Attackers — filter &amp; sort</span></div>
+      <div class="cl-conditions">
         <div class="seg cl-catseg">${[["any", "All"], ["physical", "Phys"], ["special", "Spec"]].map(([v, l]) => `<button data-fcat="${v}" class="${eb.fCat === v ? "active" : ""}">${l}</button>`).join("")}</div>
         <div class="seg cl-megaseg">${[["all", "All"], ["hide", "No mega"], ["only", "Only mega"]].map(([v, l]) => `<button data-fmega="${v}" class="${eb.fMega === v ? "active" : ""}">${l}</button>`).join("")}</div>
         ${seg("fRole", roleOpts, eb.fRole)}
         <div class="seg ehp-thresh">${[["any", "Any dmg"], ["ohko", "OHKO"], ["2hko", "2HKO"], ["3hko", "3HKO"]].map(([v, l]) => `<button data-thresh="${v}" class="${eb.threshold === v ? "active" : ""}">${l}</button>`).join("")}</div>
-      </div>
-      <div class="cl-filtrow">
         <label class="cl-toggle"><input type="checkbox" data-ebsel="fAvail" ${eb.fAvail ? "checked" : ""}> Available</label>
         <label class="cl-toggle" title="Hide attackers the target OHKOs back"><input type="checkbox" data-ebsel="fSurvive" ${eb.fSurvive ? "checked" : ""}> Survives target</label>
         <label class="cl-toggle" title="Only attackers that move first"><input type="checkbox" data-ebsel="fFaster" ${eb.fFaster ? "checked" : ""}> Outspeeds</label>
@@ -1651,7 +1653,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       return;
     }
     $("#ehp-controls").innerHTML = renderControls(target);
-    $("#ehp-filters").innerHTML = renderFilters();
+    $("#ehp-filters").innerHTML = "";   // filters live inside the target card now (mirrors One-vs-all)
     renderResults();
   }
 
@@ -1782,7 +1784,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
         <button class="btn-sm" data-dovrreset title="Reset this defender to its ladder usage">↺ reset</button>
       </div>
       <div class="ap-speed">${edited ? `<b class="ap-edited">edited</b> · ` : ""}Set: <b>${(data.abilities[cfg.ability] || {}).name || "—"}</b> · ${cfg.nature} · ${spTxt} · ${DEF_ITEMS[cfg.item] || "No item"}&ensp;—&ensp;your Spe <b>${aSpe}</b> vs ${nameOf(d.mon)} <b>${dt.spe}</b> → ${spV}
-        <button class="btn-sm ap-tocounters" data-rev2counter="${slug}" title="Open this defender fully configurable in Counters">⚔ Open in Counters</button></div>
+        <button class="btn-sm ap-tocounters" data-rev2counter="${slug}" title="Open this defender fully configurable in All vs one">⚔ Open in All vs one</button></div>
       <div class="ap-intorange">Into range: ${intoRange(entry, [dt], revSt())}</div>
       ${matchupBlock(entry, dt, st)}
     </div>`;
@@ -1953,7 +1955,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       return;
     }
     if (!eb.threats.length) {
-      out.innerHTML = `<p class="ehp-empty">Add the opponents you want to check — search above, or <b>⇩ Import pinned</b> to pull the mons you've pinned in Counters / One-vs-all. Each teammate's best answer to every threat is then scored below.</p>`;
+      out.innerHTML = `<p class="ehp-empty">Add the opponents you want to check — search above, or <b>⇩ Import pinned</b> to pull the mons you've pinned in All-vs-one / One-vs-all. Each teammate's best answer to every threat is then scored below.</p>`;
       return;
     }
 
@@ -1977,7 +1979,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       }).join("");
       return `<tr>
         <td class="tc-threatcell"><img src="${tmon.sprite || tmon.artwork || ""}" alt=""><span class="tc-tname">${nameOf(tmon)}${tmon.isCustom ? '<span class="cx-star">★</span>' : ""}</span>
-          <button class="tc-open" data-threat2counter="${sl}" title="Open in Counters">⚔</button></td>
+          <button class="tc-open" data-threat2counter="${sl}" title="Open in All vs one">⚔</button></td>
         ${cellHtml}
         <td class="tc-verdict v-${vtier}">${verdictTxt}</td>
       </tr>`;

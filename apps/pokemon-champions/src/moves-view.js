@@ -4,9 +4,10 @@
 // first. Can also load a *set* of Pokémon (e.g. the compared ones) to show per-mon
 // ownership columns + filter to the moves they share, with full move detail here
 // rather than crammed into the compare popup.
-import { TYPES, TYPE_COLORS, displayName, targetLabel, isSpread, rarityTier, TARGET_GROUPS } from "./data.js";
+import { TYPES, TYPE_COLORS, displayName, targetLabel, isSpread, rarityTier, TARGET_GROUPS, grassKnotBP } from "./data.js";
 import { statsFor } from "./effective-stats.js";
 import { damageAbilities, offenseMult, offDefaultAbility, stageMult, OFF_ITEMS } from "./offense-model.js";
+import { POOL, CAP, pointsUsed } from "./stat-lab.js";
 
 const COLS = [
   { key: "name", label: "Move" },
@@ -16,7 +17,7 @@ const COLS = [
   { key: "power", label: "Pow", num: true },
   { key: "accuracy", label: "Acc", num: true },
   { key: "expp", label: "Exp. Pow", num: true, title: "Expected power — Power × Accuracy × crit × multi-hit × spread(×0.75), plus the loaded mon's STAB and ability (Huge Power, Sand Force …)." },
-  { key: "expd", label: "Eff. Dmg", num: true, title: "Effective damage — 0.44 × Exp. Pow (STAB + ability already in) × the mon's Lv50 Atk/Sp.Atk. Compare against a defender's effective HP (HP×Def)." },
+  { key: "expd", label: "Eff. Dmg", num: true, title: "Effective damage — 0.44 × Exp. Pow (STAB + ability already in) × the mon's effective Atk/Sp.Atk (Lv50 + its ⚙ setup: points, nature, boosts). Compare against a defender's effective HP (HP×Def)." },
   { key: "pp", label: "PP", num: true },
   { key: "priority", label: "Prio", num: true },
   { key: "chance", label: "Effect", num: true, title: "Secondary effect and its chance" },
@@ -106,9 +107,11 @@ const COND_DMG = {
   "Electro Drift": { mult: 4 / 3, note: "×1.33 if SE" }, Retaliate: { mult: 2, note: "×2 if ally fainted" },
   "Lash Out": { mult: 2, note: "×2 if stats lowered" },
 };
-// Precompute a move's expected-power modifiers (null = no BP-based expected: status / null / variable power).
+// Weight/speed-scaled moves: no fixed BP, but computable per mon + the popover's assumed target.
+const DYNAMIC_BP = new Set(["Grass Knot", "Low Kick", "Heavy Slam", "Heat Crash", "Gyro Ball", "Electro Ball"]);
+// Precompute a move's expected-power modifiers (null = no BP-based expected: status / variable power).
 function expData(m) {
-  if (m.class === "status" || m.power == null) return null;
+  if (m.class === "status" || (m.power == null && !DYNAMIC_BP.has(m.name))) return null;
   const eff = m.effect || "";
   let hits = 1, hitNote = "";
   const range = eff.match(/hits (\w+) to (\w+) times/i);
@@ -122,7 +125,7 @@ function expData(m) {
   let crit = 1 + (1 / 24) * 0.5, critNote = "";   // baseline Gen-9 crit (1/24 → ×1.5)
   if (/always a critical hit/i.test(eff)) { crit = 1.5; critNote = "always crits"; }
   else if (/higher chance for a critical hit/i.test(eff)) { crit = 1 + (1 / 8) * 0.5; critNote = "high crit"; }
-  return { hits, hitNote, crit, critNote, cond: COND_DMG[m.name] || null };
+  return { hits, hitNote, crit, critNote, cond: COND_DMG[m.name] || null, dynamic: m.power == null && DYNAMIC_BP.has(m.name) };
 }
 
 export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) {
@@ -132,24 +135,52 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
   const state = { search: "", type: "", cat: "", flags: new Set(), tgroup: "", facets: new Set(), chance: "",
     mons: [], ownMode: "any", focus: null, sort: structuredClone(DEFAULT_SORT),
     expBest: false,     // best case: conditional move effects AND conditional abilities assumed active
-    cfgOpen: null };    // slug whose ⚙ customize popover (stats/boosts/item/ability) is open
+    cfgOpen: null,      // slug whose ⚙ customize popover (stats/boosts/item/ability) is open
+    customMoves: [],    // invented what-if moves — pinned on top of the table, session-only
+    cmvSeq: 1 };
 
   // Move-intrinsic power: BP × accuracy(×accMult) × crit × multi-hit × spread(0.75) × best-case cond.
-  function intrinsicPower(m, accMult = 1) {
+  // `bpOverride` feeds weight/speed moves their computed BP.
+  function intrinsicPower(m, accMult = 1, bpOverride) {
     const ep = m._ep;
-    if (!ep) return null;
+    const bp = bpOverride != null ? bpOverride : m.power;
+    if (!ep || bp == null) return null;
     const acc = (m.accuracy == null ? 1 : m.accuracy / 100) * accMult;
-    let v = m.power * acc * ep.crit * ep.hits;
+    let v = bp * acc * ep.crit * ep.hits;
     if (isSpread(m.target)) v *= 0.75;                       // Champions is doubles (Reg M-B)
     if (state.expBest && ep.cond) v *= ep.cond.mult;         // conditional signature effects
     return v;
+  }
+  // A mon's effective stat: Lv50 base + distributed points, ×1.1 nature (attacking stat), ×boost stage.
+  function effStatOf(mon, key) {
+    const base = { atk: mon.lvAtk, spa: mon.lvSpa, def: mon.lvDef, spe: mon.lvSpe }[key];
+    const c = mon.cfg;
+    const nat = c.nature && (key === "atk" || key === "spa" || key === "def") ? 1.1 : 1;   // def for Body Press setups
+    return Math.floor(Math.floor((base + (c.spread[key] || 0)) * nat) * stageMult(c.stages[key] || 0));
+  }
+  // BP of weight/speed-scaled moves, from the mon + the popover's assumed target (kg / Spe).
+  function dynamicBP(m, mon) {
+    const c = mon.cfg;
+    if (m.name === "Grass Knot" || m.name === "Low Kick") return { bp: grassKnotBP(c.tw), note: `weight ${c.tw}kg` };
+    if (m.name === "Heavy Slam" || m.name === "Heat Crash") {
+      const r = c.tw ? Math.floor((mon.weight || 0) / c.tw) : 0;
+      return { bp: r >= 5 ? 120 : r === 4 ? 100 : r === 3 ? 80 : r === 2 ? 60 : 40, note: `${mon.weight}kg vs ${c.tw}kg` };
+    }
+    const spe = effStatOf(mon, "spe");
+    if (m.name === "Gyro Ball") return { bp: spe ? Math.min(150, Math.floor((25 * c.ts) / spe) + 1) : 1, note: `Spe ${spe} vs ${c.ts}` };
+    if (m.name === "Electro Ball") { const r = c.ts ? spe / c.ts : 0; return { bp: r >= 4 ? 150 : r >= 3 ? 120 : r >= 2 ? 80 : r >= 1 ? 60 : 40, note: `Spe ${spe} vs ${c.ts}` }; }
+    return null;
   }
   // Expected power INCLUDING a mon's STAB AND its ability (both live HERE, in Exp. Pow — shown to
   //   the user). { power, stab, note }. mon = null → intrinsic only. -ate retypes → STAB follows the
   //   new type; ability damage multipliers (Huge Power, Sand Force …) are baked into `power`.
   function powerFor(m, mon) {
-    const o = mon ? offenseMult(mon.ability, mon, m, m.power, state.expBest) : { mult: 1, stab: null, acc: 1, retype: null, note: "" };
-    const ip = intrinsicPower(m, o.acc);
+    if (!m._ep) return null;
+    let dyn = null;
+    if (m._ep.dynamic) { if (!mon) return null; dyn = dynamicBP(m, mon); if (!dyn) return null; }
+    const bp = dyn ? dyn.bp : m.power;
+    const o = mon ? offenseMult(mon.ability, mon, m, bp, state.expBest) : { mult: 1, stab: null, acc: 1, retype: null, note: "" };
+    const ip = intrinsicPower(m, o.acc, bp);
     if (ip == null) return null;
     const stab = o.stab || (mon && mon.types.includes(o.retype || m.type) ? 1.5 : 1);
     let itemM = 1, itemNote = "";
@@ -157,22 +188,21 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
       const r = OFF_ITEMS[mon.cfg.item].mult(state.expBest, m.class);   // Expert Belt: SE assumed only in best-case
       if (r && r.m) { itemM = r.m; itemNote = r.note; }
     }
-    return { power: ip * stab * o.mult * itemM, stab, note: [o.note, itemNote].filter(Boolean).join(" · ") };
+    return { power: ip * stab * o.mult * itemM, stab, note: [dyn && dyn.note, o.note, itemNote].filter(Boolean).join(" · ") };
   }
   // The stat a move actually attacks with (Body Press = the user's Defense);
   // Foul Play uses the TARGET's Atk — no target exists here, so it gets no Eff. Dmg.
   const ATK_STAT_OVERRIDE = { "Body Press": "def" };
   const TARGET_STAT_MOVES = new Set(["Foul Play"]);
   // Effective damage for ONE mon = 0.44 (Gen-9 Lv50 coeff) × its Exp.Pow (STAB + ability + item in)
-  // × its EFFECTIVE attacking stat (invest / +10% nature / boost stages from the ⚙ setup).
+  // × its EFFECTIVE attacking stat (distributed points / +10% nature / boost stages from the ⚙ setup).
   function monDmg(mon, m) {
-    if (!m._ep || !mon.moves.has(m.id) || TARGET_STAT_MOVES.has(m.name)) return null;
+    if (!m._ep || !(mon.moves.has(m.id) || m._custom) || TARGET_STAT_MOVES.has(m.name)) return null;
     const pf = powerFor(m, mon);
     if (!pf) return null;
     const key = ATK_STAT_OVERRIDE[m.name] || (m.class === "physical" ? "atk" : "spa");
-    const base = key === "def" ? mon.lvDef : key === "atk" ? mon.lvAtk : mon.lvSpa;
+    const stat = effStatOf(mon, key);
     const c = mon.cfg;
-    const stat = Math.floor(Math.floor((base + c.invest) * (c.nature ? 1.1 : 1)) * stageMult(c.stages[key] || 0));
     const v = Math.round(0.44 * pf.power * stat);
     const notes = [];
     if (key === "def") notes.push("uses Def");
@@ -220,14 +250,24 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
       <button data-own="any" class="active">Owned by any</button>
       <button data-own="all">Owned by all</button>
     </div>
-    <div class="mv-expctl" title="Exp. Pow = Power × Accuracy × crit × multi-hit × spread(×0.75). Eff. Dmg = 0.44 × Exp. Pow × the mon's Lv50 Atk/Sp.Atk with its STAB + ability — compare against effective HP (HP×Def).">
+    <div class="mv-expctl" title="Exp. Pow = Power × Accuracy × crit × multi-hit × spread(×0.75). Eff. Dmg = 0.44 × Exp. Pow × the mon's effective Atk/Sp.Atk (⚙ setup) with its STAB + ability — compare against effective HP (HP×Def).">
       <label class="mv-exp-bestwrap"><input type="checkbox" class="mv-exp-best"> best case <small>(conditions + abilities)</small></label>
+      <button class="btn-sm mv-cmv-btn" title="Invent a move to theorize — pinned on top of the table and computed for every loaded Pokémon as if all could learn it">＋ custom move</button>
     </div>
     <button class="btn mv-filter-btn" title="More filters — mechanical flags (Sound, Contact, …); on phones also the type & finder rows">☰ Filters</button>
     <span class="mv-hint">Click a column to sort · Shift-click adds a tiebreaker · <button class="mv-reset">reset</button></span>
     <span class="count mv-count"></span>
     <div class="mv-mon-chips"></div>
     <div class="mv-cfg-wrap"></div>
+    <div class="mv-cmv" hidden>
+      <span class="mv-lab">Custom move</span>
+      <select class="cl-sel mv-cmv-type">${TYPES.map((t) => `<option value="${t}">${t}</option>`).join("")}</select>
+      <select class="cl-sel mv-cmv-class"><option value="physical">Physical</option><option value="special">Special</option></select>
+      <input class="mv-cmv-pow" type="number" min="1" max="250" value="80" aria-label="base power" title="Base power (1–250)">
+      <input class="mv-cmv-name" type="text" maxlength="24" placeholder="name (optional)" aria-label="move name">
+      <button class="btn-sm" data-cmv-add>＋ Add</button>
+      <small class="muted">plain single hit · 100% acc · STAB if the type matches · treated as learnable by all loaded mons</small>
+    </div>
     <div class="type-chips mv-types">${TYPES.map((t) =>
       `<button class="type-chip" data-mvtype="${t}"><span class="type" style="background:${TYPE_COLORS[t]}">${t}</span></button>`).join("")}</div>
     <div class="mv-finder">
@@ -254,10 +294,13 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
       // ⚙ opens the customize popover; a tiny badge summarizes any non-default setup
       const c = m.cfg, parts = [];
       if (m.ability !== m.defAbility) parts.push(m.ability ? (m.dmgAbils.find((a) => a.slug === m.ability) || {}).name : "no abil.");
-      if (c.invest) parts.push(`+${c.invest}`);
+      const pts = pointsUsed(c.spread);
+      if (pts) parts.push(`${pts} pts`);
       if (c.nature) parts.push("+nat");
-      ["atk", "spa", "def"].forEach((k) => { if (c.stages[k]) parts.push(`${c.stages[k] > 0 ? "+" : ""}${c.stages[k]} ${{ atk: "Atk", spa: "SpA", def: "Def" }[k]}`); });
+      ["atk", "spa", "def", "spe"].forEach((k) => { if (c.stages[k]) parts.push(`${c.stages[k] > 0 ? "+" : ""}${c.stages[k]} ${{ atk: "Atk", spa: "SpA", def: "Def", spe: "Spe" }[k]}`); });
       if (c.item !== "none") parts.push((OFF_ITEMS[c.item] || {}).label);
+      if (c.tw !== 70) parts.push(`tgt ${c.tw}kg`);
+      if (c.ts !== 100) parts.push(`tgt ${c.ts} Spe`);
       const badge = parts.length ? `<small class="mon-cfg-badge">${parts.join(" · ")}</small>` : "";
       return `<span class="mon-chip ${state.focus === m.slug ? "focus" : ""}" data-focus-mon="${m.slug}" ${n >= 2 ? `title="${state.focus === m.slug ? "Unfocus" : `Focus — group the table around ${m.name}'s moves`}"` : ""}><img src="${m.sprite}" alt="">${m.name}${badge}<button class="mon-cfg ${state.cfgOpen === m.slug ? "on" : ""}" data-mon-cfg="${m.slug}" title="Customize ${m.name} — stats, boosts, item, ability">⚙</button><button data-rm-mon="${m.slug}" aria-label="Remove ${m.name}">✕</button></span>`;
     }).join("");
@@ -272,26 +315,46 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
     updateMonUI(); draw();
   }
   // ⚙ customize popover: pops up under the chips only when needed, one mon at a time.
+  // Same freedom as the Damage tab's set editors: full 66-point distribution, ±6 boost
+  // stages (incl. Speed), item, ability, and the assumed target for weight/speed moves.
   function renderCfgPop() {
     const el = $(".mv-cfg-wrap");
     const m = state.cfgOpen && state.mons.find((x) => x.slug === state.cfgOpen);
     if (!m) { el.innerHTML = ""; return; }
     const c = m.cfg;
+    const used = pointsUsed(c.spread);
+    const pt = (k, lab, extra = "") => `<div class="cl-stat"${extra ? ` title="${extra}"` : ""}><span class="cl-stat-lab">${lab}</span><div class="cl-step"><button data-cfg-spread="${k}" data-dir="-1">−</button><b>${c.spread[k] || 0}</b><button data-cfg-spread="${k}" data-dir="1">+</button></div></div>`;
     const step = (k, lab, extra = "") => `<div class="cl-stat"${extra ? ` title="${extra}"` : ""}><span class="cl-stat-lab">${lab}</span><div class="cl-step"><button data-cfg-stage="${k}" data-dir="-1">−</button><b>${c.stages[k] >= 0 ? "+" : ""}${c.stages[k]}</b><button data-cfg-stage="${k}" data-dir="1">+</button></div></div>`;
     el.innerHTML = `<div class="mv-cfg-pop">
-      <div class="mv-cfg-head"><img src="${m.sprite}" alt=""><b>${m.name}</b><small class="muted">expected-damage setup — Atk ${m.lvAtk} · Sp.A ${m.lvSpa} · Def ${m.lvDef} @50</small><button class="tc-detail-x" data-cfg-close aria-label="Close">✕</button></div>
+      <div class="mv-cfg-head"><img src="${m.sprite}" alt=""><b>${m.name}</b><small class="muted">@50 — Atk ${m.lvAtk} · Sp.A ${m.lvSpa} · Def ${m.lvDef} · Spe ${m.lvSpe}${m.weight ? ` · ${m.weight} kg` : ""}</small><button class="tc-detail-x" data-cfg-close aria-label="Close">✕</button></div>
       <div class="mv-cfg-grid">
         ${m.dmgAbils.length ? `<div class="cl-stat"><span class="cl-stat-lab">Ability</span><select class="cl-sel" data-cfg-abil><option value="">no ability</option>${m.dmgAbils.map((a) => `<option value="${a.slug}" ${m.ability === a.slug ? "selected" : ""}>${a.name}</option>`).join("")}</select></div>` : ""}
-        <div class="cl-stat" title="Points into the attacking stat (Champions caps a stat at +32)"><span class="cl-stat-lab">Invest</span><div class="seg cl-invest">${[[0, "None"], [16, "+16"], [32, "Max"]].map(([v, l]) => `<button data-cfg-invest="${v}" class="${c.invest === v ? "active" : ""}">${l}</button>`).join("")}</div></div>
         <label class="cl-toggle" title="+10% on the attacking stat"><input type="checkbox" data-cfg-nature ${c.nature ? "checked" : ""}> +10% nature</label>
-        ${step("atk", "Atk boost")}${step("spa", "Sp.Atk boost")}${step("def", "Def boost", "Body Press attacks with Defense — this boosts it")}
         <div class="cl-stat"><span class="cl-stat-lab">Item</span><select class="cl-sel" data-cfg-item>${Object.entries(OFF_ITEMS).map(([k, v]) => `<option value="${k}" ${c.item === k ? "selected" : ""}>${v.label}</option>`).join("")}</select></div>
         <button class="btn-sm" data-cfg-reset title="Back to defaults">↺ reset</button>
+      </div>
+      <div class="mv-cfg-sec">
+        <div class="mv-cfg-sec-head"><span>Stat points</span><span class="cl-points ${used > POOL ? "over" : ""}" title="Champions: ${POOL} points to distribute, at most ${CAP} into one stat">Points ${used}/${POOL}</span></div>
+        <div class="mv-cfg-grid">${pt("atk", "Atk")}${pt("spa", "Sp.Atk")}${pt("def", "Def", "Body Press attacks with Defense")}${pt("spe", "Speed", "Gyro Ball / Electro Ball power scales with Speed")}</div>
+      </div>
+      <div class="mv-cfg-sec">
+        <div class="mv-cfg-sec-head"><span>Boost stages</span></div>
+        <div class="mv-cfg-grid">${step("atk", "Atk")}${step("spa", "Sp.Atk")}${step("def", "Def", "Body Press attacks with Defense — this boosts it")}${step("spe", "Speed", "changes Gyro Ball / Electro Ball power")}</div>
+      </div>
+      <div class="mv-cfg-sec">
+        <div class="mv-cfg-sec-head"><span>Assumed target</span><small class="muted">Grass Knot · Low Kick · Heavy Slam · Heat Crash · Gyro Ball · Electro Ball</small></div>
+        <div class="mv-cfg-grid">
+          <div class="cl-stat" title="The defender's weight — Grass Knot/Low Kick scale with it; Heavy Slam/Heat Crash compare ${m.name}'s ${m.weight} kg against it"><span class="cl-stat-lab">Weight</span><span class="mv-cfg-num"><input type="number" data-cfg-tw value="${c.tw}" min="0.1" max="999.9" step="0.1" inputmode="decimal"> kg</span></div>
+          <div class="cl-stat" title="The defender's Speed — Gyro Ball grows the slower ${m.name} is vs it, Electro Ball the faster"><span class="cl-stat-lab">Speed</span><span class="mv-cfg-num"><input type="number" data-cfg-ts value="${c.ts}" min="1" max="400" step="1" inputmode="numeric"></span></div>
+        </div>
       </div>
     </div>`;
   }
   // The per-mon context the Expected columns need: Lv50 attacking stats, typing (STAB),
-  // raw stats (Protosynthesis picks the highest), damage-relevant abilities + the default.
+  // raw stats (Protosynthesis picks the highest), damage-relevant abilities + the default,
+  // weight + Lv50 Spe for the weight/speed-scaled moves.
+  const defaultCfg = () => ({ spread: { atk: 0, spa: 0, def: 0, spe: 0 }, nature: false,
+    stages: { atk: 0, spa: 0, def: 0, spe: 0 }, item: "none", tw: 70, ts: 100 });
   function monEntry(mon) {
     const lv = statsFor(mon, "lv50");
     const da = damageAbilities(mon).map((s) => ({ slug: s, name: (data.abilities[s] || {}).name || s }));
@@ -299,14 +362,26 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
     const ability = da.some((a) => a.slug === def) ? def : null;
     return { slug: mon.slug, name: mon._display || displayName(mon),
       sprite: mon.sprite || mon.artwork || "", moves: new Set(mon.moves),
-      lvAtk: lv.atk, lvSpa: lv.spa, lvDef: lv.def, types: mon.types, stats: mon.stats,
+      lvAtk: lv.atk, lvSpa: lv.spa, lvDef: lv.def, lvSpe: lv.spe, weight: mon.weight || 0,
+      types: mon.types, stats: mon.stats,
       dmgAbils: da, ability, defAbility: ability,
-      cfg: { invest: 0, nature: false, stages: { atk: 0, spa: 0, def: 0 }, item: "none" } };
+      cfg: defaultCfg() };
   }
   function addMon(mon) {
     if (!mon || state.mons.some((x) => x.slug === mon.slug)) return;
     state.mons.push(monEntry(mon));
     updateMonUI(); draw();
+  }
+  // An invented move: negative id (never collides with real move ids), plain single hit,
+  // 100% acc. Name is HTML-escaped ONCE here — every render spot interpolates it raw.
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+  function customEntry(type, cls, power, name) {
+    const m = { id: -(state.cmvSeq++), name: esc(name) || `Custom ${power}`, type, class: cls, power,
+      accuracy: 100, pp: null, priority: 0, target: "selected-pokemon", flags: [],
+      secondaries: [], count: 0, effect: "Invented move — theorycraft only, not in any movepool.", _custom: true };
+    m._fx = classifyMove(m);
+    m._ep = expData(m);
+    return m;
   }
   function resetFilters() {
     state.search = ""; state.type = ""; state.cat = ""; state.flags.clear();
@@ -321,24 +396,63 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
 
   $(".mv-search").addEventListener("input", (e) => { state.search = e.target.value; draw(); });
   $(".mv-exp-best").addEventListener("change", (e) => { state.expBest = e.target.checked; draw(); });
+  // ＋ custom move: toggle the builder row, add an invented move (pinned row in the table)
+  $(".mv-cmv-btn").addEventListener("click", () => {
+    const box = $(".mv-cmv");
+    box.hidden = !box.hidden;
+    $(".mv-cmv-btn").classList.toggle("active", !box.hidden);
+    if (!box.hidden) $(".mv-cmv-name").focus();
+  });
+  $("[data-cmv-add]").addEventListener("click", () => {
+    const power = Math.max(1, Math.min(250, Math.round(Number($(".mv-cmv-pow").value)) || 80));
+    state.customMoves.push(customEntry($(".mv-cmv-type").value, $(".mv-cmv-class").value, power, $(".mv-cmv-name").value.trim()));
+    $(".mv-cmv-name").value = "";
+    draw();
+  });
+  $(".mv-cmv-name").addEventListener("keydown", (e) => { if (e.key === "Enter") $("[data-cmv-add]").click(); });
   // ⚙ customize popover controls
   const cfgMon = () => state.mons.find((x) => x.slug === state.cfgOpen);
   const cfgApply = () => { updateMonUI(); draw(); };   // updateMonUI re-renders chips (badge) + popover
+  // assumed-target inputs: clamp + write into cfg. Returns true when the value changed.
+  const readAssume = (m, el) => {
+    const v = parseFloat(el.value);
+    if (el.matches("[data-cfg-tw]")) {
+      const tw = Number.isFinite(v) ? Math.min(999.9, Math.max(0.1, Math.round(v * 10) / 10)) : 70;
+      if (tw === m.cfg.tw) return false; m.cfg.tw = tw; return true;
+    }
+    const ts = Number.isFinite(v) ? Math.min(400, Math.max(1, Math.round(v))) : 100;
+    if (ts === m.cfg.ts) return false; m.cfg.ts = ts; return true;
+  };
   $(".mv-cfg-wrap").addEventListener("change", (e) => {
     const m = cfgMon(); if (!m) return;
     if (e.target.matches("[data-cfg-abil]")) { m.ability = e.target.value || null; cfgApply(); }
     else if (e.target.matches("[data-cfg-item]")) { m.cfg.item = e.target.value; cfgApply(); }
     else if (e.target.matches("[data-cfg-nature]")) { m.cfg.nature = e.target.checked; cfgApply(); }
+    // commit (blur/Enter): sync badge + snap the field to the clamped value. Deferred a tick:
+    // replacing the still-focused input inside its own change event re-fires change from the
+    // blur and crashes the innerHTML teardown mid-flight.
+    else if (e.target.matches("[data-cfg-tw],[data-cfg-ts]")) { readAssume(m, e.target); setTimeout(cfgApply, 0); }
+  });
+  // while typing in the number fields, refresh the table live but do NOT re-render the
+  // popover (that would steal focus mid-keystroke)
+  $(".mv-cfg-wrap").addEventListener("input", (e) => {
+    const m = cfgMon(); if (!m) return;
+    if (e.target.matches("[data-cfg-tw],[data-cfg-ts]") && readAssume(m, e.target)) draw();
   });
   $(".mv-cfg-wrap").addEventListener("click", (e) => {
     const m = cfgMon(); if (!m) return;
     if (e.target.closest("[data-cfg-close]")) { state.cfgOpen = null; updateMonUI(); return; }
-    const inv = e.target.closest("[data-cfg-invest]");
-    if (inv) { m.cfg.invest = Number(inv.dataset.cfgInvest); cfgApply(); return; }
+    const sp = e.target.closest("[data-cfg-spread]");
+    if (sp) {   // ±2 points per click, ≤32 into one stat, 66-point pool shared with the other stats
+      const k = sp.dataset.cfgSpread, cur = m.cfg.spread[k] || 0;
+      const others = pointsUsed(m.cfg.spread) - cur;
+      m.cfg.spread[k] = Math.max(0, Math.min(cur + 2 * Number(sp.dataset.dir), CAP, POOL - others));
+      cfgApply(); return;
+    }
     const st = e.target.closest("[data-cfg-stage]");
     if (st) { const k = st.dataset.cfgStage; m.cfg.stages[k] = Math.max(-6, Math.min(6, (m.cfg.stages[k] || 0) + Number(st.dataset.dir))); cfgApply(); return; }
     if (e.target.closest("[data-cfg-reset]")) {
-      m.cfg = { invest: 0, nature: false, stages: { atk: 0, spa: 0, def: 0 }, item: "none" };
+      m.cfg = defaultCfg();
       m.ability = m.defAbility;
       cfgApply();
     }
@@ -411,6 +525,8 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
     }));
 
   contentEl.addEventListener("click", (e) => {
+    const rmc = e.target.closest("[data-rm-custom]");   // ✕ on an invented move's pinned row
+    if (rmc) { state.customMoves = state.customMoves.filter((c) => c.id !== Number(rmc.dataset.rmCustom)); draw(); return; }
     const fo = e.target.closest("th[data-focus]");   // owner sprite header = focus toggle
     if (fo) { toggleFocus(fo.dataset.focus); return; }
     const th = e.target.closest("th.sortable");
@@ -434,6 +550,21 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
     draw();
   }
 
+  // Expected columns — fresh each draw (depend on best-case + loaded mons + focus + ⚙ setups).
+  // Exp. Pow includes the anchor mon's STAB (visible); Eff. Dmg reuses it (no double STAB).
+  function computeCols(m) {
+    const em = expMon();
+    const pf = powerFor(m, em);
+    m._expp = pf ? Math.round(pf.power) : null;
+    m._exppStab = pf ? pf.stab : 1;
+    m._exppNote = pf ? pf.note : "";
+    m._dmg = {};
+    for (const pm of state.mons) { const d = monDmg(pm, m); if (d) m._dmg[pm.slug] = d; }
+    const ed = em ? m._dmg[em.slug] : null;
+    m._expd = ed ? ed.v : null;
+    m._expdNote = ed ? ed.note : "";
+  }
+
   function apply() {
     const q = state.search.trim().toLowerCase();
     const ownSets = state.mons.map((m) => m.moves);
@@ -445,18 +576,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
       for (const f of state.facets) if (!m._fx.facets.has(f)) return false;
       if (state.chance && m._fx.chance < Number(state.chance)) return false;
       for (const f of state.flags) if (!(m.flags || []).includes(f)) return false;
-      // Expected columns — fresh each draw (depend on best-case + loaded mons + focus).
-      // Exp. Pow includes the anchor mon's STAB (visible); Eff. Dmg reuses it (no double STAB).
-      const em = expMon();
-      const pf = powerFor(m, em);
-      m._expp = pf ? Math.round(pf.power) : null;
-      m._exppStab = pf ? pf.stab : 1;
-      m._exppNote = pf ? pf.note : "";
-      m._dmg = {};
-      for (const pm of state.mons) { const d = monDmg(pm, m); if (d) m._dmg[pm.slug] = d; }
-      const ed = em ? m._dmg[em.slug] : null;
-      m._expd = ed ? ed.v : null;
-      m._expdNote = ed ? ed.note : "";
+      computeCols(m);
       if (ownSets.length) {
         const owners = ownSets.reduce((a, s) => a + (s.has(m.id) ? 1 : 0), 0);
         m._own = owners;   // for the Shared column + its sort
@@ -513,21 +633,26 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
     });
     const head = [headArr[0], ownerHead, sharedHead, ...headArr.slice(1)].join("");
     const rowHtml = (m) => {
+      const custom = !!m._custom;
       const flags = (m.flags || []).map((f) => `<span class="mflag">${f}</span>`).join("");
       const cat = m.class[0].toUpperCase();
       // owner cells: the mon's own Eff. Dmg (compact) when it learns a damaging move —
       // side-by-side comparable across the loaded mons; ✓ sprite for status/variable moves.
+      // Invented moves count as learnable by everyone.
       const ownerCells = state.mons.map((pm) => {
-        const learns = pm.moves.has(m.id);
+        const learns = custom || pm.moves.has(m.id);
         const d = learns ? m._dmg[pm.slug] : null;
         const inner = !learns ? ""
           : d ? `<span class="mv-own-dmg" title="${pm.name}: ${sep(d.v)}${d.note ? " · " + d.note : ""}">${compact(d.v)}</span>`
           : `<img class="cm-yes" loading="lazy" alt="✓" title="${pm.name}" src="${pm.sprite}">`;
         return `<td class="mv-owner ${state.focus === pm.slug ? "focus" : ""}">${inner}</td>`;
-      }).join("") + (n >= 2 ? `<td class="num mv-shared">${m._own}/${n}</td>` : "");
+      }).join("") + (n >= 2 ? `<td class="num mv-shared">${custom ? `${n}/${n}` : `${m._own}/${n}`}</td>` : "");
       const tgt = m.target ? `<span class="mv-target ${isSpread(m.target) ? "spread" : ""}">${targetLabel(m.target)}</span>` : "—";
-      return `<tr data-move="${m.id}" title="View move details">
-        <td class="mv-nm"><button class="lens" data-filter="${m.id}" title="Filter roster by this move">🔍</button>${m.name}</td>
+      const nameCell = custom
+        ? `<td class="mv-nm"><button class="mv-cmv-x" data-rm-custom="${m.id}" title="Remove this invented move" aria-label="Remove ${m.name}">✕</button>${m.name}<span class="mv-cmv-tag" title="Invented here — not a real move">invented</span></td>`
+        : `<td class="mv-nm"><button class="lens" data-filter="${m.id}" title="Filter roster by this move">🔍</button>${m.name}</td>`;
+      return `<tr ${custom ? 'class="mv-custom-row"' : `data-move="${m.id}" title="View move details"`}>
+        ${nameCell}
         ${ownerCells}
         <td class="mv-ty">${m.type ? `<span class="type" style="background:${TYPE_COLORS[m.type]}">${m.type}</span>` : "—"}</td>
         <td class="mv-cat"><span class="mv-class mv-${m.class}" title="${m.class}">${cat}</span></td>
@@ -545,10 +670,13 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
           ...(m._ep && m._ep.critNote ? [`<span class="mv-chance often" title="raises Expected damage">${m._ep.critNote}</span>`] : []),
         ].join(" ") || "<span class='muted'>—</span>"}</td>
         <td class="mv-flags">${flags || "<span class='muted'>—</span>"}</td>
-        <td class="num mv-cnt"><span class="rarity ${rarityTier(m.count, data.total).cls}">${m.count}</span></td>
+        <td class="num mv-cnt">${custom ? "<span class='muted'>—</span>" : `<span class="rarity ${rarityTier(m.count, data.total).cls}">${m.count}</span>`}</td>
         <td class="mv-eff">${m.effect || ""}</td>
       </tr>`;
     };
+    // invented moves ride on top of the table — visible through every filter/sort/focus state
+    state.customMoves.forEach(computeCols);
+    const pinned = state.customMoves.map(rowHtml).join("");
     let rows;
     if (focused) {
       // Grouped view: contiguous sections per exact owner-combo, ascending overlap —
@@ -580,7 +708,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter }) 
     } else {
       rows = list.map(rowHtml).join("");
     }
-    contentEl.innerHTML = `<table class="poke-table moves-table"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table>`;
+    contentEl.innerHTML = `<table class="poke-table moves-table"><thead><tr>${head}</tr></thead><tbody>${pinned}${rows}</tbody></table>`;
   }
 
   // Load a set of mons (e.g. the compared roster) → per-mon ownership columns +

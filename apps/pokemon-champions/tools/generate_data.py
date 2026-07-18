@@ -828,7 +828,27 @@ def main():
         meta["effect"] = desc
     print(f"  precise descriptions for {repo_hits}/{len(move_meta)} moves")
 
-    move_id = {mv: idx for idx, mv in enumerate(all_moves)}
+    # Stable move ids: persisted in tools/move_ids.json (name -> id) so ids NEVER shift
+    # across regens — team share codes reference them. Existing names keep their id; new
+    # moves append after the current max. First run seeds from the shipped champions-data.json.
+    ids_path = os.path.join(HERE, "move_ids.json")
+    name_ids = {}
+    if os.path.exists(ids_path):
+        with open(ids_path, "r", encoding="utf-8") as f:
+            name_ids = json.load(f)
+    elif os.path.exists(OUT):
+        with open(OUT, "r", encoding="utf-8") as f:
+            name_ids = {m["name"]: int(i) for i, m in json.load(f)["moves"].items()}
+    next_id = max(name_ids.values(), default=-1) + 1
+    move_id = {}
+    for mv in all_moves:
+        nm = move_meta[mv]["name"]
+        if nm not in name_ids:
+            name_ids[nm] = next_id
+            next_id += 1
+        move_id[mv] = name_ids[nm]
+    with open(ids_path, "w", encoding="utf-8") as f:
+        json.dump(name_ids, f, ensure_ascii=False, indent=0, sort_keys=True)
     move_count = {mv: 0 for mv in all_moves}
 
     # ---- unique abilities ----
