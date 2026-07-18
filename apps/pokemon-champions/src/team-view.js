@@ -20,7 +20,7 @@ function effInfo(mult) {
 const typePill = (t) => `<span class="type" style="background:${TYPE_COLORS[t]}">${t}</span>`;
 const nameOf = (m) => m._display || displayName(m);
 
-export function renderTeamView(container, { data, team, savedTeams = [], notice = "" }) {
+export function renderTeamView(container, { data, team, savedTeams = [], notice = "", share = null }) {
   const chart = data.typeChart;
   const bySlug = new Map(data.pokemon.map((m) => [m.slug, m]));
 
@@ -44,9 +44,17 @@ export function renderTeamView(container, { data, team, savedTeams = [], notice 
       <input class="team-name" placeholder="Team name…" maxlength="30" autocomplete="off">
       <button class="btn-sm" data-save-team ${team.length ? "" : "disabled"}>Save</button>
       <button class="btn-sm" data-new-team ${team.length ? "" : "disabled"}>New</button>
-      <button class="btn-sm" data-share-working ${team.length ? "" : "disabled"} title="Copy a share link for the current team — opening it imports the team on any browser/PC">⤴ Share</button>
-      <input class="tm-import" placeholder="paste a share link/code to import…" autocomplete="off" spellcheck="false">
+      <button class="btn-sm" data-share-working ${team.length ? "" : "disabled"} title="Get a short share link — opening it imports the team on any browser/PC">⤴ Share</button>
+      <input class="tm-import" placeholder="Import: paste a link or code…" autocomplete="off" spellcheck="false">
     </div>
+    ${share ? `<div class="tm-share-pop">
+      <div class="tm-share-head"><b>Share “${share.name}”</b><button class="tc-detail-x" data-share-close aria-label="Close">✕</button></div>
+      <div class="tm-share-row">
+        <input class="tm-share-link" readonly value="${share.url}" onclick="this.select()">
+        <button class="btn accent" data-share-copy>Copy link</button>
+      </div>
+      <small class="muted">Anyone opening this link gets the team imported automatically — works on any browser or PC.</small>
+    </div>` : ""}
     ${notice ? `<div class="tm-notice">${notice}</div>` : ""}
     <div class="tm-saved">${savedRows}</div>
   </div>`;

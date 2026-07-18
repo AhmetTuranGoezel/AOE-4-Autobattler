@@ -69,12 +69,12 @@ async function init() {
     render();
     $("#status").style.display = "none";
     $("#app").style.display = "flex";
-    // shared-team link: #team=<code> imports the team and opens the Team tab
-    if (location.hash.startsWith("#team=")) {
-      const code = location.hash.slice(6);
+    // shared-team link: #t=<code> (or legacy #team=) imports the team and opens the Team tab
+    const th = location.hash.match(/^#(?:t|team)=(.+)$/);
+    if (th) {
       history.replaceState(null, "", location.pathname + location.search);
       switchTab("team");
-      importTeam(code);
+      importTeam(th[1]);
     }
     $("#meta-line").textContent =
       `${data.meta.count} species · ${data.meta.megaCount} Megas · ` +
@@ -675,23 +675,48 @@ function deleteSavedTeam(id) {
   renderTeam();
 }
 
-// ---- team sharing: the team encoded as a URL-safe code (works across browsers/PCs) ----
-// Moves are encoded by NAME (ids are index-based and could shift on a data regen);
-// mon + ability slugs are stable. Decoding validates everything against the loaded data.
-const b64u = (s) => btoa(unescape(encodeURIComponent(s))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-const unb64u = (s) => decodeURIComponent(escape(atob(s.replace(/-/g, "+").replace(/_/g, "/"))));
+// ---- team sharing: a SHORT code in the URL (works across browsers/PCs, no server) ----
+// v2: `2|<name>|pid36.abIdx.m36.m36…` — mons by PokeAPI pid (stable forever), moves by id
+// (ids are pinned permanently via tools/move_ids.json), ability as an index into the mon's
+// ability list. Charset [0-9a-z.|%~-] → URL-hash-safe raw, ~100 chars for a full team.
+// v1 (legacy base64-JSON with move names) still decodes so old links keep working.
+const byPid = () => {
+  if (!state.byPid) state.byPid = new Map(state.all.map((m) => [m.id, m]));
+  return state.byPid;
+};
 function encodeTeam(name, members) {
-  const m = members.map((t) => ({ s: t.slug, a: t.ability || null,
-    v: (t.moves || []).map((id) => state.data.moves[id]?.name).filter(Boolean) }));
-  return b64u(JSON.stringify({ n: name || "Shared team", m }));
+  const mons = members.map((t) => {
+    const mon = state.bySlug.get(t.slug);
+    if (!mon) return null;
+    const ab = t.ability ? (mon.abilities || []).findIndex((a) => a.slug === t.ability) : -1;
+    return [mon.id.toString(36), ab >= 0 ? String(ab) : "", ...(t.moves || []).map((id) => Number(id).toString(36))].join(".");
+  }).filter(Boolean);
+  return `2|${encodeURIComponent(name || "Shared team")}|${mons.join("|")}`;
 }
-const teamShareUrl = (code) => `${location.origin}${location.pathname}#team=${code}`;
+const teamShareUrl = (code) => `${location.origin}${location.pathname}#t=${code}`;
 // → { name, members, dropped: [names…] } or null when the code is unusable.
 function decodeTeam(codeOrUrl) {
   try {
-    const raw = codeOrUrl.trim();
-    const code = raw.includes("#team=") ? raw.slice(raw.indexOf("#team=") + 6) : raw;
-    const d = JSON.parse(unb64u(code));
+    let code = codeOrUrl.trim();
+    const h = code.match(/#(?:t|team)=(.+)$/);
+    if (h) code = h[1];
+    if (code.startsWith("2|")) {
+      const parts = code.split("|");
+      const name = decodeURIComponent(parts[1] || "").slice(0, 30) || "Shared team";
+      const dropped = [];
+      const members = parts.slice(2, 2 + TEAM_MAX).map((seg) => {
+        const [pid36, ab, ...mv36] = seg.split(".");
+        const mon = byPid().get(parseInt(pid36, 36));
+        if (!mon) { dropped.push("#" + pid36); return null; }
+        const moves = mv36.map((x) => parseInt(x, 36)).filter((id) => state.data.moves[id] != null);
+        if (moves.length < mv36.length) dropped.push(`${mon._display}: a move`);
+        const abil = ab !== "" && mon.abilities && mon.abilities[Number(ab)] ? mon.abilities[Number(ab)].slug : undefined;
+        return normMember({ slug: mon.slug, moves, ability: abil });
+      }).filter(Boolean);
+      return members.length ? { name, members, dropped } : null;
+    }
+    // legacy v1: base64url JSON { n, m: [{ s, a, v: [moveNames] }] }
+    const d = JSON.parse(decodeURIComponent(escape(atob(code.replace(/-/g, "+").replace(/_/g, "/")))));
     if (!Array.isArray(d.m)) return null;
     const dropped = [];
     const members = d.m.slice(0, TEAM_MAX).map((e) => {
@@ -706,6 +731,7 @@ function decodeTeam(codeOrUrl) {
   } catch { return null; }
 }
 function importTeam(codeOrUrl) {
+  state.sharePanel = null;
   const t = decodeTeam(codeOrUrl);
   if (!t) { state.teamNotice = "⚠ Couldn't read that team code."; if (teamInited) renderTeam(); return; }
   state.team = t.members;
@@ -717,19 +743,19 @@ function importTeam(codeOrUrl) {
     (t.dropped.length ? ` · dropped (unknown here): ${t.dropped.join(", ")}` : "");
   teamAfterChange();
 }
-// copy a share link; fallback shows the URL in a prompt-style inline field via the notice
+// open the share panel with the short link (copying happens via its button)
 function shareTeam(name, members) {
-  const url = teamShareUrl(encodeTeam(name, members));
-  const done = () => { state.teamNotice = `✓ Share link copied — send it anywhere: opening it imports “${name || "your team"}”.`; if (teamInited) renderTeam(); };
-  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, () => { state.teamNotice = url; if (teamInited) renderTeam(); });
-  else { state.teamNotice = url; if (teamInited) renderTeam(); }
+  state.sharePanel = { name: name || "My team", url: teamShareUrl(encodeTeam(name, members)) };
+  state.teamNotice = "";
+  if (teamInited) renderTeam();
 }
 
 function renderTeam() {
   const team = state.team
     .map((t) => ({ mon: state.bySlug.get(t.slug), moveIds: t.moves, ability: t.ability }))
     .filter((x) => x.mon);
-  renderTeamView($("#team-results"), { data: state.data, team, savedTeams: state.savedTeams, notice: state.teamNotice });
+  renderTeamView($("#team-results"), { data: state.data, team, savedTeams: state.savedTeams,
+    notice: state.teamNotice, share: state.sharePanel });
   attachTeamAutocompletes();
 }
 function syncTeamButtons() {
@@ -978,6 +1004,15 @@ function switchTab(tab) {
       }
       const sh = e.target.closest("[data-share-team]");
       if (sh) { const t = state.savedTeams.find((x) => x.id === sh.dataset.shareTeam); if (t) shareTeam(t.name, t.members); return; }
+      if (e.target.closest("[data-share-close]")) { state.sharePanel = null; renderTeam(); return; }
+      const cp = e.target.closest("[data-share-copy]");
+      if (cp && state.sharePanel) {
+        const inp = $("#team-results .tm-share-link");
+        const ok = () => { cp.textContent = "✓ copied"; setTimeout(() => { if (cp.isConnected) cp.textContent = "Copy link"; }, 1600); };
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(state.sharePanel.url).then(ok, () => { inp?.select(); });
+        else { inp?.select(); document.execCommand && document.execCommand("copy") && ok(); }
+        return;
+      }
       const open = e.target.closest("[data-open]");
       if (open) { openDetail(open.dataset.open); return; }
       const row = e.target.closest(".spd-row[data-slug]");
