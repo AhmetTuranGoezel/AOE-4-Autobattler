@@ -51,6 +51,7 @@ export function initAbilitiesView({ toolbarEl, contentEl, data, onInfo, onFilter
   function draw() {
     const list = apply();
     $(".ab-count").textContent = `${list.length} abilities`;
+    if (!list.length) { contentEl.innerHTML = `<p class="empty">No abilities match your search.</p>`; return; }
     contentEl.innerHTML = `<div class="ability-grid">${list.map((a) => {
       const r = rarityTier(a.count, data.total);
       const preview = a.mons.slice(0, 10).map((m) =>

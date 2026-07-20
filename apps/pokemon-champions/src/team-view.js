@@ -43,7 +43,7 @@ export function renderTeamView(container, { data, team, savedTeams = [], notice 
     <div class="tm-save">
       <input class="team-name" placeholder="Team name…" maxlength="30" autocomplete="off">
       <button class="btn-sm" data-save-team ${team.length ? "" : "disabled"}>Save</button>
-      <button class="btn-sm" data-new-team ${team.length ? "" : "disabled"}>New</button>
+      <button class="btn-sm" data-new-team ${team.length ? "" : "disabled"} title="Clear the current team">Clear team</button>
       <button class="btn-sm" data-share-working ${team.length ? "" : "disabled"} title="Get a short share link — opening it imports the team on any browser/PC">⤴ Share</button>
       <input class="tm-import" placeholder="Import: paste a link or code…" autocomplete="off" spellcheck="false">
     </div>

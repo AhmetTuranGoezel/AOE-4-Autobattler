@@ -63,7 +63,7 @@ function shinyUrl(url) {
   return url.replace("/pokemon/", "/pokemon/shiny/");
 }
 
-export function renderDetail(mon, { data, all, simCtx, statMode, spread, detailShiny }) {
+export function renderDetail(mon, { data, all, simCtx, statMode, spread, detailShiny, pinned }) {
   const e = mon._eff;
   const role = ROLE_META[e.role];
   const max = statScaleMax(statMode);
@@ -151,6 +151,7 @@ export function renderDetail(mon, { data, all, simCtx, statMode, spread, detailS
       ${mon.usagePct != null ? `<div title="M-B ladder usage (pokebase)"><span class="t-lab">Usage</span><span class="t-val">${mon.usagePct}%</span></div>` : ""}
         </div>
         <div class="detail-actions">
+          <button class="btn cmp-detail ${pinned && pinned.has(mon.slug) ? "on" : ""}" data-pin="${mon.slug}" data-pin-icon title="Pin — stays on top of the roster through any filters">${pinned && pinned.has(mon.slug) ? "📌 Pinned" : "📌 Pin"}</button>
           <button class="btn cmp-detail" data-cmp="${mon.slug}" data-cmp-icon>＋ Compare</button>
           <button class="btn cmp-detail" data-team="${mon.slug}" data-team-icon>＋ Team</button>
         </div>
@@ -182,16 +183,11 @@ export function renderDetail(mon, { data, all, simCtx, statMode, spread, detailS
 
     ${renderUsage(mon, data)}
 
-    <section class="detail-sim">
-      <h4>Similar Pokémon</h4>
-      <div class="sim-list">${similar}</div>
-    </section>
-
     <section class="detail-moves">
       <div class="dm-head">
         <h4>Moves <span class="muted">${moves.length}</span></h4>
         <input class="mv-search" type="search" placeholder="Filter moves…" autocomplete="off">
-        <button class="btn-sm dm-browse" data-browse-moves="${mon.slug}" title="Open the Moves tab filtered to this Pokémon">↗ Moves tab</button>
+        <button class="btn-sm dm-browse" data-browse-moves="${mon.slug}" title="Open the Moves tab filtered to this Pokémon">↗ Open in Moves</button>
       </div>
       <div class="dm-scroll">
         <table class="dm-table" data-dsort="type" data-ddir="asc">
@@ -205,6 +201,11 @@ export function renderDetail(mon, { data, all, simCtx, statMode, spread, detailS
           <tbody class="mv-list">${moveList}</tbody>
         </table>
       </div>
+    </section>
+
+    <section class="detail-sim">
+      <h4>Similar Pokémon</h4>
+      <div class="sim-list">${similar}</div>
     </section>
   </div>`;
 }

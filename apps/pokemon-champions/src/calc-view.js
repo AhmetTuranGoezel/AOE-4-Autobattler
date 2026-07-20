@@ -1330,7 +1330,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       </div>
       <div class="cl-sec">
         <div class="cl-sec-head"><span>Attackers — global preset</span>
-          <button class="cl-acc ${eb.useAccuracy ? "on" : ""}" data-acc-toggle title="Weight ranking by accuracy">Accuracy ${eb.useAccuracy ? "on" : "off"}</button></div>
+          <button class="cl-acc ${eb.useAccuracy ? "on" : ""}" data-acc-toggle title="Weight damage by each move's accuracy (off = potential damage)">${eb.useAccuracy ? "✓ " : ""}weight by accuracy</button></div>
         <div class="cl-attacker">
           <div class="cl-stat"><span class="cl-stat-lab">Invest</span>
             <div class="seg cl-invest">${[[32, "Max"], [16, "Half"], [0, "None"]].map(([v, l]) => `<button data-atkinvest="${v}" class="${eb.atkInvest === v ? "active" : ""}">${l}</button>`).join("")}</div></div>
@@ -1678,7 +1678,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       </div>
       <div class="cl-sec">
         <div class="cl-sec-head"><span>Attacker offense</span>
-          <button class="cl-acc ${eb.useAccuracy ? "on" : ""}" data-acc-toggle title="Weight ranking by accuracy">Accuracy ${eb.useAccuracy ? "on" : "off"}</button></div>
+          <button class="cl-acc ${eb.useAccuracy ? "on" : ""}" data-acc-toggle title="Weight damage by each move's accuracy (off = potential damage)">${eb.useAccuracy ? "✓ " : ""}weight by accuracy</button></div>
         <div class="cl-attacker">
           <div class="cl-stat"><span class="cl-stat-lab">Invest</span>
             <div class="seg cl-invest">${[[32, "Max"], [16, "Half"], [0, "None"]].map(([v, l]) => `<button data-revinvest="${v}" class="${c.invest === v ? "active" : ""}">${l}</button>`).join("")}</div></div>

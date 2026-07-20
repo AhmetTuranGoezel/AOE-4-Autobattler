@@ -42,11 +42,6 @@
             <button data-statmode="base">Base</button>
             <button data-statmode="lv50" class="active">Lv 50</button>
           </div>
-          <div class="seg mega-seg">
-            <button data-mega="hide" class="active">Hide Mega</button>
-            <button data-mega="only">Only Mega</button>
-            <button data-mega="all">All</button>
-          </div>
         </div>
         <div class="tb-right">
           <button id="tb-extras" class="btn" title="Show Weight (kg) and M-B usage % columns in the table">＋ kg/％</button>
@@ -64,7 +59,7 @@
       <aside id="filters" class="filters">
         <div class="filters-head"><h2>Filters</h2>
           <div class="filters-head-btns">
-            <button id="btn-reset" class="btn-sm">Reset all</button>
+            <button id="btn-reset" class="btn-sm">Clear all</button>
             <button id="filters-close" class="btn-sm filters-close" aria-label="Close filters">✕</button>
           </div>
         </div>
@@ -107,6 +102,12 @@
         </div>
         <div class="fgroup"><h3>Stat ranges</h3><div id="f-stats"></div></div>
         <div class="fgroup">
+          <h3>Include</h3>
+          <div class="seg mega-seg">
+            <button data-mega="all">All</button>
+            <button data-mega="hide" class="active">No Mega</button>
+            <button data-mega="only">Only Mega</button>
+          </div>
           <label class="fcheck"><input type="checkbox" id="f-available"> Available only</label>
           <small class="fhint">Hides Pokémon that exist in the game's data but can't be obtained / aren't playable in Champions (e.g. Pawmot).</small>
         </div>

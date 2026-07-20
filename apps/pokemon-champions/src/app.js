@@ -119,9 +119,14 @@ function render() {
   const unpinned = pinned.length ? sorted.filter((m) => !state.pinned.has(m.slug)) : sorted;
   const cmp = new Set(state.compare);
   const max = statScaleMax(state.statMode);
-  $("#results").innerHTML = renderActiveFilters(state.filters) + (state.view === "table"
-    ? renderTable(unpinned, state.sort, cmp, max, state.extras, pinned)
-    : renderGrid(unpinned, cmp, max, pinned));
+  const teamSet = new Set(state.team.map((t) => t.slug));
+  const body = state.view === "table"
+    ? renderTable(unpinned, state.sort, cmp, max, state.extras, pinned, teamSet)
+    : renderGrid(unpinned, cmp, max, pinned, teamSet);
+  // friendly prompt instead of a blank pane when filters/search exclude everything
+  const empty = sorted.length === 0
+    ? `<p class="empty">No Pokémon match these filters. <button data-clear-all>Clear all</button></p>` : "";
+  $("#results").innerHTML = renderActiveFilters(state.filters) + body + empty;
   $("#result-count").textContent = `${sorted.length} Pokémon`;
   const n = activeFilterCount(state.filters);
   const badge = $("#filter-badge");
@@ -448,11 +453,20 @@ function openDetail(slug) {
   if (slug !== state.selected) state.spread = emptySpread(); // fresh mon → fresh points
   if (!prev || prev.dex !== mon.dex) state.detailShiny = false; // reset shiny only for a new species (keep across base⇄mega)
   state.selected = slug;
-  $("#detail-body").innerHTML = renderDetail(mon, state);
+  $("#detail-body").innerHTML = renderDetail(mon, { ...state, pinned: state.pinned });
   $("#detail").classList.add("open");
   syncCmpButtons();
   syncTeamButtons();
   filterDetailMoves(); // apply the default (type-grouped) move ordering
+}
+
+// keep the detail header's labeled Pin button in sync (roster pins are icon-only, unaffected)
+function syncPinButtons() {
+  document.querySelectorAll("[data-pin][data-pin-icon]").forEach((b) => {
+    const on = state.pinned.has(b.dataset.pin);
+    b.classList.toggle("on", on);
+    b.textContent = on ? "📌 Pinned" : "📌 Pin";
+  });
 }
 
 function toggleDetailShiny() {
@@ -763,6 +777,7 @@ function syncTeamButtons() {
     const on = state.team.some((t) => t.slug === b.dataset.team);
     b.classList.toggle("on", on);
     if (b.hasAttribute("data-team-icon")) b.textContent = on ? "✓ In team" : "＋ Team";
+    else if (b.classList.contains("team-add")) { b.textContent = on ? "✓" : "＋T"; b.title = on ? "In your team" : "Add to team"; }
   });
 }
 
@@ -817,6 +832,8 @@ function bindGlobal() {
     if (e.target.closest("[data-pin-clear]")) { state.pinned.clear(); savePins(); render(); return; }
     const c = e.target.closest("[data-cmp]");
     if (c) { toggleCompare(c.dataset.cmp); return; }
+    const tm = e.target.closest("[data-team]");
+    if (tm) { toggleTeam(tm.dataset.team); return; }
     const th = e.target.closest("th.sortable");
     if (th) {
       const key = th.dataset.sort;
@@ -858,6 +875,8 @@ function bindGlobal() {
     const ptOpt = e.target.closest("[data-pt-opt]");
     if (ptOpt) { state.spread = optimizeSpread(state.bySlug.get(state.selected), ptOpt.dataset.ptOpt, state.spread); tickLab(); return; }
     if (e.target.closest("[data-pt-reset]")) { state.spread = emptySpread(); tickLab(); return; }
+    const pn = e.target.closest("[data-pin]");
+    if (pn) { togglePin(pn.dataset.pin); syncPinButtons(); return; }
     const c = e.target.closest("[data-cmp]");
     if (c) { toggleCompare(c.dataset.cmp); return; }
     const tm = e.target.closest("[data-team]");
@@ -962,6 +981,8 @@ function switchTab(tab) {
   $(".tb-moves").hidden = tab !== "moves";
   $(".tb-abilities").hidden = tab !== "abilities";
   $("#filters").style.display = tab === "pokemon" ? "" : "none";
+  // the "N species · M Megas · Regulation…" meta line only describes the roster — hide it elsewhere
+  $("#meta-line").hidden = tab !== "pokemon";
   $("#results").hidden = tab !== "pokemon";
   $("#moves-results").hidden = tab !== "moves";
   $("#abilities-results").hidden = tab !== "abilities";
