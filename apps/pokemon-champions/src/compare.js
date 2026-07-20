@@ -76,7 +76,7 @@ export function renderCompare(mons, data, max = 200, anchorSlug = null, movesFil
           <button data-cmp-moves="all" class="${movesFilter === "all" ? "active" : ""}">All</button>
           <button data-cmp-moves="diff" class="${movesFilter === "diff" ? "active" : ""}">Only differences</button>
         </div>
-        <button class="btn-sm cm-open-moves" data-open-moves title="See these movepools with full detail (power, target, flags, effect…) and filter">Open in Moves page →</button>
+        <button class="btn-sm cm-open-moves" data-open-moves title="See these movepools with full detail (power, target, flags, effect…) and filter">↗ Open in Moves</button>
       </div>
     </div>
     <div class="cm-scroll"><table class="cm-table"><thead><tr><th>Move</th>

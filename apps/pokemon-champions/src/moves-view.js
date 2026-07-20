@@ -150,7 +150,9 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
       excluded: loadRankExcluded(),      // move ids kept out of the archetype best-move pick
       ignoredAbils: loadRankAbils(),     // ability slugs treated as None for every ranked mon
       editing: null,                     // slug whose inline per-mon ⚙ panel is open
-      preset: { invest: 0, nature: false, boost: 0, item: "none" } } };   // global build applied to every un-customized mon
+      presetOpen: false,                 // whether the global-build editor is expanded
+      // global build (same shape as a per-mon cfg, minus ability) applied to every un-customized mon
+      preset: { spread: { atk: 0, spa: 0, def: 0, spe: 0 }, stages: { atk: 0, spa: 0, def: 0, spe: 0 }, nature: "", item: "none" } } };
   const saveRankExcluded = () => localStorage.setItem(RANK_EXCL_KEY, JSON.stringify([...state.rq.excluded]));
   const saveRankAbils = () => localStorage.setItem(RANK_ABIL_KEY, JSON.stringify([...state.rq.ignoredAbils]));
 
@@ -167,11 +169,13 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
     if (state.expBest && ep.cond) v *= ep.cond.mult;         // conditional signature effects
     return v;
   }
-  // A mon's effective stat: Lv50 base + distributed points, ×1.1 nature (attacking stat), ×boost stage.
+  // A mon's effective stat: Lv50 base + distributed points, ×1.1 nature ON THE CHOSEN STAT, ×boost stage.
+  // `cfg.nature` is a stat key ("atk"|"spa"|"def"|"spe"|"") — a real nature boosts one specific stat,
+  // so a Def nature only helps the Def a Body Press attacks with, a Spe nature only Gyro Ball, etc.
   function effStatOf(mon, key) {
     const base = { atk: mon.lvAtk, spa: mon.lvSpa, def: mon.lvDef, spe: mon.lvSpe }[key];
     const c = mon.cfg;
-    const nat = c.nature && (key === "atk" || key === "spa" || key === "def") ? 1.1 : 1;   // def for Body Press setups
+    const nat = c.nature === key ? 1.1 : 1;
     return Math.floor(Math.floor((base + (c.spread[key] || 0)) * nat) * stageMult(c.stages[key] || 0));
   }
   // BP of weight/speed-scaled moves, from the mon + the popover's assumed target (kg / Spe).
@@ -258,28 +262,30 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
       <button data-mvmode="rank">🏆 Best users</button>
     </div>
     <div class="mv-expctl" title="Exp. Pow = Power × Accuracy × crit × multi-hit × spread(×0.75). Eff. Dmg = 0.44 × Exp. Pow × the mon's effective Atk/Sp.Atk (⚙ setup) with its STAB + ability — compare against effective HP (HP×Def).">
-      <label class="mv-exp-bestwrap"><input type="checkbox" class="mv-exp-best"> best case <small>(conditions + abilities)</small></label>
-      <label class="mv-exp-bestwrap" title="Off = potential damage: low-accuracy moves count as if they always hit"><input type="checkbox" class="mv-exp-acc" checked> × accuracy</label>
+      <label class="mv-exp-bestwrap" title="Assume conditional move effects and pinch abilities (Torrent …) are active"><input type="checkbox" class="mv-exp-best"> assume conditions active</label>
+      <label class="mv-exp-bestwrap" title="Off = potential damage: low-accuracy moves count as if they always hit"><input type="checkbox" class="mv-exp-acc" checked> weight by accuracy</label>
     </div>
     <span class="count mv-count"></span>
     <div class="mv-browse-ctls">
       <input class="search mv-search" type="search" placeholder="Search move or effect…" autocomplete="off">
-      <input class="search mv-mon" list="mv-mon-list" placeholder="Add Pokémon owners…" autocomplete="off">
-      <datalist id="mv-mon-list">${data.pokemon.map((m) => `<option value="${m._display || displayName(m)}">`).join("")}</datalist>
       <div class="seg mv-cat">
         <button data-cat="" class="active">All</button>
         <button data-cat="physical">Phys</button>
         <button data-cat="special">Spec</button>
         <button data-cat="status">Status</button>
       </div>
-      <div class="seg mv-own" hidden>
-        <button data-own="any" class="active">Owned by any</button>
-        <button data-own="all">Owned by all</button>
-      </div>
       <button class="btn-sm mv-cmv-btn" title="Invent a move to theorize — pinned on top of the table and computed for every loaded Pokémon as if all could learn it">＋ custom move</button>
-      <button class="btn mv-filter-btn" title="More filters — mechanical flags (Sound, Contact, …); on phones also the type & finder rows">☰ Filters</button>
-      <span class="mv-hint">Click a column to sort · Shift-click adds a tiebreaker · <button class="mv-reset">reset</button></span>
-      <div class="mv-mon-chips"></div>
+      <button class="btn mv-filter-btn" title="Mechanical flags (Sound, Contact, …); on phones also the type & finder rows">☰ Flags</button>
+      <!-- Owners cluster: add a Pokémon → its chips → owned-by-any/all, kept together -->
+      <div class="mv-owners">
+        <input class="search mv-mon" list="mv-mon-list" placeholder="Add Pokémon owners…" autocomplete="off">
+        <datalist id="mv-mon-list">${data.pokemon.map((m) => `<option value="${m._display || displayName(m)}">`).join("")}</datalist>
+        <div class="mv-mon-chips"></div>
+        <div class="seg mv-own" hidden>
+          <button data-own="any" class="active">Owned by any</button>
+          <button data-own="all">Owned by all</button>
+        </div>
+      </div>
       <div class="mv-cfg-wrap"></div>
       <div class="mv-cmv" hidden>
         <span class="mv-lab">Custom move</span>
@@ -290,6 +296,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
         <button class="btn-sm" data-cmv-add>＋ Add</button>
         <small class="muted">plain single hit · 100% acc · STAB if the type matches · treated as learnable by all loaded mons</small>
       </div>
+      <span class="mv-hint">Click a column to sort · Shift-click adds a tiebreaker · <button class="mv-reset">reset</button></span>
       <div class="type-chips mv-types">${TYPES.map((t) =>
         `<button class="type-chip" data-mvtype="${t}"><span class="type" style="background:${TYPE_COLORS[t]}">${t}</span></button>`).join("")}</div>
       <div class="mv-finder">
@@ -322,17 +329,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
           <div class="mvr-exchips"></div>
         </div>
       </div>
-      <div class="mvr-preset" title="Applied to every Pokémon that you haven't individually customized — so stat-multiplying abilities (Huge Power …) and setups rank the way they really play.">
-        <span class="mv-lab">Everyone runs</span>
-        <div class="seg mvr-invest">
-          <button data-mvrinvest="0" class="active">No invest</button>
-          <button data-mvrinvest="16">+16</button>
-          <button data-mvrinvest="32">Max +32</button>
-        </div>
-        <label class="cl-toggle" title="+10% on the attacking stat"><input type="checkbox" class="mvr-nature"> +10% nature</label>
-        <div class="cl-stat" title="Global boost stages (Swords Dance / Nasty Plot …) on the attacking stat"><span class="cl-stat-lab">Boost</span><div class="cl-step"><button data-mvrboost="-1">−</button><b class="mvr-boostv">+0</b><button data-mvrboost="1">+</button></div></div>
-        <div class="cl-abil"><span class="cl-stat-lab">Item</span>${Object.entries(OFF_ITEMS).map(([k, v]) => `<button class="tm-abil-chip" data-mvritem="${k}">${v.label}</button>`).join("")}</div>
-      </div>
+      <div class="mvr-preset"></div>
       <div class="mvr-opts">
         <div class="seg mvr-mega">
           <button data-mvrmega="all" class="active">All</button>
@@ -350,8 +347,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
         <div class="ac-wrap mvr-acwrap"><input class="search mvr-abil-input" placeholder="Ignore an ability (saved)…" autocomplete="off" title="Treat an ability as inactive for EVERY ranked Pokémon — e.g. Torrent/Overgrow rarely trigger. Saved list."></div>
         <div class="mvr-abchips"></div>
       </div>
-    </div>
-    <span class="count mv-count"></span>`;
+    </div>`;
 
   const $ = (s) => toolbarEl.querySelector(s);
 
@@ -386,6 +382,10 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
     ${e.dmgAbils.map((a) => `<button class="tm-abil-chip ${e.ability === a.slug ? "on" : ""}" data-cfg-abil="${a.slug}">${a.name}</button>`).join("")}</div>`;
   const itemChipsHtml = (e) => `<div class="cl-abil"><span class="cl-stat-lab">Item</span>
     ${Object.entries(OFF_ITEMS).map(([k, v]) => `<button class="tm-abil-chip ${e.cfg.item === k ? "on" : ""}" data-cfg-item="${k}">${v.label}</button>`).join("")}</div>`;
+  // Nature = which stat gets ×1.1 (a real nature boosts ONE stat). "" = neutral.
+  const NATURES = [["", "Neutral"], ["atk", "Atk"], ["spa", "Sp.Atk"], ["def", "Def"], ["spe", "Speed"]];
+  const natureChipsHtml = (e) => `<div class="cl-abil" title="A boosting nature: +10% to the one stat you pick — e.g. a Def nature helps Body Press attackers"><span class="cl-stat-lab">Nature +10%</span>
+    ${NATURES.map(([k, l]) => `<button class="tm-abil-chip ${(e.cfg.nature || "") === k ? "on" : ""}" data-cfg-nature="${k}">${l}</button>`).join("")}</div>`;
   function cfgEditorBody(e, { assume = false } = {}) {
     const c = e.cfg;
     const used = pointsUsed(c.spread);
@@ -394,12 +394,9 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
     return `
       ${e.dmgAbils.length ? abilChipsHtml(e) : ""}
       ${itemChipsHtml(e)}
-      <div class="mv-cfg-grid">
-        <label class="cl-toggle" title="+10% on the attacking stat"><input type="checkbox" data-cfg-nature ${c.nature ? "checked" : ""}> +10% nature</label>
-        <button class="btn-sm" data-cfg-reset title="Back to defaults">↺ reset</button>
-      </div>
+      ${natureChipsHtml(e)}
       <div class="mv-cfg-sec">
-        <div class="mv-cfg-sec-head"><span>Stat points</span><span class="cl-points ${used > POOL ? "over" : ""}" title="Champions: ${POOL} points to distribute, at most ${CAP} into one stat">Points ${used}/${POOL}</span></div>
+        <div class="mv-cfg-sec-head"><span>Stat points</span><span class="cl-points ${used > POOL ? "over" : ""}" title="Champions: ${POOL} points to distribute, at most ${CAP} into one stat">Points ${used}/${POOL}</span><button class="btn-sm" data-cfg-reset title="Back to defaults">↺ reset</button></div>
         <div class="mv-cfg-grid">${pt("atk", "Atk")}${pt("spa", "Sp.Atk")}${pt("def", "Def", "Body Press attacks with Defense")}${pt("spe", "Speed", "Gyro Ball / Electro Ball power scales with Speed")}</div>
       </div>
       <div class="mv-cfg-sec">
@@ -420,6 +417,8 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
     if (ab) { e.ability = ab.dataset.cfgAbil || null; return true; }
     const it = target.closest("[data-cfg-item]");
     if (it) { e.cfg.item = it.dataset.cfgItem; return true; }
+    const nt = target.closest("[data-cfg-nature]");
+    if (nt) { e.cfg.nature = nt.dataset.cfgNature || ""; return true; }
     const sp = target.closest("[data-cfg-spread]");
     if (sp) {   // ±2 points per click, ≤32 into one stat, 66-point pool shared with the other stats
       const k = sp.dataset.cfgSpread, cur = e.cfg.spread[k] || 0, others = pointsUsed(e.cfg.spread) - cur;
@@ -431,8 +430,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
     if (target.closest("[data-cfg-reset]")) { e.cfg = defaultCfg(); e.ability = e.defAbility; return true; }
     return false;
   }
-  function cfgChange(e, target) {
-    if (target.matches("[data-cfg-nature]")) { e.cfg.nature = target.checked; return true; }
+  function cfgChange(e, target) {   // nature is now click-based chips; only the tw/ts number inputs use change
     if (target.matches("[data-cfg-tw],[data-cfg-ts]")) return readAssume(e, target);
     return false;
   }
@@ -449,12 +447,12 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
   // A compact summary of a ⚙ setup — the stat half (points / nature / boosts / item) and, with the
   // ability prepended, the whole thing (browse chips). Split so rank rows can hide the stat half when
   // it just mirrors the global preset.
+  const STAT_ABBR = { atk: "Atk", spa: "SpA", def: "Def", spe: "Spe" };
   function cfgStatParts(e) {
     const c = e.cfg, parts = [];
-    const pts = pointsUsed(c.spread);
-    if (pts) parts.push(`${pts} pts`);
-    if (c.nature) parts.push("+nat");
-    ["atk", "spa", "def", "spe"].forEach((k) => { if (c.stages[k]) parts.push(`${c.stages[k] > 0 ? "+" : ""}${c.stages[k]} ${{ atk: "Atk", spa: "SpA", def: "Def", spe: "Spe" }[k]}`); });
+    ["atk", "spa", "def", "spe"].forEach((k) => { if (c.spread[k]) parts.push(`${c.spread[k]} ${STAT_ABBR[k]}`); });   // per-stat points (which stat matters)
+    if (c.nature) parts.push(`${STAT_ABBR[c.nature]}+nat`);
+    ["atk", "spa", "def", "spe"].forEach((k) => { if (c.stages[k]) parts.push(`${c.stages[k] > 0 ? "+" : ""}${c.stages[k]} ${STAT_ABBR[k]} stage`); });
     if (c.item !== "none") parts.push((OFF_ITEMS[c.item] || {}).label);
     return parts;
   }
@@ -463,7 +461,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
   // The per-mon context the Expected columns need: Lv50 attacking stats, typing (STAB),
   // raw stats (Protosynthesis picks the highest), damage-relevant abilities + the default,
   // weight + Lv50 Spe for the weight/speed-scaled moves.
-  const defaultCfg = () => ({ spread: { atk: 0, spa: 0, def: 0, spe: 0 }, nature: false,
+  const defaultCfg = () => ({ spread: { atk: 0, spa: 0, def: 0, spe: 0 }, nature: "",
     stages: { atk: 0, spa: 0, def: 0, spe: 0 }, item: "none", tw: 70, ts: 100 });
   function monEntry(mon) {
     const lv = statsFor(mon, "lv50");
@@ -525,16 +523,16 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
     }
     return rankMons;
   };
-  // The global preset as a cfg: invest goes into BOTH offense stats (each move uses whichever it
-  // attacks with), nature/boost too; item as-is. Weight/speed target stays global (set in rankFor).
+  // The global build is a full cfg (per-stat points + per-stat boosts + a specific nature + item),
+  // exactly like a per-mon setup. Each seeded copy is deep-cloned + gets the shared weight/Spe target.
+  const presetDefaultCfg = () => ({ spread: { atk: 0, spa: 0, def: 0, spe: 0 }, stages: { atk: 0, spa: 0, def: 0, spe: 0 }, nature: "", item: "none" });
   function presetToCfg() {
     const p = state.rq.preset;
-    return { spread: { atk: p.invest, spa: p.invest, def: 0, spe: 0 }, nature: p.nature,
-      stages: { atk: p.boost, spa: p.boost, def: 0, spe: 0 }, item: p.item, tw: state.rq.tw, ts: state.rq.ts };
+    return { spread: { ...p.spread }, stages: { ...p.stages }, nature: p.nature, item: p.item, tw: state.rq.tw, ts: state.rq.ts };
   }
   // Seed the preset onto every mon the user hasn't individually customized (touched).
   function applyPreset() { if (rankMons) for (const e of rankMons) if (!e.touched) e.cfg = presetToCfg(); }
-  const presetActive = () => { const p = state.rq.preset; return p.invest || p.nature || p.boost || p.item !== "none"; };
+  const presetActive = () => { const p = state.rq.preset; return pointsUsed(p.spread) > 0 || Object.values(p.stages).some((v) => v) || p.nature || p.item !== "none"; };
   const abilName = (slug) => (data.abilities[slug] || {}).name || slug;
   // Damage for one mon + move using its CHOSEN ability, minus any globally-ignored ability (→ None).
   function rankDmg(e, m) {
@@ -588,11 +586,12 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
     toolbarEl.querySelectorAll("[data-mvrcat]").forEach((b) => b.classList.toggle("active", b.dataset.mvrcat === q.cat));
     toolbarEl.querySelectorAll("[data-mvrtype]").forEach((b) => b.classList.toggle("on", b.dataset.mvrtype === q.type));
     toolbarEl.querySelectorAll("[data-mvrmega]").forEach((b) => b.classList.toggle("active", b.dataset.mvrmega === q.mega));
-    // global preset actives
-    toolbarEl.querySelectorAll("[data-mvrinvest]").forEach((b) => b.classList.toggle("active", Number(b.dataset.mvrinvest) === q.preset.invest));
-    toolbarEl.querySelectorAll("[data-mvritem]").forEach((b) => b.classList.toggle("on", b.dataset.mvritem === q.preset.item));
-    const bv = $(".mvr-boostv"); if (bv) bv.textContent = `${q.preset.boost >= 0 ? "+" : ""}${q.preset.boost}`;
-    const nat = $(".mvr-nature"); if (nat) nat.checked = q.preset.nature;
+    // global build — a collapsible full cfg editor (reuses the same controls as the per-mon ⚙)
+    const sum = presetActive() ? cfgStatParts({ cfg: q.preset }).join(" · ") : "none — every Pokémon at base Lv50";
+    $(".mvr-preset").innerHTML = `
+      <button class="mvr-preset-toggle ${q.presetOpen ? "open" : ""} ${presetActive() ? "has" : ""}" data-preset-toggle title="A build applied to every Pokémon you haven't individually customized">
+        🛠 Everyone runs <b>${sum}</b> <span class="mvr-preset-caret">${q.presetOpen ? "▾" : "▸"}</span></button>
+      ${q.presetOpen ? `<div class="mvr-preset-edit">${cfgEditorBody({ cfg: q.preset, dmgAbils: [] }, { assume: false })}</div>` : ""}`;
   }
   // Every damaging move the mon learns, with its Eff.Dmg under the mon's current setup — sorted desc.
   // Same math as the ranking (rankDmg respects ability / cfg / useAcc / expBest / ignored abilities).
@@ -669,8 +668,8 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
       </div>${editing ? monPanel(e, mv.id) : ""}`;
     };
     const presetNote = presetActive()
-      ? `Global build: <b>${q.preset.invest ? `+${q.preset.invest} invest` : "no invest"}${q.preset.nature ? " · +nat" : ""}${q.preset.boost ? ` · ${q.preset.boost > 0 ? "+" : ""}${q.preset.boost} boost` : ""}${q.preset.item !== "none" ? ` · ${(OFF_ITEMS[q.preset.item] || {}).label}` : ""}</b> on every Pokémon (individually-customized ✎ ones keep their own).`
-      : `Base Lv50 stats — set a global build above (<b>Everyone runs</b>) so stat-multiplying abilities rank realistically.`;
+      ? `Global build: <b>${cfgStatParts({ cfg: q.preset }).join(" · ")}</b> on every Pokémon (individually-customized ✎ ones keep their own).`
+      : `Base Lv50 stats — set a global build above (<b>Everyone runs</b>) so stat-multiplying abilities and Body-Press/weight setups rank realistically.`;
     contentEl.innerHTML = `
       <p class="mvr-note">${presetNote} Click a <b>Pokémon</b> (or <b>⚙</b>) to see <b>every move's effective damage</b> and override its ability/stats/boosts/item; click a move to open it${m ? "" : ", or <b>✕</b> to drop it from the pick"}${state.useAcc ? "" : "; accuracy is ignored (potential damage)"}.</p>
       ${top.length ? `<div class="mvr-list">${top.map(rowHtml).join("")}</div>` : `<p class="ehp-empty">${m ? "No Pokémon learns this move under the current Mega/Available filters." : "No match — pick a move above, or a type/category."}</p>`}
@@ -728,12 +727,14 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
     draw();
   }));
   $(".mvr-avail").addEventListener("change", (e) => { state.rq.avail = e.target.checked; draw(); });
-  // global preset — re-seeds every un-customized mon, then re-ranks
-  const applyPresetDraw = () => { applyPreset(); draw(); };
-  toolbarEl.querySelectorAll("[data-mvrinvest]").forEach((b) => b.addEventListener("click", () => { state.rq.preset.invest = Number(b.dataset.mvrinvest); applyPresetDraw(); }));
-  toolbarEl.querySelectorAll("[data-mvritem]").forEach((b) => b.addEventListener("click", () => { state.rq.preset.item = state.rq.preset.item === b.dataset.mvritem ? "none" : b.dataset.mvritem; applyPresetDraw(); }));
-  toolbarEl.querySelectorAll("[data-mvrboost]").forEach((b) => b.addEventListener("click", () => { state.rq.preset.boost = Math.max(-6, Math.min(6, state.rq.preset.boost + Number(b.dataset.mvrboost))); applyPresetDraw(); }));
-  $(".mvr-nature").addEventListener("change", (e) => { state.rq.preset.nature = e.target.checked; applyPresetDraw(); });
+  // global build — the same cfg editor as a per-mon ⚙, editing state.rq.preset; each change re-seeds
+  // every un-customized mon then re-ranks. Delegated (the block re-renders on every draw).
+  $(".mvr-preset").addEventListener("click", (e) => {
+    if (e.target.closest("[data-preset-toggle]")) { state.rq.presetOpen = !state.rq.presetOpen; drawRank(); return; }
+    if (!e.target.closest(".mvr-preset-edit")) return;
+    if (e.target.closest("[data-cfg-reset]")) { state.rq.preset = presetDefaultCfg(); applyPreset(); draw(); return; }
+    if (cfgClick({ cfg: state.rq.preset }, e.target)) { applyPreset(); draw(); }   // wrapper mutates rq.preset in place
+  });
   // assumed-target inputs: live-update on input; the fields are never re-rendered, so no focus loss
   const readRankAssume = () => {
     const tw = parseFloat($(".mvr-tw").value), ts = parseFloat($(".mvr-ts").value);
@@ -816,7 +817,8 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
     draw();
   }));
   $(".mv-reset").addEventListener("click", () => { state.sort = structuredClone(DEFAULT_SORT); draw(); });
-  // phone: the chip filter groups collapse behind this toggle (CSS shows the button ≤640px only)
+  // ☰ Flags reveals the mechanical-flag chip row (hidden by default; the type/finder rows also
+  // collapse behind it on phones)
   $(".mv-filter-btn").addEventListener("click", () => {
     const open = toolbarEl.classList.toggle("mv-chips-open");
     $(".mv-filter-btn").classList.toggle("active", open);
@@ -877,7 +879,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
       // reset means "rejoin the global preset" here, not "back to base zero"
       if (e.target.closest("[data-cfg-reset]")) { en.touched = false; en.cfg = presetToCfg(); en.ability = en.defAbility; drawRank(); return; }
       if (cfgClick(en, e.target)) {
-        if (e.target.closest("[data-cfg-spread],[data-cfg-stage],[data-cfg-item]")) en.touched = true;  // stat override (not ability)
+        if (e.target.closest("[data-cfg-spread],[data-cfg-stage],[data-cfg-item],[data-cfg-nature]")) en.touched = true;  // stat override (not ability)
         drawRank();
       }
       return;

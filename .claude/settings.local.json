@@ -125,7 +125,8 @@
       "Bash(python \"C:/Users/ahmet/AppData/Local/Temp/claude/c--Users-ahmet-Desktop-VSCode-Stuff-Owl-AoE4-Unit-Battler/86e555fd-9664-4fa4-9d7d-eebcb04470c9/scratchpad/verifyN.py\")",
       "PowerShell(python \"C:\\\\Users\\\\ahmet\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-ahmet-Desktop-VSCode-Stuff-Owl-AoE4-Unit-Battler\\\\3519afb2-013c-4076-b610-5925fdd3bf61\\\\scratchpad\\\\check_pokebase_shiny.py\")",
       "PowerShell(python \"C:\\\\Users\\\\ahmet\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-ahmet-Desktop-VSCode-Stuff-Owl-AoE4-Unit-Battler\\\\3519afb2-013c-4076-b610-5925fdd3bf61\\\\scratchpad\\\\verify_teamcheck.py\")",
-      "Bash(python \"C:\\\\Users\\\\ahmet\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-ahmet-Desktop-VSCode-Stuff-Owl-AoE4-Unit-Battler\\\\3519afb2-013c-4076-b610-5925fdd3bf61\\\\scratchpad\\\\verify_rank3.py\")"
+      "Bash(python \"C:\\\\Users\\\\ahmet\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-ahmet-Desktop-VSCode-Stuff-Owl-AoE4-Unit-Battler\\\\3519afb2-013c-4076-b610-5925fdd3bf61\\\\scratchpad\\\\verify_rank3.py\")",
+      "Bash(grep -n \"^\\\\.cmp \\\\|^\\\\.cmp{\\\\|^\\\\.cmp,\" \"c:\\\\Users\\\\ahmet\\\\Desktop\\\\VSCode Stuff\\\\Owl AoE4 Unit Battler\\\\apps\\\\pokemon-champions\\\\style.css\")"
     ]
   }
 }
