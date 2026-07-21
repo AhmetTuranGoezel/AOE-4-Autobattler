@@ -6,7 +6,7 @@ import { TYPES, TYPE_COLORS, displayName, grassKnotBP, formFamily } from "./data
 import { statsFor, roleOf } from "./effective-stats.js";
 import { attachAutocomplete } from "./autocomplete.js";
 import { defaultAbility, applyAbility } from "./type-defense.js";
-import { POOL, CAP, pointsUsed } from "./stat-lab.js";
+import { POOL, CAP, pointsUsed, optimizeSpread, emptySpread } from "./stat-lab.js";
 import { hasFlag, OFF_ABIL, abilityMods, hiStatOf, ATE_ABIL, PROTEAN, offDefaultAbility, stageMult, OFF_ITEMS } from "./offense-model.js";
 
 const pokeRound = (v) => { const f = Math.floor(v); return v - f > 0.5 ? f + 1 : f; };
@@ -857,9 +857,10 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
   // Reverse mode: a defender at the chosen basis (ladder set | base 0-invest), plus any
   // per-defender overrides. defenderCfg is also what the row set-line and panel display.
   function defenderCfg(mon) {
-    const basis = eb.revBasis === "base"
-      ? { ...newTargetCfg(), slug: mon.slug, ability: offDefaultAbility(mon) }
-      : usageCfg(mon);
+    let basis;
+    if (eb.revBasis === "base") basis = { ...newTargetCfg(), slug: mon.slug, ability: offDefaultAbility(mon) };
+    else if (eb.revBasis === "bulk") basis = { ...newTargetCfg(), slug: mon.slug, ability: offDefaultAbility(mon), spread: optimizeSpread(mon, "mixed", emptySpread()) };  // global preset: every defender at max mixed bulk
+    else basis = usageCfg(mon);
     return { ...basis, ...(eb.revOverrides.get(mon.slug) || {}) };
   }
   const defenderTarget = (mon) => targetFromCfg(defenderCfg(mon));
@@ -1330,7 +1331,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       </div>
       <div class="cl-sec">
         <div class="cl-sec-head"><span>Attackers — global preset</span>
-          <button class="cl-acc ${eb.useAccuracy ? "on" : ""}" data-acc-toggle title="Weight damage by each move's accuracy (off = potential damage)">${eb.useAccuracy ? "✓ " : ""}weight by accuracy</button></div>
+          <label class="cl-toggle" data-acc-toggle title="Weight damage by each move's accuracy (off = potential damage)"><input type="checkbox" tabindex="-1" ${eb.useAccuracy ? "checked" : ""}> weight by accuracy</label></div>
         <div class="cl-attacker">
           <div class="cl-stat"><span class="cl-stat-lab">Invest</span>
             <div class="seg cl-invest">${[[32, "Max"], [16, "Half"], [0, "None"]].map(([v, l]) => `<button data-atkinvest="${v}" class="${eb.atkInvest === v ? "active" : ""}">${l}</button>`).join("")}</div></div>
@@ -1678,7 +1679,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       </div>
       <div class="cl-sec">
         <div class="cl-sec-head"><span>Attacker offense</span>
-          <button class="cl-acc ${eb.useAccuracy ? "on" : ""}" data-acc-toggle title="Weight damage by each move's accuracy (off = potential damage)">${eb.useAccuracy ? "✓ " : ""}weight by accuracy</button></div>
+          <label class="cl-toggle" data-acc-toggle title="Weight damage by each move's accuracy (off = potential damage)"><input type="checkbox" tabindex="-1" ${eb.useAccuracy ? "checked" : ""}> weight by accuracy</label></div>
         <div class="cl-attacker">
           <div class="cl-stat"><span class="cl-stat-lab">Invest</span>
             <div class="seg cl-invest">${[[32, "Max"], [16, "Half"], [0, "None"]].map(([v, l]) => `<button data-revinvest="${v}" class="${c.invest === v ? "active" : ""}">${l}</button>`).join("")}</div></div>
@@ -1724,8 +1725,8 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       <div class="cl-sec">
         <div class="cl-sec-head"><span>Defenders — filter &amp; sort</span></div>
         <div class="cl-conditions">
-          <div class="cl-stat" title="What set every defender is assumed to run — Ladder = its real usage spread/nature/ability; Base = 0 investment, neutral nature"><span class="cl-stat-lab">Defenders</span>
-            <div class="seg cl-invest">${[["ladder", "Ladder set"], ["base", "Base 0-invest"]].map(([v, l]) => `<button data-revbasis="${v}" class="${eb.revBasis === v ? "active" : ""}">${l}</button>`).join("")}</div></div>
+          <div class="cl-stat" title="Global preset — what set EVERY defender is assumed to run: Ladder = its real usage spread/nature/ability; Base = 0 investment, neutral; Max bulk = all 66 points into HP/Def/Sp.Def (best-case walls)"><span class="cl-stat-lab">Defenders</span>
+            <div class="seg cl-invest">${[["ladder", "Ladder set"], ["base", "Base 0-invest"], ["bulk", "Max bulk"]].map(([v, l]) => `<button data-revbasis="${v}" class="${eb.revBasis === v ? "active" : ""}">${l}</button>`).join("")}</div></div>
           <div class="seg ehp-thresh">${[["usage", "Usage ↓"], ["dmg", "Damage ↓"], ["tough", "Toughest ↑"]].map(([v, l]) => `<button data-revsort="${v}" class="${eb.revSort === v ? "active" : ""}">${l}</button>`).join("")}</div>
           <div class="seg">${[["all", "All"], ["hide", "No mega"], ["only", "Only mega"]].map(([v, l]) => `<button data-revmega="${v}" class="${eb.revMega === v ? "active" : ""}">${l}</button>`).join("")}</div>
           <div class="seg ehp-thresh">${[["any", "Any dmg"], ["ohko", "OHKO"], ["2hko", "2HKO"], ["3hko", "3HKO"]].map(([v, l]) => `<button data-thresh="${v}" class="${eb.threshold === v ? "active" : ""}">${l}</button>`).join("")}</div>

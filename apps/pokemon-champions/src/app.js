@@ -42,8 +42,7 @@ const state = {
   savedTeams: [],        // [{ id, name, members: [{slug,moves}] }] (persisted)
   selected: null,
   spread: emptySpread(), // eHP stat-point lab allocation for the open detail panel
-  moveByName: new Map(),
-  abilityByName: new Map(),
+  moveByName: new Map(),   // move name → id, used to parse shared-team codes
 };
 
 // ---------------------------------------------------------------- bootstrap
@@ -238,12 +237,15 @@ function buildFilters() {
     toggleSet(state.filters.gens, Number(b.dataset.gen), b); render();
   }));
 
-  // ability + move (datalist combo boxes, sorted by name, with rarity in label)
+  // ability + move filters: click/Enter a suggestion to add it (icon dropdown — never auto-commits mid-typing,
+  // so e.g. typing "trick" stays put until you pick Trick Room instead of snapping to the move Trick)
   const abils = Object.entries(state.data.abilities)
     .map(([slug, a]) => ({ slug, ...a })).sort((a, b) => a.name.localeCompare(b.name));
-  state.abilityByName = new Map(abils.map((a) => [a.name.toLowerCase(), a.slug]));
-  $("#ability-list").innerHTML = abils.map((a) => `<option value="${a.name}">`).join("");
-  $("#f-ability").addEventListener("input", onAbilityInput);
+  attachAutocomplete($("#f-ability"), {
+    items: () => abils.filter((a) => !state.filters.abilities.has(a.slug))
+      .map((a) => ({ value: a.slug, name: a.name, meta: a.count != null ? `${a.count}` : "" })),
+    onPick: (slug) => { state.filters.abilities.add(slug); renderAbilityChips(); render(); },
+  });
   $("#ability-chips").addEventListener("click", (e) => {
     const rm = e.target.closest("[data-ability-remove]");
     if (rm) { state.filters.abilities.delete(rm.dataset.abilityRemove); renderAbilityChips(); render(); }
@@ -251,9 +253,12 @@ function buildFilters() {
 
   const moves = Object.entries(state.data.moves)
     .map(([id, m]) => ({ id: Number(id), ...m })).sort((a, b) => a.name.localeCompare(b.name));
-  state.moveByName = new Map(moves.map((m) => [m.name.toLowerCase(), m.id]));
-  $("#move-list").innerHTML = moves.map((m) => `<option value="${m.name}">`).join("");
-  $("#f-move").addEventListener("input", onMoveInput);
+  state.moveByName = new Map(moves.map((m) => [m.name.toLowerCase(), m.id]));   // also parses shared-team codes
+  attachAutocomplete($("#f-move"), {
+    items: () => moves.filter((m) => !state.filters.moves.has(m.id))
+      .map((m) => ({ value: m.id, name: m.name, icon: m.type ? `<span class="type tiny" style="background:${TYPE_COLORS[m.type]}">${m.type}</span>` : "", meta: m.count != null ? `${m.count}` : "" })),
+    onPick: (id) => { state.filters.moves.add(id); renderMoveChips(); render(); },
+  });
   $("#move-chips").addEventListener("click", (e) => {
     const rm = e.target.closest("[data-move-remove]");
     if (rm) { state.filters.moves.delete(Number(rm.dataset.moveRemove)); renderMoveChips(); render(); }
@@ -283,41 +288,12 @@ function buildFilters() {
   $("#btn-reset").addEventListener("click", resetFilters);
 }
 
-function setNote(id, text) {
-  const el = $(id);
-  el.textContent = text || "";
-  el.classList.toggle("show", !!text);
-}
-
-function onAbilityInput(e) {
-  const slug = state.abilityByName.get(e.target.value.trim().toLowerCase());
-  if (!slug) return;                      // only react to an exact (picked) name
-  state.filters.abilities.add(slug);
-  e.target.value = "";
-  renderAbilityChips();
-  render();
-}
-
 function renderAbilityChips() {
   $("#ability-chips").innerHTML = [...state.filters.abilities].map((slug) => {
     const a = state.data.abilities[slug] || { name: slug, count: 0 };
     return `<span class="fchip"><span>${a.name}</span><small>${a.count}</small>` +
       `<button data-ability-remove="${slug}" aria-label="Remove">✕</button></span>`;
   }).join("");
-}
-
-function onMoveInput(e) {
-  const val = e.target.value.trim();
-  const id = state.moveByName.get(val.toLowerCase());
-  if (id == null) {                       // only react to an exact (picked) name
-    setNote("#move-note", val ? "No exact match — pick from the list" : "");
-    return;
-  }
-  state.filters.moves.add(id);
-  e.target.value = "";
-  setNote("#move-note", "");
-  renderMoveChips();
-  render();
 }
 
 function renderMoveChips() {
@@ -361,7 +337,6 @@ function syncFilterControls() {
     inp.value = tgt[inp.dataset.stat] ?? "";
   });
   $("#f-move").value = "";
-  setNote("#move-note", "");
   $$(".mega-seg button").forEach((b) => b.classList.toggle("active", b.dataset.mega === f.mega));
   renderAbilityChips();
   renderMoveChips();
@@ -1057,7 +1032,7 @@ function switchTab(tab) {
       onInfo: (id) => openMovePopup(id),
       onAbil: (slug) => openAbilityPopup(slug),
       onFilter: (id) => { switchTab("pokemon"); applyMoveFilter(id); },
-      onMon: (slug) => { switchTab("pokemon"); openDetail(slug); } });
+      onMon: (slug) => openDetail(slug) });   // detail is a global overlay — open it in place, don't jump to the roster
   }
   if (tab === "abilities" && !abilInited) {
     abilInited = true;
