@@ -118,11 +118,12 @@ export function renderTeamView(container, { data, team, savedTeams = [], notice 
 
   const matrix = `<table class="team-matrix"><thead><tr><th>Type</th>
     ${mons.map((m) => `<th><img src="${m.sprite || m.artwork || ""}" alt="" title="${nameOf(m)}"></th>`).join("")}
-    <th class="tm-tally">weak</th></tr></thead><tbody>
+    <th class="tm-tally" title="Members weak to this type">weak</th><th class="tm-tally" title="Members that resist or are immune to this type">res</th></tr></thead><tbody>
     ${rows.map((r) => `<tr>
       <td class="tm-type">${typePill(r.atk)}</td>
       ${r.cells.map((v) => { const e = effInfo(v); return `<td class="tm-cell ${e.cls}">${e.txt}</td>`; }).join("")}
       <td class="tm-tally ${r.weak >= 3 ? "hot" : ""}">${r.weak || ""}</td>
+      <td class="tm-tally ${r.resist >= 3 ? "good" : ""}">${r.resist || ""}</td>
     </tr>`).join("")}
   </tbody></table>`;
 
@@ -143,38 +144,54 @@ export function renderTeamView(container, { data, team, savedTeams = [], notice 
 
   const offRows = TYPES.map((def) => {
     const cells = offContrib.map(({ mon, dmg }) => {
-      const se = dmg.filter((mv) => (chart[mv.type]?.[def] ?? 1) >= 2);
-      if (!se.length) return { mult: 0 };
-      const mult = Math.max(...se.map((mv) => chart[mv.type][def]));
-      const stabMv = se.find((mv) => mon.types.includes(mv.type));
-      const bestMv = stabMv || se.slice().sort((a, b) => chart[b.type][def] - chart[a.type][def])[0];
-      return { mult, stab: !!stabMv, name: bestMv.name, mon };
+      if (!dmg.length) return { cat: "none" };                                   // member has no damaging move at all
+      const withEff = dmg.map((mv) => ({ mv, eff: chart[mv.type]?.[def] ?? 1 }));
+      const best = Math.max(...withEff.map((x) => x.eff));                        // best outgoing effectiveness of ANY of their moves
+      const top = withEff.filter((x) => x.eff === best);
+      const stab = top.find((x) => mon.types.includes(x.mv.type));               // prefer a STAB move at that effectiveness
+      const pick = stab || top[0];
+      const cat = best >= 2 ? "se" : best >= 1 ? "neu" : best > 0 ? "res" : "zero";
+      return { cat, mult: best, stab: !!stab, name: pick.mv.name, mon };
     });
-    const tally = cells.filter((c) => c.mult >= 2).length;
-    return { def, cells, tally };
-  }).sort((a, b) => b.tally - a.tally || TYPES.indexOf(a.def) - TYPES.indexOf(b.def));
+    const tally = cells.filter((c) => c.cat === "se").length;                    // members with a super-effective answer
+    const canNeutral = cells.some((c) => c.cat === "se" || c.cat === "neu");     // anyone deals at least normal damage
+    return { def, cells, tally, canNeutral };
+  }).sort((a, b) => b.tally - a.tally || (b.canNeutral - a.canNeutral) || TYPES.indexOf(a.def) - TYPES.indexOf(b.def));
 
   const offMatrix = `<table class="team-matrix team-off"><thead><tr><th>Type</th>
     ${mons.map((m) => `<th><img src="${m.sprite || m.artwork || ""}" alt="" title="${nameOf(m)}"></th>`).join("")}
     <th class="tm-tally">SE</th></tr></thead><tbody>
     ${offRows.map((r) => `<tr>
-      <td class="tm-type ${r.tally ? "" : "co-gap"}">${typePill(r.def)}</td>
+      <td class="tm-type ${r.tally ? "" : (r.canNeutral ? "co-gap" : "co-wall")}">${typePill(r.def)}</td>
       ${r.cells.map((c) => {
-        if (!c.mult) return `<td class="tm-cell co-none">·</td>`;
-        const cls = c.stab ? "co-stab" : "co-cover";
-        const txt = (c.stab ? "★" : "") + (c.mult >= 4 ? "4" : "2");
-        return `<td class="tm-cell ${cls}" title="${nameOf(c.mon)} · ${c.name} (${c.stab ? "STAB" : "coverage"}) ×${c.mult}">${txt}</td>`;
+        if (c.cat === "se") {
+          const cls = c.stab ? "co-stab" : "co-cover";
+          return `<td class="tm-cell ${cls}" title="${nameOf(c.mon)} · ${c.name} (${c.stab ? "STAB" : "coverage"}) ×${c.mult}">${(c.stab ? "★" : "") + (c.mult >= 4 ? "4" : "2")}</td>`;
+        }
+        if (c.cat === "neu") return `<td class="tm-cell co-neu" title="${nameOf(c.mon)} · ${c.name} ×1 — normal damage">1</td>`;
+        if (c.cat === "res") return `<td class="tm-cell co-res" title="${nameOf(c.mon)} · ${c.name} ×${c.mult} — only reduced damage">${c.mult === 0.25 ? "¼" : "½"}</td>`;
+        return `<td class="tm-cell co-none" title="${c.name ? `${nameOf(c.mon)} · ${c.name} ×0 — no effect` : "no damaging move for this type"}">·</td>`;
       }).join("")}
-      <td class="tm-tally ${r.tally ? "" : "hot"}">${r.tally || "⚠"}</td>
+      <td class="tm-tally ${r.tally ? "" : (r.canNeutral ? "hot" : "wall")}">${r.tally || (r.canNeutral ? "⚠" : "⛔")}</td>
     </tr>`).join("")}
   </tbody></table>
   <div class="tm-legend co-legend"><span class="tm-cell co-stab">★2</span> STAB
-    <span class="tm-cell co-cover">2</span> coverage <span class="co-dim">· = can't</span></div>`;
+    <span class="tm-cell co-cover">2</span> coverage
+    <span class="tm-cell co-neu">1</span> neutral
+    <span class="tm-cell co-res">½</span> reduced only
+    <span class="co-dim">· = can't</span></div>`;
 
-  const offGapTypes = offRows.filter((r) => !r.tally).map((r) => r.def);
-  const covGap = offGapTypes.length
-    ? `<div class="team-callout warn cov-gap">⚠ No super-effective answer to: ${offGapTypes.map((g) => g[0].toUpperCase() + g.slice(1)).join(" · ")}</div>`
-    : `<div class="team-callout ok">✓ Something on the team hits every type super-effectively.</div>`;
+  const cap = (g) => g[0].toUpperCase() + g.slice(1);
+  const teamBest = (r) => Math.max(0, ...r.cells.map((c) => c.mult || 0));            // best multiplier ANY member reaches
+  const reducedOnly = offRows.filter((r) => !r.canNeutral && teamBest(r) > 0).map((r) => r.def);  // best case is not-very-effective
+  const noDamage = offRows.filter((r) => !r.canNeutral && teamBest(r) === 0).map((r) => r.def);    // nothing on the team even touches it
+  const seGapTypes = offRows.filter((r) => r.canNeutral && !r.tally).map((r) => r.def);
+  const covParts = [];
+  if (reducedOnly.length) covParts.push(`<div class="team-callout bad cov-gap">⛔ Only reduced damage vs: ${reducedOnly.map(cap).join(" · ")}</div>`);
+  if (noDamage.length) covParts.push(`<div class="team-callout bad cov-gap">🚫 Can't damage at all: ${noDamage.map(cap).join(" · ")}</div>`);
+  if (seGapTypes.length) covParts.push(`<div class="team-callout warn cov-gap">⚠ No super-effective answer to: ${seGapTypes.map(cap).join(" · ")}</div>`);
+  if (!covParts.length) covParts.push(`<div class="team-callout ok">✓ Something on the team hits every type super-effectively.</div>`);
+  const covGap = covParts.join("");
 
   const offBody = anyDamaging
     ? `${covGap}${offMatrix}`
@@ -213,7 +230,7 @@ export function renderTeamView(container, { data, team, savedTeams = [], notice 
           <div class="tm-legend"><span class="tm-cell weak2">×4</span><span class="tm-cell weak">×2</span><span class="tm-cell neu">×1</span><span class="tm-cell res">×½</span><span class="tm-cell res2">×¼</span><span class="tm-cell x0">×0</span></div>
         </section>
         <section class="team-card team-off-card">
-          <h3>Offensive coverage <small>— which types each member hits super-effectively (★ = via a STAB move)</small></h3>
+          <h3>Offensive coverage <small>— best hit each member lands on every type (★ = STAB · ½ = only reduced damage)</small></h3>
           ${offBody}
         </section>
       </div>

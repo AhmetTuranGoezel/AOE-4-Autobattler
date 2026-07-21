@@ -15,9 +15,16 @@ const CLS = { 4: "vweak", 2: "weak", 1: "neu", 0.5: "res", 0.25: "res2", 0: "imm
 
 function groupedBadges(byMult, label) {
   return [4, 2, 1, 0.5, 0.25, 0].filter((m) => byMult.has(m)).map((m) =>
-    `<div class="def-group"><h4 class="def-h ${CLS[m]}">${label(m)}${m === 0 ? " (no effect)" : ""}</h4>` +
+    `<div class="def-group"><h4 class="def-h ${CLS[m]}">${label(m)}${m === 0 ? " (no effect)" : ""} <span class="def-count">${byMult.get(m).length}</span></h4>` +
     `<div class="def-badges">${byMult.get(m).map(bigBadge).join("")}</div></div>`).join("");
 }
+// Tally a byMult map (the 18 types keyed by multiplier) into SE / neutral / resisted / immune counts.
+function typeTally(byMult) {
+  let se = 0, neu = 0, res = 0, imm = 0;
+  for (const [m, arr] of byMult) { if (m >= 2) se += arr.length; else if (m === 0) imm += arr.length; else if (m < 1) res += arr.length; else neu += arr.length; }
+  return { se, neu, res, imm };
+}
+const tallyLine = (lead, tt, seLab) => `<div class="cov-typetally">${lead}: <b class="se">${tt.se}</b> ${seLab} · <b>${tt.neu}</b> neutral · <b class="rs">${tt.res}</b> resisted · <b class="im">${tt.imm}</b> no effect <span class="muted">(of 18 types)</span></div>`;
 function pushMult(map, key, val) { (map.get(key) || map.set(key, []).get(key)).push(val); }
 
 export function initCoverageView({ container, data, onShowMons }) {
@@ -92,7 +99,8 @@ export function initCoverageView({ container, data, onShowMons }) {
         <button class="cov-link im" data-bucket="imm" data-title="No effect (${n.imm})">no effect on ${n.imm} (${pct(n.imm)}%)</button>.
         <span class="muted">(click a number to list them)</span></div>`;
 
-    return `${groupedBadges(byMult, (m) => `Deals ${multTxt(m)} to`)}
+    return `${tallyLine("Across the 18 defending types you hit", typeTally(byMult), "super-effective")}
+      ${groupedBadges(byMult, (m) => `Deals ${multTxt(m)} to`)}
       ${summary}
       ${renderNextType(base)}`;
   }
@@ -159,6 +167,7 @@ export function initCoverageView({ container, data, onShowMons }) {
     const typingTxt = [...state.def].map(cap).join(" / ");
     return `<div class="def-typing">Defending typing <b>${typingTxt}</b> —
         <button class="cov-link" data-bucket="typed" data-title="${typingTxt} (${typed.length})">${typed.length} Pokémon have it →</button></div>
+      ${tallyLine("Across the 18 attacking types, this typing is", typeTally(byMult), "weak to")}
       ${groupedBadges(byMult, (m) => `Takes ${multTxt(m)} from`)}`;
   }
 

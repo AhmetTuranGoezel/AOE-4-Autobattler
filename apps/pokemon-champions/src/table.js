@@ -45,11 +45,6 @@ function cmpBtn(mon, cmp, big) {
 function pinBtn(mon, on) {
   return `<button class="pin ${on ? "on" : ""}" data-pin="${mon.slug}" title="${on ? "Unpin" : "Pin — stays on top through any filters"}">📌</button>`;
 }
-// Team: same collect-this-mon cluster as pin + compare (icon-only on rows/cards).
-function teamBtn(mon, team) {
-  const on = team.has(mon.slug);
-  return `<button class="cmp team-add ${on ? "on" : ""}" data-team="${mon.slug}" title="${on ? "In your team" : "Add to team"}">${on ? "✓" : "＋T"}</button>`;
-}
 
 const sep = (x) => Math.round(x).toLocaleString("en-US");
 
@@ -115,7 +110,7 @@ export function renderTable(list, sort, cmp, max = 200, extras = false, pinned =
     const role = ROLE_META[e.role];
     return `<tr data-slug="${m.slug}" class="${isPinned ? "pinned" : ""}">
       <td class="num dex">${m.dex}</td>
-      <td class="namecell"><span class="row-btns">${pinBtn(m, isPinned)}${cmpBtn(m, cmp)}${teamBtn(m, team)}</span>${spriteTag(m, "spr")}
+      <td class="namecell"><span class="row-btns">${pinBtn(m, isPinned)}${cmpBtn(m, cmp)}</span>${spriteTag(m, "spr")}
         <span class="nm"><span class="nm-top">${m._display}${megaBadge(m)}</span>
         <span class="types">${typeBadges(m.types)}</span></span></td>
       <td><span class="role ${role.cls}">${role.label}</span></td>
@@ -176,7 +171,7 @@ export function renderGrid(list, cmp, max = 200, pinned = [], team = new Set()) 
     return `<div class="pcard ${isPinned ? "pinned" : ""}" data-slug="${m.slug}">
       <div class="pcard-top">
         ${spriteTag(m, "pcard-art")}
-        <div class="pcard-corner"><div class="pcard-btns">${pinBtn(m, isPinned)}${cmpBtn(m, cmp)}${teamBtn(m, team)}</div><div class="pcard-id">#${m.dex}${megaBadge(m)}</div></div>
+        <div class="pcard-corner"><div class="pcard-btns">${pinBtn(m, isPinned)}${cmpBtn(m, cmp)}</div><div class="pcard-id">#${m.dex}${megaBadge(m)}</div></div>
       </div>
       <div class="pcard-name">${m._display}</div>
       <div class="types">${typeBadges(m.types)}</div>

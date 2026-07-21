@@ -539,8 +539,6 @@ td.wasted { color: #d9685b; font-weight: 600; }
 .muted { color: var(--muted); font-weight: 400; text-transform: none; letter-spacing: 0; }
 
 /* ---------- combo note ---------- */
-.combo-note { display: none; margin-top: 5px; font-size: 0.72rem; color: var(--accent-2); }
-.combo-note.show { display: block; }
 
 /* ---------- moves browser ---------- */
 .flag-chips { display: flex; flex-wrap: wrap; gap: 5px; flex-basis: 100%; margin-top: 2px; }
@@ -615,11 +613,18 @@ td.wasted { color: #d9685b; font-weight: 600; }
 .wt-bp { display: block; color: var(--muted); font-size: 0.62rem; font-weight: 600; }
 .mv-chance { display: inline-block; font-weight: 800; font-size: 0.68rem; color: var(--accent-2); background: color-mix(in srgb, var(--accent-2) 16%, transparent); border-radius: 4px; padding: 0 4px; }
 .mv-chance.cond { color: #f0b070; background: rgba(232,133,58,0.16); }   /* conditional damage (Facade / Infernal Parade …) */
+.mv-eff-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin: 0 0 8px; font-size: 0.72rem; color: var(--muted); }
+.mv-eff-legend b { color: var(--text); }
+.mv-lg { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 /* Expected columns (Exp. Pow / Eff. Dmg) + the best-case toggle */
-.mv-expctl { display: inline-flex; align-items: center; gap: 7px; }
+.mv-expctl { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 7px; }
 .mv-exp-bestwrap { display: inline-flex; align-items: center; gap: 5px; font-size: 0.76rem; font-weight: 600; color: var(--muted); cursor: pointer; white-space: nowrap; }
 .mv-exp-bestwrap input { width: 14px; height: 14px; accent-color: var(--accent); }
 .mv-exp-bestwrap small { font-size: 0.66rem; }
+.mv-weather-wrap { display: inline-flex; align-items: center; gap: 5px; font-size: 0.76rem; font-weight: 600; color: var(--muted); white-space: nowrap; }
+.mv-weather-wrap .mv-weather { padding: 3px 6px; font-size: 0.76rem; }
+.mv-expctl .mv-lab { font-size: 0.68rem; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; }
+.mv-assume { display: inline-flex; align-items: center; gap: 5px; font-size: 0.76rem; color: var(--muted); white-space: nowrap; }
 .mv-expv { color: var(--accent-2); font-variant-numeric: tabular-nums; font-weight: 800; }
 .mv-exp-note { display: block; color: var(--muted); font-size: 0.6rem; font-weight: 600; }
 .moves-table td.mv-expp, .moves-table td.mv-expd { white-space: nowrap; }
@@ -717,6 +722,9 @@ td.wasted { color: #d9685b; font-weight: 600; }
 .mvr-chips { display: inline-flex; flex-wrap: wrap; gap: 3px; justify-content: flex-end; }
 .mvr-abil { cursor: pointer; }   /* the ability flag opens its popup */
 .mvr-abil:hover { filter: brightness(1.25); text-decoration: underline; }
+.mvr-abilwrap { display: inline-flex; align-items: center; gap: 1px; }
+.mvr-abignore { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.68rem; padding: 0 2px; flex-shrink: 0; }
+.mvr-abignore:hover { color: #ff8a7a; }
 /* in-place details panel: all-moves damage list + customize controls (shares .mv-cfg-sec /
    .tm-abil-chip / .cl-step with the browse popover) */
 .mvr-panel { border: 1px solid color-mix(in srgb, var(--accent-2) 55%, var(--border)); border-top: none;
@@ -800,6 +808,8 @@ td.wasted { color: #d9685b; font-weight: 600; }
 .mv-gcount { color: var(--muted); font-weight: 700; font-size: 0.72rem; }
 .mv-mon-chips { display: flex; flex-wrap: wrap; gap: 5px; flex-basis: 100%; }
 .mv-mon-chips:empty { display: none; }
+.mv-mon-wrap { flex: 1 1 200px; min-width: 150px; max-width: 320px; }
+.mv-mon-wrap .search { width: 100%; min-width: 0; max-width: none; }
 .mon-chip[data-focus-mon] { cursor: pointer; }
 .mon-chip[data-focus-mon]:hover { border-color: var(--accent-2); }
 .mon-chip.focus { border-color: var(--accent-2); background: color-mix(in srgb, var(--accent-2) 18%, var(--panel)); }
@@ -1061,6 +1071,12 @@ tr.pin-end td { padding: 0; height: 8px; border-bottom: 2px solid color-mix(in s
 .cl-reset { align-self: flex-end; }
 .cl-abil { gap: 6px; }
 .cl-abil .cl-stat-lab { align-self: center; }
+/* Stat points upgraded to drag sliders + one-click preset chips (Moves ⚙ / rank editors) */
+.mv-cfg-grid.is-sliders { flex-direction: column; align-items: stretch; gap: 6px; width: 100%; }
+.mv-cfg-grid.is-sliders .cl-stat { flex-direction: row; align-items: center; gap: 8px; }
+.mv-cfg-grid.is-sliders .cl-stat-lab { flex: 0 0 54px; align-self: center; }
+.cl-slider { flex: 1; min-width: 90px; max-width: 190px; accent-color: var(--accent); cursor: pointer; }
+.cl-presets { margin: 8px 0; }
 .cl-attacker .seg button { padding: 6px 10px; font-size: 0.76rem; }
 .cl-acc { align-self: flex-end; background: var(--panel-2); border: 1px solid var(--border); color: var(--muted); font-weight: 700; font-size: 0.76rem; padding: 7px 12px; border-radius: 8px; cursor: pointer; }
 .cl-acc.on { background: color-mix(in srgb, #6ac06a 18%, var(--panel)); border-color: color-mix(in srgb, #6ac06a 50%, var(--border)); color: #8fe08f; }
@@ -1364,10 +1380,10 @@ tr.pin-end td { padding: 0; height: 8px; border-bottom: 2px solid color-mix(in s
 .team-empty { color: var(--muted); font-size: 0.86rem; }
 
 /* team manager: save/new + saved-team list */
-.team-manager { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: flex-start; margin-bottom: 4px; }
+.team-manager { display: flex; flex-direction: column; align-items: stretch; gap: 10px; margin-bottom: 4px; }
 .tm-save { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 /* team sharing: copy-link buttons + paste-to-import + result notice */
-.tm-import { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 6px 9px; font-family: inherit; font-size: 0.76rem; font-weight: 600; outline: none; flex: 1; min-width: 190px; }
+.tm-import { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 6px 9px; font-family: inherit; font-size: 0.76rem; font-weight: 600; outline: none; flex: 1 1 100%; min-width: 190px; max-width: 420px; }
 .tm-import:focus { border-color: var(--accent); }
 .tm-notice { margin-top: 8px; font-size: 0.78rem; font-weight: 600; color: var(--accent-2); }
 /* share panel: short link + copy button, pops open under the manager */
@@ -1383,7 +1399,7 @@ tr.pin-end td { padding: 0; height: 8px; border-bottom: 2px solid color-mix(in s
 .tm-share:hover { color: var(--accent-2); }
 .team-name { background: var(--panel); border: 1px solid var(--border); color: var(--text); padding: 8px 11px; border-radius: 9px; outline: none; font-family: inherit; font-size: 0.85rem; }
 .team-name:focus { border-color: var(--accent); }
-.tm-saved { display: flex; flex-wrap: wrap; gap: 8px; flex: 1; }
+.tm-saved { display: flex; flex-wrap: wrap; gap: 8px; }
 .tm-none { font-size: 0.8rem; }
 .tm-saved-row { display: inline-flex; align-items: stretch; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
 .tm-load { display: flex; align-items: center; gap: 8px; background: none; border: none; color: var(--text); padding: 5px 4px 5px 10px; cursor: pointer; }
@@ -1451,6 +1467,7 @@ tr.pin-end td { padding: 0; height: 8px; border-bottom: 2px solid color-mix(in s
 .tm-cell.x0 { background: #3c6fb0; color: #fff; }
 .tm-tally { font-weight: 800; color: var(--muted); }
 .tm-tally.hot { color: #f0998c; }
+.tm-tally.good { color: #8fe08f; }
 .tm-legend { display: flex; gap: 6px; margin-top: 12px; }
 .tm-legend .tm-cell { padding: 2px 7px; font-size: 0.68rem; }
 
@@ -1461,13 +1478,19 @@ tr.pin-end td { padding: 0; height: 8px; border-bottom: 2px solid color-mix(in s
 .type-chips.dim .type { opacity: 0.4; }
 
 /* offensive coverage MATRIX: defending types × members, ★ STAB vs coverage */
-.team-off .co-stab { background: var(--accent-2); color: #15161a; }
-.team-off .co-cover { background: #3c6fb0; color: #fff; }
-.team-off .co-none { background: transparent; color: #3a3a42; font-weight: 700; }
+/* De-scoped from .team-off so the legend swatches (a sibling of the matrix, not a descendant) get them too */
+.co-stab { background: var(--accent-2); color: #15161a; }
+.co-cover { background: #3c6fb0; color: #fff; }
+.co-none { background: transparent; color: #6b6b76; font-weight: 700; }
+.co-neu { background: transparent; color: var(--text); }
+.co-res { background: #e8853a; color: #15161a; }
 .team-off .tm-type.co-gap .type { opacity: 0.5; }
+.team-off .tm-type.co-wall .type { opacity: 0.4; }
+.team-off .tm-tally.wall { color: #f0998c; }
+.team-callout.bad { background: rgba(192,57,43,0.2); color: #f4a79b; }
 .co-legend { align-items: center; font-size: 0.72rem; color: var(--muted); }
 .co-legend .tm-cell { padding: 2px 7px; font-size: 0.68rem; }
-.co-dim { color: #3a3a42; font-weight: 700; }
+.co-dim { color: var(--muted); font-weight: 700; }
 .cov-help { color: var(--muted); font-size: 0.72rem; margin-top: 10px; }
 .cov-empty { padding: 6px 0; }
 .cov-gap { margin-top: 0; }
@@ -1519,6 +1542,10 @@ tr.pin-end td { padding: 0; height: 8px; border-bottom: 2px solid color-mix(in s
 .def-badge { display: inline-block; color: #fff; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; font-size: 0.8rem; padding: 9px 16px; border-radius: 9px; text-shadow: 0 1px 2px rgba(0,0,0,0.4); min-width: 84px; text-align: center; }
 .cov-summary { font-size: 0.86rem; color: var(--text); margin-bottom: 14px; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 11px 14px; line-height: 1.5; }
 .cov-summary .se { color: #8fe08f; } .cov-summary .rs { color: #f0998c; } .cov-summary .im { color: #84bdf0; }
+.cov-typetally { font-size: 0.82rem; color: var(--muted); margin-bottom: 12px; }
+.cov-typetally b { font-size: 0.9rem; color: var(--text); }
+.cov-typetally b.se { color: #8fe08f; } .cov-typetally b.rs { color: #f0998c; } .cov-typetally b.im { color: #84bdf0; }
+.def-count { display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--panel-2); color: var(--muted); font-size: 0.74rem; font-weight: 800; vertical-align: middle; }
 
 /* "best type to add next" — marginal coverage gain per candidate attacking type */
 .cov-next { margin-top: 22px; }

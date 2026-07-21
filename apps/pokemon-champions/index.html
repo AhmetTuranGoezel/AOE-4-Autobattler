@@ -89,15 +89,12 @@
         <div class="fgroup"><h3>Generation</h3><div id="f-gens" class="chips"></div></div>
         <div class="fgroup">
           <h3>Abilities <small>add several · matches any</small></h3>
-          <input id="f-ability" class="combo" list="ability-list" placeholder="add an ability…" autocomplete="off">
-          <datalist id="ability-list"></datalist>
+          <div class="ac-wrap"><input id="f-ability" class="combo" placeholder="add an ability…" autocomplete="off"></div>
           <div class="ability-chips" id="ability-chips"></div>
         </div>
         <div class="fgroup">
           <h3>Moves <small>add several · matches all</small></h3>
-          <input id="f-move" class="combo" list="move-list" placeholder="add a move…" autocomplete="off">
-          <datalist id="move-list"></datalist>
-          <small class="combo-note" id="move-note"></small>
+          <div class="ac-wrap"><input id="f-move" class="combo" placeholder="add a move…" autocomplete="off"></div>
           <div class="ability-chips" id="move-chips"></div>
         </div>
         <div class="fgroup"><h3>Stat ranges</h3><div id="f-stats"></div></div>
@@ -108,7 +105,7 @@
             <button data-mega="hide" class="active">No Mega</button>
             <button data-mega="only">Only Mega</button>
           </div>
-          <label class="fcheck"><input type="checkbox" id="f-available"> Available only</label>
+          <label class="fcheck" title="Only Pokémon you can actually get and use in Champions right now — hides ones that exist in the game data but aren't obtainable/playable (e.g. Pawmot)."><input type="checkbox" id="f-available"> Obtainable in Champions</label>
           <small class="fhint">Hides Pokémon that exist in the game's data but can't be obtained / aren't playable in Champions (e.g. Pawmot).</small>
         </div>
       </aside>
