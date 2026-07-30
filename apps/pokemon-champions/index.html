@@ -64,6 +64,17 @@
           </div>
         </div>
 
+        <div class="fgroup">
+          <h3>Include <small>what counts as the roster</small></h3>
+          <div class="seg mega-seg">
+            <button data-mega="all">All</button>
+            <button data-mega="hide" class="active">No Mega</button>
+            <button data-mega="only">Only Mega</button>
+          </div>
+          <label class="fcheck" title="Only Pokémon you can actually get and use in Champions right now — hides ones that exist in the game data but aren't obtainable/playable (e.g. Pawmot)."><input type="checkbox" id="f-available"> Obtainable in Champions</label>
+          <small class="fhint">Hides Pokémon that exist in the game's data but can't be obtained / aren't playable in Champions (e.g. Pawmot).</small>
+        </div>
+
         <div class="fgroup wt-group">
           <button class="wt-toggle" id="wt-toggle" aria-expanded="false">
             <span>⚖ Cleaned stats</span><span class="wt-caret">▸</span>
@@ -98,16 +109,6 @@
           <div class="ability-chips" id="move-chips"></div>
         </div>
         <div class="fgroup"><h3>Stat ranges</h3><div id="f-stats"></div></div>
-        <div class="fgroup">
-          <h3>Include</h3>
-          <div class="seg mega-seg">
-            <button data-mega="all">All</button>
-            <button data-mega="hide" class="active">No Mega</button>
-            <button data-mega="only">Only Mega</button>
-          </div>
-          <label class="fcheck" title="Only Pokémon you can actually get and use in Champions right now — hides ones that exist in the game data but aren't obtainable/playable (e.g. Pawmot)."><input type="checkbox" id="f-available"> Obtainable in Champions</label>
-          <small class="fhint">Hides Pokémon that exist in the game's data but can't be obtained / aren't playable in Champions (e.g. Pawmot).</small>
-        </div>
       </aside>
 
       <main id="results" class="results"></main>

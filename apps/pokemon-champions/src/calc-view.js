@@ -112,7 +112,7 @@ function effectivePower(mv, ctx) {
 // settings (item/ability/boost); target = the configured defender (item, Mega-ness, …).
 // Returns { mult, bpMul, note, blocked }; flags without mult mark conditions we can't verify.
 const CONDITIONAL = {
-  "Weather Ball": (c) => (c.eb.weather !== "none" ? { mult: 2, note: "×2 weather (type change ~approx)" } : null),
+  "Weather Ball": (c) => (c.eb.weather !== "none" ? { mult: 2, note: `×2 · ${WEATHER_BALL_TYPE[c.eb.weather]}-type` } : null),
   "Solar Beam": (c) => (["sand", "rain", "snow"].includes(c.eb.weather) ? { mult: 0.5, note: "½ weather" } : null),
   "Solar Blade": (c) => (["sand", "rain", "snow"].includes(c.eb.weather) ? { mult: 0.5, note: "½ weather" } : null),
   Facade: (c) => (c.eb.userStatus !== "none" ? { mult: 2, note: "×2 status" } : null),
@@ -141,7 +141,7 @@ const CONDITIONAL = {
   // terrain (grounded-gated: the boosted/protected side must be on the ground)
   "Rising Voltage": (c) => (c.eb.terrain === "electric" && (c.grounded || {}).target !== false ? { mult: 2, note: "×2 terrain (grounded target)" } : null),
   "Expanding Force": (c) => (c.eb.terrain === "psychic" && (c.grounded || {}).user !== false ? { mult: 1.5, note: "×1.5 terrain" } : null),
-  "Terrain Pulse": (c) => (c.eb.terrain !== "none" && (c.grounded || {}).user !== false ? { mult: 2, note: "×2 terrain (type change ~approx)" } : null),
+  "Terrain Pulse": (c) => (c.eb.terrain !== "none" && (c.grounded || {}).user !== false ? { mult: 2, note: `×2 · ${TERRAIN_PULSE_TYPE[c.eb.terrain]}-type` } : null),
   "Misty Explosion": (c) => (c.eb.terrain === "misty" && (c.grounded || {}).user !== false ? { mult: 1.5, note: "×1.5 terrain" } : null),
   // conditions we can't verify from tracked state — surfaced as explicit flags
   Assurance: () => ({ note: "×2 if target already hit this turn" }),
@@ -232,6 +232,11 @@ const DEF_ITEMS = { none: "No item", "life-orb": "Life Orb", "expert-belt": "Exp
 
 const WEATHERS = { none: "No weather", sand: "Sandstorm", snow: "Snow", rain: "Rain", sun: "Sun" };
 const TERRAINS = { none: "No terrain", grassy: "Grassy", electric: "Electric", psychic: "Psychic", misty: "Misty" };
+// Weather Ball / Terrain Pulse become the field's type (drives effectiveness + STAB, not just power).
+const WEATHER_BALL_TYPE = { rain: "water", sun: "fire", sand: "rock", snow: "ice" };
+const TERRAIN_PULSE_TYPE = { electric: "electric", grassy: "grass", psychic: "psychic", misty: "fairy" };
+// Moves whose ACCURACY the weather decides: Thunder/Hurricane never miss in rain (shaky in sun), Blizzard never misses in snow.
+const WEATHER_ACC = { Thunder: { rain: 100, sun: 50 }, Hurricane: { rain: 100, sun: 50 }, Blizzard: { snow: 100 } };
 const SCREENS = { none: "No screen", reflect: "Reflect", "light-screen": "Light Screen", both: "Both screens" };
 const EQ_MOVES = new Set(["Earthquake", "Bulldoze", "Magnitude"]);
 // Spread moves (hit multiple targets) take ×0.75 in doubles — Champions is Reg M-B (doubles).
@@ -947,7 +952,8 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
     }
     const ebW = th.ability === "mega-sol" && eb.weather !== "sun" ? { ...eb, weather: "sun" } : eb;
     // Liquid Voice (e.g. target Primarina): its Sound moves hit back as Water
-    const mvType = th.ability === "liquid-voice" && (mv.flags || []).includes("Sound") && mv.type !== "water" ? "water" : mv.type;
+    const wbType = mv.name === "Weather Ball" ? WEATHER_BALL_TYPE[ebW.weather] : mv.name === "Terrain Pulse" ? TERRAIN_PULSE_TYPE[eb.terrain] : null;
+    const mvType = wbType || (th.ability === "liquid-voice" && (mv.flags || []).includes("Sound") && mv.type !== "water" ? "water" : mv.type);
     const typeEff = typeEffOf(mvType, mv.name, defEntry.mon.types, defAbil, moldBreaker, th.ability === "scrappy");
     if (typeEff === 0) return null;
     const se = typeEff > 1;
@@ -979,7 +985,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       if (th.ability === "merciless" && eb.userStatus === "psn" && !["shell-armor", "battle-armor"].includes(defAbil)) other *= 1.5;
       if (defAbil === "fairy-aura" && mvType === "fairy") other *= 4 / 3;   // the candidate's aura boosts the threat's fairy moves too
       if (th.item && th.ability !== "klutz" && OFF_ITEMS[th.item]) { const r = OFF_ITEMS[th.item].mult(se, cat); if (r && r.m) other *= r.m; }   // target's offensive item
-      const field = fieldOffenseMult(mv, cat, ebW, false, false); other *= field.m;   // screens protect the target, not the candidate
+      const field = fieldOffenseMult({ ...mv, type: mvType }, cat, ebW, false, false); other *= field.m;   // screens protect the target, not the candidate
       if (eb.doubles && isSpread(mv)) other *= 0.75;
       if (TARGET_DMG[defAbil]) other *= TARGET_DMG[defAbil]({ mv, cat, terrain: eb.terrain, tStatus: "none", atkAbility: th.ability });  // candidate's Multiscale/Fur Coat/…
       const burn = eb.targetStatus === "brn" && cat === "physical" && th.ability !== "guts" && mv.name !== "Facade" ? 0.5 : 1;   // burned target's physical return is halved
@@ -1009,9 +1015,10 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
     if (!mv || mv.class === "status" || !mv.type) return null;
     // -ate abilities retype Normal moves (Aerilate/Pixilate/…); Liquid Voice retypes Sound
     // moves to Water (no ×1.2). The effective type drives eff/STAB.
-    const ate = ATE_ABIL[st.ability] && mv.type === "normal" ? ATE_ABIL[st.ability] : null;
+    const fieldType = mv.name === "Weather Ball" ? WEATHER_BALL_TYPE[eb.weather] : mv.name === "Terrain Pulse" ? TERRAIN_PULSE_TYPE[eb.terrain] : null;
+    const ate = !fieldType && ATE_ABIL[st.ability] && mv.type === "normal" ? ATE_ABIL[st.ability] : null;   // field type wins over ‑ate (move isn't Normal in weather/terrain)
     const liquid = st.ability === "liquid-voice" && (mv.flags || []).includes("Sound") && mv.type !== "water" ? "water" : null;
-    const mvType = liquid || ate || mv.type;
+    const mvType = fieldType || liquid || ate || mv.type;
     if (eb.moveTypesOff.has(mvType)) return null;   // move-type filter: don't use moves of dropped types
     const cat = mv.class;
     const ep = effectivePower(mv, ctx);
@@ -1041,8 +1048,11 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
     if (moldBreaker) notes.push("Mold Breaker");
     // accuracy layer: No Guard (either side) → always hits; Hustle costs phys acc; weather evasion abilities
     let acc = mv.accuracy == null ? 100 : mv.accuracy;
+    const wacc = WEATHER_ACC[mv.name];   // Thunder/Hurricane never miss in rain; Blizzard never misses in snow
+    if (wacc && wacc[eb.weather] != null) { acc = wacc[eb.weather]; notes.push(`${WEATHERS[eb.weather]} acc ${acc}%`); }
     if (st.ability === "no-guard" || target.ability === "no-guard") { if (acc < 100) notes.push("No Guard"); acc = 100; }
     else {
+      if (st.ability === "compound-eyes") { acc = Math.min(100, Math.round(acc * 1.3)); notes.push("Compound Eyes"); }
       if (st.ability === "hustle" && cat === "physical") { acc = Math.round(acc * 0.8); notes.push("Hustle acc ×0.8"); }
       if ((target.ability === "sand-veil" && eb.weather === "sand") || (target.ability === "snow-cloak" && eb.weather === "snow")) { acc = Math.round(acc * 0.8); notes.push("evasion ×0.8"); }
     }
@@ -1083,7 +1093,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       if (protean && !entry.mon.types.includes(mvType)) notes.push("Protean");
       if (st.item !== "none" && st.ability !== "klutz" && OFF_ITEMS[st.item]) { const r = OFF_ITEMS[st.item].mult(se, cat); if (r && r.m) { other *= r.m; if (r.note) notes.push(r.note); } }
       if (target.ability === "fairy-aura" && mvType === "fairy") { other *= 4 / 3; notes.push("Fairy Aura (aura is field-wide)"); }   // the aura boosts EVERYONE's fairy moves
-      const field = fieldOffenseMult(mv, cat, ebW, st.ability === "infiltrator", true, uGrd, tGrd); other *= field.m; field.notes.forEach((n) => notes.push(n));
+      const field = fieldOffenseMult({ ...mv, type: mvType }, cat, ebW, st.ability === "infiltrator", true, uGrd, tGrd); other *= field.m; field.notes.forEach((n) => notes.push(n));
       if (eb.doubles && isSpread(mv)) { other *= 0.75; notes.push("spread"); }   // doubles spread reduction
       // one-time reductions apply to the FIRST hit only (full-HP shields / a consumed berry);
       // later hits in the KO simulation use the unshielded number.

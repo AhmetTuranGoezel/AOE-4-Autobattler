@@ -126,7 +126,8 @@
       "PowerShell(python \"C:\\\\Users\\\\ahmet\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-ahmet-Desktop-VSCode-Stuff-Owl-AoE4-Unit-Battler\\\\3519afb2-013c-4076-b610-5925fdd3bf61\\\\scratchpad\\\\check_pokebase_shiny.py\")",
       "PowerShell(python \"C:\\\\Users\\\\ahmet\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-ahmet-Desktop-VSCode-Stuff-Owl-AoE4-Unit-Battler\\\\3519afb2-013c-4076-b610-5925fdd3bf61\\\\scratchpad\\\\verify_teamcheck.py\")",
       "Bash(python \"C:\\\\Users\\\\ahmet\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-ahmet-Desktop-VSCode-Stuff-Owl-AoE4-Unit-Battler\\\\3519afb2-013c-4076-b610-5925fdd3bf61\\\\scratchpad\\\\verify_rank3.py\")",
-      "Bash(grep -n \"^\\\\.cmp \\\\|^\\\\.cmp{\\\\|^\\\\.cmp,\" \"c:\\\\Users\\\\ahmet\\\\Desktop\\\\VSCode Stuff\\\\Owl AoE4 Unit Battler\\\\apps\\\\pokemon-champions\\\\style.css\")"
+      "Bash(grep -n \"^\\\\.cmp \\\\|^\\\\.cmp{\\\\|^\\\\.cmp,\" \"c:\\\\Users\\\\ahmet\\\\Desktop\\\\VSCode Stuff\\\\Owl AoE4 Unit Battler\\\\apps\\\\pokemon-champions\\\\style.css\")",
+      "Bash(python \"C:/Users/ahmet/AppData/Local/Temp/claude/c--Users-ahmet-Desktop-VSCode-Stuff-Owl-AoE4-Unit-Battler/3519afb2-013c-4076-b610-5925fdd3bf61/scratchpad/verify_p1.py\")"
     ]
   }
 }

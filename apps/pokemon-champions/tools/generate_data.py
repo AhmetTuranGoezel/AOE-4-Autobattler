@@ -828,6 +828,16 @@ def main():
         meta["effect"] = desc
     print(f"  precise descriptions for {repo_hits}/{len(move_meta)} moves")
 
+    # Final word: Champions-specific effect corrections where pokebase/the repo flavor is stale for a move
+    # whose NUMBERS already came through (e.g. Make It Rain: 95% acc landed, but the −2 Sp.Atk did not).
+    MOVE_EFFECT_OVERRIDES = {
+        "Make It Rain": "Lowers the user's Special Attack by 2 stages.",
+    }
+    for _mv, _meta in move_meta.items():
+        _ov = MOVE_EFFECT_OVERRIDES.get(_meta.get("name"))
+        if _ov:
+            _meta["effect"] = _ov
+
     # Stable move ids: persisted in tools/move_ids.json (name -> id) so ids NEVER shift
     # across regens — team share codes reference them. Existing names keep their id; new
     # moves append after the current max. First run seeds from the shipped champions-data.json.
