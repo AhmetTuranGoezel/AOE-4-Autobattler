@@ -102,9 +102,12 @@ export function offDefaultAbility(mon) {
 // --- helpers for context-free views (the Moves table) --------------------------------
 
 // The subset of a mon's abilities that can change its damage output.
+// Abilities that change Expected Power through ACCURACY rather than a damage multiplier — they still
+// belong in the damage picture (No Guard makes a 70%-accurate Hurricane land every time).
+export const ACC_ABIL = new Set(["no-guard", "compound-eyes"]);
 export function damageAbilities(mon) {
   return (mon.abilities || []).map((a) => a.slug)
-    .filter((s) => s in OFF_ABIL || s in ATE_ABIL || PROTEAN.has(s));
+    .filter((s) => s in OFF_ABIL || s in ATE_ABIL || PROTEAN.has(s) || ACC_ABIL.has(s));
 }
 
 // Ability effect on one move WITHOUT a battle: neutral context normally; with
@@ -112,8 +115,8 @@ export function damageAbilities(mon) {
 // most favorable state. Target-dependent abilities (Tinted Lens, Neuroforce, Analytic)
 // never fire here — they need a real matchup.
 // Returns { mult, stab, acc, retype, note }.
-export function offenseMult(ability, mon, mv, bp, bestCase) {
-  const out = { mult: 1, stab: null, acc: 1, retype: null, note: "" };
+export function offenseMult(ability, mon, mv, bp, bestCase, field = {}) {
+  const out = { mult: 1, stab: null, acc: 1, alwaysHits: false, retype: null, note: "" };
   if (!ability) return out;
   const cat = mv.class;
   if (ATE_ABIL[ability] && mv.type === "normal") {   // -ate: retype Normal + ×1.2
@@ -123,11 +126,16 @@ export function offenseMult(ability, mon, mv, bp, bestCase) {
   }
   if (PROTEAN.has(ability)) { out.stab = 1.5; out.note = "Protean"; }
   const hiStat = hiStatOf(mon);
-  const base = { mv, cat, bp, weather: "none", terrain: "none", status: "none", typeEff: 1, first: null, hiStat };
+  // A field the caller has actually pinned (Rain, Electric Terrain …) is REAL: best-case must not
+  // upgrade it to "whichever weather flatters this ability most" — it only explores what's still unset.
+  const weather = field.weather && field.weather !== "none" ? field.weather : "none";
+  const terrain = field.terrain && field.terrain !== "none" ? field.terrain : "none";
+  const base = { mv, cat, bp, weather, terrain, status: "none", typeEff: 1, first: null, hiStat };
   const ctxs = bestCase
     ? [base,
-      { ...base, weather: "sand" }, { ...base, weather: "sun" }, { ...base, weather: "rain" }, { ...base, weather: "snow" },
-      { ...base, terrain: "electric" }, { ...base, status: "brn" }, { ...base, status: "psn" }]
+      ...(weather === "none" ? [{ ...base, weather: "sand" }, { ...base, weather: "sun" }, { ...base, weather: "rain" }, { ...base, weather: "snow" }] : []),
+      ...(terrain === "none" ? [{ ...base, terrain: "electric" }] : []),
+      { ...base, status: "brn" }, { ...base, status: "psn" }]
     : [base];
   let best = { mult: 1, stab: null, notes: [] };
   for (const ctx of ctxs) {
@@ -142,5 +150,7 @@ export function offenseMult(ability, mon, mv, bp, bestCase) {
   // drop the ability's note when its only contribution was a stab boost that didn't apply
   if (best.notes.length && (best.mult !== 1 || stabOk)) out.note = out.note ? `${out.note} · ${best.notes[0]}` : best.notes[0];
   if (ability === "hustle" && cat === "physical") out.acc = 0.8;   // Hustle's accuracy cost
+  if (ability === "compound-eyes") out.acc = 1.3;                  // Compound Eyes sharpens every move
+  if (ability === "no-guard") out.alwaysHits = true;               // No Guard — accuracy stops mattering
   return out;
 }

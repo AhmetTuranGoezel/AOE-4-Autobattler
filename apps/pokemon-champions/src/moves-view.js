@@ -65,6 +65,7 @@ function classifyMove(m) {
     else if (lab) chance = Math.max(chance, c);
   }
   // primary stat-stage effects (Noble Roar, Swords Dance, Armor Cannon's self-drop, …)
+  let selfBoost = false, selfDrop = false;
   for (const mm of eff.matchAll(STAGE_RE)) {
     const [, verb, who, statsTxt, n] = mm;
     const lower = verb.toLowerCase() === "lowers";
@@ -73,6 +74,7 @@ function classifyMove(m) {
     for (const st of stats) {
       chips.push({ txt: `${lower ? "−" : "+"}${n} ${st}${self ? " self" : ""}`, cls: self ? (lower ? "cost" : "gain") : (lower ? "sure" : "gain") });
     }
+    if (self && stats.length) { if (lower) selfDrop = true; else selfBoost = true; }
     if (lower && !self && stats.length) { facets.add("drops"); chance = Math.max(chance, 100); }
     if (!lower && stats.length) { facets.add("raises"); chance = Math.max(chance, 100); }
   }
@@ -82,13 +84,22 @@ function classifyMove(m) {
     facets.add("status"); chance = Math.max(chance, 100);
     chips.push({ txt: ps[1] ? `100% ${ps[1].toLowerCase().replace("badly poisons", "toxic").replace(/s$/, "")}` : "100% sleep", cls: "sure" });
   }
-  if (/raises? the user|boosts? the user|raises? its own/i.test(eff)) facets.add("raises");
+  if (/raises? the user|boosts? the user|raises? its own/i.test(eff)) { facets.add("raises"); selfBoost = true; }
   if (/(restores?|recovers?).{0,30}hp|drains?|leech|user gains|heals? the user/i.test(eff)) facets.add("heal");
   if ((m.priority || 0) > 0) facets.add("priority");
   if (/stealth rock|spikes|sticky web/i.test(eff)) facets.add("hazard");
   if (WEATHER_MOVES.has(m.name)) facets.add("weather");
-  return { facets, chance, chips };
+  return { facets, chance, chips, selfBoost, selfDrop };
 }
+// The effect-column legend doubles as a filter: each chip → a predicate on a computed move row.
+const EFF_FILTERS = {
+  sure: (m) => m._fx.chance >= 100,
+  often: (m) => m._fx.chance >= 50,
+  rare: (m) => m._fx.chance > 0 && m._fx.chance < 50,
+  selfboost: (m) => m._fx.selfBoost,
+  selfdrop: (m) => m._fx.selfDrop,
+  cond: (m) => !!(m._ep && m._ep.cond),
+};
 
 // Secondary effects in the data carry an EMPTY label for self stat-raises (e.g. Steel Wing [10,""]),
 // so the chip showed a bare "10%". Recover a short label from the effect text: "10% ↑Def".
@@ -115,15 +126,32 @@ const COND_DMG = {
   "Fishious Rend": { mult: 2, note: "×2 if first" }, Avalanche: { mult: 2, note: "×2 if hit first" },
   Payback: { mult: 2, note: "×2 if moving 2nd" }, Revenge: { mult: 2, note: "×2 if hit first" },
   Assurance: { mult: 2, note: "×2 if already hit" }, "Stomping Tantrum": { mult: 2, note: "×2 after a miss" },
-  "Temper Flare": { mult: 2, note: "×2 after a miss" }, "Weather Ball": { mult: 2, note: "×2 in weather" },
-  "Terrain Pulse": { mult: 2, note: "×2 in terrain" }, "Rising Voltage": { mult: 2, note: "×2 elec terrain" },
-  "Expanding Force": { mult: 1.5, note: "×1.5 psychic terrain" }, "Collision Course": { mult: 4 / 3, note: "×1.33 if SE" },
+  "Temper Flare": { mult: 2, note: "×2 after a miss" },
+  "Collision Course": { mult: 4 / 3, note: "×1.33 if SE" },
   "Electro Drift": { mult: 4 / 3, note: "×1.33 if SE" }, Retaliate: { mult: 2, note: "×2 if ally fainted" },
   "Lash Out": { mult: 2, note: "×2 if stats lowered" },
 };
+// Unlike COND_DMG (battle conditions we can't know — status, item, move order), these fire off the
+// REAL selected terrain, so they're exact rather than a best-case guess.
+const FIELD_COND = {
+  "Rising Voltage": { terrain: "electric", mult: 2, note: "×2 electric terrain" },
+  "Expanding Force": { terrain: "psychic", mult: 1.5, note: "×1.5 psychic terrain" },
+  "Misty Explosion": { terrain: "misty", mult: 1.5, note: "×1.5 misty terrain" },
+};
+// Moves whose ACCURACY the weather decides — perfect in their own weather, shaky in sun.
+const WEATHER_ACC = { Thunder: { rain: 100, sun: 50 }, Hurricane: { rain: 100, sun: 50 }, Blizzard: { snow: 100 } };
+// ×2 Speed in their weather — matters here because Gyro Ball / Electro Ball read Speed.
+const SPEED_ABIL = { "sand-rush": "sand", "swift-swim": "rain", chlorophyll: "sun", "slush-rush": "snow" };
 // Weight/speed-scaled moves: no fixed BP, but computable per mon + the popover's assumed target.
 // Exported for info.js (the move popup's "Best users" button needs the same "rankable" test).
-export const DYNAMIC_BP = new Set(["Grass Knot", "Low Kick", "Heavy Slam", "Heat Crash", "Gyro Ball", "Electro Ball", "Power Trip", "Stored Power"]);
+export const DYNAMIC_BP = new Set(["Grass Knot", "Low Kick", "Heavy Slam", "Heat Crash", "Gyro Ball", "Electro Ball", "Power Trip", "Stored Power", "Weather Ball", "Solar Beam", "Solar Blade", "Return", "Frustration", "Terrain Pulse"]);
+// Weather Ball's type follows the weather (Normal otherwise); the same weathers halve Solar Beam / Solar Blade.
+export const WEATHER_TYPE = { rain: "water", sun: "fire", sand: "rock", snow: "ice" };
+// Terrain Pulse's type follows the terrain (Normal otherwise).
+export const TERRAIN_TYPE = { electric: "electric", grassy: "grass", psychic: "psychic", misty: "fairy" };
+// Deterministic special damage: fixed (= the user's Lv50) and one-hit KO — knowable without a live battle.
+const FIXED_DMG_MV = { "Seismic Toss": 50, "Night Shade": 50 };
+const OHKO_MV = new Set(["Fissure", "Guillotine", "Horn Drill", "Sheer Cold"]);
 // Precompute a move's expected-power modifiers (null = no BP-based expected: status / variable power).
 function expData(m) {
   if (m.class === "status" || (m.power == null && !DYNAMIC_BP.has(m.name))) return null;
@@ -150,11 +178,12 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
   const RANK_ABIL_KEY = "pc-mvrank-abil-ignore";
   const loadRankExcluded = () => new Set(JSON.parse(localStorage.getItem(RANK_EXCL_KEY) || "[]"));
   const loadRankAbils = () => new Set(JSON.parse(localStorage.getItem(RANK_ABIL_KEY) || "[]"));
-  const state = { search: "", type: "", cat: "", flags: new Set(), tgroup: "", facets: new Set(), chance: "",
+  const state = { search: "", type: "", cat: "", flags: new Set(), tgroup: "", facets: new Set(), chance: "", eFilter: new Set(),
     mons: [], ownMode: "any", focus: null, sort: structuredClone(DEFAULT_SORT),
     expBest: false,     // best case: conditional move effects AND conditional abilities assumed active
     useAcc: true,       // × accuracy in Exp. Pow — off = potential damage (low-acc moves at full power)
     weather: "none",    // Rain/Sun scale Water/Fire move power (Sand/Snow are defender buffs — see the Damage tab)
+    terrain: "none",    // Electric/Grassy/Psychic boost the matching type ×1.3; also retypes/doubles Terrain Pulse
     tw: 70, ts: 100,    // global assumed-target weight (kg) / Speed for weight- & speed-scaled moves (browse)
     cfgOpen: null,      // slug whose ⚙ customize popover (stats/boosts/item/ability) is open
     customMoves: [],    // invented what-if moves — pinned on top of the table, session-only
@@ -177,7 +206,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
     const bp = bpOverride != null ? bpOverride : m.power;
     if (!ep || bp == null) return null;
     // "× accuracy" toggle off → potential damage: every move counted as if it always hits
-    const acc = state.useAcc ? (m.accuracy == null ? 1 : m.accuracy / 100) * accMult : 1;
+    const acc = state.useAcc ? accMult : 1;   // accMult already folds in weather / No Guard / ability accuracy
     let v = bp * acc * ep.crit * ep.hits;
     if (isSpread(m.target)) v *= 0.75;                       // Champions is doubles (Reg M-B)
     if (state.expBest && ep.cond) v *= ep.cond.mult;         // conditional signature effects
@@ -209,7 +238,14 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
       const bp = 20 + 20 * boosts;
       return { bp, note: boosts ? `+${boosts} boost${boosts > 1 ? "s" : ""} → ${bp} BP` : "no boosts yet" };
     }
-    const spe = effStatOf(mon, "spe", atkKeyOf(m));
+    if (m.name === "Weather Ball") { const w = WEATHER_TYPE[state.weather]; return { bp: w ? 100 : 50, note: w ? `${state.weather} → ${w} ×2` : "Normal (no weather)" }; }
+    if (m.name === "Terrain Pulse") { const t = TERRAIN_TYPE[state.terrain]; return { bp: t ? 100 : 50, note: t ? `${state.terrain} → ${t} ×2` : "Normal (no terrain)" }; }
+    if (m.name === "Return" || m.name === "Frustration") return { bp: 102, note: "max friendship" };
+    if (m.name === "Solar Beam" || m.name === "Solar Blade") { const half = ["sand", "rain", "snow"].includes(state.weather); return { bp: half ? Math.floor(m.power / 2) : m.power, note: half ? `½ in ${state.weather}` : (state.weather === "sun" ? "no charge (sun)" : "") }; }
+    // Swift Swim / Chlorophyll / Sand Rush / Slush Rush double Speed in their weather — Gyro Ball gets
+    // weaker, Electro Ball stronger.
+    const speBoost = SPEED_ABIL[mon.ability] === state.weather ? 2 : 1;
+    const spe = Math.floor(effStatOf(mon, "spe", atkKeyOf(m)) * speBoost);
     if (m.name === "Gyro Ball") return { bp: spe ? Math.min(150, Math.floor((25 * c.ts) / spe) + 1) : 1, note: `Spe ${spe} vs ${c.ts}` };
     if (m.name === "Electro Ball") { const r = c.ts ? spe / c.ts : 0; return { bp: r >= 4 ? 150 : r >= 3 ? 120 : r >= 2 ? 80 : r >= 1 ? 60 : 40, note: `Spe ${spe} vs ${c.ts}` }; }
     return null;
@@ -217,6 +253,20 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
   // Rain/Sun scale Water/Fire move power. Sand/Snow have no offensive multiplier (they buff defenders).
   const WEATHER_OFF = { rain: { water: 1.5, fire: 0.5 }, sun: { fire: 1.5, water: 0.5 } };
   const weatherMult = (type) => (WEATHER_OFF[state.weather] || {})[type] || 1;
+  // Weather Ball becomes the weather's type (Normal in clear weather) — used for STAB, the weather boost, and the type pill.
+  const weatherTypeOf = (m) => (m.name === "Weather Ball" && WEATHER_TYPE[state.weather]) ? WEATHER_TYPE[state.weather] : null;
+  // Electric/Grassy/Psychic terrain boost the matching move type ×1.3 (assumes a grounded user). Terrain Pulse retypes to it.
+  const TERRAIN_OFF = { electric: "electric", grassy: "grass", psychic: "psychic" };
+  const terrainMult = (type) => (TERRAIN_OFF[state.terrain] === type ? 1.3 : 1);
+  const terrainTypeOf = (m) => (m.name === "Terrain Pulse" && TERRAIN_TYPE[state.terrain]) ? TERRAIN_TYPE[state.terrain] : null;
+  // Effective accuracy 0..1: the weather decides some moves outright, No Guard overrides everything,
+  // then ability multipliers (Hustle ×0.8 / Compound Eyes ×1.3). Never above 100%.
+  function accuracyOf(m, o) {
+    if (o && o.alwaysHits) return 1;                                    // No Guard — accuracy stops mattering
+    const wa = WEATHER_ACC[m.name];
+    const base = wa && wa[state.weather] != null ? wa[state.weather] : (m.accuracy == null ? 100 : m.accuracy);
+    return Math.min(1, (base / 100) * (o ? o.acc : 1));
+  }
   // Expected power INCLUDING a mon's STAB AND its ability (both live HERE, in Exp. Pow — shown to
   //   the user). { power, stab, note }. mon = null → intrinsic only. -ate retypes → STAB follows the
   //   new type; ability damage multipliers (Huge Power, Sand Force …) are baked into `power`.
@@ -225,24 +275,33 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
     let dyn = null;
     if (m._ep.dynamic) { if (!mon) return null; dyn = dynamicBP(m, mon); if (!dyn) return null; }
     const bp = dyn ? dyn.bp : m.power;
-    const o = mon ? offenseMult(mon.ability, mon, m, bp, state.expBest) : { mult: 1, stab: null, acc: 1, retype: null, note: "" };
-    const ip = intrinsicPower(m, o.acc, bp);
+    const o = mon ? offenseMult(mon.ability, mon, m, bp, state.expBest, { weather: state.weather, terrain: state.terrain })
+      : { mult: 1, stab: null, acc: 1, alwaysHits: false, retype: null, note: "" };
+    const ip = intrinsicPower(m, accuracyOf(m, o), bp);
     if (ip == null) return null;
-    const stab = o.stab || (mon && mon.types.includes(o.retype || m.type) ? 1.5 : 1);
+    const et = o.retype || weatherTypeOf(m) || terrainTypeOf(m) || m.type;   // effective type (‑ate · Weather Ball · Terrain Pulse)
+    const stab = o.stab || (mon && mon.types.includes(et) ? 1.5 : 1);
     let itemM = 1, itemNote = "";
     if (mon && mon.cfg.item !== "none") {   // the mon's item is part of its effective power too
       const r = OFF_ITEMS[mon.cfg.item].mult(state.expBest, m.class);   // Expert Belt: SE assumed only in best-case
       if (r && r.m) { itemM = r.m; itemNote = r.note; }
     }
-    const wM = weatherMult(m.type), wNote = wM !== 1 ? `${state.weather} ×${wM}` : "";
-    return { power: ip * stab * o.mult * itemM * wM, stab, note: [dyn && dyn.note, o.note, itemNote, wNote].filter(Boolean).join(" · ") };
+    const wM = weatherMult(et), tM = terrainMult(et);
+    const fc = FIELD_COND[m.name], fcM = fc && state.terrain === fc.terrain ? fc.mult : 1;
+    const wa = WEATHER_ACC[m.name];
+    const accNote = state.useAcc && o.alwaysHits && (m.accuracy ?? 100) < 100 ? "always hits"
+      : (state.useAcc && wa && wa[state.weather] != null ? `${state.weather} acc ${wa[state.weather]}%` : "");
+    const fNote = [wM !== 1 ? `${state.weather} ×${wM}` : "", tM !== 1 ? `${state.terrain} ×${tM}` : "", fcM !== 1 ? fc.note : "", accNote].filter(Boolean).join(" · ");
+    return { power: ip * stab * o.mult * itemM * wM * tM * fcM, stab, note: [dyn && dyn.note, o.note, itemNote, fNote].filter(Boolean).join(" · ") };
   }
   // Foul Play uses the TARGET's Atk — no target exists here, so it gets no Eff. Dmg.
   const TARGET_STAT_MOVES = new Set(["Foul Play"]);
   // Effective damage for ONE mon = 0.44 (Gen-9 Lv50 coeff) × its Exp.Pow (STAB + ability + item in)
   // × its EFFECTIVE attacking stat (distributed points / +10% nature / boost stages from the ⚙ setup).
   function monDmg(mon, m) {
-    if (!m._ep || !(mon.moves.has(m.id) || m._custom) || TARGET_STAT_MOVES.has(m.name)) return null;
+    if (!(mon.moves.has(m.id) || m._custom)) return null;                 // must learn it
+    if (FIXED_DMG_MV[m.name] != null) return { v: FIXED_DMG_MV[m.name], pw: null, note: "fixed — deals 50" };   // Seismic Toss / Night Shade = Lv50
+    if (!m._ep || TARGET_STAT_MOVES.has(m.name)) return null;
     const pf = powerFor(m, mon);
     if (!pf) return null;
     const key = atkKeyOf(m);
@@ -335,8 +394,10 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
       <span class="mv-lab">Damage assumes</span>
       <label class="mv-exp-bestwrap" title="Assume conditional move effects and pinch abilities (Torrent …) are active"><input type="checkbox" class="mv-exp-best"> best-case effects</label>
       <label class="mv-exp-bestwrap" title="Off = potential damage: low-accuracy moves count as if they always hit"><input type="checkbox" class="mv-exp-acc" checked> weight by accuracy</label>
-      <label class="mv-weather-wrap" title="Rain: Water ×1.5, Fire ×0.5. Sun: Fire ×1.5, Water ×0.5. (Sandstorm/Snow don't change move power — they buff a defender's Rock Sp.Def / Ice Def; set those in the Damage tab.)">weather
-        <select class="cl-sel mv-weather"><option value="none">None</option><option value="rain">Rain</option><option value="sun">Sun</option></select></label>
+      <label class="mv-weather-wrap" title="Rain: Water ×1.5, Fire ×0.5. Sun: Fire ×1.5, Water ×0.5. Weather Ball becomes the weather's type (Water/Fire/Rock/Ice) and doubles power; Solar Beam/Blade are halved in Rain/Sand/Snow. (Sandstorm/Snow also buff a defender's Rock Sp.Def / Ice Def — set that in the Damage tab.)">weather
+        <select class="cl-sel mv-weather"><option value="none">None</option><option value="rain">Rain</option><option value="sun">Sun</option><option value="sand">Sandstorm</option><option value="snow">Snow</option></select></label>
+      <label class="mv-weather-wrap" title="Electric/Grassy/Psychic Terrain boost the matching move type ×1.3 (grounded users). Terrain Pulse becomes the terrain's type and doubles power.">terrain
+        <select class="cl-sel mv-terrain"><option value="none">None</option><option value="electric">Electric</option><option value="grassy">Grassy</option><option value="psychic">Psychic</option><option value="misty">Misty</option></select></label>
       <span class="mv-assume" title="The assumed defender for weight/speed-scaled moves (Grass Knot, Heavy Slam, Gyro Ball …) — one setting for every loaded Pokémon">vs target
         <span class="mv-cfg-num"><input type="number" class="mv-tw" value="70" min="0.1" max="999.9" step="0.1" inputmode="decimal"> kg</span>
         <span class="mv-cfg-num"><input type="number" class="mv-ts" value="100" min="1" max="400" step="1" inputmode="numeric"> Spe</span></span>
@@ -549,7 +610,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
   }
   function resetFilters() {
     state.search = ""; state.type = ""; state.cat = ""; state.flags.clear();
-    state.tgroup = ""; state.facets.clear(); state.chance = "";
+    state.tgroup = ""; state.facets.clear(); state.chance = ""; state.eFilter.clear();
     $(".mv-search").value = "";
     toolbarEl.querySelectorAll("[data-mvtype]").forEach((x) => x.classList.remove("on"));
     toolbarEl.querySelectorAll(".mv-cat button").forEach((x) => x.classList.toggle("active", x.dataset.cat === ""));
@@ -748,6 +809,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
   $(".mv-exp-best").addEventListener("change", (e) => { state.expBest = e.target.checked; draw(); });
   $(".mv-exp-acc").addEventListener("change", (e) => { state.useAcc = e.target.checked; draw(); });
   $(".mv-weather").addEventListener("change", (e) => { state.weather = e.target.value; draw(); });
+  $(".mv-terrain").addEventListener("change", (e) => { state.terrain = e.target.value; draw(); });
   // global assumed-target: one weight/Speed for every loaded Pokémon (was buried in each mon's ⚙)
   const syncAssume = () => state.mons.forEach((m) => { m.cfg.tw = state.tw; m.cfg.ts = state.ts; });
   $(".mv-tw").addEventListener("input", (e) => { const v = parseFloat(e.target.value); state.tw = Number.isFinite(v) ? Math.min(999.9, Math.max(0.1, Math.round(v * 10) / 10)) : 70; syncAssume(); draw(); });
@@ -929,6 +991,8 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
   const rankEntry = (slug) => getRankMons().find((x) => x.slug === slug);
   const togglePanel = (slug) => { state.rq.editing = state.rq.editing === slug ? null : slug; drawRank(); };
   contentEl.addEventListener("click", (e) => {
+    const ef = e.target.closest("[data-efilter]");   // clickable effect legend = a toggle filter
+    if (ef) { const k = ef.dataset.efilter; state.eFilter.has(k) ? state.eFilter.delete(k) : state.eFilter.add(k); draw(); return; }
     // --- Best-users rank interactions (specific targets before the generic panel-cfg catch) ---
     if (e.target.closest("[data-cfg-close]")) { state.rq.editing = null; drawRank(); return; }
     const of = e.target.closest("[data-mon-open]");      // ↗ the only path that leaves for the Pokédex
@@ -1013,6 +1077,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
       if (state.cat && m.class !== state.cat) return false;
       if (state.tgroup && !TARGET_GROUPS[state.tgroup].set.has(m.target)) return false;
       for (const f of state.facets) if (!m._fx.facets.has(f)) return false;
+      for (const k of state.eFilter) if (!EFF_FILTERS[k](m)) return false;   // clickable effect-legend filters
       if (state.chance && m._fx.chance < Number(state.chance)) return false;
       for (const f of state.flags) if (!(m.flags || []).includes(f)) return false;
       computeCols(m);
@@ -1097,7 +1162,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
       return `<tr ${custom ? 'class="mv-custom-row"' : `data-move="${m.id}" title="View move details"`}>
         ${nameCell}
         ${ownerCells}
-        <td class="mv-ty">${m.type ? `<span class="type" style="background:${TYPE_COLORS[m.type]}">${m.type}</span>` : "—"}</td>
+        <td class="mv-ty">${(() => { const ft = weatherTypeOf(m) || terrainTypeOf(m), t = ft || m.type; return t ? `<span class="type" style="background:${TYPE_COLORS[t]}"${ft ? ` title="${m.name} becomes ${t} on the field"` : ""}>${t}${ft ? " *" : ""}</span>` : "—"; })()}</td>
         <td class="mv-cat"><span class="mv-class mv-${m.class}" title="${m.class}">${cat}</span></td>
         <td class="mv-tg">${tgt}</td>
         <td class="num mv-pow">${m.power == null ? (m.class === "status" ? "—" : '<span class="mv-varies" title="Power varies — see effect">varies</span>') : m.power}</td>
@@ -1111,6 +1176,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
           ...m._fx.chips.map((ch) => `<span class="mv-chance ${ch.cls}" title="guaranteed primary effect">${ch.txt}</span>`),
           ...(m._ep && m._ep.cond ? [`<span class="mv-chance cond" title="conditional damage — folds into Expected with 'best-case effects' on">${m._ep.cond.note}</span>`] : []),
           ...(m._ep && m._ep.critNote ? [`<span class="mv-chance often" title="raises Expected damage">${m._ep.critNote}</span>`] : []),
+          ...(OHKO_MV.has(m.name) ? [`<span class="mv-chance sure" title="One-hit KO — KOs any target it hits, ignoring HP">OHKO</span>`] : []),
         ].join(" ") || "<span class='muted'>—</span>"}</td>
         <td class="mv-flags">${flags || "<span class='muted'>—</span>"}</td>
         <td class="num mv-cnt">${custom ? "<span class='muted'>—</span>" : `<span class="rarity ${rarityTier(m.count, data.total).cls}">${m.count}</span>`}</td>
@@ -1151,8 +1217,8 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
     } else {
       rows = list.map(rowHtml).join("");
     }
-    const lg = (cls, chip, txt) => `<span class="mv-lg"><span class="mv-chance ${cls}">${chip}</span>${txt}</span>`;
-    const effLegend = `<div class="mv-eff-legend"><b>Effect column:</b>${lg("sure", "100%", "guaranteed")}${lg("often", "≥50%", "likely")}${lg("rare", "&lt;50%", "rare")}${lg("gain", "+1", "self-boost")}${lg("cost", "−1", "self-drop")}${lg("cond", "cond", "conditional dmg")}</div>`;
+    const lg = (key, cls, chip, txt) => `<button class="mv-lg ${state.eFilter.has(key) ? "on" : ""}" data-efilter="${key}" title="Filter the table to: ${txt}"><span class="mv-chance ${cls}">${chip}</span>${txt}</button>`;
+    const effLegend = `<div class="mv-eff-legend"><b>Filter by effect:</b>${lg("sure", "sure", "100%", "guaranteed")}${lg("often", "often", "≥50%", "likely")}${lg("rare", "rare", "&lt;50%", "rare")}${lg("selfboost", "gain", "+1", "self-boost")}${lg("selfdrop", "cost", "−1", "self-drop")}${lg("cond", "cond", "cond", "conditional dmg")}</div>`;
     contentEl.innerHTML = `${effLegend}<table class="poke-table moves-table"><thead><tr>${head}</tr></thead><tbody>${pinned}${rows}</tbody></table>`;
   }
 
