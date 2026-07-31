@@ -1109,7 +1109,7 @@ const UI = (() => {
         : state.phase === "setup" ? "Setup"
         : `Cities: ${Game.countCities(state, p.id)} | Ctrl: ${Game.countControl(state, p.id)}${score}`;
       const lead = Game.getLeader ? Game.getLeader(p) : null;
-      const civTag = lead ? `<span class="pcv" title="${escapeHtml(lead.ability.title)}: ${escapeHtml(lead.ability.text)}">${escapeHtml(lead.civ)}</span>` : "";
+      const civTag = lead ? `<span class="pcv" title="${escapeHtml(lead.ability.text)}">${escapeHtml(lead.civ)}</span>` : "";
       return `<div class="player-card${active}">
         <div class="pname"><span class="dot" style="background:${p.color}"></span>${escapeHtml(p.name)}${civTag}</div>
         <div class="pstats">${stats}</div>
@@ -1157,10 +1157,17 @@ const UI = (() => {
       ? visibleWonders.map((w) => `<div style="margin-top:2px"><strong style="font-size:10px">${w.type} / ${w.era} (${w.cost})</strong>: <span title="${w.effect}" style="cursor:help">${w.name}</span></div>`).join("")
       : `<div style="color:var(--text2)">none</div>`;
     const myLeader = Game.getLeader ? Game.getLeader(me) : null;
-    const leaderRow = myLeader
-      ? `<div class="leader-box"><div class="lb-head">${escapeHtml(myLeader.civ)} — ${escapeHtml(myLeader.name)}</div>
-         <div class="lb-ability"><strong>${escapeHtml(myLeader.ability.title)}.</strong> ${escapeHtml(myLeader.ability.text)}</div></div>`
-      : "";
+    let leaderRow = "";
+    if (myLeader) {
+      const u = myLeader.unique;
+      const tierLabel = u ? ["I", "II", "III", "IV"][u.tier - 1] : "";
+      const uActive = u && Game.getActiveUniqueCard && Game.getActiveUniqueCard(me, u.type);
+      const uniqueLine = u
+        ? `<div class="lb-unique ${uActive ? "on" : ""}" title="${escapeHtml(u.text)}">★ ${escapeHtml(u.name)} <span class="lb-ut">(${Game.FOCUS_LABELS[u.type]} ${tierLabel}${u.auto ? "" : " — manual"})</span>${uActive ? " <span class=\"lb-live\">active</span>" : ""}</div>`
+        : "";
+      leaderRow = `<div class="leader-box"><div class="lb-head">${escapeHtml(myLeader.civ)}${myLeader.ability.manual ? ' <span class="lb-ut">(manual ability)</span>' : ""}</div>
+         <div class="lb-ability">${escapeHtml(myLeader.ability.text)}</div>${uniqueLine}</div>`;
+    }
     dom.myStats.innerHTML = `<h3>My Stats</h3>${leaderRow}<div class="stat-grid">
       <span>Tech:</span><span class="sv">${me.tech}/${Game.CFG.techWheelSize} (T${me.techTier})</span>
       <span>Card Tiers:</span><span class="sv">${tiers}</span>
@@ -1322,11 +1329,13 @@ const UI = (() => {
     const leaderCards = (Game.LEADERS || []).map((l) => {
       const takenByOther = takenBy[l.id] && takenBy[l.id] !== localPlayerId;
       const mine = me && me.leaderId === l.id;
+      const uniqueLine = l.unique ? `${l.unique.name} (${Game.FOCUS_LABELS[l.unique.type] || l.unique.type} ${["I","II","III","IV"][l.unique.tier - 1]})` : "";
+      const tip = `${l.ability.text}${l.unique ? `\n\nUnique card — ${uniqueLine}: ${l.unique.text}` : ""}`;
       return `<button class="leader-card${mine ? " picked" : ""}${takenByOther ? " taken" : ""}" data-leader="${l.id}"
-        ${takenByOther ? "disabled" : ""} title="${escapeHtml(l.ability.title)}: ${escapeHtml(l.ability.text)}">
+        ${takenByOther ? "disabled" : ""} title="${escapeHtml(tip)}">
         <span class="lc-civ">${escapeHtml(l.civ)}</span>
-        <span class="lc-name">${escapeHtml(l.name)}</span>
-        <span class="lc-ability">${escapeHtml(l.ability.title)}</span>
+        <span class="lc-name">${escapeHtml(l.ability.text.slice(0, 64))}${l.ability.text.length > 64 ? "…" : ""}</span>
+        <span class="lc-ability">★ ${escapeHtml(uniqueLine)}</span>
         <span class="lc-src ${l.source}">${l.source === "terra" ? "Terra" : "Base"}</span>
       </button>`;
     }).join("");
@@ -1885,7 +1894,7 @@ const UI = (() => {
     } else {
       dispatch({ type: "PLAY_ECONOMY", payload: {
         playerId: localPlayerId, unitId: ms.unitId, toKey: ms.currentKey, tradeSpent: sub.tradeSpent,
-        startKey: ms.trajanStart || undefined
+        startKey: ms.romeStart || undefined
       }});
     }
     resetSub();
@@ -2027,7 +2036,7 @@ const UI = (() => {
       sub.phase = "move_caravan"; sub.selectedUnit = null;
       // Highlight pickable caravans; Trajan may also launch from any friendly city.
       const starts = new Set(me.caravans.filter((u) => u.position).map((u) => u.position));
-      if (Game.getLeader(me) && me.leaderId === "trajan" && me.caravans.some((u) => u.position)) {
+      if (Game.getLeader(me) && me.leaderId === "rome" && me.caravans.some((u) => u.position)) {
         Object.entries(state.map.hexes).forEach(([k, h]) => {
           if (h.city && h.city.ownerId === localPlayerId) starts.add(k);
         });
@@ -2163,20 +2172,20 @@ const UI = (() => {
     if (sub.phase === "move_caravan") {
       if (!sub.selectedUnit) {
         let unit = me.caravans.find((u) => u.position === hexKey);
-        let trajanStart = null;
-        if (!unit && me.leaderId === "trajan") {
+        let romeStart = null;
+        if (!unit && me.leaderId === "rome") {
           // Trajan: clicking a friendly city launches your caravan from there.
           const h = state.map.hexes[hexKey];
           if (h && h.city && h.city.ownerId === localPlayerId) {
             unit = me.caravans.find((u) => u.position);
-            if (unit) trajanStart = hexKey;
+            if (unit) romeStart = hexKey;
           }
         }
         if (!unit) return;
         sub.selectedUnit = unit;
         const maxMove = Game.getEconomyMove(me) + sub.tradeSpent;
-        const originKey = trajanStart || unit.position;
-        sub.movementState = { unitType: "caravan", unitId: unit.id, maxMove, remaining: maxMove, currentKey: originKey, startKey: originKey, trajanStart, explored: false };
+        const originKey = romeStart || unit.position;
+        sub.movementState = { unitType: "caravan", unitId: unit.id, maxMove, remaining: maxMove, currentKey: originKey, startKey: originKey, romeStart, explored: false };
         sub.selectedUnit = { id: unit.id, position: originKey };
         sub.validHexes = Game.getReachable(state, originKey, maxMove, "caravan", localPlayerId);
         render();
@@ -2362,7 +2371,8 @@ const UI = (() => {
       const effective = Game.getSlotValue(me, cardType, state);
       const bonus = me.govBonus[cardType] || 0;
       const tier = Game.getCardTier(me, cardType);
-      const cardName = Game.CARD_NAMES[cardType][tier - 1];
+      const uniqueCard = Game.getActiveUniqueCard ? Game.getActiveUniqueCard(me, cardType) : null;
+      const cardName = uniqueCard ? uniqueCard.name : Game.CARD_NAMES[cardType][tier - 1];
       const icon = Game.CARD_ICONS[cardType];
       const maxT = Game.CFG.maxTrade;
       const filled = me.trade[cardType];
@@ -2375,7 +2385,7 @@ const UI = (() => {
       const disabled = !canPlay ? " disabled" : "";
       const selected = sub.cardType === cardType && sub.phase !== "idle" ? " selected" : "";
 
-      return `<div class="fcard type-${cardType}${disabled}${selected}" data-card="${cardType}" data-idx="${idx}">
+      return `<div class="fcard type-${cardType}${disabled}${selected}${uniqueCard ? " unique" : ""}" data-card="${cardType}" data-idx="${idx}">
         <div class="fc-header">
           <span class="fc-icon">${icon}</span>
           <span class="fc-type">${Game.FOCUS_LABELS[cardType]}</span>
@@ -2383,7 +2393,7 @@ const UI = (() => {
         </div>
         <div class="fc-body">
           <div class="fc-power">${effective}${bonus > 0 ? `<span class="gov-plus">+${bonus}</span>` : ""}</div>
-          <div class="fc-cardname">${cardName}</div>
+          <div class="fc-cardname">${uniqueCard ? "★ " : ""}${cardName}</div>
           <div class="fc-tier-badge">TIER ${TIER_LABELS[tier - 1]}</div>
         </div>
         <div class="fc-footer">${tradeDots}</div>
@@ -2425,10 +2435,10 @@ const UI = (() => {
       const cardType = el.dataset.card;
       el.addEventListener("mouseenter", () => {
         const slot = Game.getSlotValue(me, cardType, state);
-        const tier = Game.getCardTier(me, cardType);
-        const name = Game.CARD_NAMES[cardType][tier - 1];
-        const desc = Game.FOCUS_TRADE_DESC[cardType];
-        dom.mapTooltip.innerHTML = `<strong>${name}</strong> (Power: ${slot})<br>${desc}`;
+        const uc = Game.getActiveUniqueCard ? Game.getActiveUniqueCard(me, cardType) : null;
+        const name = Game.getCardName ? Game.getCardName(me, cardType) : Game.CARD_NAMES[cardType][Game.getCardTier(me, cardType) - 1];
+        const desc = uc ? `${uc.text}${uc.auto ? "" : "<br><em>Special clause is a table rule — resolve manually.</em>"}` : Game.FOCUS_TRADE_DESC[cardType];
+        dom.mapTooltip.innerHTML = `<strong>${uc ? "★ " : ""}${name}</strong> (Power: ${slot})<br>${desc}`;
         dom.mapTooltip.classList.remove("hidden");
         const rect = el.getBoundingClientRect();
         dom.mapTooltip.style.left = rect.left + "px";

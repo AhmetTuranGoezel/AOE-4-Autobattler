@@ -849,3 +849,11 @@ input, select {
 .leader-grid { max-height: 248px; overflow-y: auto; padding-right: 3px; }
 .leader-grid::-webkit-scrollbar { width: 6px; }
 .leader-grid::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* Unique civilization focus cards */
+.fcard.unique .fc-cardname { color: #ffd54f; font-weight: 800; }
+.fcard.unique { box-shadow: 0 0 10px rgba(255,213,79,0.18); }
+.leader-box .lb-unique { margin-top: 4px; font-size: 10.5px; color: #ffd54f; cursor: help; }
+.leader-box .lb-unique .lb-ut { color: var(--text2); font-size: 9.5px; }
+.leader-box .lb-live { background: #14532d; color: #86efac; font-size: 8.5px; padding: 1px 5px; border-radius: 3px; text-transform: uppercase; letter-spacing: 0.5px; }
+.leader-card .lc-name { line-height: 1.35; }

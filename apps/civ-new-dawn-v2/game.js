@@ -17,6 +17,25 @@ const Game = (() => {
   function hasLeader(player, id) {
     return !!player && player.leaderId === id;
   }
+
+  // The civ's unique focus card if the player currently runs a card of its
+  // type at its tier (tier-I uniques replace the start card; higher tiers are
+  // taken when upgrading to that tier).
+  function getActiveUniqueCard(player, cardType) {
+    const leader = getLeader(player);
+    if (!leader || !leader.unique) return null;
+    const u = leader.unique;
+    if (u.type !== cardType) return null;
+    const tier = (player.cardTiers && player.cardTiers[cardType]) || 1;
+    return tier === u.tier ? u : null;
+  }
+
+  function getCardName(player, cardType) {
+    const u = getActiveUniqueCard(player, cardType);
+    if (u) return u.name;
+    const tier = (player.cardTiers && player.cardTiers[cardType]) || 1;
+    return (CARD_NAMES[cardType] || [])[tier - 1] || cardType;
+  }
   const TERRAIN = { grass: 1, hill: 2, forest: 3, desert: 4, mountain: 5, water: 1 };
   const TERRAIN_LABELS = { grass: "Grassland", hill: "Hills", forest: "Forest", desert: "Desert", mountain: "Mountain", water: "Water" };
   const FOCUS_TYPES = ["culture", "growth", "science", "economy", "military", "industry"];
@@ -607,6 +626,7 @@ const Game = (() => {
     st.wonderDecks = st.wonderDecks || makeWonderDecks();
     st.agendaCards = st.agendaCards || makeAgendaCards();
     st.claimedAgendas = st.claimedAgendas || {};
+    if (st.ibrahimHolder === undefined) st.ibrahimHolder = null;
     st.pendingChoices = st.pendingChoices || [];
     st.manualLog = st.manualLog || [];
     st.log = st.log || [];
@@ -638,6 +658,17 @@ const Game = (() => {
         }
         player.armies.forEach((u) => { if (!u.position) u.position = capKey; });
         player.caravans.forEach((u) => { if (!u.position) u.position = capKey; });
+      }
+    });
+
+    // Poland: before their first turn they raid a rival's diplomacy hand.
+    st.players.forEach((player) => {
+      if (hasLeader(player, "poland") && st.players.length > 1) {
+        queuePendingChoice(st, {
+          kind: "pick_rival_diplomacy", playerId: player.id,
+          title: "Poland: Take a Diplomacy Card",
+          options: st.players.filter((p) => p.id !== player.id).map((p) => ({ id: p.id, label: p.name }))
+        });
       }
     });
 
@@ -870,14 +901,18 @@ const Game = (() => {
       const player = getPlayer(st, payload.playerId);
       if (!player || player.cardPlayed) return st;
       const effectiveSlot = getSlotValue(player, "culture", st) + (payload.tradeSpent || 0);
-      const maxMarkers = getCultureMarkers(player, payload.tradeSpent || 0, st);
+      // France: the latest-era wonder you own grants extra tokens (1/2/3).
+      let maxMarkers = getCultureMarkers(player, payload.tradeSpent || 0, st);
+      const franceBonus = hasLeader(player, "france") ? franceWonderBonus(st, player.id) : 0;
+      maxMarkers += franceBonus;
       const hexKeys = (payload.hexKeys || []).slice(0, maxMarkers);
       let placed = 0;
+      const placedMountains = [];
       for (const k of hexKeys) {
         const hx = st.map.hexes[k];
         if (!hx || !hx.active || hx.terrain === "water" || hx.city || hx.barbarian || hx.cityState) continue;
         if (hx.control) continue;
-        if (placementDifficulty(hx, player, "control") > effectiveSlot) continue;
+        if (placementDifficulty(st, hx, player, "control") > effectiveSlot) continue;
         if (!adjacentToFriendlyCity(st, hx, payload.playerId) && !adjacentToFriendlyControl(st, hx, payload.playerId)) continue;
         if (hx.resource && hx.resource !== "wonder") {
           if (player.resources[hx.resource] !== undefined) player.resources[hx.resource]++;
@@ -885,10 +920,15 @@ const Game = (() => {
         }
         hx.control = { ownerId: payload.playerId, fortified: false, district: null };
         placed++;
+        if (hx.terrain === "mountain") placedMountains.push(k);
       }
       if (placed === 0) return st;
       resolveCard(st, player, "culture", payload.tradeSpent);
-      log(st, `${player.name} placed ${placed} control marker(s).`);
+      log(st, `${player.name} placed ${placed} control marker(s).${franceBonus ? ` (+${franceBonus} from wonders)` : ""}`);
+      // Inca: each token placed on a mountain may spill onto an adjacent space.
+      if (hasLeader(player, "inca")) {
+        placedMountains.forEach((k) => queueIncaChain(st, player, k));
+      }
       checkDevelopment(st, payload.playerId);
       return st;
     }
@@ -902,7 +942,7 @@ const Game = (() => {
       if (hex.control && hex.control.district) return st;
       if (!adjacentToFriendlyCity(st, hex, payload.playerId)) return st;
       const growthSlot = getSlotValue(player, "growth", st) + (payload.tradeSpent || 0);
-      if (placementDifficulty(hex, player, "district") > growthSlot) return st;
+      if (placementDifficulty(st, hex, player, "district") > growthSlot) return st;
       hex.control = { ownerId: payload.playerId, fortified: false, district: payload.district };
       resolveCard(st, player, "growth", payload.tradeSpent);
       log(st, `${player.name} placed a ${payload.district} district.`);
@@ -925,8 +965,13 @@ const Game = (() => {
     if (type === "PLAY_SCIENCE") {
       const player = getPlayer(st, payload.playerId);
       if (!player || player.cardPlayed) return st;
-      // Hammurabi: Babylonian scholarship compounds — every science action gains a step.
-      const bonus = hasLeader(player, "hammurabi") ? 1 : 0;
+      let bonus = 0;
+      // China's Writing (unique Science I): +1 step while you control a wonder.
+      if (hasLeader(player, "china") && getCardTier(player, "science") === 1 && countWonders(st, player.id) > 0) bonus += 1;
+      // England's Natural History (unique Science III): +1 per resource type held.
+      if (hasLeader(player, "england") && getCardTier(player, "science") >= 3) {
+        bonus += RESOURCES.filter((r) => (player.resources[r] || 0) > 0).length;
+      }
       advanceTech(st, player, payload.amount + bonus);
       resolveCard(st, player, "science", payload.tradeSpent);
       return st;
@@ -939,9 +984,9 @@ const Game = (() => {
       if (!unit || !unit.position) return st;
       const ecoHex = st.map.hexes[payload.toKey];
       if (!ecoHex || !ecoHex.active) return st;
-      // Trajan: all roads lead to Rome — a caravan may set out from any friendly city.
+      // Rome: a caravan leaving the economy card may set out from any friendly city.
       let startKey = unit.position;
-      if (payload.startKey && payload.startKey !== unit.position && hasLeader(player, "trajan")) {
+      if (payload.startKey && payload.startKey !== unit.position && hasLeader(player, "rome")) {
         const sh = st.map.hexes[payload.startKey];
         if (sh && sh.city && sh.city.ownerId === payload.playerId) startKey = payload.startKey;
       }
@@ -949,14 +994,24 @@ const Game = (() => {
       if (!reachable.has(payload.toKey)) return st;
       unit.position = payload.toKey;
       const hex = st.map.hexes[payload.toKey];
-      // Cleopatra: bride of the Mediterranean — every trade run yields a bonus token.
-      const tradeGain = 2 + (hasLeader(player, "cleopatra") ? 1 : 0);
+      const tradeGain = 2;
+      // Egypt's Wheel (unique Economy I): trade runs also yield a resource.
+      const wheelResource = hasLeader(player, "egypt") && getCardTier(player, "economy") === 1;
+      const queueWheel = () => {
+        if (!wheelResource) return;
+        queuePendingChoice(st, {
+          kind: "gain_resource", playerId: player.id,
+          title: "Wheel: Gain a Resource",
+          options: RESOURCES.map((r) => ({ id: r, label: r }))
+        });
+      };
       if (hex && hex.cityState) {
         const tradeType = hex.cityState.type;
         if (player.trade[tradeType] !== undefined) {
           player.trade[tradeType] = Math.min(CFG.maxTrade, player.trade[tradeType] + tradeGain);
         }
         grantCityStateDiplomacy(st, player, hex.cityState);
+        queueWheel();
         const capKey = findCapital(st, payload.playerId);
         unit.position = capKey;
         log(st, `${player.name}'s caravan traded at ${hex.cityState.name} (+${tradeGain} ${tradeType} trade). Returned to capital.`);
@@ -966,6 +1021,24 @@ const Game = (() => {
           player.trade[tradeType] = Math.min(CFG.maxTrade, player.trade[tradeType] + tradeGain);
         }
         grantPlayerDiplomacy(st, player, hex.city.ownerId);
+        queueWheel();
+        const hostPlayer = getPlayer(st, hex.city.ownerId);
+        // Ibrahim card: its holder trading at an Ottoman city enriches both sides.
+        if (st.ibrahimHolder === player.id && hasLeader(hostPlayer, "ottoman")) {
+          player.trade.economy = Math.min(CFG.maxTrade, player.trade.economy + 1);
+          hostPlayer.trade.economy = Math.min(CFG.maxTrade, hostPlayer.trade.economy + 1);
+          log(st, `Ibrahim: ${player.name} and ${hostPlayer.name} each gain +1 economy trade.`);
+        }
+        // Ottoman Banking (unique Economy III): a caravan reaching the Ibrahim
+        // holder's capital brings home a resource.
+        if (hasLeader(player, "ottoman") && getCardTier(player, "economy") >= 3 &&
+            st.ibrahimHolder && hex.city.ownerId === st.ibrahimHolder && hex.city.isCapital) {
+          queuePendingChoice(st, {
+            kind: "gain_resource", playerId: player.id,
+            title: "Banking: Gain a Resource",
+            options: RESOURCES.map((r) => ({ id: r, label: r }))
+          });
+        }
         const capKey = findCapital(st, payload.playerId);
         unit.position = capKey;
         log(st, `${player.name}'s caravan traded at foreign city (+${tradeGain} ${tradeType} trade). Returned to capital.`);
@@ -1003,11 +1076,14 @@ const Game = (() => {
       const atkRoll = rollDie();
       const defRoll = rollDie();
       const tierCombatBonus = getMilitaryCombatBonus(player);
-      // Teddy Roosevelt: the big stick swings hardest near American cities.
+      // Leader combat bonuses (Scythia terrain, Ottoman vs Ibrahim holder).
       const leaderBonus = getLeaderAttackBonus(st, payload.playerId, payload.toKey);
       const atkTotal = atkRoll + payload.attackPower + tierCombatBonus + leaderBonus;
       const defTotal = defRoll + payload.defensePower;
       const win = atkTotal > defTotal;
+      // Zulu cares whether the target was a rival city or city-state — note it
+      // before the capture logic rewrites the hex.
+      const targetWasCityOrCS = !!(hex.cityState || (hex.city && hex.city.ownerId !== payload.playerId));
 
       st.lastCombat = { attacker: player.name, defender: payload.defenderLabel, atkRoll, defRoll, atkTotal, defTotal, win, leaderBonus };
 
@@ -1022,8 +1098,13 @@ const Game = (() => {
           hex.barbarian = false;
           st.pendingBarbReward = { playerId: payload.playerId };
           log(st, `${player.name} defeated a barbarian! Choose a focus card for +1 trade.`);
-          if (hasLeader(player, "gilgamesh")) {
-            advanceTech(st, player, 1); // Gilgamesh: every slain beast is an epic verse.
+          if (hasLeader(player, "sumeria")) {
+            // Sumeria: a defeated barbarian also yields a resource of choice.
+            queuePendingChoice(st, {
+              kind: "gain_resource", playerId: player.id,
+              title: "Sumeria: Gain a Resource",
+              options: RESOURCES.map((r) => ({ id: r, label: r }))
+            });
           }
         }
         if (hex.cityState) {
@@ -1062,10 +1143,14 @@ const Game = (() => {
           hex.city.developed = false;
         }
         defeatEnemyUnitsAt(st, payload.toKey, payload.playerId);
-        if (hasLeader(player, "montezuma")) {
-          player.trade.military = Math.min(CFG.maxTrade, player.trade.military + 1);
-          log(st, `${player.name} claims captives: +1 military trade.`);
+        // Zulu: a won attack stocks the military card — doubly so vs cities.
+        if (hasLeader(player, "zulu")) {
+          const gain = 1 + (targetWasCityOrCS ? 1 : 0);
+          player.trade.military = Math.min(CFG.maxTrade, player.trade.military + gain);
+          log(st, `${player.name}'s impi triumph: +${gain} military trade.`);
         }
+        // Aztec: remember the win — resetting the military card may swap cards.
+        player.wonAttackThisTurn = true;
         log(st, `${player.name} won combat vs ${payload.defenderLabel}! (${atkTotal} vs ${defTotal})`);
       } else {
         unit.position = null;
@@ -1086,7 +1171,7 @@ const Game = (() => {
       let resBonus = 0;
       if (payload.resources) Object.values(payload.resources).forEach((v) => { if (v) resBonus += CFG.resourceProdValue; });
       const totalProd = slot + (payload.tradeSpent || 0) + resBonus;
-      if (terrainDifficulty(hex) > totalProd) return st;
+      if (placementDifficulty(st, hex, player, "city") > totalProd) return st;
       const range = getCityRange(player);
       if (!withinRangeOfFriendly(st, hex, payload.playerId, range)) return st;
       if (payload.resources) {
@@ -1101,6 +1186,25 @@ const Game = (() => {
       }
       resolveCard(st, player, "industry", payload.tradeSpent);
       log(st, `${player.name} built a new city.`);
+      // England: the first city on a tile may plant a reinforced token beside it.
+      if (hasLeader(player, "england") && hex.tileId) {
+        const onlyCityOnTile = !Object.values(st.map.hexes).some((h2) =>
+          h2 !== hex && h2.tileId === hex.tileId && h2.city);
+        if (onlyCityOnTile) {
+          const spots = hexNeighborKeys(hex.q, hex.r).filter((nk) => {
+            const nh = st.map.hexes[nk];
+            return nh && nh.active && nh.terrain !== "water" && !nh.city && !nh.control &&
+              !nh.barbarian && !nh.cityState && !(nh.fortress && !nh.city);
+          });
+          if (spots.length) {
+            queuePendingChoice(st, {
+              kind: "place_control", playerId: player.id, fortified: true,
+              title: "England: Reinforced Expansion",
+              source: "england", hexKeys: spots
+            });
+          }
+        }
+      }
       checkDevelopment(st, payload.playerId);
       return st;
     }
@@ -1128,11 +1232,20 @@ const Game = (() => {
       }
       if (!wonder || builtWonders.has(wonder.name)) return st;
 
-      const cost = getWonderCost(wonder.name);
+      const cost = getWonderCost(wonder.name, player); // Egypt builds wonders for 1 less
       const slot = getSlotValue(player, "industry", st);
+      // Nubia's Construction (unique Industry II): each resource spent is worth
+      // 1 extra production.
+      const perResource = CFG.resourceProdValue +
+        (hasLeader(player, "nubia") && getCardTier(player, "industry") === 2 ? 1 : 0);
       let resBonus = 0;
-      if (payload.resources) Object.values(payload.resources).forEach((v) => { if (v) resBonus += CFG.resourceProdValue; });
-      const totalProd = slot + (payload.tradeSpent || 0) + resBonus;
+      if (payload.resources) Object.values(payload.resources).forEach((v) => { if (v) resBonus += perResource; });
+      let totalProd = slot + (payload.tradeSpent || 0) + resBonus;
+      // Japan's Industrialization (unique Industry III): +1 production per district.
+      if (hasLeader(player, "japan") && getCardTier(player, "industry") >= 3) {
+        totalProd += Object.values(st.map.hexes).filter((h) =>
+          h.control && h.control.ownerId === player.id && h.control.district).length;
+      }
       if (totalProd < cost) return st;
 
       spendResources(player, payload.resources);
@@ -1141,6 +1254,10 @@ const Game = (() => {
       advanceWonderDeck(st, wonder.type, wonder.name);
       resolveCard(st, player, "industry", payload.tradeSpent);
       log(st, `${player.name} built ${wonder.name}! (${wonder.effect})`);
+      // Sumeria's Craftsmanship (unique Industry I): building also teaches.
+      if (hasLeader(player, "sumeria") && getCardTier(player, "industry") === 1) {
+        advanceTech(st, player, 1);
+      }
       return st;
     }
 
@@ -1187,9 +1304,20 @@ const Game = (() => {
 
     if (type === "END_TURN") {
       const cp = currentPlayer(st);
-      if (cp) cp.cardPlayed = false;
+      if (cp) { cp.cardPlayed = false; cp.wonAttackThisTurn = false; }
       st.turn.index = (st.turn.index + 1) % st.turn.order.length;
       st.lastCombat = null;
+      // Ottoman: at the start of their turn they may hand out the Ibrahim card.
+      const np = currentPlayer(st);
+      if (np && hasLeader(np, "ottoman") && st.players.length > 1 &&
+          !(st.pendingChoices || []).some((c) => c.kind === "give_ibrahim" && c.playerId === np.id)) {
+        queuePendingChoice(st, {
+          kind: "give_ibrahim", playerId: np.id,
+          title: "Ottoman: Give the Ibrahim Card?",
+          options: st.players.filter((p) => p.id !== np.id).map((p) => ({ id: p.id, label: p.name }))
+            .concat([{ id: "keep", label: st.ibrahimHolder ? "Leave as is" : "Not this turn" }])
+        });
+      }
       if (st.turn.index === 0) {
         const winnerBeforeEvent = checkVictory(st);
         if (winnerBeforeEvent) {
@@ -1242,6 +1370,47 @@ const Game = (() => {
     }
     if (tradeSpent > 0) player.trade[cardType] = Math.max(0, player.trade[cardType] - tradeSpent);
     player.cardPlayed = true;
+
+    // Aztec: resetting the military card after a winning attack lets you
+    // rearrange your row — swap any 2 cards.
+    if (cardType === "military" && hasLeader(player, "aztec") && player.wonAttackThisTurn) {
+      const pairs = [];
+      for (let a = 0; a < FOCUS_TYPES.length; a++) {
+        for (let b = a + 1; b < FOCUS_TYPES.length; b++) {
+          pairs.push({ id: `${FOCUS_TYPES[a]}|${FOCUS_TYPES[b]}`, label: `${FOCUS_LABELS[FOCUS_TYPES[a]]} ↔ ${FOCUS_LABELS[FOCUS_TYPES[b]]}` });
+        }
+      }
+      queuePendingChoice(st, {
+        kind: "swap_cards", playerId: player.id,
+        title: "Aztec: Swap 2 Focus Cards", options: pairs
+      });
+    }
+
+    // Nubia: resetting the growth card resolves one of your districts —
+    // adapted here as the district event's reward (+1 trade of your choice).
+    if (cardType === "growth" && hasLeader(player, "nubia")) {
+      const hasDistrict = Object.values(st.map.hexes).some((h) =>
+        h.control && h.control.ownerId === player.id && h.control.district);
+      if (hasDistrict) {
+        queuePendingChoice(st, {
+          kind: "trade_any", playerId: player.id, amount: 1,
+          title: "Nubia: District Effect",
+          options: FOCUS_TYPES.map((f) => ({ id: f, label: FOCUS_LABELS[f] }))
+        });
+      }
+    }
+
+    // France's Humanism (unique Culture III): +1 trade token per mature city.
+    if (cardType === "culture" && hasLeader(player, "france") && getCardTier(player, "culture") >= 3) {
+      const mature = countDeveloped(st, player.id);
+      for (let i = 0; i < mature; i++) {
+        queuePendingChoice(st, {
+          kind: "trade_any", playerId: player.id, amount: 1,
+          title: "Humanism: Place a Trade Token",
+          options: FOCUS_TYPES.map((f) => ({ id: f, label: FOCUS_LABELS[f] }))
+        });
+      }
+    }
   }
 
   function advanceTech(st, player, amount) {
@@ -1319,8 +1488,49 @@ const Game = (() => {
       const hex = st.map.hexes[hexKey];
       const allowed = (choice.hexKeys || []).includes(hexKey);
       if (allowed && hex && hex.active && hex.terrain !== "water" && !hex.city && !hex.control && !hex.barbarian && !hex.cityState && !(hex.fortress && !hex.city)) {
-        hex.control = { ownerId: player.id, fortified: false, district: null };
-        log(st, `${player.name} placed a control marker from ${choice.source || "a choice"}.`);
+        hex.control = { ownerId: player.id, fortified: !!choice.fortified, district: null };
+        if (hex.resource && hex.resource !== "wonder" && player.resources[hex.resource] !== undefined) {
+          player.resources[hex.resource]++;
+          hex.resource = null;
+        }
+        log(st, `${player.name} placed a${choice.fortified ? " reinforced" : ""} control marker from ${choice.source || "a choice"}.`);
+        // Inca chain: landing on another mountain keeps the expansion rolling.
+        if (choice.source === "inca" && hex.terrain === "mountain") {
+          queueIncaChain(st, player, hexKey);
+        }
+        checkDevelopment(st, player.id);
+        resolved = true;
+      }
+    } else if (choice.kind === "gain_resource") {
+      const r = payload.optionId;
+      if (RESOURCES.includes(r)) {
+        player.resources[r] = (player.resources[r] || 0) + 1;
+        log(st, `${player.name} gained 1 ${r}.`);
+        resolved = true;
+      }
+    } else if (choice.kind === "swap_cards") {
+      const [a, b] = String(payload.optionId || "").split("|");
+      const ia = player.focusRow.indexOf(a);
+      const ib = player.focusRow.indexOf(b);
+      if (ia >= 0 && ib >= 0) {
+        player.focusRow[ia] = b;
+        player.focusRow[ib] = a;
+        log(st, `${player.name} swapped ${FOCUS_LABELS[a]} and ${FOCUS_LABELS[b]}.`);
+        resolved = true;
+      }
+    } else if (choice.kind === "give_ibrahim") {
+      if (payload.optionId === "keep") {
+        resolved = true;
+      } else if (getPlayer(st, payload.optionId) && payload.optionId !== player.id) {
+        st.ibrahimHolder = payload.optionId;
+        log(st, `${player.name} gave the Ibrahim card to ${getPlayer(st, payload.optionId).name}.`);
+        resolved = true;
+      }
+    } else if (choice.kind === "pick_rival_diplomacy") {
+      const rival = getPlayer(st, payload.optionId);
+      if (rival && rival.id !== player.id) {
+        grantPlayerDiplomacy(st, player, rival.id);
+        log(st, `${player.name} (Poland) took a diplomacy card from ${rival.name}.`);
         resolved = true;
       }
     } else if (choice.kind === "reinforce") {
@@ -1878,18 +2088,25 @@ const Game = (() => {
     const idx = player.focusRow.indexOf(cardType);
     if (idx < 0) return 1;
     const tierBonus = player.techTier >= 4 ? 2 : (player.techTier >= 2 ? 1 : 0);
-    return Math.min(5, FOCUS_SLOTS[idx] + (player.govBonus[cardType] || 0) + tierBonus);
+    // Georgia: a diplomacy card from a city-state of this card's type resolves
+    // the card as though it sat 1 slot farther to the right.
+    const georgiaBonus = hasLeader(player, "georgia") &&
+      (player.diplomacy || []).some((d) => d.fromCityState && d.type === cardType) ? 1 : 0;
+    return Math.min(5, FOCUS_SLOTS[idx] + (player.govBonus[cardType] || 0) + tierBonus + georgiaBonus);
   }
 
   function getMilitaryMove(player) {
     const tier = getCardTier(player, "military");
+    // Scythia's Horseback Riding (unique Military I): armies ride 6 spaces.
+    if (tier === 1 && hasLeader(player, "scythia")) return 6;
     return CARD_TIERS.military.move[tier - 1];
   }
 
   function getEconomyMove(player) {
     const tier = getCardTier(player, "economy");
-    // Victoria: the sun never sets — caravans always travel 1 space farther.
-    return CARD_TIERS.economy.move[tier - 1] + (hasLeader(player, "victoria") ? 1 : 0);
+    // Egypt's Wheel (unique Economy I): caravans roll 4 spaces.
+    if (tier === 1 && hasLeader(player, "egypt")) return 4;
+    return CARD_TIERS.economy.move[tier - 1];
   }
 
   function getCultureMarkers(player, tradeSpent, st) {
@@ -1903,15 +2120,59 @@ const Game = (() => {
     return CARD_TIERS.military.combatBonus[tier - 1];
   }
 
+  function hexOwnerAt(st, hexKey) {
+    const h = st.map.hexes[hexKey];
+    if (!h) return null;
+    if (h.city) return h.city.ownerId;
+    if (h.control) return h.control.ownerId;
+    for (const p of st.players) {
+      if (p.armies.some((u) => u.position === hexKey)) return p.id;
+    }
+    return null;
+  }
+
+  // France: extra culture tokens from your latest-era world wonder.
+  function franceWonderBonus(st, playerId) {
+    const rank = { ancient: 1, medieval: 2, modern: 3 };
+    let best = 0;
+    Object.values(st.map.hexes).forEach((h) => {
+      if (h.city && h.city.ownerId === playerId && h.city.wonder) {
+        best = Math.max(best, rank[h.city.wonder.era] || 0);
+      }
+    });
+    return best;
+  }
+
+  // Inca: a token placed on a mountain may spawn a neighbour placement, which
+  // itself chains if it lands on another mountain (handled in the resolver).
+  function queueIncaChain(st, player, mountainKey) {
+    const spots = hexNeighborKeys(parseQ(mountainKey), parseR(mountainKey)).filter((nk) => {
+      const nh = st.map.hexes[nk];
+      return nh && nh.active && nh.terrain !== "water" && !nh.city && !nh.control &&
+        !nh.barbarian && !nh.cityState && !(nh.fortress && !nh.city);
+    });
+    if (!spots.length) return;
+    queuePendingChoice(st, {
+      kind: "place_control",
+      playerId: player.id,
+      title: "Inca: Mountain Expansion",
+      source: "inca",
+      hexKeys: spots
+    });
+  }
+
   // Leader combat bonus for an attack into toKey (shown in the combat preview
   // and applied by the engine so both always agree).
   function getLeaderAttackBonus(st, playerId, toKey) {
     const player = getPlayer(st, playerId);
-    if (!hasLeader(player, "teddy") || !toKey) return 0;
-    const target = { q: parseQ(toKey), r: parseR(toKey) };
-    const near = Object.values(st.map.hexes).some((h) =>
-      h.city && h.city.ownerId === playerId && hexDist(h, target) <= 2);
-    return near ? 2 : 0;
+    if (!player || !toKey) return 0;
+    let bonus = 0;
+    const h = st.map.hexes[toKey];
+    // Scythia: +3 when attacking a grassland or hill space.
+    if (hasLeader(player, "scythia") && h && (h.terrain === "grass" || h.terrain === "hill")) bonus += 3;
+    // Ottoman: +2 against the player holding the Ibrahim card.
+    if (hasLeader(player, "ottoman") && st.ibrahimHolder && hexOwnerAt(st, toKey) === st.ibrahimHolder) bonus += 2;
+    return bonus;
   }
 
   function getCityRange(player) {
@@ -1919,9 +2180,11 @@ const Game = (() => {
     return CARD_TIERS.industry.cityRange[tier - 1];
   }
 
-  function getWonderCost(wonderName) {
+  function getWonderCost(wonderName, player) {
     const wonder = getWonderByName(wonderName);
-    return wonder ? wonder.cost : 7;
+    const base = wonder ? wonder.cost : 7;
+    // Egypt: all world wonders cost 1 less.
+    return hasLeader(player, "egypt") ? Math.max(1, base - 1) : base;
   }
 
   function getWonderByName(wonderName) {
@@ -1953,23 +2216,27 @@ const Game = (() => {
     return TERRAIN[h.terrain] || 1;
   }
 
-  // Terrain difficulty as seen by a specific player for a specific purpose.
-  // Leader sheets bend the base numbers here rather than at each call site.
-  function placementDifficulty(h, player, context) {
-    let d = terrainDifficulty(h);
-    if (context === "control" && hasLeader(player, "menelik") && h.terrain === "mountain" && h.resource !== "wonder") {
-      d = Math.min(d, 3); // Menelik II: mountains yield to the Ethiopian crown.
-    }
-    if (context === "district" && hasLeader(player, "amanitore")) {
-      d = Math.max(1, d - 1); // Amanitore: Nubian builders raise districts with ease.
-    }
-    return d;
+  // Japan: during your turn, desert and mountain spaces adjacent to water or
+  // the edge of the map are treated as terrain difficulty 3.
+  function japanCoastalDifficulty(st, h, player, d) {
+    if (!hasLeader(player, "japan")) return d;
+    if (h.terrain !== "desert" && h.terrain !== "mountain") return d;
+    if (h.resource === "wonder") return d;
+    const coastalOrEdge = hexNeighborKeys(h.q, h.r).some((nk) => {
+      const nh = st.map.hexes[nk];
+      return !nh || !nh.active || nh.terrain === "water";
+    });
+    return coastalOrEdge ? Math.min(d, 3) : d;
   }
 
-  function moveDifficulty(h, player, unitType) {
-    // Pachacuti: the Inca road network crosses the Andes as if they were plains.
-    if (unitType === "army" && hasLeader(player, "pachacuti") && h.terrain === "mountain") return 1;
-    return terrainDifficulty(h);
+  // Terrain difficulty as seen by a specific player for a specific purpose.
+  // Leader sheets bend the base numbers here rather than at each call site.
+  function placementDifficulty(st, h, player, context) {
+    return japanCoastalDifficulty(st, h, player, terrainDifficulty(h));
+  }
+
+  function moveDifficulty(st, h, player, unitType) {
+    return japanCoastalDifficulty(st, h, player, terrainDifficulty(h));
   }
 
   function validControlHexes(st, playerId, maxTerrain) {
@@ -1977,7 +2244,7 @@ const Game = (() => {
     const valid = [];
     Object.entries(st.map.hexes).forEach(([k, h]) => {
       if (!h.active || h.terrain === "water") return;
-      if (placementDifficulty(h, player, "control") > maxTerrain) return;
+      if (placementDifficulty(st, h, player, "control") > maxTerrain) return;
       if (h.city || h.cityState || h.barbarian || h.control || (h.fortress && !h.city)) return;
       if (!adjacentToFriendlyCity(st, h, playerId) && !adjacentToFriendlyControl(st, h, playerId)) return;
       valid.push(k);
@@ -1990,7 +2257,7 @@ const Game = (() => {
     const valid = [];
     Object.entries(st.map.hexes).forEach(([k, h]) => {
       if (!h.active || h.terrain === "water") return;
-      if (placementDifficulty(h, player, "district") > maxTerrain) return;
+      if (placementDifficulty(st, h, player, "district") > maxTerrain) return;
       if (h.city || h.cityState || h.barbarian || (h.fortress && !h.city)) return;
       if (h.control && (h.control.ownerId !== playerId || h.control.district)) return;
       if (!adjacentToFriendlyCity(st, h, playerId)) return;
@@ -2009,10 +2276,11 @@ const Game = (() => {
 
   function validCityHexes(st, playerId, production, cityRange) {
     const range = cityRange || 2;
+    const player = getPlayer(st, playerId);
     const valid = [];
     Object.entries(st.map.hexes).forEach(([k, h]) => {
       if (!h.active || h.terrain === "water") return;
-      if (terrainDifficulty(h) > production) return;
+      if (placementDifficulty(st, h, player, "city") > production) return;
       if (h.city || h.cityState || h.barbarian || (h.fortress && !h.city)) return;
       if (adjacentToAnyCity(st, h) || adjacentToCityState(st, h) || adjacentToFortress(st, h)) return;
       if (!withinRangeOfFriendly(st, h, playerId, range)) return;
@@ -2031,8 +2299,8 @@ const Game = (() => {
 
   function canCrossWater(player, unitType) {
     if (!player) return false;
-    // Kupe: Māori figures navigate open water from the very start.
-    if (hasLeader(player, "kupe")) return true;
+    // Indonesia: caravans and armies can always move into water.
+    if (hasLeader(player, "indonesia")) return true;
     const cardType = unitType === "caravan" ? "economy" : "military";
     const tier = getCardTier(player, cardType);
     const waterTier = CARD_TIERS[cardType].water;
@@ -2067,7 +2335,7 @@ const Game = (() => {
         const h = st.map.hexes[nk];
         if (!h || !h.active) return;
         if (h.terrain === "water" && !waterOk) return;
-        if (h.terrain !== "water" && moveDifficulty(h, player, unitType) > terrainLimit) return;
+        if (h.terrain !== "water" && moveDifficulty(st, h, player, unitType) > terrainLimit) return;
         if (unitType === "caravan" && h.barbarian) return;
         visited.add(nk);
         reachable.add(nk);
@@ -2088,14 +2356,25 @@ const Game = (() => {
       return { type: "barbarian", label: "Barbarian", power: CFG.barbarianBase + terrainDiff };
     }
     if (h.cityState) return { type: "citystate", label: h.cityState.name, power: CFG.cityStateDefense };
+    // Defender-side leader effects: China's reinforced tokens count double,
+    // Scythia adds +3 defending a grassland or hill space.
+    const defenderLeaderBonus = (ownerId) => {
+      const owner = getPlayer(st, ownerId);
+      return hasLeader(owner, "scythia") && (h.terrain === "grass" || h.terrain === "hill") ? 3 : 0;
+    };
+    const reinforcedValue = (ownerId) => {
+      const owner = getPlayer(st, ownerId);
+      return countAdjacentReinforced(st, hexKey, ownerId) * (hasLeader(owner, "china") ? 2 : 1);
+    };
     if (h.control && h.control.ownerId !== attackerId) {
-      const reinforced = countAdjacentReinforced(st, hexKey, h.control.ownerId);
-      const def = terrainDifficulty(h) + (h.control.fortified ? 2 : 0) + reinforced;
+      const def = terrainDifficulty(h) + (h.control.fortified ? 2 : 0) +
+        reinforcedValue(h.control.ownerId) + defenderLeaderBonus(h.control.ownerId);
       return { type: "control", label: "Control Marker", power: def };
     }
     if (h.city && h.city.ownerId !== attackerId) {
-      const reinforced = countAdjacentReinforced(st, hexKey, h.city.ownerId);
-      return { type: "city", label: h.city.isCapital ? "Capital" : "City", power: terrainDifficulty(h) * 2 + reinforced };
+      const def = terrainDifficulty(h) * 2 +
+        reinforcedValue(h.city.ownerId) + defenderLeaderBonus(h.city.ownerId);
+      return { type: "city", label: h.city.isCapital ? "Capital" : "City", power: def };
     }
     for (const p of st.players) {
       if (p.id === attackerId) continue;
@@ -2271,7 +2550,7 @@ const Game = (() => {
         const h = st.map.hexes[nk];
         if (!h || !h.active) return;
         if (h.terrain === "water" && !waterOk) return;
-        if (h.terrain !== "water" && moveDifficulty(h, player, unitType) > terrainLimit) return;
+        if (h.terrain !== "water" && moveDifficulty(st, h, player, unitType) > terrainLimit) return;
         if (unitType === "caravan" && h.barbarian) return;
         distances.set(nk, cur.steps + 1);
         if (!isForcedStopHex(st, h, unitType, playerId)) queue.push({ key: nk, steps: cur.steps + 1 });
@@ -2285,7 +2564,7 @@ const Game = (() => {
     TERRAIN, TERRAIN_LABELS, FOCUS_TYPES, FOCUS_LABELS, FOCUS_SLOTS, FOCUS_TRADE_DESC, CARD_NAMES, CARD_ICONS,
     DISTRICTS, DISTRICT_LABELS, DISTRICT_EFFECTS, RESOURCES, EVENTS, EVENT_LABELS, CFG,
     WONDERS, ALL_WONDERS, WONDER_ERAS, CARD_TIERS, AGENDA_CARDS, DIPLOMACY_CARDS, CITY_STATE_DATA,
-    LEADERS, getLeader, getLeaderAttackBonus,
+    LEADERS, getLeader, getLeaderAttackBonus, getCardName, getActiveUniqueCard,
     TILE_OFFSETS, getCoreAnchors,
     createState, createLobbyState, createPlayer, migrateState, applyAction, currentPlayer, getPlayer,
     getSlotValue, getSlotIndex, getCardTier, getCardTierValue: getCardTier,
