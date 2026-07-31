@@ -3,6 +3,7 @@
 const UI = (() => {
   let state = null;
   let localPlayerId = null;
+  let roomCode = null;
 
   // Canvas
   let canvas = null;
@@ -115,6 +116,11 @@ const UI = (() => {
     return helps[phase] || "";
   }
 
+  function escapeHtml(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
   function init() {
     dom.lobby = document.getElementById("lobby");
     dom.game = document.getElementById("game");
@@ -143,6 +149,7 @@ const UI = (() => {
       if (!confirm("Start a new game? Current progress will be lost.")) return;
       state = null;
       localPlayerId = null;
+      roomCode = null;
       try { localStorage.removeItem("civ-nd-save"); } catch(e) {}
       resetSub();
       dom.game.classList.add("hidden");
@@ -236,7 +243,10 @@ const UI = (() => {
     Net.createRoom((id) => {
       localPlayerId = id;
       const player = Game.createPlayer(id, name, color);
-      state = Game.createState([player]);
+      // Open a waiting room rather than a live 1-player board. The real game
+      // is built (with everyone in it) when the host presses Start Game.
+      state = Game.createLobbyState([player]);
+      roomCode = id;
       dom.hdrRoom.textContent = `Room: ${id}`;
       showGame();
       render();
@@ -253,6 +263,7 @@ const UI = (() => {
     dom.lobbyStatus.textContent = "Connecting...";
     Net.joinRoom(code, name, color, (id) => {
       localPlayerId = id;
+      roomCode = code;
       dom.hdrRoom.textContent = `Room: ${code}`;
       showGame();
     });
@@ -906,6 +917,13 @@ const UI = (() => {
 
   function renderHeader() {
     const cp = Game.currentPlayer(state);
+    if (state.phase === "lobby") {
+      dom.hdrRound.textContent = "Lobby";
+      dom.hdrTurn.textContent = `${state.players.length}/${Game.CFG.maxPlayers} players`;
+      dom.hdrTurn.style.color = "";
+      if (roomCode || Net.getLocalId()) dom.hdrRoom.textContent = `Room: ${roomCode || Net.getLocalId()}`;
+      return;
+    }
     if (state.phase === "setup") {
       dom.hdrRound.textContent = `Setup: ${state.setup.phase}`;
       const activeId = state.setup.order[state.setup.turnIndex];
@@ -924,11 +942,14 @@ const UI = (() => {
     dom.players.innerHTML = state.players.map((p) => {
       const active = state.phase === "setup"
         ? (state.setup.order[state.setup.turnIndex] === p.id ? " active" : "")
-        : (Game.currentPlayer(state)?.id === p.id ? " active" : "");
+        : (state.phase !== "lobby" && Game.currentPlayer(state)?.id === p.id ? " active" : "");
       const score = state.phase === "playing" ? ` | Score: ${Game.computeScore(state, p.id)}` : "";
+      const stats = state.phase === "lobby" ? "In lobby"
+        : state.phase === "setup" ? "Setup"
+        : `Cities: ${Game.countCities(state, p.id)} | Ctrl: ${Game.countControl(state, p.id)}${score}`;
       return `<div class="player-card${active}">
-        <div class="pname"><span class="dot" style="background:${p.color}"></span>${p.name}</div>
-        <div class="pstats">${state.phase === "setup" ? "Setup" : `Cities: ${Game.countCities(state, p.id)} | Ctrl: ${Game.countControl(state, p.id)}${score}`}</div>
+        <div class="pname"><span class="dot" style="background:${p.color}"></span>${escapeHtml(p.name)}</div>
+        <div class="pstats">${stats}</div>
       </div>`;
     }).join("");
   }
@@ -992,7 +1013,7 @@ const UI = (() => {
 
   function renderHostTools() {
     if (!dom.hostTools) return;
-    if (!state || !Net.getIsHost()) { dom.hostTools.innerHTML = ""; return; }
+    if (!state || !Net.getIsHost() || state.phase === "lobby") { dom.hostTools.innerHTML = ""; return; }
     const playerOptions = state.players.map((p) => `<option value="${p.id}">${p.name}</option>`).join("");
     const terrainOptions = Object.keys(Game.TERRAIN).map((t) => `<option value="${t}">${Game.TERRAIN_LABELS[t]}</option>`).join("");
     const focusOptions = Game.FOCUS_TYPES.map((f) => `<option value="${f}">${Game.FOCUS_LABELS[f]}</option>`).join("");
@@ -1077,6 +1098,7 @@ const UI = (() => {
 
   function renderWizard() {
     if (!state) return;
+    if (state.phase === "lobby") { renderLobby(); return; }
     if (state.phase === "setup") { renderSetupWizard(); return; }
 
     const cp = Game.currentPlayer(state);
@@ -1106,6 +1128,54 @@ const UI = (() => {
 
     const help = helpText(sub.phase);
     if (help) dom.wizard.insertAdjacentHTML("beforeend", `<div class="wiz-help">${help}</div>`);
+  }
+
+  function renderLobby() {
+    const isHost = Net.getIsHost();
+    const code = roomCode || Net.getLocalId() || "";
+    const min = Game.CFG.minPlayers, max = Game.CFG.maxPlayers;
+    const n = state.players.length;
+    const canStart = isHost && n >= min && n <= max;
+    const playerList = state.players.map((p, i) => `
+      <div class="lobby-player">
+        <span class="dot" style="background:${p.color}"></span>
+        <span class="lp-name">${escapeHtml(p.name)}</span>
+        ${i === 0 ? '<span class="lp-tag">Host</span>' : ""}
+        ${p.id === localPlayerId ? '<span class="lp-tag you">You</span>' : ""}
+      </div>`).join("");
+
+    dom.wizard.innerHTML = `
+      <div class="wiz-title">Game Lobby</div>
+      <div class="lobby-code-row">
+        <div class="lobby-code-label">Room code</div>
+        <div class="lobby-code"><code id="lobby-code-val">${escapeHtml(code)}</code>
+          <button id="lobby-copy" class="sm">Copy</button></div>
+        <div class="wiz-hint">Share this code so friends can Join.</div>
+      </div>
+      <div class="lobby-players">
+        <div class="lobby-players-head">Players (${n}/${max})</div>
+        ${playerList}
+        ${n < min ? `<div class="wiz-hint">Need at least ${min} players to start.</div>` : ""}
+      </div>
+      ${isHost
+        ? `<button id="lobby-start" class="wiz-primary" ${canStart ? "" : "disabled"}>Start Game (${n} player${n === 1 ? "" : "s"})</button>`
+        : `<div class="wiz-body">Waiting for the host to start the game...</div>`}
+    `;
+
+    const copyBtn = document.getElementById("lobby-copy");
+    if (copyBtn) copyBtn.addEventListener("click", () => {
+      const val = code;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(val).then(() => showToast("Room code copied")).catch(() => showToast(val));
+      } else {
+        showToast(val);
+      }
+    });
+    const startBtn = document.getElementById("lobby-start");
+    if (startBtn) startBtn.addEventListener("click", () => {
+      if (state.players.length < Game.CFG.minPlayers) { showToast(`Need at least ${Game.CFG.minPlayers} players`); return; }
+      dispatch({ type: "START_GAME", payload: { playerId: localPlayerId } });
+    });
   }
 
   function renderSetupWizard() {

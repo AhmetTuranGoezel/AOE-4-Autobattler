@@ -695,3 +695,33 @@ input, select {
 .cr-lose { animation: shake 0.4s ease; color: var(--danger); font-weight: bold; font-size: 18px; }
 .log-entry { animation: slide-up-in 0.2s ease; }
 .player-card.active { animation: pulse-glow 1.5s ease infinite; border-color: var(--accent); }
+
+/* ── Online game lobby ─────────────────────────────────────── */
+.lobby-code-row { margin: 4px 0 12px; }
+.lobby-code-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text2); margin-bottom: 4px; }
+.lobby-code { display: flex; align-items: center; gap: 8px; }
+.lobby-code code {
+  flex: 1; font-family: ui-monospace, monospace; font-size: 13px; font-weight: 700;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+  padding: 6px 8px; color: var(--accent2); word-break: break-all; user-select: all;
+}
+.wiz-hint { font-size: 11px; color: var(--text2); margin-top: 6px; line-height: 1.5; }
+.lobby-players { margin: 12px 0; }
+.lobby-players-head { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text2); margin-bottom: 6px; }
+.lobby-player {
+  display: flex; align-items: center; gap: 8px; padding: 6px 8px; margin-bottom: 4px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 4px; font-size: 13px;
+}
+.lobby-player .dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+.lobby-player .lp-name { flex: 1; font-weight: 600; }
+.lobby-player .lp-tag {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;
+  background: var(--surface2); color: var(--text2); border-radius: 3px; padding: 2px 6px;
+}
+.lobby-player .lp-tag.you { background: var(--accent); color: #000; }
+.wiz-primary {
+  width: 100%; margin-top: 8px; padding: 10px; font-size: 13px; font-weight: 700;
+  background: var(--accent); color: #000; border-color: var(--accent);
+}
+.wiz-primary:hover:not(:disabled) { background: var(--accent2); }
+.wiz-primary:disabled { opacity: 0.45; cursor: not-allowed; }

@@ -54,6 +54,23 @@
       const s4 = Game.createState(players(4));
       assert("4-player setup places four core tiles", s4.setup.coreTiles.length === 4);
 
+      // ── Online lobby flow ──
+      let lob = Game.createLobbyState([players(1)[0]]);
+      assert("lobby state starts in lobby phase", lob.phase === "lobby");
+      lob = Game.applyAction(lob, { type: "START_GAME", payload: { playerId: lob.players[0].id } });
+      assert("cannot start a lobby with one player", lob.phase === "lobby");
+      const joiners = players(4).slice(1);
+      joiners.forEach((p) => { lob = Game.applyAction(lob, { type: "ADD_PLAYER", payload: p }); });
+      assert("lobby fills to four players", lob.players.length === 4 && lob.phase === "lobby");
+      lob = Game.applyAction(lob, { type: "ADD_PLAYER", payload: Game.createPlayer("p5", "P5", "#f77f00") });
+      assert("lobby rejects a fifth player", lob.players.length === 4);
+      lob = Game.applyAction(lob, { type: "START_GAME", payload: { playerId: lob.players[0].id } });
+      assert("START_GAME builds a four-player setup", lob.phase === "setup" && lob.setup.phase === "fortress" && lob.setup.order.length === 4);
+      let midGame = Game.createState(players(2));
+      midGame.phase = "playing";
+      midGame = Game.applyAction(midGame, { type: "ADD_PLAYER", payload: Game.createPlayer("late", "Late", "#f77f00") });
+      assert("no joining a game in progress", !midGame.players.find((p) => p.id === "late"));
+
       let st = Game.createState(players(2));
       st.phase = "playing";
       const first = st.turn.order[0];

@@ -63,6 +63,8 @@ const Game = (() => {
     techWheelSize: 24,
     techResetAt: 15,
     maxRounds: 20,
+    minPlayers: 2,
+    maxPlayers: 4,
     victoryMilitary: 12,
     victoryScience: 24,
     victoryCulture: 3,
@@ -497,6 +499,26 @@ const Game = (() => {
     return st;
   }
 
+  // A pre-game waiting room. The host creates this when opening an online room;
+  // players join into it via ADD_PLAYER and the host triggers START_GAME once
+  // everyone is present. Only then is the real board (createState) built, so a
+  // late join can never wipe an in-progress setup.
+  function createLobbyState(players) {
+    const list = (players || []).slice(0, CFG.maxPlayers);
+    return {
+      rulesVersion: RULE_VERSION,
+      phase: "lobby",
+      map: buildEmptyMap(CFG.mapRadius),
+      players: list,
+      turn: { order: list.map((p) => p.id), index: 0, round: 1 },
+      pendingChoices: [],
+      manualLog: [],
+      eventWheel: { position: 0, events: EVENTS.slice() },
+      winner: null,
+      log: ["Waiting for players to join..."]
+    };
+  }
+
   function createPlayer(id, name, color) {
     const cardTiers = { culture: 1, growth: 1, science: 1, economy: 1, military: 1, industry: 1 };
     return {
@@ -606,11 +628,28 @@ const Game = (() => {
   function applyActionInner(st, action) {
     const { type, payload = {} } = action;
 
+    if (type === "START_GAME") {
+      if (st.phase !== "lobby") return st;
+      if (st.players.length < CFG.minPlayers) return st;
+      const newState = createState(st.players);
+      // Carry the lobby chatter into the game log for continuity.
+      newState.log = (st.log || []).concat(newState.log);
+      return newState;
+    }
+
     if (type === "ADD_PLAYER") {
       if (st.players.find((p) => p.id === payload.id)) return st;
+      // Players may only join before the board is built (lobby), or during the
+      // very first setup phase. Never mid-game.
+      if (st.phase !== "lobby" && st.phase !== "setup") return st;
+      if (st.players.length >= CFG.maxPlayers) return st;
       migratePlayer(payload);
       st.players.push(payload);
       st.turn.order.push(payload.id);
+      if (st.phase === "lobby") {
+        log(st, `${payload.name} joined the lobby. (${st.players.length}/${CFG.maxPlayers})`);
+        return st;
+      }
       // Rebuild setup with new player
       if (st.phase === "setup") {
         const newSetup = createSetupState(st.players.map((p) => p.id));
@@ -2139,7 +2178,7 @@ const Game = (() => {
     DISTRICTS, DISTRICT_LABELS, DISTRICT_EFFECTS, RESOURCES, EVENTS, EVENT_LABELS, CFG,
     WONDERS, ALL_WONDERS, WONDER_ERAS, CARD_TIERS, AGENDA_CARDS, DIPLOMACY_CARDS, CITY_STATE_DATA,
     TILE_OFFSETS, getCoreAnchors,
-    createState, createPlayer, migrateState, applyAction, currentPlayer, getPlayer,
+    createState, createLobbyState, createPlayer, migrateState, applyAction, currentPlayer, getPlayer,
     getSlotValue, getSlotIndex, getCardTier, getCardTierValue: getCardTier,
     getMilitaryMove, getEconomyMove, getCultureMarkers, getMilitaryCombatBonus,
     getCityRange, getWonderCost, getVisibleWonders, canCrossWater, computeScore,
