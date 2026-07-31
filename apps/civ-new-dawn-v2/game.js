@@ -8,6 +8,15 @@ const Game = (() => {
   const CITY_STATE_DATA = RULES.CITY_STATES || {};
   const DIPLOMACY_CARDS = RULES.DIPLOMACY_CARDS || {};
   const AGENDA_CARDS = Array.isArray(RULES.AGENDA_CARDS) ? RULES.AGENDA_CARDS : [];
+  const LEADERS = Array.isArray(RULES.LEADERS) ? RULES.LEADERS.filter((l) => l && l.id !== "random") : [];
+  const LEADER_BY_ID = Object.fromEntries(LEADERS.map((l) => [l.id, l]));
+
+  function getLeader(player) {
+    return player ? LEADER_BY_ID[player.leaderId] || null : null;
+  }
+  function hasLeader(player, id) {
+    return !!player && player.leaderId === id;
+  }
   const TERRAIN = { grass: 1, hill: 2, forest: 3, desert: 4, mountain: 5, water: 1 };
   const TERRAIN_LABELS = { grass: "Grassland", hill: "Hills", forest: "Forest", desert: "Desert", mountain: "Mountain", water: "Water" };
   const FOCUS_TYPES = ["culture", "growth", "science", "economy", "military", "industry"];
@@ -519,6 +528,29 @@ const Game = (() => {
     };
   }
 
+  // Set a player's starting focus row from their leader sheet.
+  function applyLeaderStart(player) {
+    const leader = getLeader(player);
+    if (leader && Array.isArray(leader.focusOrder) && leader.focusOrder.length === FOCUS_TYPES.length) {
+      player.focusRow = leader.focusOrder.slice();
+    }
+  }
+
+  // Deal unique leaders to everyone still on "random" before the board is built.
+  function assignRandomLeaders(st) {
+    const taken = new Set(st.players.map((p) => p.leaderId).filter((id) => id && id !== "random"));
+    const pool = shuffle(LEADERS.filter((l) => !taken.has(l.id)).map((l) => l.id));
+    st.players.forEach((player) => {
+      if (player.leaderId && player.leaderId !== "random") return;
+      const id = pool.pop();
+      if (!id) return;
+      player.leaderId = id;
+      applyLeaderStart(player);
+      const leader = LEADER_BY_ID[id];
+      log(st, `${player.name} drew ${leader.civ} (${leader.name}).`);
+    });
+  }
+
   function createPlayer(id, name, color) {
     const cardTiers = { culture: 1, growth: 1, science: 1, economy: 1, military: 1, industry: 1 };
     return {
@@ -628,9 +660,31 @@ const Game = (() => {
   function applyActionInner(st, action) {
     const { type, payload = {} } = action;
 
+    if (type === "SET_LEADER") {
+      if (st.phase !== "lobby") return st;
+      const player = getPlayer(st, payload.playerId);
+      if (!player) return st;
+      const wanted = payload.leaderId;
+      if (wanted !== "random") {
+        const leader = LEADER_BY_ID[wanted];
+        if (!leader) return st;
+        // Leader sheets are unique — no two players may run the same civ.
+        if (st.players.some((p) => p.id !== player.id && p.leaderId === wanted)) return st;
+        player.leaderId = wanted;
+        applyLeaderStart(player);
+        log(st, `${player.name} will lead ${leader.civ} (${leader.name}).`);
+      } else {
+        player.leaderId = "random";
+        player.focusRow = FOCUS_TYPES.slice();
+        log(st, `${player.name} will draw a random leader.`);
+      }
+      return st;
+    }
+
     if (type === "START_GAME") {
       if (st.phase !== "lobby") return st;
       if (st.players.length < CFG.minPlayers) return st;
+      assignRandomLeaders(st);
       const newState = createState(st.players);
       // Carry the lobby chatter into the game log for continuity.
       newState.log = (st.log || []).concat(newState.log);
@@ -823,7 +877,7 @@ const Game = (() => {
         const hx = st.map.hexes[k];
         if (!hx || !hx.active || hx.terrain === "water" || hx.city || hx.barbarian || hx.cityState) continue;
         if (hx.control) continue;
-        if (terrainDifficulty(hx) > effectiveSlot) continue;
+        if (placementDifficulty(hx, player, "control") > effectiveSlot) continue;
         if (!adjacentToFriendlyCity(st, hx, payload.playerId) && !adjacentToFriendlyControl(st, hx, payload.playerId)) continue;
         if (hx.resource && hx.resource !== "wonder") {
           if (player.resources[hx.resource] !== undefined) player.resources[hx.resource]++;
@@ -848,7 +902,7 @@ const Game = (() => {
       if (hex.control && hex.control.district) return st;
       if (!adjacentToFriendlyCity(st, hex, payload.playerId)) return st;
       const growthSlot = getSlotValue(player, "growth", st) + (payload.tradeSpent || 0);
-      if (terrainDifficulty(hex) > growthSlot) return st;
+      if (placementDifficulty(hex, player, "district") > growthSlot) return st;
       hex.control = { ownerId: payload.playerId, fortified: false, district: payload.district };
       resolveCard(st, player, "growth", payload.tradeSpent);
       log(st, `${player.name} placed a ${payload.district} district.`);
@@ -871,7 +925,9 @@ const Game = (() => {
     if (type === "PLAY_SCIENCE") {
       const player = getPlayer(st, payload.playerId);
       if (!player || player.cardPlayed) return st;
-      advanceTech(st, player, payload.amount);
+      // Hammurabi: Babylonian scholarship compounds — every science action gains a step.
+      const bonus = hasLeader(player, "hammurabi") ? 1 : 0;
+      advanceTech(st, player, payload.amount + bonus);
       resolveCard(st, player, "science", payload.tradeSpent);
       return st;
     }
@@ -883,28 +939,36 @@ const Game = (() => {
       if (!unit || !unit.position) return st;
       const ecoHex = st.map.hexes[payload.toKey];
       if (!ecoHex || !ecoHex.active) return st;
-      const reachable = getReachable(st, unit.position, getEconomyMove(player) + (payload.tradeSpent || 0), "caravan", payload.playerId);
+      // Trajan: all roads lead to Rome — a caravan may set out from any friendly city.
+      let startKey = unit.position;
+      if (payload.startKey && payload.startKey !== unit.position && hasLeader(player, "trajan")) {
+        const sh = st.map.hexes[payload.startKey];
+        if (sh && sh.city && sh.city.ownerId === payload.playerId) startKey = payload.startKey;
+      }
+      const reachable = getReachable(st, startKey, getEconomyMove(player) + (payload.tradeSpent || 0), "caravan", payload.playerId);
       if (!reachable.has(payload.toKey)) return st;
       unit.position = payload.toKey;
       const hex = st.map.hexes[payload.toKey];
+      // Cleopatra: bride of the Mediterranean — every trade run yields a bonus token.
+      const tradeGain = 2 + (hasLeader(player, "cleopatra") ? 1 : 0);
       if (hex && hex.cityState) {
         const tradeType = hex.cityState.type;
         if (player.trade[tradeType] !== undefined) {
-          player.trade[tradeType] = Math.min(CFG.maxTrade, player.trade[tradeType] + 2);
+          player.trade[tradeType] = Math.min(CFG.maxTrade, player.trade[tradeType] + tradeGain);
         }
         grantCityStateDiplomacy(st, player, hex.cityState);
         const capKey = findCapital(st, payload.playerId);
         unit.position = capKey;
-        log(st, `${player.name}'s caravan traded at ${hex.cityState.name} (+2 ${tradeType} trade). Returned to capital.`);
+        log(st, `${player.name}'s caravan traded at ${hex.cityState.name} (+${tradeGain} ${tradeType} trade). Returned to capital.`);
       } else if (hex && hex.city && hex.city.ownerId !== payload.playerId) {
         const tradeType = payload.tradeType || "economy";
         if (player.trade[tradeType] !== undefined) {
-          player.trade[tradeType] = Math.min(CFG.maxTrade, player.trade[tradeType] + 2);
+          player.trade[tradeType] = Math.min(CFG.maxTrade, player.trade[tradeType] + tradeGain);
         }
         grantPlayerDiplomacy(st, player, hex.city.ownerId);
         const capKey = findCapital(st, payload.playerId);
         unit.position = capKey;
-        log(st, `${player.name}'s caravan traded at foreign city (+2 ${tradeType} trade). Returned to capital.`);
+        log(st, `${player.name}'s caravan traded at foreign city (+${tradeGain} ${tradeType} trade). Returned to capital.`);
       } else {
         log(st, `${player.name} moved caravan.`);
       }
@@ -939,11 +1003,13 @@ const Game = (() => {
       const atkRoll = rollDie();
       const defRoll = rollDie();
       const tierCombatBonus = getMilitaryCombatBonus(player);
-      const atkTotal = atkRoll + payload.attackPower + tierCombatBonus;
+      // Teddy Roosevelt: the big stick swings hardest near American cities.
+      const leaderBonus = getLeaderAttackBonus(st, payload.playerId, payload.toKey);
+      const atkTotal = atkRoll + payload.attackPower + tierCombatBonus + leaderBonus;
       const defTotal = defRoll + payload.defensePower;
       const win = atkTotal > defTotal;
 
-      st.lastCombat = { attacker: player.name, defender: payload.defenderLabel, atkRoll, defRoll, atkTotal, defTotal, win };
+      st.lastCombat = { attacker: player.name, defender: payload.defenderLabel, atkRoll, defRoll, atkTotal, defTotal, win, leaderBonus };
 
       if (win) {
         player.maxCombatWin = Math.max(player.maxCombatWin || 0, atkTotal);
@@ -956,6 +1022,9 @@ const Game = (() => {
           hex.barbarian = false;
           st.pendingBarbReward = { playerId: payload.playerId };
           log(st, `${player.name} defeated a barbarian! Choose a focus card for +1 trade.`);
+          if (hasLeader(player, "gilgamesh")) {
+            advanceTech(st, player, 1); // Gilgamesh: every slain beast is an epic verse.
+          }
         }
         if (hex.cityState) {
           const csType = hex.cityState.type;
@@ -993,6 +1062,10 @@ const Game = (() => {
           hex.city.developed = false;
         }
         defeatEnemyUnitsAt(st, payload.toKey, payload.playerId);
+        if (hasLeader(player, "montezuma")) {
+          player.trade.military = Math.min(CFG.maxTrade, player.trade.military + 1);
+          log(st, `${player.name} claims captives: +1 military trade.`);
+        }
         log(st, `${player.name} won combat vs ${payload.defenderLabel}! (${atkTotal} vs ${defTotal})`);
       } else {
         unit.position = null;
@@ -1815,7 +1888,8 @@ const Game = (() => {
 
   function getEconomyMove(player) {
     const tier = getCardTier(player, "economy");
-    return CARD_TIERS.economy.move[tier - 1];
+    // Victoria: the sun never sets — caravans always travel 1 space farther.
+    return CARD_TIERS.economy.move[tier - 1] + (hasLeader(player, "victoria") ? 1 : 0);
   }
 
   function getCultureMarkers(player, tradeSpent, st) {
@@ -1827,6 +1901,17 @@ const Game = (() => {
   function getMilitaryCombatBonus(player) {
     const tier = getCardTier(player, "military");
     return CARD_TIERS.military.combatBonus[tier - 1];
+  }
+
+  // Leader combat bonus for an attack into toKey (shown in the combat preview
+  // and applied by the engine so both always agree).
+  function getLeaderAttackBonus(st, playerId, toKey) {
+    const player = getPlayer(st, playerId);
+    if (!hasLeader(player, "teddy") || !toKey) return 0;
+    const target = { q: parseQ(toKey), r: parseR(toKey) };
+    const near = Object.values(st.map.hexes).some((h) =>
+      h.city && h.city.ownerId === playerId && hexDist(h, target) <= 2);
+    return near ? 2 : 0;
   }
 
   function getCityRange(player) {
@@ -1868,11 +1953,31 @@ const Game = (() => {
     return TERRAIN[h.terrain] || 1;
   }
 
+  // Terrain difficulty as seen by a specific player for a specific purpose.
+  // Leader sheets bend the base numbers here rather than at each call site.
+  function placementDifficulty(h, player, context) {
+    let d = terrainDifficulty(h);
+    if (context === "control" && hasLeader(player, "menelik") && h.terrain === "mountain" && h.resource !== "wonder") {
+      d = Math.min(d, 3); // Menelik II: mountains yield to the Ethiopian crown.
+    }
+    if (context === "district" && hasLeader(player, "amanitore")) {
+      d = Math.max(1, d - 1); // Amanitore: Nubian builders raise districts with ease.
+    }
+    return d;
+  }
+
+  function moveDifficulty(h, player, unitType) {
+    // Pachacuti: the Inca road network crosses the Andes as if they were plains.
+    if (unitType === "army" && hasLeader(player, "pachacuti") && h.terrain === "mountain") return 1;
+    return terrainDifficulty(h);
+  }
+
   function validControlHexes(st, playerId, maxTerrain) {
+    const player = getPlayer(st, playerId);
     const valid = [];
     Object.entries(st.map.hexes).forEach(([k, h]) => {
       if (!h.active || h.terrain === "water") return;
-      if (terrainDifficulty(h) > maxTerrain) return;
+      if (placementDifficulty(h, player, "control") > maxTerrain) return;
       if (h.city || h.cityState || h.barbarian || h.control || (h.fortress && !h.city)) return;
       if (!adjacentToFriendlyCity(st, h, playerId) && !adjacentToFriendlyControl(st, h, playerId)) return;
       valid.push(k);
@@ -1881,10 +1986,11 @@ const Game = (() => {
   }
 
   function validDistrictHexes(st, playerId, maxTerrain) {
+    const player = getPlayer(st, playerId);
     const valid = [];
     Object.entries(st.map.hexes).forEach(([k, h]) => {
       if (!h.active || h.terrain === "water") return;
-      if (terrainDifficulty(h) > maxTerrain) return;
+      if (placementDifficulty(h, player, "district") > maxTerrain) return;
       if (h.city || h.cityState || h.barbarian || (h.fortress && !h.city)) return;
       if (h.control && (h.control.ownerId !== playerId || h.control.district)) return;
       if (!adjacentToFriendlyCity(st, h, playerId)) return;
@@ -1925,6 +2031,8 @@ const Game = (() => {
 
   function canCrossWater(player, unitType) {
     if (!player) return false;
+    // Kupe: Māori figures navigate open water from the very start.
+    if (hasLeader(player, "kupe")) return true;
     const cardType = unitType === "caravan" ? "economy" : "military";
     const tier = getCardTier(player, cardType);
     const waterTier = CARD_TIERS[cardType].water;
@@ -1959,7 +2067,7 @@ const Game = (() => {
         const h = st.map.hexes[nk];
         if (!h || !h.active) return;
         if (h.terrain === "water" && !waterOk) return;
-        if (h.terrain !== "water" && terrainDifficulty(h) > terrainLimit) return;
+        if (h.terrain !== "water" && moveDifficulty(h, player, unitType) > terrainLimit) return;
         if (unitType === "caravan" && h.barbarian) return;
         visited.add(nk);
         reachable.add(nk);
@@ -2163,7 +2271,7 @@ const Game = (() => {
         const h = st.map.hexes[nk];
         if (!h || !h.active) return;
         if (h.terrain === "water" && !waterOk) return;
-        if (h.terrain !== "water" && terrainDifficulty(h) > terrainLimit) return;
+        if (h.terrain !== "water" && moveDifficulty(h, player, unitType) > terrainLimit) return;
         if (unitType === "caravan" && h.barbarian) return;
         distances.set(nk, cur.steps + 1);
         if (!isForcedStopHex(st, h, unitType, playerId)) queue.push({ key: nk, steps: cur.steps + 1 });
@@ -2177,6 +2285,7 @@ const Game = (() => {
     TERRAIN, TERRAIN_LABELS, FOCUS_TYPES, FOCUS_LABELS, FOCUS_SLOTS, FOCUS_TRADE_DESC, CARD_NAMES, CARD_ICONS,
     DISTRICTS, DISTRICT_LABELS, DISTRICT_EFFECTS, RESOURCES, EVENTS, EVENT_LABELS, CFG,
     WONDERS, ALL_WONDERS, WONDER_ERAS, CARD_TIERS, AGENDA_CARDS, DIPLOMACY_CARDS, CITY_STATE_DATA,
+    LEADERS, getLeader, getLeaderAttackBonus,
     TILE_OFFSETS, getCoreAnchors,
     createState, createLobbyState, createPlayer, migrateState, applyAction, currentPlayer, getPlayer,
     getSlotValue, getSlotIndex, getCardTier, getCardTierValue: getCardTier,

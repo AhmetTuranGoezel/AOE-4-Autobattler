@@ -71,6 +71,23 @@
       midGame = Game.applyAction(midGame, { type: "ADD_PLAYER", payload: Game.createPlayer("late", "Late", "#f77f00") });
       assert("no joining a game in progress", !midGame.players.find((p) => p.id === "late"));
 
+      // ── Leaders ──
+      assert("eleven leaders defined", Game.LEADERS.length === 11);
+      assert("leader focus orders are 6 unique types", Game.LEADERS.every((l) => l.focusOrder.length === 6 && new Set(l.focusOrder).size === 6));
+      let ldr = Game.createLobbyState(players(2));
+      const [ldrA, ldrB] = ldr.players.map((p) => p.id);
+      ldr = Game.applyAction(ldr, { type: "SET_LEADER", payload: { playerId: ldrA, leaderId: "trajan" } });
+      assert("SET_LEADER applies leader and focus order", ldr.players[0].leaderId === "trajan" && ldr.players[0].focusRow[5] === "industry");
+      ldr = Game.applyAction(ldr, { type: "SET_LEADER", payload: { playerId: ldrB, leaderId: "trajan" } });
+      assert("duplicate leader pick rejected", ldr.players[1].leaderId !== "trajan");
+      ldr = Game.applyAction(ldr, { type: "START_GAME", payload: { playerId: ldrA } });
+      assert("random leaders dealt at start", ldr.players.every((p) => p.leaderId && p.leaderId !== "random"));
+      const vic = Game.createPlayer("vv", "V", "#fff"); vic.leaderId = "victoria";
+      const plain = Game.createPlayer("pp", "P", "#fff");
+      assert("Victoria caravans move farther", Game.getEconomyMove(vic) === Game.getEconomyMove(plain) + 1);
+      const kupe = Game.createPlayer("kk", "K", "#fff"); kupe.leaderId = "kupe";
+      assert("Kupe crosses water from the start", Game.canCrossWater(kupe, "army") && !Game.canCrossWater(plain, "army"));
+
       let st = Game.createState(players(2));
       st.phase = "playing";
       const first = st.turn.order[0];

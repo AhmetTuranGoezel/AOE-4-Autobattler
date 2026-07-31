@@ -266,8 +266,43 @@
     { id: "progressive", name: "Progressive", description: "Control 1 world wonder from each era." }
   ];
 
+  // Leader roster. Focus order is slot 1 (leftmost) to slot 5 on the extended
+  // Terra Incognita bar; the card listed last starts on the strongest slot.
+  // Abilities are the app's engine-backed adaptation of each leader sheet.
   const LEADERS = [
-    { id: "random", name: "Random Leader", ability: "Use manual tools for unique leader focus cards." }
+    { id: "trajan", name: "Trajan", civ: "Rome", source: "base",
+      ability: { title: "All Roads Lead to Rome", text: "Your caravans may begin their movement from any friendly city, not just the space they stand on." },
+      focusOrder: ["science", "economy", "military", "culture", "growth", "industry"] },
+    { id: "cleopatra", name: "Cleopatra", civ: "Egypt", source: "base",
+      ability: { title: "Bride of the Mediterranean", text: "Whenever a caravan of yours trades at a city-state or rival city, gain 1 extra trade token." },
+      focusOrder: ["military", "science", "growth", "industry", "culture", "economy"] },
+    { id: "victoria", name: "Victoria", civ: "England", source: "base",
+      ability: { title: "Sun Never Sets", text: "Your caravans always move 1 additional space." },
+      focusOrder: ["military", "growth", "science", "industry", "culture", "economy"] },
+    { id: "montezuma", name: "Montezuma", civ: "Aztec", source: "base",
+      ability: { title: "Sacrificial Captives", text: "Whenever you win a combat, place 1 trade token on your military card." },
+      focusOrder: ["economy", "science", "culture", "growth", "industry", "military"] },
+    { id: "teddy", name: "Teddy Roosevelt", civ: "America", source: "base",
+      ability: { title: "Roosevelt Corollary", text: "+2 combat when you attack a space within 2 spaces of a friendly city." },
+      focusOrder: ["culture", "economy", "growth", "science", "industry", "military"] },
+    { id: "gilgamesh", name: "Gilgamesh", civ: "Sumer", source: "base",
+      ability: { title: "Epic Quest", text: "Whenever you defeat a barbarian, also advance your tech dial 1 step." },
+      focusOrder: ["economy", "culture", "growth", "military", "industry", "science"] },
+    { id: "kupe", name: "Kupe", civ: "Māori", source: "terra",
+      ability: { title: "Kupe's Voyage", text: "Your armies and caravans may always move onto water spaces." },
+      focusOrder: ["industry", "military", "growth", "science", "culture", "economy"] },
+    { id: "menelik", name: "Menelik II", civ: "Ethiopia", source: "terra",
+      ability: { title: "Mountain Emperor", text: "Mountains count as terrain difficulty 3 when you place control markers." },
+      focusOrder: ["economy", "industry", "science", "military", "growth", "culture"] },
+    { id: "pachacuti", name: "Pachacuti", civ: "Inca", source: "terra",
+      ability: { title: "Qhapaq Ñan", text: "Your armies treat mountains as terrain difficulty 1 while moving." },
+      focusOrder: ["science", "economy", "industry", "culture", "military", "growth"] },
+    { id: "amanitore", name: "Amanitore", civ: "Nubia", source: "terra",
+      ability: { title: "Kandake of Meroë", text: "Terrain difficulty is reduced by 1 (minimum 1) when you place districts." },
+      focusOrder: ["military", "economy", "culture", "science", "industry", "growth"] },
+    { id: "hammurabi", name: "Hammurabi", civ: "Babylon", source: "terra",
+      ability: { title: "Ninu Ilu Sirum", text: "Whenever you resolve your science card, advance your tech dial 1 extra step." },
+      focusOrder: ["culture", "growth", "military", "economy", "industry", "science"] }
   ];
 
   window.CivRulesData = {
