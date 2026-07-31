@@ -74,17 +74,29 @@ const widthsFor = (extras) => (extras
 const sumGet = (m, k) => (k === "bst" ? m._eff.bst : k === "cleaned" ? m._eff.cleaned
   : k === "wasted" ? m._eff.wasted
   : (k === "ehpPhys" || k === "ehpSpec" || k === "ehpMixed") ? m._eff[k]
+  : (k === "weight" || k === "usagePct") ? m[k]
   : m._eff.disp[k]);
 
-function summarize(list) {
-  const keys = [...STAT_KEYS, "bst", "cleaned", "wasted", "ehpPhys", "ehpSpec", "ehpMixed"];
+const round1 = (x) => Math.round(x * 10) / 10;
+
+// Weight / Usage carry decimals and may be missing (esp. usage), so summarise
+// them over the non-null values only and keep one decimal place.
+function summarize(list, extras = false) {
+  const keys = [...STAT_KEYS, "bst", "cleaned", "wasted", "ehpPhys", "ehpSpec", "ehpMixed",
+    ...(extras ? ["weight", "usagePct"] : [])];
   const out = {};
   for (const k of keys) {
-    const xs = list.map((m) => sumGet(m, k)).sort((a, b) => a - b);
+    const decimal = k === "weight" || k === "usagePct";
+    const rnd = decimal ? round1 : Math.round;
+    const xs = list.map((m) => sumGet(m, k))
+      .filter((v) => v != null && !Number.isNaN(v))
+      .sort((a, b) => a - b);
     const n = xs.length;
+    if (!n) { out[k] = null; continue; }
     out[k] = {
-      avg: Math.round(xs.reduce((s, v) => s + v, 0) / n),
-      med: n % 2 ? xs[(n - 1) / 2] : Math.round((xs[n / 2 - 1] + xs[n / 2]) / 2),
+      avg: rnd(xs.reduce((s, v) => s + v, 0) / n),
+      med: n % 2 ? rnd(xs[(n - 1) / 2]) : rnd((xs[n / 2 - 1] + xs[n / 2]) / 2),
+      n,
     };
   }
   return out;
@@ -136,16 +148,20 @@ export function renderTable(list, sort, cmp, max = 200, extras = false, pinned =
 
   let foot = "";
   if (list.length) {
-    const s = summarize(list);
+    const s = summarize(list, extras);
     const cell = (o) => `<td class="num"><b>${o.avg}</b><span class="sm-med">${o.med}</span></td>`;
     const ecell = (o) => `<td class="num ehp"><b>${sep(o.avg)}</b><span class="sm-med">${sep(o.med)}</span></td>`;
+    // Weight/Usage may have no data across the current list → show a dash.
+    const xcell = (o, suffix = "") => (o
+      ? `<td class="num"><b>${o.avg}${suffix}</b><span class="sm-med">${o.med}${suffix}</span></td>`
+      : `<td class="num xtra">—</td>`);
     foot = `<tfoot><tr class="summary-row">
       <td class="num sum-n">${list.length}</td>
       <td class="sum-legend"><b>Average</b><span class="sm-med">median</span></td>
       <td></td>
       ${STAT_KEYS.map((k) => cell(s[k])).join("")}
       ${cell(s.bst)}${cell(s.cleaned)}${cell(s.wasted)}
-      ${extras ? "<td></td><td></td>" : ""}
+      ${extras ? `${xcell(s.weight)}${xcell(s.usagePct, "%")}` : ""}
       ${ecell(s.ehpPhys)}${ecell(s.ehpSpec)}${ecell(s.ehpMixed)}
     </tr></tfoot>`;
   }
