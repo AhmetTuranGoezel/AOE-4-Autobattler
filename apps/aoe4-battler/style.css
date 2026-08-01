@@ -4446,3 +4446,90 @@ small.text-muted,
   transition: transform 0.2s;
   font-size: 0.75rem;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   Motion & feel pass — Unit Battler, Vs Building, Multi Battle.
+   One-shot entrances and hover feedback only; no idle loops added.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Animated gold underline that settles beneath the active nav tab */
+.aoe4-nav-tab::after {
+  content: "";
+  position: absolute;
+  left: 26px;
+  right: 26px;
+  bottom: 9px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #d4a44a, transparent);
+  transform: scaleX(0);
+  opacity: 0;
+  transition: transform 0.24s ease, opacity 0.24s ease;
+  pointer-events: none;
+}
+.aoe4-nav-tab.active::after { transform: scaleX(1); opacity: 1; }
+.aoe4-nav-tab:hover:not(.active)::after { transform: scaleX(0.45); opacity: 0.35; }
+
+/* Gentle rise when switching between battle modes */
+@keyframes battler-mode-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+#singleBattleRow,
+#multiBattleRow { animation: battler-mode-in 0.28s ease-out; }
+
+/* Battle results: verdict settles in, team panels follow in sequence.
+   These replay naturally because #results is re-shown per battle. */
+@keyframes verdict-in {
+  from { opacity: 0; transform: scale(1.05); }
+  to { opacity: 1; transform: scale(1); }
+}
+.winner-banner { animation: verdict-in 0.38s cubic-bezier(0.2, 0.8, 0.3, 1) both; }
+
+@keyframes result-panel-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.team-result-panel { animation: result-panel-in 0.3s ease-out 0.08s backwards; }
+.team-result-panel:has(#hpBarB) { animation-delay: 0.16s; }
+.battle-duration-value { animation: verdict-in 0.4s ease-out 0.05s backwards; }
+
+/* Multi Battle: a freshly added unit card rises into the stack */
+.multi-card-stack > * { animation: result-panel-in 0.26s ease-out; }
+
+/* Add-unit tile: the plus answers the hover */
+.multi-add-plus { transition: transform 0.16s ease; }
+.multi-add-tile:hover .multi-add-plus { transform: translateY(-2px); }
+
+/* Section toggles: arrow joins the hover highlight */
+.section-toggle:hover .toggle-arrow { color: #d4a44a; }
+
+/* Vs Building tech / aura chips: light lift, firm press */
+.building-tech-btn {
+  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease,
+    box-shadow 0.2s ease, transform 0.15s ease;
+}
+.building-tech-btn:hover { transform: translateY(-1px); }
+.building-tech-btn:active { transform: translateY(0) scale(0.985); }
+
+/* Keyboard focus: visible gold ring, invisible to mouse users */
+.aoe4-nav-tab:focus-visible,
+.battle-btn:focus-visible,
+.multi-add-tile:focus-visible,
+.section-toggle:focus-visible,
+.building-tech-btn:focus-visible {
+  outline: 2px solid rgba(212, 164, 74, 0.75);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Respect reduced-motion: freeze every animation and transition,
+   including the battle button's idle pulse. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
