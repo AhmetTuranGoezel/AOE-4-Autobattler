@@ -745,6 +745,19 @@ function updateBuildingAttackDisplay(side) {
  * 2. UI POPULATION - Dropdowns (grouped by civilization)
  */
 
+/**
+ * Text shown on a technology chip. Some auras in the dataset store the
+ * civilization name in `name` and the real effect in `description`
+ * (e.g. name "English", description "Can be created at Keeps"). Those read as
+ * a useless repeated civ name on a labelled chip, so fall back to the
+ * description in that case.
+ */
+function getTechDisplayLabel(item, civ) {
+  const name = (item && item.name) || "";
+  if (name && civ && name === civ && item.description) return item.description;
+  return name || item.description || "";
+}
+
 function renderTechButtons(side, unitName, unit) {
   const container = document.getElementById(`${side}_techContainer`);
   const box = document.getElementById(`${side}_techBox`);
@@ -839,11 +852,14 @@ function renderTechButtons(side, unitName, unit) {
           "&quot;",
         );
 
+      const techLabel = `<span class="tech-btn-label">${getTechDisplayLabel(item, selectedCiv)}</span>`;
+
       if (hasLevels && labels && isCombat) {
         const currentLevel = activeTechs[side].get(key)?.level || 0;
         html += `<div class="tech-level-wrap">`;
-        html += `<div class="tech-btn${activeClass}${lockedClass}" data-tech-key="${key}" data-side="${side}" title="${tooltip}">`;
+        html += `<div class="tech-btn tech-btn--labeled${activeClass}${lockedClass}" data-tech-key="${key}" data-side="${side}" title="${tooltip}">`;
         html += `<img src="${imgSrc}" alt="${item.name}" onerror="this.src='${FALLBACK_TECH_IMG}'">`;
+        html += techLabel;
         html += `</div>`;
         html += `<select class="tech-level-select" data-tech-key="${key}" data-side="${side}">`;
         for (let i = 0; i < labels.length; i++) {
@@ -852,8 +868,9 @@ function renderTechButtons(side, unitName, unit) {
         }
         html += `</select></div>`;
       } else {
-        html += `<div class="tech-btn${activeClass}${lockedClass}${nonCombatClass}" data-tech-key="${key}" data-side="${side}" title="${tooltip}">`;
+        html += `<div class="tech-btn tech-btn--labeled${activeClass}${lockedClass}${nonCombatClass}" data-tech-key="${key}" data-side="${side}" title="${tooltip}">`;
         html += `<img src="${imgSrc}" alt="${item.name}" onerror="this.src='${FALLBACK_TECH_IMG}'">`;
+        html += techLabel;
         html += `</div>`;
       }
     }
@@ -1040,12 +1057,18 @@ function renderBuildingUnitTechs(side) {
       ? `<span class="tech-status-badge ${effectState === "display-only" ? "display-only" : "simulated"}">${statusLabel}</span>`
       : "";
 
+    const techLabel = `<span class="tech-btn-label">${
+      options.displayName || torchMeta?.displayName
+        ? displayName
+        : getTechDisplayLabel(item, selectedCiv)
+    }</span>`;
+
     if (hasLevels && labels && isSimulated) {
       const currentLevel = activeTechs[side].get(key)?.level || 0;
       let html = `<div class="tech-level-wrap">`;
-      html += `<div class="tech-btn${activeClass}${lockedClass}" data-tech-key="${key}" data-side="${side}" title="${tooltip}">`;
+      html += `<div class="tech-btn tech-btn--labeled${activeClass}${lockedClass}" data-tech-key="${key}" data-side="${side}" title="${tooltip}">`;
       html += `<img src="${imgSrc}" alt="${displayName}" onerror="this.src='${FALLBACK_TECH_IMG}'">`;
-      html += `${statusBadge}</div>`;
+      html += `${techLabel}${statusBadge}</div>`;
       html += `<select class="tech-level-select" data-tech-key="${key}" data-side="${side}">`;
       for (let i = 0; i < labels.length; i++) {
         const sel = i === currentLevel ? " selected" : "";
@@ -1058,9 +1081,9 @@ function renderBuildingUnitTechs(side) {
     const dataAttrs = isPseudo
       ? `data-pseudo-tech="${item.id}"`
       : `data-tech-key="${key}" data-side="${side}"`;
-    let html = `<div class="tech-btn${activeClass}${lockedClass}${nonCombatClass}" ${dataAttrs} title="${tooltip}">`;
+    let html = `<div class="tech-btn tech-btn--labeled${activeClass}${lockedClass}${nonCombatClass}" ${dataAttrs} title="${tooltip}">`;
     html += `<img src="${imgSrc}" alt="${displayName}" onerror="this.src='${FALLBACK_TECH_IMG}'">`;
-    html += `${statusBadge}</div>`;
+    html += `${techLabel}${statusBadge}</div>`;
     return html;
   };
 
@@ -2893,13 +2916,12 @@ function renderBattlerBonusRow(inputId, tag, bonusValue, dataTag = "") {
     <div class="battler-bonus-row">
       <div class="battler-bonus-meta">
         <div class="battler-bonus-label">vs ${tag}</div>
-        <div class="battler-bonus-subtitle">Bonus damage</div>
       </div>
       ${renderBattlerNumberField({
         id: inputId,
-        label: "Bonus",
+        label: "",
         value: bonusValue,
-        width: "short",
+        width: "tiny",
         inputClass: "bonus-input",
         dataAttrs: dataTag ? `data-tag="${dataTag}"` : "",
       })}
