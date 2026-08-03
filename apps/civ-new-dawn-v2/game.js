@@ -990,7 +990,7 @@ const Game = (() => {
         const sh = st.map.hexes[payload.startKey];
         if (sh && sh.city && sh.city.ownerId === payload.playerId) startKey = payload.startKey;
       }
-      const reachable = getReachable(st, startKey, getEconomyMove(player) + (payload.tradeSpent || 0), "caravan", payload.playerId);
+      const reachable = getReachable(st, startKey, getEconomyMove(player, st) + (payload.tradeSpent || 0), "caravan", payload.playerId);
       if (!reachable.has(payload.toKey)) return st;
       unit.position = payload.toKey;
       const hex = st.map.hexes[payload.toKey];
@@ -1012,6 +1012,14 @@ const Game = (() => {
         }
         grantCityStateDiplomacy(st, player, hex.cityState);
         queueWheel();
+        // Kilwa Kisiwani: an extra trade token on any focus card.
+        if (hasWonder(st, player.id, "Kilwa Kisiwani")) {
+          queuePendingChoice(st, {
+            kind: "trade_any", playerId: player.id, amount: 1,
+            title: "Kilwa Kisiwani: Extra Trade Token",
+            options: FOCUS_TYPES.map((f) => ({ id: f, label: FOCUS_LABELS[f] }))
+          });
+        }
         const capKey = findCapital(st, payload.playerId);
         unit.position = capKey;
         log(st, `${player.name}'s caravan traded at ${hex.cityState.name} (+${tradeGain} ${tradeType} trade). Returned to capital.`);
@@ -1318,6 +1326,7 @@ const Game = (() => {
             .concat([{ id: "keep", label: st.ibrahimHolder ? "Leave as is" : "Not this turn" }])
         });
       }
+      if (np) queueStartOfTurnWonders(st, np);
       if (st.turn.index === 0) {
         const winnerBeforeEvent = checkVictory(st);
         if (winnerBeforeEvent) {
@@ -1499,6 +1508,23 @@ const Game = (() => {
           queueIncaChain(st, player, hexKey);
         }
         checkDevelopment(st, player.id);
+        resolved = true;
+      }
+    } else if (choice.kind === "remove_control") {
+      const hexKey = payload.hexKey;
+      const hex = st.map.hexes[hexKey];
+      if ((choice.hexKeys || []).includes(hexKey) && hex && hex.control && hex.control.ownerId !== player.id) {
+        hex.control = null;
+        log(st, `${player.name} removed a rival control token (${choice.source || "effect"}).`);
+        resolved = true;
+      }
+    } else if (choice.kind === "swap_adjacent") {
+      const i = parseInt(payload.optionId, 10);
+      if (Number.isInteger(i) && i >= 0 && i < player.focusRow.length - 1) {
+        const tmp = player.focusRow[i];
+        player.focusRow[i] = player.focusRow[i + 1];
+        player.focusRow[i + 1] = tmp;
+        log(st, `${player.name} swapped two adjacent focus cards (${choice.source || "effect"}).`);
         resolved = true;
       }
     } else if (choice.kind === "gain_resource") {
@@ -1874,12 +1900,15 @@ const Game = (() => {
 
   function isCityDeveloped(st, hex) {
     if (!hex.city) return false;
+    // Sydney Opera House: rival control tokens also count toward maturity.
+    const anyControlCounts = hasWonder(st, hex.city.ownerId, "Sydney Opera House");
     return hexNeighborKeys(hex.q, hex.r).every((nk) => {
       const n = st.map.hexes[nk];
       if (!n) return true;
       if (!n.active) return true;
       if (n.terrain === "water") return true;
       if (n.control && n.control.ownerId === hex.city.ownerId) return true;
+      if (anyControlCounts && n.control) return true;
       return false;
     });
   }
@@ -2092,7 +2121,10 @@ const Game = (() => {
     // the card as though it sat 1 slot farther to the right.
     const georgiaBonus = hasLeader(player, "georgia") &&
       (player.diplomacy || []).some((d) => d.fromCityState && d.type === cardType) ? 1 : 0;
-    return Math.min(5, FOCUS_SLOTS[idx] + (player.govBonus[cardType] || 0) + tierBonus + georgiaBonus);
+    // Taj Mahal: +1 slot per world wonder you control matching this card's type.
+    const tajBonus = st && hasWonder(st, player.id, "Taj Mahal")
+      ? countWondersOfType(st, player.id, cardType) : 0;
+    return Math.min(5, FOCUS_SLOTS[idx] + (player.govBonus[cardType] || 0) + tierBonus + georgiaBonus + tajBonus);
   }
 
   function getMilitaryMove(player) {
@@ -2102,11 +2134,13 @@ const Game = (() => {
     return CARD_TIERS.military.move[tier - 1];
   }
 
-  function getEconomyMove(player) {
+  function getEconomyMove(player, st) {
     const tier = getCardTier(player, "economy");
     // Egypt's Wheel (unique Economy I): caravans roll 4 spaces.
-    if (tier === 1 && hasLeader(player, "egypt")) return 4;
-    return CARD_TIERS.economy.move[tier - 1];
+    const base = (tier === 1 && hasLeader(player, "egypt")) ? 4 : CARD_TIERS.economy.move[tier - 1];
+    // Colossus: 6 additional spaces of caravan movement on the economy card.
+    const colossus = st && player && hasWonder(st, player.id, "Colossus") ? 6 : 0;
+    return base + colossus;
   }
 
   function getCultureMarkers(player, tradeSpent, st) {
@@ -2118,6 +2152,157 @@ const Game = (() => {
   function getMilitaryCombatBonus(player) {
     const tier = getCardTier(player, "military");
     return CARD_TIERS.military.combatBonus[tier - 1];
+  }
+
+  // --- World wonder effects ---
+
+  function hasWonder(st, playerId, wonderName) {
+    if (!st || !playerId) return false;
+    return Object.values(st.map.hexes).some((h) =>
+      h.city && h.city.ownerId === playerId && h.city.wonder && h.city.wonder.name === wonderName);
+  }
+
+  function countWondersOfType(st, playerId, type) {
+    let n = 0;
+    Object.values(st.map.hexes).forEach((h) => {
+      if (h.city && h.city.ownerId === playerId && h.city.wonder && h.city.wonder.type === type) n++;
+    });
+    return n;
+  }
+
+  function countAdjacentWater(st, hexKey) {
+    let n = 0;
+    hexNeighborKeys(parseQ(hexKey), parseR(hexKey)).forEach((nk) => {
+      const nh = st.map.hexes[nk];
+      if (nh && nh.active && nh.terrain === "water") n++;
+    });
+    return n;
+  }
+
+  function countAdjacentCaravans(st, hexKey, playerId) {
+    const player = getPlayer(st, playerId);
+    if (!player) return 0;
+    const around = new Set(hexNeighborKeys(parseQ(hexKey), parseR(hexKey)));
+    return player.caravans.filter((u) => u.position && around.has(u.position)).length;
+  }
+
+  function countReinforced(st, playerId) {
+    let n = 0;
+    Object.values(st.map.hexes).forEach((h) => {
+      if (h.control && h.control.ownerId === playerId && h.control.fortified) n++;
+    });
+    return n;
+  }
+
+  // Wonders that trigger at the start of a player's turn. Each is optional, so
+  // they queue a dismissible choice rather than resolving themselves.
+  function queueStartOfTurnWonders(st, player) {
+    const pid = player.id;
+
+    // Hanging Gardens: place 1 control on difficulty <= 4 next to a friendly city.
+    if (hasWonder(st, pid, "Hanging Gardens")) {
+      const spots = [];
+      Object.entries(st.map.hexes).forEach(([k, h]) => {
+        if (!h.active || h.terrain === "water" || h.city || h.control || h.barbarian ||
+            h.cityState || (h.fortress && !h.city)) return;
+        if (terrainDifficulty(h) > 4) return;
+        if (!adjacentToFriendlyCity(st, h, pid)) return;
+        spots.push(k);
+      });
+      if (spots.length) {
+        queuePendingChoice(st, {
+          kind: "place_control", playerId: pid,
+          title: "Hanging Gardens: Place a Control Token",
+          source: "Hanging Gardens", hexKeys: spots, optional: true
+        });
+      }
+    }
+
+    // Colosseum: reinforce 1 of your control tokens next to a friendly city.
+    if (hasWonder(st, pid, "Colosseum")) {
+      const spots = [];
+      Object.entries(st.map.hexes).forEach(([k, h]) => {
+        if (!h.control || h.control.ownerId !== pid || h.control.fortified) return;
+        if (!adjacentToFriendlyCity(st, h, pid)) return;
+        spots.push(k);
+      });
+      if (spots.length) {
+        queuePendingChoice(st, {
+          kind: "reinforce", playerId: pid,
+          title: "Colosseum: Reinforce a Control Token",
+          source: "Colosseum", hexKeys: spots, optional: true
+        });
+      }
+    }
+
+    // Forbidden City: remove 1 rival control token adjacent to a friendly space.
+    if (hasWonder(st, pid, "Forbidden City")) {
+      const spots = [];
+      Object.entries(st.map.hexes).forEach(([k, h]) => {
+        if (!h.control || h.control.ownerId === pid) return;
+        const nextToFriendly = hexNeighborKeys(h.q, h.r).some((nk) => {
+          const nh = st.map.hexes[nk];
+          if (!nh) return false;
+          return (nh.city && nh.city.ownerId === pid) ||
+                 (nh.control && nh.control.ownerId === pid);
+        });
+        if (nextToFriendly) spots.push(k);
+      });
+      if (spots.length) {
+        queuePendingChoice(st, {
+          kind: "remove_control", playerId: pid,
+          title: "Forbidden City: Remove a Rival Control Token",
+          source: "Forbidden City", hexKeys: spots, optional: true
+        });
+      }
+    }
+
+    // Oracle: swap 2 adjacent cards in your focus row.
+    if (hasWonder(st, pid, "Oracle")) {
+      const opts = [];
+      for (let i = 0; i < player.focusRow.length - 1; i++) {
+        const a = player.focusRow[i], b = player.focusRow[i + 1];
+        opts.push({ id: `${i}`, label: `${FOCUS_LABELS[a]} ↔ ${FOCUS_LABELS[b]}` });
+      }
+      if (opts.length) {
+        queuePendingChoice(st, {
+          kind: "swap_adjacent", playerId: pid,
+          title: "Oracle: Swap 2 Adjacent Focus Cards",
+          source: "Oracle", options: opts, optional: true
+        });
+      }
+    }
+  }
+
+  // Attack-side wonder bonuses for an attack into toKey.
+  function getWonderAttackBonus(st, playerId, toKey) {
+    if (!toKey) return 0;
+    let bonus = 0;
+    if (hasWonder(st, playerId, "Terracotta Army")) bonus += 2;
+    if (hasWonder(st, playerId, "Alhambra")) bonus += 2;
+    if (hasWonder(st, playerId, "Big Ben")) bonus += 2 * countAdjacentCaravans(st, toKey, playerId);
+    if (hasWonder(st, playerId, "Kremlin")) {
+      const h = st.map.hexes[toKey];
+      const defenderId = h ? hexOwnerAt(st, toKey) : null;
+      // Rival spaces only — city-states are excluded.
+      if (h && !h.cityState && defenderId && defenderId !== playerId &&
+          countReinforced(st, playerId) > countReinforced(st, defenderId)) {
+        bonus += 4;
+      }
+    }
+    return bonus;
+  }
+
+  // Defence-side wonder bonuses for the owner of hexKey.
+  function getWonderDefenseBonus(st, defenderId, hexKey) {
+    if (!defenderId || !hexKey) return 0;
+    let bonus = 0;
+    if (hasWonder(st, defenderId, "Petra")) bonus += 2;
+    if (hasWonder(st, defenderId, "Alhambra")) bonus += 2;
+    if (hasWonder(st, defenderId, "Ruhr Valley")) bonus += 5;
+    if (hasWonder(st, defenderId, "Huey Teocalli")) bonus += countAdjacentWater(st, hexKey);
+    if (hasWonder(st, defenderId, "Big Ben")) bonus += 2 * countAdjacentCaravans(st, hexKey, defenderId);
+    return bonus;
   }
 
   function hexOwnerAt(st, hexKey) {
@@ -2172,6 +2357,8 @@ const Game = (() => {
     if (hasLeader(player, "scythia") && h && (h.terrain === "grass" || h.terrain === "hill")) bonus += 3;
     // Ottoman: +2 against the player holding the Ibrahim card.
     if (hasLeader(player, "ottoman") && st.ibrahimHolder && hexOwnerAt(st, toKey) === st.ibrahimHolder) bonus += 2;
+    // World wonders the attacker controls.
+    bonus += getWonderAttackBonus(st, playerId, toKey);
     return bonus;
   }
 
@@ -2368,12 +2555,14 @@ const Game = (() => {
     };
     if (h.control && h.control.ownerId !== attackerId) {
       const def = terrainDifficulty(h) + (h.control.fortified ? 2 : 0) +
-        reinforcedValue(h.control.ownerId) + defenderLeaderBonus(h.control.ownerId);
+        reinforcedValue(h.control.ownerId) + defenderLeaderBonus(h.control.ownerId) +
+        getWonderDefenseBonus(st, h.control.ownerId, hexKey);
       return { type: "control", label: "Control Marker", power: def };
     }
     if (h.city && h.city.ownerId !== attackerId) {
       const def = terrainDifficulty(h) * 2 +
-        reinforcedValue(h.city.ownerId) + defenderLeaderBonus(h.city.ownerId);
+        reinforcedValue(h.city.ownerId) + defenderLeaderBonus(h.city.ownerId) +
+        getWonderDefenseBonus(st, h.city.ownerId, hexKey);
       return { type: "city", label: h.city.isCapital ? "Capital" : "City", power: def };
     }
     for (const p of st.players) {
@@ -2565,6 +2754,7 @@ const Game = (() => {
     DISTRICTS, DISTRICT_LABELS, DISTRICT_EFFECTS, RESOURCES, EVENTS, EVENT_LABELS, CFG,
     WONDERS, ALL_WONDERS, WONDER_ERAS, CARD_TIERS, AGENDA_CARDS, DIPLOMACY_CARDS, CITY_STATE_DATA,
     LEADERS, getLeader, getLeaderAttackBonus, getCardName, getActiveUniqueCard,
+    hasWonder, getWonderAttackBonus, getWonderDefenseBonus,
     TILE_OFFSETS, getCoreAnchors,
     createState, createLobbyState, createPlayer, migrateState, applyAction, currentPlayer, getPlayer,
     getSlotValue, getSlotIndex, getCardTier, getCardTierValue: getCardTier,

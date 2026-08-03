@@ -176,48 +176,87 @@
     }
   };
 
+  // World wonders. `effect` is the printed card text (from the Terra Incognita
+  // player reference). `auto: true` marks the ones the engine enforces on its
+  // own; the rest are shown to players to resolve at the table.
+  // Pentagon and Machu Picchu are deliberately absent — Terra Incognita removes
+  // them from the base game.
   const WONDER_DECKS = {
     military: [
-      { name: "Jebel Barkal", era: "ancient", cost: 7, effect: "Spend resources for +2 combat each." },
-      { name: "Petra", era: "ancient", cost: 7, effect: "+2 defense; barbarians cannot enter protected spaces." },
-      { name: "Terracotta Army", era: "ancient", cost: 7, effect: "+2 attack combat value." },
-      { name: "Huey Teocalli", era: "medieval", cost: 9, effect: "+1 defense per adjacent water." },
-      { name: "Venetian Arsenal", era: "medieval", cost: 10, effect: "Resolve slot 5 again as slot 1." },
-      { name: "Alhambra", era: "medieval", cost: 10, effect: "+2 attack and defense." },
-      { name: "Ruhr Valley", era: "modern", cost: 11, effect: "+5 defense combat value." },
-      { name: "Statue of Liberty", era: "modern", cost: 12, effect: "Replace adjacent rival control before city capture." }
+      { name: "Jebel Barkal", era: "ancient", cost: 7,
+        effect: "When attacking or defending, you can spend resource tokens (not natural wonder tokens) to increase your combat value by +2 for each token spent." },
+      { name: "Petra", era: "ancient", cost: 7, auto: true,
+        effect: "When defending, +2 combat value. Barbarians cannot move into spaces containing your cities or reinforced control tokens; instead they move in the opposite direction (Errata)." },
+      { name: "Terracotta Army", era: "ancient", cost: 7, auto: true,
+        effect: "When attacking, +2 combat value." },
+      { name: "Huey Teocalli", era: "medieval", cost: 9, auto: true,
+        effect: "When defending, increase your combat value by 1 for each water space that is adjacent to the defending space." },
+      { name: "Venetian Arsenal", era: "medieval", cost: 10,
+        effect: "Once per turn, after you resolve the card in the fifth slot (slot #5) of your focus row, you may resolve it again, treating it as if it was in the first slot (slot #1)." },
+      { name: "Alhambra", era: "medieval", cost: 10, auto: true,
+        effect: "When attacking or defending, increase your combat value by 2." },
+      { name: "Ruhr Valley", era: "modern", cost: 11, auto: true,
+        effect: "When defending, increase your combat value by 5." },
+      { name: "Statue of Liberty", era: "modern", cost: 12,
+        effect: "Before you replace a rival city with 1 of your cities, replace all rival control tokens that are adjacent to that rival city with your unused, unreinforced control tokens." }
     ],
     culture: [
-      { name: "Stonehenge", era: "ancient", cost: 7, effect: "Hill control chain placement." },
-      { name: "Hanging Gardens", era: "ancient", cost: 8, effect: "Start of turn: place one control near a city." },
-      { name: "Colosseum", era: "ancient", cost: 9, effect: "Start of turn: reinforce one control near a city." },
-      { name: "Taj Mahal", era: "medieval", cost: 9, effect: "Resolve focus cards farther right by matching wonders." },
-      { name: "Forbidden City", era: "medieval", cost: 9, effect: "Start of turn: remove rival control near a friendly space." },
-      { name: "Chichen Itza", era: "medieval", cost: 10, effect: "Place culture control on non-adjacent forests." },
-      { name: "Sydney Opera House", era: "modern", cost: 10, effect: "Rival control counts toward city maturity." },
-      { name: "Cristo Redentor", era: "modern", cost: 11, effect: "On build/capture: steal a nearby rival non-capital city." },
-      { name: "Eiffel Tower", era: "modern", cost: 12, effect: "Start of turn: replace one of two rival controls." }
+      { name: "Stonehenge", era: "ancient", cost: 7,
+        effect: "After you place a control token on a hill space, you may place a control token on 1 or more hill spaces adjacent to that space (which can trigger this effect again). Does not trigger on moved or replaced control tokens." },
+      { name: "Hanging Gardens", era: "ancient", cost: 8, auto: true,
+        effect: "At the start of your turn, you may place 1 control token on a space of terrain difficulty 4 (desert) or less that is adjacent to a friendly city." },
+      { name: "Colosseum", era: "ancient", cost: 9, auto: true,
+        effect: "At the start of your turn, you may reinforce 1 of your control tokens that is adjacent to a friendly city." },
+      { name: "Taj Mahal", era: "medieval", cost: 9, auto: true,
+        effect: "When you resolve a focus card, resolve it as though it is 1 slot farther to the right for each world wonder you control matching the focus card's type." },
+      { name: "Forbidden City", era: "medieval", cost: 9, auto: true,
+        effect: "At the start of your turn, you may remove 1 rival control token that is adjacent to a friendly space." },
+      { name: "Chichen Itza", era: "medieval", cost: 10,
+        effect: "When placing control tokens, you can place them on empty forest spaces that are not adjacent to a friendly city." },
+      { name: "Sydney Opera House", era: "modern", cost: 10, auto: true,
+        effect: "Rival control tokens contribute toward your cities' maturity." },
+      { name: "Cristo Redentor", era: "modern", cost: 11,
+        effect: "When you build or capture this wonder, choose a rival non-capital city (without an army in its space) within 3 spaces of this wonder. Replace that city with 1 of your unused cities." },
+      { name: "Eiffel Tower", era: "modern", cost: 12,
+        effect: "At the start of your turn, you may choose 2 rival control tokens on the map belonging to the same player. That player replaces 1 of those tokens with 1 of your unused, unreinforced control tokens." }
     ],
     economy: [
-      { name: "Colossus", era: "ancient", cost: 7, effect: "+6 total caravan movement on economy." },
-      { name: "Great Lighthouse", era: "ancient", cost: 8, effect: "Build cities on edge spaces as nearby friendly." },
-      { name: "Apadana", era: "ancient", cost: 8, effect: "On build/capture: explore from an edge space." },
-      { name: "Kilwa Kisiwani", era: "medieval", cost: 9, effect: "City-state trades gain +1 trade." },
-      { name: "Great Zimbabwe", era: "medieval", cost: 9, effect: "Store and distribute trade." },
-      { name: "Big Ben", era: "modern", cost: 10, effect: "+2 combat per adjacent caravan." },
-      { name: "Estadio Do Maracana", era: "modern", cost: 10, effect: "Resolve economy before another focus card." },
-      { name: "Orszaghaz", era: "modern", cost: 11, effect: "May conquer city-state after trading there." }
+      { name: "Colossus", era: "ancient", cost: 7, auto: true,
+        effect: "When resolving your economy focus card, your caravans can move a total of 6 additional spaces, divided as you choose." },
+      { name: "Great Lighthouse", era: "ancient", cost: 8,
+        effect: "When building cities, you can build in empty spaces on the edge of the map as if they were within 2 spaces of a friendly space." },
+      { name: "Apadana", era: "ancient", cost: 8,
+        effect: "When you build or capture this wonder, choose an edge space on any tile. Explore from that space." },
+      { name: "Kilwa Kisiwani", era: "medieval", cost: 9, auto: true,
+        effect: "When you move a caravan to a city-state, place 1 additional trade token from the supply on any 1 of your focus cards." },
+      { name: "Great Zimbabwe", era: "medieval", cost: 9,
+        effect: "You can place trade tokens on this card instead of on your focus cards, up to a limit of 4. At the start of your turn, you may move trade tokens from this card to cards in your focus row." },
+      { name: "Big Ben", era: "modern", cost: 10, auto: true,
+        effect: "When attacking or defending, increase your combat value by +2 for each of your caravans adjacent to the defending space." },
+      { name: "Estadio Do Maracana", era: "modern", cost: 10,
+        effect: "You may resolve and reset your economy card before you resolve a non-economy focus card (Errata)." },
+      { name: "Orszaghaz", era: "modern", cost: 11,
+        effect: "After you move a caravan to a city-state, you may conquer it." }
     ],
     science: [
-      { name: "Oracle", era: "ancient", cost: 8, effect: "Start of turn: swap two adjacent focus cards." },
-      { name: "Great Library", era: "ancient", cost: 8, effect: "Caravan to player city can copy matching focus tier." },
-      { name: "Pyramids", era: "ancient", cost: 9, effect: "On build: upgrade up to three level-I cards." },
-      { name: "University of Sankore", era: "medieval", cost: 9, effect: "After tech upgrade: swap two non-science cards." },
-      { name: "Porcelain Tower", era: "medieval", cost: 9, effect: "On build: upgrade up to two cards." },
-      { name: "Potala Palace", era: "medieval", cost: 10, effect: "On build: gain diplomacy cards." },
-      { name: "Oxford University", era: "modern", cost: 10, effect: "Tech upgrade can ignore type matching." },
-      { name: "Amundsen-Scott RS", era: "modern", cost: 10, effect: "On build: edge city with adjacent control." },
-      { name: "Kremlin", era: "modern", cost: 11, effect: "+4 attack with more reinforced controls." }
+      { name: "Oracle", era: "ancient", cost: 8, auto: true,
+        effect: "At the start of your turn, you may swap 2 adjacent cards in your focus row." },
+      { name: "Great Library", era: "ancient", cost: 8,
+        effect: "When your caravan moves to another player's city, you may gain a focus card of the same type and tech level as a card in that player's focus row, replacing your card of the same type." },
+      { name: "Pyramids", era: "ancient", cost: 9,
+        effect: "When you build this wonder, choose up to 3 level-I cards in your focus row. Replace each with a level-II card of the same type." },
+      { name: "University of Sankore", era: "medieval", cost: 9,
+        effect: "At the end of your turn, if you replaced (tech upgrade) 1 or more of your focus cards this turn, you may swap any 2 non-science cards in your focus row." },
+      { name: "Porcelain Tower", era: "medieval", cost: 9,
+        effect: "When you build this wonder, replace up to 2 cards in your focus row with cards of the next highest tech level of the same type." },
+      { name: "Potala Palace", era: "medieval", cost: 10,
+        effect: "You can have 4 diplomacy cards from each other player. When you build this wonder, you may take a total of 3 diplomacy cards of your choice from other players." },
+      { name: "Oxford University", era: "modern", cost: 10,
+        effect: "When you replace (tech upgrade) a focus card other than a science focus card, you do not have to replace it with a card of the same type." },
+      { name: "Amundsen-Scott RS", era: "modern", cost: 10,
+        effect: "When you build this wonder, build a city on any legal space on the edge of the map and place this wonder in that city. THEN, place up to 2 control tokens in spaces adjacent to that city." },
+      { name: "Kremlin", era: "modern", cost: 11, auto: true,
+        effect: "When attacking a rival space (not city-state), increase your combat value by 4 if you have more reinforced control tokens on the map than the defending player." }
     ]
   };
 

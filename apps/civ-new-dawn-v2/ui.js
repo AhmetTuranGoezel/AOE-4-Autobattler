@@ -1995,7 +1995,7 @@ const UI = (() => {
       case "growth": return `Place 1 district or reinforce ${slot + spend} markers. [Tier ${tier}]`;
       case "science": return `Advance tech by <strong>${slot + spend}</strong>. Current: ${player.tech}/${Game.CFG.techWheelSize} [Tier ${tier}]`;
       case "economy": {
-        const move = Game.getEconomyMove(player) + spend;
+        const move = Game.getEconomyMove(player, state) + spend;
         return `Move caravan up to <strong>${move}</strong> hexes. [Tier ${tier}]`;
       }
       case "military": {
@@ -2183,7 +2183,7 @@ const UI = (() => {
         }
         if (!unit) return;
         sub.selectedUnit = unit;
-        const maxMove = Game.getEconomyMove(me) + sub.tradeSpent;
+        const maxMove = Game.getEconomyMove(me, state) + sub.tradeSpent;
         const originKey = romeStart || unit.position;
         sub.movementState = { unitType: "caravan", unitId: unit.id, maxMove, remaining: maxMove, currentKey: originKey, startKey: originKey, romeStart, explored: false };
         sub.selectedUnit = { id: unit.id, position: originKey };
@@ -2274,14 +2274,13 @@ const UI = (() => {
     const me = Game.getPlayer(state, localPlayerId);
     if (!me) return;
     let selected = me.govMarkers.slice();
-    const hasForbidden = Object.values(state.map.hexes).some((h) =>
-      h.city && h.city.ownerId === localPlayerId && h.city.wonder && h.city.wonder.name === "Forbidden City"
-    );
-    const maxGov = Game.CFG.maxGovMarkers + (hasForbidden ? 1 : 0);
+    // Forbidden City grants no extra marker — its card effect removes a rival
+    // control token at the start of your turn, which the engine now handles.
+    const maxGov = Game.CFG.maxGovMarkers;
     const renderPicker = () => {
       dom.wizard.innerHTML = `
         <div class="wiz-title">Assign Gov Markers (max ${maxGov})</div>
-        <div class="wiz-body">Each marker adds +1 to that focus card's slot value.${hasForbidden ? " <em>(+1 from Forbidden City)</em>" : ""}</div>
+        <div class="wiz-body">Each marker adds +1 to that focus card's slot value.</div>
         <div class="wiz-actions" style="flex-wrap:wrap">
           ${Game.FOCUS_TYPES.map((f) => {
             const active = selected.includes(f) ? " primary" : "";

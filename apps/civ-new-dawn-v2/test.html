@@ -89,6 +89,29 @@
       const egy = Game.createPlayer("eg", "E", "#fff"); egy.leaderId = "egypt";
       assert("Egypt's Wheel moves 4 at tier I", Game.getEconomyMove(egy) === 4);
       assert("Egypt builds wonders for 1 less", Game.getWonderCost(Game.ALL_WONDERS[0].name, egy) === Game.getWonderCost(Game.ALL_WONDERS[0].name, plain) - 1);
+      // ── World wonders ──
+      const wonderNames = Game.ALL_WONDERS.map((w) => w.name);
+      assert("34 world wonders after Terra Incognita removals", wonderNames.length === 34);
+      assert("Pentagon and Machu Picchu removed", !wonderNames.includes("Pentagon") && !wonderNames.includes("Machu Picchu"));
+      assert("every wonder has era, cost and printed effect text", Game.ALL_WONDERS.every((w) =>
+        ["ancient", "medieval", "modern"].includes(w.era) && w.cost >= 7 && w.cost <= 12 && (w.effect || "").length > 20));
+      let wst = Game.createState(players(2));
+      wst.phase = "playing";
+      const wa = wst.turn.order[0], wb = wst.turn.order[1];
+      const setHex = (k, props) => Object.assign(wst.map.hexes[k], { active: true, terrain: "grass", city: null, control: null, barbarian: false, cityState: null, fortress: false, resource: null }, props);
+      const giveWonder = (pid, k, name, type) => setHex(k, { city: { ownerId: pid, isCapital: false, developed: false, hasWonder: true, wonder: { name, era: "ancient", type: type || "military", cost: 7, effect: "" } } });
+      setHex("1,0", { control: { ownerId: wb, fortified: false, district: null } });
+      const atkBefore = Game.getLeaderAttackBonus(wst, wa, "1,0");
+      giveWonder(wa, "0,0", "Terracotta Army");
+      assert("Terracotta Army adds +2 attack", Game.getLeaderAttackBonus(wst, wa, "1,0") === atkBefore + 2);
+      const defBefore = Game.findDefender(wst, "1,0", wa).power;
+      giveWonder(wb, "4,0", "Ruhr Valley");
+      assert("Ruhr Valley adds +5 defence", Game.findDefender(wst, "1,0", wa).power === defBefore + 5);
+      const ecoP = Game.getPlayer(wst, wa);
+      const ecoBefore = Game.getEconomyMove(ecoP, wst);
+      giveWonder(wa, "0,-2", "Colossus", "economy");
+      assert("Colossus adds 6 caravan movement", Game.getEconomyMove(ecoP, wst) === ecoBefore + 6);
+
       const indo = Game.createPlayer("in", "I", "#fff"); indo.leaderId = "indonesia";
       assert("Indonesia crosses water from the start", Game.canCrossWater(indo, "army") && Game.canCrossWater(indo, "caravan") && !Game.canCrossWater(plain, "army"));
       assert("unique card overrides the display name", Game.getCardName(egy, "economy") === "Wheel" && Game.getCardName(plain, "economy") === "Foreign Trade");
