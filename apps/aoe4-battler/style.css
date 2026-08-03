@@ -4544,35 +4544,39 @@ small.text-muted,
 /* Tidy columns instead of a ragged wrap of squares */
 .tech-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
-  gap: 6px;
+  grid-template-columns: repeat(auto-fill, minmax(146px, 1fr));
+  gap: 5px;
   margin-bottom: 8px;
-  align-items: stretch;
+  /* Size each chip to its own content. Stretching made a plain chip grow to
+     match a neighbour that carries a level dropdown. */
+  align-items: start;
 }
 
 .tech-btn--labeled {
   width: auto;
   height: auto;
-  min-height: 38px;
-  padding: 5px 9px;
-  gap: 8px;
+  min-height: 0;
+  padding: 4px 8px;
+  gap: 7px;
   justify-content: flex-start;
   text-align: left;
   /* Inactive reads as "off", not "disabled" — the gold border marks active */
   opacity: 0.82;
+  border-width: 1px;
   border-color: rgba(255, 255, 255, 0.14);
+  border-radius: 7px;
 }
 
 .tech-btn--labeled img {
-  width: 24px;
-  height: 24px;
-  min-width: 24px;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
   flex: 0 0 auto;
 }
 
 .tech-btn-label {
-  font-size: 0.72rem;
-  line-height: 1.25;
+  font-size: 0.7rem;
+  line-height: 1.2;
   color: #cfc6b4;
   font-weight: 500;
   /* Long names wrap to two lines, then clip rather than stretch the grid */
@@ -4600,20 +4604,23 @@ small.text-muted,
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 4px;
+  gap: 3px;
   margin-right: 0;
 }
 .tech-level-wrap .tech-btn--labeled { width: 100%; }
-.tech-level-wrap .tech-level-select { width: 100%; }
+.tech-level-wrap .tech-level-select {
+  width: 100%;
+  height: 21px;
+  font-size: 0.62rem;
+}
 
-/* Group headings earn a little more separation now that rows are denser */
 .tech-group-label {
-  margin-top: 12px;
-  margin-bottom: 6px;
+  margin-top: 9px;
+  margin-bottom: 4px;
 }
 
 @media (max-width: 991px) {
-  .tech-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+  .tech-grid { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); }
 }
 
 /* ═══════════════════════════════════════════════════════════════
