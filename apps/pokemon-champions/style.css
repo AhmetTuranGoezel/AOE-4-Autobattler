@@ -1701,3 +1701,16 @@ tr.pin-end td { padding: 0; height: 8px; border-bottom: 2px solid color-mix(in s
   .info-stats { grid-template-columns: repeat(2, 1fr); }
   .ehp-cards { grid-template-columns: 1fr; }
 }
+
+/* Per-Pokémon move bans (Best users ranking) — 🚫 drops a move for one
+   Pokémon only, next to the ✕ that drops it for everyone. */
+.mvr-banmon { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.68rem; padding: 0 2px; flex-shrink: 0; opacity: 0.55; transition: opacity 0.15s, transform 0.15s; }
+.mvr-banmon:hover { opacity: 1; transform: scale(1.15); }
+.mvr-row:hover .mvr-banmon { opacity: 0.85; }
+
+.mvr-monexrow { display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.mvr-monexlabel { flex-shrink: 0; padding-top: 4px; }
+.mvr-monexchips { display: flex; flex-wrap: wrap; gap: 5px; }
+.mvr-monexchip { background: color-mix(in srgb, #ff8a7a 12%, var(--panel-2)); border-color: color-mix(in srgb, #ff8a7a 38%, var(--border)); }
+.mvr-monexchip b { font-weight: 700; }
+.mvr-monex-sep { opacity: 0.75; font-size: 0.7em; }

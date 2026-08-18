@@ -176,8 +176,16 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
   const allFlags = [...new Set(moves.flatMap((m) => m.flags || []))].sort();
   const RANK_EXCL_KEY = "pc-mvrank-exclude";   // its OWN saved list — deliberately not the Damage tab's
   const RANK_ABIL_KEY = "pc-mvrank-abil-ignore";
+  const RANK_MONEXCL_KEY = "pc-mvrank-mon-exclude";
   const loadRankExcluded = () => new Set(JSON.parse(localStorage.getItem(RANK_EXCL_KEY) || "[]"));
   const loadRankAbils = () => new Set(JSON.parse(localStorage.getItem(RANK_ABIL_KEY) || "[]"));
+  // Per-Pokémon move bans: { slug: [moveId, …] } → Map<slug, Set<moveId>>.
+  // Belch is the motivating case — realistic for a bulky Berry user, wishful
+  // for a squishy one, so banning it globally would misjudge everyone else.
+  const loadRankMonExcluded = () => {
+    const raw = JSON.parse(localStorage.getItem(RANK_MONEXCL_KEY) || "{}");
+    return new Map(Object.entries(raw).map(([slug, ids]) => [slug, new Set(ids)]));
+  };
   const state = { search: "", type: "", cat: "", flags: new Set(), tgroup: "", facets: new Set(), chance: "", eFilter: new Set(),
     mons: [], ownMode: "any", focus: null, sort: structuredClone(DEFAULT_SORT),
     expBest: false,     // best case: conditional move effects AND conditional abilities assumed active
@@ -191,6 +199,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
     mode: "browse",     // "browse" (the table) | "rank" (Best users — whole-roster Eff.Dmg ranking)
     rq: { moveId: null, type: "", cat: "", mega: "all", avail: false, tw: 70, ts: 100,
       excluded: loadRankExcluded(),      // move ids kept out of the archetype best-move pick
+      monExcluded: loadRankMonExcluded(), // per-Pokémon bans: this mon can't use these moves
       ignoredAbils: loadRankAbils(),     // ability slugs treated as None for every ranked mon
       editing: null,                     // slug whose inline per-mon ⚙ panel is open
       presetOpen: false,                 // whether the global-build editor is expanded
@@ -198,6 +207,23 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
       preset: { spread: { atk: 0, spa: 0, def: 0, spe: 0 }, stages: { atk: 0, spa: 0, def: 0, spe: 0 }, nature: "", item: "none" } } };
   const saveRankExcluded = () => localStorage.setItem(RANK_EXCL_KEY, JSON.stringify([...state.rq.excluded]));
   const saveRankAbils = () => localStorage.setItem(RANK_ABIL_KEY, JSON.stringify([...state.rq.ignoredAbils]));
+  const saveRankMonExcluded = () => localStorage.setItem(RANK_MONEXCL_KEY,
+    JSON.stringify(Object.fromEntries([...state.rq.monExcluded]
+      .filter(([, ids]) => ids.size).map(([slug, ids]) => [slug, [...ids]]))));
+  const monBans = (slug) => state.rq.monExcluded.get(slug);
+  function banMoveForMon(slug, id) {
+    let s = state.rq.monExcluded.get(slug);
+    if (!s) { s = new Set(); state.rq.monExcluded.set(slug, s); }
+    s.add(id);
+    saveRankMonExcluded();
+  }
+  function unbanMoveForMon(slug, id) {
+    const s = state.rq.monExcluded.get(slug);
+    if (!s) return;
+    s.delete(id);
+    if (!s.size) state.rq.monExcluded.delete(slug);
+    saveRankMonExcluded();
+  }
 
   // Move-intrinsic power: BP × accuracy(×accMult) × crit × multi-hit × spread(0.75) × best-case cond.
   // `bpOverride` feeds weight/speed moves their computed BP.
@@ -418,6 +444,10 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
         <div class="mvr-exclrow">
           <div class="ac-wrap mvr-acwrap"><input class="search mvr-excl-input" placeholder="Exclude a move (saved)…" autocomplete="off" title="Take drawback moves (charge, recharge …) out of the best-move pick — saved list, separate from the Damage tab's"></div>
           <div class="mvr-exchips"></div>
+        </div>
+        <div class="mvr-monexrow" hidden>
+          <small class="muted mvr-monexlabel" title="Moves banned for one Pokémon only — every other Pokémon can still use them">Banned per Pokémon:</small>
+          <div class="mvr-monexchips"></div>
         </div>
       </div>
       <div class="mvr-preset"></div>
@@ -668,15 +698,18 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
     const exact = q.moveId != null ? moveById.get(q.moveId) : null;
     for (const e of mons) {
       e.cfg.tw = q.tw; e.cfg.ts = q.ts;   // rank-level assumed target for weight/speed moves
+      const banned = monBans(e.slug);
       let top = null;
       if (exact) {
         if (!exact._ep || !e.moves.has(exact.id)) continue;
+        if (banned && banned.has(exact.id)) continue;   // banned for this mon — drop it from the ranking
         const b = rankDmg(e, exact);
         if (b) top = { m: exact, ...b };
       } else {
         for (const id of e.moves) {   // archetype: the mon's best QUALIFYING move (ability is fixed)
           const m = moveById.get(id);
           if (!m || !m._ep || q.excluded.has(m.id) || TARGET_STAT_MOVES.has(m.name)) continue;
+          if (banned && banned.has(m.id)) continue;     // …and skipped only for this Pokémon
           if (q.type && m.type !== q.type) continue;
           if (q.cat && m.class !== q.cat) continue;
           const b = rankDmg(e, m);
@@ -700,6 +733,17 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
       return x ? `<span class="cl-exchip">${x.name}<button data-mvr-unexclude="${id}" aria-label="restore ${x.name}">✕</button></span>` : ""; }).join("");
     $(".mvr-abchips").innerHTML = [...q.ignoredAbils].map((slug) =>
       `<span class="cl-exchip">🚫 ${abilName(slug)}<button data-mvr-unignore="${slug}" aria-label="restore ${abilName(slug)}">✕</button></span>`).join("");
+    // per-Pokémon bans — one chip per (mon, move) pair, each individually undoable
+    const monBanChips = [...q.monExcluded].flatMap(([slug, ids]) => {
+      const mon = rankEntry(slug);
+      return [...ids].map((id) => {
+        const x = moveById.get(id);
+        if (!x) return "";
+        return `<span class="cl-exchip mvr-monexchip"><b>${mon ? mon.name : slug}</b><span class="mvr-monex-sep">🚫</span>${x.name}<button data-mvr-unban="${id}" data-mvr-unbanslug="${slug}" aria-label="allow ${x.name} for ${mon ? mon.name : slug} again">✕</button></span>`;
+      });
+    }).filter(Boolean);
+    $(".mvr-monexrow").hidden = !monBanChips.length;
+    $(".mvr-monexchips").innerHTML = monBanChips.join("");
     toolbarEl.querySelectorAll("[data-mvrcat]").forEach((b) => b.classList.toggle("active", b.dataset.mvrcat === q.cat));
     toolbarEl.querySelectorAll("[data-mvrtype]").forEach((b) => b.classList.toggle("on", b.dataset.mvrtype === q.type));
     toolbarEl.querySelectorAll("[data-mvrmega]").forEach((b) => b.classList.toggle("active", b.dataset.mvrmega === q.mega));
@@ -779,7 +823,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
         <button class="mvr-cog ${editing ? "on" : ""}" data-cfg-toggle="${e.slug}" title="See every move's damage & customize ${e.name}">⚙</button>
         <span class="mvr-idn" data-mon-open="${e.slug}" title="Open ${e.name}'s details"><img class="ehp-spr" loading="lazy" src="${e.sprite}" alt="">
           <span class="mvr-name">${e.name}${e.isMega ? ' <span class="mega-badge">MEGA</span>' : ""}${e.usagePct != null ? ` <span class="ehp-use" title="ladder usage">${e.usagePct}%</span>` : ""}${badge.length ? `<small class="mvr-setline">${badge.join(" · ")}</small>` : ""}</span></span>
-        <span class="mvr-move"><span class="type tiny" style="background:${TYPE_COLORS[mv.type]}">${mv.type}</span><button class="mvr-mvname" data-info-move="${mv.id}" title="Open ${mv.name}">${mv.name}</button><small class="mvr-pw" title="Exp. Pow for this Pokémon (STAB/ability in)">${d.pw} pw</small>${m ? "" : `<button class="mvr-ignore" data-mvr-ignore="${mv.id}" title="Ignore ${mv.name} — drop it from the best-move pick" aria-label="Ignore ${mv.name}">✕</button>`}</span>
+        <span class="mvr-move"><span class="type tiny" style="background:${TYPE_COLORS[mv.type]}">${mv.type}</span><button class="mvr-mvname" data-info-move="${mv.id}" title="Open ${mv.name}">${mv.name}</button><small class="mvr-pw" title="Exp. Pow for this Pokémon (STAB/ability in)">${d.pw} pw</small>${m ? "" : `<button class="mvr-banmon" data-mvr-banmon="${mv.id}" data-mvr-banslug="${e.slug}" title="Ban ${mv.name} for ${e.name} only — every other Pokémon keeps it (e.g. Belch is unrealistic on a squishy mon)" aria-label="Ban ${mv.name} for ${e.name} only">🚫</button><button class="mvr-ignore" data-mvr-ignore="${mv.id}" title="Ignore ${mv.name} — drop it from the best-move pick for every Pokémon" aria-label="Ignore ${mv.name} everywhere">✕</button>`}</span>
         <span class="mvr-dmg" title="Effective damage — compare against effective HP (HP×Def)"><b>${sep(d.v)}</b></span>
         <span class="mvr-chips">${abilChip}${noteChips}</span>
       </div>${editing ? monPanel(e, mv.id) : ""}`;
@@ -788,7 +832,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
       ? `Global build: <b>${cfgStatParts({ cfg: q.preset }).join(" · ")}</b> on every Pokémon (individually-customized ✎ ones keep their own).`
       : `Base Lv50 stats — set a global build above (<b>Everyone runs</b>) so stat-multiplying abilities and Body-Press/weight setups rank realistically.`;
     contentEl.innerHTML = `
-      <p class="mvr-note">${presetNote} Click a <b>Pokémon</b> (or <b>⚙</b>) to see <b>every move's effective damage</b> and override its ability/stats/boosts/item; click a move to open it${m ? "" : ", or <b>✕</b> to drop it from the pick"}${state.useAcc ? "" : "; accuracy is ignored (potential damage)"}.</p>
+      <p class="mvr-note">${presetNote} Click a <b>Pokémon</b> (or <b>⚙</b>) to see <b>every move's effective damage</b> and override its ability/stats/boosts/item; click a move to open it${m ? "" : ", <b>🚫</b> to ban it for that Pokémon only, or <b>✕</b> to drop it for everyone"}${state.useAcc ? "" : "; accuracy is ignored (potential damage)"}.</p>
       ${top.length ? `<div class="mvr-list">${top.map(rowHtml).join("")}</div>` : `<p class="ehp-empty">${m ? "No Pokémon learns this move under the current Mega/Available filters." : "No match — pick a move above, or a type/category."}</p>`}
       ${rows.length > 75 ? `<p class="ehp-more">Showing the top 75 of ${rows.length}.</p>` : ""}`;
   }
@@ -842,6 +886,10 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
   $(".mvr-abchips").addEventListener("click", (e) => {
     const u = e.target.closest("[data-mvr-unignore]");
     if (u) { state.rq.ignoredAbils.delete(u.dataset.mvrUnignore); saveRankAbils(); draw(); }
+  });
+  $(".mvr-monexchips").addEventListener("click", (e) => {
+    const u = e.target.closest("[data-mvr-unban]");
+    if (u) { unbanMoveForMon(u.dataset.mvrUnbanslug, Number(u.dataset.mvrUnban)); draw(); }
   });
   toolbarEl.querySelectorAll("[data-mvrcat]").forEach((b) => b.addEventListener("click", () => { state.rq.cat = b.dataset.mvrcat; draw(); }));
   toolbarEl.querySelectorAll("[data-mvrmega]").forEach((b) => b.addEventListener("click", () => { state.rq.mega = b.dataset.mvrmega; draw(); }));
@@ -999,7 +1047,9 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
     if (of) { onMon && onMon(of.dataset.monOpen); return; }
     const cog = e.target.closest("[data-cfg-toggle]");   // ⚙ toggles the in-place all-moves + customize panel
     if (cog) { togglePanel(cog.dataset.cfgToggle); return; }
-    const ig = e.target.closest("[data-mvr-ignore]");    // ✕ on a ranked move → ignore it
+    const bm = e.target.closest("[data-mvr-banmon]");    // 🚫 on a ranked move → ban it for THIS mon only
+    if (bm) { banMoveForMon(bm.dataset.mvrBanslug, Number(bm.dataset.mvrBanmon)); draw(); return; }
+    const ig = e.target.closest("[data-mvr-ignore]");    // ✕ on a ranked move → ignore it everywhere
     if (ig) { state.rq.excluded.add(Number(ig.dataset.mvrIgnore)); saveRankExcluded(); drawRank(); return; }
     const iga = e.target.closest("[data-mvr-abignore]"); // ✕ on a rank row's ability → ignore that ability for all
     if (iga) { state.rq.ignoredAbils.add(iga.dataset.mvrAbignore); saveRankAbils(); draw(); return; }

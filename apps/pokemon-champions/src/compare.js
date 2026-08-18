@@ -30,6 +30,7 @@ export function renderCompare(mons, data, max = 200, anchorSlug = null, movesFil
     ["Cleaned", (m) => m._eff.cleaned, true],
     ["Phys. eHP @50", (m) => ehp(m, "def"), false, "Effective HP vs physical = Lv50 HP × Defense (physical bulk)", sep],
     ["Spec. eHP @50", (m) => ehp(m, "spd"), false, "Effective HP vs special = Lv50 HP × Sp.Def (special bulk)", sep],
+    ["Mixed eHP @50", (m) => m._eff.ehpMixed, true, "Effective HP vs an even physical+special mix @Lv50 (harmonic mean of the two — punishes a lopsided defensive spread)", sep],
   ];
   const rows = rowDefs.map(([label, fn, hl, title, fmt]) => {
     const f = fmt || ((x) => String(x));
