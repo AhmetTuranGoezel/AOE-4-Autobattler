@@ -4446,3 +4446,222 @@ small.text-muted,
   transition: transform 0.2s;
   font-size: 0.75rem;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   Motion & feel pass — Unit Battler, Vs Building, Multi Battle.
+   One-shot entrances and hover feedback only; no idle loops added.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Animated gold underline that settles beneath the active nav tab */
+.aoe4-nav-tab::after {
+  content: "";
+  position: absolute;
+  left: 26px;
+  right: 26px;
+  bottom: 9px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #d4a44a, transparent);
+  transform: scaleX(0);
+  opacity: 0;
+  transition: transform 0.24s ease, opacity 0.24s ease;
+  pointer-events: none;
+}
+.aoe4-nav-tab.active::after { transform: scaleX(1); opacity: 1; }
+.aoe4-nav-tab:hover:not(.active)::after { transform: scaleX(0.45); opacity: 0.35; }
+
+/* Gentle rise when switching between battle modes */
+@keyframes battler-mode-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+#singleBattleRow,
+#multiBattleRow { animation: battler-mode-in 0.28s ease-out; }
+
+/* Battle results: verdict settles in, team panels follow in sequence.
+   These replay naturally because #results is re-shown per battle. */
+@keyframes verdict-in {
+  from { opacity: 0; transform: scale(1.05); }
+  to { opacity: 1; transform: scale(1); }
+}
+.winner-banner { animation: verdict-in 0.38s cubic-bezier(0.2, 0.8, 0.3, 1) both; }
+
+@keyframes result-panel-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.team-result-panel { animation: result-panel-in 0.3s ease-out 0.08s backwards; }
+.team-result-panel:has(#hpBarB) { animation-delay: 0.16s; }
+.battle-duration-value { animation: verdict-in 0.4s ease-out 0.05s backwards; }
+
+/* Multi Battle: a freshly added unit card rises into the stack */
+.multi-card-stack > * { animation: result-panel-in 0.26s ease-out; }
+
+/* Add-unit tile: the plus answers the hover */
+.multi-add-plus { transition: transform 0.16s ease; }
+.multi-add-tile:hover .multi-add-plus { transform: translateY(-2px); }
+
+/* Section toggles: arrow joins the hover highlight */
+.section-toggle:hover .toggle-arrow { color: #d4a44a; }
+
+/* Vs Building tech / aura chips: light lift, firm press */
+.building-tech-btn {
+  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease,
+    box-shadow 0.2s ease, transform 0.15s ease;
+}
+.building-tech-btn:hover { transform: translateY(-1px); }
+.building-tech-btn:active { transform: translateY(0) scale(0.985); }
+
+/* Keyboard focus: visible gold ring, invisible to mouse users */
+.aoe4-nav-tab:focus-visible,
+.battle-btn:focus-visible,
+.multi-add-tile:focus-visible,
+.section-toggle:focus-visible,
+.building-tech-btn:focus-visible {
+  outline: 2px solid rgba(212, 164, 74, 0.75);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Respect reduced-motion: freeze every animation and transition,
+   including the battle button's idle pulse. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Readable technology chips (Unit Battler) — icon + name, matching
+   the Vs Building enhancement chips so both modes read the same.
+   Scoped to .tech-btn--labeled so the small inline .tech-btn icons
+   used in effect rows and the battle log keep their square styling.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Tidy columns instead of a ragged wrap of squares */
+.tech-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(146px, 1fr));
+  gap: 5px;
+  margin-bottom: 8px;
+  /* Size each chip to its own content. Stretching made a plain chip grow to
+     match a neighbour that carries a level dropdown. */
+  align-items: start;
+}
+
+.tech-btn--labeled {
+  width: auto;
+  height: auto;
+  min-height: 0;
+  padding: 4px 8px;
+  gap: 7px;
+  justify-content: flex-start;
+  text-align: left;
+  /* Inactive reads as "off", not "disabled" — the gold border marks active */
+  opacity: 0.82;
+  border-width: 1px;
+  border-color: rgba(255, 255, 255, 0.14);
+  border-radius: 7px;
+}
+
+.tech-btn--labeled img {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  flex: 0 0 auto;
+}
+
+.tech-btn-label {
+  font-size: 0.7rem;
+  line-height: 1.2;
+  color: #cfc6b4;
+  font-weight: 500;
+  /* Long names wrap to two lines, then clip rather than stretch the grid */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.tech-btn--labeled:hover { opacity: 1; }
+.tech-btn--labeled.active { opacity: 1; }
+.tech-btn--labeled.active .tech-btn-label { color: #f4e3b5; }
+
+/* Not simulated / display-only: dim the copy, keep the icon legible */
+.tech-btn--labeled.non-combat {
+  opacity: 0.6;
+  filter: none;
+}
+.tech-btn--labeled.non-combat img { filter: grayscale(100%); opacity: 0.7; }
+.tech-btn--labeled.non-combat .tech-btn-label { color: #8a8270; }
+
+/* Levelled techs: chip on top, level picker beneath, as one unit */
+.tech-level-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+  margin-right: 0;
+}
+.tech-level-wrap .tech-btn--labeled { width: 100%; }
+.tech-level-wrap .tech-level-select {
+  width: 100%;
+  height: 21px;
+  font-size: 0.62rem;
+}
+
+.tech-group-label {
+  margin-top: 9px;
+  margin-bottom: 4px;
+}
+
+@media (max-width: 991px) {
+  .tech-grid { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Bonus damage density — 16 values used to cost ~1150px stacked one
+   per row. Same values, multi-column, roughly a quarter of the height.
+   ═══════════════════════════════════════════════════════════════ */
+[id$="_bonusesContainer"] {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 6px;
+}
+
+[id$="_bonusesContainer"] .battler-bonus-row {
+  align-items: center;
+  padding: 4px 8px;
+  gap: 8px;
+}
+
+/* Grid handles the spacing now */
+[id$="_bonusesContainer"] .battler-bonus-row + .battler-bonus-row {
+  margin-top: 0;
+}
+
+[id$="_bonusesContainer"] .battler-bonus-label {
+  font-size: 0.75rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+[id$="_bonusesContainer"] .compact-field {
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+/* A set bonus should stand out from the zeros around it */
+[id$="_bonusesContainer"] .bonus-input:not([value="0"]):not([value=""]) {
+  border-color: rgba(212, 164, 74, 0.45);
+  color: #f4e3b5;
+}
+
+@media (max-width: 991px) {
+  [id$="_bonusesContainer"] { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+}

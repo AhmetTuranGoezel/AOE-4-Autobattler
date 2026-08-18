@@ -54,6 +54,68 @@
       const s4 = Game.createState(players(4));
       assert("4-player setup places four core tiles", s4.setup.coreTiles.length === 4);
 
+      // ── Online lobby flow ──
+      let lob = Game.createLobbyState([players(1)[0]]);
+      assert("lobby state starts in lobby phase", lob.phase === "lobby");
+      lob = Game.applyAction(lob, { type: "START_GAME", payload: { playerId: lob.players[0].id } });
+      assert("cannot start a lobby with one player", lob.phase === "lobby");
+      const joiners = players(4).slice(1);
+      joiners.forEach((p) => { lob = Game.applyAction(lob, { type: "ADD_PLAYER", payload: p }); });
+      assert("lobby fills to four players", lob.players.length === 4 && lob.phase === "lobby");
+      lob = Game.applyAction(lob, { type: "ADD_PLAYER", payload: Game.createPlayer("p5", "P5", "#f77f00") });
+      assert("lobby rejects a fifth player", lob.players.length === 4);
+      lob = Game.applyAction(lob, { type: "START_GAME", payload: { playerId: lob.players[0].id } });
+      assert("START_GAME builds a four-player setup", lob.phase === "setup" && lob.setup.phase === "fortress" && lob.setup.order.length === 4);
+      let midGame = Game.createState(players(2));
+      midGame.phase = "playing";
+      midGame = Game.applyAction(midGame, { type: "ADD_PLAYER", payload: Game.createPlayer("late", "Late", "#f77f00") });
+      assert("no joining a game in progress", !midGame.players.find((p) => p.id === "late"));
+
+      // ── Civilizations (Terra Incognita leader sheets) ──
+      assert("eighteen civs defined", Game.LEADERS.length === 18);
+      assert("leader focus orders are 6 unique types starting with growth", Game.LEADERS.every((l) => l.focusOrder.length === 6 && new Set(l.focusOrder).size === 6 && l.focusOrder[0] === "growth"));
+      assert("every civ has a unique focus card", Game.LEADERS.every((l) => l.unique && l.unique.name && l.unique.type && l.unique.tier >= 1 && l.unique.tier <= 4));
+      let ldr = Game.createLobbyState(players(2));
+      const [ldrA, ldrB] = ldr.players.map((p) => p.id);
+      ldr = Game.applyAction(ldr, { type: "SET_LEADER", payload: { playerId: ldrA, leaderId: "rome" } });
+      assert("SET_LEADER applies civ and focus order", ldr.players[0].leaderId === "rome" && ldr.players[0].focusRow[5] === "industry");
+      ldr = Game.applyAction(ldr, { type: "SET_LEADER", payload: { playerId: ldrB, leaderId: "rome" } });
+      assert("duplicate civ pick rejected", ldr.players[1].leaderId !== "rome");
+      ldr = Game.applyAction(ldr, { type: "START_GAME", payload: { playerId: ldrA } });
+      assert("random civs dealt at start", ldr.players.every((p) => p.leaderId && p.leaderId !== "random"));
+      const plain = Game.createPlayer("pp", "P", "#fff");
+      const scy = Game.createPlayer("sc", "S", "#fff"); scy.leaderId = "scythia";
+      assert("Scythia's Horseback Riding moves 6 at tier I", Game.getMilitaryMove(scy) === 6 && Game.getMilitaryMove(plain) === 3);
+      const egy = Game.createPlayer("eg", "E", "#fff"); egy.leaderId = "egypt";
+      assert("Egypt's Wheel moves 4 at tier I", Game.getEconomyMove(egy) === 4);
+      assert("Egypt builds wonders for 1 less", Game.getWonderCost(Game.ALL_WONDERS[0].name, egy) === Game.getWonderCost(Game.ALL_WONDERS[0].name, plain) - 1);
+      // ── World wonders ──
+      const wonderNames = Game.ALL_WONDERS.map((w) => w.name);
+      assert("34 world wonders after Terra Incognita removals", wonderNames.length === 34);
+      assert("Pentagon and Machu Picchu removed", !wonderNames.includes("Pentagon") && !wonderNames.includes("Machu Picchu"));
+      assert("every wonder has era, cost and printed effect text", Game.ALL_WONDERS.every((w) =>
+        ["ancient", "medieval", "modern"].includes(w.era) && w.cost >= 7 && w.cost <= 12 && (w.effect || "").length > 20));
+      let wst = Game.createState(players(2));
+      wst.phase = "playing";
+      const wa = wst.turn.order[0], wb = wst.turn.order[1];
+      const setHex = (k, props) => Object.assign(wst.map.hexes[k], { active: true, terrain: "grass", city: null, control: null, barbarian: false, cityState: null, fortress: false, resource: null }, props);
+      const giveWonder = (pid, k, name, type) => setHex(k, { city: { ownerId: pid, isCapital: false, developed: false, hasWonder: true, wonder: { name, era: "ancient", type: type || "military", cost: 7, effect: "" } } });
+      setHex("1,0", { control: { ownerId: wb, fortified: false, district: null } });
+      const atkBefore = Game.getLeaderAttackBonus(wst, wa, "1,0");
+      giveWonder(wa, "0,0", "Terracotta Army");
+      assert("Terracotta Army adds +2 attack", Game.getLeaderAttackBonus(wst, wa, "1,0") === atkBefore + 2);
+      const defBefore = Game.findDefender(wst, "1,0", wa).power;
+      giveWonder(wb, "4,0", "Ruhr Valley");
+      assert("Ruhr Valley adds +5 defence", Game.findDefender(wst, "1,0", wa).power === defBefore + 5);
+      const ecoP = Game.getPlayer(wst, wa);
+      const ecoBefore = Game.getEconomyMove(ecoP, wst);
+      giveWonder(wa, "0,-2", "Colossus", "economy");
+      assert("Colossus adds 6 caravan movement", Game.getEconomyMove(ecoP, wst) === ecoBefore + 6);
+
+      const indo = Game.createPlayer("in", "I", "#fff"); indo.leaderId = "indonesia";
+      assert("Indonesia crosses water from the start", Game.canCrossWater(indo, "army") && Game.canCrossWater(indo, "caravan") && !Game.canCrossWater(plain, "army"));
+      assert("unique card overrides the display name", Game.getCardName(egy, "economy") === "Wheel" && Game.getCardName(plain, "economy") === "Foreign Trade");
+
       let st = Game.createState(players(2));
       st.phase = "playing";
       const first = st.turn.order[0];

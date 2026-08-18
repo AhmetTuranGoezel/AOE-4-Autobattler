@@ -3,6 +3,7 @@
 const UI = (() => {
   let state = null;
   let localPlayerId = null;
+  let roomCode = null;
 
   // Canvas
   let canvas = null;
@@ -15,10 +16,67 @@ const UI = (() => {
   let dragDistance = 0;
   let mouseHex = null;
 
+  // High-contrast board palette: fill, a lighter top sheen and a darker edge
+  // so every terrain reads at a glance even when zoomed out.
   const TERRAIN_COLORS = {
-    grass: '#4a7c3f', hill: '#8b7355', forest: '#2d5a27',
-    desert: '#c4a35a', mountain: '#6b6b6b', water: '#2563a0'
+    grass: '#5d9c4a', hill: '#a98a5b', forest: '#33703a',
+    desert: '#d9b36c', mountain: '#8c8f98', water: '#3b7cc4'
   };
+  const TERRAIN_SHEEN = {
+    grass: 'rgba(255,255,255,0.10)', hill: 'rgba(255,255,255,0.12)', forest: 'rgba(255,255,255,0.06)',
+    desert: 'rgba(255,255,255,0.16)', mountain: 'rgba(255,255,255,0.14)', water: 'rgba(255,255,255,0.10)'
+  };
+  const TERRAIN_EDGE = {
+    grass: '#3c6c2f', hill: '#7c6238', forest: '#1f4a26',
+    desert: '#a8834a', mountain: '#5d616b', water: '#26588f'
+  };
+
+  // Small hand-drawn glyphs so terrain is identifiable without color alone.
+  function drawTerrainGlyph(cx, cy, terrain, size) {
+    const s = size / 30;
+    ctx.save();
+    ctx.lineWidth = Math.max(1, 1.4 * s);
+    if (terrain === "mountain") {
+      ctx.fillStyle = "rgba(40,44,52,0.55)";
+      ctx.beginPath();
+      ctx.moveTo(cx - 10 * s, cy + 7 * s); ctx.lineTo(cx - 3 * s, cy - 6 * s); ctx.lineTo(cx + 2 * s, cy + 7 * s);
+      ctx.closePath(); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(cx + 1 * s, cy + 7 * s); ctx.lineTo(cx + 6 * s, cy - 2 * s); ctx.lineTo(cx + 11 * s, cy + 7 * s);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = "rgba(255,255,255,0.7)";
+      ctx.beginPath();
+      ctx.moveTo(cx - 5 * s, cy - 2 * s); ctx.lineTo(cx - 3 * s, cy - 6 * s); ctx.lineTo(cx - 1 * s, cy - 2 * s);
+      ctx.closePath(); ctx.fill();
+    } else if (terrain === "forest") {
+      ctx.fillStyle = "rgba(16,48,22,0.6)";
+      [[-6, 2], [1, -2], [6, 3]].forEach(([dx, dy]) => {
+        ctx.beginPath();
+        ctx.moveTo(cx + (dx - 4) * s, cy + (dy + 5) * s);
+        ctx.lineTo(cx + dx * s, cy + (dy - 6) * s);
+        ctx.lineTo(cx + (dx + 4) * s, cy + (dy + 5) * s);
+        ctx.closePath(); ctx.fill();
+      });
+    } else if (terrain === "hill") {
+      ctx.strokeStyle = "rgba(80,58,28,0.55)";
+      ctx.beginPath(); ctx.arc(cx - 5 * s, cy + 3 * s, 5 * s, Math.PI, 0); ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx + 5 * s, cy + 5 * s, 4 * s, Math.PI, 0); ctx.stroke();
+    } else if (terrain === "desert") {
+      ctx.strokeStyle = "rgba(120,88,36,0.5)";
+      ctx.beginPath(); ctx.moveTo(cx - 8 * s, cy + 2 * s); ctx.quadraticCurveTo(cx - 3 * s, cy - 2 * s, cx + 1 * s, cy + 2 * s); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx - 1 * s, cy + 6 * s); ctx.quadraticCurveTo(cx + 4 * s, cy + 2 * s, cx + 8 * s, cy + 6 * s); ctx.stroke();
+    } else if (terrain === "water") {
+      ctx.strokeStyle = "rgba(255,255,255,0.4)";
+      [[0, -2], [0, 3]].forEach(([dx, dy]) => {
+        ctx.beginPath();
+        ctx.moveTo(cx - 7 * s + dx, cy + dy * s);
+        ctx.quadraticCurveTo(cx - 3.5 * s + dx, cy + (dy - 3) * s, cx + dx, cy + dy * s);
+        ctx.quadraticCurveTo(cx + 3.5 * s + dx, cy + (dy + 3) * s, cx + 7 * s + dx, cy + dy * s);
+        ctx.stroke();
+      });
+    }
+    ctx.restore();
+  }
 
   const EDGE_NEIGHBORS = [
     { dq: 1, dr: 0 }, { dq: 0, dr: 1 }, { dq: -1, dr: 1 },
@@ -115,6 +173,11 @@ const UI = (() => {
     return helps[phase] || "";
   }
 
+  function escapeHtml(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
   function init() {
     dom.lobby = document.getElementById("lobby");
     dom.game = document.getElementById("game");
@@ -143,6 +206,7 @@ const UI = (() => {
       if (!confirm("Start a new game? Current progress will be lost.")) return;
       state = null;
       localPlayerId = null;
+      roomCode = null;
       try { localStorage.removeItem("civ-nd-save"); } catch(e) {}
       resetSub();
       dom.game.classList.add("hidden");
@@ -236,7 +300,10 @@ const UI = (() => {
     Net.createRoom((id) => {
       localPlayerId = id;
       const player = Game.createPlayer(id, name, color);
-      state = Game.createState([player]);
+      // Open a waiting room rather than a live 1-player board. The real game
+      // is built (with everyone in it) when the host presses Start Game.
+      state = Game.createLobbyState([player]);
+      roomCode = id;
       dom.hdrRoom.textContent = `Room: ${id}`;
       showGame();
       render();
@@ -253,6 +320,7 @@ const UI = (() => {
     dom.lobbyStatus.textContent = "Connecting...";
     Net.joinRoom(code, name, color, (id) => {
       localPlayerId = id;
+      roomCode = code;
       dom.hdrRoom.textContent = `Room: ${code}`;
       showGame();
     });
@@ -426,7 +494,8 @@ const UI = (() => {
       ctx.stroke();
     });
 
-    // Layer 2: Active hex terrain
+    // Layer 2: Active hex terrain (fill + sheen + edge + glyph)
+    const drawGlyphs = HEX_SIZE >= 18;
     Object.values(hexes).forEach((h) => {
       if (!h.active) return;
       const p = axialToPixel(h.q, h.r);
@@ -434,25 +503,49 @@ const UI = (() => {
       hexPath(p.x, p.y, HEX_SIZE);
       ctx.fillStyle = TERRAIN_COLORS[h.terrain] || "#444";
       ctx.fill();
-      ctx.strokeStyle = "rgba(0,0,0,0.35)";
-      ctx.lineWidth = 1;
+      // top-half sheen gives the board a lit, layered feel
+      hexPath(p.x, p.y - HEX_SIZE * 0.18, HEX_SIZE * 0.82);
+      ctx.fillStyle = TERRAIN_SHEEN[h.terrain] || "rgba(255,255,255,0.06)";
+      ctx.fill();
+      hexPath(p.x, p.y, HEX_SIZE);
+      ctx.strokeStyle = TERRAIN_EDGE[h.terrain] || "rgba(0,0,0,0.4)";
+      ctx.lineWidth = 1.4;
       ctx.stroke();
+      if (drawGlyphs) drawTerrainGlyph(p.x, p.y, h.terrain, HEX_SIZE);
     });
 
     // Layer 3: Tile boundaries
     drawTileBoundaries(cw, ch);
 
+    // Layer 3b: Targeting focus — while picking a hex, everything that is NOT a
+    // legal target sinks into shadow so the choices pop out unmistakably.
+    if (combinedValid.size > 0) {
+      const keep = new Set(combinedValid);
+      if (sub.movementState && sub.movementState.currentKey) keep.add(sub.movementState.currentKey);
+      if (sub.selectedUnit && sub.selectedUnit.position) keep.add(sub.selectedUnit.position);
+      Object.values(hexes).forEach((h) => {
+        if (!h.active) return;
+        const k = Game.key(h.q, h.r);
+        if (keep.has(k)) return;
+        const p = axialToPixel(h.q, h.r);
+        if (p.x < -50 || p.x > cw + 50 || p.y < -50 || p.y > ch + 50) return;
+        hexPath(p.x, p.y, HEX_SIZE);
+        ctx.fillStyle = "rgba(10,12,24,0.55)";
+        ctx.fill();
+      });
+    }
+
     // Layer 4: Valid hex highlights (pulsing)
-    const pulseAlpha = 0.15 + 0.15 * Math.sin(anims.validPulse * Math.PI * 2);
+    const pulseAlpha = 0.18 + 0.18 * Math.sin(anims.validPulse * Math.PI * 2);
     combinedValid.forEach((k) => {
       const h = hexes[k];
       if (!h) return;
       const p = axialToPixel(h.q, h.r);
       hexPath(p.x, p.y, HEX_SIZE - 2);
-      ctx.fillStyle = `rgba(102,187,106,${pulseAlpha.toFixed(2)})`;
+      ctx.fillStyle = `rgba(120,220,130,${pulseAlpha.toFixed(2)})`;
       ctx.fill();
-      ctx.strokeStyle = `rgba(102,187,106,${(0.5 + pulseAlpha).toFixed(2)})`;
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = `rgba(140,240,150,${(0.65 + pulseAlpha).toFixed(2)})`;
+      ctx.lineWidth = 2.5;
       ctx.stroke();
     });
 
@@ -653,94 +746,140 @@ const UI = (() => {
     });
   }
 
+  function roundRect(x, y, w, hh, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + hh, r);
+    ctx.arcTo(x + w, y + hh, x, y + hh, r);
+    ctx.arcTo(x, y + hh, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
   function drawHexContent(cx, cy, h, k) {
+    const s = HEX_SIZE / 30;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    let yOff = -8;
-    const step = 11;
 
+    // ── Center piece: city / city-state / fortress / barbarian / control ──
     if (h.city) {
       const owner = Game.getPlayer(state, h.city.ownerId);
       const color = owner ? owner.color : "#fff";
-      const label = h.city.isCapital ? "CAP" : "CTY";
-      const extra = h.city.hasWonder ? "★" : (h.city.developed ? "✓" : "");
-      ctx.fillStyle = "rgba(0,0,0,0.5)";
-      ctx.fillRect(cx - 14, cy + yOff - 5, 28, 11);
-      ctx.fillStyle = color;
-      ctx.font = "bold 8px sans-serif";
-      ctx.fillText(label + extra, cx, cy + yOff);
-      yOff += step;
-    }
-
-    if (h.fortress && !h.city) {
+      const w = 17 * s, hh = 11 * s;
+      // building base with roof, owner-coloured, dark outline
+      roundRect(cx - w / 2, cy - hh / 2 + 2 * s, w, hh, 2.5 * s);
+      ctx.fillStyle = color; ctx.fill();
+      ctx.lineWidth = 1.6 * s; ctx.strokeStyle = "rgba(10,10,20,0.85)"; ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(cx - w / 2 - 1.5 * s, cy - hh / 2 + 2.5 * s);
+      ctx.lineTo(cx, cy - hh / 2 - 5 * s);
+      ctx.lineTo(cx + w / 2 + 1.5 * s, cy - hh / 2 + 2.5 * s);
+      ctx.closePath();
+      ctx.fillStyle = color; ctx.fill(); ctx.stroke();
+      if (h.city.developed) { // developed = white keystone dot on the roof
+        ctx.beginPath(); ctx.arc(cx, cy - hh / 2 - 1 * s, 1.8 * s, 0, Math.PI * 2);
+        ctx.fillStyle = "#fff"; ctx.fill();
+      }
+      if (h.city.isCapital) {
+        ctx.font = `bold ${Math.round(9 * s)}px sans-serif`;
+        ctx.fillStyle = "#ffd54f";
+        ctx.strokeStyle = "rgba(0,0,0,0.8)"; ctx.lineWidth = 2 * s;
+        ctx.strokeText("★", cx, cy - hh / 2 - 8 * s);
+        ctx.fillText("★", cx, cy - hh / 2 - 8 * s);
+      }
+      if (h.city.hasWonder) {
+        ctx.font = `bold ${Math.round(8 * s)}px sans-serif`;
+        ctx.fillStyle = "#e1bee7";
+        ctx.strokeStyle = "rgba(0,0,0,0.8)"; ctx.lineWidth = 1.6 * s;
+        ctx.strokeText("♦", cx + w / 2 + 3 * s, cy - 2 * s);
+        ctx.fillText("♦", cx + w / 2 + 3 * s, cy - 2 * s);
+      }
+    } else if (h.cityState) {
+      // neutral city-state: purple diamond with initials
+      const r = 8.5 * s;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - r); ctx.lineTo(cx + r, cy); ctx.lineTo(cx, cy + r); ctx.lineTo(cx - r, cy);
+      ctx.closePath();
+      ctx.fillStyle = "#8e5db0"; ctx.fill();
+      ctx.lineWidth = 1.6 * s; ctx.strokeStyle = "#e6ccf5"; ctx.stroke();
+      ctx.font = `bold ${Math.round(6.5 * s)}px sans-serif`;
+      ctx.fillStyle = "#fff";
+      ctx.fillText(h.cityState.name.slice(0, 3).toUpperCase(), cx, cy);
+    } else if (h.fortress) {
       const owner = h.fortressOwnerId ? Game.getPlayer(state, h.fortressOwnerId) : null;
-      ctx.fillStyle = "rgba(0,0,0,0.5)";
-      ctx.fillRect(cx - 11, cy + yOff - 5, 22, 11);
-      ctx.fillStyle = owner ? owner.color : "#aaa";
-      ctx.font = "bold 8px sans-serif";
-      ctx.fillText("FRT", cx, cy + yOff);
-      yOff += step;
-    }
-
-    if (h.control) {
+      const w = 13 * s, hh = 10 * s;
+      roundRect(cx - w / 2, cy - hh / 2 + 1 * s, w, hh, 1.5 * s);
+      ctx.fillStyle = owner ? owner.color : "#9aa1ad"; ctx.fill();
+      ctx.lineWidth = 1.5 * s; ctx.strokeStyle = "rgba(10,10,20,0.85)"; ctx.stroke();
+      // battlements
+      for (let i = -1; i <= 1; i++) {
+        ctx.fillRect(cx + i * 4.2 * s - 1.5 * s, cy - hh / 2 - 2.5 * s, 3 * s, 3.5 * s);
+      }
+    } else if (h.control) {
       const owner = Game.getPlayer(state, h.control.ownerId);
       const color = owner ? owner.color : "#fff";
       if (h.control.district) {
-        ctx.fillStyle = "rgba(255,255,255,0.12)";
-        ctx.fillRect(cx - 11, cy + yOff - 5, 22, 10);
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 1;
-        ctx.strokeRect(cx - 11, cy + yOff - 5, 22, 10);
-        ctx.fillStyle = color;
-        ctx.font = "bold 7px sans-serif";
-        ctx.fillText(h.control.district.slice(0, 3).toUpperCase(), cx, cy + yOff);
+        const w = 15 * s, hh = 11 * s;
+        roundRect(cx - w / 2, cy - hh / 2, w, hh, 2 * s);
+        ctx.fillStyle = "rgba(20,22,36,0.85)"; ctx.fill();
+        ctx.lineWidth = 1.8 * s; ctx.strokeStyle = color; ctx.stroke();
+        ctx.font = `bold ${Math.round(6.5 * s)}px sans-serif`;
+        ctx.fillStyle = "#fff";
+        ctx.fillText(h.control.district.slice(0, 3).toUpperCase(), cx, cy);
       } else {
-        ctx.beginPath();
-        ctx.arc(cx, cy + yOff, 4, 0, Math.PI * 2);
-        ctx.fillStyle = color;
-        ctx.fill();
+        ctx.beginPath(); ctx.arc(cx, cy, 6 * s, 0, Math.PI * 2);
+        ctx.fillStyle = color; ctx.fill();
+        ctx.lineWidth = 1.6 * s; ctx.strokeStyle = "rgba(10,10,20,0.8)"; ctx.stroke();
         if (h.control.fortified) {
-          ctx.strokeStyle = "#fff";
-          ctx.lineWidth = 1.5;
-          ctx.stroke();
+          ctx.beginPath(); ctx.arc(cx, cy, 8.2 * s, 0, Math.PI * 2);
+          ctx.lineWidth = 1.8 * s; ctx.strokeStyle = "#fff"; ctx.stroke();
         }
       }
-      yOff += step;
     }
 
     if (h.barbarian) {
-      ctx.fillStyle = "#ff5722";
-      ctx.font = "bold 10px sans-serif";
-      ctx.fillText("☠", cx, cy + yOff);
-      yOff += step;
+      const r = 7 * s;
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = "#b3261e"; ctx.fill();
+      ctx.lineWidth = 1.6 * s; ctx.strokeStyle = "#ffb4a9"; ctx.stroke();
+      ctx.font = `bold ${Math.round(9 * s)}px sans-serif`;
+      ctx.fillStyle = "#fff";
+      ctx.fillText("☠", cx, cy + 0.5 * s);
     }
 
-    if (h.cityState) {
-      ctx.fillStyle = "#ce93d8";
-      ctx.font = "bold 7px sans-serif";
-      ctx.fillText(h.cityState.name.slice(0, 4), cx, cy + yOff);
-      yOff += step;
+    // ── Top badge: resource / natural wonder pill ──
+    if (h.resource || h.naturalWonder) {
+      const isWonder = h.resource === "wonder" || h.naturalWonder;
+      const resLabels = { marble: "MRB", mercury: "MRC", oil: "OIL", diamonds: "DIA", wonder: "NW" };
+      const label = isWonder ? "NW" : (resLabels[h.resource] || String(h.resource).slice(0, 3).toUpperCase());
+      const w = (label.length > 2 ? 16 : 12) * s, hh = 8 * s;
+      const by = cy - HEX_SIZE * 0.62;
+      roundRect(cx - w / 2, by - hh / 2, w, hh, hh / 2);
+      ctx.fillStyle = isWonder ? "#1fb3a6" : "#d9a410"; ctx.fill();
+      ctx.lineWidth = 1.2 * s; ctx.strokeStyle = "rgba(0,0,0,0.7)"; ctx.stroke();
+      ctx.font = `bold ${Math.round(5.6 * s)}px sans-serif`;
+      ctx.fillStyle = isWonder ? "#04302c" : "#3c2b00";
+      ctx.fillText(label, cx, by + 0.4 * s);
     }
 
-    if (h.resource) {
-      ctx.fillStyle = "#ffd54f";
-      ctx.font = "bold 7px sans-serif";
-      const resLabels = { marble: "MRB", mercury: "MRC", oil: "OIL", diamonds: "DIA", wonder: "WND" };
-      ctx.fillText(resLabels[h.resource] || h.resource.slice(0, 3), cx, cy + yOff);
-      yOff += step;
-    }
-
+    // ── Bottom row: units as coloured discs ──
     const units = Game.getUnitsAt(state, k);
-    units.forEach((u) => {
-      ctx.beginPath();
-      ctx.arc(cx, cy + yOff, 5, 0, Math.PI * 2);
-      ctx.fillStyle = u.type === "army" ? "rgba(239,83,80,0.5)" : "rgba(102,187,106,0.5)";
-      ctx.fill();
-      ctx.fillStyle = u.color;
-      ctx.font = "bold 8px sans-serif";
-      ctx.fillText(u.type === "army" ? "A" : "C", cx, cy + yOff);
-      yOff += step;
-    });
+    if (units.length) {
+      const uy = cy + HEX_SIZE * 0.55;
+      const spread = 11 * s;
+      const x0 = cx - ((units.length - 1) * spread) / 2;
+      units.forEach((u, i) => {
+        const ux = x0 + i * spread;
+        ctx.beginPath(); ctx.arc(ux, uy, 5.2 * s, 0, Math.PI * 2);
+        ctx.fillStyle = u.color; ctx.fill();
+        ctx.lineWidth = 1.6 * s;
+        ctx.strokeStyle = u.type === "army" ? "#fff" : "rgba(20,20,30,0.9)";
+        ctx.stroke();
+        ctx.font = `bold ${Math.round(6.5 * s)}px sans-serif`;
+        ctx.fillStyle = u.type === "army" ? "#fff" : "rgba(15,15,25,0.95)";
+        ctx.fillText(u.type === "army" ? "⚔" : "C", ux, uy + 0.4 * s);
+      });
+    }
   }
 
   // ── Mouse / Keyboard ─────────────────────────────────────
@@ -900,12 +1039,52 @@ const UI = (() => {
         showActionToast(`${ap ? ap.name : "Opponent"} ${desc}`);
       }
     }
+
+    maybeShowTurnBanner();
+  }
+
+  // ── Turn banner: an animated splash whenever the active player changes ──
+  let lastTurnSig = null;
+  function maybeShowTurnBanner() {
+    if (!state || (state.phase !== "playing" && state.phase !== "setup")) { lastTurnSig = null; return; }
+    const activeP = state.phase === "setup"
+      ? Game.getPlayer(state, state.setup.order[state.setup.turnIndex])
+      : Game.currentPlayer(state);
+    if (!activeP) return;
+    const sig = `${state.phase}:${activeP.id}:${state.turn ? state.turn.round : 0}`;
+    if (sig === lastTurnSig) return;
+    const isFirst = lastTurnSig === null;
+    lastTurnSig = sig;
+    if (isFirst) return; // no splash when merely re-rendering into an existing turn
+    let el = document.getElementById("turn-banner");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "turn-banner";
+      document.body.appendChild(el);
+    }
+    const mine = activeP.id === localPlayerId;
+    el.innerHTML = `<div class="tb-inner" style="--pc:${activeP.color}">
+      <span class="tb-round">${state.phase === "setup" ? "Setup" : `Round ${state.turn.round}`}</span>
+      <span class="tb-name">${mine ? "YOUR TURN" : escapeHtml(activeP.name) + "'s turn"}</span>
+    </div>`;
+    el.classList.remove("show");
+    void el.offsetWidth; // restart the animation
+    el.classList.add("show");
+    clearTimeout(el._hideTimer);
+    el._hideTimer = setTimeout(() => el.classList.remove("show"), 2100);
   }
 
   // ── Header / Players / Stats ──────────────────────────────
 
   function renderHeader() {
     const cp = Game.currentPlayer(state);
+    if (state.phase === "lobby") {
+      dom.hdrRound.textContent = "Lobby";
+      dom.hdrTurn.textContent = `${state.players.length}/${Game.CFG.maxPlayers} players`;
+      dom.hdrTurn.style.color = "";
+      if (roomCode || Net.getLocalId()) dom.hdrRoom.textContent = `Room: ${roomCode || Net.getLocalId()}`;
+      return;
+    }
     if (state.phase === "setup") {
       dom.hdrRound.textContent = `Setup: ${state.setup.phase}`;
       const activeId = state.setup.order[state.setup.turnIndex];
@@ -924,11 +1103,16 @@ const UI = (() => {
     dom.players.innerHTML = state.players.map((p) => {
       const active = state.phase === "setup"
         ? (state.setup.order[state.setup.turnIndex] === p.id ? " active" : "")
-        : (Game.currentPlayer(state)?.id === p.id ? " active" : "");
+        : (state.phase !== "lobby" && Game.currentPlayer(state)?.id === p.id ? " active" : "");
       const score = state.phase === "playing" ? ` | Score: ${Game.computeScore(state, p.id)}` : "";
+      const stats = state.phase === "lobby" ? "In lobby"
+        : state.phase === "setup" ? "Setup"
+        : `Cities: ${Game.countCities(state, p.id)} | Ctrl: ${Game.countControl(state, p.id)}${score}`;
+      const lead = Game.getLeader ? Game.getLeader(p) : null;
+      const civTag = lead ? `<span class="pcv" title="${escapeHtml(lead.ability.text)}">${escapeHtml(lead.civ)}</span>` : "";
       return `<div class="player-card${active}">
-        <div class="pname"><span class="dot" style="background:${p.color}"></span>${p.name}</div>
-        <div class="pstats">${state.phase === "setup" ? "Setup" : `Cities: ${Game.countCities(state, p.id)} | Ctrl: ${Game.countControl(state, p.id)}${score}`}</div>
+        <div class="pname"><span class="dot" style="background:${p.color}"></span>${escapeHtml(p.name)}${civTag}</div>
+        <div class="pstats">${stats}</div>
       </div>`;
     }).join("");
   }
@@ -972,7 +1156,19 @@ const UI = (() => {
     const wonderList = visibleWonders.length
       ? visibleWonders.map((w) => `<div style="margin-top:2px"><strong style="font-size:10px">${w.type} / ${w.era} (${w.cost})</strong>: <span title="${w.effect}" style="cursor:help">${w.name}</span></div>`).join("")
       : `<div style="color:var(--text2)">none</div>`;
-    dom.myStats.innerHTML = `<h3>My Stats</h3><div class="stat-grid">
+    const myLeader = Game.getLeader ? Game.getLeader(me) : null;
+    let leaderRow = "";
+    if (myLeader) {
+      const u = myLeader.unique;
+      const tierLabel = u ? ["I", "II", "III", "IV"][u.tier - 1] : "";
+      const uActive = u && Game.getActiveUniqueCard && Game.getActiveUniqueCard(me, u.type);
+      const uniqueLine = u
+        ? `<div class="lb-unique ${uActive ? "on" : ""}" title="${escapeHtml(u.text)}">★ ${escapeHtml(u.name)} <span class="lb-ut">(${Game.FOCUS_LABELS[u.type]} ${tierLabel}${u.auto ? "" : " — manual"})</span>${uActive ? " <span class=\"lb-live\">active</span>" : ""}</div>`
+        : "";
+      leaderRow = `<div class="leader-box"><div class="lb-head">${escapeHtml(myLeader.civ)}${myLeader.ability.manual ? ' <span class="lb-ut">(manual ability)</span>' : ""}</div>
+         <div class="lb-ability">${escapeHtml(myLeader.ability.text)}</div>${uniqueLine}</div>`;
+    }
+    dom.myStats.innerHTML = `<h3>My Stats</h3>${leaderRow}<div class="stat-grid">
       <span>Tech:</span><span class="sv">${me.tech}/${Game.CFG.techWheelSize} (T${me.techTier})</span>
       <span>Card Tiers:</span><span class="sv">${tiers}</span>
       <span>Armies:</span><span class="sv">${me.armies.length}/${maxA}</span>
@@ -992,7 +1188,7 @@ const UI = (() => {
 
   function renderHostTools() {
     if (!dom.hostTools) return;
-    if (!state || !Net.getIsHost()) { dom.hostTools.innerHTML = ""; return; }
+    if (!state || !Net.getIsHost() || state.phase === "lobby") { dom.hostTools.innerHTML = ""; return; }
     const playerOptions = state.players.map((p) => `<option value="${p.id}">${p.name}</option>`).join("");
     const terrainOptions = Object.keys(Game.TERRAIN).map((t) => `<option value="${t}">${Game.TERRAIN_LABELS[t]}</option>`).join("");
     const focusOptions = Game.FOCUS_TYPES.map((f) => `<option value="${f}">${Game.FOCUS_LABELS[f]}</option>`).join("");
@@ -1077,6 +1273,7 @@ const UI = (() => {
 
   function renderWizard() {
     if (!state) return;
+    if (state.phase === "lobby") { renderLobby(); return; }
     if (state.phase === "setup") { renderSetupWizard(); return; }
 
     const cp = Game.currentPlayer(state);
@@ -1106,6 +1303,90 @@ const UI = (() => {
 
     const help = helpText(sub.phase);
     if (help) dom.wizard.insertAdjacentHTML("beforeend", `<div class="wiz-help">${help}</div>`);
+  }
+
+  function renderLobby() {
+    const isHost = Net.getIsHost();
+    const code = roomCode || Net.getLocalId() || "";
+    const min = Game.CFG.minPlayers, max = Game.CFG.maxPlayers;
+    const n = state.players.length;
+    const canStart = isHost && n >= min && n <= max;
+    const leaderById = Object.fromEntries((Game.LEADERS || []).map((l) => [l.id, l]));
+    const playerList = state.players.map((p, i) => {
+      const lead = leaderById[p.leaderId];
+      return `
+      <div class="lobby-player">
+        <span class="dot" style="background:${p.color}"></span>
+        <span class="lp-name">${escapeHtml(p.name)}${lead ? ` <span class="lp-civ">${escapeHtml(lead.civ)}</span>` : ` <span class="lp-civ dim">Random civ</span>`}</span>
+        ${i === 0 ? '<span class="lp-tag">Host</span>' : ""}
+        ${p.id === localPlayerId ? '<span class="lp-tag you">You</span>' : ""}
+      </div>`;
+    }).join("");
+
+    const me = Game.getPlayer(state, localPlayerId);
+    const takenBy = {};
+    state.players.forEach((p) => { if (p.leaderId && p.leaderId !== "random") takenBy[p.leaderId] = p.id; });
+    const leaderCards = (Game.LEADERS || []).map((l) => {
+      const takenByOther = takenBy[l.id] && takenBy[l.id] !== localPlayerId;
+      const mine = me && me.leaderId === l.id;
+      const uniqueLine = l.unique ? `${l.unique.name} (${Game.FOCUS_LABELS[l.unique.type] || l.unique.type} ${["I","II","III","IV"][l.unique.tier - 1]})` : "";
+      const tip = `${l.ability.text}${l.unique ? `\n\nUnique card — ${uniqueLine}: ${l.unique.text}` : ""}`;
+      return `<button class="leader-card${mine ? " picked" : ""}${takenByOther ? " taken" : ""}" data-leader="${l.id}"
+        ${takenByOther ? "disabled" : ""} title="${escapeHtml(tip)}">
+        <span class="lc-civ">${escapeHtml(l.civ)}</span>
+        <span class="lc-name">${escapeHtml(l.ability.text.slice(0, 64))}${l.ability.text.length > 64 ? "…" : ""}</span>
+        <span class="lc-ability">★ ${escapeHtml(uniqueLine)}</span>
+        <span class="lc-src ${l.source}">${l.source === "terra" ? "Terra" : "Base"}</span>
+      </button>`;
+    }).join("");
+    const leaderSection = me ? `
+      <div class="lobby-players-head" style="margin-top:12px">Choose your civilization</div>
+      <div class="leader-grid">
+        <button class="leader-card random${!me.leaderId || me.leaderId === "random" ? " picked" : ""}" data-leader="random" title="Draw a random remaining leader at game start">
+          <span class="lc-civ">Random</span><span class="lc-name">Fate decides</span><span class="lc-ability">Dealt at start</span>
+        </button>
+        ${leaderCards}
+      </div>` : "";
+
+    dom.wizard.innerHTML = `
+      <div class="wiz-title">Game Lobby</div>
+      <div class="lobby-code-row">
+        <div class="lobby-code-label">Room code</div>
+        <div class="lobby-code"><code id="lobby-code-val">${escapeHtml(code)}</code>
+          <button id="lobby-copy" class="sm">Copy</button></div>
+        <div class="wiz-hint">Share this code so friends can Join.</div>
+      </div>
+      <div class="lobby-players">
+        <div class="lobby-players-head">Players (${n}/${max})</div>
+        ${playerList}
+        ${n < min ? `<div class="wiz-hint">Need at least ${min} players to start.</div>` : ""}
+      </div>
+      ${leaderSection}
+      ${isHost
+        ? `<button id="lobby-start" class="wiz-primary" ${canStart ? "" : "disabled"}>Start Game (${n} player${n === 1 ? "" : "s"})</button>`
+        : `<div class="wiz-body">Waiting for the host to start the game...</div>`}
+    `;
+
+    dom.wizard.querySelectorAll(".leader-card").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        dispatch({ type: "SET_LEADER", payload: { playerId: localPlayerId, leaderId: btn.dataset.leader } });
+      });
+    });
+
+    const copyBtn = document.getElementById("lobby-copy");
+    if (copyBtn) copyBtn.addEventListener("click", () => {
+      const val = code;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(val).then(() => showToast("Room code copied")).catch(() => showToast(val));
+      } else {
+        showToast(val);
+      }
+    });
+    const startBtn = document.getElementById("lobby-start");
+    if (startBtn) startBtn.addEventListener("click", () => {
+      if (state.players.length < Game.CFG.minPlayers) { showToast(`Need at least ${Game.CFG.minPlayers} players`); return; }
+      dispatch({ type: "START_GAME", payload: { playerId: localPlayerId } });
+    });
   }
 
   function renderSetupWizard() {
@@ -1299,15 +1580,31 @@ const UI = (() => {
     const c = state.lastCombat;
     const cls = c.win ? "cr-win" : "cr-lose";
     const txt = c.win ? "VICTORY!" : "DEFEATED";
+    const DICE = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
+    const atkBar = Math.min(100, c.atkTotal * 7);
+    const defBar = Math.min(100, c.defTotal * 7);
     dom.wizard.innerHTML = `
       <div class="wiz-title">Combat Result</div>
       <div class="combat-result">
-        <div>${c.attacker} vs ${c.defender}</div>
-        <div>Attack: d6(${c.atkRoll}) + bonus = <strong>${c.atkTotal}</strong></div>
-        <div>Defense: d6(${c.defRoll}) + bonus = <strong>${c.defTotal}</strong></div>
-        <div class="${cls}">${txt}</div>
+        <div class="cr-vs"><strong>${escapeHtml(c.attacker)}</strong> vs <strong>${escapeHtml(c.defender || "?")}</strong></div>
+        <div class="cr-dice-row">
+          <div class="cr-side">
+            <div class="cr-die atk">${DICE[(c.atkRoll || 1) - 1]}</div>
+            <div class="cr-total">${c.atkTotal}</div>
+            <div class="cr-lab">ATTACK${c.leaderBonus ? ` <span class="leader-bonus">+${c.leaderBonus} leader</span>` : ""}</div>
+            <div class="cr-bar"><i style="width:${atkBar}%" class="atk"></i></div>
+          </div>
+          <div class="cr-x">⚔</div>
+          <div class="cr-side">
+            <div class="cr-die def">${DICE[(c.defRoll || 1) - 1]}</div>
+            <div class="cr-total">${c.defTotal}</div>
+            <div class="cr-lab">DEFENSE</div>
+            <div class="cr-bar"><i style="width:${defBar}%" class="def"></i></div>
+          </div>
+        </div>
+        <div class="cr-verdict ${cls}">${txt}</div>
       </div>
-      <div class="wiz-actions"><button id="wiz-combat-ok">Continue</button></div>`;
+      <div class="wiz-actions"><button class="primary" id="wiz-combat-ok">Continue</button></div>`;
     document.getElementById("wiz-combat-ok").addEventListener("click", () => { state.lastCombat = null; render(); });
   }
 
@@ -1480,14 +1777,16 @@ const UI = (() => {
     if (!defender) { endMovement(); return; }
     const slot = Game.getSlotValue(me, "military", state);
     const tierBonus = Game.getMilitaryCombatBonus(me);
+    const leaderBonus = Game.getLeaderAttackBonus(state, localPlayerId, ms.currentKey);
     const totalAttack = slot + sub.tradeSpent + (sub.combatTradeSpent || 0);
     const milTrade = me.trade.military;
+    const myLeader = Game.getLeader(me);
 
     dom.wizard.innerHTML = `
       <div class="wiz-title">Combat Preparation</div>
       <div class="wiz-body">
         <div>Defender: <strong style="color:#ef5350">${defender.label}</strong> (power ${defender.power})</div>
-        <div>Your attack: d6 + <strong>${totalAttack}</strong>${tierBonus ? ` +${tierBonus} tier` : ""}</div>
+        <div>Your attack: d6 + <strong>${totalAttack}</strong>${tierBonus ? ` +${tierBonus} tier` : ""}${leaderBonus ? ` <span class="leader-bonus">+${leaderBonus} ${myLeader ? myLeader.civ : "leader"}</span>` : ""}</div>
         <div style="margin-top:6px">Spend military trade for +1 combat each:</div>
         <div class="trade-counter">
           <span>Extra trade:</span>
@@ -1594,7 +1893,8 @@ const UI = (() => {
       }
     } else {
       dispatch({ type: "PLAY_ECONOMY", payload: {
-        playerId: localPlayerId, unitId: ms.unitId, toKey: ms.currentKey, tradeSpent: sub.tradeSpent
+        playerId: localPlayerId, unitId: ms.unitId, toKey: ms.currentKey, tradeSpent: sub.tradeSpent,
+        startKey: ms.romeStart || undefined
       }});
     }
     resetSub();
@@ -1695,7 +1995,7 @@ const UI = (() => {
       case "growth": return `Place 1 district or reinforce ${slot + spend} markers. [Tier ${tier}]`;
       case "science": return `Advance tech by <strong>${slot + spend}</strong>. Current: ${player.tech}/${Game.CFG.techWheelSize} [Tier ${tier}]`;
       case "economy": {
-        const move = Game.getEconomyMove(player) + spend;
+        const move = Game.getEconomyMove(player, state) + spend;
         return `Move caravan up to <strong>${move}</strong> hexes. [Tier ${tier}]`;
       }
       case "military": {
@@ -1732,8 +2032,22 @@ const UI = (() => {
       render(); return;
     }
     if (sub.cardType === "growth") { sub.phase = "growth_choice"; renderWizard(); return; }
-    if (sub.cardType === "economy") { sub.phase = "move_caravan"; sub.selectedUnit = null; sub.validHexes = new Set(); render(); return; }
-    if (sub.cardType === "military") { sub.phase = "move_army"; sub.selectedUnit = null; sub.validHexes = new Set(); render(); return; }
+    if (sub.cardType === "economy") {
+      sub.phase = "move_caravan"; sub.selectedUnit = null;
+      // Highlight pickable caravans; Trajan may also launch from any friendly city.
+      const starts = new Set(me.caravans.filter((u) => u.position).map((u) => u.position));
+      if (Game.getLeader(me) && me.leaderId === "rome" && me.caravans.some((u) => u.position)) {
+        Object.entries(state.map.hexes).forEach(([k, h]) => {
+          if (h.city && h.city.ownerId === localPlayerId) starts.add(k);
+        });
+      }
+      sub.validHexes = starts; render(); return;
+    }
+    if (sub.cardType === "military") {
+      sub.phase = "move_army"; sub.selectedUnit = null;
+      sub.validHexes = new Set(me.armies.filter((u) => u.position).map((u) => u.position));
+      render(); return;
+    }
     if (sub.cardType === "industry") { sub.phase = "industry_choice"; sub.spentResources = {}; renderWizard(); return; }
   }
 
@@ -1857,12 +2171,23 @@ const UI = (() => {
     }
     if (sub.phase === "move_caravan") {
       if (!sub.selectedUnit) {
-        const unit = me.caravans.find((u) => u.position === hexKey);
+        let unit = me.caravans.find((u) => u.position === hexKey);
+        let romeStart = null;
+        if (!unit && me.leaderId === "rome") {
+          // Trajan: clicking a friendly city launches your caravan from there.
+          const h = state.map.hexes[hexKey];
+          if (h && h.city && h.city.ownerId === localPlayerId) {
+            unit = me.caravans.find((u) => u.position);
+            if (unit) romeStart = hexKey;
+          }
+        }
         if (!unit) return;
         sub.selectedUnit = unit;
-        const maxMove = Game.getEconomyMove(me) + sub.tradeSpent;
-        sub.movementState = { unitType: "caravan", unitId: unit.id, maxMove, remaining: maxMove, currentKey: hexKey, startKey: hexKey, explored: false };
-        sub.validHexes = Game.getReachable(state, hexKey, maxMove, "caravan", localPlayerId);
+        const maxMove = Game.getEconomyMove(me, state) + sub.tradeSpent;
+        const originKey = romeStart || unit.position;
+        sub.movementState = { unitType: "caravan", unitId: unit.id, maxMove, remaining: maxMove, currentKey: originKey, startKey: originKey, romeStart, explored: false };
+        sub.selectedUnit = { id: unit.id, position: originKey };
+        sub.validHexes = Game.getReachable(state, originKey, maxMove, "caravan", localPlayerId);
         render();
       } else {
         if (!sub.validHexes.has(hexKey)) { showToast("Can't move there"); return; }
@@ -1949,14 +2274,13 @@ const UI = (() => {
     const me = Game.getPlayer(state, localPlayerId);
     if (!me) return;
     let selected = me.govMarkers.slice();
-    const hasForbidden = Object.values(state.map.hexes).some((h) =>
-      h.city && h.city.ownerId === localPlayerId && h.city.wonder && h.city.wonder.name === "Forbidden City"
-    );
-    const maxGov = Game.CFG.maxGovMarkers + (hasForbidden ? 1 : 0);
+    // Forbidden City grants no extra marker — its card effect removes a rival
+    // control token at the start of your turn, which the engine now handles.
+    const maxGov = Game.CFG.maxGovMarkers;
     const renderPicker = () => {
       dom.wizard.innerHTML = `
         <div class="wiz-title">Assign Gov Markers (max ${maxGov})</div>
-        <div class="wiz-body">Each marker adds +1 to that focus card's slot value.${hasForbidden ? " <em>(+1 from Forbidden City)</em>" : ""}</div>
+        <div class="wiz-body">Each marker adds +1 to that focus card's slot value.</div>
         <div class="wiz-actions" style="flex-wrap:wrap">
           ${Game.FOCUS_TYPES.map((f) => {
             const active = selected.includes(f) ? " primary" : "";
@@ -1997,9 +2321,20 @@ const UI = (() => {
     }</div>`;
   }
 
+  // Colour-code log lines by what happened so the feed scans at a glance.
+  function logClass(msg) {
+    const m = String(msg).toLowerCase();
+    if (/(combat|defeated|attack|captured|barbarian|seized|lost)/.test(m)) return " lg-combat";
+    if (/(trade|caravan|diplomacy)/.test(m)) return " lg-trade";
+    if (/(wonder|built a new city|district)/.test(m)) return " lg-build";
+    if (/(tech|upgraded|advanced)/.test(m)) return " lg-science";
+    if (/(round \d|wins|joined|lead|drew|begins)/.test(m)) return " lg-sys";
+    return "";
+  }
+
   function renderLog() {
     if (!state) return;
-    const logEntries = state.log.slice(-15).map((msg) => ({ html: `<div class="log-entry">${msg}</div>`, ts: 0 }));
+    const logEntries = state.log.slice(-15).map((msg) => ({ html: `<div class="log-entry${logClass(msg)}">${msg}</div>`, ts: 0 }));
     const chatEntries = chatHistory.slice(-10).map((m) => ({
       html: `<div class="chat-msg"><span class="chat-name" style="color:${getPlayerColor(m.sender)}">${m.name}:</span>${m.text}</div>`,
       ts: m.ts
@@ -2035,7 +2370,8 @@ const UI = (() => {
       const effective = Game.getSlotValue(me, cardType, state);
       const bonus = me.govBonus[cardType] || 0;
       const tier = Game.getCardTier(me, cardType);
-      const cardName = Game.CARD_NAMES[cardType][tier - 1];
+      const uniqueCard = Game.getActiveUniqueCard ? Game.getActiveUniqueCard(me, cardType) : null;
+      const cardName = uniqueCard ? uniqueCard.name : Game.CARD_NAMES[cardType][tier - 1];
       const icon = Game.CARD_ICONS[cardType];
       const maxT = Game.CFG.maxTrade;
       const filled = me.trade[cardType];
@@ -2048,7 +2384,7 @@ const UI = (() => {
       const disabled = !canPlay ? " disabled" : "";
       const selected = sub.cardType === cardType && sub.phase !== "idle" ? " selected" : "";
 
-      return `<div class="fcard type-${cardType}${disabled}${selected}" data-card="${cardType}" data-idx="${idx}">
+      return `<div class="fcard type-${cardType}${disabled}${selected}${uniqueCard ? " unique" : ""}" data-card="${cardType}" data-idx="${idx}">
         <div class="fc-header">
           <span class="fc-icon">${icon}</span>
           <span class="fc-type">${Game.FOCUS_LABELS[cardType]}</span>
@@ -2056,7 +2392,7 @@ const UI = (() => {
         </div>
         <div class="fc-body">
           <div class="fc-power">${effective}${bonus > 0 ? `<span class="gov-plus">+${bonus}</span>` : ""}</div>
-          <div class="fc-cardname">${cardName}</div>
+          <div class="fc-cardname">${uniqueCard ? "★ " : ""}${cardName}</div>
           <div class="fc-tier-badge">TIER ${TIER_LABELS[tier - 1]}</div>
         </div>
         <div class="fc-footer">${tradeDots}</div>
@@ -2098,10 +2434,10 @@ const UI = (() => {
       const cardType = el.dataset.card;
       el.addEventListener("mouseenter", () => {
         const slot = Game.getSlotValue(me, cardType, state);
-        const tier = Game.getCardTier(me, cardType);
-        const name = Game.CARD_NAMES[cardType][tier - 1];
-        const desc = Game.FOCUS_TRADE_DESC[cardType];
-        dom.mapTooltip.innerHTML = `<strong>${name}</strong> (Power: ${slot})<br>${desc}`;
+        const uc = Game.getActiveUniqueCard ? Game.getActiveUniqueCard(me, cardType) : null;
+        const name = Game.getCardName ? Game.getCardName(me, cardType) : Game.CARD_NAMES[cardType][Game.getCardTier(me, cardType) - 1];
+        const desc = uc ? `${uc.text}${uc.auto ? "" : "<br><em>Special clause is a table rule — resolve manually.</em>"}` : Game.FOCUS_TRADE_DESC[cardType];
+        dom.mapTooltip.innerHTML = `<strong>${uc ? "★ " : ""}${name}</strong> (Power: ${slot})<br>${desc}`;
         dom.mapTooltip.classList.remove("hidden");
         const rect = el.getBoundingClientRect();
         dom.mapTooltip.style.left = rect.left + "px";
