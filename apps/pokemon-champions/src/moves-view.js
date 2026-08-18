@@ -180,8 +180,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
   const loadRankExcluded = () => new Set(JSON.parse(localStorage.getItem(RANK_EXCL_KEY) || "[]"));
   const loadRankAbils = () => new Set(JSON.parse(localStorage.getItem(RANK_ABIL_KEY) || "[]"));
   // Per-Pokémon move bans: { slug: [moveId, …] } → Map<slug, Set<moveId>>.
-  // Belch is the motivating case — realistic for a bulky Berry user, wishful
-  // for a squishy one, so banning it globally would misjudge everyone else.
+  // Kept per-mon because a move can be realistic for one Pokémon and not another.
   const loadRankMonExcluded = () => {
     const raw = JSON.parse(localStorage.getItem(RANK_MONEXCL_KEY) || "{}");
     return new Map(Object.entries(raw).map(([slug, ids]) => [slug, new Set(ids)]));
@@ -446,7 +445,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
           <div class="mvr-exchips"></div>
         </div>
         <div class="mvr-monexrow" hidden>
-          <small class="muted mvr-monexlabel" title="Moves banned for one Pokémon only — every other Pokémon can still use them">Banned per Pokémon:</small>
+          <small class="muted mvr-monexlabel">Banned per Pokémon:</small>
           <div class="mvr-monexchips"></div>
         </div>
       </div>
@@ -823,7 +822,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
         <button class="mvr-cog ${editing ? "on" : ""}" data-cfg-toggle="${e.slug}" title="See every move's damage & customize ${e.name}">⚙</button>
         <span class="mvr-idn" data-mon-open="${e.slug}" title="Open ${e.name}'s details"><img class="ehp-spr" loading="lazy" src="${e.sprite}" alt="">
           <span class="mvr-name">${e.name}${e.isMega ? ' <span class="mega-badge">MEGA</span>' : ""}${e.usagePct != null ? ` <span class="ehp-use" title="ladder usage">${e.usagePct}%</span>` : ""}${badge.length ? `<small class="mvr-setline">${badge.join(" · ")}</small>` : ""}</span></span>
-        <span class="mvr-move"><span class="type tiny" style="background:${TYPE_COLORS[mv.type]}">${mv.type}</span><button class="mvr-mvname" data-info-move="${mv.id}" title="Open ${mv.name}">${mv.name}</button><small class="mvr-pw" title="Exp. Pow for this Pokémon (STAB/ability in)">${d.pw} pw</small>${m ? "" : `<button class="mvr-banmon" data-mvr-banmon="${mv.id}" data-mvr-banslug="${e.slug}" title="Ban ${mv.name} for ${e.name} only — every other Pokémon keeps it (e.g. Belch is unrealistic on a squishy mon)" aria-label="Ban ${mv.name} for ${e.name} only">🚫</button><button class="mvr-ignore" data-mvr-ignore="${mv.id}" title="Ignore ${mv.name} — drop it from the best-move pick for every Pokémon" aria-label="Ignore ${mv.name} everywhere">✕</button>`}</span>
+        <span class="mvr-move"><span class="type tiny" style="background:${TYPE_COLORS[mv.type]}">${mv.type}</span><button class="mvr-mvname" data-info-move="${mv.id}" title="Open ${mv.name}">${mv.name}</button><small class="mvr-pw" title="Exp. Pow for this Pokémon (STAB/ability in)">${d.pw} pw</small>${m ? "" : `<button class="mvr-banmon" data-mvr-banmon="${mv.id}" data-mvr-banslug="${e.slug}" title="Ban ${mv.name} for ${e.name} only" aria-label="Ban ${mv.name} for ${e.name} only">🚫</button><button class="mvr-ignore" data-mvr-ignore="${mv.id}" title="Ignore ${mv.name} — drop it from the best-move pick" aria-label="Ignore ${mv.name}">✕</button>`}</span>
         <span class="mvr-dmg" title="Effective damage — compare against effective HP (HP×Def)"><b>${sep(d.v)}</b></span>
         <span class="mvr-chips">${abilChip}${noteChips}</span>
       </div>${editing ? monPanel(e, mv.id) : ""}`;
