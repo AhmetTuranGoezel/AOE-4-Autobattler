@@ -111,6 +111,38 @@
       const ecoBefore = Game.getEconomyMove(ecoP, wst);
       giveWonder(wa, "0,-2", "Colossus", "economy");
       assert("Colossus adds 6 caravan movement", Game.getEconomyMove(ecoP, wst) === ecoBefore + 6);
+      // Wonders that shape where you may place, not just how hard you hit
+      const autoCount = Game.ALL_WONDERS.filter((w) => w.auto).length;
+      assert("21 wonders are engine-enforced", autoCount === 21);
+
+      // Chichen Itza: forest far from any city is illegal until you own it
+      let cwst = Game.createState(players(2));
+      cwst.phase = "playing";
+      const ca = cwst.turn.order[0];
+      const cSet = (k, props) => Object.assign(cwst.map.hexes[k], { active: true, terrain: "grass", city: null, control: null, barbarian: false, cityState: null, fortress: false, resource: null }, props);
+      cSet("0,0", { city: { ownerId: ca, isCapital: true, developed: false, hasWonder: false, wonder: null } });
+      cSet("5,0", { terrain: "forest" });
+      assert("distant forest is not placeable normally", !Game.validControlHexes(cwst, ca, 5).has("5,0"));
+      cSet("0,-3", { city: { ownerId: ca, isCapital: false, developed: false, hasWonder: true, wonder: { name: "Chichen Itza", era: "medieval", type: "culture", cost: 10, effect: "" } } });
+      assert("Chichen Itza opens distant forests", Game.validControlHexes(cwst, ca, 5).has("5,0"));
+
+      // Stonehenge: a token on a hill offers a chain onto adjacent hills only
+      let swst = Game.createState(players(2));
+      swst.phase = "playing";
+      swst.pendingChoices = [];
+      const sa = swst.turn.order[0];
+      const sPlayer = Game.getPlayer(swst, sa);
+      sPlayer.cardPlayed = false;
+      sPlayer.focusRow = ["growth", "military", "science", "economy", "industry", "culture"];
+      const sSet = (k, props) => Object.assign(swst.map.hexes[k], { active: true, terrain: "grass", city: null, control: null, barbarian: false, cityState: null, fortress: false, resource: null }, props);
+      sSet("0,0", { city: { ownerId: sa, isCapital: true, developed: false, hasWonder: true, wonder: { name: "Stonehenge", era: "ancient", type: "culture", cost: 7, effect: "" } } });
+      sSet("1,0", { terrain: "hill" });
+      sSet("2,0", { terrain: "hill" });
+      swst = Game.applyAction(swst, { type: "PLAY_CULTURE", payload: { playerId: sa, hexKeys: ["1,0"], tradeSpent: 0 } });
+      const chain = (swst.pendingChoices || []).find((c) => c.source === "Stonehenge");
+      assert("Stonehenge chains from a hill", !!chain);
+      assert("Stonehenge chain offers hills only", !chain || chain.hexKeys.every((k) => swst.map.hexes[k].terrain === "hill"));
+
 
       const indo = Game.createPlayer("in", "I", "#fff"); indo.leaderId = "indonesia";
       assert("Indonesia crosses water from the start", Game.canCrossWater(indo, "army") && Game.canCrossWater(indo, "caravan") && !Game.canCrossWater(plain, "army"));

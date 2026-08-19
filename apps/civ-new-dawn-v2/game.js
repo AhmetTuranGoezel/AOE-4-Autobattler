@@ -908,12 +908,14 @@ const Game = (() => {
       const hexKeys = (payload.hexKeys || []).slice(0, maxMarkers);
       let placed = 0;
       const placedMountains = [];
+      const placedHills = [];
       for (const k of hexKeys) {
         const hx = st.map.hexes[k];
         if (!hx || !hx.active || hx.terrain === "water" || hx.city || hx.barbarian || hx.cityState) continue;
         if (hx.control) continue;
         if (placementDifficulty(st, hx, player, "control") > effectiveSlot) continue;
-        if (!adjacentToFriendlyCity(st, hx, payload.playerId) && !adjacentToFriendlyControl(st, hx, payload.playerId)) continue;
+        if (!adjacentToFriendlyCity(st, hx, payload.playerId) && !adjacentToFriendlyControl(st, hx, payload.playerId)
+          && !chichenAllows(st, payload.playerId, hx)) continue;
         if (hx.resource && hx.resource !== "wonder") {
           if (player.resources[hx.resource] !== undefined) player.resources[hx.resource]++;
           hx.resource = null;
@@ -921,6 +923,7 @@ const Game = (() => {
         hx.control = { ownerId: payload.playerId, fortified: false, district: null };
         placed++;
         if (hx.terrain === "mountain") placedMountains.push(k);
+        if (hx.terrain === "hill") placedHills.push(k);
       }
       if (placed === 0) return st;
       resolveCard(st, player, "culture", payload.tradeSpent);
@@ -928,6 +931,10 @@ const Game = (() => {
       // Inca: each token placed on a mountain may spill onto an adjacent space.
       if (hasLeader(player, "inca")) {
         placedMountains.forEach((k) => queueIncaChain(st, player, k));
+      }
+      // Stonehenge: a token landing on a hill can spread along the ridge.
+      if (hasWonder(st, player.id, "Stonehenge")) {
+        placedHills.forEach((k) => queueStonehengeChain(st, player, k));
       }
       checkDevelopment(st, payload.playerId);
       return st;
@@ -1138,6 +1145,15 @@ const Game = (() => {
             defender.armies.forEach((u) => { if (u.position === payload.toKey) u.position = null; });
             defender.caravans.forEach((u) => { if (u.position === payload.toKey) u.position = null; });
           }
+          // Statue of Liberty: the ring of rival control around the city falls with it.
+          if (hasWonder(st, payload.playerId, "Statue of Liberty")) {
+            hexNeighborKeys(hex.q, hex.r).forEach((nk) => {
+              const nh = st.map.hexes[nk];
+              if (nh && nh.control && nh.control.ownerId !== payload.playerId) {
+                nh.control = { ownerId: payload.playerId, fortified: false, district: nh.control.district };
+              }
+            });
+          }
           if (hex.city.isCapital && defender) {
             let taken = 0;
             FOCUS_TYPES.forEach((f) => {
@@ -1262,6 +1278,12 @@ const Game = (() => {
       advanceWonderDeck(st, wonder.type, wonder.name);
       resolveCard(st, player, "industry", payload.tradeSpent);
       log(st, `${player.name} built ${wonder.name}! (${wonder.effect})`);
+      if (wonder.name === "Pyramids") {
+        queueCardUpgrade(st, player, { onlyTier: 1, remaining: 3, source: "Pyramids", title: "Pyramids: Upgrade a Level-I Card" });
+      }
+      if (wonder.name === "Porcelain Tower") {
+        queueCardUpgrade(st, player, { remaining: 2, source: "Porcelain Tower", title: "Porcelain Tower: Upgrade a Card" });
+      }
       // Sumeria's Craftsmanship (unique Industry I): building also teaches.
       if (hasLeader(player, "sumeria") && getCardTier(player, "industry") === 1) {
         advanceTech(st, player, 1);
@@ -1478,10 +1500,15 @@ const Game = (() => {
     let resolved = false;
     if (choice.kind === "science_upgrade") {
       const cardType = payload.optionId;
-      if (FOCUS_TYPES.includes(cardType) && (player.cardTiers[cardType] || 1) < 4) {
+      const curTier = player.cardTiers[cardType] || 1;
+      if (FOCUS_TYPES.includes(cardType) && curTier < 4 &&
+          (!choice.onlyTier || curTier === choice.onlyTier)) {
         player.cardTiers[cardType] = (player.cardTiers[cardType] || 1) + 1;
         player.cardLevels[cardType] = player.cardTiers[cardType];
         log(st, `${player.name} upgraded ${FOCUS_LABELS[cardType]} to tier ${player.cardTiers[cardType]}.`);
+        // Multi-card wonders queue their next prompt only now, so it lists the
+        // tiers as they stand after this upgrade.
+        if (choice.chain) queueCardUpgrade(st, player, choice.chain);
         resolved = true;
       }
     } else if (choice.kind === "trade_any") {
@@ -1506,6 +1533,9 @@ const Game = (() => {
         // Inca chain: landing on another mountain keeps the expansion rolling.
         if (choice.source === "inca" && hex.terrain === "mountain") {
           queueIncaChain(st, player, hexKey);
+        }
+        if (choice.source === "Stonehenge" && hex.terrain === "hill") {
+          queueStonehengeChain(st, player, hexKey);
         }
         checkDevelopment(st, player.id);
         resolved = true;
@@ -2330,19 +2360,62 @@ const Game = (() => {
 
   // Inca: a token placed on a mountain may spawn a neighbour placement, which
   // itself chains if it lands on another mountain (handled in the resolver).
-  function queueIncaChain(st, player, mountainKey) {
-    const spots = hexNeighborKeys(parseQ(mountainKey), parseR(mountainKey)).filter((nk) => {
+  // A control token can spill onto a neighbouring space, and that placement may
+  // chain again. Inca spills from mountains onto any space; Stonehenge spills
+  // from hills onto further hills. `terrain` restricts the eligible neighbours.
+  function queueControlChain(st, player, fromKey, opts) {
+    const spots = hexNeighborKeys(parseQ(fromKey), parseR(fromKey)).filter((nk) => {
       const nh = st.map.hexes[nk];
-      return nh && nh.active && nh.terrain !== "water" && !nh.city && !nh.control &&
-        !nh.barbarian && !nh.cityState && !(nh.fortress && !nh.city);
+      if (!nh || !nh.active || nh.terrain === "water") return false;
+      if (nh.city || nh.control || nh.barbarian || nh.cityState || (nh.fortress && !nh.city)) return false;
+      return opts.terrain ? nh.terrain === opts.terrain : true;
     });
     if (!spots.length) return;
     queuePendingChoice(st, {
       kind: "place_control",
       playerId: player.id,
-      title: "Inca: Mountain Expansion",
-      source: "inca",
-      hexKeys: spots
+      title: opts.title,
+      source: opts.source,
+      hexKeys: spots,
+      optional: true
+    });
+  }
+  const queueIncaChain = (st, player, key) =>
+    queueControlChain(st, player, key, { source: "inca", title: "Inca: Mountain Expansion" });
+  const queueStonehengeChain = (st, player, key) =>
+    queueControlChain(st, player, key, { terrain: "hill", source: "Stonehenge", title: "Stonehenge: Hill Chain" });
+
+  // Is this space on the rim of the explored map? (same test exploration uses)
+  function isEdgeSpace(st, hex) {
+    return hexNeighborKeys(hex.q, hex.r).some((nk) => {
+      const nh = st.map.hexes[nk];
+      return !nh || !nh.active;
+    });
+  }
+
+  // Chichen Itza lifts the adjacency requirement for empty forest spaces that
+  // are NOT next to one of your cities.
+  function chichenAllows(st, playerId, h) {
+    return h.terrain === "forest" && hasWonder(st, playerId, "Chichen Itza") &&
+      !adjacentToFriendlyCity(st, h, playerId);
+  }
+
+  // One focus-card upgrade prompt. Queued one at a time so each prompt lists
+  // the tiers as they stand after the previous one resolved.
+  function queueCardUpgrade(st, player, opts) {
+    const types = FOCUS_TYPES.filter((f) => {
+      const t = player.cardTiers[f] || 1;
+      return t < 4 && (!opts.onlyTier || t === opts.onlyTier);
+    });
+    if (!types.length) return;
+    queuePendingChoice(st, {
+      kind: "science_upgrade",
+      playerId: player.id,
+      title: opts.title,
+      source: opts.source,
+      onlyTier: opts.onlyTier || null,
+      chain: opts.remaining > 1 ? Object.assign({}, opts, { remaining: opts.remaining - 1 }) : null,
+      options: types.map((f) => ({ id: f, label: FOCUS_LABELS[f] + " to tier " + ((player.cardTiers[f] || 1) + 1) }))
     });
   }
 
@@ -2433,7 +2506,8 @@ const Game = (() => {
       if (!h.active || h.terrain === "water") return;
       if (placementDifficulty(st, h, player, "control") > maxTerrain) return;
       if (h.city || h.cityState || h.barbarian || h.control || (h.fortress && !h.city)) return;
-      if (!adjacentToFriendlyCity(st, h, playerId) && !adjacentToFriendlyControl(st, h, playerId)) return;
+      if (!adjacentToFriendlyCity(st, h, playerId) && !adjacentToFriendlyControl(st, h, playerId)
+          && !chichenAllows(st, playerId, h)) return;
       valid.push(k);
     });
     return new Set(valid);
@@ -2609,6 +2683,8 @@ const Game = (() => {
     });
   }
   function withinRangeOfFriendly(st, hex, playerId, range) {
+    // Great Lighthouse: build on the map's rim as though it were near home.
+    if (hasWonder(st, playerId, "Great Lighthouse") && isEdgeSpace(st, hex)) return true;
     return Object.values(st.map.hexes).some((h) => {
       if (h.city && h.city.ownerId === playerId) return hexDist(h, hex) <= range;
       if (h.control && h.control.ownerId === playerId) return hexDist(h, hex) <= range;
