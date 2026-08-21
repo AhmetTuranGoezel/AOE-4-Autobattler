@@ -142,6 +142,47 @@
       const chain = (swst.pendingChoices || []).find((c) => c.source === "Stonehenge");
       assert("Stonehenge chains from a hill", !!chain);
       assert("Stonehenge chain offers hills only", !chain || chain.hexKeys.every((k) => swst.map.hexes[k].terrain === "hill"));
+      // ── Tiles, cards and diplomacy ──
+      // A tile is one physical thing: placing it consumes the other side, so a
+      // feature can never appear twice. That only holds if each feature sits on
+      // exactly one tile-side to begin with.
+      const seenFeat = {};
+      let dupFeat = null;
+      data.TILES.forEach((t) => ["A", "B"].forEach((side) => {
+        t.sides[side].cells.forEach((c) => {
+          [c.naturalWonder, c.cityState].filter(Boolean).forEach((f) => {
+            if (seenFeat[f]) dupFeat = f + " on " + seenFeat[f] + " and " + t.id + side;
+            seenFeat[f] = t.id + side;
+          });
+        });
+      }));
+      assert("no natural wonder or city-state is on two tile-sides", !dupFeat);
+
+      const natWonders = new Set();
+      const cityStatesOnTiles = new Set();
+      data.TILES.forEach((t) => ["A", "B"].forEach((side) => t.sides[side].cells.forEach((c) => {
+        if (c.naturalWonder) natWonders.add(c.naturalWonder);
+        if (c.cityState) cityStatesOnTiles.add(c.cityState);
+      })));
+      assert("twelve natural wonders on the tiles", natWonders.size === 12);
+      assert("Uluru is not on any tile", !natWonders.has("Uluru"));
+      ["Cliffs of Dover", "Crater Lake", "Mt Kilimanjaro", "Mato Tipila", "Gobustan"].forEach((w) =>
+        assert("natural wonder present: " + w, natWonders.has(w)));
+      assert("twelve city-states on the tiles", cityStatesOnTiles.size === 12);
+
+      const allDefs = Object.values(data.CARD_DEFS).flatMap((t) => Object.values(t));
+      assert("all 24 focus cards defined", allDefs.length === 24);
+      assert("every focus card has effect text", allDefs.every((d) => (d.effectText || "").length > 30));
+      assert("focus text reflects the engine's own tiers", data.CARD_DEFS.economy[3].effectText.includes("6 spaces") && data.CARD_DEFS.military[4].effectText.includes("plus 3"));
+      assert("all four diplomacy cards have full text", Object.values(data.DIPLOMACY_CARDS).length === 4 &&
+        Object.values(data.DIPLOMACY_CARDS).every((d) => (d.text || "").length > 40));
+
+      const cardP = Game.createPlayer("cp", "C", "#fff");
+      assert("engine returns printed text for a focus card", (Game.getCardEffectText(cardP, "economy") || "").length > 30);
+      cardP.leaderId = "egypt";
+      assert("a civ's unique card overrides that text", Game.getCardEffectText(cardP, "economy").indexOf("Wheel") >= 0 ||
+        Game.getCardEffectText(cardP, "economy") === Game.LEADERS.find((l) => l.id === "egypt").unique.text);
+
 
 
       const indo = Game.createPlayer("in", "I", "#fff"); indo.leaderId = "indonesia";

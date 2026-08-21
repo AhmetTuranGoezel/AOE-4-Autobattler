@@ -86,13 +86,13 @@
     tile("12", "natural",
       ["desert","grass","forest","hill","mountain","grass","desert","forest","hill","grass"],
       ["grass","mountain","hill","forest","grass","desert","hill","grass","mountain","forest"],
-      { 5: { naturalWonder: "Dead Sea" }, 0: { resource: "mercury" } },
-      { 5: { naturalWonder: "Mount Everest" }, 7: { barbarian: "I" } }),
+      { 5: { naturalWonder: "Mato Tipila" }, 0: { resource: "mercury" } },
+      { 5: { naturalWonder: "Dead Sea" }, 7: { barbarian: "I" } }),
     tile("13", "natural",
       ["forest","hill","grass","desert","mountain","grass","forest","hill","grass","desert"],
       ["hill","grass","mountain","forest","desert","grass","hill","forest","grass","mountain"],
-      { 5: { naturalWonder: "Pantanal" }, 3: { resource: "oil" } },
-      { 5: { naturalWonder: "Torres del Paine" }, 1: { barbarian: "J" } }),
+      { 5: { naturalWonder: "Mt Kilimanjaro" }, 3: { resource: "oil" } },
+      { 5: { naturalWonder: "Pantanal" }, 1: { barbarian: "J" } }),
 
     tile("14", "normal",
       ["grass","hill","forest","desert","grass","mountain","hill","grass","forest","desert"],
@@ -104,11 +104,11 @@
       ["hill","desert","forest","grass","grass","mountain","hill","forest","desert","grass"],
       { 2: { resource: "diamonds" }, 9: { barbarian: "M" } },
       { 0: { resource: "mercury" }, 6: { barbarian: "N" } }),
-    tile("16", "normal",
+    tile("16", "natural",
       ["grass","desert","hill","forest","mountain","grass","forest","hill","desert","grass"],
       ["forest","hill","grass","mountain","desert","grass","hill","forest","grass","desert"],
-      { 4: { barbarian: "O" }, 6: { resource: "oil" } },
-      { 2: { resource: "marble" }, 9: { barbarian: "P" } }),
+      { 5: { naturalWonder: "Cliffs of Dover" }, 4: { barbarian: "O" } },
+      { 5: { naturalWonder: "Torres del Paine" }, 9: { barbarian: "P" } }),
 
     tile("TI01", "citystate",
       ["grass","forest","hill","desert","mountain","grass","hill","forest","desert","grass"],
@@ -119,7 +119,7 @@
       ["mountain","forest","grass","hill","desert","grass","mountain","forest","hill","grass"],
       ["desert","grass","hill","mountain","forest","grass","desert","hill","forest","mountain"],
       { 5: { naturalWonder: "Ha Long Bay" }, 8: { resource: "mercury" } },
-      { 5: { naturalWonder: "Uluru" }, 3: { barbarian: "R" } }),
+      { 5: { naturalWonder: "Gobustan" }, 3: { barbarian: "R" } }),
     tile("TI03", "normal",
       ["grass","water","hill","forest","grass","desert","water","mountain","forest","grass"],
       ["forest","grass","water","hill","desert","grass","mountain","water","hill","forest"],
@@ -130,49 +130,49 @@
       ["grass","hill","water","forest","mountain","desert","grass","hill","water","forest"],
       { 2: { resource: "marble" }, 5: { barbarian: "U" } },
       { 1: { resource: "oil" }, 9: { barbarian: "V" } }),
-    tile("TI05", "normal",
+    tile("TI05", "natural",
       ["forest","desert","grass","water","hill","grass","mountain","forest","desert","grass"],
       ["grass","mountain","forest","desert","water","hill","grass","forest","hill","water"],
-      { 4: { resource: "mercury" }, 7: { barbarian: "W" } },
-      { 2: { resource: "marble" }, 8: { barbarian: "X" } })
+      { 5: { naturalWonder: "Crater Lake" }, 7: { barbarian: "W" } },
+      { 5: { naturalWonder: "Mount Everest" }, 8: { barbarian: "X" } })
   ];
 
   const CARD_DEFS = {
     culture: {
-      1: { name: "Early Empire", markers: 2 },
-      2: { name: "Drama and Poetry", markers: 2, effect: "move_control" },
-      3: { name: "Civil Service", markers: 2, effect: "extra_control" },
-      4: { name: "Mass Media", markers: 3, effect: "replace_rival" }
+      1: { name: "Early Empire", effectText: "Place up to 2 control tokens on spaces matching this slot's terrain or lower, adjacent to a friendly city.", markers: 2 },
+      2: { name: "Drama and Poetry", effectText: "Place up to 2 control tokens on spaces matching this slot's terrain or lower, adjacent to a friendly city. You may also move one of your control tokens to another legal space.", markers: 2, effect: "move_control" },
+      3: { name: "Civil Service", effectText: "Place up to 2 control tokens on spaces matching this slot's terrain or lower, adjacent to a friendly city. Place one additional control token.", markers: 2, effect: "extra_control" },
+      4: { name: "Mass Media", effectText: "Place up to 3 control tokens on spaces matching this slot's terrain or lower, adjacent to a friendly city. You may replace a rival control token instead of using an empty space.", markers: 3, effect: "replace_rival" }
     },
     growth: {
-      1: { name: "Irrigation" },
-      2: { name: "Engineering", effect: "control_near_district" },
-      3: { name: "Sanitation", effect: "extra_reinforce" },
-      4: { name: "Globalization", effect: "global_district" }
+      1: { name: "Irrigation", effectText: "Place a district on a space matching this slot's terrain or lower, adjacent to a friendly city. Or reinforce control tokens up to this slot's number." },
+      2: { name: "Engineering", effectText: "Place a district on a space matching this slot's terrain or lower, adjacent to a friendly city. Or reinforce control tokens up to this slot's number. You may place a control token near one of your districts.", effect: "control_near_district" },
+      3: { name: "Sanitation", effectText: "Place a district on a space matching this slot's terrain or lower, adjacent to a friendly city. Or reinforce control tokens up to this slot's number. Reinforce one additional control token.", effect: "extra_reinforce" },
+      4: { name: "Globalization", effectText: "Place a district on a space matching this slot's terrain or lower, adjacent to a friendly city. Or reinforce control tokens up to this slot's number. Your district abilities reach anywhere on the map.", effect: "global_district" }
     },
     science: {
-      1: { name: "Astrology" },
-      2: { name: "Mathematics", effect: "bonus_trade" },
-      3: { name: "Replaceable Parts", effect: "bonus_resource" },
-      4: { name: "Nuclear Power", effect: "nuke" }
+      1: { name: "Astrology", effectText: "Advance your tech dial a number of spaces equal to this slot's number." },
+      2: { name: "Mathematics", effectText: "Advance your tech dial a number of spaces equal to this slot's number. Gain one extra trade token.", effect: "bonus_trade" },
+      3: { name: "Replaceable Parts", effectText: "Advance your tech dial a number of spaces equal to this slot's number. Gain one resource of your choice from the supply.", effect: "bonus_resource" },
+      4: { name: "Nuclear Power", effectText: "Advance your tech dial a number of spaces equal to this slot's number. You may remove a rival city and the control tokens around it.", effect: "nuke" }
     },
     economy: {
-      1: { name: "Foreign Trade", move: 3, caravans: 1 },
-      2: { name: "Currency", move: 4, caravans: 2, effect: "remove_barbarian" },
-      3: { name: "Steam Power", move: 6, caravans: 2, water: true, effect: "exchange_resource" },
-      4: { name: "Capitalism", move: 6, caravans: 3, water: true, effect: "resolve_extra" }
+      1: { name: "Foreign Trade", effectText: "Move each of your caravans up to 3 spaces, onto terrain matching this slot or lower. 1 caravan.", move: 3, caravans: 1 },
+      2: { name: "Currency", effectText: "Move each of your caravans up to 4 spaces, onto terrain matching this slot or lower. 2 caravans. You may remove one barbarian your caravan passes.", move: 4, caravans: 2, effect: "remove_barbarian" },
+      3: { name: "Steam Power", effectText: "Move each of your caravans up to 6 spaces, onto terrain matching this slot or lower, and across water. 2 caravans. You may exchange resources with the supply.", move: 6, caravans: 2, water: true, effect: "exchange_resource" },
+      4: { name: "Capitalism", effectText: "Move each of your caravans up to 6 spaces, onto terrain matching this slot or lower, and across water. 3 caravans. You may resolve one additional focus card this turn.", move: 6, caravans: 3, water: true, effect: "resolve_extra" }
     },
     military: {
-      1: { name: "Masonry", move: 3, armies: 1, combat: 0 },
-      2: { name: "Iron Working", move: 4, armies: 2, combat: 0, vsBarbarian: 2 },
-      3: { name: "Mass Production", move: 5, armies: 2, combat: 2, water: true },
-      4: { name: "Flight", move: 6, armies: 2, combat: 3, water: true }
+      1: { name: "Masonry", effectText: "Reinforce control tokens up to this slot's number, or attack within range. Move each army up to 3 spaces. Combat value equals this slot's number. 1 army.", move: 3, armies: 1, combat: 0 },
+      2: { name: "Iron Working", effectText: "Reinforce control tokens up to this slot's number, or attack within range. Move each army up to 4 spaces. Combat value equals this slot's number plus 2. 2 armies.", move: 4, armies: 2, combat: 0, vsBarbarian: 2 },
+      3: { name: "Mass Production", effectText: "Reinforce control tokens up to this slot's number, or attack within range. Move each army up to 5 spaces, and across water. Combat value equals this slot's number plus 2. 2 armies.", move: 5, armies: 2, combat: 2, water: true },
+      4: { name: "Flight", effectText: "Reinforce control tokens up to this slot's number, or attack within range. Move each army up to 6 spaces, and across water. Combat value equals this slot's number plus 3. 2 armies.", move: 6, armies: 2, combat: 3, water: true }
     },
     industry: {
-      1: { name: "Pottery", cityRange: 2 },
-      2: { name: "Animal Husbandry", cityRange: 3, effect: "build_on_unit" },
-      3: { name: "Nationalism", cityRange: 4, water: true, wonderSlot5Production: 7 },
-      4: { name: "Urbanization", cityRange: 5, water: true, effect: "control_after_city" }
+      1: { name: "Pottery", effectText: "Build one world wonder with production equal to this slot's number. Or build a city on a legal space matching this slot's terrain or lower, within 2 spaces of a friendly space.", cityRange: 2 },
+      2: { name: "Animal Husbandry", effectText: "Build one world wonder with production equal to this slot's number. Or build a city on a legal space matching this slot's terrain or lower, within 3 spaces of a friendly space. You may build on a space occupied by one of your own figures.", cityRange: 3, effect: "build_on_unit" },
+      3: { name: "Nationalism", effectText: "Build one world wonder with production equal to this slot's number. Or build a city on a legal space matching this slot's terrain or lower, within 4 spaces of a friendly space.", cityRange: 4, water: true, wonderSlot5Production: 7 },
+      4: { name: "Urbanization", effectText: "Build one world wonder with production equal to this slot's number. Or build a city on a legal space matching this slot's terrain or lower, within 5 spaces of a friendly space. After building a city, place a control token beside it.", cityRange: 5, water: true, effect: "control_after_city" }
     }
   };
 
@@ -275,11 +275,29 @@
     Palenque: { type: "science", diplomacy: "Spend resources as trade tokens." }
   };
 
+  // The four player diplomacy cards. Each player holds one set; a caravan
+  // trading at a rival city hands one of these to that rival.
   const DIPLOMACY_CARDS = {
-    joint_war: { name: "Joint War", effect: "+2 attack unless attacking owner." },
-    defensive_pact: { name: "Defensive Pact", effect: "+2 defense unless owner attacks." },
-    non_aggression: { name: "Non-Aggression Pact", effect: "Cannot attack owner; retaliation swaps military." },
-    embassy: { name: "Embassy", effect: "Capital trade gives owner trade and trader resource." }
+    joint_war: {
+      name: "Joint War",
+      effect: "+2 attack unless attacking owner.",
+      text: "Whenever you attack, increase your combat value by 2, unless you are attacking the player who gave you this card."
+    },
+    defensive_pact: {
+      name: "Defensive Pact",
+      effect: "+2 defense unless owner attacks.",
+      text: "Whenever you defend, increase your combat value by 2, unless the player who gave you this card is the attacker."
+    },
+    non_aggression: {
+      name: "Non-Aggression Pact",
+      effect: "Cannot attack owner; retaliation swaps military.",
+      text: "You cannot attack the player who gave you this card. If that player attacks you, they must give you their military focus card in exchange for yours."
+    },
+    embassy: {
+      name: "Embassy",
+      effect: "Capital trade gives owner trade and trader resource.",
+      text: "Whenever a caravan moves to your capital, the player who gave you this card places 1 trade token on one of their focus cards, and you gain 1 resource of your choice from the supply."
+    }
   };
 
   const AGENDA_CARDS = [

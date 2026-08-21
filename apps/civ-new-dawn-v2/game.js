@@ -8,6 +8,7 @@ const Game = (() => {
   const CITY_STATE_DATA = RULES.CITY_STATES || {};
   const DIPLOMACY_CARDS = RULES.DIPLOMACY_CARDS || {};
   const AGENDA_CARDS = Array.isArray(RULES.AGENDA_CARDS) ? RULES.AGENDA_CARDS : [];
+  const CARD_DEFS = RULES.CARD_DEFS || {};
   const LEADERS = Array.isArray(RULES.LEADERS) ? RULES.LEADERS.filter((l) => l && l.id !== "random") : [];
   const LEADER_BY_ID = Object.fromEntries(LEADERS.map((l) => [l.id, l]));
 
@@ -28,6 +29,16 @@ const Game = (() => {
     if (u.type !== cardType) return null;
     const tier = (player.cardTiers && player.cardTiers[cardType]) || 1;
     return tier === u.tier ? u : null;
+  }
+
+  // Printed effect text for the card a player currently runs of this type.
+  // A civ's unique card overrides the standard card at its tier.
+  function getCardEffectText(player, cardType) {
+    const u = getActiveUniqueCard(player, cardType);
+    if (u) return u.text || "";
+    const tier = (player.cardTiers && player.cardTiers[cardType]) || 1;
+    const def = (CARD_DEFS[cardType] || {})[tier];
+    return (def && def.effectText) || "";
   }
 
   function getCardName(player, cardType) {
@@ -2830,6 +2841,7 @@ const Game = (() => {
     DISTRICTS, DISTRICT_LABELS, DISTRICT_EFFECTS, RESOURCES, EVENTS, EVENT_LABELS, CFG,
     WONDERS, ALL_WONDERS, WONDER_ERAS, CARD_TIERS, AGENDA_CARDS, DIPLOMACY_CARDS, CITY_STATE_DATA,
     LEADERS, getLeader, getLeaderAttackBonus, getCardName, getActiveUniqueCard,
+    CARD_DEFS, getCardEffectText,
     hasWonder, getWonderAttackBonus, getWonderDefenseBonus,
     TILE_OFFSETS, getCoreAnchors,
     createState, createLobbyState, createPlayer, migrateState, applyAction, currentPlayer, getPlayer,

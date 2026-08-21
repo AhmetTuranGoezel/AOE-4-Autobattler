@@ -1141,7 +1141,14 @@ const UI = (() => {
     const maxA = Game.CFG.maxArmies + (me.techTier >= 3 ? 1 : 0);
     const maxW = Game.CFG.maxCaravans + (me.techTier >= 3 ? 1 : 0);
     const tiers = me.cardTiers ? Game.FOCUS_TYPES.map((f) => `${Game.FOCUS_LABELS[f][0]}${me.cardTiers[f] || 1}`).join(" ") : "";
-    const dip = me.diplomacy && me.diplomacy.length ? me.diplomacy.map((d) => d.name || d.type).join(", ") : "none";
+    const dipCards = Game.DIPLOMACY_CARDS || {};
+    const dip = me.diplomacy && me.diplomacy.length
+      ? me.diplomacy.map((d) => {
+          const meta = dipCards[d.type] || {};
+          const tip = d.effect || meta.text || meta.effect || "";
+          return `<span title="${escapeHtml(tip)}" style="cursor:help;text-decoration:underline dotted">${escapeHtml(d.name || d.type)}</span>`;
+        }).join(", ")
+      : "none";
     const csTokens = me.cityStateTokens && me.cityStateTokens.length ? me.cityStateTokens.join(", ") : "none";
     const builtWonders = new Set();
     const myWonders = [];
@@ -2436,7 +2443,10 @@ const UI = (() => {
         const slot = Game.getSlotValue(me, cardType, state);
         const uc = Game.getActiveUniqueCard ? Game.getActiveUniqueCard(me, cardType) : null;
         const name = Game.getCardName ? Game.getCardName(me, cardType) : Game.CARD_NAMES[cardType][Game.getCardTier(me, cardType) - 1];
-        const desc = uc ? `${uc.text}${uc.auto ? "" : "<br><em>Special clause is a table rule — resolve manually.</em>"}` : Game.FOCUS_TRADE_DESC[cardType];
+        const printed = Game.getCardEffectText ? Game.getCardEffectText(me, cardType) : "";
+        const desc = uc
+          ? `${uc.text}${uc.auto ? "" : "<br><em>Special clause is a table rule — resolve manually.</em>"}`
+          : `${printed ? printed + "<br>" : ""}<em>${Game.FOCUS_TRADE_DESC[cardType]}</em>`;
         dom.mapTooltip.innerHTML = `<strong>${uc ? "★ " : ""}${name}</strong> (Power: ${slot})<br>${desc}`;
         dom.mapTooltip.classList.remove("hidden");
         const rect = el.getBoundingClientRect();
