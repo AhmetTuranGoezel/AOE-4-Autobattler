@@ -64,13 +64,15 @@ const Game = (() => {
     culture: "🎭", growth: "🌿", science: "🔬",
     economy: "💰", military: "⚔️", industry: "🏗️"
   };
+  // Straight from the rulebook's Handelsmarker table: each token spent on a card
+  // gives exactly this. Note culture gives an extra TOKEN, not extra reach.
   const FOCUS_TRADE_DESC = {
-    culture: "+1 effective slot value per trade spent",
-    growth: "+1 extra district/reinforce per trade",
-    science: "+1 tech advance per trade spent",
-    economy: "+1 caravan movement per trade spent",
-    military: "+1 combat strength per trade spent",
-    industry: "+1 production per trade spent"
+    culture: "Place 1 additional control token",
+    growth: "Reinforce 1 additional control token",
+    science: "Advance the tech dial 1 additional space",
+    economy: "Each caravan moves 1 additional space",
+    military: "+1 combat value for this combat",
+    industry: "+1 production when building a wonder"
   };
   const DISTRICTS = ["campus", "trade", "encampment", "industrial", "theater"];
   const DISTRICT_LABELS = { campus: "Campus", trade: "Market", encampment: "Encampment", industrial: "Industrial", theater: "Theater" };
@@ -166,11 +168,7 @@ const Game = (() => {
     });
   })();
 
-  function getCoreAnchors(playerCount) {
-    if (playerCount <= 3) return [
-      { q: 0, r: -1, rotation: 0 },
-      { q: -1, r: 1, rotation: 3 }
-    ];
+  function getCoreAnchors() {
     return [
       { q: -1, r: -1, rotation: 0 },
       { q: 3,  r: -1, rotation: 0 },
@@ -459,9 +457,18 @@ const Game = (() => {
       playerTiles[id] = [tile.id];
     });
 
-    const coreCount = playerIds.length <= 3 ? 2 : 4;
     shuffle(mapDeck);
-    const coreTiles = mapDeck.splice(Math.max(0, mapDeck.length - coreCount), coreCount);
+    const takeKind = (kind, n) => {
+      const picked = [];
+      for (let i = mapDeck.length - 1; i >= 0 && picked.length < n; i--) {
+        if (mapDeck[i].type === kind) picked.push(mapDeck.splice(i, 1)[0]);
+      }
+      return picked;
+    };
+    const coreTiles = takeKind("natural", 2).concat(takeKind("citystate", 2));
+    // Only if the roster somehow cannot supply both kinds do we top up.
+    while (coreTiles.length < 4 && mapDeck.length) coreTiles.push(mapDeck.pop());
+    shuffle(coreTiles);
     coreTiles.forEach((tile) => { tile.isCore = true; });
     const coreSide = rollDie() <= 3 ? "A" : "B";
 
@@ -527,7 +534,7 @@ const Game = (() => {
       log: []
     };
 
-    const anchors = getCoreAnchors(players.length);
+    const anchors = getCoreAnchors();
     setup.coreTiles.forEach((tileId, i) => {
       const anchor = anchors[i];
       const anchorKey = key(anchor.q, anchor.r);
@@ -579,6 +586,22 @@ const Game = (() => {
       const leader = LEADER_BY_ID[id];
       log(st, `${player.name} drew ${leader.civ} (${leader.name}).`);
     });
+  }
+
+  // Your usable armies and caravans are printed on your military / economy
+  // card ("2 armies"), so the counts follow the card tier rather than any
+  // recruit action. Figures added here start at the capital.
+  function syncUnitCounts(st, player) {
+    const capKey = st ? findCapital(st, player.id) : null;
+    const want = {
+      armies: CARD_TIERS.military.armies[getCardTier(player, "military") - 1],
+      caravans: CARD_TIERS.economy.wagons[getCardTier(player, "economy") - 1]
+    };
+    for (const [key, n] of Object.entries(want)) {
+      const list = player[key] || (player[key] = []);
+      while (list.length > n) list.pop();
+      while (list.length < n) list.push({ id: key + "-" + (list.length + 1) + "-" + player.id.slice(0, 4), position: capKey });
+    }
   }
 
   function createPlayer(id, name, color) {
@@ -664,9 +687,7 @@ const Game = (() => {
     st.players.forEach((player) => {
       const capKey = findCapital(st, player.id);
       if (capKey) {
-        if (player.armies.length === 0) {
-          player.armies.push({ id: `army-1-${player.id.slice(0,4)}`, position: capKey });
-        }
+        syncUnitCounts(st, player);
         player.armies.forEach((u) => { if (!u.position) u.position = capKey; });
         player.caravans.forEach((u) => { if (!u.position) u.position = capKey; });
       }
@@ -753,7 +774,7 @@ const Game = (() => {
         st.turn.order = newSetup.order.slice();
         // Re-place core tiles
         st.map = buildEmptyMap(CFG.mapRadius);
-        const anchors = getCoreAnchors(st.players.length);
+        const anchors = getCoreAnchors();
         newSetup.coreTiles.forEach((tileId, i) => {
           const anchor = anchors[i];
           placeTileOnMap(st, tileId, key(anchor.q, anchor.r), anchor.rotation, newSetup.coreSide || "A");
@@ -897,8 +918,8 @@ const Game = (() => {
 
     // --- Playing phase actions ---
 
-    if (type.startsWith("PLAY_") || type === "END_TURN" || type === "RECRUIT_ARMY" ||
-        type === "RECRUIT_CARAVAN" || type === "ASSIGN_GOV") {
+    if (type.startsWith("PLAY_") || type === "END_TURN" ||
+        type === "ASSIGN_GOV") {
       if (st.phase !== "playing") return st;
     }
     if (type.startsWith("PLAY_") || type === "END_TURN") {
@@ -911,7 +932,7 @@ const Game = (() => {
     if (type === "PLAY_CULTURE") {
       const player = getPlayer(st, payload.playerId);
       if (!player || player.cardPlayed) return st;
-      const effectiveSlot = getSlotValue(player, "culture", st) + (payload.tradeSpent || 0);
+      const effectiveSlot = getSlotValue(player, "culture", st);
       // France: the latest-era wonder you own grants extra tokens (1/2/3).
       let maxMarkers = getCultureMarkers(player, payload.tradeSpent || 0, st);
       const franceBonus = hasLeader(player, "france") ? franceWonderBonus(st, player.id) : 0;
@@ -1082,7 +1103,7 @@ const Game = (() => {
       if (!unit || !unit.position) return st;
       const moveHex = st.map.hexes[payload.toKey];
       if (!moveHex || !moveHex.active) return st;
-      const reachable = getReachable(st, unit.position, getMilitaryMove(player) + (payload.tradeSpent || 0), "army", payload.playerId);
+      const reachable = getReachable(st, unit.position, getMilitaryMove(player), "army", payload.playerId);
       if (!reachable.has(payload.toKey)) return st;
       unit.position = payload.toKey; log(st, `${player.name} moved army.`);
       resolveCard(st, player, "military", payload.tradeSpent);
@@ -1096,7 +1117,7 @@ const Game = (() => {
       if (!unit || !unit.position) return st;
       const hex = st.map.hexes[payload.toKey];
       if (!hex) return st;
-      const reachable = getReachable(st, unit.position, getMilitaryMove(player) + (payload.tradeSpent || 0), "army", payload.playerId);
+      const reachable = getReachable(st, unit.position, getMilitaryMove(player), "army", payload.playerId);
       if (!reachable.has(payload.toKey) && unit.position !== payload.toKey) return st;
 
       const atkRoll = rollDie();
@@ -1105,13 +1126,29 @@ const Game = (() => {
       // Leader combat bonuses (Scythia terrain, Ottoman vs Ibrahim holder).
       const leaderBonus = getLeaderAttackBonus(st, payload.playerId, payload.toKey);
       const atkTotal = atkRoll + payload.attackPower + tierCombatBonus + leaderBonus;
-      const defTotal = defRoll + payload.defensePower;
+      // Step 4 of an attack: the attacker hands over trade tokens (already in
+      // payload.attackPower), then the defender gets the same chance from their
+      // own military card. A defending player buys exactly the tokens that turn
+      // the fight around and no more — ties already go to the defender.
+      const defOwner = payload.defenderOwnerId ? getPlayer(st, payload.defenderOwnerId) : null;
+      let defTrade = 0;
+      if (defOwner) {
+        const shortfall = atkTotal - (defRoll + payload.defensePower);
+        if (shortfall > 0) {
+          defTrade = Math.min(shortfall, defOwner.trade.military || 0);
+          defOwner.trade.military -= defTrade;
+        }
+      }
+      const defTotal = defRoll + payload.defensePower + defTrade;
       const win = atkTotal > defTotal;
+      if (defTrade > 0) {
+        log(st, `${defOwner.name} spent ${defTrade} military trade token(s) defending.`);
+      }
       // Zulu cares whether the target was a rival city or city-state — note it
       // before the capture logic rewrites the hex.
       const targetWasCityOrCS = !!(hex.cityState || (hex.city && hex.city.ownerId !== payload.playerId));
 
-      st.lastCombat = { attacker: player.name, defender: payload.defenderLabel, atkRoll, defRoll, atkTotal, defTotal, win, leaderBonus };
+      st.lastCombat = { attacker: player.name, defender: payload.defenderLabel, atkRoll, defRoll, atkTotal, defTotal, win, leaderBonus, defTrade };
 
       if (win) {
         player.maxCombatWin = Math.max(player.maxCombatWin || 0, atkTotal);
@@ -1202,6 +1239,9 @@ const Game = (() => {
       const hex = st.map.hexes[payload.hexKey];
       if (!hex || !hex.active || hex.terrain === "water" || hex.city || hex.cityState || hex.barbarian) return st;
       if (adjacentToAnyCity(st, hex) || adjacentToCityState(st, hex)) return st;
+      const ownsSpace = (hex.control && hex.control.ownerId === payload.playerId) ||
+        player.caravans.some((u) => u.position === payload.hexKey);
+      if (!ownsSpace) return st;
       const slot = getSlotValue(player, "industry", st);
       let resBonus = 0;
       if (payload.resources) Object.values(payload.resources).forEach((v) => { if (v) resBonus += CFG.resourceProdValue; });
@@ -1314,25 +1354,8 @@ const Game = (() => {
       return st;
     }
 
-    if (type === "RECRUIT_ARMY") {
-      const player = getPlayer(st, payload.playerId);
-      const maxArmies = CFG.maxArmies + (player && player.techTier >= 3 ? 1 : 0);
-      if (!player || player.armies.length >= maxArmies) return st;
-      const capitalKey = findCapital(st, payload.playerId);
-      player.armies.push({ id: `army-${player.armies.length + 1}`, position: capitalKey });
-      log(st, `${player.name} recruited an army.`);
-      return st;
-    }
-
-    if (type === "RECRUIT_CARAVAN") {
-      const player = getPlayer(st, payload.playerId);
-      const maxCaravans = CFG.maxCaravans + (player && player.techTier >= 3 ? 1 : 0);
-      if (!player || player.caravans.length >= maxCaravans) return st;
-      const capitalKey = findCapital(st, payload.playerId);
-      player.caravans.push({ id: `caravan-${player.caravans.length + 1}`, position: capitalKey });
-      log(st, `${player.name} recruited a caravan.`);
-      return st;
-    }
+    // No recruit actions: army and caravan counts are printed on the military
+    // and economy focus cards, and syncUnitCounts keeps the figures in step.
 
     if (type === "ADD_TRADE") {
       const player = getPlayer(st, payload.playerId);
@@ -1516,6 +1539,7 @@ const Game = (() => {
           (!choice.onlyTier || curTier === choice.onlyTier)) {
         player.cardTiers[cardType] = (player.cardTiers[cardType] || 1) + 1;
         player.cardLevels[cardType] = player.cardTiers[cardType];
+        if (cardType === "military" || cardType === "economy") syncUnitCounts(st, player);
         log(st, `${player.name} upgraded ${FOCUS_LABELS[cardType]} to tier ${player.cardTiers[cardType]}.`);
         // Multi-card wonders queue their next prompt only now, so it lists the
         // tiers as they stand after this upgrade.
@@ -2555,6 +2579,9 @@ const Game = (() => {
       if (placementDifficulty(st, h, player, "city") > production) return;
       if (h.city || h.cityState || h.barbarian || (h.fortress && !h.city)) return;
       if (adjacentToAnyCity(st, h) || adjacentToCityState(st, h) || adjacentToFortress(st, h)) return;
+      const owns = (h.control && h.control.ownerId === playerId) ||
+        (player && player.caravans.some((u) => u.position === k));
+      if (!owns) return;
       if (!withinRangeOfFriendly(st, h, playerId, range)) return;
       valid.push(k);
     });
@@ -2639,22 +2666,16 @@ const Game = (() => {
       return countAdjacentReinforced(st, hexKey, ownerId) * (hasLeader(owner, "china") ? 2 : 1);
     };
     if (h.control && h.control.ownerId !== attackerId) {
-      const def = terrainDifficulty(h) + (h.control.fortified ? 2 : 0) +
+      const def = terrainDifficulty(h) + (h.control.fortified ? 1 : 0) +
         reinforcedValue(h.control.ownerId) + defenderLeaderBonus(h.control.ownerId) +
         getWonderDefenseBonus(st, h.control.ownerId, hexKey);
-      return { type: "control", label: "Control Marker", power: def };
+      return { type: "control", label: "Control Marker", power: def, ownerId: h.control.ownerId };
     }
     if (h.city && h.city.ownerId !== attackerId) {
       const def = terrainDifficulty(h) * 2 +
         reinforcedValue(h.city.ownerId) + defenderLeaderBonus(h.city.ownerId) +
         getWonderDefenseBonus(st, h.city.ownerId, hexKey);
-      return { type: "city", label: h.city.isCapital ? "Capital" : "City", power: def };
-    }
-    for (const p of st.players) {
-      if (p.id === attackerId) continue;
-      for (const u of p.armies) {
-        if (u.position === hexKey) return { type: "army", label: `${p.name}'s Army`, power: 3 };
-      }
+      return { type: "city", label: h.city.isCapital ? "Capital" : "City", power: def, ownerId: h.city.ownerId };
     }
     return null;
   }
@@ -2841,7 +2862,7 @@ const Game = (() => {
     DISTRICTS, DISTRICT_LABELS, DISTRICT_EFFECTS, RESOURCES, EVENTS, EVENT_LABELS, CFG,
     WONDERS, ALL_WONDERS, WONDER_ERAS, CARD_TIERS, AGENDA_CARDS, DIPLOMACY_CARDS, CITY_STATE_DATA,
     LEADERS, getLeader, getLeaderAttackBonus, getCardName, getActiveUniqueCard,
-    CARD_DEFS, getCardEffectText,
+    CARD_DEFS, getCardEffectText, syncUnitCounts,
     hasWonder, getWonderAttackBonus, getWonderDefenseBonus,
     TILE_OFFSETS, getCoreAnchors,
     createState, createLobbyState, createPlayer, migrateState, applyAction, currentPlayer, getPlayer,

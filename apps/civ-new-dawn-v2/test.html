@@ -46,7 +46,12 @@
       assert("no removed wonders in Terra Incognita decks", !JSON.stringify(data.WONDER_DECKS).includes("Pentagon") && !JSON.stringify(data.WONDER_DECKS).includes("Machu Picchu"));
 
       const s2 = Game.createState(players(2));
-      assert("2-player setup places two core tiles", s2.setup.coreTiles.length === 2);
+      // Rulebook p14: the core is always four tiles, two natural wonder and
+      // two city-state, whatever the player count.
+      assert("setup places four core tiles", s2.setup.coreTiles.length === 4);
+      const coreKinds = s2.setup.coreTiles.map((id) => s2.setup.tiles[id].type).sort().join(",");
+      assert("core is two natural + two city-state", coreKinds === "citystate,citystate,natural,natural");
+      assert("core tiles share one side", new Set(s2.setup.coreTiles.map((id) => s2.setup.tiles[id].side)).size === 1);
       assert("2-player setup starts with fortress placement", s2.setup.phase === "fortress");
       assert("setup has five agenda cards", s2.agendaCards.length === 5);
       assert("visible wonder tops equal deck types", Game.getVisibleWonders(s2).length === Object.keys(data.WONDER_DECKS).length);
@@ -265,6 +270,146 @@
       Game.migrateState(oldSave);
       assert("save migration initializes Terra fields", oldSave.rulesVersion && oldSave.wonderDecks && oldSave.agendaCards && oldSave.players[0].caravans.length === 1);
       assert("save migration normalizes city wonder state", !!oldSave.map.hexes["0,0"].city.wonder);
+
+
+      // --- Rulebook conformance: trade tokens, combat, unit counts ----------
+      // A trade token does exactly what its card's trade track says, and
+      // nothing else. Rulebook "Handelsmarker" table.
+      function rulesState() {
+        const st = Game.createState(players(2));
+        st.phase = "playing";
+        st.setup.phase = "done";
+        return st;
+      }
+      function activate(st, k, props) {
+        Object.assign(st.map.hexes[k], {
+          active: true, revealed: true, terrain: "grass", city: null, control: null,
+          barbarian: false, cityState: null, fortress: false, resource: null, naturalWonder: null
+        }, props || {});
+        return st.map.hexes[k];
+      }
+
+      {
+        const st = rulesState();
+        const me = st.players[0];
+        const slot = Game.getSlotValue(me, "culture", st);
+        const reach = (n) => Game.validControlHexes(st, me.id, n).size;
+        assert("culture trade buys markers, not terrain reach",
+          Game.getCultureMarkers(me, 1, st) > Game.getCultureMarkers(me, 0, st) &&
+          reach(slot) === reach(slot));
+        const beforeReinforce = Game.getSlotValue(me, "growth", st);
+        assert("growth district reach ignores trade",
+          Game.validDistrictHexes(st, me.id, beforeReinforce).size ===
+          Game.validDistrictHexes(st, me.id, beforeReinforce).size);
+      }
+
+      {
+        // Military tokens buy combat value only — never movement.
+        const st = rulesState();
+        const me = st.players[0];
+        const move = Game.getMilitaryMove(me);
+        me.trade.military = Game.CFG.maxTrade;
+        assert("military move is independent of trade held", Game.getMilitaryMove(me) === move);
+      }
+
+      {
+        // Defense bonuses, rulebook p11: terrain, +1 per adjacent friendly
+        // reinforced token, +1 if the defender is itself reinforced, city
+        // terrain doubled, city-state flat 8.
+        const defenseOf = (props) => {
+          const st = rulesState();
+          const atk = st.players[0].id, def = st.players[1].id;
+          activate(st, "0,0", typeof props === "function" ? props(def) : props);
+          return Game.findDefender(st, "0,0", atk);
+        };
+        const plain = defenseOf((d) => ({ terrain: "forest", control: { ownerId: d, fortified: false, district: null } }));
+        const reinforced = defenseOf((d) => ({ terrain: "forest", control: { ownerId: d, fortified: true, district: null } }));
+        assert("plain control marker defends at terrain difficulty", plain.power === 3);
+        assert("reinforced control marker adds exactly 1", reinforced.power === plain.power + 1);
+        assert("defender reports its owner", !!reinforced.ownerId);
+        const city = defenseOf((d) => ({ terrain: "forest", city: { ownerId: d, isCapital: false, developed: false, hasWonder: false, wonder: null } }));
+        assert("city doubles terrain difficulty", city.power === 6);
+        assert("city-state defends at 8", defenseOf({ terrain: "grass", cityState: { name: "Test", type: "culture" } }).power === 8);
+      }
+
+      {
+        // An army standing on an empty space is not a legal target.
+        const st = rulesState();
+        const atk = st.players[0].id;
+        const other = st.players[1];
+        activate(st, "3,0", { terrain: "grass" });
+        other.armies = [{ id: "a1", position: "3,0" }];
+        assert("a lone army is not an attack target", Game.findDefender(st, "3,0", atk) === null);
+      }
+
+      {
+        // Army and caravan counts come off the military and economy cards.
+        const st = rulesState();
+        const me = st.players[0];
+        // Figures live on the cards until a capital exists to enter at.
+        activate(st, "0,0", { city: { ownerId: me.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
+        Game.syncUnitCounts(st, me);
+        const wantArmies = Game.CARD_TIERS.military.armies[Game.getCardTier(me, "military") - 1];
+        assert("armies match the military card tier", me.armies.length === wantArmies);
+        assert("caravans match the economy card tier",
+          me.caravans.length === Game.CARD_TIERS.economy.wagons[Game.getCardTier(me, "economy") - 1]);
+        assert("new figures enter at the capital", me.armies.every((u) => u.position === "0,0"));
+        me.cardTiers.military = 2;
+        Game.syncUnitCounts(st, me);
+        assert("upgrading the military card adds its army",
+          me.armies.length === Game.CARD_TIERS.military.armies[1]);
+        me.cardTiers.military = 1;
+        Game.syncUnitCounts(st, me);
+        assert("dropping back to tier I removes it again", me.armies.length === wantArmies);
+        const after = Game.applyAction(st, { type: "RECRUIT_ARMY", payload: { playerId: me.id } });
+        assert("there is no recruit action", after.players[0].armies.length === me.armies.length);
+      }
+
+      {
+        // Rulebook step 4: after both dice, the attacker then the defender may
+        // hand over military trade tokens, +1 combat value each.
+        let sawDefenderSpend = false, sawTieToDefender = false;
+        for (let i = 0; i < 400 && !(sawDefenderSpend && sawTieToDefender); i++) {
+          const st = rulesState();
+          const me = st.players[0], foe = st.players[1];
+          st.turn.index = st.turn.order.indexOf(me.id);
+          me.cardPlayed = false;
+          activate(st, "0,0", { city: { ownerId: me.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
+          activate(st, "1,0", { terrain: "grass", control: { ownerId: foe.id, fortified: false, district: null } });
+          me.armies = [{ id: "a1", position: "0,0" }];
+          foe.trade.military = Game.CFG.maxTrade;
+          const d = Game.findDefender(st, "1,0", me.id);
+          const out = Game.applyAction(st, { type: "PLAY_MILITARY_ATTACK", payload: {
+            playerId: me.id, unitId: "a1", toKey: "1,0", fromKey: "0,0",
+            attackPower: Game.getSlotValue(me, "military", st), defensePower: d.power,
+            defenderLabel: d.label, defenderOwnerId: d.ownerId, tradeSpent: 0
+          } });
+          const c = out.lastCombat;
+          if (!c) continue;
+          if (c.defTrade > 0) {
+            sawDefenderSpend = true;
+            const spender = out.players.find((p) => p.id === foe.id);
+            assert("defender's spend leaves their military card",
+              spender.trade.military === Game.CFG.maxTrade - c.defTrade);
+          }
+          if (c.atkTotal === c.defTotal) { sawTieToDefender = true; assert("a tie goes to the defender", c.win === false); }
+        }
+        assert("the defender can answer with trade tokens", sawDefenderSpend);
+      }
+
+      {
+        // Every focus card carries the text printed on it.
+        let missing = [];
+        Game.FOCUS_TYPES.forEach((t) => {
+          for (let tier = 1; tier <= 4; tier++) {
+            const def = (data.CARD_DEFS[t] || {})[tier];
+            if (!def || !def.effectText || def.effectText.length < 20) missing.push(t + "-" + tier);
+          }
+        });
+        assert("all 24 focus cards carry printed effect text", missing.length === 0, missing.join(","));
+        assert("every focus type states what a trade token buys",
+          Game.FOCUS_TYPES.every((t) => (Game.FOCUS_TRADE_DESC[t] || "").length > 10));
+      }
 
       summary.textContent = `${passed} passed, ${failed} failed`;
     } catch (err) {

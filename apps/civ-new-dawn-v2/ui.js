@@ -1138,8 +1138,8 @@ const UI = (() => {
     if (!me) { dom.myStats.innerHTML = ""; return; }
     const res = Object.entries(me.resources).filter(([, v]) => v > 0).map(([k, v]) => `${k}: ${v}`).join(", ") || "none";
     const gov = me.govMarkers.length ? me.govMarkers.map((m) => Game.FOCUS_LABELS[m]).join(", ") : "none";
-    const maxA = Game.CFG.maxArmies + (me.techTier >= 3 ? 1 : 0);
-    const maxW = Game.CFG.maxCaravans + (me.techTier >= 3 ? 1 : 0);
+    const maxA = me.armies.length;
+    const maxW = me.caravans.length;
     const tiers = me.cardTiers ? Game.FOCUS_TYPES.map((f) => `${Game.FOCUS_LABELS[f][0]}${me.cardTiers[f] || 1}`).join(" ") : "";
     const dipCards = Game.DIPLOMACY_CARDS || {};
     const dip = me.diplomacy && me.diplomacy.length
@@ -1161,7 +1161,11 @@ const UI = (() => {
     const myWonderStr = myWonders.length ? myWonders.join(", ") : "none";
     const visibleWonders = Game.getVisibleWonders ? Game.getVisibleWonders(state).filter((w) => !builtWonders.has(w.name)) : [];
     const wonderList = visibleWonders.length
-      ? visibleWonders.map((w) => `<div style="margin-top:2px"><strong style="font-size:10px">${w.type} / ${w.era} (${w.cost})</strong>: <span title="${w.effect}" style="cursor:help">${w.name}</span></div>`).join("")
+      ? visibleWonders.map((w) => `<div class="wface era-${w.era}">
+          <div class="wface-head"><span class="wface-name">${escapeHtml(w.name)}</span><span class="wface-cost">${w.cost}</span></div>
+          <div class="wface-meta">${escapeHtml(w.era)} · ${escapeHtml(w.type)}</div>
+          <div class="wface-text">${escapeHtml(w.effect || "")}</div>
+        </div>`).join("")
       : `<div style="color:var(--text2)">none</div>`;
     const myLeader = Game.getLeader ? Game.getLeader(me) : null;
     let leaderRow = "";
@@ -1170,7 +1174,8 @@ const UI = (() => {
       const tierLabel = u ? ["I", "II", "III", "IV"][u.tier - 1] : "";
       const uActive = u && Game.getActiveUniqueCard && Game.getActiveUniqueCard(me, u.type);
       const uniqueLine = u
-        ? `<div class="lb-unique ${uActive ? "on" : ""}" title="${escapeHtml(u.text)}">★ ${escapeHtml(u.name)} <span class="lb-ut">(${Game.FOCUS_LABELS[u.type]} ${tierLabel}${u.auto ? "" : " — manual"})</span>${uActive ? " <span class=\"lb-live\">active</span>" : ""}</div>`
+        ? `<div class="lb-unique ${uActive ? "on" : ""}">★ ${escapeHtml(u.name)} <span class="lb-ut">(${Game.FOCUS_LABELS[u.type]} ${tierLabel}${u.auto ? "" : " — manual"})</span>${uActive ? " <span class=\"lb-live\">active</span>" : ""}
+           <div class="lb-utext">${escapeHtml(u.text)}</div></div>`
         : "";
       leaderRow = `<div class="leader-box"><div class="lb-head">${escapeHtml(myLeader.civ)}${myLeader.ability.manual ? ' <span class="lb-ut">(manual ability)</span>' : ""}</div>
          <div class="lb-ability">${escapeHtml(myLeader.ability.text)}</div>${uniqueLine}</div>`;
@@ -1605,7 +1610,7 @@ const UI = (() => {
           <div class="cr-side">
             <div class="cr-die def">${DICE[(c.defRoll || 1) - 1]}</div>
             <div class="cr-total">${c.defTotal}</div>
-            <div class="cr-lab">DEFENSE</div>
+            <div class="cr-lab">DEFENSE${c.defTrade ? ` <span class="leader-bonus">+${c.defTrade} trade</span>` : ""}</div>
             <div class="cr-bar"><i style="width:${defBar}%" class="def"></i></div>
           </div>
         </div>
@@ -1621,15 +1626,9 @@ const UI = (() => {
       return;
     }
     let actions = `<div class="wiz-actions">`;
-    const maxArmies = Game.CFG.maxArmies + (me && me.techTier >= 3 ? 1 : 0);
-    const maxCaravans = Game.CFG.maxCaravans + (me && me.techTier >= 3 ? 1 : 0);
-    if (me && me.armies.length < maxArmies) actions += `<button class="sm" id="wiz-recruit-army">Recruit Army</button>`;
-    if (me && me.caravans.length < maxCaravans) actions += `<button class="sm" id="wiz-recruit-caravan">Recruit Caravan</button>`;
     actions += `<button class="sm" id="wiz-gov">Assign Gov</button>`;
     actions += `<button id="wiz-end-turn">End Turn</button></div>`;
     dom.wizard.innerHTML = `<div class="wiz-title">Your Turn</div><div class="wiz-body">Select a <strong>focus card</strong> below to take an action.${me && me.cardPlayed ? "<br><em>Card already played this turn.</em>" : ""}</div>${actions}`;
-    document.getElementById("wiz-recruit-army")?.addEventListener("click", () => dispatch({ type: "RECRUIT_ARMY", payload: { playerId: localPlayerId } }));
-    document.getElementById("wiz-recruit-caravan")?.addEventListener("click", () => dispatch({ type: "RECRUIT_CARAVAN", payload: { playerId: localPlayerId } }));
     document.getElementById("wiz-gov")?.addEventListener("click", showGovPicker);
     document.getElementById("wiz-end-turn")?.addEventListener("click", () => dispatch({ type: "END_TURN", payload: { playerId: localPlayerId } }));
   }
@@ -1637,25 +1636,33 @@ const UI = (() => {
   function renderCardSelected(me) {
     const slot = Game.getSlotValue(me, sub.cardType, state);
     const tradeAvail = me.trade[sub.cardType];
+    // Military tokens are handed over during the combat itself, after both
+    // sides have rolled, so there is nothing to spend up front.
+    const spendsUpFront = sub.cardType !== "military";
+    const tradeBlock = spendsUpFront
+      ? `<div class="trade-counter">
+          <span>Spend:</span>
+          <button id="tc-dec" class="sm">-</button>
+          <span class="tc-val" id="tc-val">${sub.tradeSpent}</span>
+          <button id="tc-inc" class="sm">+</button>
+        </div>`
+      : `<div class="wiz-note">Spent during combat, after both dice.</div>`;
     dom.wizard.innerHTML = `
       <div class="wiz-title">${Game.FOCUS_LABELS[sub.cardType]} (Slot ${slot})</div>
       <div class="wiz-body">
         ${Game.FOCUS_TRADE_DESC[sub.cardType]}<br>
         Trade available: <strong>${tradeAvail}</strong>
-        <div class="trade-counter">
-          <span>Spend:</span>
-          <button id="tc-dec" class="sm">-</button>
-          <span class="tc-val" id="tc-val">${sub.tradeSpent}</span>
-          <button id="tc-inc" class="sm">+</button>
-        </div>
+        ${tradeBlock}
         ${getCardPreview(sub.cardType, me, slot)}
       </div>
       <div class="wiz-actions">
         <button class="primary" id="wiz-start">Start Action</button>
         <button class="ghost" id="wiz-cancel">Cancel</button>
       </div>`;
-    document.getElementById("tc-dec").addEventListener("click", () => { sub.tradeSpent = Math.max(0, sub.tradeSpent - 1); renderWizard(); });
-    document.getElementById("tc-inc").addEventListener("click", () => { sub.tradeSpent = Math.min(tradeAvail, sub.tradeSpent + 1); renderWizard(); });
+    if (spendsUpFront) {
+      document.getElementById("tc-dec").addEventListener("click", () => { sub.tradeSpent = Math.max(0, sub.tradeSpent - 1); renderWizard(); });
+      document.getElementById("tc-inc").addEventListener("click", () => { sub.tradeSpent = Math.min(tradeAvail, sub.tradeSpent + 1); renderWizard(); });
+    }
     document.getElementById("wiz-start").addEventListener("click", startAction);
     document.getElementById("wiz-cancel").addEventListener("click", cancelAction);
   }
@@ -1785,7 +1792,8 @@ const UI = (() => {
     const slot = Game.getSlotValue(me, "military", state);
     const tierBonus = Game.getMilitaryCombatBonus(me);
     const leaderBonus = Game.getLeaderAttackBonus(state, localPlayerId, ms.currentKey);
-    const totalAttack = slot + sub.tradeSpent + (sub.combatTradeSpent || 0);
+    const totalAttack = slot + (sub.combatTradeSpent || 0);
+    const defOwner = defender.ownerId ? Game.getPlayer(state, defender.ownerId) : null;
     const milTrade = me.trade.military;
     const myLeader = Game.getLeader(me);
 
@@ -1793,6 +1801,7 @@ const UI = (() => {
       <div class="wiz-title">Combat Preparation</div>
       <div class="wiz-body">
         <div>Defender: <strong style="color:#ef5350">${defender.label}</strong> (power ${defender.power})</div>
+        ${defOwner && defOwner.trade.military ? `<div class="wiz-note">They may answer with up to ${defOwner.trade.military} trade token(s).</div>` : ""}
         <div>Your attack: d6 + <strong>${totalAttack}</strong>${tierBonus ? ` +${tierBonus} tier` : ""}${leaderBonus ? ` <span class="leader-bonus">+${leaderBonus} ${myLeader ? myLeader.civ : "leader"}</span>` : ""}</div>
         <div style="margin-top:6px">Spend military trade for +1 combat each:</div>
         <div class="trade-counter">
@@ -1815,11 +1824,7 @@ const UI = (() => {
       sub.combatTradeSpent = Math.min(milTrade, (sub.combatTradeSpent || 0) + 1);
       renderWizard();
     });
-    document.getElementById("wiz-fight").addEventListener("click", () => {
-      const extraTrade = sub.combatTradeSpent || 0;
-      sub.tradeSpent += extraTrade;
-      endMovement();
-    });
+    document.getElementById("wiz-fight").addEventListener("click", endMovement);
     document.getElementById("wiz-retreat").addEventListener("click", () => {
       ms.currentKey = ms.startKey;
       endMovement();
@@ -1890,8 +1895,9 @@ const UI = (() => {
         flashHex(ms.currentKey, "rgb(239,83,80)", 800);
         dispatch({ type: "PLAY_MILITARY_ATTACK", payload: {
           playerId: localPlayerId, unitId: ms.unitId, toKey: ms.currentKey,
-          fromKey: ms.startKey, attackPower: slot + sub.tradeSpent,
-          defensePower: defender.power, defenderLabel: defender.label, tradeSpent: sub.tradeSpent
+          fromKey: ms.startKey, attackPower: slot + (sub.combatTradeSpent || 0),
+          defensePower: defender.power, defenderLabel: defender.label,
+          defenderOwnerId: defender.ownerId || null, tradeSpent: sub.combatTradeSpent || 0
         }});
       } else {
         dispatch({ type: "PLAY_MILITARY_MOVE", payload: {
@@ -1991,31 +1997,78 @@ const UI = (() => {
     document.getElementById("wiz-cancel-wonder").addEventListener("click", cancelAction);
   }
 
+  // A printed card face: the same layout the physical focus card uses, so what
+  // the card says on the table is what it says on screen.
+  const TIER_ROMAN = ["I", "II", "III", "IV"];
+
+  function renderCardFace(player, cardType, opts) {
+    const o = opts || {};
+    const tier = Game.getCardTier(player, cardType);
+    const slot = Game.getSlotValue(player, cardType, state);
+    const unique = Game.getActiveUniqueCard ? Game.getActiveUniqueCard(player, cardType) : null;
+    const name = Game.getCardName ? Game.getCardName(player, cardType) : Game.CARD_NAMES[cardType][tier - 1];
+    const printed = Game.getCardEffectText ? Game.getCardEffectText(player, cardType) : "";
+    // The figure allowance is printed on the card as its own line.
+    const def = (Game.CARD_DEFS[cardType] || {})[tier];
+    const figures = !unique && def && def.figures ? def.figures : "";
+    const maxT = Game.CFG.maxTrade;
+    const filled = player.trade[cardType] || 0;
+    let dots = "";
+    for (let i = 0; i < maxT; i++) {
+      dots += i < filled ? `<span class="trade-filled">●</span>` : `<span class="trade-empty">●</span>`;
+    }
+    const manual = unique && !unique.auto
+      ? `<div class="cface-manual">Special clause is a table rule — resolve it between you.</div>` : "";
+    return `<div class="cface type-${cardType}${unique ? " unique" : ""}${o.compact ? " compact" : ""}">
+      <div class="cface-head">
+        <span class="cface-icon">${Game.CARD_ICONS[cardType]}</span>
+        <span class="cface-type">${Game.FOCUS_LABELS[cardType]}</span>
+        <span class="cface-tier">${unique ? "★" : TIER_ROMAN[tier - 1]}</span>
+      </div>
+      <div class="cface-title">${escapeHtml(name)}</div>
+      <div class="cface-text">${escapeHtml(printed)}</div>
+      ${figures ? `<div class="cface-figures">${escapeHtml(figures)}</div>` : ""}
+      ${manual}
+      <div class="cface-foot">
+        <span class="cface-dots">${dots}</span>
+        <span class="cface-trade">${escapeHtml(Game.FOCUS_TRADE_DESC[cardType])}</span>
+      </div>
+      <div class="cface-slot">Focus slot ${slot}</div>
+    </div>`;
+  }
+
   function getCardPreview(cardType, player, slot) {
     const spend = sub.tradeSpent;
-    const tier = Game.getCardTier(player, cardType);
+    const face = renderCardFace(player, cardType);
+    // What this particular play resolves to, given the tokens being spent.
+    // Trade tokens do only what the card's trade track says they do.
+    let outcome = "";
     switch (cardType) {
       case "culture": {
         const markers = Game.getCultureMarkers(player, spend, state);
-        return `Markers to place: <strong>${markers}</strong> (terrain ≤ ${slot + spend}) [Tier ${tier}]`;
+        outcome = `Markers to place: <strong>${markers}</strong> (terrain ≤ ${slot})`;
+        break;
       }
-      case "growth": return `Place 1 district or reinforce ${slot + spend} markers. [Tier ${tier}]`;
-      case "science": return `Advance tech by <strong>${slot + spend}</strong>. Current: ${player.tech}/${Game.CFG.techWheelSize} [Tier ${tier}]`;
-      case "economy": {
-        const move = Game.getEconomyMove(player, state) + spend;
-        return `Move caravan up to <strong>${move}</strong> hexes. [Tier ${tier}]`;
-      }
+      case "growth":
+        outcome = `Place 1 district (terrain ≤ ${slot}), or reinforce <strong>${slot + spend}</strong> markers.`;
+        break;
+      case "science":
+        outcome = `Advance tech by <strong>${slot + spend}</strong>. Current: ${player.tech}/${Game.CFG.techWheelSize}`;
+        break;
+      case "economy":
+        outcome = `Move each caravan up to <strong>${Game.getEconomyMove(player, state) + spend}</strong> spaces.`;
+        break;
       case "military": {
-        const move = Game.getMilitaryMove(player) + spend;
         const combatBonus = Game.getMilitaryCombatBonus(player);
-        return `Move army up to <strong>${move}</strong> hexes. Combat: d6 + ${slot + spend}${combatBonus ? ` +${combatBonus} tier` : ""} [Tier ${tier}]`;
+        outcome = `Move each army up to <strong>${Game.getMilitaryMove(player)}</strong> spaces. ` +
+          `Combat: d6 + ${slot}${combatBonus ? ` +${combatBonus} tier` : ""}, plus any tokens spent in the fight.`;
+        break;
       }
-      case "industry": {
-        const range = Game.getCityRange(player);
-        return `Production: <strong>${slot + spend}</strong>. City range: ${range}. [Tier ${tier}]`;
-      }
-      default: return "";
+      case "industry":
+        outcome = `Production: <strong>${slot + spend}</strong>. City range: ${Game.getCityRange(player)}.`;
+        break;
     }
+    return `${face}<div class="cface-outcome">${outcome}</div>`;
   }
 
   // ── Action Logic ──────────────────────────────────────────
@@ -2031,11 +2084,10 @@ const UI = (() => {
     }
     if (sub.cardType === "culture") {
       sub.phase = "placing_control";
-      const effectiveSlot = slot + sub.tradeSpent;
       sub.remaining = Game.getCultureMarkers(me, sub.tradeSpent, state);
       sub.totalMarkers = sub.remaining;
       sub.placedKeys = [];
-      sub.validHexes = Game.validControlHexes(state, localPlayerId, effectiveSlot);
+      sub.validHexes = Game.validControlHexes(state, localPlayerId, slot);
       render(); return;
     }
     if (sub.cardType === "growth") { sub.phase = "growth_choice"; renderWizard(); return; }
@@ -2062,7 +2114,7 @@ const UI = (() => {
     const me = Game.getPlayer(state, localPlayerId);
     const slot = Game.getSlotValue(me, "growth", state);
     sub.phase = "placing_district";
-    sub.validHexes = Game.validDistrictHexes(state, localPlayerId, slot + sub.tradeSpent);
+    sub.validHexes = Game.validDistrictHexes(state, localPlayerId, slot);
     render();
   }
 
@@ -2149,7 +2201,7 @@ const UI = (() => {
       sub.placedKeys.push(hexKey);
       sub.remaining--;
       sub.validHexes.delete(hexKey);
-      const effectiveSlot = (Game.getSlotValue(me, "culture", state) || 1) + (sub.tradeSpent || 0);
+      const effectiveSlot = Game.getSlotValue(me, "culture", state) || 1;
       Game.hexNeighborKeys(Game.parseQ(hexKey), Game.parseR(hexKey)).forEach((nk) => {
         if (sub.placedKeys.includes(nk)) return;
         const nh = state.map.hexes[nk];
@@ -2217,7 +2269,7 @@ const UI = (() => {
         const unit = me.armies.find((u) => u.position === hexKey);
         if (!unit) return;
         sub.selectedUnit = unit;
-        const maxMove = Game.getMilitaryMove(me) + sub.tradeSpent;
+        const maxMove = Game.getMilitaryMove(me);
         sub.movementState = { unitType: "army", unitId: unit.id, maxMove, remaining: maxMove, currentKey: hexKey, startKey: hexKey, explored: false };
         sub.validHexes = Game.getReachable(state, hexKey, maxMove, "army", localPlayerId);
         render();
@@ -2440,20 +2492,19 @@ const UI = (() => {
     document.querySelectorAll(".fcard").forEach((el) => {
       const cardType = el.dataset.card;
       el.addEventListener("mouseenter", () => {
-        const slot = Game.getSlotValue(me, cardType, state);
-        const uc = Game.getActiveUniqueCard ? Game.getActiveUniqueCard(me, cardType) : null;
-        const name = Game.getCardName ? Game.getCardName(me, cardType) : Game.CARD_NAMES[cardType][Game.getCardTier(me, cardType) - 1];
-        const printed = Game.getCardEffectText ? Game.getCardEffectText(me, cardType) : "";
-        const desc = uc
-          ? `${uc.text}${uc.auto ? "" : "<br><em>Special clause is a table rule — resolve manually.</em>"}`
-          : `${printed ? printed + "<br>" : ""}<em>${Game.FOCUS_TRADE_DESC[cardType]}</em>`;
-        dom.mapTooltip.innerHTML = `<strong>${uc ? "★ " : ""}${name}</strong> (Power: ${slot})<br>${desc}`;
+        dom.mapTooltip.innerHTML = renderCardFace(me, cardType);
+        dom.mapTooltip.classList.add("card-face");
         dom.mapTooltip.classList.remove("hidden");
         const rect = el.getBoundingClientRect();
-        dom.mapTooltip.style.left = rect.left + "px";
-        dom.mapTooltip.style.top = (rect.top - 60) + "px";
+        const tip = dom.mapTooltip.getBoundingClientRect();
+        const left = Math.min(Math.max(4, rect.left), window.innerWidth - tip.width - 8);
+        dom.mapTooltip.style.left = left + "px";
+        dom.mapTooltip.style.top = Math.max(4, rect.top - tip.height - 8) + "px";
       });
-      el.addEventListener("mouseleave", () => { dom.mapTooltip.classList.add("hidden"); });
+      el.addEventListener("mouseleave", () => {
+        dom.mapTooltip.classList.add("hidden");
+        dom.mapTooltip.classList.remove("card-face");
+      });
     });
 
     if (canPlay) {
@@ -2498,5 +2549,5 @@ const UI = (() => {
   }
 
   document.addEventListener("DOMContentLoaded", init);
-  return { render, dispatch };
+  return { render, dispatch, renderCardFace };
 })();
