@@ -84,8 +84,14 @@ const Game = (() => {
     theater: "place 1 control within 2 of district"
   };
   const RESOURCES = ["marble", "mercury", "oil", "diamonds"];
-  const EVENTS = ["barbarian_spawn", "barbarian_move", "district_event", "gov_change", "wonder_aging"];
-  const EVENT_LABELS = { barbarian_spawn: "Barbarian Spawn", barbarian_move: "Barbarian Move", district_event: "District Event", gov_change: "Government Change", wonder_aging: "Wonder Aging" };
+  const EVENTS = [
+    "barbarian_move", null, "trade", "district_event", null,
+    "barbarian_move", "gov_change", null, "trade", "barbarian_return"
+  ];
+  const EVENT_LABELS = {
+    barbarian_move: "Barbarians Move", barbarian_return: "Barbarians Appear",
+    trade: "Trade", district_event: "Districts", gov_change: "Government Change"
+  };
   const CITY_NAMES = Object.keys(CITY_STATE_DATA).length
     ? Object.keys(CITY_STATE_DATA)
     : ["Akkad", "Seoul", "Buenos Aires", "Venice", "Kabul", "Geneva", "Nan Madol", "Brussels", "Preslav", "Carthage", "Valletta", "Antananarivo"];
@@ -102,7 +108,7 @@ const Game = (() => {
     fortressDefense: 6,
     resourceProdValue: 2,
     techWheelSize: 24,
-    techResetAt: 15,
+    techResetAt: 15,   // past space 24 the arrow jumps straight here (Terra p15)
     maxRounds: 20,
     minPlayers: 2,
     maxPlayers: 4,
@@ -314,6 +320,7 @@ const Game = (() => {
       if (cell.barbarian) {
         hex.barbarian = true;
         hex.barbarianId = cell.barbarian;
+        hex.barbarianHome = cell.barbarian;   // printed on the tile; never moves
       }
       if (cell.feature === "capital" && tile.ownerId) {
         hex.terrain = hex.terrain === "water" ? "grass" : hex.terrain;
@@ -919,14 +926,23 @@ const Game = (() => {
     // --- Playing phase actions ---
 
     if (type.startsWith("PLAY_") || type === "END_TURN" ||
-        type === "ASSIGN_GOV") {
+        type === "END_FOCUS_CARD" || type === "ASSIGN_GOV") {
       if (st.phase !== "playing") return st;
     }
-    if (type.startsWith("PLAY_") || type === "END_TURN") {
+    if (type.startsWith("PLAY_") || type === "END_TURN" || type === "END_FOCUS_CARD") {
       const cp = currentPlayer(st);
       if (!cp) return st;
       if (payload.playerId && cp.id !== payload.playerId) return st;
       if (!payload.playerId) payload.playerId = cp.id;
+    }
+
+    if (type.startsWith("PLAY_") && st.activeCard && st.activeCard.playerId === payload.playerId) {
+      const wanted = type === "PLAY_ECONOMY" ? "economy"
+        : type.startsWith("PLAY_MILITARY") ? "military" : null;
+      if (wanted !== st.activeCard.cardType) return st;
+      const list = wanted === "economy" ? player0(st, payload).caravans : player0(st, payload).armies;
+      const u = (list || []).find((x) => x.id === payload.unitId);
+      if (!u || u.movedThisCard) return st;
     }
 
     if (type === "PLAY_CULTURE") {
@@ -1020,15 +1036,16 @@ const Game = (() => {
       const player = getPlayer(st, payload.playerId);
       if (!player || player.cardPlayed) return st;
       const unit = player.caravans.find((u) => u.id === payload.unitId);
-      if (!unit || !unit.position) return st;
+      if (!unit) return st;
       const ecoHex = st.map.hexes[payload.toKey];
       if (!ecoHex || !ecoHex.active) return st;
       // Rome: a caravan leaving the economy card may set out from any friendly city.
-      let startKey = unit.position;
-      if (payload.startKey && payload.startKey !== unit.position && hasLeader(player, "rome")) {
+      let startKey = unit.position || findCapital(st, payload.playerId);
+      if (payload.startKey && payload.startKey !== startKey && hasLeader(player, "rome")) {
         const sh = st.map.hexes[payload.startKey];
         if (sh && sh.city && sh.city.ownerId === payload.playerId) startKey = payload.startKey;
       }
+      if (!startKey) return st;
       const reachable = getReachable(st, startKey, getEconomyMove(player, st) + (payload.tradeSpent || 0), "caravan", payload.playerId);
       if (!reachable.has(payload.toKey)) return st;
       unit.position = payload.toKey;
@@ -1044,6 +1061,13 @@ const Game = (() => {
           options: RESOURCES.map((r) => ({ id: r, label: r }))
         });
       };
+      const arrival = hex && (hex.cityState || (hex.city && hex.city.ownerId !== payload.playerId))
+        ? payload.toKey : null;
+      if (arrival) {
+        player.citiesTradedThisTurn = player.citiesTradedThisTurn || [];
+        if (player.citiesTradedThisTurn.includes(arrival)) return st;   // p9
+        player.citiesTradedThisTurn.push(arrival);
+      }
       if (hex && hex.cityState) {
         const tradeType = hex.cityState.type;
         if (player.trade[tradeType] !== undefined) {
@@ -1059,13 +1083,15 @@ const Game = (() => {
             options: FOCUS_TYPES.map((f) => ({ id: f, label: FOCUS_LABELS[f] }))
           });
         }
-        const capKey = findCapital(st, payload.playerId);
-        unit.position = capKey;
-        log(st, `${player.name}'s caravan traded at ${hex.cityState.name} (+${tradeGain} ${tradeType} trade). Returned to capital.`);
+        unit.position = null;   // back onto the economy card
+        log(st, `${player.name}'s caravan traded at ${hex.cityState.name} (+${tradeGain} ${tradeType} trade). Back to the economy card.`);
       } else if (hex && hex.city && hex.city.ownerId !== payload.playerId) {
-        const tradeType = payload.tradeType || "economy";
-        if (player.trade[tradeType] !== undefined) {
-          player.trade[tradeType] = Math.min(CFG.maxTrade, player.trade[tradeType] + tradeGain);
+        for (let i = 0; i < tradeGain; i++) {
+          queuePendingChoice(st, {
+            kind: "trade_any", playerId: player.id, amount: 1,
+            title: `Trade run: place token ${i + 1} of ${tradeGain}`,
+            options: FOCUS_TYPES.map((f) => ({ id: f, label: FOCUS_LABELS[f] }))
+          });
         }
         grantPlayerDiplomacy(st, player, hex.city.ownerId);
         queueWheel();
@@ -1086,13 +1112,14 @@ const Game = (() => {
             options: RESOURCES.map((r) => ({ id: r, label: r }))
           });
         }
-        const capKey = findCapital(st, payload.playerId);
-        unit.position = capKey;
-        log(st, `${player.name}'s caravan traded at foreign city (+${tradeGain} ${tradeType} trade). Returned to capital.`);
+        unit.position = null;   // back onto the economy card
+        log(st, `${player.name}'s caravan traded at a rival city (+${tradeGain} trade to place). Back to the economy card.`);
       } else {
         log(st, `${player.name} moved caravan.`);
       }
-      resolveCard(st, player, "economy", payload.tradeSpent);
+      unit.movedThisCard = true;
+      st.activeCard = { playerId: player.id, cardType: "economy", tradeSpent: payload.tradeSpent || 0 };
+      if (!unitsLeftToMove(player, "economy")) finishActiveCard(st);
       return st;
     }
 
@@ -1106,7 +1133,9 @@ const Game = (() => {
       const reachable = getReachable(st, unit.position, getMilitaryMove(player), "army", payload.playerId);
       if (!reachable.has(payload.toKey)) return st;
       unit.position = payload.toKey; log(st, `${player.name} moved army.`);
-      resolveCard(st, player, "military", payload.tradeSpent);
+      unit.movedThisCard = true;
+      st.activeCard = { playerId: player.id, cardType: "military", tradeSpent: payload.tradeSpent || 0 };
+      if (!unitsLeftToMove(player, "military")) finishActiveCard(st);
       return st;
     }
 
@@ -1228,8 +1257,13 @@ const Game = (() => {
         unit.position = null;
         log(st, `${player.name} lost combat vs ${payload.defenderLabel}. (${atkTotal} vs ${defTotal})`);
       }
-      resolveCard(st, player, "military", payload.tradeSpent);
+      unit.movedThisCard = true;
+      st.activeCard = {
+        playerId: player.id, cardType: "military",
+        tradeSpent: (st.activeCard && st.activeCard.cardType === "military" ? st.activeCard.tradeSpent : 0) + (payload.tradeSpent || 0)
+      };
       checkDevelopment(st, payload.playerId);
+      if (!unitsLeftToMove(player, "military")) finishActiveCard(st);
       return st;
     }
 
@@ -1366,9 +1400,22 @@ const Game = (() => {
       return st;
     }
 
+    if (type === "END_FOCUS_CARD") {
+      if (st.activeCard && st.activeCard.playerId === payload.playerId) finishActiveCard(st);
+      return st;
+    }
+
     if (type === "END_TURN") {
+      // A card left mid-play still counts as played; it must never carry over.
+      if (st.activeCard) finishActiveCard(st);
       const cp = currentPlayer(st);
-      if (cp) { cp.cardPlayed = false; cp.wonAttackThisTurn = false; }
+      if (cp) {
+        cp.cardPlayed = false;
+        cp.wonAttackThisTurn = false;
+        cp.citiesTradedThisTurn = [];
+        (cp.caravans || []).forEach((u) => { u.movedThisCard = false; });
+        (cp.armies || []).forEach((u) => { u.movedThisCard = false; });
+      }
       st.turn.index = (st.turn.index + 1) % st.turn.order.length;
       st.lastCombat = null;
       // Ottoman: at the start of their turn they may hand out the Ibrahim card.
@@ -1427,6 +1474,26 @@ const Game = (() => {
 
   // --- Card Resolution ---
 
+  // An economy or military card moves every figure of its kind, so the card is
+  // only spent once all of them have had their move (or the player says stop).
+  const player0 = (st, payload) => getPlayer(st, payload.playerId) || { caravans: [], armies: [] };
+
+  function unitsLeftToMove(player, cardType) {
+    const list = cardType === "economy" ? player.caravans : player.armies;
+    return (list || []).filter((u) => !u.movedThisCard).length;
+  }
+
+  function finishActiveCard(st) {
+    const active = st.activeCard;
+    if (!active) return;
+    const player = getPlayer(st, active.playerId);
+    st.activeCard = null;
+    if (!player) return;
+    (player.caravans || []).forEach((u) => { u.movedThisCard = false; });
+    (player.armies || []).forEach((u) => { u.movedThisCard = false; });
+    resolveCard(st, player, active.cardType, active.tradeSpent);
+  }
+
   function resolveCard(st, player, cardType, tradeSpent) {
     const idx = player.focusRow.indexOf(cardType);
     if (idx >= 0) {
@@ -1478,24 +1545,49 @@ const Game = (() => {
     }
   }
 
+  // Spaces on the tech dial that carry a technology level. Reaching or passing
+  // one lets you swap in a focus card of exactly that level. The rulebook does
+  // not number the spaces in text, so the positions here are evenly spread —
+  // but level IV sits on 24, which the "past 24 go back to 15" rule requires.
+  const TECH_LEVEL_SPACES = { 8: 2, 16: 3, 24: 4 };
+
   function advanceTech(st, player, amount) {
-    player.tech += amount;
-    if (player.tech >= CFG.techWheelSize) {
-      player.tech = player.tech - CFG.techResetAt;
-      player.techTier = Math.min(4, player.techTier + 1);
-      const upgradeOptions = FOCUS_TYPES.filter((f) => (player.cardTiers[f] || 1) < 4);
-      if (upgradeOptions.length) {
-        queuePendingChoice(st, {
-          kind: "science_upgrade",
-          playerId: player.id,
-          title: "Upgrade Focus Card",
-          options: upgradeOptions.map((f) => ({ id: f, label: `${FOCUS_LABELS[f]} to tier ${(player.cardTiers[f] || 1) + 1}` }))
-        });
-      }
-      log(st, `${player.name} advanced to tech tier ${player.techTier}!`);
-    } else {
-      log(st, `${player.name} advanced tech by ${amount}. (${player.tech}/${CFG.techWheelSize})`);
+    if (!(amount > 0)) return;
+    const before = player.tech;
+    let after = before + amount;
+
+    // Crossing more than one level space in a single turn grants both (Terra p15).
+    const reached = [];
+    Object.entries(TECH_LEVEL_SPACES).forEach(([space, level]) => {
+      const n = Number(space);
+      if (n > before && n <= after) reached.push(level);
+    });
+
+    if (after > CFG.techWheelSize) {
+      // The arrow does not wrap by the overshoot — it goes directly to 15, so
+      // the 15-24 stretch can be run again for further level IV cards.
+      after = CFG.techResetAt;
     }
+    player.tech = after;
+
+    reached.sort((a, b) => a - b).forEach((level) => {
+      player.techTier = Math.max(player.techTier || 1, level);
+      const options = FOCUS_TYPES.filter((f) => (player.cardTiers[f] || 1) < level);
+      if (!options.length) {
+        log(st, `${player.name} reached technology level ${level} with nothing left to upgrade.`);
+        return;
+      }
+      queuePendingChoice(st, {
+        kind: "science_upgrade",
+        playerId: player.id,
+        techLevel: level,
+        title: `Technology Level ${level}: Take a Card`,
+        options: options.map((f) => ({ id: f, label: `${FOCUS_LABELS[f]} \u2192 tier ${level}` }))
+      });
+      log(st, `${player.name} reached technology level ${level}!`);
+    });
+
+    log(st, `${player.name} advanced tech by ${amount}. (${player.tech}/${CFG.techWheelSize})`);
   }
 
   function spendResources(player, resources) {
@@ -1537,13 +1629,30 @@ const Game = (() => {
       const curTier = player.cardTiers[cardType] || 1;
       if (FOCUS_TYPES.includes(cardType) && curTier < 4 &&
           (!choice.onlyTier || curTier === choice.onlyTier)) {
-        player.cardTiers[cardType] = (player.cardTiers[cardType] || 1) + 1;
+        // A tech level hands you a card of exactly that level, not the next one
+        // up (p8). Wonder-driven upgrades carry no level, so they step by one.
+        player.cardTiers[cardType] = choice.techLevel
+          ? Math.max(curTier, Math.min(4, choice.techLevel))
+          : curTier + 1;
         player.cardLevels[cardType] = player.cardTiers[cardType];
         if (cardType === "military" || cardType === "economy") syncUnitCounts(st, player);
         log(st, `${player.name} upgraded ${FOCUS_LABELS[cardType]} to tier ${player.cardTiers[cardType]}.`);
         // Multi-card wonders queue their next prompt only now, so it lists the
         // tiers as they stand after this upgrade.
         if (choice.chain) queueCardUpgrade(st, player, choice.chain);
+        resolved = true;
+      }
+    } else if (choice.kind === "take_diplomacy") {
+      const cardId = payload.optionId;
+      const card = DIPLOMACY_CARDS[cardId];
+      if (card) {
+        // Swapping returns the card you held before taking the new one.
+        player.diplomacy = (player.diplomacy || []).filter((d) => d.fromId !== choice.fromId);
+        player.diplomacy.push({
+          fromId: choice.fromId, cardId, name: card.name, type: cardId, effect: card.effect
+        });
+        const src = getPlayer(st, choice.fromId);
+        log(st, `${player.name} took ${card.name} from ${src ? src.name : "a rival"}.`);
         resolved = true;
       }
     } else if (choice.kind === "trade_any") {
@@ -1762,14 +1871,26 @@ const Game = (() => {
   }
 
   function grantPlayerDiplomacy(st, player, sourcePlayerId) {
-    if ((player.diplomacy || []).some((d) => d.fromId === sourcePlayerId)) return false;
     const source = getPlayer(st, sourcePlayerId);
     if (!source) return false;
+    const held = (player.diplomacy || []).find((d) => d.fromId === sourcePlayerId);
     const cardIds = Object.keys(DIPLOMACY_CARDS);
-    const cardId = cardIds[0] || "embassy";
-    const card = DIPLOMACY_CARDS[cardId] || { name: "Diplomacy", effect: "Manual diplomacy effect" };
-    player.diplomacy.push({ fromId: sourcePlayerId, cardId, name: card.name, type: cardId, effect: card.effect });
-    log(st, `${player.name} gained a diplomacy card from ${source.name}.`);
+    const taken = new Set(
+      st.players.flatMap((p) => (p.diplomacy || [])
+        .filter((d) => d.fromId === sourcePlayerId).map((d) => d.cardId))
+    );
+    // Each rival has four cards; you may not take one already in someone's hand,
+    // and the one you hold is only on offer as a swap.
+    const offer = cardIds.filter((id) => !taken.has(id) || (held && held.cardId === id));
+    if (!offer.length) return false;
+    queuePendingChoice(st, {
+      kind: "take_diplomacy", playerId: player.id, fromId: sourcePlayerId,
+      title: `Diplomacy with ${source.name}`,
+      options: offer.map((id) => ({
+        id,
+        label: DIPLOMACY_CARDS[id].name + (held && held.cardId === id ? " (keep)" : "")
+      }))
+    });
     return true;
   }
 
@@ -1796,41 +1917,125 @@ const Game = (() => {
     const wheel = st.eventWheel;
     wheel.position = (wheel.position + 1) % wheel.events.length;
     const evt = wheel.events[wheel.position];
+    if (!evt) { log(st, "The event dial turns to a blank space."); return; }
     log(st, `Event: ${EVENT_LABELS[evt]}`);
     resolveEvent(st, evt);
   }
 
-  function resolveEvent(st, evt) {
-    if (evt === "barbarian_spawn") {
-      const candidates = Object.keys(st.map.hexes).filter((k) => {
-        const h = st.map.hexes[k];
-        return h.active && h.terrain !== "water" && !h.city && !h.cityState && !h.barbarian && !h.control;
+  // Barbarian movement, base rulebook p12. One die roll sets the direction for
+  // every barbarian on the map; each then walks a single space, with water and
+  // the map edge handled before anything on the destination is touched.
+  function moveBarbarians(st) {
+    const barbs = Object.entries(st.map.hexes).filter(([, h]) => h.barbarian);
+    if (!barbs.length) return;
+    const roll = rollDie();
+    let dir = HEX_DIRS[roll - 1];
+    log(st, `Barbarians march (rolled ${roll}).`);
+
+    // A barbarian may not stop on water: it keeps going the same way until it
+    // reaches land. Walking off the edge sends it the opposite way instead.
+    function destination(fromKey) {
+      const from = st.map.hexes[fromKey];
+      for (const d of [dir, { dq: -dir.dq, dr: -dir.dr }]) {
+        let q = from.q, r = from.r;
+        for (let step = 0; step < CFG.mapRadius * 2 + 2; step++) {
+          q += d.dq; r += d.dr;
+          const h = st.map.hexes[key(q, r)];
+          if (!h || !h.active) break;            // off the map — try the other way
+          if (h.terrain === "water") continue;   // can't stop here, keep walking
+          return key(q, r);
+        }
+      }
+      return null;
+    }
+
+    let moved = 0;
+    barbs.forEach(([fromKey]) => {
+      const from = st.map.hexes[fromKey];
+      if (!from.barbarian) return;               // already displaced this pass
+      const toKey = destination(fromKey);
+      if (!toKey) return;
+      const target = st.map.hexes[toKey];
+      if (target.barbarian) return;              // one barbarian per space
+
+      const owner = hexOwnerAt(st, toKey);
+      const ownerPlayer = owner ? getPlayer(st, owner) : null;
+
+      // A reinforced marker or a capital turns the raid back: the barbarian
+      // stays where it started.
+      if (target.control && target.control.fortified) {
+        target.control.fortified = false;
+        log(st, `Barbarians battered a reinforced control marker at ${toKey}.`);
+        return;
+      }
+      if (target.city && target.city.isCapital) {
+        if (ownerPlayer) {
+          let taken = 0;
+          for (const f of FOCUS_TYPES) {
+            while (taken < 2 && ownerPlayer.trade[f] > 0) { ownerPlayer.trade[f]--; taken++; }
+            if (taken >= 2) break;
+          }
+          log(st, `Barbarians raided ${ownerPlayer.name}'s capital (-${taken} trade).`);
+        }
+        return;
+      }
+
+      // Everything else is overrun.
+      from.barbarian = false;
+      target.barbarian = true;
+      target.barbarianId = from.barbarianId;
+      from.barbarianId = null;
+      moved++;
+
+      st.players.forEach((p) => {
+        p.caravans.forEach((u) => {
+          if (u.position !== toKey) return;
+          u.position = null;                     // back onto the economy card
+          log(st, `Barbarians destroyed ${p.name}'s caravan.`);
+        });
       });
-      const count = Math.min(rollDie() <= 3 ? 1 : 2, candidates.length);
-      pickRandom(candidates, count).forEach((k) => { st.map.hexes[k].barbarian = true; });
-      if (count > 0) log(st, `${count} barbarian(s) spawned.`);
+      if (target.control) {
+        target.control = null;
+        log(st, `Barbarians destroyed a control marker at ${toKey}.`);
+      }
+      if (target.city && !target.city.isCapital) {
+        // A wonder marker stays on the space when its city falls (p13).
+        target.city = null;
+        target.developed = false;
+        log(st, `Barbarians razed a city at ${toKey}.`);
+      }
+    });
+    if (moved) log(st, `${moved} barbarian(s) moved.`);
+  }
+
+  function resolveEvent(st, evt) {
+    if (evt === "barbarian_return") {
+      const onBoard = new Set();
+      Object.values(st.map.hexes).forEach((h) => { if (h.barbarian && h.barbarianId) onBoard.add(h.barbarianId); });
+      let back = 0;
+      Object.entries(st.map.hexes).forEach(([k, h]) => {
+        if (!h.barbarianHome || onBoard.has(h.barbarianHome)) return;
+        if (!h.active || h.barbarian || h.terrain === "water") return;
+        // p12: the space has to be empty, or hold nothing but a caravan — and
+        // that caravan is destroyed. Anything else and the barbarian waits
+        // outside the map for its next chance.
+        if (h.city || h.cityState || h.control || (h.fortress && !h.city)) return;
+        st.players.forEach((p) => {
+          p.caravans.forEach((u) => {
+            if (u.position !== k) return;
+            u.position = null;
+            log(st, `A returning barbarian destroyed ${p.name}'s caravan.`);
+          });
+        });
+        h.barbarian = true;
+        h.barbarianId = h.barbarianHome;
+        onBoard.add(h.barbarianHome);
+        back++;
+      });
+      log(st, back ? `${back} defeated barbarian(s) returned.` : "No barbarians to return.");
     }
     if (evt === "barbarian_move") {
-      const barbs = Object.entries(st.map.hexes).filter(([, h]) => h.barbarian);
-      let moved = 0;
-      barbs.forEach(([k, hex]) => {
-        const dir = HEX_DIRS[Math.floor(Math.random() * 6)];
-        const tk = key(hex.q + dir.dq, hex.r + dir.dr);
-        const target = st.map.hexes[tk];
-        if (!target || !target.active || target.terrain === "water") return;
-        hex.barbarian = false;
-        if (target.control && !target.control.fortified) {
-          target.control = null;
-          target.barbarian = true;
-          log(st, "Barbarian destroyed a control marker!");
-        } else if (target.control && target.control.fortified) {
-          target.control.fortified = false;
-        } else if (!target.barbarian && !target.city) {
-          target.barbarian = true;
-        }
-        moved++;
-      });
-      if (moved) log(st, `${moved} barbarian(s) moved.`);
+      moveBarbarians(st);
     }
     if (evt === "district_event") {
       st.turn.order.map((id) => getPlayer(st, id)).filter(Boolean).forEach((player) => {
@@ -1841,16 +2046,19 @@ const Game = (() => {
           }
         });
 
-        // Campus: +1 trade (science) per adjacent mountain/wonder, max 3 per campus
+        // Campus (Terra p20): 1 science trade for every friendly space with a
+        // mountain or a natural wonder that is in or adjacent to the campus.
+        // The only cap is the three-per-card limit further down.
         if (districtHexes.campus.length) {
+          const friendly = (h) => !!h && ((h.control && h.control.ownerId === player.id) ||
+            (h.city && h.city.ownerId === player.id));
+          const scores = (h) => friendly(h) && (h.terrain === "mountain" || h.resource === "wonder" || !!h.naturalWonder);
           let total = 0;
           districtHexes.campus.forEach((dk) => {
-            let adjCount = 0;
+            if (scores(st.map.hexes[dk])) total++;
             hexNeighborKeys(parseQ(dk), parseR(dk)).forEach((nk) => {
-              const nh = st.map.hexes[nk];
-              if (nh && (nh.terrain === "mountain" || nh.resource === "wonder")) adjCount++;
+              if (scores(st.map.hexes[nk])) total++;
             });
-            total += Math.min(3, adjCount);
           });
           if (total > 0) {
             player.trade.science = Math.min(CFG.maxTrade, player.trade.science + total);
@@ -1940,10 +2148,22 @@ const Game = (() => {
       });
     }
     if (evt === "gov_change") log(st, "Players may reassign gov markers.");
-    if (evt === "wonder_aging") {
-      let wc = 0;
-      Object.values(st.map.hexes).forEach((h) => { if (h.city && h.city.hasWonder) wc++; });
-      if (wc) log(st, `${wc} wonder(s) on the map.`);
+    if (evt === "trade") {
+      st.turn.order.map((id) => getPlayer(st, id)).filter(Boolean).forEach((player) => {
+        let developed = 0;
+        Object.values(st.map.hexes).forEach((h) => {
+          if (h.city && h.city.ownerId === player.id && h.city.developed) developed++;
+        });
+        if (!developed) return;
+        for (let i = 0; i < developed; i++) {
+          queuePendingChoice(st, {
+            kind: "trade_any", playerId: player.id, amount: 1,
+            title: `Trade: place token ${i + 1} of ${developed}`,
+            options: FOCUS_TYPES.map((f) => ({ id: f, label: FOCUS_LABELS[f] }))
+          });
+        }
+        log(st, `${player.name} earns ${developed} trade token(s) from developed cities.`);
+      });
     }
   }
 
@@ -2862,7 +3082,7 @@ const Game = (() => {
     DISTRICTS, DISTRICT_LABELS, DISTRICT_EFFECTS, RESOURCES, EVENTS, EVENT_LABELS, CFG,
     WONDERS, ALL_WONDERS, WONDER_ERAS, CARD_TIERS, AGENDA_CARDS, DIPLOMACY_CARDS, CITY_STATE_DATA,
     LEADERS, getLeader, getLeaderAttackBonus, getCardName, getActiveUniqueCard,
-    CARD_DEFS, getCardEffectText, syncUnitCounts,
+    CARD_DEFS, getCardEffectText, syncUnitCounts, advanceTech, resolveEvent,
     hasWonder, getWonderAttackBonus, getWonderDefenseBonus,
     TILE_OFFSETS, getCoreAnchors,
     createState, createLobbyState, createPlayer, migrateState, applyAction, currentPlayer, getPlayer,

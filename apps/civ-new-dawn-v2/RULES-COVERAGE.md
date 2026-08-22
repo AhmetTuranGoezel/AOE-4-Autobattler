@@ -75,6 +75,65 @@ token" got wrong, and it was wrong in both the engine and the UI.
 - A tile is one physical object: choosing a side consumes the other, so the same
   city-state or natural wonder can never appear twice.
 
+### Playing a card (base p6)
+
+- The played card leaves the row, every card on a **lower** slot shifts one right,
+  and the played card returns to slot 1. Cards on higher slots do not move.
+- **Economy and military cards move every figure you have**, not one. The card is
+  only spent once each has moved or you stop early — `st.activeCard` holds it open
+  and `END_FOCUS_CARD` closes it.
+- No more than one caravan may reach the same city or city-state in a turn (p9).
+
+### Caravans (base p9)
+
+- A caravan that reaches a city-state or rival city goes **back onto the economy
+  card**, and sets out again from a friendly city — the capital normally, any of
+  your cities as Rome.
+- 2 trade tokens on arrival: on the matching card for a city-state, spread over
+  **any cards you choose** for a rival city.
+- A diplomacy card on arrival: the city-state's own card if a copy is left (two
+  copies exist per city-state), or a **choice** among that rival's cards, with the
+  option to swap the one you already hold.
+
+### The technology dial (base p8, Terra p15)
+
+- The science card advances the arrow by its slot number.
+- Reaching a level lets you take a card of **exactly that level**, not one step up.
+- Crossing two level spaces in one turn grants **both**.
+- Past space 24 the arrow goes **directly to 15**, so the tail can be run again for
+  further level IV cards.
+
+### The event wheel (base p12)
+
+- Turned one segment at the end of each round, before the start player's turn.
+- **Blank segments do nothing** — not every round fires an event.
+- *Trade*: every player takes one token per **developed city** and places them
+  where they like.
+- *Barbarians appear*: every **defeated** barbarian returns to its printed space,
+  if that space is empty or holds only a caravan (which is destroyed).
+- *Districts* and *government change* resolve clockwise from the start player.
+
+### Barbarians (base p12)
+
+- **One die roll steers every barbarian**; each moves a single space that way.
+- Water cannot be stopped on — the barbarian keeps going until it reaches land.
+- Walking off the map edge sends it the **opposite** direction instead.
+- On arrival: a caravan is destroyed and returns to its economy card; an
+  unreinforced marker or non-capital city is destroyed; a **reinforced marker is
+  flipped down and the barbarian stays put**; a capital costs its owner 2 trade
+  tokens and turns the raid back.
+
+### Districts (Terra p20)
+
+- Placed only by growth cards; abilities that place control markers cannot place
+  districts.
+- A district may replace one of your own control markers and always lands
+  **unreinforced**, even over a reinforced one.
+- A district defeated in an attack becomes the attacker's own **non-district**
+  marker, unreinforced.
+- Campus counts friendly mountain / natural-wonder spaces **in and adjacent to**
+  the district; the only cap is the three-per-card trade limit.
+
 ### Victory (base p12, Terra p14)
 
 - Five victory cards on the table; claim an agenda on **four** of them.
@@ -91,22 +150,20 @@ token" got wrong, and it was wrong in both the engine and the UI.
 
 ## 2. Implemented, but approximated
 
-- **The defender's trade spend is automatic.** The rules let a defender choose;
-  the engine spends the minimum that wins and no more. Rational, but not a choice
-  you get to make.
-- **The event wheel** advances on a fixed schedule rather than by focus-card
-  placement distance.
-- **Barbarian movement** uses the direction die, but not the full letter-marker
-  ordering from base p12.
-- **13 world wonders** are table reminders: the card text is printed and shown,
-  but the effect is not automated. 21 resolve themselves.
-- **Diplomacy card acquisition** is modelled per source, but the two-copies-per
-  -city-state stacking from setup step 5 is simplified to one pool.
-- **The advanced pre-game map draft** (each player dealt 2 tiles, placed in turn
-  order) is not implemented — the app builds the core and then uses a shared
-  exploration stack instead.
-
----
+- **The defender's trade spend is automatic.** The rules let a defender choose
+  how many tokens to hand over; the engine spends the minimum that wins and no
+  more. Rational, but not a decision you get to make.
+- **13 of the 34 world wonders are table reminders.** Their printed text is shown
+  on the card, but the effect is not automated. The other 21 resolve themselves.
+- **The advanced pre-game tile draft** (each player dealt 2 tiles and placing in
+  turn order, Terra p14) is not implemented. The app builds the four-tile core to
+  the rules and then draws from a shared exploration stack during play.
+- **The event wheel's segment order** is our own arrangement. The five symbols on
+  it are the printed ones and blanks are real, but the rulebook does not spell out
+  the sequence around the dial.
+- **The tech dial's level positions** (8, 16, 24) are evenly spread rather than
+  read off the printed dial. Level IV sits on 24, which the "past 24 go back to
+  15" rule requires.
 
 ## 3. Invented — not from the game
 

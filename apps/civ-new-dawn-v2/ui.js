@@ -1736,12 +1736,27 @@ const UI = (() => {
     const selectingUnit = !sub.selectedUnit;
     const ms = sub.movementState;
     const remaining = ms ? ` (${ms.remaining} moves left)` : "";
+    const me = Game.getPlayer(state, localPlayerId);
+    const list = me ? (unitType === "caravan" ? me.caravans : me.armies) : [];
+    const left = (list || []).filter((u) => !u.movedThisCard).length;
+    const cardOpen = state.activeCard && state.activeCard.playerId === localPlayerId;
+    // The card moves every figure of its kind, so say how many are still waiting.
+    const onCard = (list || []).filter((u) => !u.movedThisCard && !u.position).length;
+    const hint = selectingUnit
+      ? `Click one of your <strong>${unitType}s</strong> on the map.` +
+        (onCard ? `<br><em>${onCard} waiting on the card — click one of your cities to send it out.</em>` : "")
+      : `Click a <strong>highlighted hex</strong> to move.`;
     dom.wizard.innerHTML = `
       <div class="wiz-title">Move ${unitType === "caravan" ? "Caravan" : "Army"}${remaining}</div>
-      <div class="wiz-body">${selectingUnit
-        ? `Click one of your <strong>${unitType}s</strong> on the map.`
-        : `Click a <strong>highlighted hex</strong> to move.`}</div>
-      <div class="wiz-actions"><button class="ghost" id="wiz-cancel6">Cancel</button></div>`;
+      <div class="wiz-body">${hint}${left > 1 ? `<br><span class="wiz-note">${left} still to move on this card.</span>` : ""}</div>
+      <div class="wiz-actions">
+        ${cardOpen && selectingUnit ? `<button id="wiz-done-card">Done with card</button>` : ""}
+        <button class="ghost" id="wiz-cancel6">Cancel</button>
+      </div>`;
+    document.getElementById("wiz-done-card")?.addEventListener("click", () => {
+      dispatch({ type: "END_FOCUS_CARD", payload: { playerId: localPlayerId } });
+      resetSub();
+    });
     document.getElementById("wiz-cancel6").addEventListener("click", cancelAction);
   }
 
@@ -1910,7 +1925,24 @@ const UI = (() => {
         startKey: ms.romeStart || undefined
       }});
     }
-    resetSub();
+    nextUnitOrFinish(ms.unitType);
+  }
+
+  // Economy and military cards move each of your figures. Hand the player the
+  // next one; when none are left the engine has already reset the card.
+  function nextUnitOrFinish(unitType) {
+    const me = Game.getPlayer(state, localPlayerId);
+    const active = state.activeCard;
+    if (!me || !active || active.playerId !== localPlayerId) { resetSub(); return; }
+    const list = unitType === "caravan" ? me.caravans : me.armies;
+    const left = (list || []).filter((u) => !u.movedThisCard);
+    if (!left.length) { resetSub(); return; }
+    sub.selectedUnit = null;
+    sub.movementState = null;
+    sub.combatTradeSpent = 0;
+    sub.phase = unitType === "caravan" ? "move_caravan" : "move_army";
+    sub.validHexes = new Set();
+    render();
   }
 
   function computeStepDistance(st, fromKey, toKey, maxSteps, unitType, playerId) {
@@ -2153,7 +2185,15 @@ const UI = (() => {
     resetSub();
   }
 
-  function cancelAction() { resetSub(); render(); }
+  function cancelAction() {
+    if (state && state.activeCard && state.activeCard.playerId === localPlayerId) {
+      dispatch({ type: "END_FOCUS_CARD", payload: { playerId: localPlayerId } });
+      resetSub();
+      return;
+    }
+    resetSub();
+    render();
+  }
 
   function resetSub() {
     sub.phase = "idle"; sub.cardType = null; sub.tradeSpent = 0; sub.remaining = 0;
@@ -2230,15 +2270,24 @@ const UI = (() => {
     }
     if (sub.phase === "move_caravan") {
       if (!sub.selectedUnit) {
-        let unit = me.caravans.find((u) => u.position === hexKey);
+        const free = (u) => !u.movedThisCard;
+        let unit = me.caravans.find((u) => u.position === hexKey && free(u));
         let romeStart = null;
-        if (!unit && me.leaderId === "rome") {
-          // Trajan: clicking a friendly city launches your caravan from there.
-          const h = state.map.hexes[hexKey];
-          if (h && h.city && h.city.ownerId === localPlayerId) {
-            unit = me.caravans.find((u) => u.position);
-            if (unit) romeStart = hexKey;
+        const h = state.map.hexes[hexKey];
+        const myCity = h && h.city && h.city.ownerId === localPlayerId;
+        if (!unit && myCity) {
+          // A caravan resting on the economy card sets out from a city. Rome may
+          // use any of theirs; everyone else launches from the capital.
+          const onCard = me.caravans.find((u) => !u.position && free(u));
+          if (onCard && (me.leaderId === "rome" || h.city.isCapital)) {
+            unit = onCard;
+            romeStart = hexKey;
           }
+        }
+        if (!unit && me.leaderId === "rome" && myCity) {
+          // Trajan: clicking a friendly city launches a caravan from there.
+          unit = me.caravans.find((u) => u.position && free(u));
+          if (unit) romeStart = hexKey;
         }
         if (!unit) return;
         sub.selectedUnit = unit;
@@ -2266,7 +2315,7 @@ const UI = (() => {
     }
     if (sub.phase === "move_army") {
       if (!sub.selectedUnit) {
-        const unit = me.armies.find((u) => u.position === hexKey);
+        const unit = me.armies.find((u) => u.position === hexKey && !u.movedThisCard);
         if (!unit) return;
         sub.selectedUnit = unit;
         const maxMove = Game.getMilitaryMove(me);

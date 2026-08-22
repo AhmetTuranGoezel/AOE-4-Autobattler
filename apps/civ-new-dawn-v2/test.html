@@ -210,8 +210,11 @@
       st = Game.applyAction(st, { type: "PLAY_SCIENCE", payload: { playerId: first, amount: 1, tradeSpent: 0 } });
       assert("science wrap queues focus upgrade choice", st.pendingChoices.some((c) => c.kind === "science_upgrade" && c.playerId === first));
       const choice = st.pendingChoices.find((c) => c.kind === "science_upgrade" && c.playerId === first);
+      // Space 24 carries technology level IV, and the rules hand you a card of
+      // exactly the level you reached — not one step up from where you were.
+      assert("the choice names the level reached", choice.techLevel === 4);
       st = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: { playerId: first, choiceId: choice.id, optionId: "science" } });
-      assert("science pending choice upgrades selected card", Game.getPlayer(st, first).cardTiers.science === 2);
+      assert("science pending choice takes a card of that level", Game.getPlayer(st, first).cardTiers.science === 4);
 
       const mover = Game.getPlayer(st, first);
       mover.focusRow = ["military", "culture", "growth", "science", "economy", "industry"];
@@ -409,6 +412,150 @@
         assert("all 24 focus cards carry printed effect text", missing.length === 0, missing.join(","));
         assert("every focus type states what a trade token buys",
           Game.FOCUS_TYPES.every((t) => (Game.FOCUS_TRADE_DESC[t] || "").length > 10));
+      }
+
+
+      // --- Second rules pass: units, barbarians, the dial, the wheel ---------
+      {
+        // The economy card moves every caravan, not one (p8 card text).
+        const st0 = rulesState();
+        const me = st0.players[0];
+        st0.turn.index = st0.turn.order.indexOf(me.id);
+        me.cardPlayed = false;
+        me.cardTiers.economy = 3;
+        Game.syncUnitCounts(st0, me);
+        activate(st0, "0,0", { city: { ownerId: me.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
+        activate(st0, "1,0"); activate(st0, "0,1");
+        me.caravans.forEach((u) => { u.position = "0,0"; });
+        assert("economy III fields two caravans", me.caravans.length === 2);
+        let st1 = Game.applyAction(st0, { type: "PLAY_ECONOMY", payload: { playerId: me.id, unitId: me.caravans[0].id, toKey: "1,0", tradeSpent: 0 } });
+        assert("the card stays open after the first caravan", !!st1.activeCard && !st1.players[0].cardPlayed);
+        st1 = Game.applyAction(st1, { type: "PLAY_ECONOMY", payload: { playerId: me.id, unitId: st1.players[0].caravans[1].id, toKey: "0,1", tradeSpent: 0 } });
+        assert("the card resets once every caravan has moved", !st1.activeCard && st1.players[0].cardPlayed);
+        assert("a played card returns to slot 1", st1.players[0].focusRow[0] === "economy");
+      }
+
+      {
+        // A different card may not be started while one is still open.
+        const st0 = rulesState();
+        const me = st0.players[0];
+        st0.turn.index = st0.turn.order.indexOf(me.id);
+        me.cardPlayed = false;
+        me.cardTiers.economy = 3;
+        Game.syncUnitCounts(st0, me);
+        activate(st0, "0,0", { city: { ownerId: me.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
+        activate(st0, "1,0");
+        me.caravans.forEach((u) => { u.position = "0,0"; });
+        const open = Game.applyAction(st0, { type: "PLAY_ECONOMY", payload: { playerId: me.id, unitId: me.caravans[0].id, toKey: "1,0", tradeSpent: 0 } });
+        const tried = Game.applyAction(open, { type: "PLAY_SCIENCE", payload: { playerId: me.id, amount: 3, tradeSpent: 0 } });
+        assert("another card is refused while one is open", tried.players[0].tech === open.players[0].tech);
+        const done = Game.applyAction(open, { type: "END_FOCUS_CARD", payload: { playerId: me.id } });
+        assert("END_FOCUS_CARD spends the card early", !done.activeCard && done.players[0].cardPlayed);
+      }
+
+      {
+        // p9: a caravan goes back on its economy card, and only one caravan may
+        // reach the same city-state in a turn.
+        const st0 = rulesState();
+        const me = st0.players[0];
+        st0.turn.index = st0.turn.order.indexOf(me.id);
+        me.cardPlayed = false;
+        me.cardTiers.economy = 3;
+        Game.syncUnitCounts(st0, me);
+        activate(st0, "0,0", { city: { ownerId: me.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
+        activate(st0, "1,0", { cityState: { name: "Carthage", type: "military", diplomacyCards: 2 } });
+        me.caravans.forEach((u) => { u.position = "0,0"; });
+        const one = Game.applyAction(st0, { type: "PLAY_ECONOMY", payload: { playerId: me.id, unitId: me.caravans[0].id, toKey: "1,0", tradeSpent: 0 } });
+        assert("a traded caravan sits on the economy card", one.players[0].caravans[0].position === null);
+        const after = one.players[0].trade.military;
+        const two = Game.applyAction(one, { type: "PLAY_ECONOMY", payload: { playerId: me.id, unitId: one.players[0].caravans[1].id, toKey: "1,0", tradeSpent: 0 } });
+        assert("a second caravan cannot trade at the same city-state", two.players[0].trade.military === after);
+      }
+
+      {
+        // Multiplayer sends the whole state object, so a card left open has to
+        // survive a JSON round-trip along with each figure's moved flag.
+        const st0 = rulesState();
+        const me = st0.players[0];
+        st0.turn.index = st0.turn.order.indexOf(me.id);
+        me.cardPlayed = false;
+        me.cardTiers.economy = 3;
+        Game.syncUnitCounts(st0, me);
+        activate(st0, "0,0", { city: { ownerId: me.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
+        activate(st0, "1,0");
+        me.caravans.forEach((u) => { u.position = "0,0"; });
+        const open = Game.applyAction(st0, { type: "PLAY_ECONOMY", payload: { playerId: me.id, unitId: me.caravans[0].id, toKey: "1,0", tradeSpent: 0 } });
+        const wire = JSON.parse(JSON.stringify(open));
+        assert("an open card survives the trip to a client",
+          !!wire.activeCard && wire.activeCard.cardType === "economy" && wire.activeCard.playerId === me.id);
+        assert("the moved flag survives with it", wire.players[0].caravans[0].movedThisCard === true);
+        // And a client acting on that state closes the card the same way.
+        const closed = Game.applyAction(wire, { type: "END_FOCUS_CARD", payload: { playerId: me.id } });
+        assert("a client can close the card", !closed.activeCard && closed.players[0].cardPlayed);
+      }
+
+      {
+        // The tech dial, p8 and Terra p15.
+        const st0 = rulesState();
+        const me = st0.players[0];
+        me.tech = 0;
+        Game.advanceTech(st0, me, 8);
+        const lvl2 = st0.pendingChoices.find((c) => c.kind === "science_upgrade");
+        assert("reaching a level offers a card of exactly that level", !!lvl2 && lvl2.techLevel === 2);
+        const took = Game.applyAction(st0, { type: "RESOLVE_PENDING_CHOICE", payload: { playerId: me.id, choiceId: lvl2.id, optionId: "culture" } });
+        assert("the card lands on the level reached", took.players[0].cardTiers.culture === 2);
+
+        const st1 = rulesState();
+        st1.players[0].tech = 0;
+        Game.advanceTech(st1, st1.players[0], 16);
+        assert("crossing two levels in one turn grants both",
+          st1.pendingChoices.filter((c) => c.kind === "science_upgrade").length === 2);
+
+        const st2 = rulesState();
+        st2.players[0].tech = 22;
+        Game.advanceTech(st2, st2.players[0], 4);
+        assert("past space 24 the arrow goes to 15", st2.players[0].tech === 15);
+      }
+
+      {
+        // The event wheel carries the printed symbols, blanks included.
+        assert("the wheel has blank segments", Game.EVENTS.some((e) => e === null));
+        assert("the wheel has the trade symbol", Game.EVENTS.includes("trade"));
+        assert("the invented wonder-aging segment is gone", !Game.EVENTS.includes("wonder_aging"));
+
+        const st0 = rulesState();
+        const me = st0.players[0];
+        activate(st0, "0,0", { city: { ownerId: me.id, isCapital: true, developed: true, hasWonder: false, wonder: null } });
+        activate(st0, "4,0", { city: { ownerId: me.id, isCapital: false, developed: true, hasWonder: false, wonder: null } });
+        Game.resolveEvent(st0, "trade");
+        assert("trade pays one token per developed city",
+          st0.pendingChoices.filter((c) => c.kind === "trade_any" && c.playerId === me.id).length === 2);
+      }
+
+      {
+        // Barbarians, p12. One roll steers all of them, and a reinforced marker
+        // turns the raid back without the barbarian disappearing.
+        let lost = 0;
+        for (let i = 0; i < 30; i++) {
+          const st0 = rulesState();
+          Object.values(st0.map.hexes).forEach((h) => { h.barbarian = false; h.barbarianId = null; });
+          activate(st0, "0,0", { barbarian: true });
+          st0.map.hexes["0,0"].barbarianId = "X";
+          Game.hexNeighborKeys(0, 0).forEach((k) => {
+            if (st0.map.hexes[k]) activate(st0, k, { control: { ownerId: st0.players[1].id, fortified: true, district: null } });
+          });
+          Game.resolveEvent(st0, "barbarian_move");
+          if (Object.values(st0.map.hexes).filter((h) => h.barbarian).length !== 1) lost++;
+        }
+        assert("a barbarian is never lost to a reinforced marker", lost === 0);
+
+        const st1 = rulesState();
+        Object.values(st1.map.hexes).forEach((h) => { h.barbarian = false; h.barbarianId = null; });
+        activate(st1, "2,0");
+        st1.map.hexes["2,0"].barbarianHome = "K";
+        Game.resolveEvent(st1, "barbarian_return");
+        assert("a defeated barbarian returns to its printed space",
+          st1.map.hexes["2,0"].barbarian === true && st1.map.hexes["2,0"].barbarianId === "K");
       }
 
       summary.textContent = `${passed} passed, ${failed} failed`;
