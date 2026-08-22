@@ -19,6 +19,8 @@ import { initCoverageView } from "./coverage-view.js";
 import { renderMovePopup, renderAbilityPopup } from "./info.js";
 import { renderCompare } from "./compare.js";
 import { tickStatLab, optimizeSpread, emptySpread, POOL, CAP, pointsUsed } from "./stat-lab.js";
+import { initSync } from "./sync.js";
+import { initSyncView } from "./sync-view.js";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 
@@ -45,11 +47,29 @@ const state = {
   moveByName: new Map(),   // move name → id, used to parse shared-team codes
 };
 
+// A pull landed while you were working. Anything already on screen is stale, but
+// a forced reload would throw away whatever you were in the middle of.
+function showSyncToast() {
+  if (document.getElementById("sync-toast")) return;
+  const el = document.createElement("div");
+  el.id = "sync-toast";
+  el.className = "sync-toast";
+  el.innerHTML = `<span>Updated from another device.</span>
+    <button class="btn" id="sync-toast-reload">Refresh</button>
+    <button class="sync-toast-x" id="sync-toast-x" aria-label="Dismiss">\u2715</button>`;
+  document.body.appendChild(el);
+  el.querySelector("#sync-toast-reload").addEventListener("click", () => location.reload());
+  el.querySelector("#sync-toast-x").addEventListener("click", () => el.remove());
+}
+
 // ---------------------------------------------------------------- bootstrap
 init();
 
 async function init() {
   try {
+    // Fold in anything another device saved before we read a single setting.
+    await initSync();
+    state.extras = localStorage.getItem("pc-extra-cols") === "1";
     const data = await loadData();
     state.data = data;
     state.all = data.pokemon;
@@ -65,7 +85,11 @@ async function init() {
     setupTabs();
     bindGlobal();
     setupMobileView();
+    initSyncView();
     render();
+    // A pull that arrives while you are using the tool: offer the refresh, do
+    // not snatch the page away mid-click.
+    window.addEventListener("pc-sync-applied", () => showSyncToast());
     $("#status").style.display = "none";
     $("#app").style.display = "flex";
     // shared-team link: #t=<code> (or legacy #team=) imports the team and opens the Team tab

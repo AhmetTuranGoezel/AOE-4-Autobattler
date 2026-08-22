@@ -1714,3 +1714,86 @@ tr.pin-end td { padding: 0; height: 8px; border-bottom: 2px solid color-mix(in s
 .mvr-monexchip { background: color-mix(in srgb, #ff8a7a 12%, var(--panel-2)); border-color: color-mix(in srgb, #ff8a7a 38%, var(--border)); }
 .mvr-monexchip b { font-weight: 700; }
 .mvr-monex-sep { opacity: 0.75; font-size: 0.7em; margin: 0 3px; }
+
+/* ---------------------------------------------------------------- sync ---- */
+.sync-pill {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: var(--panel); border: 1px solid var(--border); color: var(--muted);
+  padding: 5px 11px; border-radius: 999px; font-size: 0.78rem; font-weight: 700;
+  cursor: pointer; margin-left: auto;
+}
+.sync-pill:hover { color: var(--text); border-color: var(--border-2); }
+.sync-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex-shrink: 0;
+}
+.sync-pill[data-state="ok"]      .sync-dot { background: #4ade80; }
+.sync-pill[data-state="syncing"] .sync-dot { background: #facc15; animation: sync-pulse 1s ease-in-out infinite; }
+.sync-pill[data-state="error"]   .sync-dot { background: #f87171; }
+.sync-pill[data-state="idle"]    .sync-dot { background: #60a5fa; }
+@keyframes sync-pulse { 50% { opacity: 0.25; } }
+
+.sync-card { max-width: 620px; margin: 0 auto; }
+.sync-title { font-size: 1.05rem; margin-bottom: 6px; }
+.sync-lede { color: var(--muted); font-size: 0.84rem; line-height: 1.55; margin-bottom: 16px; }
+.sync-label { font-size: 0.78rem; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+.sync-hint { color: var(--muted); font-size: 0.78rem; line-height: 1.5; margin-bottom: 8px; }
+.sync-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+.sync-input {
+  flex: 1 1 200px; min-width: 0;
+  background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
+  padding: 9px 11px; border-radius: 9px; outline: none;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85rem;
+}
+.sync-input:focus { border-color: var(--accent); }
+
+.sync-status {
+  display: flex; align-items: center; gap: 9px;
+  padding: 9px 12px; border-radius: 10px; margin-bottom: 18px;
+  background: var(--panel-2); border: 1px solid var(--border); font-size: 0.82rem;
+}
+.sync-status .sync-dot { width: 8px; height: 8px; }
+.sync-status.s-ok    { border-color: rgba(74,222,128,0.4); }
+.sync-status.s-ok    .sync-dot { background: #4ade80; }
+.sync-status.s-error { border-color: rgba(248,113,113,0.45); }
+.sync-status.s-error .sync-dot { background: #f87171; }
+.sync-status.s-syncing .sync-dot { background: #facc15; }
+.sync-detail { color: var(--muted); }
+
+.sync-share {
+  display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap;
+  padding: 14px; border-radius: 10px; background: var(--panel-2);
+  border: 1px solid var(--border); margin-bottom: 14px;
+}
+.sync-share > div { flex: 1 1 340px; min-width: 0; }
+.sync-share .sync-input { flex: 1 1 100%; }
+.sync-share .sync-row { margin-bottom: 0; }
+.sync-code-big {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 1.15rem; font-weight: 700; letter-spacing: 0.06em; color: var(--accent);
+  padding: 12px 14px; border-radius: 9px; background: var(--panel);
+  border: 1px dashed var(--border-2); align-self: center; user-select: all;
+}
+.sync-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.danger:hover { border-color: #f87171; color: #f87171; }
+.sync-foot {
+  color: var(--muted); font-size: 0.74rem; line-height: 1.5;
+  border-top: 1px solid var(--border); padding-top: 12px;
+}
+
+.sync-toast {
+  position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 90;
+  display: flex; align-items: center; gap: 12px;
+  background: var(--panel); border: 1px solid var(--border-2); border-radius: 12px;
+  padding: 10px 12px 10px 16px; font-size: 0.82rem;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+.sync-toast-x {
+  background: none; border: none; color: var(--muted); font-size: 0.8rem; cursor: pointer;
+}
+.sync-toast-x:hover { color: var(--text); }
+
+@media (max-width: 640px) {
+  .sync-pill { margin-left: 0; }
+  .sync-code-big { align-self: stretch; text-align: center; }
+}
