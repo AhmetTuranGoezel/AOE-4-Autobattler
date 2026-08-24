@@ -14,23 +14,22 @@
 </head>
 <body>
   <!-- AoE4-styled Top Navigation -->
-  <nav class="aoe4-nav">
-    <div class="aoe4-nav-spacer" aria-hidden="true"></div>
+  <nav class="aoe4-nav" aria-label="AoE4 Auto Battler sections">
     <div class="aoe4-nav-main">
-      <button class="aoe4-nav-tab active" type="button" data-page="unitBattler">
+      <button class="aoe4-nav-tab active" type="button" data-page="unitBattler" aria-current="page">
         <span class="nav-icon"><i class="fa-solid fa-shield-halved"></i></span> Unit Battler
       </button>
       <button class="aoe4-nav-tab" type="button" data-page="vsBuilding">
-        <span class="nav-icon"><i class="fa-solid fa-chess-rook"></i></span> vs Building <span class="beta-badge">BETA</span>
+        <span class="nav-icon"><i class="fa-solid fa-chess-rook"></i></span> vs Building
       </button>
       <button class="aoe4-nav-tab" type="button" data-page="multiBattle">
-        <span class="nav-icon"><i class="fa-solid fa-users"></i></span> Multi Battle <span class="beta-badge">BETA</span>
+        <span class="nav-icon"><i class="fa-solid fa-users"></i></span> Multi Battle
       </button>
       <button class="aoe4-nav-tab" type="button" data-page="buildOrder">
-        <span class="nav-icon"><i class="fa-solid fa-clock"></i></span> Build Order <span class="beta-badge">BETA</span>
+        <span class="nav-icon"><i class="fa-solid fa-clock"></i></span> Build Order
       </button>
       <button class="aoe4-nav-tab" type="button" data-page="rankings">
-        <span class="nav-icon"><i class="fa-solid fa-ranking-star"></i></span> Rankings <span class="beta-badge">BETA</span>
+        <span class="nav-icon"><i class="fa-solid fa-ranking-star"></i></span> Rankings
       </button>
     </div>
     <div class="aoe4-nav-support">
@@ -40,8 +39,9 @@
     </div>
   </nav>
 
-  <div class="container">
-    <div class="text-center battle-only">
+  <main class="container app-workspace">
+    <section class="battle-rules battle-only" aria-label="Combat rules">
+      <div class="battle-rules-title"><i class="fa-solid fa-sliders" aria-hidden="true"></i><span>Combat Rules</span></div>
       <div class="auto-balance-toggle">
         <label id="autoBalanceToggleItem" class="battle-toggle-item" for="autoBalance">
           <input type="checkbox" id="autoBalance" checked>
@@ -56,7 +56,7 @@
           <span>Consider range & speed</span>
         </label>
       </div>
-    </div>
+    </section>
 
     <div class="row g-3 single-only" id="singleBattleRow">
       <!-- ==================== UNIT A PANEL ==================== -->
@@ -473,7 +473,7 @@
 
       <!-- ==================== BATTLE BUTTON ==================== -->
       <div class="col-lg-2 d-flex align-items-center justify-content-center battle-btn-wrapper">
-        <button id="battleBtn" class="battle-btn">&#9876;<span class="btn-label"> BATTLE</span></button>
+        <button id="battleBtn" class="battle-btn" type="button" aria-label="Run battle simulation" title="Run battle simulation"><span class="battle-btn-icon" aria-hidden="true">&#9876;</span><span class="btn-label">Battle</span></button>
       </div>
 
       <!-- ==================== UNIT B PANEL ==================== -->
@@ -1003,7 +1003,7 @@
         </div>
       </div>
       <div class="col-lg-2 d-flex align-items-center justify-content-center battle-btn-wrapper">
-        <button id="battleBtnMulti" class="battle-btn">&#9876;<span class="btn-label"> BATTLE</span></button>
+        <button id="battleBtnMulti" class="battle-btn" type="button" aria-label="Run multi-battle simulation" title="Run multi-battle simulation"><span class="battle-btn-icon" aria-hidden="true">&#9876;</span><span class="btn-label">Battle</span></button>
       </div>
       <div class="col-lg-5">
         <div class="card card-team-b multi-stack-card">
@@ -1871,6 +1871,8 @@
 
     <!-- ==================== RESULTS DISPLAY ==================== -->
     <div id="results" style="display: none;" class="results-card mt-4">
+      <div class="results-intro">
+        <span class="results-kicker">Battle Report</span>
       <!-- Winner Banner -->
       <h2 class="text-center mb-3 winner-banner" id="winnerText"></h2>
 
@@ -1878,6 +1880,7 @@
       <div class="text-center mb-4">
         <span class="battle-duration-label">Battle Duration</span>
         <div class="battle-duration-value" id="battleDuration"></div>
+      </div>
       </div>
 
       <!-- Multi Mode Results -->
@@ -1991,7 +1994,7 @@
       </div>
     </div>
 
-  </div>
+  </main>
 
   <!-- Unit Detail Modal -->
   <div class="modal fade" id="unitDetailModal" tabindex="-1">

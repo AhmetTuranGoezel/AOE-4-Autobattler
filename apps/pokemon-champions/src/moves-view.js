@@ -6,7 +6,7 @@
 // rather than crammed into the compare popup.
 import { TYPES, TYPE_COLORS, displayName, targetLabel, isSpread, rarityTier, TARGET_GROUPS, grassKnotBP } from "./data.js";
 import { statsFor } from "./effective-stats.js";
-import { damageAbilities, offenseMult, offDefaultAbility, stageMult, OFF_ITEMS } from "./offense-model.js";
+import { damageAbilities, offenseMult, offDefaultAbility, stageMult, OFF_ITEMS, expectedHitsForAccuracy } from "./offense-model.js";
 import { POOL, CAP, pointsUsed } from "./stat-lab.js";
 import { attachAutocomplete } from "./autocomplete.js";
 
@@ -156,14 +156,16 @@ const OHKO_MV = new Set(["Fissure", "Guillotine", "Horn Drill", "Sheer Cold"]);
 function expData(m) {
   if (m.class === "status" || (m.power == null && !DYNAMIC_BP.has(m.name))) return null;
   const eff = m.effect || "";
+  // Later sentences can describe conditional items such as Loaded Dice.
+  const hitEffect = eff.split(/[.!]/, 1)[0];
   let hits = 1, hitNote = "";
-  const range = eff.match(/hits (\w+) to (\w+) times/i);
-  const fixed = eff.match(/hits (\w+) times/i);
+  const range = hitEffect.match(/hits (\w+) to (\w+) times/i);
+  const fixed = hitEffect.match(/hits (\w+) times/i);
   if (range && NUMWORD[range[1].toLowerCase()] && NUMWORD[range[2].toLowerCase()]) {
     const lo = NUMWORD[range[1].toLowerCase()], hi = NUMWORD[range[2].toLowerCase()];
     hits = lo === 2 && hi === 5 ? 3.1 : (lo + hi) / 2;   // 2–5 uses the Gen-5+ weighting
   } else if (fixed && NUMWORD[fixed[1].toLowerCase()]) hits = NUMWORD[fixed[1].toLowerCase()];
-  else if (/hits twice/i.test(eff)) hits = 2;
+  else if (/hits twice/i.test(hitEffect)) hits = 2;
   if (hits !== 1) hitNote = `×${hits % 1 ? hits.toFixed(1) : hits} hits`;
   let crit = 1 + (1 / 24) * 0.5, critNote = "";   // baseline Gen-9 crit (1/24 → ×1.5)
   if (/always a critical hit/i.test(eff)) { crit = 1.5; critNote = "always crits"; }
@@ -232,7 +234,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
     if (!ep || bp == null) return null;
     // "× accuracy" toggle off → potential damage: every move counted as if it always hits
     const acc = state.useAcc ? accMult : 1;   // accMult already folds in weather / No Guard / ability accuracy
-    let v = bp * acc * ep.crit * ep.hits;
+    let v = bp * ep.crit * expectedHitsForAccuracy(m, ep.hits, acc);
     if (isSpread(m.target)) v *= 0.75;                       // Champions is doubles (Reg M-B)
     if (state.expBest && ep.cond) v *= ep.cond.mult;         // conditional signature effects
     return v;
@@ -286,11 +288,12 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
   const terrainTypeOf = (m) => (m.name === "Terrain Pulse" && TERRAIN_TYPE[state.terrain]) ? TERRAIN_TYPE[state.terrain] : null;
   // Effective accuracy 0..1: the weather decides some moves outright, No Guard overrides everything,
   // then ability multipliers (Hustle ×0.8 / Compound Eyes ×1.3). Never above 100%.
-  function accuracyOf(m, o) {
+  function accuracyOf(m, o, item = "none") {
     if (o && o.alwaysHits) return 1;                                    // No Guard — accuracy stops mattering
     const wa = WEATHER_ACC[m.name];
     const base = wa && wa[state.weather] != null ? wa[state.weather] : (m.accuracy == null ? 100 : m.accuracy);
-    return Math.min(1, (base / 100) * (o ? o.acc : 1));
+    const accuracyBonus = (OFF_ITEMS[item]?.accuracyBonus || 0) / 100;
+    return Math.min(1, (base / 100) * (o ? o.acc : 1) + accuracyBonus);
   }
   // Expected power INCLUDING a mon's STAB AND its ability (both live HERE, in Exp. Pow — shown to
   //   the user). { power, stab, note }. mon = null → intrinsic only. -ate retypes → STAB follows the
@@ -302,7 +305,8 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
     const bp = dyn ? dyn.bp : m.power;
     const o = mon ? offenseMult(mon.ability, mon, m, bp, state.expBest, { weather: state.weather, terrain: state.terrain })
       : { mult: 1, stab: null, acc: 1, alwaysHits: false, retype: null, note: "" };
-    const ip = intrinsicPower(m, accuracyOf(m, o), bp);
+    const accuracy = accuracyOf(m, o, mon?.cfg.item);
+    const ip = intrinsicPower(m, accuracy, bp);
     if (ip == null) return null;
     const et = o.retype || weatherTypeOf(m) || terrainTypeOf(m) || m.type;   // effective type (‑ate · Weather Ball · Terrain Pulse)
     const stab = o.stab || (mon && mon.types.includes(et) ? 1.5 : 1);
@@ -316,7 +320,11 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
     const wa = WEATHER_ACC[m.name];
     const accNote = state.useAcc && o.alwaysHits && (m.accuracy ?? 100) < 100 ? "always hits"
       : (state.useAcc && wa && wa[state.weather] != null ? `${state.weather} acc ${wa[state.weather]}%` : "");
-    const fNote = [wM !== 1 ? `${state.weather} ×${wM}` : "", tM !== 1 ? `${state.terrain} ×${tM}` : "", fcM !== 1 ? fc.note : "", accNote].filter(Boolean).join(" · ");
+    const wideLensNote = state.useAcc && mon?.cfg.item === "wide-lens" ? "Wide Lens +10% acc" : "";
+    const hitNote = state.useAcc && m.name === "Population Bomb" && accuracy < 1
+      ? `expected ${expectedHitsForAccuracy(m, m._ep.hits, accuracy).toFixed(2)} hits`
+      : "";
+    const fNote = [wM !== 1 ? `${state.weather} ×${wM}` : "", tM !== 1 ? `${state.terrain} ×${tM}` : "", fcM !== 1 ? fc.note : "", accNote, wideLensNote, hitNote].filter(Boolean).join(" · ");
     return { power: ip * stab * o.mult * itemM * wM * tM * fcM, stab, note: [dyn && dyn.note, o.note, itemNote, fNote].filter(Boolean).join(" · ") };
   }
   // Foul Play uses the TARGET's Atk — no target exists here, so it gets no Eff. Dmg.

@@ -7,7 +7,7 @@ import { statsFor, roleOf } from "./effective-stats.js";
 import { attachAutocomplete } from "./autocomplete.js";
 import { defaultAbility, applyAbility } from "./type-defense.js";
 import { POOL, CAP, pointsUsed, optimizeSpread, emptySpread } from "./stat-lab.js";
-import { hasFlag, OFF_ABIL, abilityMods, hiStatOf, ATE_ABIL, PROTEAN, offDefaultAbility, stageMult, OFF_ITEMS } from "./offense-model.js";
+import { hasFlag, OFF_ABIL, abilityMods, hiStatOf, ATE_ABIL, PROTEAN, offDefaultAbility, stageMult, OFF_ITEMS, expectedHitsForAccuracy } from "./offense-model.js";
 
 const pokeRound = (v) => { const f = Math.floor(v); return v - f > 0.5 ? f + 1 : f; };
 function computeDamage(p) {
@@ -70,6 +70,8 @@ const CHARGE_MOVES = {
 function effectivePower(mv, ctx) {
   const name = mv.name || "";
   const eff = (mv.effect || "").toLowerCase();
+  // Later sentences can describe conditional items such as Loaded Dice.
+  const hitEffect = eff.split(/[.!]/, 1)[0];
   const notes = [];
   if (COUNTER_MOVES.has(name)) return { kind: "skip", note: "depends on the hit taken" };
   if (isOHKO(mv)) return { kind: "ohko", notes: ["OHKO"] };
@@ -94,14 +96,14 @@ function effectivePower(mv, ctx) {
     return done(r >= 4 ? 150 : r >= 3 ? 120 : r >= 2 ? 80 : r >= 1 ? 60 : 40);
   }
   let hits = 1;
-  const range = eff.match(/hits (\w+) to (\w+) times/);
-  const fixedH = eff.match(/hits (\w+) times/);
+  const range = hitEffect.match(/hits (\w+) to (\w+) times/);
+  const fixedH = hitEffect.match(/hits (\w+) times/);
   if (range && NUMWORD[range[1]] && NUMWORD[range[2]]) {
     const lo = NUMWORD[range[1]], hi = NUMWORD[range[2]];
     hits = ctx.skillLink ? hi : lo === 2 && hi === 5 ? 3.1 : (lo + hi) / 2;   // Skill Link always max hits; 2–5 uses the Gen-5+ weighting
     if (ctx.skillLink && hi > 1) notes.push("Skill Link");
   } else if (fixedH && NUMWORD[fixedH[1]]) hits = NUMWORD[fixedH[1]];
-  else if (/hits twice/.test(eff)) hits = 2;
+  else if (/hits twice/.test(hitEffect)) hits = 2;
   if (hits !== 1) notes.push(`${hits % 1 ? hits.toFixed(1) : hits}× hits`);
   if (!mv.power) return { kind: "skip", note: "variable power (unmodeled)" };   // never emit phantom 1-pw rows
   return done(mv.power, hits);
@@ -228,7 +230,7 @@ const DEF_NATURES = ["Bold", "Impish", "Lax", "Relaxed", "Calm", "Careful", "Gen
 // Offensive items (OFF_ITEMS) are shared via offense-model.js — the Moves table uses the same list.
 // The target holds ONE item (Champions-only). Offensive ones (Life Orb…) boost its return damage;
 // defensive ones (Focus Sash / resist berry) help it take a hit; Scarf boosts its Speed.
-const DEF_ITEMS = { none: "No item", "life-orb": "Life Orb", "expert-belt": "Expert Belt", "type-item": "Type item", "choice-scarf": "Choice Scarf (Spe ×1.5)", "focus-sash": "Focus Sash", "resist-berry": "Resist berry (½ SE)", leftovers: "Leftovers (+6% per turn)", "sitrus-berry": "Sitrus Berry (+25% once)" };
+const DEF_ITEMS = { none: "No item", "life-orb": "Life Orb", "expert-belt": "Expert Belt", "type-item": "Type item", "wide-lens": "Wide Lens (+10% Acc)", "choice-scarf": "Choice Scarf (Spe ×1.5)", "focus-sash": "Focus Sash", "resist-berry": "Resist berry (½ SE)", leftovers: "Leftovers (+6% per turn)", "sitrus-berry": "Sitrus Berry (+25% once)" };
 
 const WEATHERS = { none: "No weather", sand: "Sandstorm", snow: "Snow", rain: "Rain", sun: "Sun" };
 const TERRAINS = { none: "No terrain", grassy: "Grassy", electric: "Electric", psychic: "Psychic", misty: "Misty" };
@@ -1055,6 +1057,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       if (st.ability === "compound-eyes") { acc = Math.min(100, Math.round(acc * 1.3)); notes.push("Compound Eyes"); }
       if (st.ability === "hustle" && cat === "physical") { acc = Math.round(acc * 0.8); notes.push("Hustle acc ×0.8"); }
       if ((target.ability === "sand-veil" && eb.weather === "sand") || (target.ability === "snow-cloak" && eb.weather === "snow")) { acc = Math.round(acc * 0.8); notes.push("evasion ×0.8"); }
+      if (st.item === "wide-lens" && st.ability !== "klutz") { acc = Math.min(100, acc + (OFF_ITEMS[st.item].accuracyBonus || 0)); notes.push("Wide Lens +10% acc"); }
     }
 
     if (ep.kind === "ohko") { minPct = maxPct = 100; noInvMax = 100; }
@@ -1152,7 +1155,9 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       + (st.ability === "gale-wings" && mvType === "flying" ? 1 : 0)                       // Gale Wings
       + (mv.name === "Grassy Glide" && eb.terrain === "grassy" && uGrd ? 1 : 0);           // Grassy Glide in terrain
     if (prio > 0 && PRIO_BLOCK.has(target.ability) && !moldBreaker) return null;   // Dazzling & co: priority moves fail
-    const accW = eb.useAccuracy ? acc / 100 : 1;
+    const expectedHits = eb.useAccuracy ? expectedHitsForAccuracy(mv, ep.hits || 1, acc / 100) : (ep.hits || 1);
+    const accW = expectedHits / (ep.hits || 1);
+    if (eb.useAccuracy && mv.name === "Population Bomb" && acc < 100) notes.push(`expected ${expectedHits.toFixed(2)} hits`);
     const expected = maxPct * accW * (risky ? 0.5 : 1);
     return { id: null /* set by movesVsTarget */, mv, effType: mvType, cat, kind: ep.kind, stab, asNote, typeEff, acc, risky, minPct, maxPct, nMin, nBest, noInvMax, expected, se, sash: !!guard, guard, prio, notes, pw };
   }

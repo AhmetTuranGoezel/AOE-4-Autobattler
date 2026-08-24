@@ -8718,7 +8718,10 @@ function switchPage(pageName) {
   currentPage = pageName;
   // Update nav tabs
   document.querySelectorAll(".aoe4-nav-tab").forEach((tab) => {
-    tab.classList.toggle("active", tab.dataset.page === pageName);
+    const isActive = tab.dataset.page === pageName;
+    tab.classList.toggle("active", isActive);
+    if (isActive) tab.setAttribute("aria-current", "page");
+    else tab.removeAttribute("aria-current");
   });
   const autoBalanceToggle = document.getElementById("autoBalanceToggleItem");
   const rangedspeedToggle = document.getElementById("rangeSpeedToggleItem");

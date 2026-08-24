@@ -515,12 +515,14 @@ function renderTechButton(item, activeMap, scope) {
     ? " Modeled as 2/3 effective unit cost for equal-resource rankings."
     : "";
   const tooltip = `${item.name}: ${item.description || "modeled bonus"}${compositionSuffix}${appliesSuffix}`.replace(/"/g, "&quot;");
+  const buttonLabel = `<span class="tech-btn-label">${escapeHtml(item.name)}</span>`;
 
   if (hasLevels && labels) {
     const currentLevel = activeMap.get(key)?.level || 0;
     let html = `<div class="tech-level-wrap ranking-tech-level-wrap">`;
-    html += `<button class="tech-btn${activeClass}" type="button" data-tech-key="${escapeAttr(key)}" data-scope="${scope}" title="${tooltip}">`;
+    html += `<button class="tech-btn tech-btn--labeled${activeClass}" type="button" data-tech-key="${escapeAttr(key)}" data-scope="${scope}" title="${tooltip}">`;
     html += `<img src="${imgSrc}" alt="${escapeAttr(item.name)}" onerror="this.src='${FALLBACK_TECH_IMG}'">`;
+    html += buttonLabel;
     html += `</button>`;
     html += `<select class="tech-level-select" data-tech-key="${escapeAttr(key)}" data-scope="${scope}">`;
     for (let i = 0; i < labels.length; i++) {
@@ -532,8 +534,9 @@ function renderTechButton(item, activeMap, scope) {
   }
 
   return `
-    <button class="tech-btn${activeClass}" type="button" data-tech-key="${escapeAttr(key)}" data-scope="${scope}" title="${tooltip}">
+    <button class="tech-btn tech-btn--labeled${activeClass}" type="button" data-tech-key="${escapeAttr(key)}" data-scope="${scope}" title="${tooltip}">
       <img src="${imgSrc}" alt="${escapeAttr(item.name)}" onerror="this.src='${FALLBACK_TECH_IMG}'">
+      ${buttonLabel}
     </button>
   `;
 }
