@@ -371,7 +371,7 @@
       {
         // Rulebook step 4: after both dice, the attacker then the defender may
         // hand over military trade tokens, +1 combat value each.
-        let sawDefenderSpend = false, sawTieToDefender = false;
+        let sawDefenderSpend = false, sawTieToDefender = false, badSpend = 0, badTie = 0;
         for (let i = 0; i < 400 && !(sawDefenderSpend && sawTieToDefender); i++) {
           const st = rulesState();
           const me = st.players[0], foe = st.players[1];
@@ -392,12 +392,13 @@
           if (c.defTrade > 0) {
             sawDefenderSpend = true;
             const spender = out.players.find((p) => p.id === foe.id);
-            assert("defender's spend leaves their military card",
-              spender.trade.military === Game.CFG.maxTrade - c.defTrade);
+            if (spender.trade.military !== Game.CFG.maxTrade - c.defTrade) badSpend++;
           }
-          if (c.atkTotal === c.defTotal) { sawTieToDefender = true; assert("a tie goes to the defender", c.win === false); }
+          if (c.atkTotal === c.defTotal) { sawTieToDefender = true; if (c.win !== false) badTie++; }
         }
         assert("the defender can answer with trade tokens", sawDefenderSpend);
+        assert("defender's spend leaves their military card", badSpend === 0);
+        assert("a tie goes to the defender", badTie === 0);
       }
 
       {
@@ -518,18 +519,56 @@
       }
 
       {
-        // The event wheel carries the printed symbols, blanks included.
-        assert("the wheel has blank segments", Game.EVENTS.some((e) => e === null));
-        assert("the wheel has the trade symbol", Game.EVENTS.includes("trade"));
-        assert("the invented wonder-aging segment is gone", !Game.EVENTS.includes("wonder_aging"));
+        // The Terra dial, read off the printed face: six spaces, no blanks, and
+        // the wonder pyramid sharing a space with spawning and with government.
+        assert("the dial has six spaces", Game.EVENTS.length === 6);
+        assert("no space is blank", Game.EVENTS.every((sec) => Array.isArray(sec) && sec.length));
+        assert("the dial starts on barbarians appearing", Game.EVENTS[0][0] === "barbarian_return");
+        assert("the wonder icon shares the starting space", Game.EVENTS[0].indexOf("wonder_tokens") === 1);
+        assert("the wonder icon also shares the government space",
+          Game.EVENTS[3][0] === "gov_change" && Game.EVENTS[3][1] === "wonder_tokens");
+        assert("the expansion dial has no trade icon", Game.EVENT_NAMES.indexOf("trade") < 0);
+        assert("every icon on the dial has a label",
+          Game.EVENT_NAMES.every((e) => !!Game.EVENT_LABELS[e]));
 
+        // A fresh game sits on the starting space without having resolved it.
+        const fresh = rulesState();
+        assert("the pointer starts on the first space", fresh.eventWheel.position === 0);
+        assert("setup places no trade token on a wonder",
+          Object.values(fresh.wonderDecks).every((d) => !d.token));
+
+        // One full revolution, in printed order.
+        const order = [];
+        const seen = rulesState();
+        for (let i = 0; i < 6; i++) {
+          seen.eventWheel.position = (seen.eventWheel.position + 1) % 6;
+          seen.eventWheel.events[seen.eventWheel.position].forEach((e) => order.push(e));
+        }
+        assert("the dial turns spawn -> wonder -> move -> district -> gov -> wonder -> move -> district",
+          order.join(",") === "barbarian_move,district_event,gov_change,wonder_tokens," +
+            "barbarian_move,district_event,barbarian_return,wonder_tokens");
+      }
+
+      {
+        // Terra p14: the wonder icon marks a faceup wonder, and the second mark
+        // takes it out of the game rather than discounting it further.
         const st0 = rulesState();
         const me = st0.players[0];
-        activate(st0, "0,0", { city: { ownerId: me.id, isCapital: true, developed: true, hasWonder: false, wonder: null } });
-        activate(st0, "4,0", { city: { ownerId: me.id, isCapital: false, developed: true, hasWonder: false, wonder: null } });
-        Game.resolveEvent(st0, "trade");
-        assert("trade pays one token per developed city",
-          st0.pendingChoices.filter((c) => c.kind === "trade_any" && c.playerId === me.id).length === 2);
+        const deckType = Object.keys(st0.wonderDecks)[0];
+        const deck = st0.wonderDecks[deckType];
+        const first = deck.revealed;
+        const base = Game.getWonderCost(first, me);
+
+        Game.resolveEvent(st0, "wonder_tokens");
+        assert("the wonder icon puts a trade token on the faceup wonder", deck.token === 1);
+        assert("a marked wonder costs exactly 1 less",
+          Game.getWonderCost(first, me, st0) === base - 1);
+
+        Game.resolveEvent(st0, "wonder_tokens");
+        assert("a second token removes the wonder from the game",
+          deck.revealed !== first && (deck.removed || []).indexOf(first) >= 0);
+        assert("the replacement starts unmarked", deck.token === 0);
+        assert("a removed wonder is out of the deck", deck.deck.indexOf(first) < 0);
       }
 
       {
@@ -550,7 +589,9 @@
         assert("a barbarian is never lost to a reinforced marker", lost === 0);
 
         const st1 = rulesState();
-        Object.values(st1.map.hexes).forEach((h) => { h.barbarian = false; h.barbarianId = null; });
+        Object.values(st1.map.hexes).forEach((h) => {
+          h.barbarian = false; h.barbarianId = null; h.barbarianHome = null;
+        });
         activate(st1, "2,0");
         st1.map.hexes["2,0"].barbarianHome = "K";
         Game.resolveEvent(st1, "barbarian_return");

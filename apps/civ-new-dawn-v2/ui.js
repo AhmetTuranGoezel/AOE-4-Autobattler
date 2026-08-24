@@ -1249,7 +1249,7 @@ const UI = (() => {
     const focusOptions = Game.FOCUS_TYPES.map((f) => `<option value="${f}">${Game.FOCUS_LABELS[f]}</option>`).join("");
     const resourceOptions = ["", ...Game.RESOURCES, "wonder"].map((r) => `<option value="${r}">${r || "none"}</option>`).join("");
     const districtOptions = ["", ...Game.DISTRICTS].map((d) => `<option value="${d}">${d ? Game.DISTRICT_LABELS[d] : "none"}</option>`).join("");
-    const eventOptions = Game.EVENTS.filter(Boolean)
+    const eventOptions = Array.from(new Set(Game.EVENT_NAMES))
       .map((e) => `<option value="${e}">${Game.EVENT_LABELS[e]}</option>`).join("");
     const cityStateOptions = ["", ...Object.keys(Game.CITY_STATE_DATA || {})].map((c) => `<option value="${c}">${c || "none"}</option>`).join("");
 
@@ -2129,6 +2129,9 @@ const UI = (() => {
       const owner = Game.getPlayer(state, built);
       return { label: owner ? `built by ${owner.name}` : "built", cls: "built" };
     }
+    const gone = Object.values(state.wonderDecks || {})
+      .some((d) => (d.removed || []).indexOf(name) >= 0);
+    if (gone) return { label: "removed from the game", cls: "gone" };
     const onTop = (Game.getVisibleWonders(state) || []).some((w) => w.name === name);
     return onTop ? { label: "available now", cls: "top" } : { label: "still in the deck", cls: "deck" };
   }
@@ -2154,7 +2157,8 @@ const UI = (() => {
         .sort((a, b) => (a.era || "").localeCompare(b.era || "") || a.cost - b.cost)
         .forEach((w) => {
           const st8 = wonderState(w.name);
-          const afford = me ? Game.getWonderCost(w.name, me) : w.cost;
+          const afford = me ? Game.getWonderCost(w.name, me, state) : w.cost;
+          const token = Game.getWonderToken(state, w.name);
           const wArt = window.CivCardArt ? CivCardArt.wonder(w.name) : "";
           html += `<div class="wcard type-${type} era-${w.era} st-${st8.cls}${wArt ? " has-art" : ""}"${
             wArt ? ` style="${wArt}"` : ""}>
@@ -2168,6 +2172,8 @@ const UI = (() => {
               <p class="wcard-text">${escapeHtml(w.effect || "")}</p>
               ${w.auto ? "" : `<p class="wcard-manual">Resolve at the table — not automated</p>`}
             </div>
+            ${token ? `<div class="wcard-token" title="Placed by the event dial">
+              \ud83e\ude99 costs 1 less \u2014 leaves the game on the next wonder icon</div>` : ""}
             <div class="wcard-foot st-${st8.cls}">${st8.label}</div>
           </div>`;
         });
@@ -2698,9 +2704,12 @@ const UI = (() => {
 
   // ── Event Wheel / Log / Focus Row / Game Over ─────────────
 
+  // Chosen to read like the printed dial: a skyline for districts, a columned
+  // hall for government, a pyramid for the wonder icon.
   const EVENT_ICONS = {
     barbarian_move: "\ud83d\udde1\ufe0f", barbarian_return: "\ud83d\udc80",
-    trade: "\ud83d\udcb0", district_event: "\ud83c\udfd8\ufe0f", gov_change: "\ud83d\udc51"
+    district_event: "\ud83c\udfd9\ufe0f", gov_change: "\ud83c\udfdb\ufe0f",
+    wonder_tokens: "\ud83d\udd3a"
   };
 
   let prevWheelPos = null;
@@ -2714,25 +2723,31 @@ const UI = (() => {
     const n = wheel.events.length;
     const turned = prevWheelPos !== null && prevWheelPos !== pos;
 
-    const segs = wheel.events.map((evt, i) => {
+    // A section can carry two icons — on the real dial the wonder pyramid shares
+    // its space with barbarian spawning and with government.
+    const name = (section) => (section || []).map((e) => Game.EVENT_LABELS[e]).join(" + ");
+    const glyphs = (section) => (section || [])
+      .map((e) => `<i class="ew-ico">${EVENT_ICONS[e] || "\u25cf"}</i>`).join("");
+
+    const segs = wheel.events.map((section, i) => {
       const angle = (i / n) * 360;
-      const cls = ["ew-seg", evt ? `k-${evt}` : "blank",
+      const cls = ["ew-seg", (section || []).length ? "" : "blank",
+        (section || []).length > 1 ? "pair" : "",
         i === pos ? "active" : "", i === (pos + 1) % n ? "next" : ""].filter(Boolean).join(" ");
       return `<span class="${cls}" style="--a:${angle}deg"
-        title="${evt ? escapeHtml(Game.EVENT_LABELS[evt]) : "Nothing happens"}">${
-        evt ? (EVENT_ICONS[evt] || "\u25cf") : ""}</span>`;
+        title="${escapeHtml(name(section) || "Nothing happens")}">${glyphs(section)}</span>`;
     }).join("");
 
-    const now = wheel.events[pos];
-    const next = wheel.events[(pos + 1) % n];
+    const now = wheel.events[pos] || [];
+    const next = wheel.events[(pos + 1) % n] || [];
     dom.eventWheel.innerHTML = `<h3>Event Dial</h3>
       <div class="ew-dial${turned ? " turning" : ""}">
         <div class="ew-ring">${segs}</div>
         <div class="ew-hand" style="--a:${(pos / n) * 360}deg"></div>
-        <div class="ew-hub">${now ? (EVENT_ICONS[now] || "\u25cf") : "\u2014"}</div>
+        <div class="ew-hub">${glyphs(now) || "\u2014"}</div>
       </div>
-      <div class="ew-now">${now ? escapeHtml(Game.EVENT_LABELS[now]) : "Nothing this round"}</div>
-      <div class="ew-next">Next: ${next ? escapeHtml(Game.EVENT_LABELS[next]) : "nothing"}</div>`;
+      <div class="ew-now">${escapeHtml(name(now) || "Nothing this round")}</div>
+      <div class="ew-next">Next: ${escapeHtml(name(next) || "nothing")}</div>`;
 
     if (turned) {
       const seg = dom.eventWheel.querySelector(".ew-seg.active");

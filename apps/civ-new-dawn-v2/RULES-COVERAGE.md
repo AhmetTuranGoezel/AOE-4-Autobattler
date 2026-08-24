@@ -1,9 +1,15 @@
 # Rules coverage
 
-What the engine actually enforces, checked card by card against the German
-rulebooks for *Sid Meier's Civilization: Ein neues Zeitalter* (base) and
-*Terra Incognita* (expansion). Terra overrides the base game wherever they
+What the engine actually enforces, checked card by card against the **English**
+rulebooks for *Sid Meier's Civilization: A New Dawn* (base, 18pp) and
+*Terra Incognita* (expansion, 16pp). Terra overrides the base game wherever they
 disagree.
+
+The English books are the source of truth. This started from the German edition,
+whose wording is wrong in at least one place that matters: the city-building rule
+reads there as though a caravan or control token were **required** on the space,
+when the English says the opposite — no component may be there **except** those.
+Page numbers below are English ones.
 
 Three sections, and the third one matters as much as the first: **verified**,
 **approximated**, and **invented**.
@@ -61,9 +67,13 @@ token" got wrong, and it was wrong in both the engine and the UI.
 
 ### Cities
 
-- A city must be founded on a space already holding **your own caravan or
-  control token** (base p9), within the industry card's range, not adjacent to
-  another city or a city-state.
+- A city goes on a **legal space** (base p9, defined again on Terra p14): non-water,
+  within the industry card's range, not adjacent to a city, city-state or fort, and
+  holding **no component except** a caravan, a friendly army or a friendly control
+  token. Ordinary empty ground is the normal place to build; a resource token, a
+  natural wonder, a barbarian, a rival marker or a rival army all block it.
+- Building on your own control token removes it; building on a caravan leaves the
+  caravan where it is.
 - Building a wonder requires a city you own that has no wonder yet.
 
 ### Map building (base p14)
@@ -95,7 +105,7 @@ token" got wrong, and it was wrong in both the engine and the UI.
   copies exist per city-state), or a **choice** among that rival's cards, with the
   option to swap the one you already hold.
 
-### The technology dial (base p8, Terra p15)
+### The technology dial (base p8 and p16)
 
 - The science card advances the arrow by its slot number.
 - Reaching a level lets you take a card of **exactly that level**, not one step up.
@@ -103,15 +113,40 @@ token" got wrong, and it was wrong in both the engine and the UI.
 - Past space 24 the arrow goes **directly to 15**, so the tail can be run again for
   further level IV cards.
 
-### The event wheel (base p12)
+### The event dial (base p5 and p12, Terra p6 and p14)
 
-- Turned one segment at the end of each round, before the start player's turn.
-- **Blank segments do nothing** — not every round fires an event.
-- *Trade*: every player takes one token per **developed city** and places them
-  where they like.
+Terra **replaces** the base dial, and the replacement is a different shape: six
+spaces, none blank, and two of them carry two icons each. Read off the printed
+face, clockwise from the starting space:
+
+| space | icons |
+|---|---|
+| 1 | barbarian spawning + wonder — **the pointer starts here** |
+| 2 | barbarian movement |
+| 3 | district |
+| 4 | government + wonder |
+| 5 | barbarian movement |
+| 6 | district |
+
+- Set up pointing at the **helmet with the star** (base p5, Terra p6), and that
+  space is *not* resolved at setup — which is why Terra p14 says the wonder icon
+  fires "except during setup".
+- Turned one space at the end of each round, after the victory check.
+- The expansion dial has **no trade icon at all**: mature cities earn trade
+  through the commercial hub district instead.
+- The wonder icon resolves **last** in a space it shares.
 - *Barbarians appear*: every **defeated** barbarian returns to its printed space,
-  if that space is empty or holds only a caravan (which is destroyed).
-- *Districts* and *government change* resolve clockwise from the start player.
+  if that space is empty or holds only a caravan or army (which is defeated).
+- *Districts* and *government* resolve clockwise from the start player.
+
+### The wonder icon (Terra p14)
+
+- A trade token goes on **every faceup wonder**. While a wonder carries one it
+  **costs 1 less**, and the token goes back to the supply when it is built.
+- A wonder that would take a **second** token is removed from the game instead and
+  the next card of its deck is turned up. So this is a countdown on a wonder
+  nobody wants, not a standing discount — nothing is made cheaper the moment it
+  appears.
 
 ### Barbarians (base p12)
 
@@ -122,6 +157,11 @@ token" got wrong, and it was wrong in both the engine and the UI.
   unreinforced marker or non-capital city is destroyed; a **reinforced marker is
   flipped down and the barbarian stays put**; a capital costs its owner 2 trade
   tokens and turns the raid back.
+- An **army** in the way is defeated and shields its space (Terra p11): the
+  barbarian falls back to the land it came from, and the city or marker underneath
+  the army is neither destroyed nor flipped.
+- No two barbarians share a space. The book gets there by letting them stack and
+  then dispersing one (base p16); here they simply never stack.
 
 ### Districts (Terra p20)
 
@@ -180,9 +220,6 @@ token" got wrong, and it was wrong in both the engine and the UI.
 - **The advanced pre-game tile draft** (each player dealt 2 tiles and placing in
   turn order, Terra p14) is not implemented. The app builds the four-tile core to
   the rules and then draws from a shared exploration stack during play.
-- **The event wheel's segment order** is our own arrangement. The five symbols on
-  it are the printed ones and blanks are real, but the rulebook does not spell out
-  the sequence around the dial.
 - **How far a government marker shifts a card.** All six are 2 here. The rulebook
   works Monarchy through at 2 and Fantasy Flight's announcement describes
   Oligarchy the same way; with one government per card type the set is
@@ -195,6 +232,18 @@ token" got wrong, and it was wrong in both the engine and the UI.
 - **The tech dial's level positions** (8, 16, 24) are evenly spread rather than
   read off the printed dial. Level IV sits on 24, which the "past 24 go back to
   15" rule requires.
+
+### Known gaps, read in the English books and not yet closed
+
+- **Exploration** (Terra p12) is stricter than the app: the figure must be on the
+  map edge **and** on a tile that has a capital city, the new tile comes from the
+  **bottom** of the stack, and it must touch four spaces including the explorer's
+  own space.
+- **Agenda wording.** Terra p16 prints exact targets for all twelve agendas. A few
+  of the descriptions here are paraphrases carried over from the German, and
+  "Explorer", "Civilized" and "Warmonger" are base-game cards Terra replaces.
+- **Growth trade tokens** should each reinforce one control token (Terra p8). The
+  effect is listed on the card but not wired to spending.
 
 ## 3. Invented — not from the game
 

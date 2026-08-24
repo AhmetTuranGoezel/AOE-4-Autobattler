@@ -86,14 +86,29 @@ const Game = (() => {
     theater: "place 1 control within 2 of district"
   };
   const RESOURCES = ["marble", "mercury", "oil", "diamonds"];
+  // The Terra Incognita dial, read off the printed face (Terra p3, p6 and p14).
+  // Six sections, no blanks, and two of them carry two icons: the wonder icon
+  // shares a space with barbarian spawning and with government, and always
+  // resolves last in its space. The pointer is set to the helmet with the star
+  // at setup (base p5, Terra p6) and that space is NOT resolved then — which is
+  // exactly why p14 says the wonder icon fires "except during setup".
+  //
+  // The expansion dial has no trade icon at all: mature cities now earn trade
+  // through the commercial hub district instead.
   const EVENTS = [
-    "barbarian_move", null, "trade", "district_event", null,
-    "barbarian_move", "gov_change", null, "trade", "barbarian_return"
+    ["barbarian_return", "wonder_tokens"],
+    ["barbarian_move"],
+    ["district_event"],
+    ["gov_change", "wonder_tokens"],
+    ["barbarian_move"],
+    ["district_event"]
   ];
   const EVENT_LABELS = {
     barbarian_move: "Barbarians Move", barbarian_return: "Barbarians Appear",
-    trade: "Trade", district_event: "Districts", gov_change: "Government Change"
+    district_event: "Districts", gov_change: "Government Change",
+    wonder_tokens: "World Wonders"
   };
+  const EVENT_NAMES = EVENTS.reduce((all, section) => all.concat(section), []);
   const CITY_NAMES = Object.keys(CITY_STATE_DATA).length
     ? Object.keys(CITY_STATE_DATA)
     : ["Akkad", "Seoul", "Buenos Aires", "Venice", "Kabul", "Geneva", "Nan Madol", "Brussels", "Preslav", "Carthage", "Valletta", "Antananarivo"];
@@ -110,7 +125,7 @@ const Game = (() => {
     fortressDefense: 6,
     resourceProdValue: 2,
     techWheelSize: 24,
-    techResetAt: 15,   // past space 24 the arrow jumps straight here (Terra p15)
+    techResetAt: 15,   // past space 24 the arrow jumps straight here (base p16)
     maxRounds: 20,
     minPlayers: 2,
     maxPlayers: 4,
@@ -503,7 +518,7 @@ const Game = (() => {
       if (byEra.ancient.length > 2) byEra.ancient.pop();
       if (byEra.medieval.length > 2) byEra.medieval.pop();
       const deck = [...byEra.ancient, ...byEra.medieval, ...byEra.modern].map((w) => w.name);
-      decks[type] = { deck, revealed: deck[0] || null, built: [] };
+      decks[type] = { deck, revealed: deck[0] || null, built: [], removed: [], token: 0 };
     });
     return decks;
   }
@@ -904,7 +919,7 @@ const Game = (() => {
     }
 
     if (type === "FORCE_EVENT") {
-      if (!EVENTS.includes(payload.event)) return st;
+      if (!EVENT_NAMES.includes(payload.event)) return st;
       resolveEvent(st, payload.event);
       manualLog(st, `Forced event: ${EVENT_LABELS[payload.event] || payload.event}.`);
       return st;
@@ -1271,11 +1286,7 @@ const Game = (() => {
       const player = getPlayer(st, payload.playerId);
       if (!player || player.cardPlayed) return st;
       const hex = st.map.hexes[payload.hexKey];
-      if (!hex || !hex.active || hex.terrain === "water" || hex.city || hex.cityState || hex.barbarian) return st;
-      if (adjacentToAnyCity(st, hex) || adjacentToCityState(st, hex)) return st;
-      const ownsSpace = (hex.control && hex.control.ownerId === payload.playerId) ||
-        player.caravans.some((u) => u.position === payload.hexKey);
-      if (!ownsSpace) return st;
+      if (!isLegalCitySpace(st, hex, payload.hexKey, payload.playerId)) return st;
       const slot = getSlotValue(player, "industry", st);
       let resBonus = 0;
       if (payload.resources) Object.values(payload.resources).forEach((v) => { if (v) resBonus += CFG.resourceProdValue; });
@@ -1341,7 +1352,7 @@ const Game = (() => {
       }
       if (!wonder || builtWonders.has(wonder.name)) return st;
 
-      const cost = getWonderCost(wonder.name, player); // Egypt builds wonders for 1 less
+      const cost = getWonderCost(wonder.name, player, st);
       const slot = getSlotValue(player, "industry", st);
       // Nubia's Construction (unique Industry II): each resource spent is worth
       // 1 extra production.
@@ -1912,13 +1923,16 @@ const Game = (() => {
 
   // --- Event Wheel ---
 
+  // One click of the dial. A section can hold more than one icon, and they are
+  // resolved in the order they are listed — the wonder icon comes last in its
+  // space, as Terra p14 requires.
   function advanceEventWheel(st) {
     const wheel = st.eventWheel;
     wheel.position = (wheel.position + 1) % wheel.events.length;
-    const evt = wheel.events[wheel.position];
-    if (!evt) { log(st, "The event dial turns to a blank space."); return; }
-    log(st, `Event: ${EVENT_LABELS[evt]}`);
-    resolveEvent(st, evt);
+    const section = wheel.events[wheel.position] || [];
+    if (!section.length) { log(st, "The event dial turns to a blank space."); return; }
+    log(st, `Event: ${section.map((e) => EVENT_LABELS[e]).join(" + ")}`);
+    section.forEach((evt) => resolveEvent(st, evt));
   }
 
   // Barbarian movement, base rulebook p12. One die roll sets the direction for
@@ -1955,10 +1969,24 @@ const Game = (() => {
       const toKey = destination(fromKey);
       if (!toKey) return;
       const target = st.map.hexes[toKey];
-      if (target.barbarian) return;              // one barbarian per space
+      // Base p16 disperses barbarians that end up sharing a space; here they
+      // simply never do, which reaches the same board.
+      if (target.barbarian) return;
 
       const owner = hexOwnerAt(st, toKey);
       const ownerPlayer = owner ? getPlayer(st, owner) : null;
+
+      // Terra p11: an army in the way is defeated, but it shields its space.
+      // The barbarian falls back to the land it came from and nothing else in
+      // the army's space is destroyed or flipped.
+      const defenders = armiesAt(st, toKey);
+      if (defenders.length) {
+        defenders.forEach(({ player, unit }) => {
+          unit.position = null;
+          log(st, `Barbarians overran ${player.name}'s army at ${toKey}.`);
+        });
+        return;
+      }
 
       // A reinforced marker or a capital turns the raid back: the barbarian
       // stays where it started.
@@ -2019,11 +2047,18 @@ const Game = (() => {
         // that caravan is destroyed. Anything else and the barbarian waits
         // outside the map for its next chance.
         if (h.city || h.cityState || h.control || (h.fortress && !h.city)) return;
+        // Terra p11: an army on the icon does not hold the barbarian off — it
+        // is simply defeated, the same as a caravan.
         st.players.forEach((p) => {
           p.caravans.forEach((u) => {
             if (u.position !== k) return;
             u.position = null;
             log(st, `A returning barbarian destroyed ${p.name}'s caravan.`);
+          });
+          p.armies.forEach((u) => {
+            if (u.position !== k) return;
+            u.position = null;
+            log(st, `A barbarian spawned on top of ${p.name}'s army.`);
           });
         });
         h.barbarian = true;
@@ -2165,23 +2200,45 @@ const Game = (() => {
       });
       log(st, "The dial turns to government: players may change theirs.");
     }
-    if (evt === "trade") {
-      st.turn.order.map((id) => getPlayer(st, id)).filter(Boolean).forEach((player) => {
-        let developed = 0;
-        Object.values(st.map.hexes).forEach((h) => {
-          if (h.city && h.city.ownerId === player.id && h.city.developed) developed++;
-        });
-        if (!developed) return;
-        for (let i = 0; i < developed; i++) {
-          queuePendingChoice(st, {
-            kind: "trade_any", playerId: player.id, amount: 1,
-            title: `Trade: place token ${i + 1} of ${developed}`,
-            options: FOCUS_TYPES.map((f) => ({ id: f, label: FOCUS_LABELS[f] }))
-          });
-        }
-        log(st, `${player.name} earns ${developed} trade token(s) from developed cities.`);
-      });
+    if (evt === "wonder_tokens") {
+      resolveWonderTokens(st);
     }
+  }
+
+  // Terra p14: a trade token goes on every faceup wonder. A wonder that would
+  // take a second one is removed from the game instead and the next card in its
+  // deck is turned up. While the token is there the wonder costs 1 less; it goes
+  // back to the supply the moment somebody builds it. So this is a countdown on
+  // an unwanted wonder, not a standing discount.
+  function resolveWonderTokens(st) {
+    if (!st.wonderDecks) return;
+    const marked = [];
+    const gone = [];
+    Object.entries(st.wonderDecks).forEach(([type, deckState]) => {
+      const name = deckState.revealed || (deckState.deck && deckState.deck[0]);
+      if (!name) return;
+      if (deckState.token) {
+        deckState.token = 0;
+        removeWonderFromGame(st, type, name);
+        gone.push(name);
+      } else {
+        deckState.token = 1;
+        marked.push(name);
+      }
+    });
+    if (marked.length) log(st, `A trade token is placed on ${marked.join(", ")} — each costs 1 less.`);
+    if (gone.length) log(st, `${gone.join(", ")} went unbuilt too long and left the game.`);
+  }
+
+  function removeWonderFromGame(st, type, name) {
+    const deckState = st.wonderDecks && st.wonderDecks[type];
+    if (!deckState) return;
+    const idx = deckState.deck.indexOf(name);
+    if (idx >= 0) deckState.deck.splice(idx, 1);
+    deckState.removed = deckState.removed || [];
+    deckState.removed.push(name);
+    deckState.revealed = deckState.deck[0] || null;
+    deckState.token = 0;
   }
 
   // --- Victory & Scoring ---
@@ -2726,11 +2783,22 @@ const Game = (() => {
     return CARD_TIERS.industry.cityRange[tier - 1];
   }
 
-  function getWonderCost(wonderName, player) {
+  function getWonderCost(wonderName, player, st) {
     const wonder = getWonderByName(wonderName);
-    const base = wonder ? wonder.cost : 7;
-    // Egypt: all world wonders cost 1 less.
-    return hasLeader(player, "egypt") ? Math.max(1, base - 1) : base;
+    let cost = wonder ? wonder.cost : 7;
+    // Egypt: all world wonders cost 1 less. This one really is permanent.
+    if (hasLeader(player, "egypt")) cost -= 1;
+    // Terra p14: and 1 less again while the dial's trade token sits on it.
+    if (st && getWonderToken(st, wonderName)) cost -= 1;
+    return Math.max(1, cost);
+  }
+
+  // The dial's trade token, if this wonder is the faceup card of its deck.
+  function getWonderToken(st, wonderName) {
+    if (!st || !st.wonderDecks) return 0;
+    const entry = Object.values(st.wonderDecks).find((d) =>
+      (d.revealed || (d.deck && d.deck[0])) === wonderName);
+    return entry ? (entry.token || 0) : 0;
   }
 
   function getWonderByName(wonderName) {
@@ -2742,7 +2810,7 @@ const Game = (() => {
     return Object.entries(st.wonderDecks).map(([type, data]) => {
       const name = data.revealed || (data.deck && data.deck[0]);
       const wonder = getWonderByName(name);
-      return wonder ? { ...wonder, type } : null;
+      return wonder ? { ...wonder, type, token: data.token || 0, left: data.deck.length } : null;
     }).filter(Boolean);
   }
 
@@ -2754,6 +2822,7 @@ const Game = (() => {
     deckState.built = deckState.built || [];
     deckState.built.push(builtName);
     deckState.revealed = deckState.deck[0] || null;
+    deckState.token = 0;   // the token on a built wonder goes back to the supply
   }
   function getSlotIndex(player, cardType) { return player.focusRow.indexOf(cardType); }
 
@@ -2826,13 +2895,8 @@ const Game = (() => {
     const player = getPlayer(st, playerId);
     const valid = [];
     Object.entries(st.map.hexes).forEach(([k, h]) => {
-      if (!h.active || h.terrain === "water") return;
+      if (!isLegalCitySpace(st, h, k, playerId)) return;
       if (placementDifficulty(st, h, player, "city") > production) return;
-      if (h.city || h.cityState || h.barbarian || (h.fortress && !h.city)) return;
-      if (adjacentToAnyCity(st, h) || adjacentToCityState(st, h) || adjacentToFortress(st, h)) return;
-      const owns = (h.control && h.control.ownerId === playerId) ||
-        (player && player.caravans.some((u) => u.position === k));
-      if (!owns) return;
       if (!withinRangeOfFriendly(st, h, playerId, range)) return;
       valid.push(k);
     });
@@ -2931,6 +2995,14 @@ const Game = (() => {
     return null;
   }
 
+  function armiesAt(st, hexKey) {
+    const found = [];
+    st.players.forEach((p) => {
+      p.armies.forEach((unit) => { if (unit.position === hexKey) found.push({ player: p, unit }); });
+    });
+    return found;
+  }
+
   function getUnitsAt(st, hexKey) {
     const units = [];
     st.players.forEach((p) => {
@@ -2960,6 +3032,22 @@ const Game = (() => {
   function adjacentToFortress(st, hex) {
     return hexNeighborKeys(hex.q, hex.r).some((nk) => { const n = st.map.hexes[nk]; return n && n.fortress && !n.city; });
   }
+  // A legal space for a new city (base p9, restated as "Legal Space" on Terra
+  // p14): non-water, not adjacent to a city, city-state or fort, and holding no
+  // component EXCEPT a caravan, a friendly army, or a friendly control token.
+  // The German edition reads as though the caravan or token were required. It is
+  // the other way round — plain empty ground is the ordinary place to build.
+  function isLegalCitySpace(st, hex, hexKey, playerId) {
+    if (!hex || !hex.active || hex.terrain === "water") return false;
+    if (hex.city || hex.cityState || hex.barbarian || hex.fortress) return false;
+    if (hex.resource || hex.naturalWonder) return false;
+    if (hex.control && hex.control.ownerId !== playerId) return false;
+    if (adjacentToAnyCity(st, hex) || adjacentToCityState(st, hex) || adjacentToFortress(st, hex)) return false;
+    // Caravans never block, whoever owns them; a rival army does (Terra p11).
+    return !st.players.some((p) => p.id !== playerId &&
+      p.armies.some((u) => u.position === hexKey));
+  }
+
   function adjacentToFriendlyControl(st, hex, playerId) {
     return hexNeighborKeys(hex.q, hex.r).some((nk) => {
       const n = st.map.hexes[nk]; return n && n.control && n.control.ownerId === playerId;
@@ -3110,7 +3198,7 @@ const Game = (() => {
 
   return {
     TERRAIN, TERRAIN_LABELS, FOCUS_TYPES, FOCUS_LABELS, FOCUS_SLOTS, FOCUS_TRADE_DESC, CARD_NAMES, CARD_ICONS,
-    DISTRICTS, DISTRICT_LABELS, DISTRICT_EFFECTS, RESOURCES, EVENTS, EVENT_LABELS, CFG,
+    DISTRICTS, DISTRICT_LABELS, DISTRICT_EFFECTS, RESOURCES, EVENTS, EVENT_NAMES, EVENT_LABELS, CFG,
     WONDERS, ALL_WONDERS, WONDER_ERAS, CARD_TIERS, AGENDA_CARDS, DIPLOMACY_CARDS, CITY_STATE_DATA,
     LEADERS, getLeader, getLeaderAttackBonus, getCardName, getActiveUniqueCard,
     CARD_DEFS, getCardEffectText, syncUnitCounts, advanceTech, resolveEvent, GOVERNMENTS, CIV_STYLE,
@@ -3119,7 +3207,7 @@ const Game = (() => {
     createState, createLobbyState, createPlayer, migrateState, applyAction, currentPlayer, getPlayer,
     getSlotValue, getSlotIndex, getCardTier, getCardTierValue: getCardTier,
     getMilitaryMove, getEconomyMove, getCultureMarkers, getMilitaryCombatBonus,
-    getCityRange, getWonderCost, getVisibleWonders, canCrossWater, computeScore,
+    getCityRange, getWonderCost, getWonderToken, getVisibleWonders, canCrossWater, computeScore,
     validControlHexes, validDistrictHexes, validReinforceHexes,
     validCityHexes, validWonderHexes, getReachable, findDefender, getUnitsAt,
     adjacentToCityState, adjacentToFriendlyControl, terrainDifficulty,
