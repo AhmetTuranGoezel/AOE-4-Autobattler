@@ -1011,6 +1011,40 @@ const UI = (() => {
 
   // ── Render Orchestrator ───────────────────────────────────
 
+  // What changed since the last render, so the board can react to it. Follows
+  // the same shape as prevFocusOrder, which already FLIPs the focus cards.
+  let prevSeen = null;
+
+  function snapshotSeen() {
+    const wonders = {}, cities = {}, districts = {};
+    Object.entries(state.map.hexes).forEach(([k, h]) => {
+      if (h.city && h.city.wonder) wonders[h.city.wonder.name] = k;
+      if (h.city) cities[k] = h.city.ownerId;
+      if (h.control && h.control.district) districts[k] = h.control.district;
+    });
+    return { wonders, cities, districts };
+  }
+
+  function reactToChanges() {
+    const now = snapshotSeen();
+    if (prevSeen) {
+      Object.entries(now.wonders).forEach(([name, k]) => {
+        if (prevSeen.wonders[name]) return;
+        announce(`\u2728 ${name} completed`, "wonder");
+        flashHex(k, "rgb(255,213,79)", 1400);
+      });
+      Object.keys(now.cities).forEach((k) => {
+        if (prevSeen.cities[k]) return;
+        flashHex(k, "rgb(129,199,132)", 900);
+      });
+      Object.entries(now.districts).forEach(([k, d]) => {
+        if (prevSeen.districts[k]) return;
+        flashHex(k, "rgb(100,181,246)", 900);
+      });
+    }
+    prevSeen = now;
+  }
+
   function render() {
     if (!state) return;
     renderHeader();
@@ -1031,6 +1065,7 @@ const UI = (() => {
       dom.focusRow.innerHTML = "";
     }
     renderGameOver();
+    reactToChanges();
 
     if (state.lastAction && state.lastAction.playerId !== localPlayerId) {
       const elapsed = Date.now() - state.lastAction.ts;
@@ -1624,6 +1659,43 @@ const UI = (() => {
       </div>
       <div class="wiz-actions"><button class="primary" id="wiz-combat-ok">Continue</button></div>`;
     document.getElementById("wiz-combat-ok").addEventListener("click", () => { state.lastCombat = null; render(); });
+    rollDice(dom.wizard.querySelector(".cr-die.atk"), c.atkRoll);
+    rollDice(dom.wizard.querySelector(".cr-die.def"), c.defRoll);
+  }
+
+  // Spin a die through random faces before it settles on what was actually
+  // rolled. Purely decorative — the result is already decided.
+  function rollDice(el, result) {
+    if (!el || reducedMotion()) return;
+    const faces = ["\u2680", "\u2681", "\u2682", "\u2683", "\u2684", "\u2685"];
+    const final = faces[(result || 1) - 1];
+    let ticks = 0;
+    el.classList.add("rolling");
+    const id = setInterval(() => {
+      el.textContent = faces[Math.floor(Math.random() * 6)];
+      if (++ticks >= 9) {
+        clearInterval(id);
+        el.textContent = final;
+        el.classList.remove("rolling");
+        el.classList.add("landed");
+        setTimeout(() => el.classList.remove("landed"), 400);
+      }
+    }, 55);
+  }
+
+  const reducedMotion = () =>
+    window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // A short banner for things worth noticing — a wonder finished, a city founded.
+  function announce(text, kind) {
+    const el = document.getElementById("announce");
+    if (!el) return;
+    el.textContent = text;
+    el.className = `announce k-${kind || "info"}`;
+    void el.offsetWidth;                       // restart the animation
+    el.classList.add("show");
+    clearTimeout(announce._t);
+    announce._t = setTimeout(() => el.classList.remove("show"), 2600);
   }
 
   function renderIdleWizard(isMyTurn, cp, me) {
@@ -2038,6 +2110,8 @@ const UI = (() => {
   // effects only appeared deep inside the build flow, and diplomacy text hid in
   // a hover. These open from the header at any time.
 
+  const WONDER_ICONS = { military: "\u2694\ufe0f", culture: "\ud83c\udfad", economy: "\ud83d\udcb0", science: "\ud83d\udd2c" };
+
   function wonderState(name) {
     let built = null;
     Object.values(state.map.hexes).forEach((h) => {
@@ -2073,12 +2147,18 @@ const UI = (() => {
         .forEach((w) => {
           const st8 = wonderState(w.name);
           const afford = me ? Game.getWonderCost(w.name, me) : w.cost;
-          html += `<div class="wface era-${w.era} st-${st8.cls}">
-            <div class="wface-head"><span class="wface-name">${escapeHtml(w.name)}</span>
-              <span class="wface-cost">${afford}${afford !== w.cost ? ` <s>${w.cost}</s>` : ""}</span></div>
-            <div class="wface-meta">${escapeHtml(w.era)} · ${escapeHtml(type)} · ${st8.label}</div>
-            <div class="wface-text">${escapeHtml(w.effect || "")}</div>
-            ${w.auto ? "" : `<div class="wface-manual">Resolve this one between you — not automated.</div>`}
+          html += `<div class="wcard type-${type} era-${w.era} st-${st8.cls}">
+            <div class="wcard-top">
+              <span class="wcard-icon">${WONDER_ICONS[type] || "\u2b50"}</span>
+              <span class="wcard-era">${escapeHtml(w.era)}</span>
+              <span class="wcard-coin" title="Production cost">${afford}${afford !== w.cost ? `<s>${w.cost}</s>` : ""}</span>
+            </div>
+            <div class="wcard-name">${escapeHtml(w.name)}</div>
+            <div class="wcard-body">
+              <p class="wcard-text">${escapeHtml(w.effect || "")}</p>
+              ${w.auto ? "" : `<p class="wcard-manual">Resolve at the table — not automated</p>`}
+            </div>
+            <div class="wcard-foot st-${st8.cls}">${st8.label}</div>
           </div>`;
         });
       html += `</div>`;
@@ -2103,18 +2183,19 @@ const UI = (() => {
       const from = d.fromCityState
         ? `from ${escapeHtml(d.fromCityState)}`
         : `from ${escapeHtml((Game.getPlayer(state, d.fromId) || {}).name || "a rival")}`;
-      return `<div class="wface">
-        <div class="wface-head"><span class="wface-name">${escapeHtml(d.name || d.cardId)}</span></div>
-        <div class="wface-meta">${from}</div>
-        <div class="wface-text">${escapeHtml(d.effect || meta.text || meta.effect || "")}</div>
+      return `<div class="wcard type-${d.type || "culture"} held">
+        <div class="wcard-top"><span class="wcard-icon">\ud83e\udd1d</span><span class="wcard-era">${from}</span></div>
+        <div class="wcard-name">${escapeHtml(d.name || d.cardId)}</div>
+        <div class="wcard-body"><p class="wcard-text">${escapeHtml(d.effect || meta.text || meta.effect || "")}</p></div>
       </div>`;
     }).join("") + `</div>` : `<p class="ref-empty">None yet — send a caravan to a city-state or a rival city.</p>`;
 
     html += `<h3 class="ref-group">The four rival cards</h3><div class="ref-grid">`;
     Object.entries(cards).forEach(([id, c]) => {
-      html += `<div class="wface">
-        <div class="wface-head"><span class="wface-name">${escapeHtml(c.name)}</span></div>
-        <div class="wface-text">${escapeHtml(c.text || c.effect || "")}</div>
+      html += `<div class="wcard type-military">
+        <div class="wcard-top"><span class="wcard-icon">\ud83d\udcdc</span><span class="wcard-era">rival card</span></div>
+        <div class="wcard-name">${escapeHtml(c.name)}</div>
+        <div class="wcard-body"><p class="wcard-text">${escapeHtml(c.text || c.effect || "")}</p></div>
       </div>`;
     });
     html += `</div>`;
@@ -2127,12 +2208,18 @@ const UI = (() => {
     html += `<h3 class="ref-group">City-states on the map (${seen.length})</h3>`;
     html += seen.length ? `<div class="ref-grid">` + seen.map(({ key, cs }) => {
       const data = (Game.CITY_STATE_DATA || {})[cs.name] || {};
-      return `<div class="wface">
-        <div class="wface-head"><span class="wface-name">${escapeHtml(cs.name)}</span>
-          <span class="wface-cost">def ${Game.CFG.cityStateDefense}</span></div>
-        <div class="wface-meta">${escapeHtml(cs.type)} · ${cs.diplomacyCards} card(s) left · ${key}</div>
-        <div class="wface-text">${escapeHtml(data.diplomacy || "")}</div>
-        <div class="wface-meta">A caravan arriving earns 2 ${escapeHtml(cs.type)} trade and a diplomacy card.</div>
+      return `<div class="wcard type-${cs.type}">
+        <div class="wcard-top">
+          <span class="wcard-icon">\ud83c\udfdb\ufe0f</span>
+          <span class="wcard-era">${escapeHtml(cs.type)}</span>
+          <span class="wcard-coin" title="Defence value">${Game.CFG.cityStateDefense}</span>
+        </div>
+        <div class="wcard-name">${escapeHtml(cs.name)}</div>
+        <div class="wcard-body">
+          <p class="wcard-text">${escapeHtml(data.diplomacy || "")}</p>
+          <p class="wcard-note">A caravan arriving earns 2 ${escapeHtml(cs.type)} trade and a diplomacy card.</p>
+        </div>
+        <div class="wcard-foot">${cs.diplomacyCards} card(s) left · ${key}</div>
       </div>`;
     }).join("") + `</div>` : `<p class="ref-empty">None revealed yet.</p>`;
 
@@ -2518,19 +2605,47 @@ const UI = (() => {
 
   // ── Event Wheel / Log / Focus Row / Game Over ─────────────
 
+  const EVENT_ICONS = {
+    barbarian_move: "\ud83d\udde1\ufe0f", barbarian_return: "\ud83d\udc80",
+    trade: "\ud83d\udcb0", district_event: "\ud83c\udfd8\ufe0f", gov_change: "\ud83d\udc51"
+  };
+
+  let prevWheelPos = null;
+
+  // The dial is a ring with a pointer, not a row of pills. The pointer sweeps to
+  // the new segment when the round turns and the segment that fired pulses.
   function renderEventWheel() {
     if (!state) return;
     const wheel = state.eventWheel;
     const pos = wheel.position;
-    dom.eventWheel.innerHTML = `<h3>Event Wheel</h3><div class="ew-track">${
-      wheel.events.map((evt, i) => {
-        let cls = "ew-pip";
-        if (i === pos) cls += " active";
-        if (i === (pos + 1) % wheel.events.length) cls += " next";
-        if (!evt) cls += " blank";
-        return `<span class="${cls}">${evt ? Game.EVENT_LABELS[evt] : "\u2014"}</span>`;
-      }).join("")
-    }</div>`;
+    const n = wheel.events.length;
+    const turned = prevWheelPos !== null && prevWheelPos !== pos;
+
+    const segs = wheel.events.map((evt, i) => {
+      const angle = (i / n) * 360;
+      const cls = ["ew-seg", evt ? `k-${evt}` : "blank",
+        i === pos ? "active" : "", i === (pos + 1) % n ? "next" : ""].filter(Boolean).join(" ");
+      return `<span class="${cls}" style="--a:${angle}deg"
+        title="${evt ? escapeHtml(Game.EVENT_LABELS[evt]) : "Nothing happens"}">${
+        evt ? (EVENT_ICONS[evt] || "\u25cf") : ""}</span>`;
+    }).join("");
+
+    const now = wheel.events[pos];
+    const next = wheel.events[(pos + 1) % n];
+    dom.eventWheel.innerHTML = `<h3>Event Dial</h3>
+      <div class="ew-dial${turned ? " turning" : ""}">
+        <div class="ew-ring">${segs}</div>
+        <div class="ew-hand" style="--a:${(pos / n) * 360}deg"></div>
+        <div class="ew-hub">${now ? (EVENT_ICONS[now] || "\u25cf") : "\u2014"}</div>
+      </div>
+      <div class="ew-now">${now ? escapeHtml(Game.EVENT_LABELS[now]) : "Nothing this round"}</div>
+      <div class="ew-next">Next: ${next ? escapeHtml(Game.EVENT_LABELS[next]) : "nothing"}</div>`;
+
+    if (turned) {
+      const seg = dom.eventWheel.querySelector(".ew-seg.active");
+      if (seg) { seg.classList.add("fired"); setTimeout(() => seg.classList.remove("fired"), 900); }
+    }
+    prevWheelPos = pos;
   }
 
   // Colour-code log lines by what happened so the feed scans at a glance.

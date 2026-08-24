@@ -1029,3 +1029,174 @@ input, select {
 #header .sm { margin-left: 4px; }
 /* A blank segment on the dial does nothing — show it as blank, not as a name. */
 .ew-pip.blank { opacity: 0.4; font-style: italic; }
+
+/* --- Wonder / diplomacy / city-state cards -------------------------------- */
+/* These read as cards, in the same colour language as the focus bar, rather
+   than as rows of a table. */
+.ref-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+
+.wcard {
+  display: flex; flex-direction: column;
+  border-radius: 10px; overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  background: var(--panel-2);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.wcard:hover { transform: translateY(-3px); box-shadow: 0 10px 24px rgba(0, 0, 0, 0.5); }
+
+.wcard-top {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 10px; color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+}
+.wcard-icon { font-size: 15px; line-height: 1; }
+.wcard-era {
+  flex: 1; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase;
+  font-weight: 700; opacity: 0.92;
+}
+.wcard-coin {
+  min-width: 26px; height: 26px; padding: 0 6px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 3px;
+  border-radius: 50px; font-weight: 800; font-size: 13px;
+  background: rgba(0, 0, 0, 0.35); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+}
+.wcard-coin s { font-size: 9px; font-weight: 400; opacity: 0.6; }
+
+.wcard-name {
+  padding: 9px 10px 0; font-size: 13px; font-weight: 700;
+  letter-spacing: 0.02em; color: var(--text);
+}
+.wcard-body { padding: 5px 10px 10px; flex: 1; }
+.wcard-text { font-size: 11px; line-height: 1.5; color: var(--text2); }
+.wcard-note { margin-top: 6px; font-size: 10px; font-style: italic; color: var(--text2); opacity: 0.8; }
+.wcard-manual {
+  margin-top: 6px; padding: 4px 6px; border-left: 2px solid #ffb300;
+  background: rgba(255, 179, 0, 0.09); color: #ffcc66;
+  font-size: 10px; font-style: italic;
+}
+.wcard-foot {
+  padding: 5px 10px; font-size: 9px; letter-spacing: 0.07em; text-transform: uppercase;
+  color: var(--text2); background: rgba(0, 0, 0, 0.26);
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+.wcard-foot.st-top { color: #ffd54f; }
+.wcard-foot.st-built { color: #81c784; }
+.wcard.st-built { opacity: 0.55; }
+.wcard.st-top { box-shadow: 0 0 0 1px rgba(255, 213, 79, 0.5), 0 6px 18px rgba(0, 0, 0, 0.45); }
+
+.wcard.type-culture  .wcard-top { background: linear-gradient(120deg, #7b1fa2, #ab47bc); }
+.wcard.type-growth   .wcard-top { background: linear-gradient(120deg, #1b5e20, #388e3c); }
+.wcard.type-science  .wcard-top { background: linear-gradient(120deg, #01579b, #0288d1); }
+.wcard.type-economy  .wcard-top { background: linear-gradient(120deg, #e65100, #f57c00); }
+.wcard.type-military .wcard-top { background: linear-gradient(120deg, #b71c1c, #d32f2f); }
+.wcard.type-industry .wcard-top { background: linear-gradient(120deg, #bf360c, #e64a19); }
+
+/* Era shows as a stripe down the side, so the three ages read at a glance. */
+.wcard.era-ancient  { border-left: 4px solid #8d6e63; }
+.wcard.era-medieval { border-left: 4px solid #5c8dcc; }
+.wcard.era-modern   { border-left: 4px solid #b39ddb; }
+
+/* --- Event dial ----------------------------------------------------------- */
+/* A ring with a pointer that sweeps as the round turns, rather than a row of
+   pills that never moved. */
+.ew-dial {
+  position: relative;
+  width: 132px; height: 132px;
+  margin: 4px auto 8px;
+}
+.ew-ring {
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 45%, #1b2130 0%, #10141d 70%);
+  border: 2px solid var(--border-2);
+  box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.6);
+}
+.ew-seg {
+  position: absolute; top: 50%; left: 50%;
+  width: 22px; height: 22px; margin: -11px 0 0 -11px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; line-height: 1;
+  border-radius: 50%;
+  transform: rotate(var(--a)) translateY(-49px) rotate(calc(-1 * var(--a)));
+  transition: transform 0.2s ease, filter 0.2s ease;
+}
+.ew-seg.blank { opacity: 0.22; }
+.ew-seg.blank::after {
+  content: ""; width: 5px; height: 5px; border-radius: 50%;
+  background: var(--text2);
+}
+.ew-seg.next { filter: drop-shadow(0 0 4px var(--warn)); }
+.ew-seg.active {
+  background: rgba(255, 213, 79, 0.16);
+  box-shadow: 0 0 0 2px rgba(255, 213, 79, 0.7);
+}
+.ew-seg.fired { animation: ew-fire 0.9s ease; }
+@keyframes ew-fire {
+  0%   { transform: rotate(var(--a)) translateY(-49px) rotate(calc(-1 * var(--a))) scale(1); }
+  35%  { transform: rotate(var(--a)) translateY(-49px) rotate(calc(-1 * var(--a))) scale(1.75); }
+  100% { transform: rotate(var(--a)) translateY(-49px) rotate(calc(-1 * var(--a))) scale(1); }
+}
+
+.ew-hand {
+  position: absolute; top: 50%; left: 50%;
+  width: 3px; height: 46px;
+  margin: -46px 0 0 -1.5px;
+  transform-origin: 50% 100%;
+  transform: rotate(var(--a));
+  background: linear-gradient(180deg, var(--accent), rgba(255, 255, 255, 0.15));
+  border-radius: 3px;
+  transition: transform 0.65s cubic-bezier(0.34, 1.36, 0.64, 1);
+}
+.ew-hub {
+  position: absolute; top: 50%; left: 50%;
+  width: 40px; height: 40px; margin: -20px 0 0 -20px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px;
+  border-radius: 50%;
+  background: var(--panel-2);
+  border: 2px solid var(--border-2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+.ew-dial.turning .ew-hub { animation: pop-in 0.5s ease; }
+
+.ew-now {
+  text-align: center; font-size: 11px; font-weight: 700; color: var(--accent);
+}
+.ew-next { text-align: center; font-size: 10px; color: var(--text2); margin-top: 2px; }
+
+/* --- "Something happened" banner ------------------------------------------ */
+/* Separate from #action-toast, which is the turn notifier. */
+.announce {
+  position: fixed; top: 46%; left: 50%;
+  transform: translate(-50%, -50%) scale(0.85);
+  padding: 12px 26px; border-radius: 12px;
+  background: rgba(12, 16, 24, 0.94);
+  border: 1px solid var(--border-2);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  font-size: 17px; font-weight: 800; letter-spacing: 0.02em;
+  color: var(--text); text-align: center;
+  opacity: 0; pointer-events: none; z-index: 400;
+  transition: opacity 0.25s ease, transform 0.35s cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+.announce.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.announce.k-wonder { border-color: #ffd54f; color: #ffd54f; }
+
+/* A die that is still spinning, and the beat where it lands. */
+.cr-die.rolling { animation: none; filter: blur(0.4px); opacity: 0.9; }
+.cr-die.landed { animation: die-land 0.4s cubic-bezier(0.34, 1.5, 0.64, 1); }
+@keyframes die-land {
+  0%   { transform: scale(1.5) rotate(-8deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+
+/* Nothing here is load-bearing — if the machine asks for stillness, give it. */
+@media (prefers-reduced-motion: reduce) {
+  .ew-hand, .ew-seg { transition: none; }
+  .ew-seg.fired, .ew-dial.turning .ew-hub,
+  .cr-die, .cr-die.landed, .combat-result,
+  .fcard.card-anim, .fcard:not(.disabled), .wcard { animation: none; }
+  .announce { transition: opacity 0.15s ease; transform: translate(-50%, -50%); }
+  .announce.show { transform: translate(-50%, -50%); }
+  .wcard:hover { transform: none; }
+}
