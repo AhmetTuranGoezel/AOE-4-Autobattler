@@ -4,7 +4,10 @@
 // and attaches the add/move autocompletes after each render.
 import { TYPES, TYPE_COLORS, displayName } from "./data.js";
 import { statsFor, roleOf, speedTier } from "./effective-stats.js";
-import { typingAbilities, applyAbility } from "./type-defense.js";
+import { typingAbilities } from "./type-defense.js";
+import {
+  buildDefensiveProfile, buildOffensiveProfile, rankTypingRecommendations,
+} from "./team-analysis.js";
 
 export const TEAM_MAX = 6;
 const ROLE_LABELS = { physical: "Physical", special: "Special", mixed: "Mixed", defensive: "Defensive" };
@@ -20,9 +23,40 @@ function effInfo(mult) {
 const typePill = (t) => `<span class="type" style="background:${TYPE_COLORS[t]}">${t}</span>`;
 const nameOf = (m) => m._display || displayName(m);
 
-export function renderTeamView(container, { data, team, savedTeams = [], notice = "", share = null }) {
+function renderRecommendationList(items) {
+  if (!items.length) return `<p class="muted fit-empty">No available typings remain outside this roster.</p>`;
+  return `<ol class="fit-list">${items.map((item, index) => {
+    const scoreText = item.score > 0
+      ? `+${Number(item.score.toFixed(1))} pts`
+      : item.score === 0 ? "neutral" : `${Number(item.score.toFixed(1))} pts`;
+    return `<li class="fit-item">
+      <div class="fit-heading">
+        <span class="fit-rank">${index + 1}</span>
+        <span class="types fit-types">${item.types.map(typePill).join("")}</span>
+        <span class="fit-score ${item.score > 0 ? "positive" : item.score < 0 ? "negative" : ""}"
+          title="Relative team-fit improvement, not a Pokemon viability score">${scoreText}</span>
+      </div>
+      <ul class="fit-reasons">${item.reasons.map((reason) => `<li>${reason}</li>`).join("")}</ul>
+      <details class="fit-matches" ${item.matches.some((match) => match.bench) ? "open" : ""}>
+        <summary>${item.matches.length} available Pokemon</summary>
+        <div class="fit-mon-list">${item.matches.map(({ mon, bench }) =>
+          `<button data-open="${mon.slug}" title="Open ${nameOf(mon)} details">
+            <img src="${mon.sprite || mon.artwork || ""}" alt="">${nameOf(mon)}
+            ${bench ? '<span class="fit-bench">on your bench</span>' : ""}
+          </button>`).join("")}</div>
+      </details>
+    </li>`;
+  }).join("")}</ol>`;
+}
+
+export function renderTeamView(container, {
+  data, team, savedTeams = [], notice = "", share = null, analysisScope = "full",
+}) {
   const chart = data.typeChart;
   const bySlug = new Map(data.pokemon.map((m) => [m.slug, m]));
+  const pickedCount = team.filter((member) => member.picked).length;
+  const battleTeam = team.filter((member) => member.picked).slice(0, 4);
+  const analysisTeam = analysisScope === "battle" ? battleTeam : team;
 
   // --- team manager (save / load / delete multiple teams) ---
   const savedRows = savedTeams.length
@@ -67,7 +101,7 @@ export function renderTeamView(container, { data, team, savedTeams = [], notice 
   </div>`;
 
   // --- member cards (sprite + types + ability + moveset) ---
-  const members = team.map(({ mon, moveIds, ability }) => {
+  const members = team.map(({ mon, moveIds, ability, picked }) => {
     const chips = moveIds.map((id) => {
       const mv = data.moves[id];
       if (!mv) return "";
@@ -85,7 +119,16 @@ export function renderTeamView(container, { data, team, savedTeams = [], notice 
       <button class="tm-abil-chip ${ability == null ? "on" : ""}" data-set-ability="null" data-slug="${mon.slug}">Types only</button>
       ${tas.map((slug) => `<button class="tm-abil-chip ${ability === slug ? "on" : ""}" data-set-ability="${slug}" data-slug="${mon.slug}">${(data.abilities[slug] || {}).name || slug}</button>`).join("")}
     </div>` : "";
-    return `<div class="team-member">
+    const pickDisabled = !picked && pickedCount >= 4;
+    return `<div class="team-member ${picked ? "battle-picked" : "battle-benched"}">
+      <div class="tm-battle-row">
+        <button class="tm-battle-pick ${picked ? "on" : ""}" data-battle-pick="${mon.slug}"
+          aria-pressed="${picked ? "true" : "false"}" ${pickDisabled ? "disabled" : ""}
+          aria-label="${picked ? `Remove ${nameOf(mon)} from Battle Four` : `Select ${nameOf(mon)} for Battle Four`}"
+          title="${pickDisabled ? "Four Pokemon are already selected" : picked ? "Move to bench" : "Select for Battle Four"}">
+          <span class="tm-pick-dot" aria-hidden="true"></span>${picked ? "Battle pick" : "Bench"}
+        </button>
+      </div>
       <div class="tm-head" data-open="${mon.slug}" title="Open details">
         <img class="tm-spr" src="${mon.sprite || mon.artwork || ""}" alt="">
         <div class="tm-info"><span class="tm-name">${nameOf(mon)}</span>
@@ -100,23 +143,44 @@ export function renderTeamView(container, { data, team, savedTeams = [], notice 
   const head = `<div class="team-head"><h2>Team Builder</h2>
     <p class="calc-note">Up to 6 Pokémon with movesets — coverage and speed update live. Saved automatically.</p></div>`;
 
+  const analysisBar = team.length ? `<div class="team-analysis-bar">
+    <div class="team-analysis-copy">
+      <span class="team-analysis-label">Analyze roster</span>
+      <small>${analysisScope === "battle" ? "All panels use the selected battle squad." : "All panels use every team member."}</small>
+    </div>
+    <div class="seg team-scope" role="group" aria-label="Team analysis roster">
+      <button data-team-scope="full" class="${analysisScope === "full" ? "active" : ""}" aria-pressed="${analysisScope === "full"}">Full Team</button>
+      <button data-team-scope="battle" class="${analysisScope === "battle" ? "active" : ""}" aria-pressed="${analysisScope === "battle"}" ${pickedCount ? "" : "disabled"}>Battle Four</button>
+    </div>
+    <span class="team-pick-count ${pickedCount === 4 ? "complete" : ""}" aria-live="polite">${pickedCount}/4 selected</span>
+  </div>` : "";
+
   if (!team.length) {
-    container.innerHTML = `<div class="team">${head}${manager}${addRow}<div class="team-members">${members}</div></div>`;
+    container.innerHTML = `<div class="team">${head}${manager}${addRow}${analysisBar}<div class="team-members">${members}</div></div>`;
     return;
   }
 
-  const mons = team.map((t) => t.mon);
+  if (!analysisTeam.length) {
+    container.innerHTML = `<div class="team">${head}${manager}${addRow}${analysisBar}
+      <div class="team-members">${members}</div>
+      <div class="team-card team-analysis-empty">Select one to four Battle picks to analyze this squad.</div>
+    </div>`;
+    return;
+  }
+
+  const mons = analysisTeam.map((t) => t.mon);
 
   // --- defensive matrix (ability-aware: Levitate → Ground ×0, Thick Fat → ½ Fire/Ice, …) ---
-  const rows = TYPES.map((atk) => {
-    const cells = team.map(({ mon, ability }) =>
-      applyAbility(mon.types.reduce((x, t) => x * (chart[atk]?.[t] ?? 1), 1), atk, ability));
-    const weak = cells.filter((v) => v > 1).length;
-    const resist = cells.filter((v) => v < 1).length;
-    return { atk, cells, weak, resist };
-  }).sort((a, b) => b.weak - a.weak || a.resist - b.resist || TYPES.indexOf(a.atk) - TYPES.indexOf(b.atk));
+  const rows = buildDefensiveProfile(analysisTeam, chart).rows
+    .map((row) => ({
+      atk: row.attackType,
+      cells: row.cells,
+      weak: row.weakCount,
+      resist: row.resistCount,
+    }))
+    .sort((a, b) => b.weak - a.weak || a.resist - b.resist || TYPES.indexOf(a.atk) - TYPES.indexOf(b.atk));
 
-  const matrix = `<table class="team-matrix"><thead><tr><th>Type</th>
+  const matrix = `<div class="team-matrix-scroll"><table class="team-matrix"><thead><tr><th>Type</th>
     ${mons.map((m) => `<th><img src="${m.sprite || m.artwork || ""}" alt="" title="${nameOf(m)}"></th>`).join("")}
     <th class="tm-tally" title="Members weak to this type">weak</th><th class="tm-tally" title="Members that resist or are immune to this type">res</th></tr></thead><tbody>
     ${rows.map((r) => `<tr>
@@ -125,7 +189,7 @@ export function renderTeamView(container, { data, team, savedTeams = [], notice 
       <td class="tm-tally ${r.weak >= 3 ? "hot" : ""}">${r.weak || ""}</td>
       <td class="tm-tally ${r.resist >= 3 ? "good" : ""}">${r.resist || ""}</td>
     </tr>`).join("")}
-  </tbody></table>`;
+  </tbody></table></div>`;
 
   const topWeak = rows.filter((r) => r.weak >= 2).slice(0, 4)
     .map((r) => `${r.atk[0].toUpperCase() + r.atk.slice(1)} (${r.weak})`).join(" · ");
@@ -136,29 +200,24 @@ export function renderTeamView(container, { data, team, savedTeams = [], notice 
   // --- offensive coverage MATRIX: defending types × members, from SELECTED damaging
   // moves only. Each super-effective cell is marked ★ when it comes from a STAB move
   // (move type ∈ the member's types) vs a plain coverage move. No STAB fallback.
-  const offContrib = team.map(({ mon, moveIds }) => ({
-    mon,
-    dmg: moveIds.map((id) => data.moves[id]).filter((mv) => mv && mv.class !== "status" && mv.type),
-  }));
-  const anyDamaging = offContrib.some((c) => c.dmg.length);
+  const offensiveProfile = buildOffensiveProfile(analysisTeam, chart, data.moves);
+  const anyDamaging = offensiveProfile.hasDamagingMoves;
+  const offRows = offensiveProfile.rows.map((row) => ({
+    def: row.defendingType,
+    cells: row.cells.map((cell) => ({
+      cat: cell.category === "neutral" ? "neu"
+        : cell.category === "resisted" ? "res"
+          : cell.category === "immune" ? "zero" : cell.category,
+      mult: cell.mult,
+      stab: cell.stab,
+      name: cell.move?.name,
+      mon: cell.mon,
+    })),
+    tally: row.superEffectiveMembers,
+    canNeutral: row.canDealNeutral,
+  })).sort((a, b) => b.tally - a.tally || (b.canNeutral - a.canNeutral) || TYPES.indexOf(a.def) - TYPES.indexOf(b.def));
 
-  const offRows = TYPES.map((def) => {
-    const cells = offContrib.map(({ mon, dmg }) => {
-      if (!dmg.length) return { cat: "none" };                                   // member has no damaging move at all
-      const withEff = dmg.map((mv) => ({ mv, eff: chart[mv.type]?.[def] ?? 1 }));
-      const best = Math.max(...withEff.map((x) => x.eff));                        // best outgoing effectiveness of ANY of their moves
-      const top = withEff.filter((x) => x.eff === best);
-      const stab = top.find((x) => mon.types.includes(x.mv.type));               // prefer a STAB move at that effectiveness
-      const pick = stab || top[0];
-      const cat = best >= 2 ? "se" : best >= 1 ? "neu" : best > 0 ? "res" : "zero";
-      return { cat, mult: best, stab: !!stab, name: pick.mv.name, mon };
-    });
-    const tally = cells.filter((c) => c.cat === "se").length;                    // members with a super-effective answer
-    const canNeutral = cells.some((c) => c.cat === "se" || c.cat === "neu");     // anyone deals at least normal damage
-    return { def, cells, tally, canNeutral };
-  }).sort((a, b) => b.tally - a.tally || (b.canNeutral - a.canNeutral) || TYPES.indexOf(a.def) - TYPES.indexOf(b.def));
-
-  const offMatrix = `<table class="team-matrix team-off"><thead><tr><th>Type</th>
+  const offMatrix = `<div class="team-matrix-scroll"><table class="team-matrix team-off"><thead><tr><th>Type</th>
     ${mons.map((m) => `<th><img src="${m.sprite || m.artwork || ""}" alt="" title="${nameOf(m)}"></th>`).join("")}
     <th class="tm-tally">SE</th></tr></thead><tbody>
     ${offRows.map((r) => `<tr>
@@ -174,7 +233,7 @@ export function renderTeamView(container, { data, team, savedTeams = [], notice 
       }).join("")}
       <td class="tm-tally ${r.tally ? "" : (r.canNeutral ? "hot" : "wall")}">${r.tally || (r.canNeutral ? "⚠" : "⛔")}</td>
     </tr>`).join("")}
-  </tbody></table>
+  </tbody></table></div>
   <div class="tm-legend co-legend"><span class="tm-cell co-stab">★2</span> STAB
     <span class="tm-cell co-cover">2</span> coverage
     <span class="tm-cell co-neu">1</span> neutral
@@ -218,9 +277,35 @@ export function renderTeamView(container, { data, team, savedTeams = [], notice 
   const roleChips = Object.entries(ROLE_LABELS).map(([k, l]) =>
     `<span class="role-tally"><b>${count(k)}</b> ${l}</span>`).join("");
 
+  const recommendations = rankTypingRecommendations({
+    data,
+    activeTeam: analysisTeam,
+    fullTeam: team,
+    limit: 5,
+  });
+  const recommendationPanel = `<section class="team-card team-recommendations">
+    <div class="fit-head">
+      <div><h3>Best typing additions</h3>
+        <p>Ranked by what this ${analysisScope === "battle" ? "battle squad" : "team"} is missing, not by how few weaknesses a typing has on its own.</p></div>
+      <span class="fit-pool">${recommendations.candidateCount} available combinations</span>
+    </div>
+    <div class="fit-grid">
+      <div class="fit-column">
+        <h4>Defensive Fit <small>relieves shared pressure and creates safer switches</small></h4>
+        ${renderRecommendationList(recommendations.defensive)}
+      </div>
+      <div class="fit-column">
+        <h4>Offensive Fit <small>adds STAB answers missing from selected moves</small></h4>
+        ${recommendations.hasDamagingMoves ? "" : '<p class="fit-note">No damaging moves are selected yet, so this starts from an empty offensive profile.</p>'}
+        ${renderRecommendationList(recommendations.offensive)}
+      </div>
+    </div>
+  </section>`;
+
   container.innerHTML = `<div class="team">
-    ${head}${manager}${addRow}
+    ${head}${manager}${addRow}${analysisBar}
     <div class="team-members">${members}</div>
+    ${recommendationPanel}
     <div class="team-grid">
       <div class="team-col team-col-matrix">
         <section class="team-card team-def">

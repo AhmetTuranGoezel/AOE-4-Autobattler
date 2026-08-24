@@ -40,8 +40,9 @@ const state = {
   compareAnchor: null,   // slug used as the comparison baseline
   pinned: new Set(),     // roster pins: stay on top of the list through any filters (persisted)
   cmpMoves: "all",       // movepool matrix filter: "all" | "diff"
-  team: [],              // [{ slug, moves: [moveId,...] }] (working team, persisted)
-  savedTeams: [],        // [{ id, name, members: [{slug,moves}] }] (persisted)
+  team: [],              // [{ slug, moves, ability, picked }] (working team, persisted)
+  savedTeams: [],        // [{ id, name, members: [{slug,moves,ability,picked}] }] (persisted)
+  teamScope: "full",     // "full" | "battle" (view preference; picks themselves persist)
   selected: null,
   spread: emptySpread(), // eHP stat-point lab allocation for the open detail panel
   moveByName: new Map(),   // move name → id, used to parse shared-team codes
@@ -605,9 +606,8 @@ const closeCompare = () => $("#compare").classList.remove("open");
 const TEAM_KEY = "pc-team";       // working team
 const TEAMS_KEY = "pc-teams";     // saved teams
 
-// Coerce a stored member to {slug, moves[], ability}; supports the old string-array
-// and the {slug,moves} formats. ability: null = types-only, else a typing-ability slug.
-function normMember(m) {
+// Coerce stored and imported members while upgrading legacy teams to four battle picks.
+function normMember(m, index = 0) {
   const slug = typeof m === "string" ? m : m && m.slug;
   if (!slug || !state.bySlug.has(slug)) return null;
   const mon = state.bySlug.get(slug);
@@ -616,12 +616,30 @@ function normMember(m) {
   let ability = m && typeof m === "object" && "ability" in m ? m.ability : undefined;
   if (ability === undefined) ability = defaultAbility(mon);
   else if (ability !== null && !typingAbilities(mon).includes(ability)) ability = defaultAbility(mon);
-  return { slug, moves, ability };
+  const picked = m && typeof m === "object" && typeof m.picked === "boolean"
+    ? m.picked
+    : index < 4;
+  return { slug, moves, ability, picked };
+}
+function capBattlePicks(members) {
+  let picked = 0;
+  return members.map((member) => {
+    if (!member.picked) return member;
+    picked += 1;
+    return picked <= 4 ? member : { ...member, picked: false };
+  });
+}
+function defaultBattlePicks(members) {
+  return members.map((member, index) => ({ ...member, picked: index < 4 }));
+}
+function hasExplicitBattlePicks(members) {
+  return members.some((member) => member && typeof member === "object" && typeof member.picked === "boolean");
 }
 function loadTeam() {
   try {
     const arr = JSON.parse(localStorage.getItem(TEAM_KEY) || "[]");
-    state.team = arr.map(normMember).filter(Boolean).slice(0, TEAM_MAX);
+    const members = arr.map(normMember).filter(Boolean).slice(0, TEAM_MAX);
+    state.team = capBattlePicks(hasExplicitBattlePicks(arr) ? members : defaultBattlePicks(members));
     saveTeam();  // upgrade legacy string-array storage to the {slug,moves} format
   } catch { state.team = []; }
 }
@@ -629,11 +647,15 @@ function saveTeam() { try { localStorage.setItem(TEAM_KEY, JSON.stringify(state.
 function loadSavedTeams() {
   try {
     const arr = JSON.parse(localStorage.getItem(TEAMS_KEY) || "[]");
-    state.savedTeams = arr.map((t) => ({
-      id: t.id || String(Date.now() + Math.random()),
-      name: String(t.name || "Team"),
-      members: (t.members || []).map(normMember).filter(Boolean).slice(0, TEAM_MAX),
-    }));
+    state.savedTeams = arr.map((t) => {
+      const rawMembers = t.members || [];
+      const members = rawMembers.map(normMember).filter(Boolean).slice(0, TEAM_MAX);
+      return {
+        id: t.id || String(Date.now() + Math.random()),
+        name: String(t.name || "Team"),
+        members: capBattlePicks(hasExplicitBattlePicks(rawMembers) ? members : defaultBattlePicks(members)),
+      };
+    });
   } catch { state.savedTeams = []; }
 }
 function persistSavedTeams() { try { localStorage.setItem(TEAMS_KEY, JSON.stringify(state.savedTeams)); } catch { /* ignore */ } }
@@ -643,7 +665,24 @@ function teamAfterChange() { saveTeam(); if (teamInited) renderTeam(); syncTeamB
 function toggleTeam(slug) {
   const i = state.team.findIndex((t) => t.slug === slug);
   if (i >= 0) state.team.splice(i, 1);
-  else if (state.team.length < TEAM_MAX) state.team.push({ slug, moves: [], ability: defaultAbility(state.bySlug.get(slug)) });
+  else if (state.team.length < TEAM_MAX) state.team.push({
+    slug,
+    moves: [],
+    ability: defaultAbility(state.bySlug.get(slug)),
+    picked: state.team.length < 4,
+  });
+  teamAfterChange();
+}
+function setTeamScope(scope) {
+  state.teamScope = scope === "battle" ? "battle" : "full";
+  if (teamInited) renderTeam();
+}
+function toggleBattlePick(slug) {
+  const member = state.team.find((entry) => entry.slug === slug);
+  if (!member) return;
+  if (!member.picked && state.team.filter((entry) => entry.picked).length >= 4) return;
+  member.picked = !member.picked;
+  state.teamScope = "battle";
   teamAfterChange();
 }
 function setMemberAbility(slug, ability) {
@@ -665,11 +704,13 @@ function removeMove(slug, id) {
   t.moves = t.moves.filter((m) => m !== id);
   teamAfterChange();
 }
-function clearTeam() { state.team = []; teamAfterChange(); }
+function clearTeam() { state.team = []; state.teamScope = "full"; teamAfterChange(); }
 function saveWorkingTeam(name) {
   name = (name || "").trim();
   if (!name || !state.team.length) return;
-  const members = state.team.map((t) => ({ slug: t.slug, moves: [...t.moves], ability: t.ability }));
+  const members = state.team.map((t) => ({
+    slug: t.slug, moves: [...t.moves], ability: t.ability, picked: t.picked,
+  }));
   const existing = state.savedTeams.find((t) => t.name.toLowerCase() === name.toLowerCase());
   if (existing) existing.members = members;
   else state.savedTeams.push({ id: String(Date.now()) + Math.random().toString(36).slice(2), name, members });
@@ -679,7 +720,10 @@ function saveWorkingTeam(name) {
 function loadSavedTeam(id) {
   const t = state.savedTeams.find((x) => x.id === id);
   if (!t) return;
-  state.team = t.members.map((m) => ({ slug: m.slug, moves: [...m.moves], ability: m.ability })).slice(0, TEAM_MAX);
+  state.team = capBattlePicks(t.members.map((m) => ({
+    slug: m.slug, moves: [...m.moves], ability: m.ability, picked: m.picked,
+  })).slice(0, TEAM_MAX));
+  state.teamScope = "full";
   teamAfterChange();
 }
 function deleteSavedTeam(id) {
@@ -689,10 +733,9 @@ function deleteSavedTeam(id) {
 }
 
 // ---- team sharing: a SHORT code in the URL (works across browsers/PCs, no server) ----
-// v2: `2|<name>|pid36.abIdx.m36.m36…` — mons by PokeAPI pid (stable forever), moves by id
-// (ids are pinned permanently via tools/move_ids.json), ability as an index into the mon's
-// ability list. Charset [0-9a-z.|%~-] → URL-hash-safe raw, ~100 chars for a full team.
-// v1 (legacy base64-JSON with move names) still decodes so old links keep working.
+// v3: `3|<name>|pid36.abIdx.pick.m36...` adds one battle-pick bit per member.
+// Pokemon use stable PokeAPI ids and moves use ids pinned in tools/move_ids.json.
+// v1 (base64 JSON) and v2 links still decode so existing shared teams keep working.
 const byPid = () => {
   if (!state.byPid) state.byPid = new Map(state.all.map((m) => [m.id, m]));
   return state.byPid;
@@ -702,9 +745,14 @@ function encodeTeam(name, members) {
     const mon = state.bySlug.get(t.slug);
     if (!mon) return null;
     const ab = t.ability ? (mon.abilities || []).findIndex((a) => a.slug === t.ability) : -1;
-    return [mon.id.toString(36), ab >= 0 ? String(ab) : "", ...(t.moves || []).map((id) => Number(id).toString(36))].join(".");
+    return [
+      mon.id.toString(36),
+      ab >= 0 ? String(ab) : "",
+      t.picked === false ? "0" : "1",
+      ...(t.moves || []).map((id) => Number(id).toString(36)),
+    ].join(".");
   }).filter(Boolean);
-  return `2|${encodeURIComponent(name || "Shared team")}|${mons.join("|")}`;
+  return `3|${encodeURIComponent(name || "Shared team")}|${mons.join("|")}`;
 }
 const teamShareUrl = (code) => `${location.origin}${location.pathname}#t=${code}`;
 // → { name, members, dropped: [names…] } or null when the code is unusable.
@@ -713,32 +761,37 @@ function decodeTeam(codeOrUrl) {
     let code = codeOrUrl.trim();
     const h = code.match(/#(?:t|team)=(.+)$/);
     if (h) code = h[1];
-    if (code.startsWith("2|")) {
+    if (code.startsWith("3|") || code.startsWith("2|")) {
+      const version = code[0];
       const parts = code.split("|");
       const name = decodeURIComponent(parts[1] || "").slice(0, 30) || "Shared team";
       const dropped = [];
-      const members = parts.slice(2, 2 + TEAM_MAX).map((seg) => {
-        const [pid36, ab, ...mv36] = seg.split(".");
+      let members = parts.slice(2, 2 + TEAM_MAX).map((seg, index) => {
+        const fields = seg.split(".");
+        const [pid36, ab] = fields;
+        const picked = version === "3" ? fields[2] !== "0" : index < 4;
+        const mv36 = fields.slice(version === "3" ? 3 : 2);
         const mon = byPid().get(parseInt(pid36, 36));
         if (!mon) { dropped.push("#" + pid36); return null; }
         const moves = mv36.map((x) => parseInt(x, 36)).filter((id) => state.data.moves[id] != null);
         if (moves.length < mv36.length) dropped.push(`${mon._display}: a move`);
         const abil = ab !== "" && mon.abilities && mon.abilities[Number(ab)] ? mon.abilities[Number(ab)].slug : undefined;
-        return normMember({ slug: mon.slug, moves, ability: abil });
+        return normMember({ slug: mon.slug, moves, ability: abil, picked }, index);
       }).filter(Boolean);
+      if (version === "2") members = defaultBattlePicks(members);
       return members.length ? { name, members, dropped } : null;
     }
     // legacy v1: base64url JSON { n, m: [{ s, a, v: [moveNames] }] }
     const d = JSON.parse(decodeURIComponent(escape(atob(code.replace(/-/g, "+").replace(/_/g, "/")))));
     if (!Array.isArray(d.m)) return null;
     const dropped = [];
-    const members = d.m.slice(0, TEAM_MAX).map((e) => {
+    const members = defaultBattlePicks(d.m.slice(0, TEAM_MAX).map((e, index) => {
       if (!state.bySlug.has(e.s)) { dropped.push(e.s); return null; }
       const moves = (Array.isArray(e.v) ? e.v : [])
         .map((nm) => { const id = state.moveByName.get(String(nm).toLowerCase()); if (id == null) dropped.push(nm); return id; })
         .filter((id) => id != null);
-      return normMember({ slug: e.s, moves, ability: e.a ?? undefined });
-    }).filter(Boolean);
+      return normMember({ slug: e.s, moves, ability: e.a ?? undefined }, index);
+    }).filter(Boolean));
     if (!members.length) return null;
     return { name: String(d.n || "Shared team").slice(0, 30), members, dropped };
   } catch { return null; }
@@ -747,7 +800,8 @@ function importTeam(codeOrUrl) {
   state.sharePanel = null;
   const t = decodeTeam(codeOrUrl);
   if (!t) { state.teamNotice = "⚠ Couldn't read that team code."; if (teamInited) renderTeam(); return; }
-  state.team = t.members;
+  state.team = capBattlePicks(t.members);
+  state.teamScope = "full";
   // auto-save under its name (suffix if taken)
   let name = t.name;
   if (state.savedTeams.some((x) => x.name.toLowerCase() === name.toLowerCase())) name += " (2)";
@@ -765,10 +819,12 @@ function shareTeam(name, members) {
 
 function renderTeam() {
   const team = state.team
-    .map((t) => ({ mon: state.bySlug.get(t.slug), moveIds: t.moves, ability: t.ability }))
+    .map((t) => ({
+      mon: state.bySlug.get(t.slug), moveIds: t.moves, ability: t.ability, picked: t.picked,
+    }))
     .filter((x) => x.mon);
   renderTeamView($("#team-results"), { data: state.data, team, savedTeams: state.savedTeams,
-    notice: state.teamNotice, share: state.sharePanel });
+    notice: state.teamNotice, share: state.sharePanel, analysisScope: state.teamScope });
   attachTeamAutocompletes();
 }
 function syncTeamButtons() {
@@ -997,7 +1053,11 @@ function switchTab(tab) {
   if (tab === "calc" && !calcInited) {
     calcInited = true;
     calcView = initCalcView({ container: $("#calc-results"), data: state.data, onOpen: openDetail, onMoveInfo: openMovePopup,
-      getTeam: () => state.team.map((t) => ({ slug: t.slug, moves: t.moves })), onGotoTeam: () => switchTab("team"),
+      getTeam: () => {
+        const picked = state.team.filter((member) => member.picked);
+        const roster = picked.length ? picked : state.team;
+        return roster.map((member) => ({ slug: member.slug, moves: member.moves }));
+      }, onGotoTeam: () => switchTab("team"),
       onAddTeamMove: (slug, id) => addMove(slug, id) });
   }
   if (tab === "calc" && calcView) calcView.refresh();   // Team check reflects live team edits on entry
@@ -1005,6 +1065,10 @@ function switchTab(tab) {
     teamInited = true;
     const tc = $("#team-results");
     tc.addEventListener("click", (e) => {
+      const scope = e.target.closest("[data-team-scope]");
+      if (scope) { setTeamScope(scope.dataset.teamScope); return; }
+      const pick = e.target.closest("[data-battle-pick]");
+      if (pick) { toggleBattlePick(pick.dataset.battlePick); return; }
       const rm = e.target.closest("[data-team-remove]");
       if (rm) { toggleTeam(rm.dataset.teamRemove); return; }
       const mr = e.target.closest("[data-move-remove]");

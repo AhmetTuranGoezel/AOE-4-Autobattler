@@ -267,7 +267,7 @@ function fieldOffenseMult(mv, cat, eb, infiltrator = false, applyScreens = true,
 }
 
 export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onGotoTeam, onAddTeamMove }) {
-  const team = () => (getTeam ? getTeam() : []);   // live saved team from the Team builder
+  const team = () => (getTeam ? getTeam() : []);   // live Battle Four, or full-team fallback
   const s = {
     mode: "ehp", // "ehp" (All vs one — historical key, kept for saved states) | "rev" (One vs all) | "team" (Team check)
   };
@@ -408,7 +408,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       <h2 class="calc-title-rev" hidden>One vs all <small class="muted">— your attacker's damage into the whole roster</small></h2>
       <p class="calc-note calc-title-rev" hidden>Pick an attacker and set its offense; every defender is built from its own ladder set (Champions exposes per-mon usage, not a global usage share). Ranked by damage.</p>
       <h2 class="calc-title-team" hidden>Team check <small class="muted">— can your team handle these threats?</small></h2>
-      <p class="calc-note calc-title-team" hidden>Uses your saved team from the Team tab. Add the opponents you're worried about (or import your pinned mons); each teammate's best answer to every threat is scored so you can see instantly what's covered and what isn't.</p>
+      <p class="calc-note calc-title-team" hidden>Uses your selected Battle Four from the Team tab, falling back to the full team when no battle picks are selected. Add opponents to see each teammate's best answer and where the squad is exposed.</p>
     </div>
     <div id="calc-custom" class="calc-custom"></div>
 
