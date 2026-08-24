@@ -1,7 +1,8 @@
 // Netlify Function — GET/PUT the Pokemon Champions sync blob.
 //
-// Route: /api/pc-sync/<code>, mapped in _redirects. The code is the key; there
-// is no account. Storage is Netlify Blobs, which needs no provisioning.
+// Route: /api/pc-sync/<code>, declared by the config export at the bottom.
+// The code is the key; there is no account. Storage is Netlify Blobs, which
+// needs no setup — no namespace to create, no binding to configure.
 
 import { getStore } from "@netlify/blobs";
 

@@ -1,7 +1,7 @@
 {
   "name": "owl-tools",
   "private": true,
-  "description": "Static tools site. The only dependency is the storage client used by the Netlify sync function; on Cloudflare Pages nothing here is needed.",
+  "description": "Static tools site. The single dependency is the storage client for the Netlify function behind the Pokemon Champions sync.",
   "dependencies": {
     "@netlify/blobs": "^8.1.0"
   }
