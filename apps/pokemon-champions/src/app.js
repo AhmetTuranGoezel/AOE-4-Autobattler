@@ -14,7 +14,7 @@ import { initAbilitiesView } from "./abilities-view.js";
 import { initCalcView } from "./calc-view.js";
 import { renderTeamView, TEAM_MAX } from "./team-view.js";
 import { attachAutocomplete } from "./autocomplete.js";
-import { typingAbilities, defaultAbility } from "./type-defense.js";
+import { rosterAbilities, defaultRosterAbility } from "./type-defense.js";
 import { initCoverageView } from "./coverage-view.js";
 import { renderMovePopup, renderAbilityPopup } from "./info.js";
 import { renderCompare } from "./compare.js";
@@ -614,8 +614,8 @@ function normMember(m, index = 0) {
   const moves = (m && Array.isArray(m.moves) ? m.moves : [])
     .filter((id) => state.data.moves[id]).slice(0, 4);
   let ability = m && typeof m === "object" && "ability" in m ? m.ability : undefined;
-  if (ability === undefined) ability = defaultAbility(mon);
-  else if (ability !== null && !typingAbilities(mon).includes(ability)) ability = defaultAbility(mon);
+  if (ability === undefined) ability = defaultRosterAbility(mon);
+  else if (ability !== null && !rosterAbilities(mon).includes(ability)) ability = defaultRosterAbility(mon);
   const picked = m && typeof m === "object" && typeof m.picked === "boolean"
     ? m.picked
     : index < 4;
@@ -668,7 +668,7 @@ function toggleTeam(slug) {
   else if (state.team.length < TEAM_MAX) state.team.push({
     slug,
     moves: [],
-    ability: defaultAbility(state.bySlug.get(slug)),
+    ability: defaultRosterAbility(state.bySlug.get(slug)),
     picked: state.team.length < 4,
   });
   teamAfterChange();

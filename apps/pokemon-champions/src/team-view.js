@@ -4,7 +4,7 @@
 // and attaches the add/move autocompletes after each render.
 import { TYPES, TYPE_COLORS, displayName } from "./data.js";
 import { statsFor, roleOf, speedTier } from "./effective-stats.js";
-import { typingAbilities } from "./type-defense.js";
+import { rosterAbilities } from "./type-defense.js";
 import {
   buildDefensiveProfile, buildOffensiveProfile, rankTypingRecommendations,
 } from "./team-analysis.js";
@@ -26,6 +26,8 @@ const nameOf = (m) => m._display || displayName(m);
 function renderRecommendationList(items) {
   if (!items.length) return `<p class="muted fit-empty">No available typings remain outside this roster.</p>`;
   return `<ol class="fit-list">${items.map((item, index) => {
+    const { mon, bench } = item.representative;
+    const alternatives = item.matches.filter((match) => match.mon.slug !== mon.slug);
     const scoreText = item.score > 0
       ? `+${Number(item.score.toFixed(1))} pts`
       : item.score === 0 ? "neutral" : `${Number(item.score.toFixed(1))} pts`;
@@ -36,15 +38,26 @@ function renderRecommendationList(items) {
         <span class="fit-score ${item.score > 0 ? "positive" : item.score < 0 ? "negative" : ""}"
           title="Relative team-fit improvement, not a Pokemon viability score">${scoreText}</span>
       </div>
+      <div class="fit-rep">
+        <button class="fit-rep-main" data-open="${mon.slug}" title="Open ${nameOf(mon)} details">
+          <img src="${mon.sprite || mon.artwork || ""}" alt="">
+          <span><strong>${nameOf(mon)}</strong><small>${item.roleLabel} · ${item.moveSource}</small></span>
+        </button>
+        <span class="fit-ability" title="Ability assumed by this recommendation">${item.abilityName}</span>
+        ${bench ? '<span class="fit-bench">already on your bench</span>' : ""}
+      </div>
+      ${item.toolkit.length ? `<div class="fit-toolkit">${item.toolkit.slice(0, 4).map((tool) =>
+        `<span class="fit-tool" title="From ${tool.source}">${tool.label}</span>`).join("")}</div>` : ""}
       <ul class="fit-reasons">${item.reasons.map((reason) => `<li>${reason}</li>`).join("")}</ul>
-      <details class="fit-matches" ${item.matches.some((match) => match.bench) ? "open" : ""}>
-        <summary>${item.matches.length} available Pokemon</summary>
-        <div class="fit-mon-list">${item.matches.map(({ mon, bench }) =>
-          `<button data-open="${mon.slug}" title="Open ${nameOf(mon)} details">
-            <img src="${mon.sprite || mon.artwork || ""}" alt="">${nameOf(mon)}
-            ${bench ? '<span class="fit-bench">on your bench</span>' : ""}
+      ${item.warnings.length ? `<ul class="fit-warnings">${item.warnings.map((warning) => `<li>${warning}</li>`).join("")}</ul>` : ""}
+      ${alternatives.length ? `<details class="fit-matches">
+        <summary>${alternatives.length} other Pokemon with this typing</summary>
+        <div class="fit-mon-list">${alternatives.map(({ mon: alternative, bench: alternativeBench }) =>
+          `<button data-open="${alternative.slug}" title="Open ${nameOf(alternative)} details">
+            <img src="${alternative.sprite || alternative.artwork || ""}" alt="">${nameOf(alternative)}
+            ${alternativeBench ? '<span class="fit-bench">on your bench</span>' : ""}
           </button>`).join("")}</div>
-      </details>
+      </details>` : ""}
     </li>`;
   }).join("")}</ol>`;
 }
@@ -113,11 +126,12 @@ export function renderTeamView(container, {
     const addMove = moveIds.length < 4
       ? `<div class="ac-wrap tm-move-addwrap"><input class="tm-move-add" data-slug="${mon.slug}" placeholder="+ add move…" autocomplete="off"></div>`
       : "";
-    // ability selector — only when a member has an ability that changes type effectiveness
-    const tas = typingAbilities(mon);
-    const abilSel = tas.length ? `<div class="tm-abil" title="Affects how this Pokémon takes damage">
-      <button class="tm-abil-chip ${ability == null ? "on" : ""}" data-set-ability="null" data-slug="${mon.slug}">Types only</button>
-      ${tas.map((slug) => `<button class="tm-abil-chip ${ability === slug ? "on" : ""}" data-set-ability="${slug}" data-slug="${mon.slug}">${(data.abilities[slug] || {}).name || slug}</button>`).join("")}
+    // Team fit uses the actual selected ability for immunities, mitigation and support.
+    const abilities = rosterAbilities(mon);
+    const abilSel = abilities.length ? `<div class="tm-abil" title="Used by defensive coverage and team-fit recommendations">
+      <span class="tm-abil-label">Ability</span>
+      <button class="tm-abil-chip ${ability == null ? "on" : ""}" data-set-ability="null" data-slug="${mon.slug}">None assumed</button>
+      ${abilities.map((slug) => `<button class="tm-abil-chip ${ability === slug ? "on" : ""}" data-set-ability="${slug}" data-slug="${mon.slug}" title="Use this ability for team analysis">${(data.abilities[slug] || {}).name || slug}</button>`).join("")}
     </div>` : "";
     const pickDisabled = !picked && pickedCount >= 4;
     return `<div class="team-member ${picked ? "battle-picked" : "battle-benched"}">
@@ -285,18 +299,18 @@ export function renderTeamView(container, {
   });
   const recommendationPanel = `<section class="team-card team-recommendations">
     <div class="fit-head">
-      <div><h3>Best typing additions</h3>
-        <p>Ranked by what this ${analysisScope === "battle" ? "battle squad" : "team"} is missing, not by how few weaknesses a typing has on its own.</p></div>
-      <span class="fit-pool">${recommendations.candidateCount} available combinations</span>
+      <div><h3>Best complete additions</h3>
+        <p>Actual Pokemon are tested with legal abilities, likely moves, useful team roles, bulk, and the new shared weaknesses they create. Typings stay grouped for easier comparison.</p></div>
+      <span class="fit-pool">${recommendations.candidatePokemonCount} Pokemon · ${recommendations.candidateCount} typings</span>
     </div>
     <div class="fit-grid">
       <div class="fit-column">
-        <h4>Defensive Fit <small>relieves shared pressure and creates safer switches</small></h4>
+        <h4>Defensive Fit <small>ability-aware switch safety, with useful pressure or support still required</small></h4>
         ${renderRecommendationList(recommendations.defensive)}
       </div>
       <div class="fit-column">
-        <h4>Offensive Fit <small>adds STAB answers missing from selected moves</small></h4>
-        ${recommendations.hasDamagingMoves ? "" : '<p class="fit-note">No damaging moves are selected yet, so this starts from an empty offensive profile.</p>'}
+        <h4>Role &amp; Pressure Fit <small>damage, support, status, and setup without opening an easy shared weakness</small></h4>
+        ${recommendations.hasDamagingMoves ? "" : '<p class="fit-note">No damaging moves are selected yet. Candidate pressure uses likely moves, while utility and defensive safety still count.</p>'}
         ${renderRecommendationList(recommendations.offensive)}
       </div>
     </div>

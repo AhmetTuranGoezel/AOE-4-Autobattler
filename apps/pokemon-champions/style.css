@@ -1454,8 +1454,9 @@ tr.pin-end td { padding: 0; height: 8px; border-bottom: 2px solid color-mix(in s
 .tm-move-x:hover { color: var(--accent); }
 .tm-move-add { width: 120px; background: var(--panel-2); border: 1px dashed var(--border-2); color: var(--text); padding: 4px 9px; border-radius: 999px; outline: none; font-family: inherit; font-size: 0.74rem; }
 .tm-move-add:focus { border-style: solid; border-color: var(--accent); }
-/* per-member defensive-ability selector (only shown when a mon has a typing ability) */
+/* Per-member ability selector. The chosen ability feeds defensive and team-fit analysis. */
 .tm-abil { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 9px; }
+.tm-abil-label { align-self: center; margin-right: 2px; color: var(--muted); font-size: var(--fs-2xs); font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; }
 .tm-abil-chip { background: var(--panel-2); border: 1px solid var(--border); color: var(--muted); font-size: var(--fs-2xs); font-weight: 700; padding: 3px 8px; border-radius: var(--r-pill); cursor: pointer; }
 .tm-abil-chip:hover { border-color: var(--border-2); color: var(--text); }
 .tm-abil-chip.on { background: color-mix(in srgb, var(--accent-2) 22%, var(--panel)); border-color: var(--accent-2); color: #ffe9a8; }
@@ -1494,9 +1495,21 @@ tr.pin-end td { padding: 0; height: 8px; border-bottom: 2px solid color-mix(in s
 .fit-score { margin-left: auto; white-space: nowrap; color: var(--muted); font-size: 0.68rem; font-weight: 800; }
 .fit-score.positive { color: #8fe08f; }
 .fit-score.negative { color: #f0998c; }
+.fit-rep { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 8px 0 3px 30px; }
+.fit-rep-main { display: inline-flex; align-items: center; gap: 7px; min-width: 0; border: 0; padding: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.fit-rep-main:hover strong, .fit-rep-main:focus-visible strong { color: var(--accent-2); }
+.fit-rep-main img { width: 38px; height: 38px; object-fit: contain; flex: 0 0 auto; }
+.fit-rep-main > span { display: flex; flex-direction: column; min-width: 0; }
+.fit-rep-main strong { overflow: hidden; max-width: 180px; font-size: 0.78rem; text-overflow: ellipsis; white-space: nowrap; }
+.fit-rep-main small { color: var(--muted); font-size: 0.62rem; }
+.fit-ability { border: 1px solid color-mix(in srgb, var(--accent-2) 55%, var(--border)); border-radius: 999px; padding: 3px 6px; color: #ffe9a8; background: color-mix(in srgb, var(--accent-2) 12%, transparent); font-size: 0.62rem; font-weight: 800; }
+.fit-toolkit { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 2px 30px; }
+.fit-tool { border-radius: 5px; padding: 3px 6px; background: var(--panel-2); color: var(--muted); font-size: 0.61rem; font-weight: 700; }
 .fit-reasons { display: flex; flex-direction: column; gap: 3px; margin: 7px 0 7px 30px; padding: 0; list-style: none; }
 .fit-reasons li { position: relative; color: var(--muted); font-size: 0.72rem; line-height: 1.35; }
 .fit-reasons li::before { content: "+"; position: absolute; left: -12px; color: var(--accent-2); font-weight: 900; }
+.fit-warnings { display: flex; flex-direction: column; gap: 3px; margin: 7px 0 7px 30px; padding: 7px 8px 7px 22px; border-radius: 7px; background: color-mix(in srgb, var(--accent) 9%, transparent); }
+.fit-warnings li { color: #e9a49a; font-size: 0.68rem; line-height: 1.35; }
 .fit-matches { margin-left: 30px; }
 .fit-matches summary { width: fit-content; color: var(--muted); font-size: 0.68rem; cursor: pointer; }
 .fit-mon-list { display: flex; flex-wrap: wrap; gap: 5px; max-height: 112px; overflow: auto; margin-top: 7px; padding-right: 3px; }
@@ -1760,7 +1773,7 @@ tr.pin-end td { padding: 0; height: 8px; border-bottom: 2px solid color-mix(in s
   .fit-head { flex-direction: column; gap: 8px; }
   .fit-pool { align-self: flex-start; }
   .fit-column { padding: 9px; }
-  .fit-reasons, .fit-matches { margin-left: 24px; }
+  .fit-rep, .fit-toolkit, .fit-reasons, .fit-warnings, .fit-matches { margin-left: 24px; }
 }
 
 @media (max-width: 380px) {

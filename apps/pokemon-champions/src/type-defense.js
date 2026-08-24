@@ -39,6 +39,23 @@ export function typingAbilities(mon) {
   return (mon.abilities || []).map((a) => a.slug).filter(affectsTyping);
 }
 
+export function rosterAbilities(mon) {
+  return (mon.abilities || []).map((ability) => ability.slug);
+}
+
+// Team analysis needs the actual ability, including support abilities such as
+// Intimidate or Prankster. Prefer ladder usage, then the first standard ability.
+export function defaultRosterAbility(mon) {
+  const available = rosterAbilities(mon);
+  if (!available.length) return null;
+  for (const [name] of mon.usage?.abilities || []) {
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+    if (available.includes(slug)) return slug;
+  }
+  const standard = (mon.abilities || []).find((ability) => !ability.hidden);
+  return standard?.slug || available[0];
+}
+
 // Default selected ability: the mon's most-used ability if it changes typing, else
 // null (= types-only). Falls back to its first typing ability when no usage data.
 export function defaultAbility(mon) {
