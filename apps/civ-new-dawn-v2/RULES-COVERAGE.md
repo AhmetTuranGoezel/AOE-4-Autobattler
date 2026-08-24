@@ -134,6 +134,28 @@ token" got wrong, and it was wrong in both the engine and the UI.
 - Campus counts friendly mountain / natural-wonder spaces **in and adjacent to**
   the district; the only cap is the three-per-card trade limit.
 
+### Forms of government (Terra p22)
+
+- You start **without** a government.
+- Only when the event dial reaches the government symbol may you change it.
+- You place the marker on one of your focus cards sitting in one of the **two "1"
+  places**, and the marker is of that card's type — so each government belongs to
+  one card type: Republic/Culture, Monarchy/Growth, Democracy/Science,
+  Oligarchy/Economy, Autocracy/Military, Communism/Industry.
+- **One marker at a time**; choosing again moves it.
+- A card carrying a marker is resolved **as if it sat N places further right**,
+  capped at place 5. Counting places is not the same as adding to the number: a
+  card on the first "1" moved two places right lands on place 2, not place 3.
+
+### Map setup (Terra setup step 3)
+
+- Each player is dealt a random capital tile and a fortress marker.
+- The core is **four tiles, or two at 2–3 players**, drawn off the bottom of the
+  shuffled stack — no forced composition — all laid the same side up by one roll.
+- A fortress must touch at least 2 core spaces, and may not touch another
+  fortress or a city-state space.
+- A capital tile must touch at least 4 spaces of core tiles and/or fortresses.
+
 ### Victory (base p12, Terra p14)
 
 - Five victory cards on the table; claim an agenda on **four** of them.
@@ -161,6 +183,15 @@ token" got wrong, and it was wrong in both the engine and the UI.
 - **The event wheel's segment order** is our own arrangement. The five symbols on
   it are the printed ones and blanks are real, but the rulebook does not spell out
   the sequence around the dial.
+- **How far a government marker shifts a card.** All six are 2 here. The rulebook
+  works Monarchy through at 2 and Fantasy Flight's announcement describes
+  Oligarchy the same way; with one government per card type the set is
+  symmetrical, so 2 for all six is reasoned rather than read off the markers.
+- **Which resources each wonder accepts.** The rules say the bottom right of every
+  wonder card shows the resources that may contribute, and production gets +2 per
+  *suitable* one. That mapping is printed on the card art and appears in neither
+  the reference PDF nor the mod save, so any resource counts for any wonder here.
+  The Wonders panel says so rather than implying otherwise.
 - **The tech dial's level positions** (8, 16, 24) are evenly spread rather than
   read off the printed dial. Level IV sits on 24, which the "past 24 go back to
   15" rule requires.

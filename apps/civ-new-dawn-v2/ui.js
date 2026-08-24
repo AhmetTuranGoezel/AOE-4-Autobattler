@@ -213,6 +213,8 @@ const UI = (() => {
       dom.lobby.classList.remove("hidden");
     });
 
+    initReference();
+
     Net.init({
       onState: (payload) => {
         if (Net.getIsHost()) dispatch(payload);
@@ -1137,7 +1139,10 @@ const UI = (() => {
     const me = Game.getPlayer(state, localPlayerId);
     if (!me) { dom.myStats.innerHTML = ""; return; }
     const res = Object.entries(me.resources).filter(([, v]) => v > 0).map(([k, v]) => `${k}: ${v}`).join(", ") || "none";
-    const gov = me.govMarkers.length ? me.govMarkers.map((m) => Game.FOCUS_LABELS[m]).join(", ") : "none";
+    const govs = Game.GOVERNMENTS || {};
+    const gov = me.government && govs[me.government]
+      ? `${govs[me.government].name} <span class="lb-ut">(${Game.FOCUS_LABELS[me.government]} +${govs[me.government].shift} places)</span>`
+      : "none yet — set when the dial reaches the government symbol";
     const maxA = me.armies.length;
     const maxW = me.caravans.length;
     const tiers = me.cardTiers ? Game.FOCUS_TYPES.map((f) => `${Game.FOCUS_LABELS[f][0]}${me.cardTiers[f] || 1}`).join(" ") : "";
@@ -1206,7 +1211,8 @@ const UI = (() => {
     const focusOptions = Game.FOCUS_TYPES.map((f) => `<option value="${f}">${Game.FOCUS_LABELS[f]}</option>`).join("");
     const resourceOptions = ["", ...Game.RESOURCES, "wonder"].map((r) => `<option value="${r}">${r || "none"}</option>`).join("");
     const districtOptions = ["", ...Game.DISTRICTS].map((d) => `<option value="${d}">${d ? Game.DISTRICT_LABELS[d] : "none"}</option>`).join("");
-    const eventOptions = Game.EVENTS.map((e) => `<option value="${e}">${Game.EVENT_LABELS[e]}</option>`).join("");
+    const eventOptions = Game.EVENTS.filter(Boolean)
+      .map((e) => `<option value="${e}">${Game.EVENT_LABELS[e]}</option>`).join("");
     const cityStateOptions = ["", ...Object.keys(Game.CITY_STATE_DATA || {})].map((c) => `<option value="${c}">${c || "none"}</option>`).join("");
 
     dom.hostTools.innerHTML = `
@@ -1626,10 +1632,8 @@ const UI = (() => {
       return;
     }
     let actions = `<div class="wiz-actions">`;
-    actions += `<button class="sm" id="wiz-gov">Assign Gov</button>`;
     actions += `<button id="wiz-end-turn">End Turn</button></div>`;
     dom.wizard.innerHTML = `<div class="wiz-title">Your Turn</div><div class="wiz-body">Select a <strong>focus card</strong> below to take an action.${me && me.cardPlayed ? "<br><em>Card already played this turn.</em>" : ""}</div>${actions}`;
-    document.getElementById("wiz-gov")?.addEventListener("click", showGovPicker);
     document.getElementById("wiz-end-turn")?.addEventListener("click", () => dispatch({ type: "END_TURN", payload: { playerId: localPlayerId } }));
   }
 
@@ -2029,6 +2033,138 @@ const UI = (() => {
     document.getElementById("wiz-cancel-wonder").addEventListener("click", cancelAction);
   }
 
+  // --- Reference panels -----------------------------------------------------
+  // Wonders, diplomacy and city-states were all but unreadable: costs and
+  // effects only appeared deep inside the build flow, and diplomacy text hid in
+  // a hover. These open from the header at any time.
+
+  function wonderState(name) {
+    let built = null;
+    Object.values(state.map.hexes).forEach((h) => {
+      if (h.city && h.city.wonder && h.city.wonder.name === name) built = h.city.ownerId;
+    });
+    if (built) {
+      const owner = Game.getPlayer(state, built);
+      return { label: owner ? `built by ${owner.name}` : "built", cls: "built" };
+    }
+    const onTop = (Game.getVisibleWonders(state) || []).some((w) => w.name === name);
+    return onTop ? { label: "available now", cls: "top" } : { label: "still in the deck", cls: "deck" };
+  }
+
+  function renderWondersRef() {
+    const me = Game.getPlayer(state, localPlayerId);
+    // ALL_WONDERS is one flat list, each entry already carrying its type.
+    const all = Game.ALL_WONDERS || [];
+    const byType = {};
+    all.forEach((w) => { (byType[w.type] = byType[w.type] || []).push(w); });
+    const types = Object.keys(byType);
+    let html = `<div class="ref-card">
+      <button class="detail-close" id="ref-close" aria-label="Close">✕</button>
+      <h2 class="ref-title">World Wonders</h2>
+      <p class="ref-lede">Built with the industry card. Production is that card's
+        place number, +1 per industry trade token spent, and +2 for every resource
+        you put in. You need a city of your own that has no wonder yet.
+        <em>Which resources a given wonder accepts is printed on its card art,
+        which I do not have — so any resource counts here.</em></p>`;
+    types.forEach((type) => {
+      html += `<h3 class="ref-group">${Game.FOCUS_LABELS[type] || type}</h3><div class="ref-grid">`;
+      (byType[type] || []).slice()
+        .sort((a, b) => (a.era || "").localeCompare(b.era || "") || a.cost - b.cost)
+        .forEach((w) => {
+          const st8 = wonderState(w.name);
+          const afford = me ? Game.getWonderCost(w.name, me) : w.cost;
+          html += `<div class="wface era-${w.era} st-${st8.cls}">
+            <div class="wface-head"><span class="wface-name">${escapeHtml(w.name)}</span>
+              <span class="wface-cost">${afford}${afford !== w.cost ? ` <s>${w.cost}</s>` : ""}</span></div>
+            <div class="wface-meta">${escapeHtml(w.era)} · ${escapeHtml(type)} · ${st8.label}</div>
+            <div class="wface-text">${escapeHtml(w.effect || "")}</div>
+            ${w.auto ? "" : `<div class="wface-manual">Resolve this one between you — not automated.</div>`}
+          </div>`;
+        });
+      html += `</div>`;
+    });
+    html += `</div>`;
+    return html;
+  }
+
+  function renderDiplomacyRef() {
+    const me = Game.getPlayer(state, localPlayerId);
+    const cards = Game.DIPLOMACY_CARDS || {};
+    const mine = (me && me.diplomacy) || [];
+    let html = `<div class="ref-card">
+      <button class="detail-close" id="ref-close" aria-label="Close">✕</button>
+      <h2 class="ref-title">Diplomacy</h2>
+      <p class="ref-lede">A caravan reaching a city-state or a rival city brings one
+        back. Each city-state has two copies of its own card; each rival offers a
+        choice of theirs, and you may swap the one you hold for another.</p>
+      <h3 class="ref-group">In your hand (${mine.length})</h3>`;
+    html += mine.length ? `<div class="ref-grid">` + mine.map((d) => {
+      const meta = cards[d.cardId] || cards[d.type] || {};
+      const from = d.fromCityState
+        ? `from ${escapeHtml(d.fromCityState)}`
+        : `from ${escapeHtml((Game.getPlayer(state, d.fromId) || {}).name || "a rival")}`;
+      return `<div class="wface">
+        <div class="wface-head"><span class="wface-name">${escapeHtml(d.name || d.cardId)}</span></div>
+        <div class="wface-meta">${from}</div>
+        <div class="wface-text">${escapeHtml(d.effect || meta.text || meta.effect || "")}</div>
+      </div>`;
+    }).join("") + `</div>` : `<p class="ref-empty">None yet — send a caravan to a city-state or a rival city.</p>`;
+
+    html += `<h3 class="ref-group">The four rival cards</h3><div class="ref-grid">`;
+    Object.entries(cards).forEach(([id, c]) => {
+      html += `<div class="wface">
+        <div class="wface-head"><span class="wface-name">${escapeHtml(c.name)}</span></div>
+        <div class="wface-text">${escapeHtml(c.text || c.effect || "")}</div>
+      </div>`;
+    });
+    html += `</div>`;
+
+    // City-states currently on the map, with what a caravan there would earn.
+    const seen = [];
+    Object.entries(state.map.hexes).forEach(([k, h]) => {
+      if (h.cityState) seen.push({ key: k, cs: h.cityState });
+    });
+    html += `<h3 class="ref-group">City-states on the map (${seen.length})</h3>`;
+    html += seen.length ? `<div class="ref-grid">` + seen.map(({ key, cs }) => {
+      const data = (Game.CITY_STATE_DATA || {})[cs.name] || {};
+      return `<div class="wface">
+        <div class="wface-head"><span class="wface-name">${escapeHtml(cs.name)}</span>
+          <span class="wface-cost">def ${Game.CFG.cityStateDefense}</span></div>
+        <div class="wface-meta">${escapeHtml(cs.type)} · ${cs.diplomacyCards} card(s) left · ${key}</div>
+        <div class="wface-text">${escapeHtml(data.diplomacy || "")}</div>
+        <div class="wface-meta">A caravan arriving earns 2 ${escapeHtml(cs.type)} trade and a diplomacy card.</div>
+      </div>`;
+    }).join("") + `</div>` : `<p class="ref-empty">None revealed yet.</p>`;
+
+    html += `</div>`;
+    return html;
+  }
+
+  function openReference(which) {
+    const overlay = document.getElementById("reference");
+    const body = document.getElementById("reference-body");
+    if (!overlay || !body || !state) return;
+    try {
+      body.innerHTML = which === "wonders" ? renderWondersRef() : renderDiplomacyRef();
+    } catch (err) {
+      body.innerHTML = `<div class="ref-card"><button class="detail-close" id="ref-close">\u2715</button>
+        <h2 class="ref-title">Could not build that panel</h2>
+        <p class="ref-lede">${escapeHtml(String(err && err.message || err))}</p></div>`;
+    }
+    overlay.classList.remove("hidden");
+    body.querySelector("#ref-close")?.addEventListener("click", () => overlay.classList.add("hidden"));
+  }
+
+  function initReference() {
+    const overlay = document.getElementById("reference");
+    document.getElementById("btn-wonders")?.addEventListener("click", () => openReference("wonders"));
+    document.getElementById("btn-diplomacy")?.addEventListener("click", () => openReference("diplomacy"));
+    overlay?.addEventListener("click", (e) => { if (e.target === overlay) overlay.classList.add("hidden"); });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") overlay?.classList.add("hidden");
+    });
+  }
+
   // A printed card face: the same layout the physical focus card uses, so what
   // the card says on the table is what it says on screen.
   const TIER_ROMAN = ["I", "II", "III", "IV"];
@@ -2378,40 +2514,7 @@ const UI = (() => {
 
   // ── Gov Picker ────────────────────────────────────────────
 
-  function showGovPicker() {
-    const me = Game.getPlayer(state, localPlayerId);
-    if (!me) return;
-    let selected = me.govMarkers.slice();
-    // Forbidden City grants no extra marker — its card effect removes a rival
-    // control token at the start of your turn, which the engine now handles.
-    const maxGov = Game.CFG.maxGovMarkers;
-    const renderPicker = () => {
-      dom.wizard.innerHTML = `
-        <div class="wiz-title">Assign Gov Markers (max ${maxGov})</div>
-        <div class="wiz-body">Each marker adds +1 to that focus card's slot value.</div>
-        <div class="wiz-actions" style="flex-wrap:wrap">
-          ${Game.FOCUS_TYPES.map((f) => {
-            const active = selected.includes(f) ? " primary" : "";
-            return `<button class="sm gov-pick${active}" data-f="${f}">${Game.FOCUS_LABELS[f]}</button>`;
-          }).join("")}
-        </div>
-        <div class="wiz-actions" style="margin-top:8px">
-          <button class="primary" id="gov-ok">Confirm</button>
-          <button class="ghost" id="gov-cancel">Cancel</button>
-        </div>`;
-      document.querySelectorAll(".gov-pick").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const f = btn.dataset.f;
-          if (selected.includes(f)) selected = selected.filter((x) => x !== f);
-          else if (selected.length < maxGov) selected.push(f);
-          renderPicker();
-        });
-      });
-      document.getElementById("gov-ok").addEventListener("click", () => { dispatch({ type: "ASSIGN_GOV", payload: { playerId: localPlayerId, markers: selected } }); renderWizard(); });
-      document.getElementById("gov-cancel").addEventListener("click", renderWizard);
-    };
-    renderPicker();
-  }
+
 
   // ── Event Wheel / Log / Focus Row / Game Over ─────────────
 
@@ -2424,7 +2527,8 @@ const UI = (() => {
         let cls = "ew-pip";
         if (i === pos) cls += " active";
         if (i === (pos + 1) % wheel.events.length) cls += " next";
-        return `<span class="${cls}">${Game.EVENT_LABELS[evt]}</span>`;
+        if (!evt) cls += " blank";
+        return `<span class="${cls}">${evt ? Game.EVENT_LABELS[evt] : "\u2014"}</span>`;
       }).join("")
     }</div>`;
   }

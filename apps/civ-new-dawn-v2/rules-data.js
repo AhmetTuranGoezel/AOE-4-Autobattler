@@ -300,6 +300,27 @@
     }
   };
 
+  // Forms of government (Terra Incognita p22). You start without one. When the
+  // event dial reaches the government symbol every player may change theirs: you
+  // pick one of your focus cards sitting in one of the two "1" places and put the
+  // marker of the same type on it — so each government belongs to exactly one
+  // focus card type. You hold one marker at a time; a new choice moves it.
+  //
+  // A card carrying a marker is resolved as if it sat `shift` places further
+  // right. The rulebook works Monarchy through at 2 ("2 Plaetze weiter rechts"),
+  // and Fantasy Flight's own announcement describes Oligarchy the same way for an
+  // economy card. Two governments, two card types, the same number — with one
+  // government per card type the set is symmetrical, so all six are 2 here.
+  // Noted in RULES-COVERAGE.md as reasoned rather than read off the markers.
+  const GOVERNMENTS = {
+    culture:  { name: "Republic",  shift: 2 },
+    growth:   { name: "Monarchy",  shift: 2 },
+    science:  { name: "Democracy", shift: 2 },
+    economy:  { name: "Oligarchy", shift: 2 },
+    military: { name: "Autocracy", shift: 2 },
+    industry: { name: "Communism", shift: 2 }
+  };
+
   const AGENDA_CARDS = [
     { id: "fortified", name: "Fortified", fortress: true, description: "Control 1 or more fortress cities." },
     { id: "expeditionary", name: "Expeditionary", fortress: true, description: "Control 2 or more fortress cities." },
@@ -431,6 +452,7 @@
     CITY_STATES,
     DIPLOMACY_CARDS,
     AGENDA_CARDS,
+    GOVERNMENTS,
     LEADERS
   };
 })();

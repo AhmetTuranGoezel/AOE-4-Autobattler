@@ -46,11 +46,11 @@
       assert("no removed wonders in Terra Incognita decks", !JSON.stringify(data.WONDER_DECKS).includes("Pentagon") && !JSON.stringify(data.WONDER_DECKS).includes("Machu Picchu"));
 
       const s2 = Game.createState(players(2));
-      // Rulebook p14: the core is always four tiles, two natural wonder and
-      // two city-state, whatever the player count.
-      assert("setup places four core tiles", s2.setup.coreTiles.length === 4);
-      const coreKinds = s2.setup.coreTiles.map((id) => s2.setup.tiles[id].type).sort().join(",");
-      assert("core is two natural + two city-state", coreKinds === "citystate,citystate,natural,natural");
+      // Terra setup 3d: four core tiles, but only two at 2-3 players, drawn off
+      // the bottom of the shuffled stack with no forced composition.
+      assert("a 2-player core is two tiles", s2.setup.coreTiles.length === 2);
+      assert("a 3-player core is two tiles", Game.createState(players(3)).setup.coreTiles.length === 2);
+      assert("a 4-player core is four tiles", Game.createState(players(4)).setup.coreTiles.length === 4);
       assert("core tiles share one side", new Set(s2.setup.coreTiles.map((id) => s2.setup.tiles[id].side)).size === 1);
       assert("2-player setup starts with fortress placement", s2.setup.phase === "fortress");
       assert("setup has five agenda cards", s2.agendaCards.length === 5);

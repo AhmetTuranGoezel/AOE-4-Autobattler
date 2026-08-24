@@ -986,3 +986,46 @@ input, select {
   color: var(--text2);
 }
 .cface-figures::before { content: "▮ "; color: #90a4ae; }
+
+/* --- Reference overlays: wonders, diplomacy, city-states ------------------ */
+/* These exist because none of it was readable in play — costs and effects were
+   buried in the build flow and diplomacy text hid inside a title attribute. */
+.ref-overlay {
+  position: fixed; inset: 0; z-index: 80;
+  background: rgba(0, 0, 0, 0.66); backdrop-filter: blur(3px);
+  display: flex; justify-content: center; align-items: flex-start;
+  padding: 32px 18px; overflow-y: auto;
+}
+.ref-overlay.hidden { display: none; }
+.ref-body { width: 100%; max-width: 960px; }
+.ref-card {
+  position: relative; padding: 22px;
+  background: var(--panel); border: 1px solid var(--border-2); border-radius: 12px;
+}
+.ref-title { font-size: 1.1rem; margin-bottom: 6px; }
+.ref-lede {
+  color: var(--text2); font-size: 0.82rem; line-height: 1.55; margin-bottom: 16px;
+  max-width: 70ch;
+}
+.ref-lede em { color: #ffcc66; font-style: italic; }
+.ref-group {
+  font-size: 0.78rem; letter-spacing: 0.09em; text-transform: uppercase;
+  color: var(--text2); margin: 18px 0 8px;
+  border-bottom: 1px solid var(--border); padding-bottom: 4px;
+}
+.ref-grid {
+  display: grid; gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(232px, 1fr));
+}
+.ref-grid .wface { margin-top: 0; }
+.ref-empty { color: var(--text2); font-size: 0.82rem; font-style: italic; }
+.wface.st-built { opacity: 0.5; }
+.wface.st-top { border-left-width: 5px; box-shadow: 0 0 0 1px rgba(255, 179, 0, 0.35); }
+.wface-manual {
+  margin-top: 4px; font-size: 9px; font-style: italic; color: #ffcc66;
+}
+.wface-cost s { opacity: 0.5; font-weight: 400; }
+
+#header .sm { margin-left: 4px; }
+/* A blank segment on the dial does nothing — show it as blank, not as a name. */
+.ew-pip.blank { opacity: 0.4; font-style: italic; }

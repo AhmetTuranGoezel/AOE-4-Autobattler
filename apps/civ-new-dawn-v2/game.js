@@ -9,6 +9,7 @@ const Game = (() => {
   const DIPLOMACY_CARDS = RULES.DIPLOMACY_CARDS || {};
   const AGENDA_CARDS = Array.isArray(RULES.AGENDA_CARDS) ? RULES.AGENDA_CARDS : [];
   const CARD_DEFS = RULES.CARD_DEFS || {};
+  const GOVERNMENTS = RULES.GOVERNMENTS || {};
   const LEADERS = Array.isArray(RULES.LEADERS) ? RULES.LEADERS.filter((l) => l && l.id !== "random") : [];
   const LEADER_BY_ID = Object.fromEntries(LEADERS.map((l) => [l.id, l]));
 
@@ -174,7 +175,12 @@ const Game = (() => {
     });
   })();
 
-  function getCoreAnchors() {
+  function getCoreAnchors(playerCount) {
+    // A two- or three-player core is two tiles, so it sits tighter in the middle.
+    if (playerCount <= 3) return [
+      { q: 0, r: -1, rotation: 0 },
+      { q: -1, r: 1, rotation: 3 }
+    ];
     return [
       { q: -1, r: -1, rotation: 0 },
       { q: 3,  r: -1, rotation: 0 },
@@ -465,17 +471,8 @@ const Game = (() => {
     });
 
     shuffle(mapDeck);
-    const takeKind = (kind, n) => {
-      const picked = [];
-      for (let i = mapDeck.length - 1; i >= 0 && picked.length < n; i--) {
-        if (mapDeck[i].type === kind) picked.push(mapDeck.splice(i, 1)[0]);
-      }
-      return picked;
-    };
-    const coreTiles = takeKind("natural", 2).concat(takeKind("citystate", 2));
-    // Only if the roster somehow cannot supply both kinds do we top up.
-    while (coreTiles.length < 4 && mapDeck.length) coreTiles.push(mapDeck.pop());
-    shuffle(coreTiles);
+    const coreCount = playerIds.length <= 3 ? 2 : 4;
+    const coreTiles = mapDeck.splice(0, Math.min(coreCount, mapDeck.length));
     coreTiles.forEach((tile) => { tile.isCore = true; });
     const coreSide = rollDie() <= 3 ? "A" : "B";
 
@@ -541,7 +538,7 @@ const Game = (() => {
       log: []
     };
 
-    const anchors = getCoreAnchors();
+    const anchors = getCoreAnchors(st.players.length);
     setup.coreTiles.forEach((tileId, i) => {
       const anchor = anchors[i];
       const anchorKey = key(anchor.q, anchor.r);
@@ -628,7 +625,7 @@ const Game = (() => {
       capturedCapitals: 0,
       maxCombatWin: 0,
       govMarkers: [],
-      govBonus: { culture: 0, growth: 0, science: 0, economy: 0, military: 0, industry: 0 },
+      government: null,   // the focus card type carrying your government marker
       armies: [],
       caravans: [{ id: "caravan-1", position: null }],
       cardPlayed: false
@@ -653,7 +650,7 @@ const Game = (() => {
     player.capturedCapitals = player.capturedCapitals || 0;
     player.maxCombatWin = player.maxCombatWin || 0;
     player.govMarkers = player.govMarkers || [];
-    player.govBonus = player.govBonus || { culture: 0, growth: 0, science: 0, economy: 0, military: 0, industry: 0 };
+    if (!("government" in player)) player.government = null;
     player.armies = player.armies || [];
     player.caravans = player.caravans || player.wagons || [];
     return player;
@@ -781,7 +778,7 @@ const Game = (() => {
         st.turn.order = newSetup.order.slice();
         // Re-place core tiles
         st.map = buildEmptyMap(CFG.mapRadius);
-        const anchors = getCoreAnchors();
+        const anchors = getCoreAnchors(st.players.length);
         newSetup.coreTiles.forEach((tileId, i) => {
           const anchor = anchors[i];
           placeTileOnMap(st, tileId, key(anchor.q, anchor.r), anchor.rotation, newSetup.coreSide || "A");
@@ -926,7 +923,7 @@ const Game = (() => {
     // --- Playing phase actions ---
 
     if (type.startsWith("PLAY_") || type === "END_TURN" ||
-        type === "END_FOCUS_CARD" || type === "ASSIGN_GOV") {
+        type === "END_FOCUS_CARD") {
       if (st.phase !== "playing") return st;
     }
     if (type.startsWith("PLAY_") || type === "END_TURN" || type === "END_FOCUS_CARD") {
@@ -1376,17 +1373,6 @@ const Game = (() => {
       return st;
     }
 
-    if (type === "ASSIGN_GOV") {
-      const player = getPlayer(st, payload.playerId);
-      if (!player) return st;
-      const maxGov = CFG.maxGovMarkers;
-      const markers = (payload.markers || []).slice(0, maxGov);
-      player.govMarkers = markers;
-      FOCUS_TYPES.forEach((f) => { player.govBonus[f] = 0; });
-      markers.forEach((f) => { player.govBonus[f] = (player.govBonus[f] || 0) + 1; });
-      log(st, `${player.name} reassigned gov markers.`);
-      return st;
-    }
 
     // No recruit actions: army and caravan counts are printed on the military
     // and economy focus cards, and syncUnitCounts keeps the figures in step.
@@ -1640,6 +1626,16 @@ const Game = (() => {
         // Multi-card wonders queue their next prompt only now, so it lists the
         // tiers as they stand after this upgrade.
         if (choice.chain) queueCardUpgrade(st, player, choice.chain);
+        resolved = true;
+      }
+    } else if (choice.kind === "choose_government") {
+      const pick = payload.optionId;
+      if (pick === "keep") {
+        resolved = true;
+      } else if (GOVERNMENTS[pick] && player.focusRow.slice(0, 2).includes(pick)) {
+        // One marker at a time — choosing again moves it off the old card.
+        player.government = pick;
+        log(st, `${player.name} adopted ${GOVERNMENTS[pick].name}.`);
         resolved = true;
       }
     } else if (choice.kind === "take_diplomacy") {
@@ -2147,7 +2143,25 @@ const Game = (() => {
         }
       });
     }
-    if (evt === "gov_change") log(st, "Players may reassign gov markers.");
+    if (evt === "gov_change") {
+      // Terra p22: only now may a player change government, and only onto a card
+      // sitting in one of the two "1" places.
+      st.turn.order.map((id) => getPlayer(st, id)).filter(Boolean).forEach((player) => {
+        const eligible = player.focusRow.slice(0, 2)
+          .filter((f) => GOVERNMENTS[f] && f !== player.government);
+        if (!eligible.length) return;
+        queuePendingChoice(st, {
+          kind: "choose_government", playerId: player.id,
+          title: "Choose a Form of Government",
+          options: eligible.map((f) => ({
+            id: f,
+            label: `${GOVERNMENTS[f].name} — ${FOCUS_LABELS[f]} resolves ${GOVERNMENTS[f].shift} places further right`
+          })).concat(player.government
+            ? [{ id: "keep", label: `Keep ${GOVERNMENTS[player.government].name}` }] : [])
+        });
+      });
+      log(st, "The dial turns to government: players may change theirs.");
+    }
     if (evt === "trade") {
       st.turn.order.map((id) => getPlayer(st, id)).filter(Boolean).forEach((player) => {
         let developed = 0;
@@ -2398,18 +2412,32 @@ const Game = (() => {
     return player.cardTiers ? (player.cardTiers[cardType] || 1) : 1;
   }
 
+  // Terra's "weiter rechts" rule: count the given number of places along the
+  // focus row from where the card sits and use the number printed there. Past
+  // the last place it counts as place 5.
+  function slotAfterShift(idx, shift) {
+    const i = Math.min(idx + Math.max(0, shift || 0), FOCUS_SLOTS.length - 1);
+    return FOCUS_SLOTS[i];
+  }
+
+  function getGovShift(player, cardType) {
+    if (!player.government || player.government !== cardType) return 0;
+    return (GOVERNMENTS[cardType] || {}).shift || 0;
+  }
+
   function getSlotValue(player, cardType, st) {
     const idx = player.focusRow.indexOf(cardType);
     if (idx < 0) return 1;
     const tierBonus = player.techTier >= 4 ? 2 : (player.techTier >= 2 ? 1 : 0);
     // Georgia: a diplomacy card from a city-state of this card's type resolves
-    // the card as though it sat 1 slot farther to the right.
-    const georgiaBonus = hasLeader(player, "georgia") &&
+    // the card as though it sat 1 place farther to the right.
+    const georgiaShift = hasLeader(player, "georgia") &&
       (player.diplomacy || []).some((d) => d.fromCityState && d.type === cardType) ? 1 : 0;
-    // Taj Mahal: +1 slot per world wonder you control matching this card's type.
-    const tajBonus = st && hasWonder(st, player.id, "Taj Mahal")
+    // Taj Mahal: 1 place per world wonder you control matching this card's type.
+    const tajShift = st && hasWonder(st, player.id, "Taj Mahal")
       ? countWondersOfType(st, player.id, cardType) : 0;
-    return Math.min(5, FOCUS_SLOTS[idx] + (player.govBonus[cardType] || 0) + tierBonus + georgiaBonus + tajBonus);
+    const shift = getGovShift(player, cardType) + georgiaShift + tajShift;
+    return Math.min(5, slotAfterShift(idx, shift) + tierBonus);
   }
 
   function getMilitaryMove(player) {
@@ -3082,7 +3110,7 @@ const Game = (() => {
     DISTRICTS, DISTRICT_LABELS, DISTRICT_EFFECTS, RESOURCES, EVENTS, EVENT_LABELS, CFG,
     WONDERS, ALL_WONDERS, WONDER_ERAS, CARD_TIERS, AGENDA_CARDS, DIPLOMACY_CARDS, CITY_STATE_DATA,
     LEADERS, getLeader, getLeaderAttackBonus, getCardName, getActiveUniqueCard,
-    CARD_DEFS, getCardEffectText, syncUnitCounts, advanceTech, resolveEvent,
+    CARD_DEFS, getCardEffectText, syncUnitCounts, advanceTech, resolveEvent, GOVERNMENTS,
     hasWonder, getWonderAttackBonus, getWonderDefenseBonus,
     TILE_OFFSETS, getCoreAnchors,
     createState, createLobbyState, createPlayer, migrateState, applyAction, currentPlayer, getPlayer,
