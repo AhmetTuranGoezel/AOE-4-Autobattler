@@ -2580,7 +2580,7 @@ const UI = (() => {
 
     dom.focusRow.innerHTML = me.focusRow.map((cardType, idx) => {
       const effective = Game.getSlotValue(me, cardType, state);
-      const bonus = me.govBonus[cardType] || 0;
+      const govt = me.government === cardType ? (Game.GOVERNMENTS || {})[cardType] : null;
       const tier = Game.getCardTier(me, cardType);
       const uniqueCard = Game.getActiveUniqueCard ? Game.getActiveUniqueCard(me, cardType) : null;
       const cardName = uniqueCard ? uniqueCard.name : Game.CARD_NAMES[cardType][tier - 1];
@@ -2603,7 +2603,7 @@ const UI = (() => {
           <span class="fc-slot-num">#${idx + 1}</span>
         </div>
         <div class="fc-body">
-          <div class="fc-power">${effective}${bonus > 0 ? `<span class="gov-plus">+${bonus}</span>` : ""}</div>
+          <div class="fc-power">${effective}${govt ? `<span class="gov-plus" title="${govt.name}: resolves ${govt.shift} places further right">${govt.name[0]}</span>` : ""}</div>
           <div class="fc-cardname">${uniqueCard ? "★ " : ""}${cardName}</div>
           <div class="fc-tier-badge">TIER ${TIER_LABELS[tier - 1]}</div>
         </div>
