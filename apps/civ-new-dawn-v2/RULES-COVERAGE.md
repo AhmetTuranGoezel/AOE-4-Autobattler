@@ -81,6 +81,10 @@ token" got wrong, and it was wrong in both the engine and the UI.
 - The core is **always four tiles: two natural wonder + two city-state**,
   regardless of player count.
 - All four go down on the same side, chosen by one die roll (1–3 = A).
+- A **capital tile** must touch four spaces **on core tiles and/or forts** (Terra
+  p5, step h). Capital tiles may touch each other; those spaces do not count
+  toward the four. Since the tile is not symmetric, turning it is often what
+  makes a spot legal.
 - A non-core tile must touch at least 4 existing spaces and reach the core.
 - A tile is one physical object: choosing a side consumes the other, so the same
   city-state or natural wonder can never appear twice.

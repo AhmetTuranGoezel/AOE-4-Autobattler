@@ -263,7 +263,12 @@ const Game = (() => {
     if (cellKeys.some((k) => st.map.hexes[k].active)) return { ok: false };
 
     const cellSet = new Set(cellKeys);
-    const boardNeighbors = new Set();
+    // Terra p5, step h: a capital tile must touch four spaces "on forts and/or
+    // core tiles", and the diagram spells out that "spaces on other capital
+    // tiles do not count". Capital tiles may still touch each other — those
+    // spaces just buy you nothing.
+    const capitalPhase = st.setup.phase === "capital_tile";
+    const counting = new Set();
     let touchesCore = false;
     let touchesCoreAdj = false;
 
@@ -272,14 +277,14 @@ const Game = (() => {
         if (cellSet.has(nk)) return;
         const nh = st.map.hexes[nk];
         if (!nh || !nh.active) return;
-        boardNeighbors.add(nk);
+        if (!capitalPhase || nh.core || nh.fortress) counting.add(nk);
         if (nh.core) touchesCore = true;
         if (nh.coreAdjacent) touchesCoreAdj = true;
       });
     });
 
-    if (!tile.isCore && boardNeighbors.size < 4) return { ok: false };
-    if (!tile.isCore && st.setup.phase !== "capital_tile" && !touchesCore && !touchesCoreAdj) return { ok: false };
+    if (!tile.isCore && counting.size < 4) return { ok: false };
+    if (!tile.isCore && !capitalPhase && !touchesCore && !touchesCoreAdj) return { ok: false };
     return { ok: true, touchesCore, touchesCoreAdj };
   }
 
