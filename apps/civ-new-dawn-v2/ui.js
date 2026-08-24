@@ -214,6 +214,9 @@ const UI = (() => {
     });
 
     initReference();
+    if (window.CivCardArt) {
+      CivCardArt.load().then((usable) => { if (usable && state) render(); });
+    }
 
     Net.init({
       onState: (payload) => {
@@ -288,7 +291,7 @@ const UI = (() => {
     const name = dom.inpName.value.trim() || "Player";
     const color = dom.inpColor.value;
     const player = Game.createPlayer(localPlayerId, name, color);
-    state = Game.createState([player]);
+    state = Game.createLobbyState([player], { solo: true });
     showGame();
     render();
   }
@@ -1363,7 +1366,7 @@ const UI = (() => {
     const code = roomCode || Net.getLocalId() || "";
     const min = Game.CFG.minPlayers, max = Game.CFG.maxPlayers;
     const n = state.players.length;
-    const canStart = isHost && n >= min && n <= max;
+    const canStart = isHost && n <= max && (state.solo || n >= min);
     const leaderById = Object.fromEntries((Game.LEADERS || []).map((l) => [l.id, l]));
     const playerList = state.players.map((p, i) => {
       const lead = leaderById[p.leaderId];
@@ -1401,8 +1404,10 @@ const UI = (() => {
         ${leaderCards}
       </div>` : "";
 
+    const solo = !!state.solo;
     dom.wizard.innerHTML = `
-      <div class="wiz-title">Game Lobby</div>
+      <div class="wiz-title">${solo ? "Solo Game" : "Game Lobby"}</div>
+      ${solo ? `<div class="wiz-hint">Pick the civilization you want to play, then begin.</div>` : `
       <div class="lobby-code-row">
         <div class="lobby-code-label">Room code</div>
         <div class="lobby-code"><code id="lobby-code-val">${escapeHtml(code)}</code>
@@ -1413,10 +1418,11 @@ const UI = (() => {
         <div class="lobby-players-head">Players (${n}/${max})</div>
         ${playerList}
         ${n < min ? `<div class="wiz-hint">Need at least ${min} players to start.</div>` : ""}
-      </div>
+      </div>`}
       ${leaderSection}
       ${isHost
-        ? `<button id="lobby-start" class="wiz-primary" ${canStart ? "" : "disabled"}>Start Game (${n} player${n === 1 ? "" : "s"})</button>`
+        ? `<button id="lobby-start" class="wiz-primary" ${canStart ? "" : "disabled"}>${
+            solo ? "Begin" : `Start Game (${n} player${n === 1 ? "" : "s"})`}</button>`
         : `<div class="wiz-body">Waiting for the host to start the game...</div>`}
     `;
 
@@ -1437,7 +1443,9 @@ const UI = (() => {
     });
     const startBtn = document.getElementById("lobby-start");
     if (startBtn) startBtn.addEventListener("click", () => {
-      if (state.players.length < Game.CFG.minPlayers) { showToast(`Need at least ${Game.CFG.minPlayers} players`); return; }
+      if (!state.solo && state.players.length < Game.CFG.minPlayers) {
+        showToast(`Need at least ${Game.CFG.minPlayers} players`); return;
+      }
       dispatch({ type: "START_GAME", payload: { playerId: localPlayerId } });
     });
   }
@@ -2147,7 +2155,9 @@ const UI = (() => {
         .forEach((w) => {
           const st8 = wonderState(w.name);
           const afford = me ? Game.getWonderCost(w.name, me) : w.cost;
-          html += `<div class="wcard type-${type} era-${w.era} st-${st8.cls}">
+          const wArt = window.CivCardArt ? CivCardArt.wonder(w.name) : "";
+          html += `<div class="wcard type-${type} era-${w.era} st-${st8.cls}${wArt ? " has-art" : ""}"${
+            wArt ? ` style="${wArt}"` : ""}>
             <div class="wcard-top">
               <span class="wcard-icon">${WONDER_ICONS[type] || "\u2b50"}</span>
               <span class="wcard-era">${escapeHtml(w.era)}</span>
@@ -2227,12 +2237,90 @@ const UI = (() => {
     return html;
   }
 
+  // The civ card: everything your civilization gives you, in one place, instead
+  // of squeezed into the left panel.
+  function renderCivRef(playerId) {
+    const who = Game.getPlayer(state, playerId || localPlayerId);
+    const lead = who && Game.getLeader ? Game.getLeader(who) : null;
+    if (!lead) {
+      return `<div class="ref-card"><button class="detail-close" id="ref-close">✕</button>
+        <h2 class="ref-title">No civilization yet</h2>
+        <p class="ref-lede">One is drawn when the game starts.</p></div>`;
+    }
+    const style = (Game.CIV_STYLE || {})[lead.id] || { emblem: "⭐", color: "#666" };
+    const u = lead.unique;
+    const tierRoman = ["I", "II", "III", "IV"];
+
+    // The starting focus row, in the order the leader sheet prints it. The extra
+    // duplicate "1" place sits at the far left, so the first two both read 1.
+    const slots = Game.FOCUS_SLOTS || [1, 1, 2, 3, 4, 5];
+    const order = (lead.focusOrder || []).map((f, i) => `
+      <div class="civ-slot type-${f}">
+        <span class="civ-slot-n">${slots[i] !== undefined ? slots[i] : i + 1}</span>
+        <span class="civ-slot-ico">${Game.CARD_ICONS[f] || ""}</span>
+        <span class="civ-slot-lab">${Game.FOCUS_LABELS[f] || f}</span>
+      </div>`).join("");
+
+    // The unique card drawn as a real focus card, the same face the footer uses.
+    let uniqueFace = "";
+    if (u) {
+      const mock = {
+        focusRow: [u.type], cardTiers: { [u.type]: u.tier },
+        trade: { [u.type]: 0 }, techTier: 1, government: null,
+        diplomacy: [], leaderId: lead.id, id: "civcard"
+      };
+      Game.FOCUS_TYPES.forEach((f) => {
+        if (mock.cardTiers[f] === undefined) mock.cardTiers[f] = 1;
+        if (mock.trade[f] === undefined) mock.trade[f] = 0;
+      });
+      uniqueFace = renderCardFace(mock, u.type);
+    }
+
+    return `<div class="ref-card">
+      <button class="detail-close" id="ref-close" aria-label="Close">✕</button>
+      <div class="civ-head" style="--civ:${style.color}">
+        <span class="civ-emblem">${style.emblem}</span>
+        <div>
+          <h2 class="civ-name">${escapeHtml(lead.civ)}</h2>
+          <span class="civ-src">${lead.source === "terra" ? "Terra Incognita" : "Base game"}</span>
+        </div>
+      </div>
+
+      <h3 class="ref-group">Leader ability</h3>
+      <div class="civ-ability">
+        <p>${escapeHtml(lead.ability.text)}</p>
+        <span class="civ-flag ${lead.ability.manual ? "manual" : "auto"}">${
+          lead.ability.manual ? "Resolve at the table" : "Handled automatically"}</span>
+      </div>
+
+      ${u ? `<h3 class="ref-group">Unique focus card</h3>
+      <div class="civ-unique">
+        ${uniqueFace}
+        <div class="civ-unique-note">
+          <p><strong>${escapeHtml(u.name)}</strong> replaces your
+            ${escapeHtml(Game.FOCUS_LABELS[u.type] || u.type)} card at tier
+            ${tierRoman[u.tier - 1]}.</p>
+          <p class="wcard-text">${escapeHtml(u.text)}</p>
+          <span class="civ-flag ${u.auto ? "auto" : "manual"}">${
+            u.auto ? "Handled automatically" : "Resolve at the table"}</span>
+        </div>
+      </div>` : ""}
+
+      <h3 class="ref-group">Starting focus row</h3>
+      <p class="ref-lede">The order your cards begin in. A card resolves at the
+        number of the place it sits on, then returns to place 1.</p>
+      <div class="civ-order">${order}</div>
+    </div>`;
+  }
+
   function openReference(which) {
     const overlay = document.getElementById("reference");
     const body = document.getElementById("reference-body");
     if (!overlay || !body || !state) return;
     try {
-      body.innerHTML = which === "wonders" ? renderWondersRef() : renderDiplomacyRef();
+      body.innerHTML = which === "wonders" ? renderWondersRef()
+        : which === "civ" ? renderCivRef()
+        : renderDiplomacyRef();
     } catch (err) {
       body.innerHTML = `<div class="ref-card"><button class="detail-close" id="ref-close">\u2715</button>
         <h2 class="ref-title">Could not build that panel</h2>
@@ -2246,6 +2334,7 @@ const UI = (() => {
     const overlay = document.getElementById("reference");
     document.getElementById("btn-wonders")?.addEventListener("click", () => openReference("wonders"));
     document.getElementById("btn-diplomacy")?.addEventListener("click", () => openReference("diplomacy"));
+    document.getElementById("btn-civ")?.addEventListener("click", () => openReference("civ"));
     overlay?.addEventListener("click", (e) => { if (e.target === overlay) overlay.classList.add("hidden"); });
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") overlay?.classList.add("hidden");
@@ -2274,7 +2363,11 @@ const UI = (() => {
     }
     const manual = unique && !unique.auto
       ? `<div class="cface-manual">Special clause is a table rule — resolve it between you.</div>` : "";
-    return `<div class="cface type-${cardType}${unique ? " unique" : ""}${o.compact ? " compact" : ""}">
+    const art = window.CivCardArt
+      ? (unique ? CivCardArt.unique(player.leaderId) : CivCardArt.focus(cardType, tier))
+      : "";
+    return `<div class="cface type-${cardType}${unique ? " unique" : ""}${o.compact ? " compact" : ""}${art ? " has-art" : ""}"${
+      art ? ` style="${art}"` : ""}>
       <div class="cface-head">
         <span class="cface-icon">${Game.CARD_ICONS[cardType]}</span>
         <span class="cface-type">${Game.FOCUS_LABELS[cardType]}</span>

@@ -8,6 +8,7 @@ save, labelled with the object that owns it and where that object sits.
     python3 extract-mod.py WorkshopUpload > mod-assets.json
     python3 extract-mod.py WorkshopUpload --tiles      # just the map tiles
     python3 extract-mod.py WorkshopUpload --fetch out/ > fetch.sh
+    python3 extract-mod.py WorkshopUpload --card-art > card-art.json
 
 The map tiles are the interesting part: each is a bag named with the tile
 number, and its contents are the tile art plus every marker that belongs on it,
@@ -181,6 +182,42 @@ def piece_name(piece, asset):
     return "%s-%s" % (slug(kind or "piece"), asset["type"])
 
 
+def card_art(root):
+    """Locate every named card on its sprite sheet.
+
+    A TTS card carries a CardID and points at a deck: the deck id is CardID // 100
+    and the position on that deck's sheet is CardID % 100, read across a
+    NumWidth x NumHeight grid. The mod names its cards usefully -- "Scorched
+    Earth - Military 2 - Zulu" -- so the result is keyed by something the app can
+    look up.
+    """
+    out = {}
+    for obj, path, _ in walk(root):
+        card_id = obj.get("CardID")
+        deck = obj.get("CustomDeck") or {}
+        name = (obj.get("Nickname") or "").strip()
+        if card_id is None or not deck or not name:
+            continue
+        deck_id = str(card_id // 100)
+        entry = deck.get(deck_id) or next(iter(deck.values()), None)
+        if not isinstance(entry, dict) or not entry.get("FaceURL"):
+            continue
+        cols = entry.get("NumWidth") or 1
+        rows = entry.get("NumHeight") or 1
+        idx = card_id % 100
+        out[name] = {
+            "sheet": entry["FaceURL"],
+            "back": entry.get("BackURL") or "",
+            "cols": cols,
+            "rows": rows,
+            "index": idx,
+            "col": idx % cols,
+            "row": idx // cols,
+            "container": "/".join(path),
+        }
+    return out
+
+
 def fetch_script(tiles, everything, out_dir):
     lines = [
         "#!/usr/bin/env bash",
@@ -254,6 +291,10 @@ def main(argv):
 
     if "--tiles" in argv:
         print(json.dumps(tiles, indent=1, ensure_ascii=False))
+        return 0
+
+    if "--card-art" in argv:
+        print(json.dumps(card_art(root), indent=1, ensure_ascii=False))
         return 0
 
     if "--fetch" in argv:

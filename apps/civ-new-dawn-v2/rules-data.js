@@ -350,6 +350,30 @@
   // extended focus bar. `unique` is the civ's unique focus card; `auto: true`
   // means the engine enforces it, otherwise it is shown as a table reminder.
   // Abilities marked `manual: true` are reminders too (resolve via Host Tools).
+  // An emblem and a colour per civilization. Eighteen names in a list all look
+  // the same; a glyph and a colour each give them an identity in the picker, on
+  // the civ card and in the player list.
+  const CIV_STYLE = {
+    america:     { emblem: "\ud83e\udd85", color: "#3f6fb5" },
+    aztec:       { emblem: "\ud83c\udf1e", color: "#c0632b" },
+    china:       { emblem: "\ud83d\udc09", color: "#c62828" },
+    egypt:       { emblem: "\ud83d\udd3a", color: "#d4a017" },
+    england:     { emblem: "\ud83d\udc51", color: "#8e2f45" },
+    france:      { emblem: "\u269c\ufe0f", color: "#4a63b8" },
+    georgia:     { emblem: "\ud83c\udf47", color: "#7b3f8f" },
+    japan:       { emblem: "\ud83c\udf38", color: "#d1567f" },
+    inca:        { emblem: "\ud83c\udfd4\ufe0f", color: "#c9a227" },
+    indonesia:   { emblem: "\ud83c\udf0a", color: "#1e8a8a" },
+    netherlands: { emblem: "\ud83c\udf37", color: "#e07b1f" },
+    nubia:       { emblem: "\ud83c\udff9", color: "#a8642a" },
+    ottoman:     { emblem: "\ud83c\udf19", color: "#1f7a4d" },
+    poland:      { emblem: "\ud83e\udd85", color: "#b03050" },
+    rome:        { emblem: "\ud83e\udd85", color: "#9e2b2b" },
+    scythia:     { emblem: "\ud83c\udff9", color: "#b58b2e" },
+    sumeria:     { emblem: "\ud83d\udcdc", color: "#6a7f3a" },
+    zulu:        { emblem: "\ud83d\udee1\ufe0f", color: "#2f6b4f" }
+  };
+
   const LEADERS = [
     { id: "america", civ: "America", name: "America", source: "terra",
       ability: { text: "When you gain or spend a natural wonder token, place it on any card in your focus row. You can spend a natural wonder token on a focus card either as a trade token on that card or as a resource.", manual: true },
@@ -453,6 +477,7 @@
     DIPLOMACY_CARDS,
     AGENDA_CARDS,
     GOVERNMENTS,
+    CIV_STYLE,
     LEADERS
   };
 })();

@@ -1200,3 +1200,66 @@ input, select {
   .announce.show { transform: translate(-50%, -50%); }
   .wcard:hover { transform: none; }
 }
+
+/* --- Civ card ------------------------------------------------------------- */
+.civ-head {
+  display: flex; align-items: center; gap: 14px;
+  margin: -22px -22px 14px; padding: 18px 22px;
+  background: linear-gradient(120deg, var(--civ), rgba(0, 0, 0, 0.55));
+  border-radius: 12px 12px 0 0;
+}
+.civ-emblem {
+  font-size: 34px; line-height: 1;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.6));
+}
+.civ-name { font-size: 1.3rem; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6); }
+.civ-src {
+  font-size: 9px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.civ-ability {
+  padding: 12px 14px; border-radius: 9px;
+  background: var(--panel-2); border-left: 3px solid var(--accent);
+}
+.civ-ability p { font-size: 12px; line-height: 1.6; color: var(--text); }
+.civ-flag {
+  display: inline-block; margin-top: 8px;
+  font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 3px 8px; border-radius: 50px;
+}
+.civ-flag.auto   { background: rgba(129, 199, 132, 0.16); color: #81c784; }
+.civ-flag.manual { background: rgba(255, 179, 0, 0.14); color: #ffcc66; }
+
+.civ-unique { display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
+.civ-unique .cface { flex: 0 0 auto; }
+.civ-unique-note { flex: 1 1 260px; min-width: 0; }
+.civ-unique-note p { font-size: 12px; line-height: 1.55; margin-bottom: 6px; }
+
+/* The starting row, drawn as the six places in order. */
+.civ-order { display: flex; gap: 8px; flex-wrap: wrap; }
+.civ-slot {
+  flex: 1 1 100px; min-width: 96px;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 10px 6px; border-radius: 9px;
+  background: var(--panel-2); border-top: 3px solid var(--border-2);
+}
+.civ-slot-n { font-size: 20px; font-weight: 800; line-height: 1; }
+.civ-slot-ico { font-size: 15px; line-height: 1; }
+.civ-slot-lab {
+  font-size: 9px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text2);
+}
+.civ-slot.type-culture  { border-top-color: #ab47bc; }
+.civ-slot.type-growth   { border-top-color: #388e3c; }
+.civ-slot.type-science  { border-top-color: #0288d1; }
+.civ-slot.type-economy  { border-top-color: #f57c00; }
+.civ-slot.type-military { border-top-color: #d32f2f; }
+.civ-slot.type-industry { border-top-color: #e64a19; }
+
+/* When the mod's scans are present the art carries the card and the drawn
+   chrome steps back, so the two never fight each other. */
+.cface.has-art, .wcard.has-art { background-repeat: no-repeat; }
+.cface.has-art .cface-title, .cface.has-art .cface-text,
+.cface.has-art .cface-figures { display: none; }
+.cface.has-art { min-height: 190px; }
+.wcard.has-art .wcard-body { background: rgba(10, 13, 20, 0.82); }

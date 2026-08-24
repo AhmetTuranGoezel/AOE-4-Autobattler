@@ -10,6 +10,7 @@ const Game = (() => {
   const AGENDA_CARDS = Array.isArray(RULES.AGENDA_CARDS) ? RULES.AGENDA_CARDS : [];
   const CARD_DEFS = RULES.CARD_DEFS || {};
   const GOVERNMENTS = RULES.GOVERNMENTS || {};
+  const CIV_STYLE = RULES.CIV_STYLE || {};
   const LEADERS = Array.isArray(RULES.LEADERS) ? RULES.LEADERS.filter((l) => l && l.id !== "random") : [];
   const LEADER_BY_ID = Object.fromEntries(LEADERS.map((l) => [l.id, l]));
 
@@ -553,11 +554,12 @@ const Game = (() => {
   // players join into it via ADD_PLAYER and the host triggers START_GAME once
   // everyone is present. Only then is the real board (createState) built, so a
   // late join can never wipe an in-progress setup.
-  function createLobbyState(players) {
+  function createLobbyState(players, opts) {
     const list = (players || []).slice(0, CFG.maxPlayers);
     return {
       rulesVersion: RULE_VERSION,
       phase: "lobby",
+      solo: !!(opts && opts.solo),
       map: buildEmptyMap(CFG.mapRadius),
       players: list,
       turn: { order: list.map((p) => p.id), index: 0, round: 1 },
@@ -750,9 +752,10 @@ const Game = (() => {
 
     if (type === "START_GAME") {
       if (st.phase !== "lobby") return st;
-      if (st.players.length < CFG.minPlayers) return st;
+      if (!st.solo && st.players.length < CFG.minPlayers) return st;
       assignRandomLeaders(st);
       const newState = createState(st.players);
+      newState.solo = !!st.solo;
       // Carry the lobby chatter into the game log for continuity.
       newState.log = (st.log || []).concat(newState.log);
       return newState;
@@ -3110,7 +3113,7 @@ const Game = (() => {
     DISTRICTS, DISTRICT_LABELS, DISTRICT_EFFECTS, RESOURCES, EVENTS, EVENT_LABELS, CFG,
     WONDERS, ALL_WONDERS, WONDER_ERAS, CARD_TIERS, AGENDA_CARDS, DIPLOMACY_CARDS, CITY_STATE_DATA,
     LEADERS, getLeader, getLeaderAttackBonus, getCardName, getActiveUniqueCard,
-    CARD_DEFS, getCardEffectText, syncUnitCounts, advanceTech, resolveEvent, GOVERNMENTS,
+    CARD_DEFS, getCardEffectText, syncUnitCounts, advanceTech, resolveEvent, GOVERNMENTS, CIV_STYLE,
     hasWonder, getWonderAttackBonus, getWonderDefenseBonus,
     TILE_OFFSETS, getCoreAnchors,
     createState, createLobbyState, createPlayer, migrateState, applyAction, currentPlayer, getPlayer,

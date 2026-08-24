@@ -1,0 +1,921 @@
+{
+ "focus": {
+  "culture-1": {
+   "sheet": "sheet10",
+   "cols": 7,
+   "rows": 4,
+   "col": 3,
+   "row": 0,
+   "name": "Early Empire"
+  },
+  "industry-1": {
+   "sheet": "sheet10",
+   "cols": 7,
+   "rows": 4,
+   "col": 0,
+   "row": 0,
+   "name": "Pottery"
+  },
+  "science-1": {
+   "sheet": "sheet10",
+   "cols": 7,
+   "rows": 4,
+   "col": 2,
+   "row": 0,
+   "name": "Astrology"
+  },
+  "military-1": {
+   "sheet": "sheet10",
+   "cols": 7,
+   "rows": 4,
+   "col": 1,
+   "row": 0,
+   "name": "Masonry"
+  },
+  "economy-1": {
+   "sheet": "sheet10",
+   "cols": 7,
+   "rows": 4,
+   "col": 4,
+   "row": 0,
+   "name": "Foreign Trade"
+  },
+  "growth-1": {
+   "sheet": "sheet10",
+   "cols": 7,
+   "rows": 4,
+   "col": 5,
+   "row": 0,
+   "name": "Irrigation"
+  },
+  "industry-2": {
+   "sheet": "sheet10",
+   "cols": 7,
+   "rows": 4,
+   "col": 6,
+   "row": 0,
+   "name": "Animal Husbandry"
+  },
+  "culture-2": {
+   "sheet": "sheet10",
+   "cols": 7,
+   "rows": 4,
+   "col": 2,
+   "row": 1,
+   "name": "Drama and Poetry"
+  },
+  "science-2": {
+   "sheet": "sheet10",
+   "cols": 7,
+   "rows": 4,
+   "col": 1,
+   "row": 1,
+   "name": "Mathematics"
+  },
+  "military-2": {
+   "sheet": "sheet10",
+   "cols": 7,
+   "rows": 4,
+   "col": 0,
+   "row": 1,
+   "name": "Iron Working"
+  },
+  "economy-2": {
+   "sheet": "sheet10",
+   "cols": 7,
+   "rows": 4,
+   "col": 3,
+   "row": 1,
+   "name": "Currency"
+  },
+  "growth-2": {
+   "sheet": "sheet10",
+   "cols": 7,
+   "rows": 4,
+   "col": 4,
+   "row": 1,
+   "name": "Engineering"
+  },
+  "culture-3": {
+   "sheet": "sheet10",
+   "cols": 7,
+   "rows": 4,
+   "col": 1,
+   "row": 2,
+   "name": "Civil Service"
+  },
+  "industry-3": {
+   "sheet": "sheet10",
+   "cols": 7,
+   "rows": 4,
+   "col": 5,
+   "row": 1,
+   "name": "Nationalism"
+  },
+  "science-3": {
+   "sheet": "sheet10",
+   "cols": 7,
+   "rows": 4,
+   "col": 0,
+   "row": 2,
+   "name": "Replaceable Parts"
+  },
+  "military-3": {
+   "sheet": "sheet10",
+   "cols": 7,
+   "rows": 4,
+   "col": 6,
+   "row": 1,
+   "name": "Mass Production"
+  },
+  "economy-3": {
+   "sheet": "sheet10",
+   "cols": 7,
+   "rows": 4,
+   "col": 2,
+   "row": 2,
+   "name": "Steam Power"
+  },
+  "growth-3": {
+   "sheet": "sheet10",
+   "cols": 7,
+   "rows": 4,
+   "col": 3,
+   "row": 2,
+   "name": "Sanitation"
+  },
+  "culture-4": {
+   "sheet": "sheet10",
+   "cols": 7,
+   "rows": 4,
+   "col": 0,
+   "row": 3,
+   "name": "Mass Media"
+  },
+  "industry-4": {
+   "sheet": "sheet10",
+   "cols": 7,
+   "rows": 4,
+   "col": 4,
+   "row": 2,
+   "name": "Urbanization"
+  },
+  "science-4": {
+   "sheet": "sheet10",
+   "cols": 7,
+   "rows": 4,
+   "col": 6,
+   "row": 2,
+   "name": "Nuclear Power"
+  },
+  "military-4": {
+   "sheet": "sheet10",
+   "cols": 7,
+   "rows": 4,
+   "col": 5,
+   "row": 2,
+   "name": "Flight"
+  },
+  "economy-4": {
+   "sheet": "sheet10",
+   "cols": 7,
+   "rows": 4,
+   "col": 1,
+   "row": 3,
+   "name": "Capitalism"
+  },
+  "growth-4": {
+   "sheet": "sheet10",
+   "cols": 7,
+   "rows": 4,
+   "col": 2,
+   "row": 3,
+   "name": "Globalization"
+  }
+ },
+ "unique": {
+  "zulu": {
+   "sheet": "sheet11",
+   "cols": 5,
+   "rows": 4,
+   "col": 2,
+   "row": 3,
+   "name": "Scorched Earth",
+   "type": "military"
+  },
+  "sumeria": {
+   "sheet": "sheet11",
+   "cols": 5,
+   "rows": 4,
+   "col": 1,
+   "row": 3,
+   "name": "Craftsmanship",
+   "type": "industry"
+  },
+  "scythia": {
+   "sheet": "sheet11",
+   "cols": 5,
+   "rows": 4,
+   "col": 0,
+   "row": 3,
+   "name": "Horseback Riding",
+   "type": "military"
+  },
+  "rome": {
+   "sheet": "sheet11",
+   "cols": 5,
+   "rows": 4,
+   "col": 4,
+   "row": 2,
+   "name": "Military Engineering",
+   "type": "growth"
+  },
+  "poland": {
+   "sheet": "sheet11",
+   "cols": 5,
+   "rows": 4,
+   "col": 3,
+   "row": 2,
+   "name": "Astronomy",
+   "type": "science"
+  },
+  "ottoman": {
+   "sheet": "sheet11",
+   "cols": 5,
+   "rows": 4,
+   "col": 2,
+   "row": 2,
+   "name": "Banking",
+   "type": "economy"
+  },
+  "nubia": {
+   "sheet": "sheet11",
+   "cols": 5,
+   "rows": 4,
+   "col": 1,
+   "row": 2,
+   "name": "Construction",
+   "type": "industry"
+  },
+  "netherlands": {
+   "sheet": "sheet11",
+   "cols": 5,
+   "rows": 4,
+   "col": 0,
+   "row": 2,
+   "name": "Cartography",
+   "type": "economy"
+  },
+  "japan": {
+   "sheet": "sheet11",
+   "cols": 5,
+   "rows": 4,
+   "col": 4,
+   "row": 1,
+   "name": "Industrialization",
+   "type": "industry"
+  },
+  "indonesia": {
+   "sheet": "sheet11",
+   "cols": 5,
+   "rows": 4,
+   "col": 3,
+   "row": 1,
+   "name": "Shipbuilding",
+   "type": "economy"
+  },
+  "inca": {
+   "sheet": "sheet11",
+   "cols": 5,
+   "rows": 4,
+   "col": 2,
+   "row": 1,
+   "name": "State Workforce",
+   "type": "culture"
+  },
+  "georgia": {
+   "sheet": "sheet11",
+   "cols": 5,
+   "rows": 4,
+   "col": 1,
+   "row": 1,
+   "name": "Siege Tactics",
+   "type": "military"
+  },
+  "france": {
+   "sheet": "sheet11",
+   "cols": 5,
+   "rows": 4,
+   "col": 0,
+   "row": 1,
+   "name": "Humanism",
+   "type": "culture"
+  },
+  "england": {
+   "sheet": "sheet11",
+   "cols": 5,
+   "rows": 4,
+   "col": 4,
+   "row": 0,
+   "name": "Natural History",
+   "type": "science"
+  },
+  "egypt": {
+   "sheet": "sheet11",
+   "cols": 5,
+   "rows": 4,
+   "col": 3,
+   "row": 0,
+   "name": "Wheel",
+   "type": "economy"
+  },
+  "china": {
+   "sheet": "sheet11",
+   "cols": 5,
+   "rows": 4,
+   "col": 2,
+   "row": 0,
+   "name": "Writing",
+   "type": "science"
+  },
+  "aztec": {
+   "sheet": "sheet11",
+   "cols": 5,
+   "rows": 4,
+   "col": 1,
+   "row": 0,
+   "name": "Mysticism",
+   "type": "growth"
+  },
+  "america": {
+   "sheet": "sheet11",
+   "cols": 5,
+   "rows": 4,
+   "col": 0,
+   "row": 0,
+   "name": "Radio",
+   "type": "culture"
+  }
+ },
+ "wonders": {
+  "Ruhr Valley": {
+   "sheet": "sheet01",
+   "cols": 3,
+   "rows": 3,
+   "col": 2,
+   "row": 1
+  },
+  "Pentagon": {
+   "sheet": "sheet01",
+   "cols": 3,
+   "rows": 3,
+   "col": 0,
+   "row": 1
+  },
+  "Statue of Liberty": {
+   "sheet": "sheet01",
+   "cols": 3,
+   "rows": 3,
+   "col": 0,
+   "row": 2
+  },
+  "Jebel Barkal": {
+   "sheet": "sheet01",
+   "cols": 3,
+   "rows": 3,
+   "col": 2,
+   "row": 0
+  },
+  "Petra": {
+   "sheet": "sheet01",
+   "cols": 3,
+   "rows": 3,
+   "col": 1,
+   "row": 1
+  },
+  "Terracotta Army": {
+   "sheet": "sheet01",
+   "cols": 3,
+   "rows": 3,
+   "col": 1,
+   "row": 2
+  },
+  "Sydney Opera House": {
+   "sheet": "sheet02",
+   "cols": 3,
+   "rows": 3,
+   "col": 1,
+   "row": 2
+  },
+  "Cristo Redentor": {
+   "sheet": "sheet02",
+   "cols": 3,
+   "rows": 3,
+   "col": 2,
+   "row": 0
+  },
+  "Eiffel Tower": {
+   "sheet": "sheet02",
+   "cols": 3,
+   "rows": 3,
+   "col": 0,
+   "row": 1
+  },
+  "Stonehenge": {
+   "sheet": "sheet02",
+   "cols": 3,
+   "rows": 3,
+   "col": 0,
+   "row": 2
+  },
+  "Hanging Gardens": {
+   "sheet": "sheet02",
+   "cols": 3,
+   "rows": 3,
+   "col": 2,
+   "row": 1
+  },
+  "Colosseum": {
+   "sheet": "sheet02",
+   "cols": 3,
+   "rows": 3,
+   "col": 1,
+   "row": 0
+  },
+  "Országház": {
+   "sheet": "sheet03",
+   "cols": 3,
+   "rows": 3,
+   "col": 2,
+   "row": 2
+  },
+  "Big Ben": {
+   "sheet": "sheet03",
+   "cols": 3,
+   "rows": 3,
+   "col": 1,
+   "row": 0
+  },
+  "Estádio do Maracanã": {
+   "sheet": "sheet03",
+   "cols": 3,
+   "rows": 3,
+   "col": 0,
+   "row": 1
+  },
+  "Apadana": {
+   "sheet": "sheet03",
+   "cols": 3,
+   "rows": 3,
+   "col": 0,
+   "row": 0
+  },
+  "Colossus": {
+   "sheet": "sheet03",
+   "cols": 3,
+   "rows": 3,
+   "col": 2,
+   "row": 0
+  },
+  "Great Lighthouse": {
+   "sheet": "sheet03",
+   "cols": 3,
+   "rows": 3,
+   "col": 1,
+   "row": 1
+  },
+  "Oxford University": {
+   "sheet": "sheet04",
+   "cols": 3,
+   "rows": 3,
+   "col": 1,
+   "row": 1
+  },
+  "Kremlin": {
+   "sheet": "sheet04",
+   "cols": 3,
+   "rows": 3,
+   "col": 2,
+   "row": 0
+  },
+  "Amundsen-Scott Research Station": {
+   "sheet": "sheet04",
+   "cols": 3,
+   "rows": 3,
+   "col": 0,
+   "row": 0
+  },
+  "Taj Mahal": {
+   "sheet": "sheet02",
+   "cols": 3,
+   "rows": 3,
+   "col": 2,
+   "row": 2
+  },
+  "Forbidden City": {
+   "sheet": "sheet02",
+   "cols": 3,
+   "rows": 3,
+   "col": 1,
+   "row": 1
+  },
+  "Chichen Itza": {
+   "sheet": "sheet02",
+   "cols": 3,
+   "rows": 3,
+   "col": 0,
+   "row": 0
+  },
+  "Venetian Arsenal": {
+   "sheet": "sheet01",
+   "cols": 3,
+   "rows": 3,
+   "col": 2,
+   "row": 2
+  },
+  "Huey Teocalli": {
+   "sheet": "sheet01",
+   "cols": 3,
+   "rows": 3,
+   "col": 1,
+   "row": 0
+  },
+  "Alhambra": {
+   "sheet": "sheet01",
+   "cols": 3,
+   "rows": 3,
+   "col": 0,
+   "row": 0
+  },
+  "Kilwa Kisiwani": {
+   "sheet": "sheet03",
+   "cols": 3,
+   "rows": 3,
+   "col": 0,
+   "row": 2
+  },
+  "Great Zimbabwe": {
+   "sheet": "sheet03",
+   "cols": 3,
+   "rows": 3,
+   "col": 2,
+   "row": 1
+  },
+  "Machu Picchu": {
+   "sheet": "sheet03",
+   "cols": 3,
+   "rows": 3,
+   "col": 1,
+   "row": 2
+  },
+  "Pyramids": {
+   "sheet": "sheet04",
+   "cols": 3,
+   "rows": 3,
+   "col": 1,
+   "row": 2
+  },
+  "Oracle": {
+   "sheet": "sheet04",
+   "cols": 3,
+   "rows": 3,
+   "col": 0,
+   "row": 1
+  },
+  "Great Library": {
+   "sheet": "sheet04",
+   "cols": 3,
+   "rows": 3,
+   "col": 1,
+   "row": 0
+  },
+  "University of Sankore": {
+   "sheet": "sheet04",
+   "cols": 3,
+   "rows": 3,
+   "col": 2,
+   "row": 2
+  },
+  "Potala Palace": {
+   "sheet": "sheet04",
+   "cols": 3,
+   "rows": 3,
+   "col": 0,
+   "row": 2
+  },
+  "Porcelain Tower": {
+   "sheet": "sheet04",
+   "cols": 3,
+   "rows": 3,
+   "col": 2,
+   "row": 1
+  },
+  "Drama and Poetry": {
+   "sheet": "sheet05",
+   "cols": 3,
+   "rows": 2,
+   "col": 2,
+   "row": 1
+  },
+  "Animal Husbandry": {
+   "sheet": "sheet05",
+   "cols": 3,
+   "rows": 2,
+   "col": 1,
+   "row": 1
+  },
+  "Mathematics": {
+   "sheet": "sheet05",
+   "cols": 3,
+   "rows": 2,
+   "col": 0,
+   "row": 1
+  },
+  "Iron Working": {
+   "sheet": "sheet05",
+   "cols": 3,
+   "rows": 2,
+   "col": 2,
+   "row": 0
+  },
+  "Currency": {
+   "sheet": "sheet05",
+   "cols": 3,
+   "rows": 2,
+   "col": 1,
+   "row": 0
+  },
+  "Engineering": {
+   "sheet": "sheet05",
+   "cols": 3,
+   "rows": 2,
+   "col": 0,
+   "row": 0
+  },
+  "Civil Service": {
+   "sheet": "sheet06",
+   "cols": 3,
+   "rows": 2,
+   "col": 2,
+   "row": 1
+  },
+  "Nationalism": {
+   "sheet": "sheet06",
+   "cols": 3,
+   "rows": 2,
+   "col": 1,
+   "row": 1
+  },
+  "Replaceable Parts": {
+   "sheet": "sheet06",
+   "cols": 3,
+   "rows": 2,
+   "col": 0,
+   "row": 1
+  },
+  "Steam Power": {
+   "sheet": "sheet06",
+   "cols": 3,
+   "rows": 2,
+   "col": 2,
+   "row": 0
+  },
+  "Sanitation": {
+   "sheet": "sheet06",
+   "cols": 3,
+   "rows": 2,
+   "col": 0,
+   "row": 0
+  },
+  "Mass Media": {
+   "sheet": "sheet07",
+   "cols": 3,
+   "rows": 2,
+   "col": 2,
+   "row": 1
+  },
+  "Urbanization": {
+   "sheet": "sheet07",
+   "cols": 3,
+   "rows": 2,
+   "col": 1,
+   "row": 1
+  },
+  "Nuclear Power": {
+   "sheet": "sheet07",
+   "cols": 3,
+   "rows": 2,
+   "col": 0,
+   "row": 1
+  },
+  "Flight": {
+   "sheet": "sheet07",
+   "cols": 3,
+   "rows": 2,
+   "col": 2,
+   "row": 0
+  },
+  "Capitalism": {
+   "sheet": "sheet07",
+   "cols": 3,
+   "rows": 2,
+   "col": 1,
+   "row": 0
+  },
+  "Globalization": {
+   "sheet": "sheet07",
+   "cols": 3,
+   "rows": 2,
+   "col": 0,
+   "row": 0
+  },
+  "Mass Production": {
+   "sheet": "sheet06",
+   "cols": 3,
+   "rows": 2,
+   "col": 1,
+   "row": 0
+  },
+  "Early Empire": {
+   "sheet": "sheet08",
+   "cols": 3,
+   "rows": 2,
+   "col": 2,
+   "row": 1
+  },
+  "Pottery": {
+   "sheet": "sheet08",
+   "cols": 3,
+   "rows": 2,
+   "col": 1,
+   "row": 1
+  },
+  "Astrology": {
+   "sheet": "sheet08",
+   "cols": 3,
+   "rows": 2,
+   "col": 0,
+   "row": 1
+  },
+  "Masonry": {
+   "sheet": "sheet08",
+   "cols": 3,
+   "rows": 2,
+   "col": 2,
+   "row": 0
+  },
+  "Foreign Trade": {
+   "sheet": "sheet08",
+   "cols": 3,
+   "rows": 2,
+   "col": 1,
+   "row": 0
+  },
+  "Irrigation": {
+   "sheet": "sheet08",
+   "cols": 3,
+   "rows": 2,
+   "col": 0,
+   "row": 0
+  },
+  "Astronomy": {
+   "sheet": "sheet09",
+   "cols": 6,
+   "rows": 3,
+   "col": 1,
+   "row": 2
+  },
+  "Shipbuilding": {
+   "sheet": "sheet09",
+   "cols": 6,
+   "rows": 3,
+   "col": 2,
+   "row": 1
+  },
+  "Humanism": {
+   "sheet": "sheet09",
+   "cols": 6,
+   "rows": 3,
+   "col": 5,
+   "row": 0
+  },
+  "Natural History": {
+   "sheet": "sheet09",
+   "cols": 6,
+   "rows": 3,
+   "col": 4,
+   "row": 0
+  },
+  "Wheel": {
+   "sheet": "sheet09",
+   "cols": 6,
+   "rows": 3,
+   "col": 3,
+   "row": 0
+  },
+  "Writing": {
+   "sheet": "sheet09",
+   "cols": 6,
+   "rows": 3,
+   "col": 2,
+   "row": 0
+  },
+  "Mysticism": {
+   "sheet": "sheet09",
+   "cols": 6,
+   "rows": 3,
+   "col": 1,
+   "row": 0
+  },
+  "Radio": {
+   "sheet": "sheet09",
+   "cols": 6,
+   "rows": 3,
+   "col": 0,
+   "row": 0
+  },
+  "Siege Tactics": {
+   "sheet": "sheet09",
+   "cols": 6,
+   "rows": 3,
+   "col": 0,
+   "row": 1
+  },
+  "State Workforce": {
+   "sheet": "sheet09",
+   "cols": 6,
+   "rows": 3,
+   "col": 1,
+   "row": 1
+  },
+  "Industrialization": {
+   "sheet": "sheet09",
+   "cols": 6,
+   "rows": 3,
+   "col": 3,
+   "row": 1
+  },
+  "Cartography": {
+   "sheet": "sheet09",
+   "cols": 6,
+   "rows": 3,
+   "col": 4,
+   "row": 1
+  },
+  "Construction": {
+   "sheet": "sheet09",
+   "cols": 6,
+   "rows": 3,
+   "col": 5,
+   "row": 1
+  },
+  "Banking": {
+   "sheet": "sheet09",
+   "cols": 6,
+   "rows": 3,
+   "col": 0,
+   "row": 2
+  },
+  "Military Engineering": {
+   "sheet": "sheet09",
+   "cols": 6,
+   "rows": 3,
+   "col": 2,
+   "row": 2
+  },
+  "Horseback Riding": {
+   "sheet": "sheet09",
+   "cols": 6,
+   "rows": 3,
+   "col": 3,
+   "row": 2
+  },
+  "Craftsmanship": {
+   "sheet": "sheet09",
+   "cols": 6,
+   "rows": 3,
+   "col": 4,
+   "row": 2
+  },
+  "Scorched Earth": {
+   "sheet": "sheet09",
+   "cols": 6,
+   "rows": 3,
+   "col": 5,
+   "row": 2
+  }
+ },
+ "sheets": {
+  "sheet01": "https://steamusercontent-a.akamaihd.net/ugc/1751309827527195437/E36C51180249964D87DB56E45AA97570BE09FA6D/",
+  "sheet02": "https://steamusercontent-a.akamaihd.net/ugc/1751309827527175345/75F3F137E606E8F4240B304785884D565B49C2F2/",
+  "sheet03": "https://steamusercontent-a.akamaihd.net/ugc/1751309827527155310/CF9BB49DC02FC6D9B9D2693A86CA0F2E4AA024FD/",
+  "sheet04": "https://steamusercontent-a.akamaihd.net/ugc/1751309827527216227/2ABD2EDF59141E83D49FF361F7E60CA3FD1955D5/",
+  "sheet05": "https://steamusercontent-a.akamaihd.net/ugc/1751309922441840317/CDDFD8AB6FEB51F3C34819AF3C6C37F64E2C3FB7/",
+  "sheet06": "https://steamusercontent-a.akamaihd.net/ugc/1751309922441848239/6E039ED37D4E1D9F07CC2144C4FFB3A58121228F/",
+  "sheet07": "https://steamusercontent-a.akamaihd.net/ugc/1751309922441858026/393EE7BEAE8DCE97C7437D66D213B0582A22D7A8/",
+  "sheet08": "https://steamusercontent-a.akamaihd.net/ugc/1751309922441871309/C8AF4BF60A21F4E6EAF17F2CC23688BA38595B48/",
+  "sheet09": "https://steamusercontent-a.akamaihd.net/ugc/1751309827527482216/3F39DF4C874B8570B1DEEF507E0F4D3063FBFD13/",
+  "sheet10": "https://steamusercontent-a.akamaihd.net/ugc/1994562021176701110/AACE052C448F6EC199AE8C9BC6C044EE442B676B/",
+  "sheet11": "https://steamusercontent-a.akamaihd.net/ugc/1994562021176702443/36957E6468C3E124AB99ED94D89DBAC1E97F0BA0/"
+ }
+}
