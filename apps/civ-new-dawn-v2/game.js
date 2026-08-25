@@ -1162,6 +1162,7 @@ const Game = (() => {
     if (type === "PLAY_MILITARY_ATTACK") {
       const player = getPlayer(st, payload.playerId);
       if (!player || player.cardPlayed) return st;
+      if (st.combat && st.combat.turn !== "done") return st;   // one fight at a time
       const unit = player.armies.find((u) => u.id === payload.unitId);
       if (!unit || !unit.position) return st;
       const hex = st.map.hexes[payload.toKey];
@@ -1169,121 +1170,63 @@ const Game = (() => {
       const reachable = getReachable(st, unit.position, getMilitaryMove(player), "army", payload.playerId);
       if (!reachable.has(payload.toKey) && unit.position !== payload.toKey) return st;
 
-      const atkRoll = rollDie();
-      const defRoll = rollDie();
-      const tierCombatBonus = getMilitaryCombatBonus(player);
-      // Leader combat bonuses (Scythia terrain, Ottoman vs Ibrahim holder).
+      // Both sides roll, and then the fight stops for the players to bid. The
+      // attacker spends everything they mean to spend before the defender may
+      // spend anything (Terra p10).
       const leaderBonus = getLeaderAttackBonus(st, payload.playerId, payload.toKey);
-      const atkTotal = atkRoll + payload.attackPower + tierCombatBonus + leaderBonus;
-      // Step 4 of an attack: the attacker hands over trade tokens (already in
-      // payload.attackPower), then the defender gets the same chance from their
-      // own military card. A defending player buys exactly the tokens that turn
-      // the fight around and no more — ties already go to the defender.
-      const defOwner = payload.defenderOwnerId ? getPlayer(st, payload.defenderOwnerId) : null;
-      let defTrade = 0;
-      if (defOwner) {
-        const shortfall = atkTotal - (defRoll + payload.defensePower);
-        if (shortfall > 0) {
-          defTrade = Math.min(shortfall, defOwner.trade.military || 0);
-          defOwner.trade.military -= defTrade;
-        }
-      }
-      const defTotal = defRoll + payload.defensePower + defTrade;
-      const win = atkTotal > defTotal;
-      if (defTrade > 0) {
-        log(st, `${defOwner.name} spent ${defTrade} military trade token(s) defending.`);
-      }
-      // Zulu cares whether the target was a rival city or city-state — note it
-      // before the capture logic rewrites the hex.
-      const targetWasCityOrCS = !!(hex.cityState || (hex.city && hex.city.ownerId !== payload.playerId));
-
-      st.lastCombat = { attacker: player.name, defender: payload.defenderLabel, atkRoll, defRoll, atkTotal, defTotal, win, leaderBonus, defTrade };
-
-      if (win) {
-        player.maxCombatWin = Math.max(player.maxCombatWin || 0, atkTotal);
-        unit.position = payload.toKey;
-        if (hex.fortress && !hex.city) {
-          hex.city = { ownerId: payload.playerId, isCapital: false, developed: false, hasWonder: false, wonder: null };
-          log(st, `${player.name} captured the fortress!`);
-        }
-        if (hex.barbarian) {
-          hex.barbarian = false;
-          st.pendingBarbReward = { playerId: payload.playerId };
-          log(st, `${player.name} defeated a barbarian! Choose a focus card for +1 trade.`);
-          if (hasLeader(player, "sumeria")) {
-            // Sumeria: a defeated barbarian also yields a resource of choice.
-            queuePendingChoice(st, {
-              kind: "gain_resource", playerId: player.id,
-              title: "Sumeria: Gain a Resource",
-              options: RESOURCES.map((r) => ({ id: r, label: r }))
-            });
-          }
-        }
-        if (hex.cityState) {
-          const csType = hex.cityState.type;
-          const csName = hex.cityState.name;
-          player.trade[csType] = Math.min(CFG.maxTrade, player.trade[csType] + 1);
-          if (!player.cityStateTokens.includes(csName)) player.cityStateTokens.push(csName);
-          returnDiplomacyFromSource(st, player, csName);
-          log(st, `${player.name} gained +1 ${csType} trade and a ${csName} token.`);
-          hex.cityState = null;
-          hex.city = { ownerId: payload.playerId, isCapital: false, developed: false, hasWonder: false, wonder: null };
-        }
-        if (hex.control && hex.control.ownerId !== payload.playerId) {
-          returnDiplomacyFromSource(st, player, hex.control.ownerId);
-          hex.control = { ownerId: payload.playerId, fortified: false, district: null };
-        }
-        if (hex.city && hex.city.ownerId !== payload.playerId) {
-          const defenderId = hex.city.ownerId;
-          const defender = getPlayer(st, defenderId);
-          returnDiplomacyFromSource(st, player, defenderId);
-          if (defender) returnDiplomacyFromSource(st, defender, payload.playerId);
-          if (defender) {
-            defender.armies.forEach((u) => { if (u.position === payload.toKey) u.position = null; });
-            defender.caravans.forEach((u) => { if (u.position === payload.toKey) u.position = null; });
-          }
-          // Statue of Liberty: the ring of rival control around the city falls with it.
-          if (hasWonder(st, payload.playerId, "Statue of Liberty")) {
-            hexNeighborKeys(hex.q, hex.r).forEach((nk) => {
-              const nh = st.map.hexes[nk];
-              if (nh && nh.control && nh.control.ownerId !== payload.playerId) {
-                nh.control = { ownerId: payload.playerId, fortified: false, district: nh.control.district };
-              }
-            });
-          }
-          if (hex.city.isCapital && defender) {
-            let taken = 0;
-            FOCUS_TYPES.forEach((f) => {
-              if (taken >= 2 && defender.trade[f] > 0) return;
-              if (defender.trade[f] > 0) { defender.trade[f]--; player.trade[f] = Math.min(CFG.maxTrade, player.trade[f] + 1); taken++; }
-            });
-            if (taken > 0) log(st, `${player.name} seized ${taken} trade token(s) from ${defender.name}'s capital!`);
-            player.capturedCapitals = (player.capturedCapitals || 0) + 1;
-          }
-          hex.city.ownerId = payload.playerId;
-          hex.city.developed = false;
-        }
-        defeatEnemyUnitsAt(st, payload.toKey, payload.playerId);
-        // Zulu: a won attack stocks the military card — doubly so vs cities.
-        if (hasLeader(player, "zulu")) {
-          const gain = 1 + (targetWasCityOrCS ? 1 : 0);
-          player.trade.military = Math.min(CFG.maxTrade, player.trade.military + gain);
-          log(st, `${player.name}'s impi triumph: +${gain} military trade.`);
-        }
-        // Aztec: remember the win — resetting the military card may swap cards.
-        player.wonAttackThisTurn = true;
-        log(st, `${player.name} won combat vs ${payload.defenderLabel}! (${atkTotal} vs ${defTotal})`);
-      } else {
-        unit.position = null;
-        log(st, `${player.name} lost combat vs ${payload.defenderLabel}. (${atkTotal} vs ${defTotal})`);
-      }
-      unit.movedThisCard = true;
-      st.activeCard = {
-        playerId: player.id, cardType: "military",
-        tradeSpent: (st.activeCard && st.activeCard.cardType === "military" ? st.activeCard.tradeSpent : 0) + (payload.tradeSpent || 0)
+      st.combat = {
+        attackerId: payload.playerId,
+        unitId: payload.unitId,
+        fromKey: payload.fromKey || unit.position,
+        toKey: payload.toKey,
+        defenderLabel: payload.defenderLabel,
+        defenderOwnerId: payload.defenderOwnerId || null,
+        atkBase: (payload.attackPower || 0) + getMilitaryCombatBonus(player) + leaderBonus,
+        defBase: payload.defensePower || 0,
+        leaderBonus,
+        atkRoll: rollDie(),
+        defRoll: rollDie(),
+        atkTrade: 0,
+        defTrade: 0,
+        turn: "attacker",
+        history: []
       };
-      checkDevelopment(st, payload.playerId);
-      if (!unitsLeftToMove(player, "military")) finishActiveCard(st);
+      log(st, `${player.name} attacks ${payload.defenderLabel}: rolled ${st.combat.atkRoll} against ${st.combat.defRoll}.`);
+      advanceCombat(st);
+      return st;
+    }
+
+    if (type === "COMBAT_SPEND" || type === "COMBAT_PASS") {
+      const c = st.combat;
+      if (!c || c.turn === "done") return st;
+      const side = payload.side || c.turn;
+      if (side !== c.turn) return st;                       // not your turn to bid
+      const actorId = side === "attacker" ? c.attackerId : c.defenderOwnerId;
+      if (payload.playerId && actorId && payload.playerId !== actorId && !payload.hostOverride) return st;
+
+      if (type === "COMBAT_PASS") {
+        c.turn = side === "attacker" ? "defender" : "done";
+        advanceCombat(st);
+        return st;
+      }
+
+      const actor = actorId ? getPlayer(st, actorId) : null;
+      if (!actor || (actor.trade.military || 0) <= 0) return st;
+      actor.trade.military--;
+      const before = side === "attacker" ? c.atkRoll : c.defRoll;
+      if (payload.mode === "reroll") {
+        // A token buys a fresh die instead of a flat +1 — and you get to look
+        // before deciding whether to buy another.
+        const rolled = rollDie();
+        if (side === "attacker") c.atkRoll = rolled; else c.defRoll = rolled;
+        c.history.push({ side, mode: "reroll", from: before, to: rolled });
+        log(st, `${actor.name} rerolled a ${before} into a ${rolled}.`);
+      } else {
+        if (side === "attacker") c.atkTrade++; else c.defTrade++;
+        c.history.push({ side, mode: "plus" });
+        log(st, `${actor.name} spent a military trade token for +1.`);
+      }
+      advanceCombat(st);
       return st;
     }
 
@@ -1924,6 +1867,145 @@ const Game = (() => {
       p.armies.forEach((u) => { if (u.position === hexKey) u.position = null; });
       p.caravans.forEach((u) => { if (u.position === hexKey) u.position = null; });
     });
+  }
+
+  // --- Combat, as an exchange -----------------------------------------------
+
+  function combatTotals(c) {
+    return {
+      atk: c.atkRoll + c.atkBase + c.atkTrade,
+      def: c.defRoll + c.defBase + c.defTrade
+    };
+  }
+
+  // How many military trade tokens the side still has to bid with.
+  function combatTokens(st, c, side) {
+    const id = side === "attacker" ? c.attackerId : c.defenderOwnerId;
+    const p = id ? getPlayer(st, id) : null;
+    return p ? (p.trade.military || 0) : 0;
+  }
+
+  // Hands the bid on, skipping anybody who has nothing to spend — a barbarian,
+  // a city-state and an empty military card all have no decision to make — and
+  // settles the fight once both sides are done.
+  function advanceCombat(st) {
+    const c = st.combat;
+    if (!c) return;
+    while (c.turn !== "done" && combatTokens(st, c, c.turn) <= 0) {
+      c.turn = c.turn === "attacker" ? "defender" : "done";
+    }
+    if (c.turn === "done") resolveCombat(st);
+  }
+
+  function resolveCombat(st) {
+    const c = st.combat;
+    if (!c) return;
+    c.turn = "done";
+    const player = getPlayer(st, c.attackerId);
+    const unit = player && player.armies.find((u) => u.id === c.unitId);
+    const hex = st.map.hexes[c.toKey];
+    if (!player || !unit || !hex) { st.combat = null; return; }
+
+    const totals = combatTotals(c);
+    const atkTotal = totals.atk;
+    const defTotal = totals.def;
+    const win = atkTotal > defTotal;      // the defender takes ties
+
+    // Zulu cares whether the target was a rival city or city-state — note it
+    // before the capture logic rewrites the hex.
+    const targetWasCityOrCS = !!(hex.cityState || (hex.city && hex.city.ownerId !== c.attackerId));
+
+    st.lastCombat = { attacker: player.name, defender: c.defenderLabel, toKey: c.toKey,
+      atkRoll: c.atkRoll, defRoll: c.defRoll, atkTotal, defTotal, win,
+      leaderBonus: c.leaderBonus, atkTrade: c.atkTrade, defTrade: c.defTrade,
+      history: c.history.slice() };
+
+    if (win) {
+      player.maxCombatWin = Math.max(player.maxCombatWin || 0, atkTotal);
+      unit.position = c.toKey;
+      if (hex.fortress && !hex.city) {
+        hex.city = { ownerId: c.attackerId, isCapital: false, developed: false, hasWonder: false, wonder: null };
+        log(st, `${player.name} captured the fortress!`);
+      }
+      if (hex.barbarian) {
+        hex.barbarian = false;
+        st.pendingBarbReward = { playerId: c.attackerId };
+        log(st, `${player.name} defeated a barbarian! Choose a focus card for +1 trade.`);
+        if (hasLeader(player, "sumeria")) {
+          // Sumeria: a defeated barbarian also yields a resource of choice.
+          queuePendingChoice(st, {
+            kind: "gain_resource", playerId: player.id,
+            title: "Sumeria: Gain a Resource",
+            options: RESOURCES.map((r) => ({ id: r, label: r }))
+          });
+        }
+      }
+      if (hex.cityState) {
+        const csType = hex.cityState.type;
+        const csName = hex.cityState.name;
+        player.trade[csType] = Math.min(CFG.maxTrade, player.trade[csType] + 1);
+        if (!player.cityStateTokens.includes(csName)) player.cityStateTokens.push(csName);
+        returnDiplomacyFromSource(st, player, csName);
+        log(st, `${player.name} gained +1 ${csType} trade and a ${csName} token.`);
+        hex.cityState = null;
+        hex.city = { ownerId: c.attackerId, isCapital: false, developed: false, hasWonder: false, wonder: null };
+      }
+      if (hex.control && hex.control.ownerId !== c.attackerId) {
+        returnDiplomacyFromSource(st, player, hex.control.ownerId);
+        hex.control = { ownerId: c.attackerId, fortified: false, district: null };
+      }
+      if (hex.city && hex.city.ownerId !== c.attackerId) {
+        const defenderId = hex.city.ownerId;
+        const defender = getPlayer(st, defenderId);
+        returnDiplomacyFromSource(st, player, defenderId);
+        if (defender) returnDiplomacyFromSource(st, defender, c.attackerId);
+        if (defender) {
+          defender.armies.forEach((u) => { if (u.position === c.toKey) u.position = null; });
+          defender.caravans.forEach((u) => { if (u.position === c.toKey) u.position = null; });
+        }
+        // Statue of Liberty: the ring of rival control around the city falls with it.
+        if (hasWonder(st, c.attackerId, "Statue of Liberty")) {
+          hexNeighborKeys(hex.q, hex.r).forEach((nk) => {
+            const nh = st.map.hexes[nk];
+            if (nh && nh.control && nh.control.ownerId !== c.attackerId) {
+              nh.control = { ownerId: c.attackerId, fortified: false, district: nh.control.district };
+            }
+          });
+        }
+        if (hex.city.isCapital && defender) {
+          let taken = 0;
+          FOCUS_TYPES.forEach((f) => {
+            if (taken >= 2 && defender.trade[f] > 0) return;
+            if (defender.trade[f] > 0) { defender.trade[f]--; player.trade[f] = Math.min(CFG.maxTrade, player.trade[f] + 1); taken++; }
+          });
+          if (taken > 0) log(st, `${player.name} seized ${taken} trade token(s) from ${defender.name}'s capital!`);
+          player.capturedCapitals = (player.capturedCapitals || 0) + 1;
+        }
+        hex.city.ownerId = c.attackerId;
+        hex.city.developed = false;
+      }
+      defeatEnemyUnitsAt(st, c.toKey, c.attackerId);
+      // Zulu: a won attack stocks the military card — doubly so vs cities.
+      if (hasLeader(player, "zulu")) {
+        const gain = 1 + (targetWasCityOrCS ? 1 : 0);
+        player.trade.military = Math.min(CFG.maxTrade, player.trade.military + gain);
+        log(st, `${player.name}'s impi triumph: +${gain} military trade.`);
+      }
+      // Aztec: remember the win — resetting the military card may swap cards.
+      player.wonAttackThisTurn = true;
+      log(st, `${player.name} won combat vs ${c.defenderLabel}! (${atkTotal} vs ${defTotal})`);
+    } else {
+      unit.position = null;
+      log(st, `${player.name} lost combat vs ${c.defenderLabel}. (${atkTotal} vs ${defTotal})`);
+    }
+    unit.movedThisCard = true;
+    st.activeCard = {
+      playerId: player.id, cardType: "military",
+      tradeSpent: (st.activeCard && st.activeCard.cardType === "military" ? st.activeCard.tradeSpent : 0) + c.atkTrade
+    };
+    checkDevelopment(st, c.attackerId);
+    if (!unitsLeftToMove(player, "military")) finishActiveCard(st);
+      st.combat = null;
   }
 
   // --- Event Wheel ---
@@ -3212,7 +3294,8 @@ const Game = (() => {
     createState, createLobbyState, createPlayer, migrateState, applyAction, currentPlayer, getPlayer,
     getSlotValue, getSlotIndex, getCardTier, getCardTierValue: getCardTier,
     getMilitaryMove, getEconomyMove, getCultureMarkers, getMilitaryCombatBonus,
-    getCityRange, getWonderCost, getWonderToken, getVisibleWonders, canCrossWater, computeScore,
+    getCityRange, getWonderCost, getWonderToken, getVisibleWonders,
+    combatTotals, combatTokens, canCrossWater, computeScore,
     validControlHexes, validDistrictHexes, validReinforceHexes,
     validCityHexes, validWonderHexes, getReachable, findDefender, getUnitsAt,
     adjacentToCityState, adjacentToFriendlyControl, terrainDifficulty,

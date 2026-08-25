@@ -369,10 +369,12 @@
       }
 
       {
-        // Rulebook step 4: after both dice, the attacker then the defender may
-        // hand over military trade tokens, +1 combat value each.
+        // Terra p10: both sides roll, then the attacker bids everything they
+        // mean to bid before the defender may answer. A token is +1 or a fresh
+        // die, decided after seeing the roll.
         let sawDefenderSpend = false, sawTieToDefender = false, badSpend = 0, badTie = 0;
-        for (let i = 0; i < 400 && !(sawDefenderSpend && sawTieToDefender); i++) {
+        let badOrder = 0, rerollChangedDie = false, plusLeftDieAlone = true;
+        for (let i = 0; i < 400 && !(sawDefenderSpend && sawTieToDefender && rerollChangedDie); i++) {
           const st = rulesState();
           const me = st.players[0], foe = st.players[1];
           st.turn.index = st.turn.order.indexOf(me.id);
@@ -380,13 +382,36 @@
           activate(st, "0,0", { city: { ownerId: me.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
           activate(st, "1,0", { terrain: "grass", control: { ownerId: foe.id, fortified: false, district: null } });
           me.armies = [{ id: "a1", position: "0,0" }];
+          me.trade.military = Game.CFG.maxTrade;
           foe.trade.military = Game.CFG.maxTrade;
           const d = Game.findDefender(st, "1,0", me.id);
-          const out = Game.applyAction(st, { type: "PLAY_MILITARY_ATTACK", payload: {
+          let out = Game.applyAction(st, { type: "PLAY_MILITARY_ATTACK", payload: {
             playerId: me.id, unitId: "a1", toKey: "1,0", fromKey: "0,0",
             attackPower: Game.getSlotValue(me, "military", st), defensePower: d.power,
-            defenderLabel: d.label, defenderOwnerId: d.ownerId, tradeSpent: 0
+            defenderLabel: d.label, defenderOwnerId: d.ownerId
           } });
+          if (!out.combat) continue;
+
+          // the defender may not jump the queue
+          const foeBefore = out.players.find((p) => p.id === foe.id).trade.military;
+          const jumped = Game.applyAction(out, { type: "COMBAT_SPEND", payload: {
+            playerId: foe.id, side: "defender", mode: "plus" } });
+          if (jumped.players.find((p) => p.id === foe.id).trade.military !== foeBefore) badOrder++;
+
+          // attacker bids: one +1 and one reroll
+          const dieBefore = out.combat.atkRoll;
+          out = Game.applyAction(out, { type: "COMBAT_SPEND", payload: { playerId: me.id, side: "attacker", mode: "plus" } });
+          if (out.combat.atkRoll !== dieBefore) plusLeftDieAlone = false;
+          const beforeReroll = out.combat.atkRoll;
+          out = Game.applyAction(out, { type: "COMBAT_SPEND", payload: { playerId: me.id, side: "attacker", mode: "reroll" } });
+          if (out.combat.atkRoll !== beforeReroll) rerollChangedDie = true;
+          out = Game.applyAction(out, { type: "COMBAT_PASS", payload: { playerId: me.id, side: "attacker" } });
+
+          // defender answers
+          if (out.combat && out.combat.turn === "defender") {
+            out = Game.applyAction(out, { type: "COMBAT_SPEND", payload: { playerId: foe.id, side: "defender", mode: "plus" } });
+            out = Game.applyAction(out, { type: "COMBAT_PASS", payload: { playerId: foe.id, side: "defender" } });
+          }
           const c = out.lastCombat;
           if (!c) continue;
           if (c.defTrade > 0) {
@@ -399,6 +424,9 @@
         assert("the defender can answer with trade tokens", sawDefenderSpend);
         assert("defender's spend leaves their military card", badSpend === 0);
         assert("a tie goes to the defender", badTie === 0);
+        assert("the defender cannot bid before the attacker is done", badOrder === 0);
+        assert("a token spent as +1 leaves the die alone", plusLeftDieAlone);
+        assert("a token spent as a reroll replaces the die", rerollChangedDie);
       }
 
       {

@@ -1281,3 +1281,140 @@ input, select {
 }
 .wcard-foot.st-gone { color: var(--danger); opacity: 0.85; }
 .wcard.st-gone { opacity: 0.5; filter: saturate(0.4); }
+
+/* --- The fight, on the board ---------------------------------------------- */
+/* Combat used to resolve inside a small box on the right rail. It now takes the
+   map: everything else dims and the dice are the biggest thing on screen. */
+#combat-stage {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 40;
+}
+#combat-stage.hidden { display: none; }
+.cs-scrim {
+  position: absolute; inset: 0;
+  background: rgba(8, 10, 18, 0.72);
+  backdrop-filter: blur(2px);
+  animation: cs-fade 0.25s ease;
+}
+@keyframes cs-fade { from { opacity: 0; } to { opacity: 1; } }
+
+.cs-body {
+  position: relative;
+  min-width: 340px; max-width: min(560px, 92%);
+  padding: 18px 20px 16px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(31, 41, 64, 0.98), rgba(18, 24, 40, 0.98));
+  border: 1px solid var(--border);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.65);
+  text-align: center;
+  animation: cs-rise 0.3s cubic-bezier(0.2, 1.1, 0.5, 1);
+}
+@keyframes cs-rise {
+  from { opacity: 0; transform: translateY(14px) scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+
+.cs-vs { font-size: 12px; color: var(--text2); margin-bottom: 12px; }
+.cs-vs strong { color: var(--text); }
+
+.cs-duel { display: flex; align-items: center; justify-content: center; gap: 18px; }
+.cs-side { flex: 1; min-width: 0; }
+.cs-name {
+  font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--text2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cs-die {
+  font-size: 62px; line-height: 1.05;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.6));
+}
+.cs-die.atk { color: var(--accent2); }
+.cs-die.def { color: var(--danger); }
+.cs-die.rolling { animation: die-tumble 0.36s linear infinite; }
+.cs-die.landed { animation: die-land 0.4s cubic-bezier(0.2, 1.4, 0.4, 1); }
+.cs-total { font-size: 26px; font-weight: 800; }
+.cs-note { font-size: 10px; color: var(--text2); margin-top: 2px; }
+.cs-x { font-size: 22px; color: var(--warn); flex: 0 0 auto; }
+
+.cs-story {
+  list-style: none; margin: 12px 0 0; padding: 0;
+  font-size: 11px; color: var(--text2);
+}
+.cs-story li { margin: 2px 0; }
+
+.cs-turn { margin-top: 14px; font-size: 12px; font-weight: 700; }
+.cs-left { color: var(--text2); font-weight: 400; margin-left: 6px; }
+.cs-actions { display: flex; gap: 8px; justify-content: center; margin-top: 10px; }
+.cs-btn {
+  padding: 7px 16px; font-size: 12px; font-weight: 700;
+  border-radius: 8px; border: 1px solid var(--border);
+  background: var(--surface2); color: var(--text); cursor: pointer;
+}
+.cs-btn:hover:not(:disabled) { background: var(--bg3); }
+.cs-btn:disabled { opacity: 0.4; cursor: default; }
+.cs-btn.primary { background: var(--accent); color: #06202c; border-color: transparent; }
+
+.cs-verdict {
+  margin-top: 14px;
+  font-size: 26px; font-weight: 900; letter-spacing: 0.08em;
+  animation: verdict-in 0.4s cubic-bezier(0.2, 1.5, 0.4, 1);
+}
+.cs-verdict.cs-win { color: var(--success); }
+.cs-verdict.cs-lose { color: var(--danger); }
+
+@media (prefers-reduced-motion: reduce) {
+  .cs-scrim, .cs-body, .cs-verdict { animation: none; }
+  .cs-die.rolling, .cs-die.landed { animation: none; }
+}
+
+/* --- The event dial lives on the board ------------------------------------ */
+/* It is a physical component the first player holds, so it sits on the table
+   rather than in a sidebar box — and it takes the middle when the round turns. */
+#event-wheel {
+  position: absolute;
+  left: 14px; bottom: 14px;
+  width: 168px;
+  padding: 8px 10px 10px;
+  border-radius: 12px;
+  background: rgba(22, 28, 45, 0.82);
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(3px);
+  z-index: 20;
+  transform-origin: left bottom;
+  transition: transform 0.5s cubic-bezier(0.2, 1.1, 0.4, 1), box-shadow 0.5s ease;
+}
+#event-wheel h3 { margin: 0 0 4px; font-size: 11px; }
+#event-wheel.staged {
+  transform: scale(1.45) translate(18px, -34px);
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.75), 0 0 0 2px rgba(255, 213, 79, 0.35);
+  z-index: 45;
+}
+@media (prefers-reduced-motion: reduce) {
+  #event-wheel { transition: none; }
+  #event-wheel.staged { transform: none; }
+}
+
+/* --- Tokens that travel --------------------------------------------------- */
+/* One helper flies trade tokens, the government marker and diplomacy cards, so
+   they all arrive the same way. */
+.fly-token {
+  position: fixed; top: 0; left: 0;
+  margin: -13px 0 0 -13px;
+  width: 26px; height: 26px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px; line-height: 1;
+  pointer-events: none;
+  z-index: 90;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.6));
+}
+.token-landed { animation: token-land 0.45s cubic-bezier(0.2, 1.5, 0.4, 1); }
+@keyframes token-land {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.07); box-shadow: 0 0 0 3px rgba(255, 213, 79, 0.5); }
+  100% { transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .token-landed { animation: none; }
+}

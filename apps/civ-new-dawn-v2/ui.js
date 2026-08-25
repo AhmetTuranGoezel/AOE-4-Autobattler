@@ -105,6 +105,20 @@ const UI = (() => {
     keys.forEach((k) => flashHex(k, color, duration));
   }
 
+  // A figure that changed hexes leaves a short trail behind it, so the eye can
+  // see where it came from instead of it simply appearing somewhere new.
+  function traceMove(fromKey, toKey) {
+    if (reducedMotion() || !fromKey || !toKey) return;
+    const q0 = Game.parseQ(fromKey), r0 = Game.parseR(fromKey);
+    const q1 = Game.parseQ(toKey), r1 = Game.parseR(toKey);
+    const steps = Math.max(Math.abs(q1 - q0), Math.abs(r1 - r0), Math.abs((q1 + r1) - (q0 + r0)));
+    for (let i = 0; i <= steps; i++) {
+      const k = Game.key(Math.round(q0 + ((q1 - q0) * i) / steps), Math.round(r0 + ((r1 - r0) * i) / steps));
+      if (!state.map.hexes[k]) continue;
+      setTimeout(() => flashHex(k, "rgba(129,212,250,0.9)", 420), i * 80);
+    }
+  }
+
   let animFrameId = null;
   function startAnimLoop() {
     if (animFrameId) return;
@@ -196,6 +210,8 @@ const UI = (() => {
     dom.wizard = document.getElementById("wizard");
     dom.hostTools = document.getElementById("host-tools");
     dom.eventWheel = document.getElementById("event-wheel");
+    dom.combatStage = document.getElementById("combat-stage");
+    dom.mapContainer = document.getElementById("map-container");
     dom.gameLog = document.getElementById("game-log");
     dom.focusRow = document.getElementById("focus-row");
 
@@ -1019,14 +1035,62 @@ const UI = (() => {
   let prevSeen = null;
 
   function snapshotSeen() {
-    const wonders = {}, cities = {}, districts = {};
+    const wonders = {}, cities = {}, districts = {}, land = {};
     Object.entries(state.map.hexes).forEach(([k, h]) => {
       if (h.city && h.city.wonder) wonders[h.city.wonder.name] = k;
       if (h.city) cities[k] = h.city.ownerId;
       if (h.control && h.control.district) districts[k] = h.control.district;
+      if (h.active) land[k] = h.tileId || 1;
     });
-    return { wonders, cities, districts };
+    const me = Game.getPlayer(state, localPlayerId);
+    return {
+      wonders, cities, districts, land,
+      trade: me ? { ...me.trade } : null,
+      government: me ? me.government : null,
+      diplomacy: me && me.diplomacy ? me.diplomacy.length : 0,
+      units: me ? unitPositions(me) : {}
+    };
   }
+
+  function unitPositions(p) {
+    const out = {};
+    (p.armies || []).forEach((u) => { out["a" + u.id] = u.position; });
+    (p.caravans || []).forEach((u) => { out["c" + u.id] = u.position; });
+    return out;
+  }
+
+  // Sends a token arcing from one place to another and lands it. One helper
+  // does trade tokens, the government marker and diplomacy cards, so they all
+  // move the same way.
+  function flyToken(from, to, glyph, tint) {
+    if (reducedMotion() || !from || !to) return;
+    const a = from.getBoundingClientRect ? from.getBoundingClientRect() : from;
+    const b = to.getBoundingClientRect();
+    if (!a || !b || (!b.width && !b.height)) return;
+    const el = document.createElement("div");
+    el.className = "fly-token";
+    el.textContent = glyph || "\u25cf";
+    if (tint) el.style.color = tint;
+    document.body.appendChild(el);
+    const x0 = (a.left + (a.width || 0) / 2), y0 = (a.top + (a.height || 0) / 2);
+    const x1 = b.left + b.width / 2, y1 = b.top + b.height / 2;
+    const anim = el.animate([
+      { transform: `translate(${x0}px, ${y0}px) scale(0.5)`, opacity: 0.2 },
+      { transform: `translate(${(x0 + x1) / 2}px, ${Math.min(y0, y1) - 70}px) scale(1.3)`, opacity: 1, offset: 0.55 },
+      { transform: `translate(${x1}px, ${y1}px) scale(0.85)`, opacity: 1 }
+    ], { duration: 620, easing: "cubic-bezier(0.3, 0.9, 0.4, 1)" });
+    anim.onfinish = () => {
+      el.remove();
+      to.classList.add("token-landed");
+      setTimeout(() => to.classList.remove("token-landed"), 500);
+    };
+  }
+
+  const focusCardEl = (type) => document.querySelector(`.fcard[data-card="${type}"]`);
+  const boardCentre = () => {
+    const r = dom.mapContainer ? dom.mapContainer.getBoundingClientRect() : null;
+    return r ? { left: r.left + r.width / 2, top: r.top + r.height / 2, width: 0, height: 0 } : null;
+  };
 
   function reactToChanges() {
     const now = snapshotSeen();
@@ -1044,6 +1108,42 @@ const UI = (() => {
         if (prevSeen.districts[k]) return;
         flashHex(k, "rgb(100,181,246)", 900);
       });
+
+      // A tile landing on the table: the new ground ripples outward from the
+      // middle of it rather than all appearing at once.
+      const fresh = Object.keys(now.land).filter((k) => !prevSeen.land[k]);
+      if (fresh.length > 1) {
+        const cx = fresh.reduce((a, k) => a + Game.parseQ(k), 0) / fresh.length;
+        const cy = fresh.reduce((a, k) => a + Game.parseR(k), 0) / fresh.length;
+        fresh.forEach((k) => {
+          const d = Math.abs(Game.parseQ(k) - cx) + Math.abs(Game.parseR(k) - cy);
+          setTimeout(() => flashHex(k, "rgb(129,212,250)", 700), d * 70);
+        });
+      }
+
+      // Trade tokens fly to the card they land on.
+      if (now.trade && prevSeen.trade) {
+        Object.keys(now.trade).forEach((type) => {
+          const gained = now.trade[type] - prevSeen.trade[type];
+          for (let i = 0; i < gained; i++) {
+            setTimeout(() => flyToken(boardCentre(), focusCardEl(type), "\ud83e\ude99"), i * 130);
+          }
+        });
+      }
+      // The government marker stamps onto the card you chose.
+      if (now.government && now.government !== prevSeen.government) {
+        flyToken(boardCentre(), focusCardEl(now.government), "\ud83c\udfdb\ufe0f", "#ffd54f");
+      }
+      // A diplomacy card slides over to your leader sheet.
+      if (now.diplomacy > prevSeen.diplomacy && dom.myStats) {
+        flyToken(boardCentre(), dom.myStats, "\ud83e\udd1d", "#81d4fa");
+      }
+      // Units travel rather than teleport.
+      Object.entries(now.units).forEach(([id, pos]) => {
+        const was = prevSeen.units[id];
+        if (!pos || !was || pos === was) return;
+        traceMove(was, pos);
+      });
     }
     prevSeen = now;
   }
@@ -1056,6 +1156,7 @@ const UI = (() => {
     renderWizard();
     renderHostTools();
     renderEventWheel();
+    renderCombatStage();
     renderLog();
 
     if (state.phase === "playing" || state.phase === "gameover") {
@@ -1336,7 +1437,8 @@ const UI = (() => {
     const isMyTurn = cp && cp.id === localPlayerId;
     const me = Game.getPlayer(state, localPlayerId);
 
-    if (state.lastCombat) { renderCombatResult(); return; }
+    // The fight itself happens on the board, not in this panel.
+    if (state.combat || state.lastCombat) { renderIdleWizard(isMyTurn, cp, me); return; }
     if (state.pendingBarbReward && state.pendingBarbReward.playerId === localPlayerId) { renderBarbReward(me); return; }
     const pending = getVisiblePendingChoice(me);
     if (pending && sub.phase === "idle") { renderPendingChoice(pending); return; }
@@ -1637,39 +1739,109 @@ const UI = (() => {
     });
   }
 
-  function renderCombatResult() {
-    const c = state.lastCombat;
-    const cls = c.win ? "cr-win" : "cr-lose";
-    const txt = c.win ? "VICTORY!" : "DEFEATED";
-    const DICE = ["⚀", "⚁", "⚂", "⚃", "⚄", "⚅"];
-    const atkBar = Math.min(100, c.atkTotal * 7);
-    const defBar = Math.min(100, c.defTotal * 7);
-    dom.wizard.innerHTML = `
-      <div class="wiz-title">Combat Result</div>
-      <div class="combat-result">
-        <div class="cr-vs"><strong>${escapeHtml(c.attacker)}</strong> vs <strong>${escapeHtml(c.defender || "?")}</strong></div>
-        <div class="cr-dice-row">
-          <div class="cr-side">
-            <div class="cr-die atk">${DICE[(c.atkRoll || 1) - 1]}</div>
-            <div class="cr-total">${c.atkTotal}</div>
-            <div class="cr-lab">ATTACK${c.leaderBonus ? ` <span class="leader-bonus">+${c.leaderBonus} leader</span>` : ""}</div>
-            <div class="cr-bar"><i style="width:${atkBar}%" class="atk"></i></div>
-          </div>
-          <div class="cr-x">⚔</div>
-          <div class="cr-side">
-            <div class="cr-die def">${DICE[(c.defRoll || 1) - 1]}</div>
-            <div class="cr-total">${c.defTotal}</div>
-            <div class="cr-lab">DEFENSE${c.defTrade ? ` <span class="leader-bonus">+${c.defTrade} trade</span>` : ""}</div>
-            <div class="cr-bar"><i style="width:${defBar}%" class="def"></i></div>
-          </div>
+  // The fight takes the board: the map dims, both hexes stay lit, and the dice
+  // are the biggest thing on screen. While a side still has military trade
+  // tokens it gets to look at the roll and decide — +1, or a fresh die.
+  function renderCombatStage() {
+    const stage = dom.combatStage;
+    if (!stage) return;
+    const live = state.combat && state.combat.turn !== "done" ? state.combat : null;
+    const done = !live && state.lastCombat ? state.lastCombat : null;
+    if (!live && !done) {
+      stage.classList.add("hidden");
+      stage.innerHTML = "";
+      lastStageKey = null;
+      return;
+    }
+
+    const DICE = ["\u2680", "\u2681", "\u2682", "\u2683", "\u2684", "\u2685"];
+    const atkName = live
+      ? (Game.getPlayer(state, live.attackerId) || {}).name
+      : done.attacker;
+    const defName = live ? live.defenderLabel : done.defender;
+    const totals = live ? Game.combatTotals(live) : { atk: done.atkTotal, def: done.defTotal };
+    const atkRoll = live ? live.atkRoll : done.atkRoll;
+    const defRoll = live ? live.defRoll : done.defRoll;
+
+    const actorId = live ? (live.turn === "attacker" ? live.attackerId : live.defenderOwnerId) : null;
+    const mine = live && actorId === localPlayerId;
+    const asHost = live && !mine && Net.getIsHost();
+    const actor = actorId ? Game.getPlayer(state, actorId) : null;
+    const tokens = actor ? (actor.trade.military || 0) : 0;
+
+    const side = (cls, label, roll, total, note) => `
+      <div class="cs-side ${cls}">
+        <div class="cs-name">${escapeHtml(label || "?")}</div>
+        <div class="cs-die ${cls}">${DICE[(roll || 1) - 1]}</div>
+        <div class="cs-total">${total}</div>
+        <div class="cs-note">${note}</div>
+      </div>`;
+
+    const atkNote = live
+      ? `${atkRoll} rolled + ${live.atkBase} card${live.atkTrade ? ` + ${live.atkTrade} trade` : ""}`
+      : `${done.atkRoll} rolled${done.atkTrade ? ` + ${done.atkTrade} trade` : ""}`;
+    const defNote = live
+      ? `${defRoll} rolled + ${live.defBase} defence${live.defTrade ? ` + ${live.defTrade} trade` : ""}`
+      : `${done.defRoll} rolled${done.defTrade ? ` + ${done.defTrade} trade` : ""}`;
+
+    let foot = "";
+    if (live) {
+      const who = live.turn === "attacker" ? "Attacker" : "Defender";
+      if (mine || asHost) {
+        foot = `<div class="cs-turn">${who}: spend a military trade token?
+            <span class="cs-left">${tokens} left</span></div>
+          <div class="cs-actions">
+            <button class="cs-btn" id="cs-plus" ${tokens ? "" : "disabled"}>+1</button>
+            <button class="cs-btn" id="cs-reroll" ${tokens ? "" : "disabled"}>Reroll</button>
+            <button class="cs-btn primary" id="cs-done">Done</button>
+          </div>`;
+      } else {
+        foot = `<div class="cs-turn">Waiting for ${escapeHtml(actor ? actor.name : who)} to bid\u2026</div>`;
+      }
+    } else {
+      foot = `<div class="cs-verdict ${done.win ? "cs-win" : "cs-lose"}">${done.win ? "VICTORY" : "DEFEATED"}</div>
+        <div class="cs-actions"><button class="cs-btn primary" id="cs-ok">Continue</button></div>`;
+    }
+
+    const story = (live ? live.history : (done.history || [])).map((h) => h.mode === "reroll"
+      ? `<li>${h.side === "attacker" ? "Attacker" : "Defender"} rerolled a ${h.from} into a ${h.to}</li>`
+      : `<li>${h.side === "attacker" ? "Attacker" : "Defender"} paid a token for +1</li>`).join("");
+
+    stage.classList.remove("hidden");
+    stage.innerHTML = `<div class="cs-scrim"></div>
+      <div class="cs-body">
+        <div class="cs-vs"><strong>${escapeHtml(atkName || "Attacker")}</strong> attacks <strong>${escapeHtml(defName || "?")}</strong></div>
+        <div class="cs-duel">
+          ${side("atk", atkName, atkRoll, totals.atk, atkNote)}
+          <div class="cs-x">\u2694</div>
+          ${side("def", defName, defRoll, totals.def, defNote)}
         </div>
-        <div class="cr-verdict ${cls}">${txt}</div>
-      </div>
-      <div class="wiz-actions"><button class="primary" id="wiz-combat-ok">Continue</button></div>`;
-    document.getElementById("wiz-combat-ok").addEventListener("click", () => { state.lastCombat = null; render(); });
-    rollDice(dom.wizard.querySelector(".cr-die.atk"), c.atkRoll);
-    rollDice(dom.wizard.querySelector(".cr-die.def"), c.defRoll);
+        ${story ? `<ul class="cs-story">${story}</ul>` : ""}
+        ${foot}
+      </div>`;
+
+    const bid = (mode) => dispatch({ type: "COMBAT_SPEND", payload: {
+      playerId: localPlayerId, side: live.turn, mode, hostOverride: !!asHost } });
+    document.getElementById("cs-plus")?.addEventListener("click", () => bid("plus"));
+    document.getElementById("cs-reroll")?.addEventListener("click", () => bid("reroll"));
+    document.getElementById("cs-done")?.addEventListener("click", () => dispatch({
+      type: "COMBAT_PASS", payload: { playerId: localPlayerId, side: live.turn, hostOverride: !!asHost } }));
+    document.getElementById("cs-ok")?.addEventListener("click", () => {
+      state.lastCombat = null; render();
+    });
+
+    // Re-tumble only when a die has actually changed, so the stage does not
+    // spin every time the panel re-renders.
+    const key = `${live ? "live" : "done"}:${atkRoll}:${defRoll}:${totals.atk}:${totals.def}`;
+    if (key !== lastStageKey) {
+      rollDice(stage.querySelector(".cs-die.atk"), atkRoll);
+      rollDice(stage.querySelector(".cs-die.def"), defRoll);
+      flashHex((live || done).toKey || (state.combat && state.combat.toKey), "rgb(239,83,80)", 900);
+      lastStageKey = key;
+    }
   }
+
+  let lastStageKey = null;
 
   // Spin a die through random faces before it settles on what was actually
   // rolled. Purely decorative — the result is already decided.
@@ -1868,7 +2040,6 @@ const UI = (() => {
 
     document.getElementById("wiz-attack")?.addEventListener("click", () => {
       sub.phase = "combat_prep";
-      sub.combatTradeSpent = 0;
       render();
     });
     document.getElementById("wiz-continue-move")?.addEventListener("click", continueMovement);
@@ -1891,38 +2062,25 @@ const UI = (() => {
     const slot = Game.getSlotValue(me, "military", state);
     const tierBonus = Game.getMilitaryCombatBonus(me);
     const leaderBonus = Game.getLeaderAttackBonus(state, localPlayerId, ms.currentKey);
-    const totalAttack = slot + (sub.combatTradeSpent || 0);
     const defOwner = defender.ownerId ? Game.getPlayer(state, defender.ownerId) : null;
     const milTrade = me.trade.military;
     const myLeader = Game.getLeader(me);
 
+    // Trade tokens are no longer committed up front: both sides roll first and
+    // bid afterwards, so this step is only "do you want this fight".
     dom.wizard.innerHTML = `
-      <div class="wiz-title">Combat Preparation</div>
+      <div class="wiz-title">Declare an Attack</div>
       <div class="wiz-body">
         <div>Defender: <strong style="color:#ef5350">${defender.label}</strong> (power ${defender.power})</div>
         ${defOwner && defOwner.trade.military ? `<div class="wiz-note">They may answer with up to ${defOwner.trade.military} trade token(s).</div>` : ""}
-        <div>Your attack: d6 + <strong>${totalAttack}</strong>${tierBonus ? ` +${tierBonus} tier` : ""}${leaderBonus ? ` <span class="leader-bonus">+${leaderBonus} ${myLeader ? myLeader.civ : "leader"}</span>` : ""}</div>
-        <div style="margin-top:6px">Spend military trade for +1 combat each:</div>
-        <div class="trade-counter">
-          <span>Extra trade:</span>
-          <button id="ct-dec" class="sm">-</button>
-          <span class="tc-val" id="ct-val">${sub.combatTradeSpent || 0}</span>
-          <button id="ct-inc" class="sm">+</button>
-          <span style="color:var(--text2);margin-left:4px">(${milTrade} available)</span>
-        </div>
+        <div>Your attack: d6 + <strong>${slot}</strong>${tierBonus ? ` +${tierBonus} tier` : ""}${leaderBonus ? ` <span class="leader-bonus">+${leaderBonus} ${myLeader ? myLeader.civ : "leader"}</span>` : ""}</div>
+        <div class="wiz-note">You have <strong>${milTrade}</strong> military trade token(s). Spend them after
+          you see the dice — each is +1 or a reroll.</div>
       </div>
       <div class="wiz-actions">
-        <button class="primary" id="wiz-fight">Fight!</button>
+        <button class="primary" id="wiz-fight">Roll!</button>
         <button class="ghost" id="wiz-retreat">Retreat</button>
       </div>`;
-    document.getElementById("ct-dec").addEventListener("click", () => {
-      sub.combatTradeSpent = Math.max(0, (sub.combatTradeSpent || 0) - 1);
-      renderWizard();
-    });
-    document.getElementById("ct-inc").addEventListener("click", () => {
-      sub.combatTradeSpent = Math.min(milTrade, (sub.combatTradeSpent || 0) + 1);
-      renderWizard();
-    });
     document.getElementById("wiz-fight").addEventListener("click", endMovement);
     document.getElementById("wiz-retreat").addEventListener("click", () => {
       ms.currentKey = ms.startKey;
@@ -1994,9 +2152,9 @@ const UI = (() => {
         flashHex(ms.currentKey, "rgb(239,83,80)", 800);
         dispatch({ type: "PLAY_MILITARY_ATTACK", payload: {
           playerId: localPlayerId, unitId: ms.unitId, toKey: ms.currentKey,
-          fromKey: ms.startKey, attackPower: slot + (sub.combatTradeSpent || 0),
+          fromKey: ms.startKey, attackPower: slot,
           defensePower: defender.power, defenderLabel: defender.label,
-          defenderOwnerId: defender.ownerId || null, tradeSpent: sub.combatTradeSpent || 0
+          defenderOwnerId: defender.ownerId || null
         }});
       } else {
         dispatch({ type: "PLAY_MILITARY_MOVE", payload: {
@@ -2023,7 +2181,6 @@ const UI = (() => {
     if (!left.length) { resetSub(); return; }
     sub.selectedUnit = null;
     sub.movementState = null;
-    sub.combatTradeSpent = 0;
     sub.phase = unitType === "caravan" ? "move_caravan" : "move_army";
     sub.validHexes = new Set();
     render();
@@ -2522,7 +2679,6 @@ const UI = (() => {
     sub.totalMarkers = 0; sub.validHexes = new Set(); sub.selectedUnit = null;
     sub.districtType = null; sub.spentResources = {}; sub.placedKeys = [];
     sub.movementState = null; sub.selectedWonder = null; sub.wonderProduction = 0;
-    sub.combatTradeSpent = 0;
     render();
   }
 
@@ -2752,6 +2908,14 @@ const UI = (() => {
     if (turned) {
       const seg = dom.eventWheel.querySelector(".ew-seg.active");
       if (seg) { seg.classList.add("fired"); setTimeout(() => seg.classList.remove("fired"), 900); }
+      // The end of a round is the dial's moment: it comes off its corner and
+      // takes the middle of the board while its icons fire, then settles back.
+      if (!reducedMotion()) {
+        dom.eventWheel.classList.add("staged");
+        clearTimeout(renderEventWheel._settle);
+        renderEventWheel._settle = setTimeout(() => dom.eventWheel.classList.remove("staged"), 2600);
+      }
+      announce(name(now), "event");
     }
     prevWheelPos = pos;
   }

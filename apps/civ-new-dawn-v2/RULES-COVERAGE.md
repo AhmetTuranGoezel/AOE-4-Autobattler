@@ -45,7 +45,7 @@ token" got wrong, and it was wrong in both the engine and the UI.
 | Military | +1 combat value, spent **after both dice** — never movement | `renderCombatPrep` → `combatTradeSpent` |
 | Industry | +1 production when building a wonder | `PLAY_INDUSTRY_WONDER` |
 
-### Combat (base p11, quick reference p16)
+### Combat (base p11, Terra p10, quick reference p16)
 
 - Attacker = d6 + military card's **slot number** + card and leader bonuses
 - Defender = d6 + type bonus:
@@ -54,7 +54,12 @@ token" got wrong, and it was wrong in both the engine and the UI.
   - control marker → terrain + **1** per adjacent friendly reinforced marker
     + **1** if itself reinforced + card/leader bonuses
   - city → the same, with **terrain difficulty doubled**
-- Then attacker, then defender, may spend military trade tokens at +1 each
+- Both dice are rolled first, and **then** the bidding starts (Terra p10): the
+  attacker spends every token they mean to spend before the defender may spend
+  any. Each token is **+1 or a reroll of that side's die**, and you decide after
+  seeing the result — so a side with tokens in hand always gets the choice.
+- A side with no owner (barbarian, city-state, uncontrolled fort) or an empty
+  military card has no decision and is skipped.
 - Highest total wins; **a tie goes to the defender**
 - An army standing on an open space is **not** a legal target
 
@@ -216,9 +221,6 @@ face, clockwise from the starting space:
 
 ## 2. Implemented, but approximated
 
-- **The defender's trade spend is automatic.** The rules let a defender choose
-  how many tokens to hand over; the engine spends the minimum that wins and no
-  more. Rational, but not a decision you get to make.
 - **13 of the 34 world wonders are table reminders.** Their printed text is shown
   on the card, but the effect is not automated. The other 21 resolve themselves.
 - **The advanced pre-game tile draft** (each player dealt 2 tiles and placing in
