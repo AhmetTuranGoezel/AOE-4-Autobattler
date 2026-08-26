@@ -1418,3 +1418,40 @@ input, select {
 @media (prefers-reduced-motion: reduce) {
   .token-landed { animation: none; }
 }
+
+/* --- The chip that follows what you are doing ----------------------------- */
+/* Everything a move still needs to ask sits next to the piece it is about,
+   instead of in a panel you have to look away to find. */
+#board-chip {
+  position: absolute;
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: rgba(22, 28, 45, 0.95);
+  border: 1px solid var(--border);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55);
+  white-space: nowrap;
+  z-index: 30;
+  animation: chip-in 0.18s ease;
+}
+#board-chip.hidden { display: none; }
+@keyframes chip-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: none; }
+}
+.bc-label { font-size: 11px; font-weight: 700; color: var(--text2); padding: 0 2px; }
+.bc-label.bc-danger { color: var(--danger); }
+.bc-btn {
+  padding: 3px 10px; font-size: 11px; font-weight: 700;
+  border-radius: 999px; border: 1px solid var(--border);
+  background: var(--surface2); color: var(--text); cursor: pointer;
+}
+.bc-btn:hover { background: var(--bg3); }
+.bc-btn.danger { background: var(--danger); color: #2a0a0a; border-color: transparent; }
+@media (prefers-reduced-motion: reduce) { #board-chip { animation: none; } }
+
+kbd {
+  padding: 1px 5px; border-radius: 4px;
+  background: var(--surface2); border: 1px solid var(--border);
+  font-size: 10px; font-family: inherit;
+}

@@ -288,6 +288,30 @@ const Game = (() => {
     return { ok: true, touchesCore, touchesCoreAdj };
   }
 
+  // A tile is a physical thing you turn in your hand until it fits. Asking "does
+  // this spot work?" should mean "at any angle", not "at the angle the buttons
+  // happen to be on" — so this hands back the first rotation that fits, and the
+  // UI can place from a single click.
+  function tilePlacementFor(st, tileId, anchorKey, preferRotation, validate) {
+    const check = validate || validateTilePlacement;
+    const order = [];
+    for (let i = 0; i < 6; i++) order.push(((preferRotation || 0) + i) % 6);
+    for (const rotation of order) {
+      const result = check(st, tileId, anchorKey, rotation);
+      if (result.ok) return { rotation, result };
+    }
+    return null;
+  }
+
+  // Every spot the tile could go, whatever angle it ends up at.
+  function getTileAnchorsAnyRotation(st, tileId, validate) {
+    const anchors = new Set();
+    Object.keys(st.map.hexes).forEach((k) => {
+      if (tilePlacementFor(st, tileId, k, 0, validate)) anchors.add(k);
+    });
+    return anchors;
+  }
+
   function getValidTileAnchors(st, tileId, rotation) {
     const anchors = [];
     const coreAnchors = [];
@@ -3301,7 +3325,8 @@ const Game = (() => {
     adjacentToCityState, adjacentToFriendlyControl, terrainDifficulty,
     countControl, countWonders, countDeveloped, countCities, findCapital,
     getClaimedAgendaCount,
-    getValidFortressHexes, getValidTileAnchors, getTileHexKeys, validateTilePlacement,
+    getValidFortressHexes, getValidTileAnchors, getTileAnchorsAnyRotation, tilePlacementFor,
+    getTileHexKeys, validateTilePlacement,
     hexNeighborKeys, parseQ, parseR, key, hexDist, rollDie, rotateAxial,
     isExploreEligible, validateExploration, placeExploredTile, getReachableWithDist
   };

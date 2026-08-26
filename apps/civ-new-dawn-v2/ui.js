@@ -176,7 +176,7 @@ const UI = (() => {
       card_selected: "Spend trade tokens for extra power. Click 'Start Action' when ready.",
       placing_control: "Click green hexes adjacent to your cities/control to claim territory.",
       move_army: "Click your army, then click a green hex to move it.",
-      move_army_post: "Choose what to do next: continue moving, explore, attack, or end.",
+      move_army_post: "Something is in the way. The chip on the board decides it.",
       move_caravan: "Click your caravan, then a green hex. Visit city-states to gain trade tokens.",
       choosing_district: "Select a district type to build on your controlled hex.",
       industry_choice: "Choose to build a city or a wonder with your production.",
@@ -212,6 +212,7 @@ const UI = (() => {
     dom.eventWheel = document.getElementById("event-wheel");
     dom.combatStage = document.getElementById("combat-stage");
     dom.mapContainer = document.getElementById("map-container");
+    dom.boardChip = document.getElementById("board-chip");
     dom.gameLog = document.getElementById("game-log");
     dom.focusRow = document.getElementById("focus-row");
 
@@ -385,6 +386,9 @@ const UI = (() => {
     canvas.addEventListener("contextmenu", (e) => e.preventDefault());
     canvas.addEventListener("wheel", (e) => {
       e.preventDefault();
+      // With a tile in hand the wheel turns it, which is what your hand wants to
+      // do anyway. Otherwise it zooms.
+      if (placingTile()) { turnTile(e.deltaY > 0 ? 1 : -1); return; }
       const delta = e.deltaY > 0 ? -2 : 2;
       HEX_SIZE = Math.max(15, Math.min(60, HEX_SIZE + delta));
       renderCanvas();
@@ -471,16 +475,22 @@ const UI = (() => {
       if (activeId === localPlayerId) {
         if (state.setup.phase === "fortress") {
           setupValid = Game.getValidFortressHexes(state);
-        } else if ((state.setup.phase === "tile" || state.setup.phase === "capital_tile") && mouseHex) {
+        } else if (state.setup.phase === "tile" || state.setup.phase === "capital_tile") {
           const playerTiles = state.setup.playerTiles[localPlayerId] || [];
           if (playerTiles.length > 0) {
             const tileId = playerTiles[0];
-            const anchorKey = Game.key(mouseHex.q, mouseHex.r);
-            const keys = Game.getTileHexKeys(anchorKey, sub.tileRotation, hexes);
-            if (keys.length === Game.TILE_OFFSETS.length) {
-              const result = Game.validateTilePlacement(state, tileId, anchorKey, sub.tileRotation);
-              ghostKeys = new Set(keys);
-              ghostValid = result.ok;
+            // Green means "the tile fits here", not "the tile fits here at the
+            // angle the buttons happen to be on".
+            setupValid = Game.getTileAnchorsAnyRotation(state, tileId);
+            if (mouseHex) {
+              const anchorKey = Game.key(mouseHex.q, mouseHex.r);
+              const fit = Game.tilePlacementFor(state, tileId, anchorKey, sub.tileRotation);
+              const rot = fit ? fit.rotation : sub.tileRotation;
+              const keys = Game.getTileHexKeys(anchorKey, rot, hexes);
+              if (keys.length === Game.TILE_OFFSETS.length) {
+                ghostKeys = new Set(keys);
+                ghostValid = !!fit;
+              }
             }
           }
         }
@@ -492,11 +502,11 @@ const UI = (() => {
         mouseHex && state.tileStack && state.tileStack.length > 0) {
       const tileId = state.tileStack[0];
       const anchorKey = Game.key(mouseHex.q, mouseHex.r);
-      const keys = Game.getTileHexKeys(anchorKey, sub.tileRotation, hexes);
+      const fit = Game.tilePlacementFor(state, tileId, anchorKey, sub.tileRotation, Game.validateExploration);
+      const keys = Game.getTileHexKeys(anchorKey, fit ? fit.rotation : sub.tileRotation, hexes);
       if (keys.length === Game.TILE_OFFSETS.length) {
-        const result = Game.validateExploration(state, tileId, anchorKey, sub.tileRotation);
         ghostKeys = new Set(keys);
-        ghostValid = result.ok;
+        ghostValid = !!fit;
       }
     }
 
@@ -968,23 +978,32 @@ const UI = (() => {
     handleHexClick(Game.key(hex.q, hex.r));
   }
 
+  // True while a tile is in hand and waiting for a home.
+  function placingTile() {
+    if (sub.phase === "move_army_exploring" || sub.phase === "move_caravan_exploring") return true;
+    if (!state || state.phase !== "setup") return false;
+    if (state.setup.phase !== "tile" && state.setup.phase !== "capital_tile") return false;
+    return state.setup.order[state.setup.turnIndex] === localPlayerId;
+  }
+
+  function turnTile(step) {
+    sub.tileRotation = (sub.tileRotation + step + 6) % 6;
+    render();
+  }
+
   function onKeyDown(e) {
-    if (sub.phase === "move_army_exploring" || sub.phase === "move_caravan_exploring") {
-      if (e.key === "q" || e.key === "Q") { e.preventDefault(); sub.tileRotation = (sub.tileRotation + 5) % 6; render(); }
-      else if (e.key === "e" || e.key === "E") { e.preventDefault(); sub.tileRotation = (sub.tileRotation + 1) % 6; render(); }
+    if (e.key === "Escape") {
+      // Always a way back out, from any half-finished action.
+      if (sub.phase !== "idle") { e.preventDefault(); cancelAction(); }
       return;
     }
-    if (!state || state.phase !== "setup" || (state.setup.phase !== "tile" && state.setup.phase !== "capital_tile")) return;
-    const activeId = state.setup.order[state.setup.turnIndex];
-    if (activeId !== localPlayerId) return;
-
-    if (e.key === "q" || e.key === "Q") {
+    if (!placingTile()) return;
+    const k = e.key.toLowerCase();
+    if (k === "q") { e.preventDefault(); turnTile(-1); }
+    else if (k === "e" || k === "r") { e.preventDefault(); turnTile(1); }
+    else if (k === "f") {
       e.preventDefault();
-      sub.tileRotation = (sub.tileRotation + 5) % 6;
-      render();
-    } else if (e.key === "e" || e.key === "E") {
-      e.preventDefault();
-      sub.tileRotation = (sub.tileRotation + 1) % 6;
+      sub.tileSide = sub.tileSide === "A" ? "B" : "A";
       render();
     }
   }
@@ -1157,6 +1176,7 @@ const UI = (() => {
     renderHostTools();
     renderEventWheel();
     renderCombatStage();
+    renderBoardChip();
     renderLog();
 
     if (state.phase === "playing" || state.phase === "gameover") {
@@ -1450,8 +1470,7 @@ const UI = (() => {
     else if (sub.phase === "placing_district") { renderPlacingDistrict(); }
     else if (sub.phase === "reinforcing") { renderReinforcing(); }
     else if (sub.phase === "move_caravan" || sub.phase === "move_army") { renderMoving(); }
-    else if (sub.phase === "combat_prep") { renderCombatPrep(); }
-    else if (sub.phase === "move_army_post" || sub.phase === "move_caravan_post") { renderPostMove(); }
+    else if (sub.phase === "move_army_post" || sub.phase === "move_caravan_post") { renderMovingHint(); }
     else if (sub.phase === "move_army_exploring" || sub.phase === "move_caravan_exploring") { renderExploring(); }
     else if (sub.phase === "industry_choice") { renderIndustryChoice(me); }
     else if (sub.phase === "placing_city") { renderPlacingCity(); }
@@ -1593,17 +1612,14 @@ const UI = (() => {
         <div class="wiz-body">
           <div class="tile-preview">${renderTilePreview()}</div>
           <div class="trade-counter">
-            <span>Rotation:</span>
-            <button id="rot-dec" class="sm">Q</button>
+            <span>Turn it:</span>
+            <button id="rot-dec" class="sm">\u21ba</button>
             <span class="tc-val">${sub.tileRotation + 1}/6</span>
-            <button id="rot-inc" class="sm">E</button>
+            <button id="rot-inc" class="sm">\u21bb</button>
+            <button id="side-toggle" class="sm">Side ${sub.tileSide}</button>
           </div>
-          <div class="trade-counter">
-            <span>Side:</span>
-            <button id="side-toggle" class="sm">${sub.tileSide}</button>
-          </div>
-          <br>Hover the map to preview tile placement.<br>
-          <strong style="color:#66bb6a">Green</strong> = valid, <strong style="color:#ef5350">Red</strong> = invalid.<br>
+          <br><strong>Just click a green space</strong> \u2014 the tile turns itself to fit.<br>
+          Scroll or <kbd>R</kbd> to turn it yourself, <kbd>F</kbd> to flip it over.<br>
           Tiles remaining: <strong>${playerTiles.length}</strong>
         </div>`;
 
@@ -1737,6 +1753,54 @@ const UI = (() => {
         dispatch({ type: "ADD_TRADE", payload: { playerId: localPlayerId, cardType: btn.dataset.type, amount: 1 } });
       });
     });
+  }
+
+  // The one thing you might still want to say during a move, said where the move
+  // is happening. Everything else the map already answers.
+  function renderBoardChip() {
+    const chip = dom.boardChip;
+    if (!chip) return;
+    const ms = sub.movementState;
+    const moving = ms && /^move_(army|caravan)(_post)?$/.test(sub.phase);
+    if (!moving || (state.combat && state.combat.turn !== "done")) {
+      chip.classList.add("hidden");
+      chip.innerHTML = "";
+      return;
+    }
+
+    const defender = ms.unitType === "army"
+      ? Game.findDefender(state, ms.currentKey, localPlayerId) : null;
+    const canExplore = Game.isExploreEligible(state, ms.currentKey) && ms.remaining > 0 && !ms.explored;
+
+    let html = "";
+    if (defender) {
+      html += `<span class="bc-label bc-danger">${escapeHtml(defender.label)} \u00b7 power ${defender.power}</span>
+        <button class="bc-btn danger" id="bc-attack">Attack</button>
+        <button class="bc-btn" id="bc-retreat">Retreat</button>`;
+    } else {
+      html += `<span class="bc-label">${ms.remaining} left</span>`;
+      if (canExplore) html += `<button class="bc-btn" id="bc-explore">Explore</button>`;
+      html += `<button class="bc-btn" id="bc-done">Done</button>`;
+    }
+    chip.innerHTML = html;
+    chip.classList.remove("hidden");
+
+    // Sit it just under the unit.
+    const p = axialToPixel(Game.parseQ(ms.currentKey), Game.parseR(ms.currentKey));
+    const box = chip.getBoundingClientRect();
+    const cont = dom.mapContainer.getBoundingClientRect();
+    const x = Math.max(8, Math.min(cont.width - box.width - 8, p.x - box.width / 2));
+    const y = Math.max(8, Math.min(cont.height - box.height - 8, p.y + HEX_SIZE + 8));
+    chip.style.left = `${x}px`;
+    chip.style.top = `${y}px`;
+
+    document.getElementById("bc-attack")?.addEventListener("click", endMovement);
+    document.getElementById("bc-retreat")?.addEventListener("click", () => {
+      ms.currentKey = ms.startKey;
+      endMovement();
+    });
+    document.getElementById("bc-explore")?.addEventListener("click", startExploration);
+    document.getElementById("bc-done")?.addEventListener("click", endMovement);
   }
 
   // The fight takes the board: the map dims, both hexes stay lit, and the dice
@@ -2016,76 +2080,17 @@ const UI = (() => {
     document.getElementById("wiz-cancel6").addEventListener("click", cancelAction);
   }
 
-  function renderPostMove() {
+  // The rail says what is happening; the board says what to do about it.
+  function renderMovingHint() {
     const ms = sub.movementState;
-    if (!ms) return;
-    const unitLabel = ms.unitType === "army" ? "Army" : "Caravan";
-    const canExplore = Game.isExploreEligible(state, ms.currentKey) && ms.remaining > 0 && !ms.explored;
-    const defender = ms.unitType === "army" ? Game.findDefender(state, ms.currentKey, localPlayerId) : null;
-
-    let buttons = `<div class="wiz-actions">`;
-    if (defender) buttons += `<button id="wiz-attack" class="primary">Attack ${defender.label} (pow ${defender.power})</button>`;
-    if (ms.remaining > 0) buttons += `<button id="wiz-continue-move">Continue (${ms.remaining} left)</button>`;
-    if (canExplore) buttons += `<button id="wiz-explore">Explore</button>`;
-    buttons += `<button id="wiz-end-move">${defender ? "Retreat" : "End Movement"}</button></div>`;
-
-    const bodyText = defender
-      ? `<strong style="color:#ef5350">${defender.label}</strong> here! (power ${defender.power})`
-      : `Remaining movement: <strong>${ms.remaining}</strong>`;
-
+    if (!ms) { renderIdleWizard(false, Game.currentPlayer(state), Game.getPlayer(state, localPlayerId)); return; }
+    const defender = ms.unitType === "army"
+      ? Game.findDefender(state, ms.currentKey, localPlayerId) : null;
     dom.wizard.innerHTML = `
-      <div class="wiz-title">${unitLabel} ${defender ? "- Encounter!" : "Moved"}</div>
-      <div class="wiz-body">${bodyText}</div>
-      ${buttons}`;
-
-    document.getElementById("wiz-attack")?.addEventListener("click", () => {
-      sub.phase = "combat_prep";
-      render();
-    });
-    document.getElementById("wiz-continue-move")?.addEventListener("click", continueMovement);
-    document.getElementById("wiz-explore")?.addEventListener("click", startExploration);
-    document.getElementById("wiz-end-move").addEventListener("click", () => {
-      if (defender) {
-        ms.currentKey = ms.startKey;
-      }
-      endMovement();
-    });
-  }
-
-  function renderCombatPrep() {
-    const ms = sub.movementState;
-    if (!ms) return;
-    const me = Game.getPlayer(state, localPlayerId);
-    if (!me) return;
-    const defender = Game.findDefender(state, ms.currentKey, localPlayerId);
-    if (!defender) { endMovement(); return; }
-    const slot = Game.getSlotValue(me, "military", state);
-    const tierBonus = Game.getMilitaryCombatBonus(me);
-    const leaderBonus = Game.getLeaderAttackBonus(state, localPlayerId, ms.currentKey);
-    const defOwner = defender.ownerId ? Game.getPlayer(state, defender.ownerId) : null;
-    const milTrade = me.trade.military;
-    const myLeader = Game.getLeader(me);
-
-    // Trade tokens are no longer committed up front: both sides roll first and
-    // bid afterwards, so this step is only "do you want this fight".
-    dom.wizard.innerHTML = `
-      <div class="wiz-title">Declare an Attack</div>
-      <div class="wiz-body">
-        <div>Defender: <strong style="color:#ef5350">${defender.label}</strong> (power ${defender.power})</div>
-        ${defOwner && defOwner.trade.military ? `<div class="wiz-note">They may answer with up to ${defOwner.trade.military} trade token(s).</div>` : ""}
-        <div>Your attack: d6 + <strong>${slot}</strong>${tierBonus ? ` +${tierBonus} tier` : ""}${leaderBonus ? ` <span class="leader-bonus">+${leaderBonus} ${myLeader ? myLeader.civ : "leader"}</span>` : ""}</div>
-        <div class="wiz-note">You have <strong>${milTrade}</strong> military trade token(s). Spend them after
-          you see the dice — each is +1 or a reroll.</div>
-      </div>
-      <div class="wiz-actions">
-        <button class="primary" id="wiz-fight">Roll!</button>
-        <button class="ghost" id="wiz-retreat">Retreat</button>
-      </div>`;
-    document.getElementById("wiz-fight").addEventListener("click", endMovement);
-    document.getElementById("wiz-retreat").addEventListener("click", () => {
-      ms.currentKey = ms.startKey;
-      endMovement();
-    });
+      <div class="wiz-title">${ms.unitType === "army" ? "Army" : "Caravan"} on the move</div>
+      <div class="wiz-body">${defender
+        ? `<strong style="color:#ef5350">${escapeHtml(defender.label)}</strong> is in the way \u2014 attack or pull back from the chip on the board.`
+        : `Click another space to keep going, or the unit itself to stop. <kbd>Esc</kbd> cancels.`}</div>`;
   }
 
   function renderExploring() {
@@ -2700,11 +2705,14 @@ const UI = (() => {
         const playerTiles = state.setup.playerTiles[localPlayerId] || [];
         if (playerTiles.length === 0) return;
         const tileId = playerTiles[0];
-        const result = Game.validateTilePlacement(state, tileId, hexKey, sub.tileRotation);
-        if (!result.ok) return;
-        const tileKeys = Game.getTileHexKeys(hexKey, sub.tileRotation, state.map.hexes);
+        // Turn the tile for them. Clicking somewhere the tile genuinely fits
+        // should never be ignored just because the angle is wrong.
+        const fit = Game.tilePlacementFor(state, tileId, hexKey, sub.tileRotation);
+        if (!fit) { showToast("The tile will not fit there"); return; }
+        sub.tileRotation = fit.rotation;
+        const tileKeys = Game.getTileHexKeys(hexKey, fit.rotation, state.map.hexes);
         flashHexes(tileKeys, "rgb(102,187,106)", 600);
-        dispatch({ type: "PLACE_TILE", payload: { playerId: localPlayerId, tileId, anchorKey: hexKey, rotation: sub.tileRotation, side: sub.tileSide } });
+        dispatch({ type: "PLACE_TILE", payload: { playerId: localPlayerId, tileId, anchorKey: hexKey, rotation: fit.rotation, side: sub.tileSide } });
         return;
       }
       return;
@@ -2776,18 +2784,17 @@ const UI = (() => {
         sub.validHexes = Game.getReachable(state, originKey, maxMove, "caravan", localPlayerId);
         render();
       } else {
+        const ms0 = sub.movementState;
+        if (ms0 && hexKey === ms0.currentKey) { endMovement(); return; }
         if (!sub.validHexes.has(hexKey)) { showToast("Can't move there"); return; }
         const ms = sub.movementState;
         const dist = computeStepDistance(state, ms.currentKey, hexKey, ms.remaining, "caravan", localPlayerId);
         flashHex(hexKey, "rgb(102,187,106)", 400);
         ms.remaining -= dist;
         ms.currentKey = hexKey;
-        if (ms.remaining > 0) {
-          sub.phase = "move_caravan_post";
-          render();
-        } else {
-          endMovement();
-        }
+        // Don't stop to ask. Either the move is spent, or the next hex is
+        // already clickable — the chip on the board carries the rest.
+        if (ms.remaining > 0) continueMovement(); else endMovement();
       }
       return;
     }
@@ -2801,18 +2808,23 @@ const UI = (() => {
         sub.validHexes = Game.getReachable(state, hexKey, maxMove, "army", localPlayerId);
         render();
       } else {
+        const ms0 = sub.movementState;
+        if (ms0 && hexKey === ms0.currentKey) { endMovement(); return; }
         if (!sub.validHexes.has(hexKey)) return;
         const ms = sub.movementState;
         const dist = computeStepDistance(state, ms.currentKey, hexKey, ms.remaining, "army", localPlayerId);
         flashHex(hexKey, "rgb(239,83,80)", 400);
         ms.remaining -= dist;
         ms.currentKey = hexKey;
-        if (ms.remaining > 0) {
+        // An army that walks into something has a real choice to make; anything
+        // else just carries on.
+        if (Game.findDefender(state, ms.currentKey, localPlayerId)) {
           sub.phase = "move_army_post";
           render();
+        } else if (ms.remaining > 0) {
+          continueMovement();
         } else {
-          sub.phase = "move_army_post";
-          render();
+          endMovement();
         }
       }
       return;
@@ -2821,14 +2833,19 @@ const UI = (() => {
       const ms = sub.movementState;
       if (!state.tileStack || state.tileStack.length === 0) return;
       const tileId = state.tileStack[0];
-      const result = Game.validateExploration(state, tileId, hexKey, sub.tileRotation);
-      if (!result.ok) return;
-      const cellKeys = Game.getTileHexKeys(hexKey, sub.tileRotation, state.map.hexes);
-      const touchesUnit = cellKeys.some((ck) =>
-        Game.hexNeighborKeys(Game.parseQ(ck), Game.parseR(ck)).includes(ms.currentKey)
-      );
-      if (!touchesUnit) return;
-      dispatch({ type: "EXPLORE_TILE", payload: { playerId: localPlayerId, anchorKey: hexKey, rotation: sub.tileRotation, side: sub.tileSide, fromKey: ms.currentKey } });
+      // The new tile has to touch the space you are exploring from, so look for
+      // an angle that manages both rather than refusing the click.
+      let fit = null;
+      for (let i = 0; i < 6; i++) {
+        const rot = (sub.tileRotation + i) % 6;
+        if (!Game.validateExploration(state, tileId, hexKey, rot).ok) continue;
+        const cells = Game.getTileHexKeys(hexKey, rot, state.map.hexes);
+        if (!cells.some((ck) => Game.hexNeighborKeys(Game.parseQ(ck), Game.parseR(ck)).includes(ms.currentKey))) continue;
+        fit = rot; break;
+      }
+      if (fit === null) { showToast("The tile will not fit there"); return; }
+      sub.tileRotation = fit;
+      dispatch({ type: "EXPLORE_TILE", payload: { playerId: localPlayerId, anchorKey: hexKey, rotation: fit, side: sub.tileSide, fromKey: ms.currentKey } });
       ms.remaining -= 1;
       ms.explored = true;
       sub.phase = ms.unitType === "army" ? "move_army_post" : "move_caravan_post";
@@ -3055,6 +3072,10 @@ const UI = (() => {
           sub.phase = "card_selected";
           sub.cardType = el.dataset.card;
           sub.tradeSpent = 0;
+          // With no tokens on the card there is nothing to decide, so don't ask:
+          // clicking the card is the decision, and the action starts.
+          const meNow = Game.getPlayer(state, localPlayerId);
+          if (meNow && !meNow.trade[sub.cardType]) { startAction(); return; }
           renderWizard();
           renderFocusRow();
         });
@@ -3088,6 +3109,15 @@ const UI = (() => {
     });
   }
 
+  // Where a hex currently sits on screen, in page coordinates. The board is a
+  // canvas, so nothing outside can work this out on its own.
+  function hexPoint(hexKey) {
+    if (!canvas || !state || !state.map.hexes[hexKey]) return null;
+    const p = axialToPixel(Game.parseQ(hexKey), Game.parseR(hexKey));
+    const r = canvas.getBoundingClientRect();
+    return { x: r.left + p.x, y: r.top + p.y };
+  }
+
   document.addEventListener("DOMContentLoaded", init);
-  return { render, dispatch, renderCardFace };
+  return { render, dispatch, renderCardFace, hexPoint };
 })();
