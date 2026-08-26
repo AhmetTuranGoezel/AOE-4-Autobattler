@@ -2848,8 +2848,9 @@ const UI = (() => {
       dispatch({ type: "EXPLORE_TILE", payload: { playerId: localPlayerId, anchorKey: hexKey, rotation: fit, side: sub.tileSide, fromKey: ms.currentKey } });
       ms.remaining -= 1;
       ms.explored = true;
-      sub.phase = ms.unitType === "army" ? "move_army_post" : "move_caravan_post";
-      render();
+      // Terra p12: you may walk onto what you just found. Hand straight back to
+      // picking a hex, with the new ground already in the reachable set.
+      if (ms.remaining > 0) continueMovement(); else endMovement();
       return;
     }
     if (sub.phase === "placing_city") {

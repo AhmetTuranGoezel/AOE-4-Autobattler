@@ -907,6 +907,17 @@ const Game = (() => {
       if (!st.tileStack || st.tileStack.length === 0) return st;
       if (payload.fromKey && !isExploreEligible(st, payload.fromKey)) return st;
 
+      // Terra p12: a figure may explore once per move. That has to live here —
+      // the UI's own bookkeeping is thrown away by a cancel, which used to hand
+      // out a free tile every time you pressed Escape.
+      let explorer = null;
+      if (payload.fromKey) {
+        explorer = player.armies.concat(player.caravans)
+          .find((u) => u.position === payload.fromKey);
+        if (!explorer) return st;                  // not your figure standing there
+        if (explorer.exploredThisCard) return st;  // already explored this move
+      }
+
       const tileId = st.tileStack[0];
       const result = validateExploration(st, tileId, payload.anchorKey, payload.rotation);
       if (!result.ok) return st;
@@ -922,6 +933,7 @@ const Game = (() => {
       st.tileDeck = st.tileStack.slice();
       placeExploredTile(st, tileId, payload.anchorKey, payload.rotation, payload.side || "A");
 
+      if (explorer) explorer.exploredThisCard = true;
       const tile = st.tiles[tileId];
       log(st, `${player.name} explored and placed a ${tile ? tile.type : "unknown"} tile.`);
       return st;
@@ -1385,8 +1397,8 @@ const Game = (() => {
         cp.cardPlayed = false;
         cp.wonAttackThisTurn = false;
         cp.citiesTradedThisTurn = [];
-        (cp.caravans || []).forEach((u) => { u.movedThisCard = false; });
-        (cp.armies || []).forEach((u) => { u.movedThisCard = false; });
+        (cp.caravans || []).forEach((u) => { u.movedThisCard = false; u.exploredThisCard = false; });
+        (cp.armies || []).forEach((u) => { u.movedThisCard = false; u.exploredThisCard = false; });
       }
       st.turn.index = (st.turn.index + 1) % st.turn.order.length;
       st.lastCombat = null;
@@ -1461,8 +1473,8 @@ const Game = (() => {
     const player = getPlayer(st, active.playerId);
     st.activeCard = null;
     if (!player) return;
-    (player.caravans || []).forEach((u) => { u.movedThisCard = false; });
-    (player.armies || []).forEach((u) => { u.movedThisCard = false; });
+    (player.caravans || []).forEach((u) => { u.movedThisCard = false; u.exploredThisCard = false; });
+    (player.armies || []).forEach((u) => { u.movedThisCard = false; u.exploredThisCard = false; });
     resolveCard(st, player, active.cardType, active.tradeSpent);
   }
 
@@ -1729,16 +1741,9 @@ const Game = (() => {
       if ((choice.hexKeys || []).includes(hexKey) && hex && hex.barbarian) {
         hex.barbarian = false;
         log(st, `${player.name} removed a barbarian from ${choice.source || "a choice"}.`);
-        const reinforceHexes = getReinforceChoicesNear(st, choice.districtKey, player.id, 2);
-        if (reinforceHexes.length) {
-          queuePendingChoice(st, {
-            kind: "reinforce",
-            playerId: player.id,
-            title: "Encampment Reinforcement",
-            source: "encampment",
-            hexKeys: reinforceHexes
-          });
-        }
+        // A defeated barbarian pays a trade token wherever it was defeated
+        // (Terra p9: "as normal"), not only when an army did the killing.
+        st.pendingBarbReward = { playerId: player.id };
         resolved = true;
       }
     } else if (choice.kind === "manual") {
@@ -2237,6 +2242,8 @@ const Game = (() => {
 
         // Encampment: defeat a chosen barbarian within 2, then choose a reinforcement.
         if (districtHexes.encampment.length) {
+          // Terra p9: "either or both" — the reinforcement does not depend on
+          // there being anything to kill.
           districtHexes.encampment.forEach((dk) => {
             const barbHexes = hexesWithinRange(st.map, dk, 2).filter((nk) => st.map.hexes[nk] && st.map.hexes[nk].barbarian);
             if (barbHexes.length) {
@@ -2247,6 +2254,16 @@ const Game = (() => {
                 source: "encampment",
                 districtKey: dk,
                 hexKeys: barbHexes
+              });
+            }
+            const reinforceHexes = getReinforceChoicesNear(st, dk, player.id, 2);
+            if (reinforceHexes.length) {
+              queuePendingChoice(st, {
+                kind: "reinforce",
+                playerId: player.id,
+                title: "Encampment Reinforcement",
+                source: "encampment",
+                hexKeys: reinforceHexes
               });
             }
           });
@@ -2972,8 +2989,9 @@ const Game = (() => {
       if (!h.active || h.terrain === "water") return;
       if (placementDifficulty(st, h, player, "control") > maxTerrain) return;
       if (h.city || h.cityState || h.barbarian || h.control || (h.fortress && !h.city)) return;
-      if (!adjacentToFriendlyCity(st, h, playerId) && !adjacentToFriendlyControl(st, h, playerId)
-          && !chichenAllows(st, playerId, h)) return;
+      // Base p8: "on a space adjacent to a friendly city" — next to one of your
+      // own control tokens is not enough, or territory would sprawl for ever.
+      if (!adjacentToFriendlyCity(st, h, playerId) && !chichenAllows(st, playerId, h)) return;
       valid.push(k);
     });
     return new Set(valid);

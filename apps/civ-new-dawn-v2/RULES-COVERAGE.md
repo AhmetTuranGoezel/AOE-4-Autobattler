@@ -172,6 +172,15 @@ face, clockwise from the starting space:
 - No two barbarians share a space. The book gets there by letting them stack and
   then dispersing one (base p16); here they simply never stack.
 
+### Exploration (Terra p12)
+
+- Only a figure on the map edge, standing on a tile that has a capital city, may
+  explore; it spends one space of movement to do so.
+- **Once per move.** The engine marks the figure, so cancelling out of the action
+  cannot buy a second tile.
+- After exploring it may keep moving with whatever movement is left, including
+  onto the ground it just uncovered.
+
 ### Districts (Terra p20)
 
 - Placed only by growth cards; abilities that place control markers cannot place
@@ -180,6 +189,9 @@ face, clockwise from the starting space:
   **unreinforced**, even over a reinforced one.
 - A district defeated in an attack becomes the attacker's own **non-district**
   marker, unreinforced.
+- Encampment resolves **either or both** halves: defeat a barbarian or rival army
+  within two, and/or reinforce a friendly token within two. A barbarian defeated
+  this way pays its trade token like any other (Terra p9, "as normal").
 - Campus counts friendly mountain / natural-wonder spaces **in and adjacent to**
   the district; the only cap is the three-per-card trade limit.
 
