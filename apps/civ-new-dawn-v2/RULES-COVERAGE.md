@@ -194,6 +194,11 @@ face, clockwise from the starting space:
 - Encampment resolves **either or both** halves: defeat a barbarian or rival army
   within two, and/or reinforce a friendly token within two. A barbarian defeated
   this way pays its trade token like any other (Terra p9, "as normal").
+- Campus counts **friendly** mountain / natural-wonder spaces in and adjacent to
+  the district. "Friendly" is the base game's term (p7): a space holding your own
+  city or control token. A mountain nobody owns is worth nothing however close it
+  sits — so a campus that pays out lights the spaces that paid, and one that pays
+  nothing lights what it was looking at and says why.
 - Campus counts friendly mountain / natural-wonder spaces **in and adjacent to**
   the district; the only cap is the three-per-card trade limit.
 

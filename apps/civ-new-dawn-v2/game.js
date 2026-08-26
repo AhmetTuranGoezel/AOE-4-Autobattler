@@ -2205,6 +2205,10 @@ const Game = (() => {
       moveBarbarians(st);
     }
     if (evt === "district_event") {
+      // Which spaces actually paid out, so the board can show its working. A
+      // campus that scores nothing is the rule doing its job, not a bug, and the
+      // only way to tell is to say what it was looking for.
+      st.districtReport = [];
       st.turn.order.map((id) => getPlayer(st, id)).filter(Boolean).forEach((player) => {
         const districtHexes = { campus: [], trade: [], encampment: [], industrial: [], theater: [] };
         Object.entries(st.map.hexes).forEach(([k, h]) => {
@@ -2213,23 +2217,33 @@ const Game = (() => {
           }
         });
 
-        // Campus (Terra p20): 1 science trade for every friendly space with a
-        // mountain or a natural wonder that is in or adjacent to the campus.
-        // The only cap is the three-per-card limit further down.
+        // Campus (Terra p9): one science trade for every FRIENDLY space with a
+        // mountain or natural wonder in or adjacent to the campus. "Friendly"
+        // means a space holding your own city or control token (base p7) — a
+        // mountain nobody owns is worth nothing, however close it sits.
         if (districtHexes.campus.length) {
           const friendly = (h) => !!h && ((h.control && h.control.ownerId === player.id) ||
             (h.city && h.city.ownerId === player.id));
-          const scores = (h) => friendly(h) && (h.terrain === "mountain" || h.resource === "wonder" || !!h.naturalWonder);
-          let total = 0;
+          const featured = (h) => !!h && (h.terrain === "mountain" || h.resource === "wonder" || !!h.naturalWonder);
+          const scores = (h) => friendly(h) && featured(h);
+          const paid = [];
+          const nearMisses = [];
           districtHexes.campus.forEach((dk) => {
-            if (scores(st.map.hexes[dk])) total++;
-            hexNeighborKeys(parseQ(dk), parseR(dk)).forEach((nk) => {
-              if (scores(st.map.hexes[nk])) total++;
+            [dk].concat(hexNeighborKeys(parseQ(dk), parseR(dk))).forEach((nk) => {
+              const h = st.map.hexes[nk];
+              if (scores(h)) paid.push(nk);
+              else if (featured(h) && h.active) nearMisses.push(nk);
             });
           });
-          if (total > 0) {
-            player.trade.science = Math.min(CFG.maxTrade, player.trade.science + total);
-            log(st, `${player.name}: +${total} science trade (campus).`);
+          if (paid.length) {
+            player.trade.science = Math.min(CFG.maxTrade, player.trade.science + paid.length);
+            log(st, `${player.name}: +${paid.length} science trade (campus).`);
+            st.districtReport.push({ playerId: player.id, district: "campus", paid, nearMisses });
+          } else {
+            log(st, nearMisses.length
+              ? `${player.name}'s campus scored nothing: the nearby mountains are not yours yet — a campus only counts spaces holding your own city or control token.`
+              : `${player.name}'s campus scored nothing: no mountain or natural wonder in or beside it.`);
+            st.districtReport.push({ playerId: player.id, district: "campus", paid: [], nearMisses });
           }
         }
 

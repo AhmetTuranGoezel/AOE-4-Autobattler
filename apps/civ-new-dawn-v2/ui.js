@@ -1079,6 +1079,7 @@ const UI = (() => {
   // What changed since the last render, so the board can react to it. Follows
   // the same shape as prevFocusOrder, which already FLIPs the focus cards.
   let prevSeen = null;
+  const reportSeen = new WeakSet();
 
   function snapshotSeen() {
     const wonders = {}, cities = {}, districts = {}, land = {};
@@ -1184,6 +1185,22 @@ const UI = (() => {
       if (now.diplomacy > prevSeen.diplomacy && dom.myStats) {
         flyToken(boardCentre(), dom.myStats, "\ud83e\udd1d", "#81d4fa");
       }
+      // A district that paid out lights the spaces that paid, and one that paid
+      // nothing lights what it was looking at, so "why did nothing happen" has
+      // an answer on the board rather than in a rulebook.
+      const report = (state.districtReport || []).filter((r) => r.playerId === localPlayerId);
+      if (report.length) {
+        report.forEach((r) => {
+          if (reportSeen.has(r)) return;
+          reportSeen.add(r);
+          (r.paid || []).forEach((k) => flashHex(k, "rgb(129,212,250)", 1300));
+          (r.nearMisses || []).forEach((k) => flashHex(k, "rgba(239,83,80,0.75)", 1300));
+          if (!(r.paid || []).length && (r.nearMisses || []).length) {
+            announce("Campus: those mountains are not yours yet", "warn");
+          }
+        });
+      }
+
       // Units travel rather than teleport.
       Object.entries(now.units).forEach(([id, pos]) => {
         const was = prevSeen.units[id];
