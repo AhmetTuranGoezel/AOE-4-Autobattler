@@ -15,7 +15,6 @@
   --hex-size: 38px;
   --hex-gap: 2px;
   --panel-left: 260px;
-  --panel-right: 320px;
   --focus-height: 155px;
   --header-height: 40px;
 }
@@ -247,15 +246,23 @@ input, select {
 }
 
 /* RIGHT PANEL */
-#right-panel {
-  width: var(--panel-right);
+/* The column beside the board is gone. What was play moved onto the board;
+   what was reference moved into a drawer. */
+#drawer {
+  position: fixed; inset: 0; z-index: 80;
+  background: rgba(8, 10, 18, 0.7);
+  display: flex; align-items: stretch; justify-content: flex-end;
+}
+#drawer.hidden { display: none; }
+.drawer-body {
+  position: relative;
+  width: min(380px, 92vw);
   background: var(--bg2);
   border-left: 1px solid var(--border);
+  padding: 34px 10px 10px;
   overflow-y: auto;
-  padding: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  display: flex; flex-direction: column; gap: 10px;
+  box-shadow: -12px 0 40px rgba(0, 0, 0, 0.5);
 }
 
 /* WIZARD */
@@ -844,9 +851,9 @@ input, select {
 }
 #map-tooltip { border: 1px solid var(--border); box-shadow: 0 6px 18px rgba(0,0,0,0.5); border-radius: 6px; line-height: 1.5; }
 
-/* Keep right-panel sections at natural size and let the leader grid scroll
+/* Keep drawer sections at natural size and let the leader grid scroll
    inside the lobby wizard instead of spilling over its siblings. */
-#right-panel > section { flex-shrink: 0; }
+.drawer-body > section { flex-shrink: 0; }
 .leader-grid { max-height: 248px; overflow-y: auto; padding-right: 3px; }
 .leader-grid::-webkit-scrollbar { width: 6px; }
 .leader-grid::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
@@ -1476,3 +1483,87 @@ kbd {
 @media (prefers-reduced-motion: reduce) {
   .tp-svg.tp-turn-cw, .tp-svg.tp-turn-ccw, .tp-svg.tp-flip { animation: none; }
 }
+
+/* The turn wizard sits on the board now, along its top edge, so what the game
+   is asking you is in the same place as the game. */
+#wizard {
+  position: absolute;
+  bottom: 56px; left: 50%; transform: translateX(-50%);
+  width: min(420px, calc(100% - 24px));
+  max-height: 46%;
+  overflow-y: auto;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(22, 28, 45, 0.94);
+  border: 1px solid var(--border);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(3px);
+  z-index: 25;
+}
+#wizard:empty { display: none; }
+
+/* --- What is on the table beside the map --------------------------------- */
+/* The buildable wonders and the cards you win on. Both were hidden: one behind
+   a button, the other as grey rows in a sidebar. */
+#table-strip {
+  position: absolute;
+  top: 8px; left: 8px; right: 8px;
+  display: flex; gap: 10px; align-items: flex-start;
+  pointer-events: none;
+  z-index: 22;
+}
+#table-strip.hidden { display: none; }
+.ts-group {
+  pointer-events: auto;
+  cursor: pointer;
+  padding: 5px 8px 7px;
+  border-radius: 10px;
+  background: rgba(22, 28, 45, 0.86);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(3px);
+}
+.ts-group:hover { border-color: var(--accent); }
+.ts-label {
+  font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text2); margin-bottom: 4px;
+}
+.ts-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.ts-empty { font-size: 10px; color: var(--text2); }
+
+.ts-wonder {
+  width: 104px;
+  padding: 4px 6px 5px;
+  border-radius: 7px;
+  background: linear-gradient(160deg, rgba(255,255,255,0.10), rgba(0,0,0,0.28));
+  border-left: 3px solid var(--border-2, #3a4a6b);
+}
+.ts-wonder.type-military { border-left-color: #ef5350; }
+.ts-wonder.type-culture  { border-left-color: #ab47bc; }
+.ts-wonder.type-economy  { border-left-color: #ffa726; }
+.ts-wonder.type-science  { border-left-color: #29b6f6; }
+.ts-w-top { display: flex; align-items: center; gap: 4px; font-size: 9px; color: var(--text2); }
+.ts-w-icon { font-size: 11px; }
+.ts-w-era { text-transform: uppercase; letter-spacing: 0.04em; }
+.ts-w-cost { margin-left: auto; font-size: 12px; font-weight: 800; color: var(--text); }
+.ts-w-cost s { font-size: 9px; opacity: 0.5; margin-left: 2px; font-weight: 400; }
+.ts-w-name { font-size: 10.5px; font-weight: 700; line-height: 1.2; margin-top: 2px; }
+.ts-w-token {
+  margin-top: 3px; font-size: 8.5px; font-weight: 700; line-height: 1.2;
+  color: #ffe9a8;
+}
+
+.ts-victory .ts-row { flex-direction: column; gap: 2px; }
+.ts-agenda { display: flex; align-items: center; gap: 5px; font-size: 10px; }
+.ts-a-mark { width: 10px; color: var(--success); font-weight: 800; }
+.ts-agenda.won .ts-a-name { color: var(--success); font-weight: 700; }
+.ts-a-name { white-space: nowrap; }
+
+.vcard {
+  padding: 10px 12px; border-radius: 8px;
+  background: var(--surface); border: 1px solid var(--border);
+}
+.vcard.won { border-color: var(--success); box-shadow: 0 0 0 1px var(--success) inset; }
+.vcard-top { font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text2); }
+.vcard.won .vcard-top { color: var(--success); }
+.vcard-name { font-size: 14px; font-weight: 800; margin: 2px 0 4px; }
+.vcard-text { font-size: 11px; color: var(--text2); line-height: 1.35; }

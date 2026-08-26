@@ -211,7 +211,6 @@ const UI = (() => {
     dom.hdrRound = document.getElementById("hdr-round");
     dom.hdrTurn = document.getElementById("hdr-turn");
     dom.players = document.getElementById("players");
-    dom.victoryTracker = document.getElementById("victory-tracker");
     dom.myStats = document.getElementById("my-stats");
     dom.map = document.getElementById("map");
     dom.mapTooltip = document.getElementById("map-tooltip");
@@ -221,6 +220,7 @@ const UI = (() => {
     dom.combatStage = document.getElementById("combat-stage");
     dom.mapContainer = document.getElementById("map-container");
     dom.boardChip = document.getElementById("board-chip");
+    dom.tableStrip = document.getElementById("table-strip");
     dom.gameLog = document.getElementById("game-log");
     dom.focusRow = document.getElementById("focus-row");
 
@@ -236,6 +236,16 @@ const UI = (() => {
       resetSub();
       dom.game.classList.add("hidden");
       dom.lobby.classList.remove("hidden");
+    });
+
+    // The log, host tools and chat used to fill a column beside the board. They
+    // are reference material, not play, so they live in a drawer now.
+    const drawer = document.getElementById("drawer");
+    document.getElementById("btn-drawer")?.addEventListener("click", () => drawer.classList.remove("hidden"));
+    document.getElementById("drawer-close")?.addEventListener("click", () => drawer.classList.add("hidden"));
+    drawer?.addEventListener("click", (e) => { if (e.target === drawer) drawer.classList.add("hidden"); });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") drawer?.classList.add("hidden");
     });
 
     initReference();
@@ -518,7 +528,9 @@ const UI = (() => {
       }
     }
 
-    const combinedValid = new Set([...sub.validHexes, ...setupValid]);
+    const hexChoice = activeHexChoice();
+    const combinedValid = new Set([...sub.validHexes, ...setupValid,
+      ...(hexChoice ? hexChoice.hexKeys : [])]);
 
     // Layer 1: Inactive hexes
     Object.values(hexes).forEach((h) => {
@@ -1192,14 +1204,13 @@ const UI = (() => {
     renderEventWheel();
     renderCombatStage();
     renderBoardChip();
+    renderTableStrip();
     renderLog();
 
     if (state.phase === "playing" || state.phase === "gameover") {
-      renderVictoryTracker();
       renderMyStats();
       renderFocusRow();
     } else {
-      dom.victoryTracker.innerHTML = "";
       dom.myStats.innerHTML = "";
       dom.focusRow.innerHTML = "";
     }
@@ -1289,22 +1300,6 @@ const UI = (() => {
       return `<div class="player-card${active}">
         <div class="pname"><span class="dot" style="background:${p.color}"></span>${escapeHtml(p.name)}${civTag}</div>
         <div class="pstats">${stats}</div>
-      </div>`;
-    }).join("");
-  }
-
-  function renderVictoryTracker() {
-    const me = Game.getPlayer(state, localPlayerId);
-    if (!me) { dom.victoryTracker.innerHTML = ""; return; }
-    const agendaMap = Object.fromEntries((Game.AGENDA_CARDS || []).map((a) => [a.id, a]));
-    const active = state.agendaCards || [];
-    const claims = (state.claimedAgendas && state.claimedAgendas[me.id]) || me.agendaClaims || {};
-    const count = Game.getClaimedAgendaCount ? Game.getClaimedAgendaCount(state, me.id) : Object.values(claims).filter(Boolean).length;
-    dom.victoryTracker.innerHTML = `<h3>Agenda Victory ${count}/4</h3>` + active.map((id) => {
-      const agenda = agendaMap[id] || { name: id, text: "" };
-      return `<div class="agenda-row ${claims[id] ? "claimed" : ""}">
-        <span class="agenda-mark">${claims[id] ? "OK" : "--"}</span>
-        <div><strong>${agenda.name}</strong><br><span>${agenda.description || agenda.text || ""}</span></div>
       </div>`;
     }).join("");
   }
@@ -1695,6 +1690,16 @@ const UI = (() => {
     return svg;
   }
 
+  // A pending choice that wants a space rather than an option. The map, the
+  // chip and the click handler all read it from here so they cannot disagree.
+  function activeHexChoice() {
+    if (!state || state.phase !== "playing" || sub.phase !== "idle") return null;
+    const choice = getVisiblePendingChoice(Game.getPlayer(state, localPlayerId));
+    if (!choice || !choice.hexKeys || !choice.hexKeys.length) return null;
+    if (choice.options && choice.options.length) return null;
+    return choice;
+  }
+
   function getVisiblePendingChoice(me) {
     const choices = state.pendingChoices || [];
     if (!choices.length) return null;
@@ -1716,12 +1721,10 @@ const UI = (() => {
         `<button class="sm pending-option" data-option="${o.id}">${o.label || o.id}</button>`
       ).join("")}</div>`;
     } else if (choice.hexKeys && choice.hexKeys.length) {
-      controls = `
-        <div class="pending-select-row">
-          <select id="pending-hex">${choice.hexKeys.slice(0, 80).map((k) => `<option value="${k}">${k}</option>`).join("")}</select>
-          <button id="pending-hex-ok">Resolve</button>
-        </div>`;
-      body += `<div class="pending-note">${choice.hexKeys.length} valid hex(es).</div>`;
+      // Picking a space is done by pointing at it. This used to be a dropdown
+      // of raw axial keys — "3,-2" — which nobody can read off a board.
+      body += `<div class="pending-note">Click one of the <strong>${choice.hexKeys.length}</strong>
+        highlighted spaces on the map.</div>`;
     } else {
       controls = `<div class="wiz-actions"><button id="pending-manual-ok">Resolve</button></div>`;
     }
@@ -1739,10 +1742,6 @@ const UI = (() => {
       btn.addEventListener("click", () => {
         dispatch({ type: "RESOLVE_PENDING_CHOICE", payload: { playerId: localPlayerId, choiceId: choice.id, optionId: btn.dataset.option, hostOverride: Net.getIsHost() } });
       });
-    });
-    document.getElementById("pending-hex-ok")?.addEventListener("click", () => {
-      const select = document.getElementById("pending-hex");
-      dispatch({ type: "RESOLVE_PENDING_CHOICE", payload: { playerId: localPlayerId, choiceId: choice.id, hexKey: select.value, hostOverride: Net.getIsHost() } });
     });
     document.getElementById("pending-manual-ok")?.addEventListener("click", () => {
       dispatch({ type: "RESOLVE_PENDING_CHOICE", payload: { playerId: localPlayerId, choiceId: choice.id, hostOverride: Net.getIsHost() } });
@@ -1769,14 +1768,79 @@ const UI = (() => {
     });
   }
 
+  // The wonders you can actually build and the cards you are trying to win on
+  // both used to be tucked away — one behind a button, the other as grey rows in
+  // a sidebar. On a table they sit beside the map where everyone can see them,
+  // so that is where they go.
+  function renderTableStrip() {
+    const strip = dom.tableStrip;
+    if (!strip) return;
+    if (!state || state.phase !== "playing") { strip.innerHTML = ""; strip.classList.add("hidden"); return; }
+    const me = Game.getPlayer(state, localPlayerId);
+    const wonders = Game.getVisibleWonders(state) || [];
+    const agendaMap = Object.fromEntries((Game.AGENDA_CARDS || []).map((a) => [a.id, a]));
+    const active = state.agendaCards || [];
+    const claims = (state.claimedAgendas && state.claimedAgendas[localPlayerId]) || (me && me.agendaClaims) || {};
+    const won = Game.getClaimedAgendaCount ? Game.getClaimedAgendaCount(state, localPlayerId) : 0;
+
+    const wonderCards = wonders.map((w) => {
+      const cost = me ? Game.getWonderCost(w.name, me, state) : w.cost;
+      return `<div class="ts-wonder type-${w.type} era-${w.era}" title="${escapeHtml(w.effect || "")}">
+        <div class="ts-w-top">
+          <span class="ts-w-icon">${WONDER_ICONS[w.type] || "\u2b50"}</span>
+          <span class="ts-w-era">${escapeHtml(w.era)}</span>
+          <span class="ts-w-cost">${cost}${cost !== w.cost ? `<s>${w.cost}</s>` : ""}</span>
+        </div>
+        <div class="ts-w-name">${escapeHtml(w.name)}</div>
+        ${w.token ? `<div class="ts-w-token">\ud83e\ude99 costs 1 less \u00b7 leaves next dial</div>` : ""}
+      </div>`;
+    }).join("");
+
+    const agendaCards = active.map((id) => {
+      const a = agendaMap[id] || { name: id, description: "" };
+      return `<div class="ts-agenda ${claims[id] ? "won" : ""}" title="${escapeHtml(a.description || "")}">
+        <span class="ts-a-mark">${claims[id] ? "\u2713" : ""}</span>
+        <span class="ts-a-name">${escapeHtml(a.name)}</span>
+      </div>`;
+    }).join("");
+
+    strip.classList.remove("hidden");
+    strip.innerHTML = `
+      <div class="ts-group ts-wonders" id="ts-wonders">
+        <div class="ts-label">World Wonders</div>
+        <div class="ts-row">${wonderCards || `<div class="ts-empty">none left</div>`}</div>
+      </div>
+      <div class="ts-group ts-victory" id="ts-victory">
+        <div class="ts-label">Victory \u2014 ${won}/4</div>
+        <div class="ts-row">${agendaCards}</div>
+      </div>`;
+    document.getElementById("ts-wonders").addEventListener("click", () => openReference("wonders"));
+    document.getElementById("ts-victory").addEventListener("click", () => openReference("victory"));
+  }
+
   // The one thing you might still want to say during a move, said where the move
   // is happening. Everything else the map already answers.
   function renderBoardChip() {
     const chip = dom.boardChip;
     if (!chip) return;
+    const fighting = state.combat && state.combat.turn !== "done";
+
+    // A choice waiting on a space says so here, next to the board it is asking
+    // you to point at.
+    const hexChoice = fighting ? null : activeHexChoice();
+    if (hexChoice) {
+      chip.innerHTML = `<span class="bc-label">${escapeHtml(hexChoice.title || "Choose a space")}</span>` +
+        (hexChoice.optional ? `<button class="bc-btn" id="bc-skip">Skip</button>` : "");
+      chip.classList.remove("hidden");
+      document.getElementById("bc-skip")?.addEventListener("click", () => dispatch({
+        type: "RESOLVE_PENDING_CHOICE",
+        payload: { playerId: localPlayerId, choiceId: hexChoice.id, dismiss: true, hostOverride: true } }));
+      return;
+    }
+
     const ms = sub.movementState;
     const moving = ms && /^move_(army|caravan)(_post)?$/.test(sub.phase);
-    if (!moving || (state.combat && state.combat.turn !== "done")) {
+    if (!moving || fighting) {
       chip.classList.add("hidden");
       chip.innerHTML = "";
       return;
@@ -2355,6 +2419,28 @@ const UI = (() => {
     return html;
   }
 
+  // The five cards you are racing on, in full, with what you have already done.
+  function renderVictoryRef() {
+    const agendaMap = Object.fromEntries((Game.AGENDA_CARDS || []).map((a) => [a.id, a]));
+    const active = state.agendaCards || [];
+    const claims = (state.claimedAgendas && state.claimedAgendas[localPlayerId]) || {};
+    const won = Game.getClaimedAgendaCount ? Game.getClaimedAgendaCount(state, localPlayerId) : 0;
+    return `<div class="ref-card">
+      <button class="detail-close" id="ref-close" aria-label="Close">\u2715</button>
+      <h2 class="ref-title">Victory \u2014 ${won} of 4</h2>
+      <p class="ref-lede">Complete the agenda on <strong>four</strong> of these five cards to win
+        (Terra p8). Victory is checked at the end of each round, before the dial turns.</p>
+      <div class="ref-grid">${active.map((id) => {
+        const a = agendaMap[id] || { name: id, description: "" };
+        return `<div class="vcard ${claims[id] ? "won" : ""}">
+          <div class="vcard-top">${claims[id] ? "\u2713 done" : "not yet"}</div>
+          <div class="vcard-name">${escapeHtml(a.name)}</div>
+          <div class="vcard-text">${escapeHtml(a.description || "")}</div>
+        </div>`;
+      }).join("")}</div>
+    </div>`;
+  }
+
   function renderDiplomacyRef() {
     const me = Game.getPlayer(state, localPlayerId);
     const cards = Game.DIPLOMACY_CARDS || {};
@@ -2498,6 +2584,7 @@ const UI = (() => {
     try {
       body.innerHTML = which === "wonders" ? renderWondersRef()
         : which === "civ" ? renderCivRef()
+        : which === "victory" ? renderVictoryRef()
         : renderDiplomacyRef();
     } catch (err) {
       body.innerHTML = `<div class="ref-card"><button class="detail-close" id="ref-close">\u2715</button>
@@ -2701,6 +2788,16 @@ const UI = (() => {
 
   function handleHexClick(hexKey) {
     if (!state) return;
+
+    // A choice waiting on a space takes the click before anything else.
+    const hexChoice = activeHexChoice();
+    if (hexChoice) {
+      if (!hexChoice.hexKeys.includes(hexKey)) { showToast("Not one of the highlighted spaces"); return; }
+      flashHex(hexKey, "rgb(255,213,79)", 700);
+      dispatch({ type: "RESOLVE_PENDING_CHOICE", payload: {
+        playerId: localPlayerId, choiceId: hexChoice.id, hexKey, hostOverride: Net.getIsHost() } });
+      return;
+    }
 
     if (state.phase === "setup") {
       const activeId = state.setup.order[state.setup.turnIndex];
