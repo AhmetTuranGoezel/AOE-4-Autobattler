@@ -54,6 +54,8 @@ token" got wrong, and it was wrong in both the engine and the UI.
   - control marker → terrain + **1** per adjacent friendly reinforced marker
     + **1** if itself reinforced + card/leader bonuses
   - city → the same, with **terrain difficulty doubled**
+- The dice are thrown when a player throws them, not when the attack is declared,
+  and every point on both sides is itemised on the way in.
 - Both dice are rolled first, and **then** the bidding starts (Terra p10): the
   attacker spends every token they mean to spend before the defender may spend
   any. Each token is **+1 or a reroll of that side's die**, and you decide after

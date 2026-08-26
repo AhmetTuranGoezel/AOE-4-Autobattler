@@ -1907,23 +1907,35 @@ const UI = (() => {
     const actor = actorId ? Game.getPlayer(state, actorId) : null;
     const tokens = actor ? (actor.trade.military || 0) : 0;
 
+    const thrown = live ? live.rolled : true;
     const side = (cls, label, roll, total, note) => `
       <div class="cs-side ${cls}">
         <div class="cs-name">${escapeHtml(label || "?")}</div>
-        <div class="cs-die ${cls}">${DICE[(roll || 1) - 1]}</div>
-        <div class="cs-total">${total}</div>
+        <div class="cs-die ${cls}${thrown ? "" : " waiting"}">${thrown ? DICE[(roll || 1) - 1] : "\u2b1c"}</div>
+        <div class="cs-total">${thrown ? total : "\u2013"}</div>
         <div class="cs-note">${note}</div>
       </div>`;
 
-    const atkNote = live
-      ? `${atkRoll} rolled + ${live.atkBase} card${live.atkTrade ? ` + ${live.atkTrade} trade` : ""}`
-      : `${done.atkRoll} rolled${done.atkTrade ? ` + ${done.atkTrade} trade` : ""}`;
-    const defNote = live
-      ? `${defRoll} rolled + ${live.defBase} defence${live.defTrade ? ` + ${live.defTrade} trade` : ""}`
-      : `${done.defRoll} rolled${done.defTrade ? ` + ${done.defTrade} trade` : ""}`;
+    // Every point, named. A single total tells you nothing about whether to
+    // spend, which is the only decision you have.
+    const lines = (parts, roll, trade, thrown) => {
+      const rows = [];
+      if (thrown) rows.push({ label: "die", value: roll });
+      (parts || []).forEach((x) => { if (x.value) rows.push(x); });
+      if (trade) rows.push({ label: "trade tokens", value: trade });
+      return rows.map((r) => `<div class="cs-line"><span>${escapeHtml(r.label)}</span><b>+${r.value}</b></div>`).join("")
+        || `<div class="cs-line"><span>nothing</span><b>0</b></div>`;
+    };
+    const atkNote = lines(live ? live.atkParts : done.atkParts, atkRoll,
+      live ? live.atkTrade : done.atkTrade, live ? live.rolled : true);
+    const defNote = lines(live ? live.defParts : done.defParts, defRoll,
+      live ? live.defTrade : done.defTrade, live ? live.rolled : true);
 
     let foot = "";
-    if (live) {
+    if (live && !live.rolled) {
+      foot = `<div class="cs-turn">The dice are in your hand.</div>
+        <div class="cs-actions"><button class="cs-btn primary" id="cs-roll">Roll the dice</button></div>`;
+    } else if (live) {
       const who = live.turn === "attacker" ? "Attacker" : "Defender";
       if (mine || asHost) {
         foot = `<div class="cs-turn">${who}: spend a military trade token?
@@ -1960,6 +1972,8 @@ const UI = (() => {
 
     const bid = (mode) => dispatch({ type: "COMBAT_SPEND", payload: {
       playerId: localPlayerId, side: live.turn, mode, hostOverride: !!asHost } });
+    document.getElementById("cs-roll")?.addEventListener("click", () => dispatch({
+      type: "COMBAT_ROLL", payload: { playerId: localPlayerId } }));
     document.getElementById("cs-plus")?.addEventListener("click", () => bid("plus"));
     document.getElementById("cs-reroll")?.addEventListener("click", () => bid("reroll"));
     document.getElementById("cs-done")?.addEventListener("click", () => dispatch({
@@ -1970,8 +1984,8 @@ const UI = (() => {
 
     // Re-tumble only when a die has actually changed, so the stage does not
     // spin every time the panel re-renders.
-    const key = `${live ? "live" : "done"}:${atkRoll}:${defRoll}:${totals.atk}:${totals.def}`;
-    if (key !== lastStageKey) {
+    const key = `${live ? "live" : "done"}:${thrown}:${atkRoll}:${defRoll}:${totals.atk}:${totals.def}`;
+    if (thrown && key !== lastStageKey) {
       rollDice(stage.querySelector(".cs-die.atk"), atkRoll);
       rollDice(stage.querySelector(".cs-die.def"), defRoll);
       flashHex((live || done).toKey || (state.combat && state.combat.toKey), "rgb(239,83,80)", 900);
@@ -1991,14 +2005,14 @@ const UI = (() => {
     el.classList.add("rolling");
     const id = setInterval(() => {
       el.textContent = faces[Math.floor(Math.random() * 6)];
-      if (++ticks >= 9) {
+      if (++ticks >= 14) {
         clearInterval(id);
         el.textContent = final;
         el.classList.remove("rolling");
         el.classList.add("landed");
         setTimeout(() => el.classList.remove("landed"), 400);
       }
-    }, 55);
+    }, 62);
   }
 
   const reducedMotion = () =>
@@ -2233,6 +2247,7 @@ const UI = (() => {
           playerId: localPlayerId, unitId: ms.unitId, toKey: ms.currentKey,
           fromKey: ms.startKey, attackPower: slot,
           defensePower: defender.power, defenderLabel: defender.label,
+          defenderParts: defender.parts || null,
           defenderOwnerId: defender.ownerId || null
         }});
       } else {
@@ -3108,18 +3123,26 @@ const UI = (() => {
       const disabled = !canPlay ? " disabled" : "";
       const selected = sub.cardType === cardType && sub.phase !== "idle" ? " selected" : "";
 
+      // Laid out like the printed card: type band across the top, the name and
+      // its tier, what it actually does, and the trade track along the bottom.
+      const printed = Game.getCardEffectText ? Game.getCardEffectText(me, cardType) : "";
       return `<div class="fcard type-${cardType}${disabled}${selected}${uniqueCard ? " unique" : ""}" data-card="${cardType}" data-idx="${idx}">
         <div class="fc-header">
           <span class="fc-icon">${icon}</span>
           <span class="fc-type">${Game.FOCUS_LABELS[cardType]}</span>
-          <span class="fc-slot-num">#${idx + 1}</span>
+          <span class="fc-tier-roman">${TIER_LABELS[tier - 1]}</span>
         </div>
         <div class="fc-body">
-          <div class="fc-power">${effective}${govt ? `<span class="gov-plus" title="${govt.name}: resolves ${govt.shift} places further right">${govt.name[0]}</span>` : ""}</div>
-          <div class="fc-cardname">${uniqueCard ? "★ " : ""}${cardName}</div>
-          <div class="fc-tier-badge">TIER ${TIER_LABELS[tier - 1]}</div>
+          <div class="fc-nameline">
+            <span class="fc-power">${effective}${govt ? `<span class="gov-plus" title="${govt.name}: resolves ${govt.shift} places further right">${govt.name[0]}</span>` : ""}</span>
+            <span class="fc-cardname">${uniqueCard ? "★ " : ""}${cardName}</span>
+          </div>
+          <div class="fc-printed">${escapeHtml(printed)}</div>
         </div>
-        <div class="fc-footer">${tradeDots}</div>
+        <div class="fc-footer">
+          <span class="fc-trade-note">${escapeHtml(Game.FOCUS_TRADE_DESC[cardType] || "")}</span>
+          <span class="fc-dots">${tradeDots}</span>
+        </div>
       </div>`;
     }).join("");
 

@@ -426,8 +426,8 @@ input, select {
 
 /* ── CARD BASE ── */
 .fcard {
-  width: 130px;
-  height: 135px;
+  width: 158px;
+  height: 152px;
   border-radius: 10px;
   display: flex;
   flex-direction: column;
@@ -1338,10 +1338,16 @@ input, select {
 }
 .cs-die.atk { color: var(--accent2); }
 .cs-die.def { color: var(--danger); }
-.cs-die.rolling { animation: die-tumble 0.36s linear infinite; }
+.cs-die.rolling { animation: die-tumble 0.5s linear infinite; }
 .cs-die.landed { animation: die-land 0.4s cubic-bezier(0.2, 1.4, 0.4, 1); }
 .cs-total { font-size: 26px; font-weight: 800; }
-.cs-note { font-size: 10px; color: var(--text2); margin-top: 2px; }
+.cs-note { font-size: 10px; color: var(--text2); margin-top: 4px; text-align: left; }
+.cs-line {
+  display: flex; justify-content: space-between; gap: 8px;
+  padding: 1px 6px; line-height: 1.5;
+}
+.cs-line b { color: var(--text); font-weight: 700; }
+.cs-die.waiting { opacity: 0.35; }
 .cs-x { font-size: 22px; color: var(--warn); flex: 0 0 auto; }
 
 .cs-story {
@@ -1567,3 +1573,35 @@ kbd {
 .vcard.won .vcard-top { color: var(--success); }
 .vcard-name { font-size: 14px; font-weight: 800; margin: 2px 0 4px; }
 .vcard-text { font-size: 11px; color: var(--text2); line-height: 1.35; }
+
+/* --- The focus card, laid out like the printed one ------------------------ */
+.fc-tier-roman {
+  margin-left: auto;
+  font-size: 10px; font-weight: 800; letter-spacing: 0.06em;
+  opacity: 0.85;
+}
+.fc-nameline { display: flex; align-items: baseline; gap: 6px; }
+.fc-nameline .fc-power {
+  font-size: 20px; font-weight: 900; line-height: 1;
+  flex: 0 0 auto;
+}
+.fc-nameline .fc-cardname {
+  font-size: 10.5px; font-weight: 700; line-height: 1.15;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.fc-printed {
+  margin-top: 4px;
+  font-size: 8.6px; line-height: 1.3;
+  color: rgba(255, 255, 255, 0.8);
+  display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.fc-footer {
+  display: flex; align-items: center; gap: 5px;
+  padding: 3px 6px;
+}
+.fc-trade-note {
+  font-size: 7.4px; line-height: 1.15; color: rgba(255, 255, 255, 0.62);
+  flex: 1 1 auto;
+}
+.fc-dots { flex: 0 0 auto; }

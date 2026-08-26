@@ -1206,10 +1206,14 @@ const Game = (() => {
       const reachable = getReachable(st, unit.position, getMilitaryMove(player), "army", payload.playerId);
       if (!reachable.has(payload.toKey) && unit.position !== payload.toKey) return st;
 
-      // Both sides roll, and then the fight stops for the players to bid. The
-      // attacker spends everything they mean to spend before the defender may
-      // spend anything (Terra p10).
+      // Nothing is rolled yet. The dice are thrown when somebody throws them,
+      // and only then does the bidding start — the attacker spending everything
+      // they mean to spend before the defender may answer (Terra p10).
       const leaderBonus = getLeaderAttackBonus(st, payload.playerId, payload.toKey);
+      const tierBonus = getMilitaryCombatBonus(player);
+      const atkParts = [{ label: "military card", value: payload.attackPower || 0 }];
+      if (tierBonus) atkParts.push({ label: "card tier", value: tierBonus });
+      if (leaderBonus) atkParts.push({ label: "leader", value: leaderBonus });
       st.combat = {
         attackerId: payload.playerId,
         unitId: payload.unitId,
@@ -1217,24 +1221,37 @@ const Game = (() => {
         toKey: payload.toKey,
         defenderLabel: payload.defenderLabel,
         defenderOwnerId: payload.defenderOwnerId || null,
-        atkBase: (payload.attackPower || 0) + getMilitaryCombatBonus(player) + leaderBonus,
+        atkBase: (payload.attackPower || 0) + tierBonus + leaderBonus,
         defBase: payload.defensePower || 0,
+        atkParts,
+        defParts: payload.defenderParts || [{ label: "defence", value: payload.defensePower || 0 }],
         leaderBonus,
-        atkRoll: rollDie(),
-        defRoll: rollDie(),
+        atkRoll: 0,
+        defRoll: 0,
+        rolled: false,
         atkTrade: 0,
         defTrade: 0,
         turn: "attacker",
         history: []
       };
-      log(st, `${player.name} attacks ${payload.defenderLabel}: rolled ${st.combat.atkRoll} against ${st.combat.defRoll}.`);
+      log(st, `${player.name} attacks ${payload.defenderLabel}.`);
+      return st;
+    }
+
+    if (type === "COMBAT_ROLL") {
+      const c = st.combat;
+      if (!c || c.rolled || c.turn === "done") return st;
+      c.atkRoll = rollDie();
+      c.defRoll = rollDie();
+      c.rolled = true;
+      log(st, `Dice: ${c.atkRoll} against ${c.defRoll}.`);
       advanceCombat(st);
       return st;
     }
 
     if (type === "COMBAT_SPEND" || type === "COMBAT_PASS") {
       const c = st.combat;
-      if (!c || c.turn === "done") return st;
+      if (!c || c.turn === "done" || !c.rolled) return st;
       const side = payload.side || c.turn;
       if (side !== c.turn) return st;                       // not your turn to bid
       const actorId = side === "attacker" ? c.attackerId : c.defenderOwnerId;
@@ -1919,7 +1936,7 @@ const Game = (() => {
   // settles the fight once both sides are done.
   function advanceCombat(st) {
     const c = st.combat;
-    if (!c) return;
+    if (!c || !c.rolled) return;      // nobody bids over dice nobody has thrown
     while (c.turn !== "done" && combatTokens(st, c, c.turn) <= 0) {
       c.turn = c.turn === "attacker" ? "defender" : "done";
     }
@@ -3091,14 +3108,20 @@ const Game = (() => {
   function findDefender(st, hexKey, attackerId) {
     const h = st.map.hexes[hexKey];
     if (!h) return null;
+    // Every defender hands back where its number came from, so the fight can
+    // show you what you are up against instead of one unexplained total.
+    const only = (label, value) => [{ label, value }];
     if (h.fortress && !h.city) {
-      return { type: "fortress", label: "Fortress", power: CFG.fortressDefense };
+      return { type: "fortress", label: "Fortress", power: CFG.fortressDefense,
+        parts: only("uncontrolled fort", CFG.fortressDefense) };
     }
     if (h.barbarian) {
       const terrainDiff = h.resource === "wonder" ? 5 : TERRAIN[h.terrain];
-      return { type: "barbarian", label: "Barbarian", power: CFG.barbarianBase + terrainDiff };
+      return { type: "barbarian", label: "Barbarian", power: CFG.barbarianBase + terrainDiff,
+        parts: only(`${TERRAIN_LABELS[h.terrain] || h.terrain} terrain`, CFG.barbarianBase + terrainDiff) };
     }
-    if (h.cityState) return { type: "citystate", label: h.cityState.name, power: CFG.cityStateDefense };
+    if (h.cityState) return { type: "citystate", label: h.cityState.name, power: CFG.cityStateDefense,
+      parts: only("city-state", CFG.cityStateDefense) };
     // Defender-side leader effects: China's reinforced tokens count double,
     // Scythia adds +3 defending a grassland or hill space.
     const defenderLeaderBonus = (ownerId) => {
@@ -3109,17 +3132,26 @@ const Game = (() => {
       const owner = getPlayer(st, ownerId);
       return countAdjacentReinforced(st, hexKey, ownerId) * (hasLeader(owner, "china") ? 2 : 1);
     };
+    const breakdown = (ownerId, terrainPart) => {
+      const list = [terrainPart];
+      const push = (label, value) => { if (value) list.push({ label, value }); };
+      push("reinforced", h.control && h.control.fortified ? 1 : 0);
+      push("adjacent reinforced", reinforcedValue(ownerId));
+      push("leader", defenderLeaderBonus(ownerId));
+      push("wonder", getWonderDefenseBonus(st, ownerId, hexKey));
+      return list;
+    };
     if (h.control && h.control.ownerId !== attackerId) {
-      const def = terrainDifficulty(h) + (h.control.fortified ? 1 : 0) +
-        reinforcedValue(h.control.ownerId) + defenderLeaderBonus(h.control.ownerId) +
-        getWonderDefenseBonus(st, h.control.ownerId, hexKey);
-      return { type: "control", label: "Control Marker", power: def, ownerId: h.control.ownerId };
+      const parts = breakdown(h.control.ownerId,
+        { label: `${TERRAIN_LABELS[h.terrain] || h.terrain} terrain`, value: terrainDifficulty(h) });
+      return { type: "control", label: "Control Marker", ownerId: h.control.ownerId,
+        power: parts.reduce((a, x) => a + x.value, 0), parts };
     }
     if (h.city && h.city.ownerId !== attackerId) {
-      const def = terrainDifficulty(h) * 2 +
-        reinforcedValue(h.city.ownerId) + defenderLeaderBonus(h.city.ownerId) +
-        getWonderDefenseBonus(st, h.city.ownerId, hexKey);
-      return { type: "city", label: h.city.isCapital ? "Capital" : "City", power: def, ownerId: h.city.ownerId };
+      const parts = breakdown(h.city.ownerId,
+        { label: `${TERRAIN_LABELS[h.terrain] || h.terrain} terrain, doubled`, value: terrainDifficulty(h) * 2 });
+      return { type: "city", label: h.city.isCapital ? "Capital" : "City", ownerId: h.city.ownerId,
+        power: parts.reduce((a, x) => a + x.value, 0), parts };
     }
     return null;
   }
