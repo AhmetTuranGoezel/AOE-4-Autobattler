@@ -321,6 +321,26 @@
     industry: { name: "Communism", shift: 2 }
   };
 
+  // A victory card is divided into TWO agendas and you complete either one to
+  // claim the card (base p12). The pairings below are mine — the printed cards
+  // pair specific agendas and neither rulebook nor the Tabletop Simulator mod
+  // records which — so each card puts a "build it" agenda opposite a "take it"
+  // one, which is how the printed cards read.
+  const VICTORY_CARDS = [
+    { id: "vc-forts-1", fortress: true, agendas: ["fortified"] },
+    { id: "vc-forts-2", fortress: true, agendas: ["expeditionary"] },
+    { id: "vc-war",     agendas: ["warmonger", "devastating"] },
+    { id: "vc-shield",  agendas: ["paranoid", "defensive"] },
+    { id: "vc-spread",  agendas: ["civilized", "expansionist"] },
+    { id: "vc-purse",   agendas: ["money_grubber", "hoarder"] },
+    { id: "vc-reach",   agendas: ["explorer", "provincial"] },
+    { id: "vc-arts",    agendas: ["aesthetic", "diplomatic"] },
+    { id: "vc-works",   agendas: ["industrious", "populous"] },
+    { id: "vc-nature",  agendas: ["preservationist", "diversified"] },
+    { id: "vc-eras",    agendas: ["prolific", "progressive"] },
+    { id: "vc-learned", agendas: ["technophile", "scholarly"] }
+  ];
+
   const AGENDA_CARDS = [
     { id: "fortified", name: "Fortified", fortress: true, description: "Control 1 or more fortress cities." },
     { id: "expeditionary", name: "Expeditionary", fortress: true, description: "Control 2 or more fortress cities." },
@@ -329,19 +349,23 @@
     { id: "civilized", name: "Civilized", description: "Have 8 cities on the map." },
     { id: "money_grubber", name: "Money Grubber", description: "Control 2 economic world wonders." },
     { id: "defensive", name: "Defensive", description: "Have 15 reinforced control tokens." },
-    { id: "devastating", name: "Devastating", description: "Win an attack with total combat value of 16 or more." },
+    { id: "devastating", name: "Devastating", description: "Win an attack as the attacker with a total combat value of 16 or more." },
     { id: "diplomatic", name: "Diplomatic", description: "Have 4 diplomacy cards from different sources." },
     { id: "hoarder", name: "Hoarder", description: "Have 5 resource and/or natural wonder tokens." },
     { id: "explorer", name: "Explorer", description: "Control 15 spaces adjacent to water or map edge." },
     { id: "aesthetic", name: "Aesthetic", description: "Control 2 cultural world wonders." },
-    { id: "industrious", name: "Industrious", description: "Have all 5 district types on the map." },
-    { id: "provincial", name: "Provincial", description: "Control 1 mature city on 4 different map tiles." },
+    { id: "industrious", name: "Industrious", description: "Have 5 districts on the map." },
+    { id: "provincial", name: "Provincial", description: "Have 1 mature city on 4 different map tiles. Forts count as their own tile." },
     { id: "diversified", name: "Diversified", description: "Control 3 different types of world wonders." },
     { id: "populous", name: "Populous", description: "Control 5 mature cities." },
     { id: "preservationist", name: "Preservationist", description: "Control 2 natural wonders." },
-    { id: "expansionist", name: "Expansionist", description: "Control 1 city on 6 different map tiles." },
+    { id: "expansionist", name: "Expansionist", description: "Control a city on 6 different map tiles. Forts count as their own tile." },
     { id: "prolific", name: "Prolific", description: "Control 2 wonders from the same era." },
-    { id: "progressive", name: "Progressive", description: "Control 1 world wonder from each era." }
+    { id: "progressive", name: "Progressive", description: "Control 1 world wonder from each era." },
+    // Terra replaces the base game's Technophile/Scholarly victory card with its
+    // own (Terra p2, setup step 6).
+    { id: "technophile", name: "Technophile", description: "Have 3 level-IV focus cards in your focus row." },
+    { id: "scholarly", name: "Scholarly", description: "Control 2 scientific world wonders." }
   ];
 
   // Leader roster — transcribed from the physical Terra Incognita leader
@@ -476,6 +500,7 @@
     CITY_STATES,
     DIPLOMACY_CARDS,
     AGENDA_CARDS,
+    VICTORY_CARDS,
     GOVERNMENTS,
     CIV_STYLE,
     LEADERS

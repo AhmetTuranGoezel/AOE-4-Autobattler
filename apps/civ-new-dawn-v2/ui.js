@@ -1796,7 +1796,7 @@ const UI = (() => {
     const me = Game.getPlayer(state, localPlayerId);
     const wonders = Game.getVisibleWonders(state) || [];
     const agendaMap = Object.fromEntries((Game.AGENDA_CARDS || []).map((a) => [a.id, a]));
-    const active = state.agendaCards || [];
+    const active = Game.victoryCards ? Game.victoryCards(state) : [];
     const claims = (state.claimedAgendas && state.claimedAgendas[localPlayerId]) || (me && me.agendaClaims) || {};
     const won = Game.getClaimedAgendaCount ? Game.getClaimedAgendaCount(state, localPlayerId) : 0;
 
@@ -1813,11 +1813,17 @@ const UI = (() => {
       </div>`;
     }).join("");
 
-    const agendaCards = active.map((id) => {
-      const a = agendaMap[id] || { name: id, description: "" };
-      return `<div class="ts-agenda ${claims[id] ? "won" : ""}" title="${escapeHtml(a.description || "")}">
-        <span class="ts-a-mark">${claims[id] ? "\u2713" : ""}</span>
-        <span class="ts-a-name">${escapeHtml(a.name)}</span>
+    // A victory card carries two agendas and either one claims it, so both are
+    // listed with the one you have done marked.
+    const agendaCards = active.map((card) => {
+      const halves = card.agendas.map((id) => {
+        const a = agendaMap[id] || { name: id, description: "" };
+        return `<span class="ts-a-half ${claims[id] ? "done" : ""}"
+          title="${escapeHtml(a.description || "")}">${escapeHtml(a.name)}</span>`;
+      }).join(`<span class="ts-a-or">or</span>`);
+      return `<div class="ts-agenda ${claims[card.id] ? "won" : ""}">
+        <span class="ts-a-mark">${claims[card.id] ? "\u2713" : ""}</span>
+        <span class="ts-a-name">${halves}</span>
       </div>`;
     }).join("");
 
@@ -2454,22 +2460,27 @@ const UI = (() => {
   // The five cards you are racing on, in full, with what you have already done.
   function renderVictoryRef() {
     const agendaMap = Object.fromEntries((Game.AGENDA_CARDS || []).map((a) => [a.id, a]));
-    const active = state.agendaCards || [];
+    const active = Game.victoryCards ? Game.victoryCards(state) : [];
     const claims = (state.claimedAgendas && state.claimedAgendas[localPlayerId]) || {};
     const won = Game.getClaimedAgendaCount ? Game.getClaimedAgendaCount(state, localPlayerId) : 0;
     return `<div class="ref-card">
       <button class="detail-close" id="ref-close" aria-label="Close">\u2715</button>
       <h2 class="ref-title">Victory \u2014 ${won} of 4</h2>
-      <p class="ref-lede">Complete the agenda on <strong>four</strong> of these five cards to win
-        (Terra p8). Victory is checked at the end of each round, before the dial turns.</p>
-      <div class="ref-grid">${active.map((id) => {
-        const a = agendaMap[id] || { name: id, description: "" };
-        return `<div class="vcard ${claims[id] ? "won" : ""}">
-          <div class="vcard-top">${claims[id] ? "\u2713 done" : "not yet"}</div>
-          <div class="vcard-name">${escapeHtml(a.name)}</div>
-          <div class="vcard-text">${escapeHtml(a.description || "")}</div>
-        </div>`;
-      }).join("")}</div>
+      <p class="ref-lede">Every victory card is divided into <strong>two agendas</strong>, and completing
+        <strong>either</strong> one claims the card (base p12). Claim <strong>four</strong> of these five
+        to win (Terra p8). Victory is checked at the end of each round, before the dial turns. A claim
+        sticks even if you stop meeting it \u2014 except the fort cards, which must be held.</p>
+      <div class="ref-grid">${active.map((card) => `
+        <div class="vcard ${claims[card.id] ? "won" : ""}">
+          <div class="vcard-top">${claims[card.id] ? "\u2713 claimed" : "not yet"}${card.fortress ? " \u00b7 must be held" : ""}</div>
+          ${card.agendas.map((id) => {
+            const a = agendaMap[id] || { name: id, description: "" };
+            return `<div class="vcard-half ${claims[id] ? "done" : ""}">
+              <div class="vcard-name">${escapeHtml(a.name)}</div>
+              <div class="vcard-text">${escapeHtml(a.description || "")}</div>
+            </div>`;
+          }).join(`<div class="vcard-or">or</div>`)}
+        </div>`).join("")}</div>
     </div>`;
   }
 

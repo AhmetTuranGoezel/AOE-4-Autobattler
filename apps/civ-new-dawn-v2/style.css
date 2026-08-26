@@ -1605,3 +1605,16 @@ kbd {
   flex: 1 1 auto;
 }
 .fc-dots { flex: 0 0 auto; }
+
+/* A victory card is two agendas; either half claims it. */
+.ts-agenda { align-items: flex-start; }
+.ts-a-name { white-space: normal; display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px; }
+.ts-a-half { opacity: 0.75; }
+.ts-a-half.done { opacity: 1; color: var(--success); font-weight: 700; }
+.ts-a-or { font-size: 8px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text2); }
+.vcard-half { padding: 2px 0; }
+.vcard-half.done .vcard-name { color: var(--success); }
+.vcard-or {
+  margin: 4px 0; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--text2); text-align: center;
+}

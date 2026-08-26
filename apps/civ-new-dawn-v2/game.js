@@ -8,6 +8,7 @@ const Game = (() => {
   const CITY_STATE_DATA = RULES.CITY_STATES || {};
   const DIPLOMACY_CARDS = RULES.DIPLOMACY_CARDS || {};
   const AGENDA_CARDS = Array.isArray(RULES.AGENDA_CARDS) ? RULES.AGENDA_CARDS : [];
+  const VICTORY_CARDS = Array.isArray(RULES.VICTORY_CARDS) ? RULES.VICTORY_CARDS : [];
   const CARD_DEFS = RULES.CARD_DEFS || {};
   const GOVERNMENTS = RULES.GOVERNMENTS || {};
   const CIV_STYLE = RULES.CIV_STYLE || {};
@@ -552,10 +553,23 @@ const Game = (() => {
     return decks;
   }
 
+  // Five victory cards: the two fort cards plus three drawn at random (Terra
+  // p8). Each ordinary card carries two agendas and completing either one claims
+  // the card (base p12) — so ten agendas are in play, and which half of each
+  // card you chase is yours to choose.
   function makeAgendaCards() {
-    const fortress = AGENDA_CARDS.filter((a) => a.fortress).slice(0, 2);
-    const normal = shuffle(AGENDA_CARDS.filter((a) => !a.fortress).slice()).slice(0, 3);
-    return fortress.concat(normal).map((a) => a.id);
+    const forts = VICTORY_CARDS.filter((c) => c.fortress).slice(0, 2);
+    const rest = shuffle(VICTORY_CARDS.filter((c) => !c.fortress).slice()).slice(0, 3);
+    return forts.concat(rest).map((c) => ({ id: c.id, fortress: !!c.fortress, agendas: c.agendas.slice() }));
+  }
+
+  // Saves and older code passed a flat list of agenda ids; read either shape.
+  function victoryCards(st) {
+    return (st.agendaCards || []).map((entry) => {
+      if (entry && entry.agendas) return entry;
+      const agenda = AGENDA_CARDS.find((a) => a.id === entry);
+      return { id: String(entry), fortress: !!(agenda && agenda.fortress), agendas: [String(entry)] };
+    });
   }
 
   function createState(players) {
@@ -2433,7 +2447,7 @@ const Game = (() => {
 
   function checkVictory(st) {
     updateAgendaClaims(st);
-    const activeAgendaCount = (st.agendaCards || []).length || 5;
+    const activeAgendaCount = victoryCards(st).length || 5;
     const needed = Math.min(4, activeAgendaCount);
     const contenders = st.players.filter((p) => getClaimedAgendaCount(st, p.id) >= needed);
     if (contenders.length === 1) {
@@ -2463,19 +2477,20 @@ const Game = (() => {
     return null;
   }
 
+  // A token goes on the card and stays there, "even if the player ceases to
+  // satisfy the agenda later" (base p12). Fort cards are the exception: Terra p8
+  // says those must be met continually.
   function updateAgendaClaims(st) {
     st.claimedAgendas = st.claimedAgendas || {};
-    const active = new Set(st.agendaCards || []);
+    const cards = victoryCards(st);
     st.players.forEach((p) => {
       const claims = st.claimedAgendas[p.id] || {};
-      AGENDA_CARDS.forEach((agenda) => {
-        if (!active.has(agenda.id)) return;
-        const met = isAgendaMet(st, p, agenda.id);
-        if (agenda.fortress) {
-          claims[agenda.id] = met;
-        } else if (met) {
-          claims[agenda.id] = true;
-        }
+      cards.forEach((card) => {
+        const met = card.agendas.some((id) => isAgendaMet(st, p, id));
+        if (card.fortress) claims[card.id] = met;
+        else if (met) claims[card.id] = true;
+        // Which half was completed, for the board to show.
+        card.agendas.forEach((id) => { if (isAgendaMet(st, p, id)) claims[id] = true; });
       });
       st.claimedAgendas[p.id] = claims;
       p.agendaClaims = claims;
@@ -2483,9 +2498,8 @@ const Game = (() => {
   }
 
   function getClaimedAgendaCount(st, playerId) {
-    const active = new Set(st.agendaCards || []);
     const claims = (st.claimedAgendas && st.claimedAgendas[playerId]) || {};
-    return Object.entries(claims).filter(([id, value]) => value && active.has(id)).length;
+    return victoryCards(st).filter((card) => claims[card.id]).length;
   }
 
   function isAgendaMet(st, player, agendaId) {
@@ -2502,7 +2516,8 @@ const Game = (() => {
       case "hoarder": return totalResources(player) >= 5;
       case "explorer": return countEdgeWaterControl(st, player.id) >= 15;
       case "aesthetic": return countWondersByType(st, player.id, "culture") >= 2;
-      case "industrious": return countDistrictTypes(st, player.id) >= 5;
+      // Terra p16: five districts on the map, not one of each kind.
+      case "industrious": return countDistricts(st, player.id) >= 5;
       case "provincial": return countMatureCityTiles(st, player.id) >= 4;
       case "diversified": return countWonderTypeVariety(st, player.id) >= 3;
       case "populous": return countDeveloped(st, player.id) >= 5;
@@ -2510,8 +2525,15 @@ const Game = (() => {
       case "expansionist": return countCityTiles(st, player.id) >= 6;
       case "prolific": return maxWondersInEra(st, player.id) >= 2;
       case "progressive": return countWonderEras(st, player.id) >= 3;
+      case "technophile": return FOCUS_TYPES.filter((f) => getCardTier(player, f) >= 4).length >= 3;
+      case "scholarly": return countWondersByType(st, player.id, "science") >= 2;
       default: return false;
     }
+  }
+
+  function countDistricts(st, playerId) {
+    return Object.values(st.map.hexes)
+      .filter((h) => h.control && h.control.ownerId === playerId && h.control.district).length;
   }
 
   function computeScore(st, playerId) {
@@ -3374,7 +3396,7 @@ const Game = (() => {
   return {
     TERRAIN, TERRAIN_LABELS, FOCUS_TYPES, FOCUS_LABELS, FOCUS_SLOTS, FOCUS_TRADE_DESC, CARD_NAMES, CARD_ICONS,
     DISTRICTS, DISTRICT_LABELS, DISTRICT_EFFECTS, RESOURCES, EVENTS, EVENT_NAMES, EVENT_LABELS, CFG,
-    WONDERS, ALL_WONDERS, WONDER_ERAS, CARD_TIERS, AGENDA_CARDS, DIPLOMACY_CARDS, CITY_STATE_DATA,
+    WONDERS, ALL_WONDERS, WONDER_ERAS, CARD_TIERS, AGENDA_CARDS, victoryCards, DIPLOMACY_CARDS, CITY_STATE_DATA,
     LEADERS, getLeader, getLeaderAttackBonus, getCardName, getActiveUniqueCard,
     CARD_DEFS, getCardEffectText, syncUnitCounts, advanceTech, resolveEvent, GOVERNMENTS, CIV_STYLE,
     hasWonder, getWonderAttackBonus, getWonderDefenseBonus,

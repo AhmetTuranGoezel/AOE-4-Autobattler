@@ -224,7 +224,19 @@ face, clockwise from the starting space:
   fortress or a city-state space.
 - A capital tile must touch at least 4 spaces of core tiles and/or fortresses.
 
-### Victory (base p12, Terra p14)
+### Victory (base p12, Terra p8)
+
+- **Every victory card is divided into two agendas, and completing either one
+  claims the card.** Five cards are dealt — both fort cards plus three at random
+  — and you win by claiming **four** of the five.
+- A claim sticks "even if the player ceases to satisfy the agenda later"; the
+  fort cards are the exception and must be held.
+- Checked at the end of each round, **before** the dial turns. Ties go to the
+  player who claimed more cards, then most wonders, then most friendly spaces.
+- The *pairing* of agendas onto cards is mine: the printed cards pair specific
+  agendas and neither rulebook nor the mod records which.
+
+### Victory, old notes (base p12, Terra p14)
 
 - Five victory cards on the table; claim an agenda on **four** of them.
 - Checked at the end of each round, **before** the event wheel resolves.
