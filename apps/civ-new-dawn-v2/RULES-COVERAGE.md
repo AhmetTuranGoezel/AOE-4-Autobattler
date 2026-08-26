@@ -176,8 +176,10 @@ face, clockwise from the starting space:
 
 ### Exploration (Terra p12)
 
-- Only a figure on the map edge, standing on a tile that has a capital city, may
+- Only a figure on the map edge **and on a tile that has a capital city** may
   explore; it spends one space of movement to do so.
+- The tile comes off the **bottom** of the stack. One that will not fit anywhere
+  goes back on **top** and the expedition ends — the movement is spent either way.
 - **Once per move.** The engine marks the figure, so cancelling out of the action
   cannot buy a second tile.
 - After exploring it may keep moving with whatever movement is left, including
@@ -272,10 +274,6 @@ face, clockwise from the starting space:
 
 ### Known gaps, read in the English books and not yet closed
 
-- **Exploration** (Terra p12) is stricter than the app: the figure must be on the
-  map edge **and** on a tile that has a capital city, the new tile comes from the
-  **bottom** of the stack, and it must touch four spaces including the explorer's
-  own space.
 - **Agenda wording.** Terra p16 prints exact targets for all twelve agendas. A few
   of the descriptions here are paraphrases carried over from the German, and
   "Explorer", "Civilized" and "Warmonger" are base-game cards Terra replaces.

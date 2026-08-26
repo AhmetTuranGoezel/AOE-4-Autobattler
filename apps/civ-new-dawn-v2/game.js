@@ -932,7 +932,8 @@ const Game = (() => {
         if (explorer.exploredThisCard) return st;  // already explored this move
       }
 
-      const tileId = st.tileStack[0];
+      // Terra p12 step 1: the bottom tile, not the top.
+      const tileId = st.tileStack[st.tileStack.length - 1];
       const result = validateExploration(st, tileId, payload.anchorKey, payload.rotation);
       if (!result.ok) return st;
       if (payload.fromKey) {
@@ -943,13 +944,28 @@ const Game = (() => {
         if (!touchesUnit) return st;
       }
 
-      st.tileStack.shift();
+      st.tileStack.pop();
       st.tileDeck = st.tileStack.slice();
       placeExploredTile(st, tileId, payload.anchorKey, payload.rotation, payload.side || "A");
 
       if (explorer) explorer.exploredThisCard = true;
       const tile = st.tiles[tileId];
       log(st, `${player.name} explored and placed a ${tile ? tile.type : "unknown"} tile.`);
+      return st;
+    }
+
+    // Terra p12 step 2: a tile that cannot be placed anywhere goes back on top
+    // of the stack and the expedition is over — the movement is still spent.
+    if (type === "ABANDON_EXPLORATION") {
+      const player = getPlayer(st, payload.playerId);
+      if (!player || !st.tileStack || !st.tileStack.length) return st;
+      const tileId = st.tileStack.pop();
+      st.tileStack.unshift(tileId);
+      st.tileDeck = st.tileStack.slice();
+      const unit = player.armies.concat(player.caravans)
+        .find((u) => u.position === payload.fromKey);
+      if (unit) unit.exploredThisCard = true;
+      log(st, `${player.name} found nowhere to put the new land; it goes back on the stack.`);
       return st;
     }
 
@@ -3323,14 +3339,25 @@ const Game = (() => {
 
   // --- Exploration (Terra Incognita) ---
 
+  // Terra p12: you may only strike out from the edge of the known world, and
+  // only from a tile that has a capital city on it. Standing on any old rim
+  // space is not enough — the expedition sets out from somewhere settled.
   function isExploreEligible(st, hexKey) {
     if (!st.tileStack || st.tileStack.length === 0) return false;
     const h = st.map.hexes[hexKey];
     if (!h || !h.active) return false;
-    return hexNeighborKeys(h.q, h.r).some((nk) => {
+    const onEdge = hexNeighborKeys(h.q, h.r).some((nk) => {
       const nh = st.map.hexes[nk];
       return nh && !nh.active;
     });
+    if (!onEdge) return false;
+    return tileHasCapital(st, h.tileId);
+  }
+
+  function tileHasCapital(st, tileId) {
+    if (!tileId) return false;
+    return Object.values(st.map.hexes)
+      .some((h) => h.tileId === tileId && h.city && h.city.isCapital);
   }
 
   function validateExploration(st, tileId, anchorKey, rotation) {
@@ -3412,6 +3439,7 @@ const Game = (() => {
     countControl, countWonders, countDeveloped, countCities, findCapital,
     getClaimedAgendaCount,
     getValidFortressHexes, getValidTileAnchors, getTileAnchorsAnyRotation, tilePlacementFor, getTileDef,
+    tileHasCapital,
     getTileHexKeys, validateTilePlacement,
     hexNeighborKeys, parseQ, parseR, key, hexDist, rollDie, rotateAxial,
     isExploreEligible, validateExploration, placeExploredTile, getReachableWithDist

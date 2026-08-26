@@ -518,7 +518,7 @@ const UI = (() => {
     if (state.phase === "playing" &&
         (sub.phase === "move_army_exploring" || sub.phase === "move_caravan_exploring") &&
         mouseHex && state.tileStack && state.tileStack.length > 0) {
-      const tileId = state.tileStack[0];
+      const tileId = exploringTileId();
       const anchorKey = Game.key(mouseHex.q, mouseHex.r);
       const fit = Game.tilePlacementFor(state, tileId, anchorKey, sub.tileRotation, Game.validateExploration);
       const keys = Game.getTileHexKeys(anchorKey, fit ? fit.rotation : sub.tileRotation, hexes);
@@ -708,7 +708,7 @@ const UI = (() => {
       tileId = playerTiles[0];
       tile = tileId ? state.setup.tiles[tileId] : null;
     } else if (sub.phase === "move_army_exploring" || sub.phase === "move_caravan_exploring") {
-      tileId = state.tileStack ? state.tileStack[0] : null;
+      tileId = exploringTileId();
       tile = tileId ? state.tiles[tileId] : null;
     }
 
@@ -999,6 +999,12 @@ const UI = (() => {
   }
 
   // True while a tile is in hand and waiting for a home.
+  // Terra p12: an expedition draws the BOTTOM tile of the stack.
+  function exploringTileId() {
+    const stack = state && state.tileStack;
+    return stack && stack.length ? stack[stack.length - 1] : null;
+  }
+
   function placingTile() {
     if (sub.phase === "move_army_exploring" || sub.phase === "move_caravan_exploring") return true;
     if (!state || state.phase !== "setup") return false;
@@ -1671,7 +1677,7 @@ const UI = (() => {
       const playerTiles = state.setup.playerTiles[localPlayerId] || [];
       tile = playerTiles[0] ? state.setup.tiles[playerTiles[0]] : null;
     } else if (state && (sub.phase === "move_army_exploring" || sub.phase === "move_caravan_exploring")) {
-      const tid = state.tileStack ? state.tileStack[0] : null;
+      const tid = exploringTileId();
       tile = tid ? state.tiles[tid] : null;
     }
     // Show the tile's real face, so turning it over actually looks like turning
@@ -2205,7 +2211,7 @@ const UI = (() => {
   }
 
   function renderExploring() {
-    const expTileId = state.tileStack ? state.tileStack[0] : null;
+    const expTileId = exploringTileId();
     const expTile = expTileId ? state.tiles[expTileId] : null;
     const expType = expTile ? expTile.type.charAt(0).toUpperCase() + expTile.type.slice(1) : "?";
     dom.wizard.innerHTML = `
@@ -2226,7 +2232,10 @@ const UI = (() => {
         <strong style="color:#66bb6a">Green</strong> = valid, <strong style="color:#ef5350">Red</strong> = invalid.
         <br>Tiles remaining in stack: <strong>${state.tileStack ? state.tileStack.length : 0}</strong>
       </div>
-      <div class="wiz-actions"><button class="ghost" id="wiz-cancel-explore">Cancel</button></div>`;
+      <div class="wiz-actions">
+        <button class="ghost" id="wiz-cancel-explore">Back</button>
+        <button class="ghost" id="wiz-abandon-explore">Nowhere it fits</button>
+      </div>`;
 
     document.getElementById("rot-dec").addEventListener("click", () => turnTile(-1));
     document.getElementById("rot-inc").addEventListener("click", () => turnTile(1));
@@ -2235,6 +2244,15 @@ const UI = (() => {
       const ms = sub.movementState;
       sub.phase = ms.unitType === "army" ? "move_army_post" : "move_caravan_post";
       render();
+    });
+    // Terra p12: a tile with nowhere to go returns to the top of the stack and
+    // the expedition ends. The movement is spent either way.
+    document.getElementById("wiz-abandon-explore").addEventListener("click", () => {
+      const ms = sub.movementState;
+      dispatch({ type: "ABANDON_EXPLORATION", payload: { playerId: localPlayerId, fromKey: ms.currentKey } });
+      ms.remaining -= 1;
+      ms.explored = true;
+      if (ms.remaining > 0) continueMovement(); else endMovement();
     });
   }
 
@@ -2982,7 +3000,7 @@ const UI = (() => {
     if (sub.phase === "move_army_exploring" || sub.phase === "move_caravan_exploring") {
       const ms = sub.movementState;
       if (!state.tileStack || state.tileStack.length === 0) return;
-      const tileId = state.tileStack[0];
+      const tileId = exploringTileId();
       // The new tile has to touch the space you are exploring from, so look for
       // an angle that manages both rather than refusing the click.
       let fit = null;
@@ -2993,7 +3011,7 @@ const UI = (() => {
         if (!cells.some((ck) => Game.hexNeighborKeys(Game.parseQ(ck), Game.parseR(ck)).includes(ms.currentKey))) continue;
         fit = rot; break;
       }
-      if (fit === null) { showToast("The tile will not fit there"); return; }
+      if (fit === null) { showToast("The new land will not fit there"); return; }
       sub.tileRotation = fit;
       dispatch({ type: "EXPLORE_TILE", payload: { playerId: localPlayerId, anchorKey: hexKey, rotation: fit, side: sub.tileSide, fromKey: ms.currentKey } });
       ms.remaining -= 1;
