@@ -28,7 +28,7 @@ get "https://steamusercontent-a.akamaihd.net/ugc/1994562021176700674/5B9F7044B4E
 get "https://steamusercontent-a.akamaihd.net/ugc/1994562021176700748/FF008E1CD37F686B1045DFDBB3C984497BD0B783/" "assets/mod/tile-2-crater-lake-mt-everest-tile-image.jpg"
 get "https://steamusercontent-a.akamaihd.net/ugc/996891527336477684/7C47B46E24642B543DF26A6405B63F6E7BD0120A/" "assets/mod/tile-2-crater-lake-mt-everest-figure-mesh.obj"
 
-# tile 3  
+# tile 3
 get "https://steamusercontent-a.akamaihd.net/ugc/1994562021176700544/C3A56F4475A128A7DA3FE8A3C571EB894C4676EC/" "assets/mod/tile-3-tile-image.jpg"
 get "https://steamusercontent-a.akamaihd.net/ugc/996891527336478856/88DE9B221E1F4EC0994E8D6F8265809826CBB9D0/" "assets/mod/tile-3-figure-mesh.obj"
 
@@ -38,7 +38,7 @@ get "https://steamusercontent-a.akamaihd.net/ugc/1994562021176700378/5F8BC47C1A1
 get "https://steamusercontent-a.akamaihd.net/ugc/1994562021176700455/1CFBC66B8AD599004F44672000462F9036ABA3D8/" "assets/mod/tile-4-galapagos-grand-mesa-tile-image.jpg"
 get "https://steamusercontent-a.akamaihd.net/ugc/15657885885826018791/08C53D00CDE8973FB43B7D2790D65AB8B7507C94/" "assets/mod/tile-4-galapagos-grand-mesa-figure-diffuse.jpg"
 
-# tile 5  
+# tile 5
 get "https://steamusercontent-a.akamaihd.net/ugc/1994562021176700155/EE4D7B700B1A4F7C5E73B932E74549F9F1BADE56/" "assets/mod/tile-5-tile-image.jpg"
 
 # tile 6  (Carthage / Kumasi)
@@ -47,10 +47,10 @@ get "https://steamusercontent-a.akamaihd.net/ugc/1994562021176700049/B8F723EEAD8
 get "https://steamusercontent-a.akamaihd.net/ugc/1754686867454580215/8EEB29C058CC39E72865E0181AEDD17B5B7E1D75/" "assets/mod/tile-6-carthage-kumasi-diplomacy-face.jpg"
 get "https://steamusercontent-a.akamaihd.net/ugc/1754686867454601188/5BEDE424A63CF4462AA59330E569531FBA652B35/" "assets/mod/tile-6-carthage-kumasi-diplomacy-back.jpg"
 
-# tile 8  
+# tile 8
 get "https://steamusercontent-a.akamaihd.net/ugc/11060501151519034657/7EB74A1CA8AF4698CA2E9DD2EFA51588A7AE2BAD/" "assets/mod/tile-8-figure-diffuse.jpg"
 
-# tile 10  
+# tile 10
 get "https://steamusercontent-a.akamaihd.net/ugc/1994562021176699974/61EC85C612DCE04FBBBF7FB7BA1E6115FF6462CB/" "assets/mod/tile-10-tile-image.jpg"
 get "https://steamusercontent-a.akamaihd.net/ugc/9514036196477178103/833186648F0B66E9925A03DCE64D5F6C2367687C/" "assets/mod/tile-10-figure-diffuse.jpg"
 
@@ -88,16 +88,16 @@ get "https://steamusercontent-a.akamaihd.net/ugc/1658972912263453565/43C8016282A
 # tile 21  (Antananarivo / Palenque)
 get "https://steamusercontent-a.akamaihd.net/ugc/1658972912267112470/CA1ECA2609FE1641DF214982A4A92560835050E3/" "assets/mod/tile-21-antananarivo-palenque-figure-diffuse.jpg"
 
-# tile 7  
+# tile 7
 
-# tile 9  
+# tile 9
 
-# tile 11  
+# tile 11
 get "https://steamusercontent-a.akamaihd.net/ugc/1994562021176699175/B46AD703BA277D5CF15078AB5846C98EDB8335DF/" "assets/mod/capital-11-tile-image.jpg"
 
-# tile 16  
+# tile 16
 
-# tile 17  
+# tile 17
 
 # everything else in the save
 get "https://steamusercontent-a.akamaihd.net/ugc/1695028978276055426/46C936A6DFD1AC4416C9DCC0F8B61D40B7729BE1/" "assets/mod/custom-board-face.jpg"
