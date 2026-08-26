@@ -3343,7 +3343,7 @@ const Game = (() => {
     adjacentToCityState, adjacentToFriendlyControl, terrainDifficulty,
     countControl, countWonders, countDeveloped, countCities, findCapital,
     getClaimedAgendaCount,
-    getValidFortressHexes, getValidTileAnchors, getTileAnchorsAnyRotation, tilePlacementFor,
+    getValidFortressHexes, getValidTileAnchors, getTileAnchorsAnyRotation, tilePlacementFor, getTileDef,
     getTileHexKeys, validateTilePlacement,
     hexNeighborKeys, parseQ, parseR, key, hexDist, rollDie, rotateAxial,
     isExploreEligible, validateExploration, placeExploredTile, getReachableWithDist

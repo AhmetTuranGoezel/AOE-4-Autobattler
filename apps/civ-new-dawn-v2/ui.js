@@ -16,19 +16,27 @@ const UI = (() => {
   let dragDistance = 0;
   let mouseHex = null;
 
-  // High-contrast board palette: fill, a lighter top sheen and a darker edge
-  // so every terrain reads at a glance even when zoomed out.
+  // Board palette. The old one had two pairs that fought each other: grass and
+  // forest were both mid green, hills and desert both tan. Now no two terrains
+  // share a hue family, and the pair that stays closest — hills and desert —
+  // is split by lightness instead: dry gold against bleached sand.
+  //
+  //   grass    lush yellow-green      1
+  //   hill     saturated dry gold     2
+  //   forest   deep teal-green        3
+  //   desert   pale bleached sand     4
+  //   mountain cold slate             5
   const TERRAIN_COLORS = {
-    grass: '#5d9c4a', hill: '#a98a5b', forest: '#33703a',
-    desert: '#d9b36c', mountain: '#8c8f98', water: '#3b7cc4'
+    grass: '#6faa3f', hill: '#c8993a', forest: '#1d6650',
+    desert: '#ecd9a8', mountain: '#8b93ab', water: '#2f6fb5'
   };
   const TERRAIN_SHEEN = {
-    grass: 'rgba(255,255,255,0.10)', hill: 'rgba(255,255,255,0.12)', forest: 'rgba(255,255,255,0.06)',
-    desert: 'rgba(255,255,255,0.16)', mountain: 'rgba(255,255,255,0.14)', water: 'rgba(255,255,255,0.10)'
+    grass: 'rgba(255,255,255,0.10)', hill: 'rgba(255,255,255,0.10)', forest: 'rgba(255,255,255,0.07)',
+    desert: 'rgba(255,255,255,0.05)', mountain: 'rgba(255,255,255,0.13)', water: 'rgba(255,255,255,0.10)'
   };
   const TERRAIN_EDGE = {
-    grass: '#3c6c2f', hill: '#7c6238', forest: '#1f4a26',
-    desert: '#a8834a', mountain: '#5d616b', water: '#26588f'
+    grass: '#4a7d29', hill: '#8f6a1e', forest: '#0f4436',
+    desert: '#c2a86f', mountain: '#5f6880', water: '#215285'
   };
 
   // Small hand-drawn glyphs so terrain is identifiable without color alone.
@@ -986,8 +994,19 @@ const UI = (() => {
     return state.setup.order[state.setup.turnIndex] === localPlayerId;
   }
 
+  // The little tile in the panel is the thing in your hand, so it should move
+  // when you spin it round or turn it over.
+  let pendingPreviewAnim = null;
+
   function turnTile(step) {
     sub.tileRotation = (sub.tileRotation + step + 6) % 6;
+    if (!reducedMotion()) pendingPreviewAnim = step > 0 ? "turn-cw" : "turn-ccw";
+    render();
+  }
+
+  function flipTile() {
+    sub.tileSide = sub.tileSide === "A" ? "B" : "A";
+    if (!reducedMotion()) pendingPreviewAnim = "flip";
     render();
   }
 
@@ -1001,11 +1020,7 @@ const UI = (() => {
     const k = e.key.toLowerCase();
     if (k === "q") { e.preventDefault(); turnTile(-1); }
     else if (k === "e" || k === "r") { e.preventDefault(); turnTile(1); }
-    else if (k === "f") {
-      e.preventDefault();
-      sub.tileSide = sub.tileSide === "A" ? "B" : "A";
-      render();
-    }
+    else if (k === "f") { e.preventDefault(); flipTile(); }
   }
 
   // ── Tooltip ───────────────────────────────────────────────
@@ -1623,9 +1638,9 @@ const UI = (() => {
           Tiles remaining: <strong>${playerTiles.length}</strong>
         </div>`;
 
-      document.getElementById("rot-dec").addEventListener("click", () => { sub.tileRotation = (sub.tileRotation + 5) % 6; render(); });
-      document.getElementById("rot-inc").addEventListener("click", () => { sub.tileRotation = (sub.tileRotation + 1) % 6; render(); });
-      document.getElementById("side-toggle").addEventListener("click", () => { sub.tileSide = sub.tileSide === "A" ? "B" : "A"; render(); });
+      document.getElementById("rot-dec").addEventListener("click", () => turnTile(-1));
+      document.getElementById("rot-inc").addEventListener("click", () => turnTile(1));
+      document.getElementById("side-toggle").addEventListener("click", flipTile);
     }
   }
 
@@ -1635,7 +1650,9 @@ const UI = (() => {
     const minR = Math.min(...offsets.map((o) => o.r));
     const cells = offsets.map((o, i) => ({ q: o.q - minQ, r: o.r - minR, idx: i }));
     const s = 10;
-    let svg = `<svg width="130" height="75" viewBox="-5 -5 130 75">`;
+    const anim = pendingPreviewAnim ? ` tp-${pendingPreviewAnim}` : "";
+    pendingPreviewAnim = null;
+    let svg = `<svg class="tp-svg${anim}" width="130" height="75" viewBox="-5 -5 130 75">`;
 
     let tile = null;
     if (state && state.phase === "setup") {
@@ -1645,8 +1662,12 @@ const UI = (() => {
       const tid = state.tileStack ? state.tileStack[0] : null;
       tile = tid ? state.tiles[tid] : null;
     }
-    const capColors = ["#8b7355", "#4a7c3f", "#2d5a27", "#8b7355", "#2d5a27", "#4a7c3f", "#4a7c3f", "#c4a35a", "#8b7355", "#4a7c3f"];
-    const genColors = ["#4a7c3f", "#2d5a27", "#8b7355", "#4a7c3f", "#c4a35a", "#4a7c3f", "#8b7355", "#2d5a27", "#4a7c3f", "#8b7355"];
+    // Show the tile's real face, so turning it over actually looks like turning
+    // it over — the preview used to invent its own colours and both sides of
+    // every tile came out identical.
+    const def = tile && Game.getTileDef ? Game.getTileDef(tile.id) : null;
+    const face = def && def.sides ? (def.sides[sub.tileSide] || def.sides.A) : null;
+    const faceCells = face ? face.cells : null;
     const tileType = tile ? tile.type : "normal";
 
     cells.forEach((c) => {
@@ -1657,24 +1678,17 @@ const UI = (() => {
         const a = Math.PI / 180 * (60 * i - 30);
         pts.push(`${cx + s * Math.cos(a)},${cy + s * Math.sin(a)}`);
       }
-      const isAnchor = (c.q === (0 - minQ) && c.r === (0 - minR));
-      const isCapHex = c.idx === 6;
-      let fill, label = "";
-      if (tileType === "capital") {
-        fill = isCapHex ? "#ffd54f" : capColors[c.idx];
-        if (isCapHex) label = "C";
-      } else if (tileType === "natural") {
-        fill = isAnchor ? "#9c27b0" : genColors[c.idx];
-        if (isAnchor) label = "W";
-      } else if (tileType === "citystate") {
-        fill = isAnchor ? "#ff9800" : genColors[c.idx];
-        if (isAnchor) label = "CS";
-      } else {
-        fill = genColors[c.idx];
-      }
+      const cell = faceCells ? faceCells[c.idx] : null;
+      let fill = TERRAIN_COLORS[cell ? cell.terrain : "grass"] || "#4a7c3f";
+      let label = "";
+      if (cell && cell.feature === "capital") { fill = "#ffd54f"; label = "C"; }
+      else if (cell && cell.naturalWonder) { fill = "#9c27b0"; label = "W"; }
+      else if (cell && cell.cityState) { fill = "#ff9800"; label = "CS"; }
+      else if (cell && cell.barbarian) { label = cell.barbarian; }
+      else if (cell && cell.resource) { label = "\u25c6"; }
       svg += `<polygon points="${pts.join(" ")}" fill="${fill}" stroke="#fff3" stroke-width="0.5"/>`;
       if (label) {
-        svg += `<text x="${cx}" y="${cy + 1}" fill="${tileType === "capital" ? "#000" : "#fff"}" font-size="6" font-weight="bold" text-anchor="middle" dominant-baseline="middle">${label}</text>`;
+        svg += `<text x="${cx}" y="${cy + 1}" fill="${label === "C" ? "#000" : "#fff"}" font-size="6" font-weight="bold" text-anchor="middle" dominant-baseline="middle">${label}</text>`;
       }
     });
     svg += `</svg>`;
@@ -1785,14 +1799,10 @@ const UI = (() => {
     chip.innerHTML = html;
     chip.classList.remove("hidden");
 
-    // Sit it just under the unit.
-    const p = axialToPixel(Game.parseQ(ms.currentKey), Game.parseR(ms.currentKey));
-    const box = chip.getBoundingClientRect();
-    const cont = dom.mapContainer.getBoundingClientRect();
-    const x = Math.max(8, Math.min(cont.width - box.width - 8, p.x - box.width / 2));
-    const y = Math.max(8, Math.min(cont.height - box.height - 8, p.y + HEX_SIZE + 8));
-    chip.style.left = `${x}px`;
-    chip.style.top = `${y}px`;
+    // It used to float right under the piece, which put it squarely on top of
+    // the hex below — so you could not move that way at all, the chip ate the
+    // click. It now sits along the bottom of the board, out of the way of every
+    // hex, and only its buttons take clicks at all.
 
     document.getElementById("bc-attack")?.addEventListener("click", endMovement);
     document.getElementById("bc-retreat")?.addEventListener("click", () => {
@@ -2117,9 +2127,9 @@ const UI = (() => {
       </div>
       <div class="wiz-actions"><button class="ghost" id="wiz-cancel-explore">Cancel</button></div>`;
 
-    document.getElementById("rot-dec").addEventListener("click", () => { sub.tileRotation = (sub.tileRotation + 5) % 6; render(); });
-    document.getElementById("rot-inc").addEventListener("click", () => { sub.tileRotation = (sub.tileRotation + 1) % 6; render(); });
-    document.getElementById("side-toggle").addEventListener("click", () => { sub.tileSide = sub.tileSide === "A" ? "B" : "A"; render(); });
+    document.getElementById("rot-dec").addEventListener("click", () => turnTile(-1));
+    document.getElementById("rot-inc").addEventListener("click", () => turnTile(1));
+    document.getElementById("side-toggle").addEventListener("click", flipTile);
     document.getElementById("wiz-cancel-explore").addEventListener("click", () => {
       const ms = sub.movementState;
       sub.phase = ms.unitType === "army" ? "move_army_post" : "move_caravan_post";
