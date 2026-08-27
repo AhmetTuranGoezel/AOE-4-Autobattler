@@ -102,7 +102,11 @@ const UI = (() => {
   // Animation system
   const anims = {
     hexFlashes: [],  // { key, color, startTime, duration }
-    validPulse: 0
+    validPulse: 0,
+    // Set by renderCanvas: true while the frame it just drew contains something
+    // that changes over time. The loop keeps painting for exactly as long as
+    // that is true and then stops, so an idle board costs nothing.
+    living: false
   };
 
   function flashHex(hexKey, color, duration) {
@@ -136,7 +140,11 @@ const UI = (() => {
       const now = performance.now();
       const hadFlashes = anims.hexFlashes.length > 0;
       anims.hexFlashes = anims.hexFlashes.filter((f) => now - f.startTime < f.duration);
-      if (hadFlashes || anims.hexFlashes.length > 0 || sub.validHexes.size > 0) {
+      // This used to ask only about sub.validHexes, which is one of the three
+      // things that pulse. Setup's placement spaces and a pending choice's
+      // highlighted spaces both animate too, and both left the loop idle — so
+      // they only moved when a mousemove happened to force a repaint.
+      if (hadFlashes || anims.hexFlashes.length > 0 || anims.living) {
         renderCanvas();
       }
     })();
@@ -531,6 +539,9 @@ const UI = (() => {
     const hexChoice = activeHexChoice();
     const combinedValid = new Set([...sub.validHexes, ...setupValid,
       ...(hexChoice ? hexChoice.hexKeys : [])]);
+    // Everything on the board that moves by itself, in one place, so the loop
+    // and the drawing can never disagree about whether a frame is worth having.
+    anims.living = combinedValid.size > 0;
 
     // Layer 1: Inactive hexes
     Object.values(hexes).forEach((h) => {
@@ -3233,6 +3244,14 @@ const UI = (() => {
 
   // The dial is a ring with a pointer, not a row of pills. The pointer sweeps to
   // the new segment when the round turns and the segment that fired pulses.
+  // Kept across renders so the hand can sweep forwards past the wrap point.
+  let wheelAngle = null;
+
+  // The card whose "played" animation is owed, and until when. Playing a card
+  // can rebuild the row twice in a row (the action, then the reset), so a
+  // one-shot flag was consumed by the first build and gone by the second.
+  let pendingCardAnim = null;
+
   function renderEventWheel() {
     if (!state) return;
     const wheel = state.eventWheel;
@@ -3257,14 +3276,47 @@ const UI = (() => {
 
     const now = wheel.events[pos] || [];
     const next = wheel.events[(pos + 1) % n] || [];
-    dom.eventWheel.innerHTML = `<h3>Event Dial</h3>
-      <div class="ew-dial${turned ? " turning" : ""}">
-        <div class="ew-ring">${segs}</div>
-        <div class="ew-hand" style="--a:${(pos / n) * 360}deg"></div>
-        <div class="ew-hub">${glyphs(now) || "\u2014"}</div>
-      </div>
-      <div class="ew-now">${escapeHtml(name(now) || "Nothing this round")}</div>
-      <div class="ew-next">Next: ${escapeHtml(name(next) || "nothing")}</div>`;
+
+    // The hand sweeps with a CSS transition, which needs the SAME element to
+    // change angle. Rebuilding innerHTML every render gave it a brand new hand
+    // already sitting at its destination, so the dial jumped instead of turning
+    // — and any segment mid-animation was thrown away by an unrelated repaint.
+    // Build the dial once and move its parts thereafter.
+    const shape = JSON.stringify(wheel.events);
+    if (dom.eventWheel.dataset.shape !== shape) {
+      dom.eventWheel.innerHTML = `<h3>Event Dial</h3>
+        <div class="ew-dial">
+          <div class="ew-ring">${segs}</div>
+          <div class="ew-hand"></div>
+          <div class="ew-hub"></div>
+        </div>
+        <div class="ew-now"></div>
+        <div class="ew-next"></div>`;
+      dom.eventWheel.dataset.shape = shape;
+      wheelAngle = null;
+    }
+
+    const dial = dom.eventWheel.querySelector(".ew-dial");
+    const hand = dom.eventWheel.querySelector(".ew-hand");
+    const segEls = dom.eventWheel.querySelectorAll(".ew-seg");
+
+    // Always turn forwards. Going from the last section back to the first is
+    // one step clockwise on the table, not a whip all the way round the other way.
+    if (wheelAngle === null) {
+      wheelAngle = (pos / n) * 360;
+    } else if (turned) {
+      wheelAngle += (((pos - prevWheelPos) % n) + n) % n * (360 / n);
+    }
+    hand.style.setProperty("--a", `${wheelAngle}deg`);
+
+    segEls.forEach((el, i) => {
+      el.classList.toggle("active", i === pos);
+      el.classList.toggle("next", i === (pos + 1) % n);
+    });
+    dial.classList.toggle("turning", turned);
+    dom.eventWheel.querySelector(".ew-hub").innerHTML = glyphs(now) || "\u2014";
+    dom.eventWheel.querySelector(".ew-now").textContent = name(now) || "Nothing this round";
+    dom.eventWheel.querySelector(".ew-next").textContent = `Next: ${name(next) || "nothing"}`;
 
     if (turned) {
       const seg = dom.eventWheel.querySelector(".ew-seg.active");
@@ -3326,6 +3378,8 @@ const UI = (() => {
       oldRects[el.dataset.card] = el.getBoundingClientRect();
     });
 
+    const owed = pendingCardAnim && performance.now() < pendingCardAnim.until
+      ? pendingCardAnim.type : null;
     dom.focusRow.innerHTML = me.focusRow.map((cardType, idx) => {
       const effective = Game.getSlotValue(me, cardType, state);
       const govt = me.government === cardType ? (Game.GOVERNMENTS || {})[cardType] : null;
@@ -3343,11 +3397,12 @@ const UI = (() => {
       }
       const disabled = !canPlay ? " disabled" : "";
       const selected = sub.cardType === cardType && sub.phase !== "idle" ? " selected" : "";
+      const played = owed === cardType ? " card-anim" : "";
 
       // Laid out like the printed card: type band across the top, the name and
       // its tier, what it actually does, and the trade track along the bottom.
       const printed = Game.getCardEffectText ? Game.getCardEffectText(me, cardType) : "";
-      return `<div class="fcard type-${cardType}${disabled}${selected}${uniqueCard ? " unique" : ""}" data-card="${cardType}" data-idx="${idx}">
+      return `<div class="fcard type-${cardType}${disabled}${selected}${played}${uniqueCard ? " unique" : ""}" data-card="${cardType}" data-idx="${idx}">
         <div class="fc-header">
           <span class="fc-icon">${icon}</span>
           <span class="fc-type">${Game.FOCUS_LABELS[cardType]}</span>
@@ -3419,8 +3474,13 @@ const UI = (() => {
     if (canPlay) {
       document.querySelectorAll(".fcard:not(.disabled)").forEach((el) => {
         el.addEventListener("click", () => {
-          el.classList.add("card-anim");
-          setTimeout(() => el.classList.remove("card-anim"), 400);
+          // Playing a card re-renders the row, which threw away the element the
+          // class had just been put on — so the card never visibly played. Hand
+          // the animation to the next render instead, the way the tile preview
+          // does, and let the freshly built card carry it.
+          pendingCardAnim = { type: el.dataset.card, until: performance.now() + 420 };
+          // One last repaint once the animation is spent, to take the class off.
+          setTimeout(() => { pendingCardAnim = null; renderFocusRow(); }, 440);
           sub.phase = "card_selected";
           sub.cardType = el.dataset.card;
           sub.tradeSpent = 0;
