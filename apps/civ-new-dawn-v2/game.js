@@ -1644,6 +1644,10 @@ const Game = (() => {
 
   function resolveCard(st, player, cardType, tradeSpent) {
     const idx = player.focusRow.indexOf(cardType);
+    // Terra p13: "For any ability that depends on a focus card being resolved
+    // in a specific slot, the card is treated as though it is in the
+    // farther-right slot." So a card shifted into the 5 slot counts as a 5.
+    const resolvedSlot = getSlotValue(player, cardType, st);
     const wasReplay = player.arsenalReplay === cardType;
     if (idx >= 0) {
       player.focusRow.splice(idx, 1);
@@ -1656,7 +1660,7 @@ const Game = (() => {
     // Venetian Arsenal: a card resolved from the fifth slot may be resolved
     // again. It has just been reset to the front of the row, so the second go
     // is a slot-1 card without any further arithmetic.
-    if (!wasReplay && idx === 4 && !player.arsenalUsed &&
+    if (!wasReplay && resolvedSlot === 5 && !player.arsenalUsed &&
         hasWonder(st, player.id, "Venetian Arsenal")) {
       queuePendingChoice(st, {
         kind: "arsenal_replay", playerId: player.id, cardType,
@@ -1763,6 +1767,9 @@ const Game = (() => {
         playerId: player.id,
         techLevel: level,
         title: `Technology Level ${level}: Take a Card`,
+        // Base p8: "the player MAY gain a new focus card." Sometimes you would
+        // rather keep the card you are running than trade up.
+        optional: true,
         options: opts
       });
       log(st, `${player.name} reached technology level ${level}!`);
@@ -3051,10 +3058,13 @@ const Game = (() => {
     return (GOVERNMENTS[cardType] || {}).shift || 0;
   }
 
+  // The slot a card resolves at: its place in the row, shifted right by every
+  // effect that says so, capped at the "5" slot (Terra p13). Reaching a tech
+  // level on the dial does NOT add to this — the dial hands you better cards
+  // (base p8), it does not make the row itself stronger.
   function getSlotValue(player, cardType, st) {
     const idx = player.focusRow.indexOf(cardType);
     if (idx < 0) return 1;
-    const tierBonus = player.techTier >= 4 ? 2 : (player.techTier >= 2 ? 1 : 0);
     // Georgia: a diplomacy card from a city-state of this card's type resolves
     // the card as though it sat 1 place farther to the right.
     const georgiaShift = hasLeader(player, "georgia") &&
@@ -3063,7 +3073,7 @@ const Game = (() => {
     const tajShift = st && hasWonder(st, player.id, "Taj Mahal")
       ? countWondersOfType(st, player.id, cardType) : 0;
     const shift = getGovShift(player, cardType) + georgiaShift + tajShift;
-    return Math.min(5, slotAfterShift(idx, shift) + tierBonus);
+    return slotAfterShift(idx, shift);
   }
 
   function getMilitaryMove(player) {

@@ -252,6 +252,22 @@ face, clockwise from the starting space:
 - Checked at the end of each round, **before** the event wheel resolves.
 - A claimed marker stays put — except fortress agendas, which must be held.
 
+### The focus row, read off Terra p13 and base p8
+
+- **A tech level does not make your row stronger.** The app was adding +1 to
+  every card's slot value at technology level II and +2 at level IV. That is not
+  a rule in either book: base p8 says reaching a tech level lets you *gain a
+  card* of that level, and the dial does nothing else. Removed — it had been
+  inflating every card in the game by up to two slots.
+- **A tech level is an offer.** Base p8: "the player **may** gain a new focus
+  card." The prompt can be turned down now.
+- **"Resolved in the fifth slot" means the slot it actually resolved at.** Terra
+  p13: "For any ability that depends on a focus card being resolved in a specific
+  slot, the card is treated as though it is in the farther-right slot." The
+  Venetian Arsenal was testing the card's raw place in the row instead — and
+  testing the wrong place at that, since the row reads 1, 1, 2, 3, 4, 5 and the
+  "5" slot is the sixth position, not the fifth.
+
 ### Combat, read off the printed tables
 
 Terra p16's quick reference and base p11 between them settle the whole attack
@@ -351,10 +367,12 @@ Added in this pass, all of them from the English card text:
 - **The advanced pre-game tile draft** (each player dealt 2 tiles and placing in
   turn order, Terra p14) is not implemented. The app builds the four-tile core to
   the rules and then draws from a shared exploration stack during play.
-- **How far a government marker shifts a card.** All six are 2 here. The rulebook
-  works Monarchy through at 2 and Fantasy Flight's announcement describes
-  Oligarchy the same way; with one government per card type the set is
-  symmetrical, so 2 for all six is reasoned rather than read off the markers.
+- **How far a government marker shifts a card.** All six are 2 here. Terra p13
+  now backs three of them directly: the Monarchy worked example ("two slots to
+  the right ... the 5 slot instead of the 3 slot"), the Republic worked example
+  ("two slots farther to the right"), and the Autocracy token in the page's own
+  artwork, which carries two arrows. The other three are still inferred from the
+  set being symmetrical.
 - **Which resources each wonder accepts.** The rules say the bottom right of every
   wonder card shows the resources that may contribute, and production gets +2 per
   *suitable* one. That mapping is printed on the card art and appears in neither
