@@ -23,15 +23,39 @@ const Game = (() => {
   }
 
   // The civ's unique focus card if the player currently runs a card of its
-  // type at its tier (tier-I uniques replace the start card; higher tiers are
-  // taken when upgrading to that tier).
+  // type at its tier. A tech level I unique replaces the level I card of the
+  // same type in the starting row, so it is there from the off; a level II or
+  // higher unique is only in play once its owner chose to take it in place of
+  // a focus card of that level (Terra p8).
   function getActiveUniqueCard(player, cardType) {
     const leader = getLeader(player);
     if (!leader || !leader.unique) return null;
     const u = leader.unique;
     if (u.type !== cardType) return null;
     const tier = (player.cardTiers && player.cardTiers[cardType]) || 1;
-    return tier === u.tier ? u : null;
+    if (tier !== u.tier) return null;
+    return u.tier === 1 || player.uniqueTaken ? u : null;
+  }
+
+  // True while the civ's unique card is the one it is running right now, so
+  // the hard-coded unique effects switch off with it.
+  function uniqueInPlay(player, leaderId) {
+    if (!hasLeader(player, leaderId)) return false;
+    const leader = getLeader(player);
+    return !!(leader && leader.unique && getActiveUniqueCard(player, leader.unique.type));
+  }
+
+  // The extra option on an upgrade prompt that hands a player their own level
+  // II+ unique card instead of the printed one. Offered whenever the upgrade
+  // would land that card type on the unique's tech level.
+  function uniqueUpgradeOption(player, cardType, resultTier) {
+    const leader = getLeader(player);
+    if (!leader || !leader.unique) return null;
+    const u = leader.unique;
+    if (u.tier < 2 || player.uniqueTaken) return null;
+    if (u.type !== cardType || resultTier !== u.tier) return null;
+    return { id: "unique_" + cardType, unique: true, text: u.text || "",
+      label: `${FOCUS_LABELS[cardType]} \u2192 ${u.name} (your unique tier ${u.tier})` };
   }
 
   // Printed effect text for the card a player currently runs of this type.
@@ -677,6 +701,7 @@ const Game = (() => {
       trade: { culture: 0, growth: 0, science: 0, economy: 0, military: 0, industry: 0 },
       resources: { marble: 0, mercury: 0, oil: 0, diamonds: 0 },
       tech: 0, techTier: 1,
+      uniqueTaken: false,
       cardTiers,
       cardLevels: { ...cardTiers },
       diplomacy: [],
@@ -699,6 +724,7 @@ const Game = (() => {
     player.resources = player.resources || { marble: 0, mercury: 0, oil: 0, diamonds: 0 };
     player.cardTiers = player.cardTiers || player.cardLevels || { culture: 1, growth: 1, science: 1, economy: 1, military: 1, industry: 1 };
     player.cardLevels = player.cardLevels || { ...player.cardTiers };
+    if (player.uniqueTaken === undefined) player.uniqueTaken = false;
     FOCUS_TYPES.forEach((f) => {
       if (player.trade[f] === undefined) player.trade[f] = 0;
       if (player.cardTiers[f] === undefined) player.cardTiers[f] = 1;
@@ -1113,9 +1139,9 @@ const Game = (() => {
       if (!player || player.cardPlayed) return st;
       let bonus = 0;
       // China's Writing (unique Science I): +1 step while you control a wonder.
-      if (hasLeader(player, "china") && getCardTier(player, "science") === 1 && countWonders(st, player.id) > 0) bonus += 1;
+      if (uniqueInPlay(player, "china") && countWonders(st, player.id) > 0) bonus += 1;
       // England's Natural History (unique Science III): +1 per resource type held.
-      if (hasLeader(player, "england") && getCardTier(player, "science") >= 3) {
+      if (uniqueInPlay(player, "england")) {
         bonus += RESOURCES.filter((r) => (player.resources[r] || 0) > 0).length;
       }
       advanceTech(st, player, payload.amount + bonus);
@@ -1143,7 +1169,7 @@ const Game = (() => {
       const hex = st.map.hexes[payload.toKey];
       const tradeGain = 2;
       // Egypt's Wheel (unique Economy I): trade runs also yield a resource.
-      const wheelResource = hasLeader(player, "egypt") && getCardTier(player, "economy") === 1;
+      const wheelResource = uniqueInPlay(player, "egypt");
       const queueWheel = () => {
         if (!wheelResource) return;
         queuePendingChoice(st, {
@@ -1195,7 +1221,7 @@ const Game = (() => {
         }
         // Ottoman Banking (unique Economy III): a caravan reaching the Ibrahim
         // holder's capital brings home a resource.
-        if (hasLeader(player, "ottoman") && getCardTier(player, "economy") >= 3 &&
+        if (uniqueInPlay(player, "ottoman") &&
             st.ibrahimHolder && hex.city.ownerId === st.ibrahimHolder && hex.city.isCapital) {
           queuePendingChoice(st, {
             kind: "gain_resource", playerId: player.id,
@@ -1393,12 +1419,12 @@ const Game = (() => {
       // Nubia's Construction (unique Industry II): each resource spent is worth
       // 1 extra production.
       const perResource = CFG.resourceProdValue +
-        (hasLeader(player, "nubia") && getCardTier(player, "industry") === 2 ? 1 : 0);
+        (uniqueInPlay(player, "nubia") ? 1 : 0);
       let resBonus = 0;
       if (payload.resources) Object.values(payload.resources).forEach((v) => { if (v) resBonus += perResource; });
       let totalProd = slot + (payload.tradeSpent || 0) + resBonus;
       // Japan's Industrialization (unique Industry III): +1 production per district.
-      if (hasLeader(player, "japan") && getCardTier(player, "industry") >= 3) {
+      if (uniqueInPlay(player, "japan")) {
         totalProd += Object.values(st.map.hexes).filter((h) =>
           h.control && h.control.ownerId === player.id && h.control.district).length;
       }
@@ -1417,7 +1443,7 @@ const Game = (() => {
         queueCardUpgrade(st, player, { remaining: 2, source: "Porcelain Tower", title: "Porcelain Tower: Upgrade a Card" });
       }
       // Sumeria's Craftsmanship (unique Industry I): building also teaches.
-      if (hasLeader(player, "sumeria") && getCardTier(player, "industry") === 1) {
+      if (uniqueInPlay(player, "sumeria")) {
         advanceTech(st, player, 1);
       }
       return st;
@@ -1569,7 +1595,7 @@ const Game = (() => {
     }
 
     // France's Humanism (unique Culture III): +1 trade token per mature city.
-    if (cardType === "culture" && hasLeader(player, "france") && getCardTier(player, "culture") >= 3) {
+    if (cardType === "culture" && uniqueInPlay(player, "france")) {
       const mature = countDeveloped(st, player.id);
       for (let i = 0; i < mature; i++) {
         queuePendingChoice(st, {
@@ -1613,12 +1639,18 @@ const Game = (() => {
         log(st, `${player.name} reached technology level ${level} with nothing left to upgrade.`);
         return;
       }
+      const opts = [];
+      options.forEach((f) => {
+        opts.push({ id: f, label: `${FOCUS_LABELS[f]} \u2192 tier ${level}` });
+        const uniq = uniqueUpgradeOption(player, f, level);
+        if (uniq) opts.push(uniq);
+      });
       queuePendingChoice(st, {
         kind: "science_upgrade",
         playerId: player.id,
         techLevel: level,
         title: `Technology Level ${level}: Take a Card`,
-        options: options.map((f) => ({ id: f, label: `${FOCUS_LABELS[f]} \u2192 tier ${level}` }))
+        options: opts
       });
       log(st, `${player.name} reached technology level ${level}!`);
     });
@@ -1661,9 +1693,14 @@ const Game = (() => {
 
     let resolved = false;
     if (choice.kind === "science_upgrade") {
-      const cardType = payload.optionId;
+      // "unique_<type>" is the same upgrade, except the card you end up with is
+      // your civ's own — you can only take it on the level it is printed at.
+      const takeUnique = typeof payload.optionId === "string" && payload.optionId.startsWith("unique_");
+      const cardType = takeUnique ? payload.optionId.slice("unique_".length) : payload.optionId;
       const curTier = player.cardTiers[cardType] || 1;
-      if (FOCUS_TYPES.includes(cardType) && curTier < 4 &&
+      const uniqueOk = !takeUnique || !!uniqueUpgradeOption(player, cardType,
+        choice.techLevel ? Math.max(curTier, Math.min(4, choice.techLevel)) : curTier + 1);
+      if (FOCUS_TYPES.includes(cardType) && curTier < 4 && uniqueOk &&
           (!choice.onlyTier || curTier === choice.onlyTier)) {
         // A tech level hands you a card of exactly that level, not the next one
         // up (p8). Wonder-driven upgrades carry no level, so they step by one.
@@ -1671,8 +1708,11 @@ const Game = (() => {
           ? Math.max(curTier, Math.min(4, choice.techLevel))
           : curTier + 1;
         player.cardLevels[cardType] = player.cardTiers[cardType];
+        if (takeUnique) player.uniqueTaken = true;
         if (cardType === "military" || cardType === "economy") syncUnitCounts(st, player);
-        log(st, `${player.name} upgraded ${FOCUS_LABELS[cardType]} to tier ${player.cardTiers[cardType]}.`);
+        log(st, takeUnique
+          ? `${player.name} took their unique card ${getCardName(player, cardType)} at tier ${player.cardTiers[cardType]}.`
+          : `${player.name} upgraded ${FOCUS_LABELS[cardType]} to tier ${player.cardTiers[cardType]}.`);
         // Multi-card wonders queue their next prompt only now, so it lists the
         // tiers as they stand after this upgrade.
         if (choice.chain) queueCardUpgrade(st, player, choice.chain);
@@ -2705,14 +2745,14 @@ const Game = (() => {
   function getMilitaryMove(player) {
     const tier = getCardTier(player, "military");
     // Scythia's Horseback Riding (unique Military I): armies ride 6 spaces.
-    if (tier === 1 && hasLeader(player, "scythia")) return 6;
+    if (uniqueInPlay(player, "scythia")) return 6;
     return CARD_TIERS.military.move[tier - 1];
   }
 
   function getEconomyMove(player, st) {
     const tier = getCardTier(player, "economy");
     // Egypt's Wheel (unique Economy I): caravans roll 4 spaces.
-    const base = (tier === 1 && hasLeader(player, "egypt")) ? 4 : CARD_TIERS.economy.move[tier - 1];
+    const base = uniqueInPlay(player, "egypt") ? 4 : CARD_TIERS.economy.move[tier - 1];
     // Colossus: 6 additional spaces of caravan movement on the economy card.
     const colossus = st && player && hasWonder(st, player.id, "Colossus") ? 6 : 0;
     return base + colossus;
@@ -2953,6 +2993,13 @@ const Game = (() => {
       return t < 4 && (!opts.onlyTier || t === opts.onlyTier);
     });
     if (!types.length) return;
+    const options = [];
+    types.forEach((f) => {
+      const next = (player.cardTiers[f] || 1) + 1;
+      options.push({ id: f, label: FOCUS_LABELS[f] + " to tier " + next });
+      const uniq = uniqueUpgradeOption(player, f, next);
+      if (uniq) options.push(uniq);
+    });
     queuePendingChoice(st, {
       kind: "science_upgrade",
       playerId: player.id,
@@ -2960,7 +3007,7 @@ const Game = (() => {
       source: opts.source,
       onlyTier: opts.onlyTier || null,
       chain: opts.remaining > 1 ? Object.assign({}, opts, { remaining: opts.remaining - 1 }) : null,
-      options: types.map((f) => ({ id: f, label: FOCUS_LABELS[f] + " to tier " + ((player.cardTiers[f] || 1) + 1) }))
+      options: options
     });
   }
 
@@ -3444,7 +3491,7 @@ const Game = (() => {
     TERRAIN, TERRAIN_LABELS, FOCUS_TYPES, FOCUS_LABELS, FOCUS_SLOTS, FOCUS_TRADE_DESC, CARD_NAMES, CARD_ICONS,
     DISTRICTS, DISTRICT_LABELS, DISTRICT_EFFECTS, RESOURCES, EVENTS, EVENT_NAMES, EVENT_LABELS, CFG,
     WONDERS, ALL_WONDERS, WONDER_ERAS, CARD_TIERS, AGENDA_CARDS, victoryCards, DIPLOMACY_CARDS, CITY_STATE_DATA,
-    LEADERS, getLeader, getLeaderAttackBonus, getCardName, getActiveUniqueCard,
+    LEADERS, getLeader, getLeaderAttackBonus, getCardName, getActiveUniqueCard, uniqueInPlay,
     CARD_DEFS, getCardEffectText, syncUnitCounts, advanceTech, resolveEvent, GOVERNMENTS, CIV_STYLE,
     hasWonder, getWonderAttackBonus, getWonderDefenseBonus,
     TILE_OFFSETS, getCoreAnchors,

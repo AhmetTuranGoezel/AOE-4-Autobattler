@@ -339,6 +339,16 @@ input, select {
 .pending-options {
   flex-wrap: wrap;
 }
+/* Your civ's own card, when it shows up as something you may take. */
+.pending-option.unique-option {
+  background: linear-gradient(180deg, #6d5320, #40300f);
+  border-color: #d7ab4a;
+  color: #ffe6a8;
+  box-shadow: 0 0 0 1px rgba(215, 171, 74, 0.35), 0 0 12px rgba(215, 171, 74, 0.3);
+}
+.pending-option.unique-option:hover {
+  background: linear-gradient(180deg, #856429, #4d3a12);
+}
 
 .host-tools {
   background: var(--surface);

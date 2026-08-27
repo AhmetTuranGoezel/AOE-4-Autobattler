@@ -1737,12 +1737,27 @@ const UI = (() => {
   function renderPendingChoice(choice) {
     const owner = Game.getPlayer(state, choice.playerId);
     const title = choice.title || "Pending Choice";
-    let body = `<div>${owner ? owner.name : "Player"}: ${choice.source || choice.kind}</div>`;
+    // Never show a raw action name — "science_upgrade" means nothing at the table.
+    const CHOICE_BLURB = {
+      science_upgrade: "pick the card you take",
+      choose_government: "choose a government",
+      take_diplomacy: "take a diplomacy card",
+      place_control: "place a control token",
+      reinforce: "reinforce a control token",
+      remove_control: "remove a control token",
+      swap_adjacent: "move a control token",
+      remove_barbarian: "remove a barbarian"
+    };
+    const blurb = choice.source || CHOICE_BLURB[choice.kind] || choice.kind;
+    let body = `<div>${owner ? owner.name : "Player"}: ${blurb}</div>`;
     let controls = "";
 
     if (choice.options && choice.options.length) {
+      // A civ's own unique card is worth pointing at when it turns up as an
+      // option, so it does not read as just another line in the list.
       controls = `<div class="wiz-actions pending-options">${choice.options.map((o) =>
-        `<button class="sm pending-option" data-option="${o.id}">${o.label || o.id}</button>`
+        `<button class="sm pending-option${o.unique ? " unique-option" : ""}" data-option="${o.id}"${
+          o.text ? ` title="${escapeHtml(o.text)}"` : ""}>${o.label || o.id}</button>`
       ).join("")}</div>`;
     } else if (choice.hexKeys && choice.hexKeys.length) {
       // Picking a space is done by pointing at it. This used to be a dropdown

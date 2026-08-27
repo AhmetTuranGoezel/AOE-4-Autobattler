@@ -257,6 +257,15 @@ face, clockwise from the starting space:
 - All 18 Terra Incognita leaders, with ability, starting focus order and unique
   focus card, transcribed from the leader sheets. 17 of 18 abilities are
   engine-enforced.
+- **Unique focus card acquisition (Terra p8).** A tech level I unique replaces the
+  level I card of the same type in the starting row, so its owner is running it
+  from the first turn. A tech level II or higher unique is *not* handed over: it
+  turns up as an extra option, marked in gold, on any prompt that would give its
+  owner a focus card of that level — a technology level, the Pyramids, the
+  Porcelain Tower. Take it and it replaces the printed card; take the printed
+  card instead and the unique is gone for good, because the card type has moved
+  past the level it is printed at. The unique's effect runs only while the card
+  is actually in the row, so upgrading past it puts the standard card back.
 
 ---
 
