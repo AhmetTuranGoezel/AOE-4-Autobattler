@@ -26,6 +26,10 @@ const UI = (() => {
   //   forest   deep teal-green        3
   //   desert   pale bleached sand     4
   //   mountain cold slate             5
+  // The board wears the printed tile faces. Off, it falls back to the drawn
+  // terrain — which is the same terrain, so nothing about play changes.
+  let tileArt = true;
+
   const TERRAIN_COLORS = {
     grass: '#6faa3f', hill: '#c8993a', forest: '#1d6650',
     desert: '#ecd9a8', mountain: '#8b93ab', water: '#2f6fb5'
@@ -468,6 +472,17 @@ const UI = (() => {
     return { x: cx + size * Math.cos(angle), y: cy + size * Math.sin(angle) };
   }
 
+  // Appends a hex to the CURRENT path — for building a union of several, where
+  // hexPath's beginPath would throw away everything before it.
+  function hexSubPath(cx, cy, size) {
+    for (let i = 0; i < 6; i++) {
+      const c = hexCorner(cx, cy, size, i);
+      if (i === 0) ctx.moveTo(c.x, c.y);
+      else ctx.lineTo(c.x, c.y);
+    }
+    ctx.closePath();
+  }
+
   function hexPath(cx, cy, size) {
     ctx.beginPath();
     for (let i = 0; i < 6; i++) {
@@ -559,10 +574,21 @@ const UI = (() => {
 
     // Layer 2: Active hex terrain (fill + sheen + edge + glyph)
     const drawGlyphs = HEX_SIZE >= 18;
+    const painted = tileArt ? drawTileArt(cw, ch) : new Set();
     Object.values(hexes).forEach((h) => {
       if (!h.active) return;
       const p = axialToPixel(h.q, h.r);
       if (p.x < -50 || p.x > cw + 50 || p.y < -50 || p.y > ch + 50) return;
+      // A space wearing its printed face needs no flat colour under it.
+      if (painted.has(Game.key(h.q, h.r))) {
+        if (drawGlyphs) {
+          hexPath(p.x, p.y, HEX_SIZE);
+          ctx.strokeStyle = "rgba(0,0,0,0.35)";
+          ctx.lineWidth = 1.2;
+          ctx.stroke();
+        }
+        return;
+      }
       hexPath(p.x, p.y, HEX_SIZE);
       ctx.fillStyle = TERRAIN_COLORS[h.terrain] || "#444";
       ctx.fill();
@@ -678,6 +704,97 @@ const UI = (() => {
       ctx.lineWidth = 3 * alpha;
       ctx.stroke();
     });
+  }
+
+  // The printed face of every placed tile, laid over the board in its own
+  // footprint. The photograph and rules-data are two readings of the same
+  // object — the terrain was transcribed off these very images — so the
+  // picture and what the space actually IS cannot drift apart.
+  //
+  // Each face is fitted with a full affine solve rather than a rotation, since
+  // a tile's B side is its A geometry mirrored and a reflection is not a
+  // rotation. Ten point pairs, so the fit is exact and any misreading of the
+  // geometry shows up immediately as a visibly crooked tile.
+  function fitAffine(src, dst) {
+    // Least squares for [a c e; b d f] over 10 points, via 3x3 normal equations.
+    let sxx = 0, sxy = 0, sx = 0, syy = 0, sy = 0, n = src.length;
+    let tx1 = 0, tx2 = 0, tx3 = 0, ty1 = 0, ty2 = 0, ty3 = 0;
+    for (let i = 0; i < n; i++) {
+      const [x, y] = src[i], [u, v] = dst[i];
+      sxx += x * x; sxy += x * y; sx += x; syy += y * y; sy += y;
+      tx1 += x * u; tx2 += y * u; tx3 += u;
+      ty1 += x * v; ty2 += y * v; ty3 += v;
+    }
+    const M = [[sxx, sxy, sx], [sxy, syy, sy], [sx, sy, n]];
+    const solve = (r1, r2, r3) => {
+      const A = [M[0].concat(r1), M[1].concat(r2), M[2].concat(r3)];
+      for (let c = 0; c < 3; c++) {
+        let piv = c;
+        for (let r = c + 1; r < 3; r++) if (Math.abs(A[r][c]) > Math.abs(A[piv][c])) piv = r;
+        if (Math.abs(A[piv][c]) < 1e-9) return null;
+        [A[c], A[piv]] = [A[piv], A[c]];
+        for (let r = 0; r < 3; r++) {
+          if (r === c) continue;
+          const f = A[r][c] / A[c][c];
+          for (let k = c; k < 4; k++) A[r][k] -= f * A[c][k];
+        }
+      }
+      return [A[0][3] / A[0][0], A[1][3] / A[1][1], A[2][3] / A[2][2]];
+    };
+    const u = solve(tx1, tx2, tx3), v = solve(ty1, ty2, ty3);
+    return (u && v) ? { a: u[0], c: u[1], e: u[2], b: v[0], d: v[1], f: v[2] } : null;
+  }
+
+  function drawTileArt(cw, ch) {
+    const done = new Set();
+    if (!window.CivTileArt || !state) return done;
+    const hexes = state.map.hexes;
+
+    // Gather each placed tile's ten spaces by the cell index they carry.
+    const groups = new Map();
+    Object.entries(hexes).forEach(([k, h]) => {
+      if (!h.active || !h.tileId || h.tileId === "water-fill") return;
+      if (h.tileCell === undefined || h.tileCell === null) return;
+      if (!groups.has(h.tileId)) groups.set(h.tileId, []);
+      groups.get(h.tileId).push([k, h]);
+    });
+
+    groups.forEach((cells, tileId) => {
+      if (cells.length !== Game.TILE_OFFSETS.length) return;
+      const side = cells[0][1].tileSide === "B" ? "B" : "A";
+      const img = CivTileArt.tileImage(tileId, side, () => { renderCanvas(); });
+      if (!img || !img.complete || !img.naturalWidth) return;
+
+      const src = [], dst = [];
+      const pts = CivTileArt.cellPoints(side);
+      let onScreen = false;
+      for (const [, h] of cells) {
+        const p = axialToPixel(h.q, h.r);
+        if (p.x > -80 && p.x < cw + 80 && p.y > -80 && p.y < ch + 80) onScreen = true;
+        src.push(pts[h.tileCell]);
+        dst.push([p.x, p.y]);
+      }
+      if (!onScreen) return;
+      const m = fitAffine(src, dst);
+      if (!m) return;
+
+      ctx.save();
+      ctx.beginPath();
+      for (const [, h] of cells) {
+        const p = axialToPixel(h.q, h.r);
+        // Overlap the seams very slightly so no hairline of board shows through.
+        // hexSubPath, not hexPath — the latter would reset the path each time
+        // and clip to the last hex alone, blacking out the other nine.
+        hexSubPath(p.x, p.y, HEX_SIZE + 0.6);
+      }
+      ctx.clip();
+      ctx.setTransform(m.a, m.b, m.c, m.d, m.e, m.f);
+      ctx.drawImage(img, 0, 0);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.restore();
+      cells.forEach(([k]) => done.add(k));
+    });
+    return done;
   }
 
   function drawTileBoundaries(cw, ch) {

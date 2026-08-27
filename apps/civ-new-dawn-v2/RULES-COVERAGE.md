@@ -280,10 +280,15 @@ assigned: stable, one-to-one, and arbitrary. Every entry is marked with which
 it is, and the tile inspector repeats it on screen rather than implying more
 certainty than there is.
 
-Clicking any space on the board opens that tile: which printed tile it is, both
-of its faces, which is up, and every space on it with its terrain and what is
-standing there. The faces are the real photographs — `assets/tts-web/` is
-committed — and the drawn stand-in is only used if an image is missing.
+**The board wears the printed faces.** Every placed tile is drawn as its own
+photograph, fitted to its ten hexes with an affine solve over the ten cell
+centres — exact, and a reflection rather than a rotation for a B face, which is
+why it is solved rather than assumed. The picture and the terrain underneath are
+two readings of the same artwork, so they cannot drift apart. If an image is
+missing the drawn terrain shows through instead, unchanged.
+
+Clicking any space opens that tile: which printed tile it is, both of its faces,
+which is up, and every space on it with its terrain and what is standing there.
 
 The art independently confirms the mapping: TI02 resolves to printed tile 19,
 and tile 19's two faces are unmistakably Ha Long Bay and Gobustan.
@@ -412,22 +417,24 @@ Added in this pass, all of them from the English card text:
 
 Stated plainly, because it would otherwise look authentic:
 
-- **Per-hex tile terrain.** Every tile's 10-cell terrain layout is mine. So are
-  the resource positions and the barbarian letters. This is now the last big
-  invented thing, and it is finally fixable: `assets/tts-web/map-tiles/` holds
-  photographs of all 21 tiles, both faces, committed. Reading the printed
-  terrain off them and replacing these layouts is a job on its own — 420 spaces
-  to classify — and until it is done the tile inspector says plainly that what
-  the game is using is a stand-in.
+- ~~**Per-hex tile terrain.**~~ Struck out — this was the last big invented
+  thing and it is gone. Every tile's ten spaces, both faces, are now transcribed
+  from photographs of the printed tiles in `assets/tts-web/map-tiles/`: terrain,
+  resource tokens, barbarian spawns, capital spaces, city-states and natural
+  wonders. 420 spaces, read off the artwork.
 
-  What the photographs already settled: **the printed tile really is 10 hexes in
-  columns of 4/4/2**, measured off the art rather than inferred, which is the
-  shape this app has always used. Each face carries its number and side in the
-  corner ("1A", "13A"), and those match the extractor's filenames, so the side
-  assignment is confirmed too. A tile's B face is its A geometry mirrored
-  vertically — worth knowing for anyone sampling these images. The Tabletop Simulator mod
-  carries zero terrain data (I checked: no occurrence of any terrain word in the
-  save), and the tile images are unreachable from this machine.
+  The transcription checks itself against things the printed set fixes
+  independently: 5 capital tiles with a star on space 6 of both faces, 6 natural
+  wonder tiles with one wonder per face, 6 city-state tiles with one per face,
+  and every city-state name resolving to a card in `CITY_STATES`. Those counts
+  come from the mod's own tile metadata, not from my reading, and they agree.
+
+  Sampling geometry, for anyone checking the work: each extracted face is
+  635×990 with a hex circumradius of 127 and columns at x = 127 / 317.5 / 508.
+  Side A's cell centres run bottom-to-top per column; side B is the same
+  geometry mirrored vertically.
+
+
 - ~~**Tile geometry.**~~ Struck out: I wrote here that the printed tiles are 7
   hexes and the app's 10-hex shape was invented. That was wrong. Measuring tile
   area against the fort tokens on Terra p5 — those are single hexes, so they give

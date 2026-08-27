@@ -14,6 +14,9 @@
 // and nothing else is), and nine assigned within their category because there
 // is nothing printed on them to match. Both are marked, so nobody reads more
 // certainty into this table than it has.
+//
+// rules-data.js is transcribed from these same faces, so a tile's data and its
+// photograph are two readings of one object rather than two guesses.
 const CivTileArt = (() => {
   const BASE = "assets/tts-web/map-tiles/individual/";
   const EXT = ".webp";
@@ -30,11 +33,10 @@ const CivTileArt = (() => {
     "07":   { n: 12, by: "match", sides: "Brussels / Seoul" },
     "13":   { n: 13, by: "match", sides: "Mt Kilimanjaro / Pantanal" },
     "09":   { n: 14, by: "match", sides: "Geneva / Mohenjo Daro" },
-    // The printed tile carries Kabul on the side this app calls B.
-    "08":   { n: 15, by: "match", swap: true, sides: "Kabul / Buenos Aires" },
+    "08":   { n: 15, by: "match", sides: "Kabul / Buenos Aires" },
     "12":   { n: 18, by: "match", sides: "Mato Tipila / Dead Sea" },
     "TI02": { n: 19, by: "match", sides: "Ha Long Bay / Gobustan" },
-    "10":   { n: 20, by: "match", swap: true, sides: "Akkad / Auckland" },
+    "10":   { n: 20, by: "match", sides: "Akkad / Auckland" },
     "TI01": { n: 21, by: "match", sides: "Antananarivo / Palenque" },
 
     // The five capital tiles. The save flags 7, 9, 11, 16 and 17 as capitals
@@ -59,9 +61,10 @@ const CivTileArt = (() => {
   function tileImagePath(tileId, side) {
     const entry = TILE_NUMBER[tileId];
     if (!entry) return null;
-    const s = (side === "B") ? "B" : "A";
-    const printed = entry.swap ? (s === "A" ? "b" : "a") : s.toLowerCase();
-    return `${BASE}tile-${pad(entry.n)}-side-${printed}${EXT}`;
+    // Side A is side A: rules-data is transcribed straight off these faces, so
+    // there is no longer any tile whose sides are the other way round.
+    const s = (side === "B") ? "b" : "a";
+    return `${BASE}tile-${pad(entry.n)}-side-${s}${EXT}`;
   }
 
   function tileFacts(tileId) {
@@ -88,7 +91,34 @@ const CivTileArt = (() => {
     return p;
   }
 
-  return { tileImagePath, tileFacts, hasTileImage, TILE_NUMBER };
+  // Where each cell sits inside the extracted face, in image pixels. This is
+  // the same geometry the terrain was transcribed with, so a fit from these to
+  // the board puts the photograph exactly where its hexes belong. Side B is
+  // the A geometry mirrored vertically, which makes its fit a reflection —
+  // handled by using a full affine solve rather than assuming a rotation.
+  const IMG_W = 635, IMG_H = 990;
+  const CELL_A = [[127, 880], [127, 660], [127, 440], [127, 220],
+                  [317.5, 770], [317.5, 550], [317.5, 330], [317.5, 110],
+                  [508, 440], [508, 220]];
+  const CELL_B = CELL_A.map(([x, y]) => [x, IMG_H - y]);
+  const cellPoints = (side) => (side === "B" ? CELL_B : CELL_A);
+
+  // Loaded faces, and a note of the ones that failed so we stop asking.
+  const images = new Map();
+  function tileImage(tileId, side, onLoad) {
+    const src = tileImagePath(tileId, side);
+    if (!src) return null;
+    if (images.has(src)) return images.get(src);
+    const img = new Image();
+    img.onload = () => { if (onLoad) onLoad(); };
+    img.onerror = () => { images.set(src, null); };
+    img.src = src;
+    images.set(src, img);
+    return img;
+  }
+
+  return { tileImagePath, tileFacts, hasTileImage, tileImage, cellPoints,
+    IMG_W, IMG_H, TILE_NUMBER };
 })();
 
 if (typeof window !== "undefined") window.CivTileArt = CivTileArt;
