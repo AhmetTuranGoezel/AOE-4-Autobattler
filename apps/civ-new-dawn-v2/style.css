@@ -336,6 +336,16 @@ input, select {
   margin-top: 6px;
   font-size: 11px;
 }
+/* Jebel Barkal's resource burn sits under the token bid, in resource colours. */
+.cs-btn.cs-res {
+  background: linear-gradient(180deg, #4a3b6b, #2b2140);
+  border-color: #8f7ac6;
+  color: #e2d6ff;
+  text-transform: capitalize;
+}
+.cs-btn.cs-res:hover { background: linear-gradient(180deg, #5d4b86, #372a52); }
+.cs-turn.cs-barkal { margin-top: 8px; font-size: 12px; opacity: 0.9; }
+
 .pending-options {
   flex-wrap: wrap;
 }

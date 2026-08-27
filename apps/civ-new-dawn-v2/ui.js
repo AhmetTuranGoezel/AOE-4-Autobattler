@@ -516,7 +516,7 @@ const UI = (() => {
     }
 
     if (state.phase === "playing" &&
-        (sub.phase === "move_army_exploring" || sub.phase === "move_caravan_exploring") &&
+        isExploring(sub.phase) &&
         mouseHex && state.tileStack && state.tileStack.length > 0) {
       const tileId = exploringTileId();
       const anchorKey = Game.key(mouseHex.q, mouseHex.r);
@@ -707,7 +707,7 @@ const UI = (() => {
       const playerTiles = state.setup.playerTiles[localPlayerId] || [];
       tileId = playerTiles[0];
       tile = tileId ? state.setup.tiles[tileId] : null;
-    } else if (sub.phase === "move_army_exploring" || sub.phase === "move_caravan_exploring") {
+    } else if (isExploring(sub.phase)) {
       tileId = exploringTileId();
       tile = tileId ? state.tiles[tileId] : null;
     }
@@ -1005,8 +1005,19 @@ const UI = (() => {
     return stack && stack.length ? stack[stack.length - 1] : null;
   }
 
+  // Exploring covers a unit's expedition and Apadana's one-off, which has no
+  // unit behind it at all.
+  function isExploring(ph) {
+    return ph === "move_army_exploring" || ph === "move_caravan_exploring" || ph === "free_exploring";
+  }
+  // Where the new land has to touch: the moving figure, or Apadana's edge space.
+  function exploreOrigin() {
+    if (sub.phase === "free_exploring") return sub.freeFrom || null;
+    return sub.movementState ? sub.movementState.currentKey : null;
+  }
+
   function placingTile() {
-    if (sub.phase === "move_army_exploring" || sub.phase === "move_caravan_exploring") return true;
+    if (isExploring(sub.phase)) return true;
     if (!state || state.phase !== "setup") return false;
     if (state.setup.phase !== "tile" && state.setup.phase !== "capital_tile") return false;
     return state.setup.order[state.setup.turnIndex] === localPlayerId;
@@ -1505,7 +1516,7 @@ const UI = (() => {
     else if (sub.phase === "move_caravan" || sub.phase === "move_army") { renderMoving(); }
     else if (sub.phase === "reinforcing_after_district") { renderReinforceAfterDistrict(); }
     else if (sub.phase === "move_army_post" || sub.phase === "move_caravan_post") { renderMovingHint(); }
-    else if (sub.phase === "move_army_exploring" || sub.phase === "move_caravan_exploring") { renderExploring(); }
+    else if (isExploring(sub.phase)) { renderExploring(); }
     else if (sub.phase === "industry_choice") { renderIndustryChoice(me); }
     else if (sub.phase === "placing_city") { renderPlacingCity(); }
     else if (sub.phase === "placing_wonder") { renderPlacingWonder(); }
@@ -1677,7 +1688,7 @@ const UI = (() => {
     if (state && state.phase === "setup") {
       const playerTiles = state.setup.playerTiles[localPlayerId] || [];
       tile = playerTiles[0] ? state.setup.tiles[playerTiles[0]] : null;
-    } else if (state && (sub.phase === "move_army_exploring" || sub.phase === "move_caravan_exploring")) {
+    } else if (state && isExploring(sub.phase)) {
       const tid = exploringTileId();
       tile = tid ? state.tiles[tid] : null;
     }
@@ -1951,6 +1962,7 @@ const UI = (() => {
     const asHost = live && !mine && Net.getIsHost();
     const actor = actorId ? Game.getPlayer(state, actorId) : null;
     const tokens = actor ? (actor.trade.military || 0) : 0;
+    const barkal = live ? Game.combatResources(state, live, live.turn) : [];
 
     const thrown = live ? live.rolled : true;
     const side = (cls, label, roll, total, note) => `
@@ -1983,13 +1995,19 @@ const UI = (() => {
     } else if (live) {
       const who = live.turn === "attacker" ? "Attacker" : "Defender";
       if (mine || asHost) {
+        // Jebel Barkal turns your resources into ammunition, so they belong on
+        // the stage next to the trade tokens rather than in a panel somewhere.
+        const burn = barkal.map((r) => `<button class="cs-btn cs-res" data-res="${r}">
+            ${escapeHtml(r)} +2</button>`).join("");
         foot = `<div class="cs-turn">${who}: spend a military trade token?
             <span class="cs-left">${tokens} left</span></div>
           <div class="cs-actions">
             <button class="cs-btn" id="cs-plus" ${tokens ? "" : "disabled"}>+1</button>
             <button class="cs-btn" id="cs-reroll" ${tokens ? "" : "disabled"}>Reroll</button>
             <button class="cs-btn primary" id="cs-done">Done</button>
-          </div>`;
+          </div>
+          ${burn ? `<div class="cs-turn cs-barkal">Jebel Barkal: burn a resource?</div>
+            <div class="cs-actions">${burn}</div>` : ""}`;
       } else {
         foot = `<div class="cs-turn">Waiting for ${escapeHtml(actor ? actor.name : who)} to bid\u2026</div>`;
       }
@@ -1998,9 +2016,12 @@ const UI = (() => {
         <div class="cs-actions"><button class="cs-btn primary" id="cs-ok">Continue</button></div>`;
     }
 
-    const story = (live ? live.history : (done.history || [])).map((h) => h.mode === "reroll"
-      ? `<li>${h.side === "attacker" ? "Attacker" : "Defender"} rerolled a ${h.from} into a ${h.to}</li>`
-      : `<li>${h.side === "attacker" ? "Attacker" : "Defender"} paid a token for +1</li>`).join("");
+    const story = (live ? live.history : (done.history || [])).map((h) => {
+      const who2 = h.side === "attacker" ? "Attacker" : "Defender";
+      if (h.mode === "reroll") return `<li>${who2} rerolled a ${h.from} into a ${h.to}</li>`;
+      if (h.mode === "resource") return `<li>${who2} burned ${escapeHtml(h.resource)} at Jebel Barkal for +2</li>`;
+      return `<li>${who2} paid a token for +1</li>`;
+    }).join("");
 
     stage.classList.remove("hidden");
     stage.innerHTML = `<div class="cs-scrim"></div>
@@ -2021,6 +2042,9 @@ const UI = (() => {
       type: "COMBAT_ROLL", payload: { playerId: localPlayerId } }));
     document.getElementById("cs-plus")?.addEventListener("click", () => bid("plus"));
     document.getElementById("cs-reroll")?.addEventListener("click", () => bid("reroll"));
+    document.querySelectorAll(".cs-res").forEach((b) => b.addEventListener("click", () => dispatch({
+      type: "COMBAT_SPEND", payload: { playerId: localPlayerId, side: live.turn,
+        mode: "resource", resource: b.dataset.res, hostOverride: !!asHost } })));
     document.getElementById("cs-done")?.addEventListener("click", () => dispatch({
       type: "COMBAT_PASS", payload: { playerId: localPlayerId, side: live.turn, hostOverride: !!asHost } }));
     document.getElementById("cs-ok")?.addEventListener("click", () => {
@@ -2253,7 +2277,7 @@ const UI = (() => {
           <span>Side:</span>
           <button id="side-toggle" class="sm">${sub.tileSide}</button>
         </div>
-        <br>Place the tile touching your unit's hex.<br>
+        <br>Place the tile touching ${sub.phase === "free_exploring" ? "the space you chose" : "your unit's hex"}.<br>
         <strong style="color:#66bb6a">Green</strong> = valid, <strong style="color:#ef5350">Red</strong> = invalid.
         <br>Tiles remaining in stack: <strong>${state.tileStack ? state.tileStack.length : 0}</strong>
       </div>
@@ -2266,6 +2290,7 @@ const UI = (() => {
     document.getElementById("rot-inc").addEventListener("click", () => turnTile(1));
     document.getElementById("side-toggle").addEventListener("click", flipTile);
     document.getElementById("wiz-cancel-explore").addEventListener("click", () => {
+      if (sub.phase === "free_exploring") { resetSub(); render(); return; }
       const ms = sub.movementState;
       sub.phase = ms.unitType === "army" ? "move_army_post" : "move_caravan_post";
       render();
@@ -2274,7 +2299,8 @@ const UI = (() => {
     // the expedition ends. The movement is spent either way.
     document.getElementById("wiz-abandon-explore").addEventListener("click", () => {
       const ms = sub.movementState;
-      dispatch({ type: "ABANDON_EXPLORATION", payload: { playerId: localPlayerId, fromKey: ms.currentKey } });
+      dispatch({ type: "ABANDON_EXPLORATION", payload: { playerId: localPlayerId, fromKey: exploreOrigin() } });
+      if (sub.phase === "free_exploring") { resetSub(); render(); return; }
       ms.remaining -= 1;
       ms.explored = true;
       if (ms.remaining > 0) continueMovement(); else endMovement();
@@ -2874,6 +2900,7 @@ const UI = (() => {
     sub.totalMarkers = 0; sub.validHexes = new Set(); sub.selectedUnit = null;
     sub.districtType = null; sub.spentResources = {}; sub.placedKeys = [];
     sub.movementState = null; sub.selectedWonder = null; sub.wonderProduction = 0;
+    sub.freeFrom = null;
     render();
   }
 
@@ -2889,6 +2916,15 @@ const UI = (() => {
       flashHex(hexKey, "rgb(255,213,79)", 700);
       dispatch({ type: "RESOLVE_PENDING_CHOICE", payload: {
         playerId: localPlayerId, choiceId: hexChoice.id, hexKey, hostOverride: Net.getIsHost() } });
+      // Apadana's edge space is only the start of it — the tile still has to be
+      // turned and placed, so hand straight over to the exploring flow.
+      if (hexChoice.kind === "apadana_explore" &&
+          state.freeExplore && state.freeExplore.fromKey === hexKey) {
+        sub.phase = "free_exploring";
+        sub.freeFrom = hexKey;
+        sub.tileRotation = 0;
+        render();
+      }
       return;
     }
 
@@ -3051,9 +3087,10 @@ const UI = (() => {
       }
       return;
     }
-    if (sub.phase === "move_army_exploring" || sub.phase === "move_caravan_exploring") {
+    if (isExploring(sub.phase)) {
       const ms = sub.movementState;
-      if (!state.tileStack || state.tileStack.length === 0) return;
+      const originKey = exploreOrigin();
+      if (!state.tileStack || state.tileStack.length === 0 || !originKey) return;
       const tileId = exploringTileId();
       // The new tile has to touch the space you are exploring from, so look for
       // an angle that manages both rather than refusing the click.
@@ -3062,12 +3099,14 @@ const UI = (() => {
         const rot = (sub.tileRotation + i) % 6;
         if (!Game.validateExploration(state, tileId, hexKey, rot).ok) continue;
         const cells = Game.getTileHexKeys(hexKey, rot, state.map.hexes);
-        if (!cells.some((ck) => Game.hexNeighborKeys(Game.parseQ(ck), Game.parseR(ck)).includes(ms.currentKey))) continue;
+        if (!cells.some((ck) => Game.hexNeighborKeys(Game.parseQ(ck), Game.parseR(ck)).includes(originKey))) continue;
         fit = rot; break;
       }
       if (fit === null) { showToast("The new land will not fit there"); return; }
       sub.tileRotation = fit;
-      dispatch({ type: "EXPLORE_TILE", payload: { playerId: localPlayerId, anchorKey: hexKey, rotation: fit, side: sub.tileSide, fromKey: ms.currentKey } });
+      dispatch({ type: "EXPLORE_TILE", payload: { playerId: localPlayerId, anchorKey: hexKey, rotation: fit, side: sub.tileSide, fromKey: originKey } });
+      // Apadana's expedition costs no movement, because there is nothing moving.
+      if (sub.phase === "free_exploring") { resetSub(); render(); return; }
       ms.remaining -= 1;
       ms.explored = true;
       // Terra p12: you may walk onto what you just found. Hand straight back to

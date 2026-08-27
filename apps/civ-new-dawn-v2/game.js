@@ -702,6 +702,8 @@ const Game = (() => {
       resources: { marble: 0, mercury: 0, oil: 0, diamonds: 0 },
       tech: 0, techTier: 1,
       uniqueTaken: false,
+      upgradedThisTurn: false,
+      zimbabwe: 0,        // trade tokens parked on Great Zimbabwe
       cardTiers,
       cardLevels: { ...cardTiers },
       diplomacy: [],
@@ -725,6 +727,8 @@ const Game = (() => {
     player.cardTiers = player.cardTiers || player.cardLevels || { culture: 1, growth: 1, science: 1, economy: 1, military: 1, industry: 1 };
     player.cardLevels = player.cardLevels || { ...player.cardTiers };
     if (player.uniqueTaken === undefined) player.uniqueTaken = false;
+    if (player.upgradedThisTurn === undefined) player.upgradedThisTurn = false;
+    if (player.zimbabwe === undefined) player.zimbabwe = 0;
     FOCUS_TYPES.forEach((f) => {
       if (player.trade[f] === undefined) player.trade[f] = 0;
       if (player.cardTiers[f] === undefined) player.cardTiers[f] = 1;
@@ -945,13 +949,17 @@ const Game = (() => {
       const player = getPlayer(st, payload.playerId);
       if (!player) return st;
       if (!st.tileStack || st.tileStack.length === 0) return st;
-      if (payload.fromKey && !isExploreEligible(st, payload.fromKey)) return st;
+      // Apadana buys one expedition from a space that would not normally
+      // qualify, and with nobody standing on it.
+      const freeRun = !!(st.freeExplore && st.freeExplore.playerId === player.id &&
+        st.freeExplore.fromKey === payload.fromKey);
+      if (payload.fromKey && !freeRun && !isExploreEligible(st, payload.fromKey)) return st;
 
       // Terra p12: a figure may explore once per move. That has to live here —
       // the UI's own bookkeeping is thrown away by a cancel, which used to hand
       // out a free tile every time you pressed Escape.
       let explorer = null;
-      if (payload.fromKey) {
+      if (payload.fromKey && !freeRun) {
         explorer = player.armies.concat(player.caravans)
           .find((u) => u.position === payload.fromKey);
         if (!explorer) return st;                  // not your figure standing there
@@ -963,6 +971,7 @@ const Game = (() => {
       const result = validateExploration(st, tileId, payload.anchorKey, payload.rotation);
       if (!result.ok) return st;
       if (payload.fromKey) {
+        // The new land still has to touch the space it was found from.
         const cellKeys = getTileHexKeys(payload.anchorKey, payload.rotation, st.map.hexes);
         const touchesUnit = cellKeys.some((ck) =>
           hexNeighborKeys(parseQ(ck), parseR(ck)).some((nk) => nk === payload.fromKey)
@@ -975,6 +984,7 @@ const Game = (() => {
       placeExploredTile(st, tileId, payload.anchorKey, payload.rotation, payload.side || "A");
 
       if (explorer) explorer.exploredThisCard = true;
+      if (freeRun) st.freeExplore = null;
       const tile = st.tiles[tileId];
       log(st, `${player.name} explored and placed a ${tile ? tile.type : "unknown"} tile.`);
       return st;
@@ -991,6 +1001,7 @@ const Game = (() => {
       const unit = player.armies.concat(player.caravans)
         .find((u) => u.position === payload.fromKey);
       if (unit) unit.exploredThisCard = true;
+      if (st.freeExplore && st.freeExplore.playerId === player.id) st.freeExplore = null;
       log(st, `${player.name} found nowhere to put the new land; it goes back on the stack.`);
       return st;
     }
@@ -1197,7 +1208,16 @@ const Game = (() => {
           queuePendingChoice(st, {
             kind: "trade_any", playerId: player.id, amount: 1,
             title: "Kilwa Kisiwani: Extra Trade Token",
-            options: FOCUS_TYPES.map((f) => ({ id: f, label: FOCUS_LABELS[f] }))
+            options: tradeTargets(st, player)
+          });
+        }
+        // Orszaghaz: the caravan can take the city-state outright afterwards.
+        if (hasWonder(st, player.id, "Orszaghaz")) {
+          queuePendingChoice(st, {
+            kind: "conquer_city_state", playerId: player.id, hexKey: payload.toKey,
+            title: `Orszaghaz: Conquer ${hex.cityState.name}?`,
+            source: "Orszaghaz", optional: true,
+            options: [{ id: "yes", label: `Conquer ${hex.cityState.name}` }]
           });
         }
         unit.position = null;   // back onto the economy card
@@ -1207,11 +1227,15 @@ const Game = (() => {
           queuePendingChoice(st, {
             kind: "trade_any", playerId: player.id, amount: 1,
             title: `Trade run: place token ${i + 1} of ${tradeGain}`,
-            options: FOCUS_TYPES.map((f) => ({ id: f, label: FOCUS_LABELS[f] }))
+            options: tradeTargets(st, player)
           });
         }
         grantPlayerDiplomacy(st, player, hex.city.ownerId);
         queueWheel();
+        // Great Library: take a card of the same type and level as one of theirs.
+        if (hasWonder(st, player.id, "Great Library")) {
+          queueGreatLibrary(st, player, hex.city.ownerId);
+        }
         const hostPlayer = getPlayer(st, hex.city.ownerId);
         // Ibrahim card: its holder trading at an Ottoman city enriches both sides.
         if (st.ibrahimHolder === player.id && hasLeader(hostPlayer, "ottoman")) {
@@ -1325,7 +1349,21 @@ const Game = (() => {
       }
 
       const actor = actorId ? getPlayer(st, actorId) : null;
-      if (!actor || (actor.trade.military || 0) <= 0) return st;
+      if (!actor) return st;
+
+      // Jebel Barkal: a resource token is worth +2, and buys nothing else.
+      if (payload.mode === "resource") {
+        const r = payload.resource;
+        if (!combatResources(st, c, side).includes(r)) return st;
+        actor.resources[r]--;
+        if (side === "attacker") c.atkTrade += 2; else c.defTrade += 2;
+        c.history.push({ side, mode: "resource", resource: r });
+        log(st, `${actor.name} burned ${r} at Jebel Barkal for +2.`);
+        advanceCombat(st);
+        return st;
+      }
+
+      if ((actor.trade.military || 0) <= 0) return st;
       actor.trade.military--;
       const before = side === "attacker" ? c.atkRoll : c.defRoll;
       if (payload.mode === "reroll") {
@@ -1439,6 +1477,15 @@ const Game = (() => {
       if (wonder.name === "Pyramids") {
         queueCardUpgrade(st, player, { onlyTier: 1, remaining: 3, source: "Pyramids", title: "Pyramids: Upgrade a Level-I Card" });
       }
+      if (wonder.name === "Potala Palace") {
+        queuePotalaPicks(st, player, 3);
+      }
+      if (wonder.name === "Cristo Redentor") {
+        queueCristoTakeover(st, player, payload.hexKey);
+      }
+      if (wonder.name === "Apadana") {
+        queueApadanaExplore(st, player);
+      }
       if (wonder.name === "Porcelain Tower") {
         queueCardUpgrade(st, player, { remaining: 2, source: "Porcelain Tower", title: "Porcelain Tower: Upgrade a Card" });
       }
@@ -1471,7 +1518,17 @@ const Game = (() => {
       // A card left mid-play still counts as played; it must never carry over.
       if (st.activeCard) finishActiveCard(st);
       const cp = currentPlayer(st);
+      // University of Sankore: having replaced a card this turn, shuffle any 2
+      // non-science cards. Queued before the turn passes, so it is still theirs.
+      if (cp && cp.upgradedThisTurn && hasWonder(st, cp.id, "University of Sankore")) {
+        queueCardSwap(st, cp, {
+          title: "University of Sankore: Swap 2 Cards",
+          source: "University of Sankore",
+          exclude: "science"
+        });
+      }
       if (cp) {
+        cp.upgradedThisTurn = false;
         cp.cardPlayed = false;
         cp.wonAttackThisTurn = false;
         cp.citiesTradedThisTurn = [];
@@ -1589,7 +1646,7 @@ const Game = (() => {
         queuePendingChoice(st, {
           kind: "trade_any", playerId: player.id, amount: 1,
           title: "Nubia: District Effect",
-          options: FOCUS_TYPES.map((f) => ({ id: f, label: FOCUS_LABELS[f] }))
+          options: tradeTargets(st, player)
         });
       }
     }
@@ -1601,7 +1658,7 @@ const Game = (() => {
         queuePendingChoice(st, {
           kind: "trade_any", playerId: player.id, amount: 1,
           title: "Humanism: Place a Trade Token",
-          options: FOCUS_TYPES.map((f) => ({ id: f, label: FOCUS_LABELS[f] }))
+          options: tradeTargets(st, player)
         });
       }
     }
@@ -1709,6 +1766,7 @@ const Game = (() => {
           : curTier + 1;
         player.cardLevels[cardType] = player.cardTiers[cardType];
         if (takeUnique) player.uniqueTaken = true;
+        player.upgradedThisTurn = true;   // University of Sankore looks at this
         if (cardType === "military" || cardType === "economy") syncUnitCounts(st, player);
         log(st, takeUnique
           ? `${player.name} took their unique card ${getCardName(player, cardType)} at tier ${player.cardTiers[cardType]}.`
@@ -1731,9 +1789,16 @@ const Game = (() => {
     } else if (choice.kind === "take_diplomacy") {
       const cardId = payload.optionId;
       const card = DIPLOMACY_CARDS[cardId];
-      if (card) {
-        // Swapping returns the card you held before taking the new one.
-        player.diplomacy = (player.diplomacy || []).filter((d) => d.fromId !== choice.fromId);
+      // Potala Palace keeps the whole hand, so the same card must not be taken
+      // from the same rival twice.
+      const dup = !!card && choice.keepHeld &&
+        (player.diplomacy || []).some((d) => d.fromId === choice.fromId && d.cardId === cardId);
+      if (card && !dup) {
+        // Swapping returns the card you held before taking the new one — unless
+        // Potala Palace lets you keep the whole hand.
+        if (!choice.keepHeld) {
+          player.diplomacy = (player.diplomacy || []).filter((d) => d.fromId !== choice.fromId);
+        }
         player.diplomacy.push({
           fromId: choice.fromId, cardId, name: card.name, type: cardId, effect: card.effect
         });
@@ -1743,7 +1808,12 @@ const Game = (() => {
       }
     } else if (choice.kind === "trade_any") {
       const cardType = payload.optionId;
-      if (FOCUS_TYPES.includes(cardType)) {
+      if (cardType === "zimbabwe" && hasWonder(st, player.id, "Great Zimbabwe")) {
+        const amount = choice.amount || 1;
+        player.zimbabwe = Math.min(4, (player.zimbabwe || 0) + amount);
+        log(st, `${player.name} banked ${amount} trade token(s) on Great Zimbabwe (${player.zimbabwe}/4).`);
+        resolved = true;
+      } else if (FOCUS_TYPES.includes(cardType)) {
         const amount = choice.amount || 1;
         player.trade[cardType] = Math.min(CFG.maxTrade, (player.trade[cardType] || 0) + amount);
         log(st, `${player.name} gained +${amount} ${cardType} trade.`);
@@ -1778,6 +1848,116 @@ const Game = (() => {
         log(st, `${player.name} removed a rival control token (${choice.source || "effect"}).`);
         resolved = true;
       }
+    } else if (choice.kind === "eiffel_target") {
+      // Step 1: the rival. Step 2 and 3 pick the two tokens.
+      const victim = getPlayer(st, payload.optionId);
+      const spots = victim ? Object.entries(st.map.hexes)
+        .filter(([, h]) => h.control && h.control.ownerId === victim.id).map(([k]) => k) : [];
+      if (victim && spots.length >= 2) {
+        queuePendingChoice(st, {
+          kind: "eiffel_pick", playerId: player.id, victimId: victim.id, picked: [],
+          title: `Eiffel Tower: Name a Token of ${victim.name}'s (1 of 2)`,
+          source: "Eiffel Tower", hexKeys: spots
+        });
+        resolved = true;
+      }
+    } else if (choice.kind === "eiffel_pick") {
+      const hexKey = payload.hexKey;
+      const hex = st.map.hexes[hexKey];
+      if ((choice.hexKeys || []).includes(hexKey) && hex && hex.control &&
+          hex.control.ownerId === choice.victimId) {
+        const picked = (choice.picked || []).concat([hexKey]);
+        if (picked.length < 2) {
+          const victim = getPlayer(st, choice.victimId);
+          queuePendingChoice(st, {
+            kind: "eiffel_pick", playerId: player.id, victimId: choice.victimId, picked,
+            title: `Eiffel Tower: Name a Token of ${victim ? victim.name : "theirs"} (2 of 2)`,
+            source: "Eiffel Tower", hexKeys: choice.hexKeys.filter((k) => k !== hexKey)
+          });
+        } else {
+          // The card gives the choice of which one to give up to its owner.
+          queuePendingChoice(st, {
+            kind: "eiffel_give", playerId: choice.victimId, takerId: player.id,
+            title: "Eiffel Tower: Give Up One of These Tokens",
+            source: "Eiffel Tower", hexKeys: picked
+          });
+        }
+        resolved = true;
+      }
+    } else if (choice.kind === "eiffel_give") {
+      const hexKey = payload.hexKey;
+      const hex = st.map.hexes[hexKey];
+      const taker = getPlayer(st, choice.takerId);
+      if ((choice.hexKeys || []).includes(hexKey) && hex && hex.control && taker) {
+        // "Unused, unreinforced" — the token that arrives is a plain one.
+        hex.control = { ownerId: taker.id, fortified: false, district: hex.control.district || null };
+        checkDevelopment(st, taker.id);
+        log(st, `${player.name} gave up a control token to ${taker.name} (Eiffel Tower).`);
+        resolved = true;
+      }
+    } else if (choice.kind === "zimbabwe_move") {
+      const cardType = payload.optionId;
+      if (FOCUS_TYPES.includes(cardType) && (player.zimbabwe || 0) > 0) {
+        player.zimbabwe--;
+        player.trade[cardType] = Math.min(CFG.maxTrade, (player.trade[cardType] || 0) + 1);
+        log(st, `${player.name} moved a banked token onto ${FOCUS_LABELS[cardType]}.`);
+        // Still more on the wonder: offer the next one.
+        queueZimbabweRelease(st, player);
+        resolved = true;
+      }
+    } else if (choice.kind === "library_copy") {
+      const cardType = payload.optionId;
+      const host = getPlayer(st, choice.fromId);
+      const theirs = host ? (host.cardTiers[cardType] || 1) : 0;
+      if (FOCUS_TYPES.includes(cardType) && theirs > (player.cardTiers[cardType] || 1)) {
+        player.cardTiers[cardType] = theirs;
+        player.cardLevels[cardType] = theirs;
+        player.upgradedThisTurn = true;
+        if (cardType === "military" || cardType === "economy") syncUnitCounts(st, player);
+        log(st, `${player.name} copied ${host.name}'s ${FOCUS_LABELS[cardType]} card at the Great Library.`);
+        resolved = true;
+      }
+    } else if (choice.kind === "conquer_city_state") {
+      const hex = st.map.hexes[choice.hexKey];
+      if (payload.optionId === "yes" && hex && hex.cityState) {
+        const cs = hex.cityState;
+        player.trade[cs.type] = Math.min(CFG.maxTrade, player.trade[cs.type] + 1);
+        if (!player.cityStateTokens.includes(cs.name)) player.cityStateTokens.push(cs.name);
+        returnDiplomacyFromSource(st, player, cs.name);
+        hex.cityState = null;
+        hex.city = { ownerId: player.id, isCapital: false, developed: false, hasWonder: false, wonder: null };
+        checkDevelopment(st, player.id);
+        log(st, `${player.name} conquered ${cs.name} with Orszaghaz.`);
+        resolved = true;
+      }
+    } else if (choice.kind === "seize_city") {
+      const hexKey = payload.hexKey;
+      const hex = st.map.hexes[hexKey];
+      if ((choice.hexKeys || []).includes(hexKey) && hex && hex.city &&
+          hex.city.ownerId !== player.id && !hex.city.isCapital) {
+        const from = getPlayer(st, hex.city.ownerId);
+        // The wonder in that city, if any, changes hands with it.
+        hex.city = { ownerId: player.id, isCapital: false, developed: false,
+          hasWonder: hex.city.hasWonder, wonder: hex.city.wonder };
+        checkDevelopment(st, player.id);
+        log(st, `${player.name} took ${from ? from.name + "'s" : "a rival"} city with Cristo Redentor.`);
+        resolved = true;
+      }
+    } else if (choice.kind === "apadana_explore") {
+      const hexKey = payload.hexKey;
+      if ((choice.hexKeys || []).includes(hexKey)) {
+        // The expedition itself is a tile placement, so hand the UI a licence
+        // to run one from this space and let EXPLORE_TILE do the rest.
+        st.freeExplore = { playerId: player.id, fromKey: hexKey, source: "Apadana" };
+        log(st, `${player.name} sets out from Apadana.`);
+        resolved = true;
+      }
+    } else if (choice.kind === "potala_pick") {
+      const rival = getPlayer(st, payload.optionId);
+      if (rival && rival.id !== player.id && grantPlayerDiplomacy(st, player, rival.id)) {
+        if (choice.remaining > 1) queuePotalaPicks(st, player, choice.remaining - 1);
+        resolved = true;
+      }
     } else if (choice.kind === "swap_adjacent") {
       const i = parseInt(payload.optionId, 10);
       if (Number.isInteger(i) && i >= 0 && i < player.focusRow.length - 1) {
@@ -1798,7 +1978,9 @@ const Game = (() => {
       const [a, b] = String(payload.optionId || "").split("|");
       const ia = player.focusRow.indexOf(a);
       const ib = player.focusRow.indexOf(b);
-      if (ia >= 0 && ib >= 0) {
+      // Some sources leave one card type where it is — Sankore never moves science.
+      const barred = choice.exclude && (a === choice.exclude || b === choice.exclude);
+      if (ia >= 0 && ib >= 0 && !barred) {
         player.focusRow[ia] = b;
         player.focusRow[ib] = a;
         log(st, `${player.name} swapped ${FOCUS_LABELS[a]} and ${FOCUS_LABELS[b]}.`);
@@ -1952,18 +2134,26 @@ const Game = (() => {
   function grantPlayerDiplomacy(st, player, sourcePlayerId) {
     const source = getPlayer(st, sourcePlayerId);
     if (!source) return false;
-    const held = (player.diplomacy || []).find((d) => d.fromId === sourcePlayerId);
+    const mine = (player.diplomacy || []).filter((d) => d.fromId === sourcePlayerId);
+    const held = mine[0];
     const cardIds = Object.keys(DIPLOMACY_CARDS);
     const taken = new Set(
       st.players.flatMap((p) => (p.diplomacy || [])
         .filter((d) => d.fromId === sourcePlayerId).map((d) => d.cardId))
     );
+    // Potala Palace: its owner may hold all four of a rival's cards at once,
+    // so nothing they already hold is swapped away.
+    const potala = hasWonder(st, player.id, "Potala Palace");
+    if (potala && mine.length >= 4) return false;
     // Each rival has four cards; you may not take one already in someone's hand,
     // and the one you hold is only on offer as a swap.
-    const offer = cardIds.filter((id) => !taken.has(id) || (held && held.cardId === id));
+    const offer = potala
+      ? cardIds.filter((id) => !taken.has(id))
+      : cardIds.filter((id) => !taken.has(id) || (held && held.cardId === id));
     if (!offer.length) return false;
     queuePendingChoice(st, {
       kind: "take_diplomacy", playerId: player.id, fromId: sourcePlayerId,
+      keepHeld: potala,
       title: `Diplomacy with ${source.name}`,
       options: offer.map((id) => ({
         id,
@@ -2006,13 +2196,28 @@ const Game = (() => {
     return p ? (p.trade.military || 0) : 0;
   }
 
+  // Jebel Barkal lets its owner burn resource tokens in a fight, +2 apiece.
+  // Natural wonder tokens are explicitly excluded on the card, and they are
+  // not resources here, so nothing extra is needed to keep them out.
+  function combatResources(st, c, side) {
+    const id = side === "attacker" ? c.attackerId : c.defenderOwnerId;
+    const p = id ? getPlayer(st, id) : null;
+    if (!p || !hasWonder(st, p.id, "Jebel Barkal")) return [];
+    return RESOURCES.filter((r) => (p.resources[r] || 0) > 0);
+  }
+
+  // Anything at all this side could still pay with.
+  function combatSpendable(st, c, side) {
+    return combatTokens(st, c, side) + combatResources(st, c, side).length;
+  }
+
   // Hands the bid on, skipping anybody who has nothing to spend — a barbarian,
   // a city-state and an empty military card all have no decision to make — and
   // settles the fight once both sides are done.
   function advanceCombat(st) {
     const c = st.combat;
     if (!c || !c.rolled) return;      // nobody bids over dice nobody has thrown
-    while (c.turn !== "done" && combatTokens(st, c, c.turn) <= 0) {
+    while (c.turn !== "done" && combatSpendable(st, c, c.turn) <= 0) {
       c.turn = c.turn === "attacker" ? "defender" : "done";
     }
     if (c.turn === "done") resolveCombat(st);
@@ -2341,7 +2546,7 @@ const Game = (() => {
               title: "Commercial Hub Trade",
               source: "commercial hub",
               amount: total,
-              options: FOCUS_TYPES.map((f) => ({ id: f, label: FOCUS_LABELS[f] }))
+              options: tradeTargets(st, player)
             });
           }
         }
@@ -2809,10 +3014,131 @@ const Game = (() => {
     return n;
   }
 
+  // Where a trade token you have just gained may go. Great Zimbabwe adds its own
+  // card as a fifth-and-more place to park one, up to a printed limit of 4.
+  function tradeTargets(st, player) {
+    const opts = FOCUS_TYPES.map((f) => ({ id: f, label: FOCUS_LABELS[f] }));
+    if (hasWonder(st, player.id, "Great Zimbabwe") && (player.zimbabwe || 0) < 4) {
+      opts.push({ id: "zimbabwe", label: `Great Zimbabwe (${player.zimbabwe || 0}/4 banked)` });
+    }
+    return opts;
+  }
+
+  // Great Zimbabwe, at the start of the turn: move what is banked on the wonder
+  // out onto the row, one token at a time.
+  function queueZimbabweRelease(st, player) {
+    if (!hasWonder(st, player.id, "Great Zimbabwe") || !(player.zimbabwe > 0)) return;
+    queuePendingChoice(st, {
+      kind: "zimbabwe_move", playerId: player.id,
+      title: `Great Zimbabwe: Move a Banked Trade Token (${player.zimbabwe} left)`,
+      source: "Great Zimbabwe", optional: true,
+      options: FOCUS_TYPES.map((f) => ({ id: f, label: FOCUS_LABELS[f] }))
+    });
+  }
+
+  // Great Library: a card of the same type and tech level as one in the row of
+  // the player you just traded with, replacing your own card of that type. Only
+  // worth offering where their card is actually ahead of yours.
+  function queueGreatLibrary(st, player, hostId) {
+    const host = getPlayer(st, hostId);
+    if (!host) return;
+    const better = FOCUS_TYPES.filter((f) =>
+      (host.cardTiers[f] || 1) > (player.cardTiers[f] || 1));
+    if (!better.length) return;
+    queuePendingChoice(st, {
+      kind: "library_copy", playerId: player.id, fromId: hostId,
+      title: `Great Library: Copy a Card from ${host.name}`,
+      source: "Great Library", optional: true,
+      options: better.map((f) => ({
+        id: f, label: `${FOCUS_LABELS[f]} \u2192 tier ${host.cardTiers[f]}` }))
+    });
+  }
+
+  // Cristo Redentor: on building it, take a rival non-capital city within 3
+  // spaces that has no army standing in it.
+  function queueCristoTakeover(st, player, fromKey) {
+    const from = st.map.hexes[fromKey];
+    if (!from) return;
+    const spots = [];
+    Object.entries(st.map.hexes).forEach(([k, h]) => {
+      if (!h.city || h.city.ownerId === player.id || h.city.isCapital) return;
+      if (hexDist(from, h) > 3) return;
+      if (getUnitsAt(st, k).some((u) => u.playerId !== player.id && u.type === "army")) return;
+      spots.push(k);
+    });
+    if (!spots.length) return;
+    queuePendingChoice(st, {
+      kind: "seize_city", playerId: player.id,
+      title: "Cristo Redentor: Take a Rival City",
+      source: "Cristo Redentor", hexKeys: spots, optional: true
+    });
+  }
+
+  // Apadana: on building it, explore from any edge space on any tile.
+  function queueApadanaExplore(st, player) {
+    if (!st.tileStack || !st.tileStack.length) return;
+    // "Any tile", so unlike a normal expedition this does not need the space to
+    // sit on the tile your capital is on.
+    const spots = Object.entries(st.map.hexes).filter(([, h]) => {
+      if (!h.active) return false;
+      return hexNeighborKeys(h.q, h.r).some((nk) => {
+        const nh = st.map.hexes[nk];
+        return nh && !nh.active;
+      });
+    }).map(([k]) => k);
+    if (!spots.length) return;
+    queuePendingChoice(st, {
+      kind: "apadana_explore", playerId: player.id,
+      title: "Apadana: Explore From Any Edge Space",
+      source: "Apadana", hexKeys: spots, optional: true
+    });
+  }
+
+  // Potala Palace hands its builder three diplomacy cards. Each pick is a rival
+  // first, then a card from that rival, so the prompts stay one decision each.
+  function queuePotalaPicks(st, player, remaining) {
+    if (remaining <= 0) return;
+    const rivals = st.players.filter((p) => p.id !== player.id &&
+      (player.diplomacy || []).filter((d) => d.fromId === p.id).length < 4);
+    if (!rivals.length) return;
+    queuePendingChoice(st, {
+      kind: "potala_pick", playerId: player.id,
+      title: `Potala Palace: Take a Diplomacy Card (${remaining} left)`,
+      source: "Potala Palace",
+      remaining,
+      options: rivals.map((p) => ({ id: p.id, label: p.name })),
+      optional: true
+    });
+  }
+
+  // Any two cards in the row, optionally leaving one type where it is. The
+  // pairs are listed by name, not by slot number, because nobody thinks of
+  // their row as indices.
+  function queueCardSwap(st, player, opts) {
+    const types = FOCUS_TYPES.filter((f) => f !== opts.exclude);
+    const options = [];
+    for (let i = 0; i < types.length; i++) {
+      for (let j = i + 1; j < types.length; j++) {
+        options.push({ id: `${types[i]}|${types[j]}`,
+          label: `${FOCUS_LABELS[types[i]]} \u2194 ${FOCUS_LABELS[types[j]]}` });
+      }
+    }
+    if (!options.length) return;
+    queuePendingChoice(st, {
+      kind: "swap_cards", playerId: player.id,
+      title: opts.title, source: opts.source,
+      exclude: opts.exclude || null,
+      options, optional: true
+    });
+  }
+
   // Wonders that trigger at the start of a player's turn. Each is optional, so
   // they queue a dismissible choice rather than resolving themselves.
   function queueStartOfTurnWonders(st, player) {
     const pid = player.id;
+
+    // Great Zimbabwe: what is banked on the wonder can come out onto the row.
+    queueZimbabweRelease(st, player);
 
     // Hanging Gardens: place 1 control on difficulty <= 4 next to a friendly city.
     if (hasWonder(st, pid, "Hanging Gardens")) {
@@ -2868,6 +3194,28 @@ const Game = (() => {
           kind: "remove_control", playerId: pid,
           title: "Forbidden City: Remove a Rival Control Token",
           source: "Forbidden City", hexKeys: spots, optional: true
+        });
+      }
+    }
+
+    // Eiffel Tower: name 2 of one rival's control tokens; they hand over
+    // whichever of the two they choose.
+    if (hasWonder(st, pid, "Eiffel Tower")) {
+      const byOwner = {};
+      Object.entries(st.map.hexes).forEach(([k, h]) => {
+        if (!h.control || h.control.ownerId === pid) return;
+        (byOwner[h.control.ownerId] = byOwner[h.control.ownerId] || []).push(k);
+      });
+      const victims = Object.keys(byOwner).filter((id) => byOwner[id].length >= 2);
+      if (victims.length) {
+        queuePendingChoice(st, {
+          kind: "eiffel_target", playerId: pid,
+          title: "Eiffel Tower: Choose a Rival",
+          source: "Eiffel Tower", optional: true,
+          options: victims.map((id) => {
+            const p = getPlayer(st, id);
+            return { id, label: `${p ? p.name : "Rival"} (${byOwner[id].length} tokens)` };
+          })
         });
       }
     }
@@ -3499,7 +3847,7 @@ const Game = (() => {
     getSlotValue, getSlotIndex, getCardTier, getCardTierValue: getCardTier,
     getMilitaryMove, getEconomyMove, getCultureMarkers, getMilitaryCombatBonus,
     getCityRange, getWonderCost, getWonderToken, getVisibleWonders,
-    combatTotals, combatTokens, canCrossWater, computeScore,
+    combatTotals, combatTokens, combatResources, combatSpendable, canCrossWater, computeScore,
     validControlHexes, validDistrictHexes, validReinforceHexes,
     validCityHexes, validWonderHexes, getReachable, findDefender, getUnitsAt,
     adjacentToCityState, adjacentToFriendlyControl, terrainDifficulty,

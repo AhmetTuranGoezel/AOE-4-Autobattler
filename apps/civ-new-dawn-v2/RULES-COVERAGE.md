@@ -252,6 +252,32 @@ face, clockwise from the starting space:
 - Checked at the end of each round, **before** the event wheel resolves.
 - A claimed marker stays put — except fortress agendas, which must be held.
 
+### World wonders now resolved by the engine
+
+Added in this pass, all of them from the English card text:
+
+- **Jebel Barkal** — resource tokens can be spent in a fight, +2 apiece. They
+  appear as their own row of buttons on the combat stage next to the trade-token
+  bid, and the bidding no longer skips a side whose only ammunition is resources.
+- **Cristo Redentor** — on building it, take a rival non-capital city within 3
+  spaces with no army standing in it. Any wonder in that city changes hands too.
+- **Eiffel Tower** — at the start of your turn, name two control tokens belonging
+  to one rival; that rival chooses which of the two to hand over, and it arrives
+  unreinforced.
+- **Apadana** — on building it, explore from any edge space on any tile. That is
+  looser than a normal expedition, which has to start on the tile your capital is
+  on, so it runs on a one-shot licence the engine issues and spends.
+- **Great Zimbabwe** — trade tokens can be banked on the wonder instead of the
+  row, up to 4, and moved out onto the row at the start of your turn. It appears
+  as an extra destination wherever a trade token is placed.
+- **Great Library** — a caravan reaching a rival city can copy a card of the same
+  type and tech level from their row. Only cards ahead of your own are offered.
+- **Orszaghaz** — after trading at a city-state, take it.
+- **University of Sankore** — having replaced a card that turn, swap any two
+  non-science cards at the end of it.
+- **Potala Palace** — its owner may hold all four of a rival's diplomacy cards
+  instead of one, and takes three of their choice on building it.
+
 ### Civilizations
 
 - All 18 Terra Incognita leaders, with ability, starting focus order and unique
@@ -271,8 +297,20 @@ face, clockwise from the starting space:
 
 ## 2. Implemented, but approximated
 
-- **13 of the 34 world wonders are table reminders.** Their printed text is shown
-  on the card, but the effect is not automated. The other 21 resolve themselves.
+- **4 of the 34 world wonders are table reminders.** Their printed text is shown
+  on the card, but the effect is not automated. The other 30 resolve themselves.
+  The four, and why each is still by hand:
+  - **Oxford University** — "when you replace a focus card other than a science
+    card, you do not have to replace it with a card of the same type." The row
+    here is six card *types* with a tier each, so there is no way to hold two
+    culture cards and no military one. Automating it means rebuilding the focus
+    row as a list of card instances, which touches almost everything.
+  - **Venetian Arsenal** — re-resolving the slot-5 card as though it sat in
+    slot 1 needs a second pass over a card the turn has already spent.
+  - **Estadio Do Maracana** — resolving and resetting the economy card *before*
+    a non-economy card is the same problem from the other end.
+  - **Amundsen-Scott RS** — the wonder goes into a city that does not exist yet,
+    on any legal edge space; wonders here are placed in a city you already hold.
 - **The advanced pre-game tile draft** (each player dealt 2 tiles and placing in
   turn order, Terra p14) is not implemented. The app builds the four-tile core to
   the rules and then draws from a shared exploration stack during play.
@@ -303,7 +341,12 @@ Stated plainly, because it would otherwise look authentic:
   the resource positions and the barbarian letters. The Tabletop Simulator mod
   carries zero terrain data (I checked: no occurrence of any terrain word in the
   save), and the tile images are unreachable from this machine.
-- **Tile geometry.** The printed tiles are 7 hexes; this app uses a 10-hex shape.
+- ~~**Tile geometry.**~~ Struck out: I wrote here that the printed tiles are 7
+  hexes and the app's 10-hex shape was invented. That was wrong. Measuring tile
+  area against the fort tokens on Terra p5 — those are single hexes, so they give
+  the scale — puts exactly 10 hexes on a tile, in columns of 4/4/2, which is the
+  shape the app already used. The geometry is real; only the terrain inside it is
+  mine.
 - **What *is* real** on the tiles: the front/back pairings. Tile 1 is Cliffs of
   Dover / Torres del Paine, tile 13 is Mt Kilimanjaro / Pantanal, tile 20 is
   Akkad / Auckland, and so on — those come from the mod's own tile descriptions.

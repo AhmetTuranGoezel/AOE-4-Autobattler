@@ -125,7 +125,11 @@
       assert("Colossus adds 6 caravan movement", Game.getEconomyMove(ecoP, wst) === ecoBefore + 6);
       // Wonders that shape where you may place, not just how hard you hit
       const autoCount = Game.ALL_WONDERS.filter((w) => w.auto).length;
-      assert("21 wonders are engine-enforced", autoCount === 21);
+      assert("30 of the 34 wonders are engine-enforced", autoCount === 30);
+      // The four left are table reminders; naming them keeps the list honest.
+      const manual = Game.ALL_WONDERS.filter((w) => !w.auto).map((w) => w.name).sort().join(", ");
+      assert("and the remaining four are the known ones",
+        manual === "Amundsen-Scott RS, Estadio Do Maracana, Oxford University, Venetian Arsenal");
 
       // Chichen Itza: forest far from any city is illegal until you own it
       let cwst = Game.createState(players(2));
