@@ -30,6 +30,15 @@ tokens, boards, other images, untouched card sheets, and JSON/CSV provenance
 manifests. `assets.json` is the complete manifest; `cards.csv` and
 `map-tiles.csv` are convenient lookup tables.
 
+For browser-only coding agents, build the smaller Git-trackable WebP pack:
+
+```sh
+python build-web-assets.py
+```
+
+That produces `../assets/tts-web/` with a searchable `catalog.json`, while the
+full-resolution extraction remains local and ignored.
+
 The Workshop source and generated artwork are intentionally ignored by Git.
 They include publisher artwork, so do not redistribute them without the
 appropriate rights.
