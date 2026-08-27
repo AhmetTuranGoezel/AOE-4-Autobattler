@@ -336,6 +336,19 @@ input, select {
   margin-top: 6px;
   font-size: 11px;
 }
+/* The side whose die is still in the cup, while the other number sits on the
+   table waiting to be beaten. */
+.cs-side.cs-next .cs-die {
+  animation: cs-await 1.2s ease-in-out infinite;
+  border-color: #ffd54f;
+}
+@keyframes cs-await {
+  0%, 100% { transform: translateY(0); box-shadow: 0 0 0 rgba(255, 213, 79, 0); }
+  50%      { transform: translateY(-4px); box-shadow: 0 6px 18px rgba(255, 213, 79, 0.35); }
+}
+.cs-turn.cs-beat { font-size: 15px; }
+.cs-turn.cs-beat b { color: #ffd54f; font-size: 18px; }
+
 /* Choosing which piece in a space to attack: each option shows what it defends
    at and where that number comes from. */
 .tgt-mine { font-size: 12px; opacity: 0.85; margin-bottom: 8px; }

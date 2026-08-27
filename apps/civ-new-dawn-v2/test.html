@@ -408,7 +408,11 @@
           if (!out.combat) continue;
           // Nothing rolls itself any more.
           assertOnce("the dice wait until they are thrown", out.combat.rolled === false);
-          out = Game.applyAction(out, { type: "COMBAT_ROLL", payload: { playerId: me.id } });
+          // One die at a time: the attacker throws, then the defender answers.
+          out = Game.applyAction(out, { type: "COMBAT_ROLL", payload: { playerId: me.id, side: "attacker" } });
+          if (!out.combat) continue;
+          assertOnce("the attacker's die alone does not open the bidding", out.combat.rolled === false);
+          out = Game.applyAction(out, { type: "COMBAT_ROLL", payload: { playerId: me.id, side: "defender", hostOverride: true } });
           if (!out.combat) continue;
 
           // the defender may not jump the queue

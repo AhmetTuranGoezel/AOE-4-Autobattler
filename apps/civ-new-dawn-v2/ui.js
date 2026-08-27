@@ -1971,12 +1971,16 @@ const UI = (() => {
     const tokens = actor ? (actor.trade.military || 0) : 0;
     const barkal = live ? Game.combatResources(state, live, live.turn) : [];
 
+    // Each side's die is its own now. The attacker's lands first and sits there
+    // as the number to beat while the defender's is still in the cup.
+    const atkThrown = live ? !!live.atkRolled : true;
+    const defThrown = live ? !!live.defRolled : true;
     const thrown = live ? live.rolled : true;
-    const side = (cls, label, roll, total, note) => `
-      <div class="cs-side ${cls}">
+    const side = (cls, label, roll, total, note, down, next) => `
+      <div class="cs-side ${cls}${next ? " cs-next" : ""}">
         <div class="cs-name">${escapeHtml(label || "?")}</div>
-        <div class="cs-die ${cls}${thrown ? "" : " waiting"}">${thrown ? DICE[(roll || 1) - 1] : "\u2b1c"}</div>
-        <div class="cs-total">${thrown ? total : "\u2013"}</div>
+        <div class="cs-die ${cls}${down ? "" : " waiting"}">${down ? DICE[(roll || 1) - 1] : "\u2b1c"}</div>
+        <div class="cs-total">${down ? total : "\u2013"}</div>
         <div class="cs-note">${note}</div>
       </div>`;
 
@@ -1991,14 +1995,33 @@ const UI = (() => {
         || `<div class="cs-line"><span>nothing</span><b>0</b></div>`;
     };
     const atkNote = lines(live ? live.atkParts : done.atkParts, atkRoll,
-      live ? live.atkTrade : done.atkTrade, live ? live.rolled : true);
+      live ? live.atkTrade : done.atkTrade, atkThrown);
     const defNote = lines(live ? live.defParts : done.defParts, defRoll,
-      live ? live.defTrade : done.defTrade, live ? live.rolled : true);
+      live ? live.defTrade : done.defTrade, defThrown);
 
     let foot = "";
-    if (live && !live.rolled) {
-      foot = `<div class="cs-turn">The dice are in your hand.</div>
-        <div class="cs-actions"><button class="cs-btn primary" id="cs-roll">Roll the dice</button></div>`;
+    if (live && !atkThrown) {
+      const mineToThrow = live.attackerId === localPlayerId;
+      foot = mineToThrow || Net.getIsHost()
+        ? `<div class="cs-turn">Your die first.</div>
+           <div class="cs-actions"><button class="cs-btn primary" id="cs-roll" data-side="attacker">Throw</button></div>`
+        : `<div class="cs-turn">Waiting for ${escapeHtml(atkName || "the attacker")} to throw\u2026</div>`;
+    } else if (live && !defThrown) {
+      const roller = Game.combatDefenderRoller(state, live);
+      const rp = Game.getPlayer(state, roller);
+      const mineToThrow = roller === localPlayerId;
+      // The number to beat is on the table now, which is the moment worth
+      // holding — say it out loud before the second die goes down. The defender
+      // wins ties, so they need to MATCH the attacker's total, not pass it.
+      const need = totals.atk - live.defBase - live.defTrade;
+      const ask = need <= 1 ? "anything at all"
+        : need > 6 ? "more than a die can give"
+        : `a <b>${need}</b> or better`;
+      const beat = `<div class="cs-turn cs-beat">${escapeHtml(atkName || "The attacker")} stands at
+        <b>${totals.atk}</b>. ${escapeHtml(defName || "The defender")} needs ${ask}.</div>`;
+      foot = mineToThrow || Net.getIsHost()
+        ? `${beat}<div class="cs-actions"><button class="cs-btn primary" id="cs-roll" data-side="defender">Throw to answer</button></div>`
+        : `${beat}<div class="cs-turn">Waiting for ${escapeHtml(rp ? rp.name : "the defender")} to answer\u2026</div>`;
     } else if (live) {
       const who = live.turn === "attacker" ? "Attacker" : "Defender";
       if (mine || asHost) {
@@ -2035,9 +2058,9 @@ const UI = (() => {
       <div class="cs-body">
         <div class="cs-vs"><strong>${escapeHtml(atkName || "Attacker")}</strong> attacks <strong>${escapeHtml(defName || "?")}</strong></div>
         <div class="cs-duel">
-          ${side("atk", atkName, atkRoll, totals.atk, atkNote)}
+          ${side("atk", atkName, atkRoll, totals.atk, atkNote, atkThrown, live && !atkThrown)}
           <div class="cs-x">\u2694</div>
-          ${side("def", defName, defRoll, totals.def, defNote)}
+          ${side("def", defName, defRoll, totals.def, defNote, defThrown, live && atkThrown && !defThrown)}
         </div>
         ${story ? `<ul class="cs-story">${story}</ul>` : ""}
         ${foot}
@@ -2045,8 +2068,10 @@ const UI = (() => {
 
     const bid = (mode) => dispatch({ type: "COMBAT_SPEND", payload: {
       playerId: localPlayerId, side: live.turn, mode, hostOverride: !!asHost } });
-    document.getElementById("cs-roll")?.addEventListener("click", () => dispatch({
-      type: "COMBAT_ROLL", payload: { playerId: localPlayerId } }));
+    const rollBtn = document.getElementById("cs-roll");
+    rollBtn?.addEventListener("click", () => dispatch({
+      type: "COMBAT_ROLL", payload: { playerId: localPlayerId,
+        side: rollBtn.dataset.side, hostOverride: Net.getIsHost() } }));
     document.getElementById("cs-plus")?.addEventListener("click", () => bid("plus"));
     document.getElementById("cs-reroll")?.addEventListener("click", () => bid("reroll"));
     document.querySelectorAll(".cs-res").forEach((b) => b.addEventListener("click", () => dispatch({
@@ -2060,10 +2085,12 @@ const UI = (() => {
 
     // Re-tumble only when a die has actually changed, so the stage does not
     // spin every time the panel re-renders.
-    const key = `${live ? "live" : "done"}:${thrown}:${atkRoll}:${defRoll}:${totals.atk}:${totals.def}`;
-    if (thrown && key !== lastStageKey) {
-      rollDice(stage.querySelector(".cs-die.atk"), atkRoll);
-      rollDice(stage.querySelector(".cs-die.def"), defRoll);
+    const key = `${live ? "live" : "done"}:${atkThrown}:${defThrown}:${atkRoll}:${defRoll}:${totals.atk}:${totals.def}`;
+    if ((atkThrown || defThrown) && key !== lastStageKey) {
+      // Tumble only what has actually left the cup, so the second throw is its
+      // own moment rather than a re-run of the first.
+      if (atkThrown) rollDice(stage.querySelector(".cs-die.atk"), atkRoll);
+      if (defThrown) rollDice(stage.querySelector(".cs-die.def"), defRoll);
       flashHex((live || done).toKey || (state.combat && state.combat.toKey), "rgb(239,83,80)", 900);
       lastStageKey = key;
     }

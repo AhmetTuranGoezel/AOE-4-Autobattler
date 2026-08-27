@@ -759,6 +759,10 @@ const Game = (() => {
     st.agendaCards = st.agendaCards || makeAgendaCards();
     st.claimedAgendas = st.claimedAgendas || {};
     if (st.ibrahimHolder === undefined) st.ibrahimHolder = null;
+    if (st.combat && st.combat.atkRolled === undefined) {
+      st.combat.atkRolled = !!st.combat.rolled;
+      st.combat.defRolled = !!st.combat.rolled;
+    }
     st.pendingChoices = st.pendingChoices || [];
     st.manualLog = st.manualLog || [];
     st.log = st.log || [];
@@ -1327,6 +1331,8 @@ const Game = (() => {
         leaderBonus,
         atkRoll: 0,
         defRoll: 0,
+        atkRolled: false,
+        defRolled: false,
         rolled: false,
         atkTrade: 0,
         defTrade: 0,
@@ -1340,11 +1346,29 @@ const Game = (() => {
     if (type === "COMBAT_ROLL") {
       const c = st.combat;
       if (!c || c.rolled || c.turn === "done") return st;
-      c.atkRoll = rollDie();
-      c.defRoll = rollDie();
-      c.rolled = true;
-      log(st, `Dice: ${c.atkRoll} against ${c.defRoll}.`);
-      advanceCombat(st);
+      // One die at a time, attacker first (base p11). Seeing the number you
+      // have to beat before the second die leaves the table is the whole point.
+      const side = payload.side || (c.atkRolled ? "defender" : "attacker");
+
+      if (side === "attacker") {
+        if (c.atkRolled) return st;
+        if (payload.playerId && payload.playerId !== c.attackerId && !payload.hostOverride) return st;
+        c.atkRoll = rollDie();
+        c.atkRolled = true;
+        const who = getPlayer(st, c.attackerId);
+        log(st, `${who ? who.name : "The attacker"} rolls a ${c.atkRoll}.`);
+      } else {
+        if (!c.atkRolled) return st;          // nobody answers a die not yet thrown
+        if (c.defRolled) return st;
+        const roller = combatDefenderRoller(st, c);
+        if (payload.playerId && roller && payload.playerId !== roller && !payload.hostOverride) return st;
+        c.defRoll = rollDie();
+        c.defRolled = true;
+        log(st, `${c.defenderLabel} answers with a ${c.defRoll}.`);
+      }
+
+      c.rolled = !!(c.atkRolled && c.defRolled);
+      if (c.rolled) advanceCombat(st);
       return st;
     }
 
@@ -2299,6 +2323,17 @@ const Game = (() => {
       atk: c.atkRoll + c.atkBase + c.atkTrade,
       def: c.defRoll + c.defBase + c.defTrade
     };
+  }
+
+  // Whose hand the defender's die is in. A rival defends for themselves; for a
+  // barbarian, city-state or empty fort it is "the player to the right of the
+  // attacker" (base p11) — the next player in turn order.
+  function combatDefenderRoller(st, c) {
+    if (c.defenderOwnerId) return c.defenderOwnerId;
+    const order = (st.turn && st.turn.order) || [];
+    const i = order.indexOf(c.attackerId);
+    if (i < 0 || order.length < 2) return c.attackerId;
+    return order[(i + 1) % order.length];
   }
 
   // How many military trade tokens the side still has to bid with.
@@ -4081,7 +4116,8 @@ const Game = (() => {
     getSlotValue, getSlotIndex, getCardTier, getCardTierValue: getCardTier,
     getMilitaryMove, getEconomyMove, getCultureMarkers, getMilitaryCombatBonus,
     getCityRange, getWonderCost, getWonderToken, getVisibleWonders,
-    combatTotals, combatTokens, combatResources, combatSpendable, canCrossWater, computeScore,
+    combatTotals, combatTokens, combatResources, combatSpendable, combatDefenderRoller,
+    canCrossWater, computeScore,
     findDefenders, validControlHexes, validDistrictHexes, validReinforceHexes,
     validCityHexes, validWonderHexes, getReachable, findDefender, getUnitsAt,
     adjacentToCityState, adjacentToFriendlyControl, terrainDifficulty,
