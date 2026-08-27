@@ -1503,6 +1503,7 @@ const UI = (() => {
     else if (sub.phase === "placing_district") { renderPlacingDistrict(); }
     else if (sub.phase === "reinforcing") { renderReinforcing(); }
     else if (sub.phase === "move_caravan" || sub.phase === "move_army") { renderMoving(); }
+    else if (sub.phase === "reinforcing_after_district") { renderReinforceAfterDistrict(); }
     else if (sub.phase === "move_army_post" || sub.phase === "move_caravan_post") { renderMovingHint(); }
     else if (sub.phase === "move_army_exploring" || sub.phase === "move_caravan_exploring") { renderExploring(); }
     else if (sub.phase === "industry_choice") { renderIndustryChoice(me); }
@@ -2198,6 +2199,15 @@ const UI = (() => {
   }
 
   // The rail says what is happening; the board says what to do about it.
+  function renderReinforceAfterDistrict() {
+    dom.wizard.innerHTML = `
+      <div class="wiz-title">Reinforce with your trade</div>
+      <div class="wiz-body">The district is placed. Each trade token you spent also turns one of your
+        control tokens over \u2014 click <strong>${sub.remaining}</strong> more on the map.</div>
+      <div class="wiz-actions"><button id="wiz-skip-reinforce">Stop here</button></div>`;
+    document.getElementById("wiz-skip-reinforce").addEventListener("click", finishDistrictWithReinforcements);
+  }
+
   function renderMovingHint() {
     const ms = sub.movementState;
     if (!ms) { renderIdleWizard(false, Game.currentPlayer(state), Game.getPlayer(state, localPlayerId)); return; }
@@ -2792,6 +2802,13 @@ const UI = (() => {
     render();
   }
 
+  function finishDistrictWithReinforcements() {
+    dispatch({ type: "PLAY_GROWTH_DISTRICT", payload: {
+      playerId: localPlayerId, hexKey: sub.districtKey, district: sub.districtType,
+      reinforceKeys: sub.placedKeys.slice(), tradeSpent: sub.tradeSpent } });
+    resetSub();
+  }
+
   function startReinforce() {
     const me = Game.getPlayer(state, localPlayerId);
     const slot = Game.getSlotValue(me, "growth", state);
@@ -2910,8 +2927,30 @@ const UI = (() => {
     if (sub.phase === "placing_district") {
       if (!sub.validHexes.has(hexKey)) { showToast("Must be adjacent to your city"); return; }
       flashHex(hexKey, "rgb(79,195,247)", 600);
+      // Trade tokens on a growth card reinforce whether or not the card's own
+      // effect did (Terra p8), so a district still leaves them to spend.
+      if (sub.tradeSpent > 0) {
+        sub.districtKey = hexKey;
+        sub.phase = "reinforcing_after_district";
+        sub.remaining = sub.tradeSpent;
+        sub.totalMarkers = sub.tradeSpent;
+        sub.placedKeys = [];
+        sub.validHexes = Game.validReinforceHexes(state, localPlayerId);
+        render();
+        return;
+      }
       dispatch({ type: "PLAY_GROWTH_DISTRICT", payload: { playerId: localPlayerId, hexKey, district: sub.districtType, tradeSpent: sub.tradeSpent } });
       resetSub(); return;
+    }
+    if (sub.phase === "reinforcing_after_district") {
+      if (!sub.validHexes.has(hexKey)) return;
+      sub.placedKeys.push(hexKey);
+      sub.remaining--;
+      sub.validHexes.delete(hexKey);
+      flashHex(hexKey, "rgb(255,213,79)", 500);
+      if (sub.remaining <= 0) finishDistrictWithReinforcements();
+      else render();
+      return;
     }
     if (sub.phase === "reinforcing") {
       if (!sub.validHexes.has(hexKey)) return;

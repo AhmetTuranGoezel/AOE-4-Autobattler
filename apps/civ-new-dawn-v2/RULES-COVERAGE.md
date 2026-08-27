@@ -185,6 +185,14 @@ face, clockwise from the starting space:
 - After exploring it may keep moving with whatever movement is left, including
   onto the ground it just uncovered.
 
+### Growth (Terra p8)
+
+- The slot's number is the terrain limit for a district **on its own**; trade
+  tokens on a growth card do not buy rougher ground.
+- Reinforcing is capped at the slot's number, **plus one per trade token spent**.
+- Those tokens reinforce "whether or not the card's effect was used to reinforce
+  control tokens" — so a district still leaves them to spend.
+
 ### Districts (Terra p20)
 
 - Placed only by growth cards; abilities that place control markers cannot place
@@ -277,8 +285,6 @@ face, clockwise from the starting space:
 - **Agenda wording.** Terra p16 prints exact targets for all twelve agendas. A few
   of the descriptions here are paraphrases carried over from the German, and
   "Explorer", "Civilized" and "Warmonger" are base-game cards Terra replaces.
-- **Growth trade tokens** should each reinforce one control token (Terra p8). The
-  effect is listed on the card but not wired to spending.
 
 ## 3. Invented — not from the game
 

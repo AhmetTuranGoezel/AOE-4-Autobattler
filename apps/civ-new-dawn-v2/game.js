@@ -1082,9 +1082,14 @@ const Game = (() => {
       if (hex.control && hex.control.ownerId !== payload.playerId) return st;
       if (hex.control && hex.control.district) return st;
       if (!adjacentToFriendlyCity(st, hex, payload.playerId)) return st;
-      const growthSlot = getSlotValue(player, "growth", st) + (payload.tradeSpent || 0);
+      // The slot's number is the terrain limit on its own. Trade tokens on a
+      // growth card buy reinforcements (Terra p8), not rougher ground.
+      const growthSlot = getSlotValue(player, "growth", st);
       if (placementDifficulty(st, hex, player, "district") > growthSlot) return st;
       hex.control = { ownerId: payload.playerId, fortified: false, district: payload.district };
+      // "...whether or not the card's effect was used to reinforce control
+      // tokens" — so the tokens still buy reinforcements after a district.
+      reinforceWithTokens(st, player, payload.reinforceKeys, payload.tradeSpent || 0);
       resolveCard(st, player, "growth", payload.tradeSpent);
       log(st, `${player.name} placed a ${payload.district} district.`);
       checkDevelopment(st, payload.playerId);
@@ -1094,12 +1099,12 @@ const Game = (() => {
     if (type === "PLAY_GROWTH_REINFORCE") {
       const player = getPlayer(st, payload.playerId);
       if (!player || player.cardPlayed) return st;
-      payload.hexKeys.forEach((k) => {
-        const hex = st.map.hexes[k];
-        if (hex && hex.control && hex.control.ownerId === payload.playerId) hex.control.fortified = true;
-      });
+      // "Reinforce a number of your control tokens up to this slot's number",
+      // plus one more for each trade token spent from the card.
+      const allowed = getSlotValue(player, "growth", st) + (payload.tradeSpent || 0);
+      const done = reinforceWithTokens(st, player, payload.hexKeys, allowed);
       resolveCard(st, player, "growth", payload.tradeSpent);
-      log(st, `${player.name} reinforced ${payload.hexKeys.length} marker(s).`);
+      log(st, `${player.name} reinforced ${done} marker(s).`);
       return st;
     }
 
@@ -3078,6 +3083,21 @@ const Game = (() => {
       valid.push(k);
     });
     return new Set(valid);
+  }
+
+  // Turns unreinforced control tokens over, up to a limit, and says how many.
+  function reinforceWithTokens(st, player, hexKeys, limit) {
+    if (!limit || !Array.isArray(hexKeys)) return 0;
+    let done = 0;
+    for (const k of hexKeys) {
+      if (done >= limit) break;
+      const hex = st.map.hexes[k];
+      if (!hex || !hex.control || hex.control.ownerId !== player.id) continue;
+      if (hex.control.fortified) continue;
+      hex.control.fortified = true;
+      done++;
+    }
+    return done;
   }
 
   function validReinforceHexes(st, playerId) {
