@@ -2149,9 +2149,17 @@ const UI = (() => {
       dom.wizard.innerHTML = `<div class="wiz-title">Waiting</div><div class="wiz-body">It's <strong>${cp ? cp.name : "..."}</strong>'s turn.</div>`;
       return;
     }
-    let actions = `<div class="wiz-actions">`;
-    actions += `<button id="wiz-end-turn">End Turn</button></div>`;
-    dom.wizard.innerHTML = `<div class="wiz-title">Your Turn</div><div class="wiz-body">Select a <strong>focus card</strong> below to take an action.${me && me.cardPlayed ? "<br><em>Card already played this turn.</em>" : ""}</div>${actions}`;
+    // Your turn IS resolving a focus card (base p6) — there is no passing. So
+    // there is nothing to end until you have taken it, and no button offering
+    // to skip the only thing a turn is made of.
+    const taken = !!(me && me.cardPlayed);
+    const body = taken
+      ? `Card resolved. Nothing left to do this turn.`
+      : `Resolve a <strong>focus card</strong> below \u2014 that is your turn.`;
+    const actions = taken
+      ? `<div class="wiz-actions"><button class="primary" id="wiz-end-turn">End Turn</button></div>`
+      : "";
+    dom.wizard.innerHTML = `<div class="wiz-title">Your Turn</div><div class="wiz-body">${body}</div>${actions}`;
     document.getElementById("wiz-end-turn")?.addEventListener("click", () => dispatch({ type: "END_TURN", payload: { playerId: localPlayerId } }));
   }
 
@@ -2180,13 +2188,20 @@ const UI = (() => {
       <div class="wiz-actions">
         <button class="primary" id="wiz-start">Start Action</button>
         <button class="ghost" id="wiz-cancel">Cancel</button>
-      </div>`;
+      </div>
+      <div class="wiz-actions"><button class="ghost sm" id="wiz-nothing"
+        title="Resolve and reset this card without doing anything. It still counts as your turn's card.">Resolve for nothing</button></div>`;
     if (spendsUpFront) {
       document.getElementById("tc-dec").addEventListener("click", () => { sub.tradeSpent = Math.max(0, sub.tradeSpent - 1); renderWizard(); });
       document.getElementById("tc-inc").addEventListener("click", () => { sub.tradeSpent = Math.min(tradeAvail, sub.tradeSpent + 1); renderWizard(); });
     }
     document.getElementById("wiz-start").addEventListener("click", startAction);
     document.getElementById("wiz-cancel").addEventListener("click", cancelAction);
+    document.getElementById("wiz-nothing").addEventListener("click", () => {
+      dispatch({ type: "END_FOCUS_CARD", payload: {
+        playerId: localPlayerId, cardType: sub.cardType, tradeSpent: 0 } });
+      resetSub();
+    });
   }
 
   function renderPlacingControl() {
@@ -2969,11 +2984,18 @@ const UI = (() => {
   }
 
   function finishAction() {
-    if (sub.phase === "placing_control" && sub.placedKeys.length > 0) {
+    const placedNothing = !sub.placedKeys.length;
+    if (sub.phase === "placing_control" && !placedNothing) {
       dispatch({ type: "PLAY_CULTURE", payload: { playerId: localPlayerId, hexKeys: sub.placedKeys, tradeSpent: sub.tradeSpent } });
     }
-    if (sub.phase === "reinforcing" && sub.placedKeys.length > 0) {
+    if (sub.phase === "reinforcing" && !placedNothing) {
       dispatch({ type: "PLAY_GROWTH_REINFORCE", payload: { playerId: localPlayerId, hexKeys: sub.placedKeys, tradeSpent: sub.tradeSpent } });
+    }
+    // Finishing having placed nothing still spends the card — otherwise a card
+    // with nowhere legal to go leaves you owing a turn you cannot take.
+    if (placedNothing && sub.cardType) {
+      dispatch({ type: "END_FOCUS_CARD", payload: {
+        playerId: localPlayerId, cardType: sub.cardType, tradeSpent: 0 } });
     }
     resetSub();
   }
