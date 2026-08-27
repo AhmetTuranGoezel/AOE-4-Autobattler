@@ -191,7 +191,7 @@
         effect: "When attacking, +2 combat value." },
       { name: "Huey Teocalli", era: "medieval", cost: 9, auto: true,
         effect: "When defending, increase your combat value by 1 for each water space that is adjacent to the defending space." },
-      { name: "Venetian Arsenal", era: "medieval", cost: 10,
+      { name: "Venetian Arsenal", era: "medieval", cost: 10, auto: true,
         effect: "Once per turn, after you resolve the card in the fifth slot (slot #5) of your focus row, you may resolve it again, treating it as if it was in the first slot (slot #1)." },
       { name: "Alhambra", era: "medieval", cost: 10, auto: true,
         effect: "When attacking or defending, increase your combat value by 2." },
@@ -233,7 +233,7 @@
         effect: "You can place trade tokens on this card instead of on your focus cards, up to a limit of 4. At the start of your turn, you may move trade tokens from this card to cards in your focus row." },
       { name: "Big Ben", era: "modern", cost: 10, auto: true,
         effect: "When attacking or defending, increase your combat value by +2 for each of your caravans adjacent to the defending space." },
-      { name: "Estadio Do Maracana", era: "modern", cost: 10,
+      { name: "Estadio Do Maracana", era: "modern", cost: 10, auto: true,
         effect: "You may resolve and reset your economy card before you resolve a non-economy focus card (Errata)." },
       { name: "Orszaghaz", era: "modern", cost: 11, auto: true,
         effect: "After you move a caravan to a city-state, you may conquer it." }
@@ -253,7 +253,7 @@
         effect: "You can have 4 diplomacy cards from each other player. When you build this wonder, you may take a total of 3 diplomacy cards of your choice from other players." },
       { name: "Oxford University", era: "modern", cost: 10,
         effect: "When you replace (tech upgrade) a focus card other than a science focus card, you do not have to replace it with a card of the same type." },
-      { name: "Amundsen-Scott RS", era: "modern", cost: 10,
+      { name: "Amundsen-Scott RS", era: "modern", cost: 10, auto: true,
         effect: "When you build this wonder, build a city on any legal space on the edge of the map and place this wonder in that city. THEN, place up to 2 control tokens in spaces adjacent to that city." },
       { name: "Kremlin", era: "modern", cost: 11, auto: true,
         effect: "When attacking a rival space (not city-state), increase your combat value by 4 if you have more reinforced control tokens on the map than the defending player." }

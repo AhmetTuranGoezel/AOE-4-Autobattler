@@ -703,6 +703,7 @@ const Game = (() => {
       tech: 0, techTier: 1,
       uniqueTaken: false,
       upgradedThisTurn: false,
+      arsenalUsed: false, arsenalReplay: null, estadioUsed: false,
       zimbabwe: 0,        // trade tokens parked on Great Zimbabwe
       cardTiers,
       cardLevels: { ...cardTiers },
@@ -729,6 +730,9 @@ const Game = (() => {
     if (player.uniqueTaken === undefined) player.uniqueTaken = false;
     if (player.upgradedThisTurn === undefined) player.upgradedThisTurn = false;
     if (player.zimbabwe === undefined) player.zimbabwe = 0;
+    if (player.arsenalUsed === undefined) player.arsenalUsed = false;
+    if (player.arsenalReplay === undefined) player.arsenalReplay = null;
+    if (player.estadioUsed === undefined) player.estadioUsed = false;
     FOCUS_TYPES.forEach((f) => {
       if (player.trade[f] === undefined) player.trade[f] = 0;
       if (player.cardTiers[f] === undefined) player.cardTiers[f] = 1;
@@ -1070,7 +1074,7 @@ const Game = (() => {
 
     if (type === "PLAY_CULTURE") {
       const player = getPlayer(st, payload.playerId);
-      if (!player || player.cardPlayed) return st;
+      if (!canResolveCard(player, "culture")) return st;
       const effectiveSlot = getSlotValue(player, "culture", st);
       // France: the latest-era wonder you own grants extra tokens (1/2/3).
       let maxMarkers = getCultureMarkers(player, payload.tradeSpent || 0, st);
@@ -1113,7 +1117,7 @@ const Game = (() => {
 
     if (type === "PLAY_GROWTH_DISTRICT") {
       const player = getPlayer(st, payload.playerId);
-      if (!player || player.cardPlayed) return st;
+      if (!canResolveCard(player, "growth")) return st;
       const hex = st.map.hexes[payload.hexKey];
       if (!hex || !hex.active || hex.terrain === "water" || hex.city) return st;
       if (hex.control && hex.control.ownerId !== payload.playerId) return st;
@@ -1135,7 +1139,7 @@ const Game = (() => {
 
     if (type === "PLAY_GROWTH_REINFORCE") {
       const player = getPlayer(st, payload.playerId);
-      if (!player || player.cardPlayed) return st;
+      if (!canResolveCard(player, "growth")) return st;
       // "Reinforce a number of your control tokens up to this slot's number",
       // plus one more for each trade token spent from the card.
       const allowed = getSlotValue(player, "growth", st) + (payload.tradeSpent || 0);
@@ -1147,7 +1151,7 @@ const Game = (() => {
 
     if (type === "PLAY_SCIENCE") {
       const player = getPlayer(st, payload.playerId);
-      if (!player || player.cardPlayed) return st;
+      if (!canResolveCard(player, "science")) return st;
       let bonus = 0;
       // China's Writing (unique Science I): +1 step while you control a wonder.
       if (uniqueInPlay(player, "china") && countWonders(st, player.id) > 0) bonus += 1;
@@ -1162,7 +1166,7 @@ const Game = (() => {
 
     if (type === "PLAY_ECONOMY") {
       const player = getPlayer(st, payload.playerId);
-      if (!player || player.cardPlayed) return st;
+      if (!canResolveCard(player, "economy")) return st;
       const unit = player.caravans.find((u) => u.id === payload.unitId);
       if (!unit) return st;
       const ecoHex = st.map.hexes[payload.toKey];
@@ -1266,7 +1270,7 @@ const Game = (() => {
 
     if (type === "PLAY_MILITARY_MOVE") {
       const player = getPlayer(st, payload.playerId);
-      if (!player || player.cardPlayed) return st;
+      if (!canResolveCard(player, "military")) return st;
       const unit = player.armies.find((u) => u.id === payload.unitId);
       if (!unit || !unit.position) return st;
       const moveHex = st.map.hexes[payload.toKey];
@@ -1282,7 +1286,7 @@ const Game = (() => {
 
     if (type === "PLAY_MILITARY_ATTACK") {
       const player = getPlayer(st, payload.playerId);
-      if (!player || player.cardPlayed) return st;
+      if (!canResolveCard(player, "military")) return st;
       if (st.combat && st.combat.turn !== "done") return st;   // one fight at a time
       const unit = player.armies.find((u) => u.id === payload.unitId);
       if (!unit || !unit.position) return st;
@@ -1384,7 +1388,7 @@ const Game = (() => {
 
     if (type === "PLAY_INDUSTRY_CITY") {
       const player = getPlayer(st, payload.playerId);
-      if (!player || player.cardPlayed) return st;
+      if (!canResolveCard(player, "industry")) return st;
       const hex = st.map.hexes[payload.hexKey];
       if (!isLegalCitySpace(st, hex, payload.hexKey, payload.playerId)) return st;
       const slot = getSlotValue(player, "industry", st);
@@ -1431,7 +1435,7 @@ const Game = (() => {
 
     if (type === "PLAY_INDUSTRY_WONDER") {
       const player = getPlayer(st, payload.playerId);
-      if (!player || player.cardPlayed) return st;
+      if (!canResolveCard(player, "industry")) return st;
       const hex = st.map.hexes[payload.hexKey];
       if (!hex || !hex.city || hex.city.ownerId !== payload.playerId || hex.city.hasWonder) return st;
       if (payload.resources) {
@@ -1486,6 +1490,9 @@ const Game = (() => {
       if (wonder.name === "Apadana") {
         queueApadanaExplore(st, player);
       }
+      if (wonder.name === "Amundsen-Scott RS") {
+        queueAmundsenSite(st, player, payload.hexKey);
+      }
       if (wonder.name === "Porcelain Tower") {
         queueCardUpgrade(st, player, { remaining: 2, source: "Porcelain Tower", title: "Porcelain Tower: Upgrade a Card" });
       }
@@ -1529,6 +1536,9 @@ const Game = (() => {
       }
       if (cp) {
         cp.upgradedThisTurn = false;
+        cp.arsenalUsed = false;
+        cp.arsenalReplay = null;
+        cp.estadioUsed = false;
         cp.cardPlayed = false;
         cp.wonAttackThisTurn = false;
         cp.citiesTradedThisTurn = [];
@@ -1613,14 +1623,50 @@ const Game = (() => {
     resolveCard(st, player, active.cardType, active.tradeSpent);
   }
 
+  // Whether this player may resolve a card of this type right now. Normally
+  // that is "you have not played one yet"; the Venetian Arsenal's replay is a
+  // second go at one specific card and nothing else.
+  function canResolveCard(player, cardType) {
+    if (!player) return false;
+    if (player.arsenalReplay) return player.arsenalReplay === cardType;
+    return !player.cardPlayed;
+  }
+
   function resolveCard(st, player, cardType, tradeSpent) {
     const idx = player.focusRow.indexOf(cardType);
+    const wasReplay = player.arsenalReplay === cardType;
     if (idx >= 0) {
       player.focusRow.splice(idx, 1);
       player.focusRow.unshift(cardType);
     }
     if (tradeSpent > 0) player.trade[cardType] = Math.max(0, player.trade[cardType] - tradeSpent);
     player.cardPlayed = true;
+    player.arsenalReplay = null;
+
+    // Venetian Arsenal: a card resolved from the fifth slot may be resolved
+    // again. It has just been reset to the front of the row, so the second go
+    // is a slot-1 card without any further arithmetic.
+    if (!wasReplay && idx === 4 && !player.arsenalUsed &&
+        hasWonder(st, player.id, "Venetian Arsenal")) {
+      queuePendingChoice(st, {
+        kind: "arsenal_replay", playerId: player.id, cardType,
+        title: `Venetian Arsenal: Resolve ${FOCUS_LABELS[cardType]} Again?`,
+        source: "Venetian Arsenal", optional: true,
+        options: [{ id: "yes", label: `Resolve ${FOCUS_LABELS[cardType]} again (slot 1)` }]
+      });
+    }
+
+    // Estadio Do Maracana: the economy card may be resolved and reset before a
+    // non-economy card, so this one does not cost you your turn's card.
+    if (!wasReplay && cardType === "economy" && !player.estadioUsed &&
+        hasWonder(st, player.id, "Estadio Do Maracana")) {
+      queuePendingChoice(st, {
+        kind: "estadio_free", playerId: player.id,
+        title: "Estadio Do Maracana: Keep Your Card?",
+        source: "Estadio Do Maracana", optional: true,
+        options: [{ id: "yes", label: "Take this economy card for free" }]
+      });
+    }
 
     // Aztec: resetting the military card after a winning attack lets you
     // rearrange your row — swap any 2 cards.
@@ -1837,6 +1883,9 @@ const Game = (() => {
         if (choice.source === "Stonehenge" && hex.terrain === "hill") {
           queueStonehengeChain(st, player, hexKey);
         }
+        if (choice.chainKey && choice.chainLeft > 0) {
+          queueAmundsenTokens(st, player, choice.chainKey, choice.chainLeft);
+        }
         checkDevelopment(st, player.id);
         resolved = true;
       }
@@ -1846,6 +1895,36 @@ const Game = (() => {
       if ((choice.hexKeys || []).includes(hexKey) && hex && hex.control && hex.control.ownerId !== player.id) {
         hex.control = null;
         log(st, `${player.name} removed a rival control token (${choice.source || "effect"}).`);
+        resolved = true;
+      }
+    } else if (choice.kind === "amundsen_site") {
+      const hexKey = payload.hexKey;
+      const hex = st.map.hexes[hexKey];
+      const from = st.map.hexes[choice.fromKey];
+      if ((choice.hexKeys || []).includes(hexKey) && hex && from && from.city && from.city.wonder) {
+        const wonder = from.city.wonder;
+        from.city.wonder = null;
+        from.city.hasWonder = false;
+        hex.city = { ownerId: player.id, isCapital: false, developed: false,
+          hasWonder: true, wonder };
+        checkDevelopment(st, player.id);
+        log(st, `${player.name} founded a city on the rim for Amundsen-Scott RS.`);
+        queueAmundsenTokens(st, player, hexKey, 2);
+        resolved = true;
+      }
+    } else if (choice.kind === "arsenal_replay") {
+      if (payload.optionId === "yes" && FOCUS_TYPES.includes(choice.cardType)) {
+        player.arsenalUsed = true;
+        player.arsenalReplay = choice.cardType;
+        player.cardPlayed = false;
+        log(st, `${player.name} resolves ${FOCUS_LABELS[choice.cardType]} again (Venetian Arsenal).`);
+        resolved = true;
+      }
+    } else if (choice.kind === "estadio_free") {
+      if (payload.optionId === "yes" && !player.estadioUsed) {
+        player.estadioUsed = true;
+        player.cardPlayed = false;
+        log(st, `${player.name}'s economy card was free this turn (Estadio Do Maracana).`);
         resolved = true;
       }
     } else if (choice.kind === "eiffel_target") {
@@ -3091,6 +3170,38 @@ const Game = (() => {
       kind: "apadana_explore", playerId: player.id,
       title: "Apadana: Explore From Any Edge Space",
       source: "Apadana", hexKeys: spots, optional: true
+    });
+  }
+
+  // Amundsen-Scott RS does not go into a city you already hold — it founds one
+  // on any legal edge space and stands in that. Then up to 2 control tokens
+  // land next to it.
+  function queueAmundsenSite(st, player, builtAtKey) {
+    const spots = Object.entries(st.map.hexes)
+      .filter(([k, h]) => isEdgeSpace(st, h) && isLegalCitySpace(st, h, k, player.id))
+      .map(([k]) => k);
+    if (!spots.length) return;
+    queuePendingChoice(st, {
+      kind: "amundsen_site", playerId: player.id, fromKey: builtAtKey,
+      title: "Amundsen-Scott RS: Found Its City on the Rim",
+      source: "Amundsen-Scott RS", hexKeys: spots
+    });
+  }
+
+  // The 2 control tokens the station places once it has a home.
+  function queueAmundsenTokens(st, player, cityKey, remaining) {
+    if (remaining <= 0) return;
+    const spots = hexNeighborKeys(parseQ(cityKey), parseR(cityKey)).filter((nk) => {
+      const nh = st.map.hexes[nk];
+      return nh && nh.active && nh.terrain !== "water" && !nh.city && !nh.control &&
+        !nh.barbarian && !nh.cityState && !(nh.fortress && !nh.city);
+    });
+    if (!spots.length) return;
+    queuePendingChoice(st, {
+      kind: "place_control", playerId: player.id,
+      title: `Amundsen-Scott RS: Place a Control Token (${remaining} left)`,
+      source: "Amundsen-Scott RS", hexKeys: spots, optional: true,
+      chainKey: cityKey, chainLeft: remaining - 1
     });
   }
 

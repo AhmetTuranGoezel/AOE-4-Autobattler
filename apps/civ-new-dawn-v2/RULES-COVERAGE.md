@@ -277,6 +277,15 @@ Added in this pass, all of them from the English card text:
   non-science cards at the end of it.
 - **Potala Palace** — its owner may hold all four of a rival's diplomacy cards
   instead of one, and takes three of their choice on building it.
+- **Venetian Arsenal** — a card resolved from the fifth slot may be resolved a
+  second time. Resolving already resets the card to the front of the row, so the
+  replay is a slot-1 card with no extra arithmetic; a licence on the player keeps
+  the second go to that one card rather than opening the turn back up.
+- **Estadio Do Maracana** — the economy card can be resolved and reset without
+  spending your card for the turn, once per turn.
+- **Amundsen-Scott RS** — founds its own city on any legal edge space rather than
+  going into one you hold, moves itself into it, then places up to 2 control
+  tokens beside it.
 
 ### Civilizations
 
@@ -297,20 +306,13 @@ Added in this pass, all of them from the English card text:
 
 ## 2. Implemented, but approximated
 
-- **4 of the 34 world wonders are table reminders.** Their printed text is shown
-  on the card, but the effect is not automated. The other 30 resolve themselves.
-  The four, and why each is still by hand:
-  - **Oxford University** — "when you replace a focus card other than a science
-    card, you do not have to replace it with a card of the same type." The row
-    here is six card *types* with a tier each, so there is no way to hold two
-    culture cards and no military one. Automating it means rebuilding the focus
-    row as a list of card instances, which touches almost everything.
-  - **Venetian Arsenal** — re-resolving the slot-5 card as though it sat in
-    slot 1 needs a second pass over a card the turn has already spent.
-  - **Estadio Do Maracana** — resolving and resetting the economy card *before*
-    a non-economy card is the same problem from the other end.
-  - **Amundsen-Scott RS** — the wonder goes into a city that does not exist yet,
-    on any legal edge space; wonders here are placed in a city you already hold.
+- **1 of the 34 world wonders is a table reminder.** Its printed text is shown on
+  the card, but the effect is not automated. The other 33 resolve themselves.
+  The one is **Oxford University**: "when you replace a focus card other than a
+  science card, you do not have to replace it with a card of the same type." The
+  row here is six card *types* with a tier each, so there is no way to hold two
+  culture cards and no military one. Automating it means rebuilding the focus row
+  as a list of card instances, which touches almost everything that reads a row.
 - **The advanced pre-game tile draft** (each player dealt 2 tiles and placing in
   turn order, Terra p14) is not implemented. The app builds the four-tile core to
   the rules and then draws from a shared exploration stack during play.
