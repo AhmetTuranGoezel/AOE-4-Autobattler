@@ -207,6 +207,12 @@
       let st = Game.createState(players(2));
       st.phase = "playing";
       const first = st.turn.order[0];
+      // Base p6: a turn is resolving a card. Ending one you have not taken is
+      // not a move, and the engine refuses it.
+      const skipped = Game.applyAction(st, { type: "END_TURN", payload: { playerId: first } });
+      assert("a turn cannot be ended before it is taken", skipped.turn.index === 0);
+      st = Game.applyAction(st, { type: "PLAY_SCIENCE", payload: { playerId: first, amount: 1, tradeSpent: 0 } });
+      assert("science always resolves, so nobody can be stuck", Game.getPlayer(st, first).cardPlayed);
       st = Game.applyAction(st, { type: "END_TURN", payload: { playerId: first } });
       assert("END_TURN accepts current playerId", st.turn.index === 1);
 

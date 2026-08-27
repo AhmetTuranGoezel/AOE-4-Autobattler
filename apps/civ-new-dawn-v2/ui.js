@@ -505,9 +505,10 @@ const UI = (() => {
           const playerTiles = state.setup.playerTiles[localPlayerId] || [];
           if (playerTiles.length > 0) {
             const tileId = playerTiles[0];
-            // Green means "the tile fits here", not "the tile fits here at the
-            // angle the buttons happen to be on".
-            setupValid = Game.getTileAnchorsAnyRotation(state, tileId);
+            // Deliberately NOT lighting up every legal anchor. Working out where
+            // your land can go is the decision; a board covered in green answers
+            // it for you. Point at a space and the ghost says yes or no — that
+            // is the only help there is, and you have to go looking for it.
             if (mouseHex) {
               const anchorKey = Game.key(mouseHex.q, mouseHex.r);
               const fit = Game.tilePlacementFor(state, tileId, anchorKey, sub.tileRotation);
@@ -1675,9 +1676,13 @@ const UI = (() => {
             <button id="rot-inc" class="sm">\u21bb</button>
             <button id="side-toggle" class="sm">Side ${sub.tileSide}</button>
           </div>
-          <br><strong>Just click a green space</strong> \u2014 the tile turns itself to fit.<br>
-          Scroll or <kbd>R</kbd> to turn it yourself, <kbd>F</kbd> to flip it over.<br>
+          <br><strong>Find it a home.</strong> Hover the board \u2014 the tile shows
+          <strong style="color:#66bb6a">green</strong> where it fits and
+          <strong style="color:#ef5350">red</strong> where it does not. Click to lay it.<br>
+          Scroll or <kbd>R</kbd> to turn it, <kbd>F</kbd> to flip it over.<br>
           Tiles remaining: <strong>${playerTiles.length}</strong>
+          ${Game.getTileAnchorsAnyRotation(state, tileId).size === 0
+            ? `<div class="wiz-note">There is nowhere on the board this tile can go.</div>` : ""}
         </div>`;
 
       document.getElementById("rot-dec").addEventListener("click", () => turnTile(-1));
@@ -2149,9 +2154,17 @@ const UI = (() => {
       dom.wizard.innerHTML = `<div class="wiz-title">Waiting</div><div class="wiz-body">It's <strong>${cp ? cp.name : "..."}</strong>'s turn.</div>`;
       return;
     }
-    let actions = `<div class="wiz-actions">`;
-    actions += `<button id="wiz-end-turn">End Turn</button></div>`;
-    dom.wizard.innerHTML = `<div class="wiz-title">Your Turn</div><div class="wiz-body">Select a <strong>focus card</strong> below to take an action.${me && me.cardPlayed ? "<br><em>Card already played this turn.</em>" : ""}</div>${actions}`;
+    // Your turn IS resolving a focus card (base p6) — there is no passing. So
+    // there is nothing to end until you have taken it, and no button offering
+    // to skip the only thing a turn is made of.
+    const taken = !!(me && me.cardPlayed);
+    const body = taken
+      ? `Card resolved. Nothing left to do this turn.`
+      : `Resolve a <strong>focus card</strong> below \u2014 that is your turn.`;
+    const actions = taken
+      ? `<div class="wiz-actions"><button class="primary" id="wiz-end-turn">End Turn</button></div>`
+      : "";
+    dom.wizard.innerHTML = `<div class="wiz-title">Your Turn</div><div class="wiz-body">${body}</div>${actions}`;
     document.getElementById("wiz-end-turn")?.addEventListener("click", () => dispatch({ type: "END_TURN", payload: { playerId: localPlayerId } }));
   }
 
@@ -2180,13 +2193,20 @@ const UI = (() => {
       <div class="wiz-actions">
         <button class="primary" id="wiz-start">Start Action</button>
         <button class="ghost" id="wiz-cancel">Cancel</button>
-      </div>`;
+      </div>
+      <div class="wiz-actions"><button class="ghost sm" id="wiz-nothing"
+        title="Resolve and reset this card without doing anything. It still counts as your turn's card.">Resolve for nothing</button></div>`;
     if (spendsUpFront) {
       document.getElementById("tc-dec").addEventListener("click", () => { sub.tradeSpent = Math.max(0, sub.tradeSpent - 1); renderWizard(); });
       document.getElementById("tc-inc").addEventListener("click", () => { sub.tradeSpent = Math.min(tradeAvail, sub.tradeSpent + 1); renderWizard(); });
     }
     document.getElementById("wiz-start").addEventListener("click", startAction);
     document.getElementById("wiz-cancel").addEventListener("click", cancelAction);
+    document.getElementById("wiz-nothing").addEventListener("click", () => {
+      dispatch({ type: "END_FOCUS_CARD", payload: {
+        playerId: localPlayerId, cardType: sub.cardType, tradeSpent: 0 } });
+      resetSub();
+    });
   }
 
   function renderPlacingControl() {
@@ -2969,11 +2989,18 @@ const UI = (() => {
   }
 
   function finishAction() {
-    if (sub.phase === "placing_control" && sub.placedKeys.length > 0) {
+    const placedNothing = !sub.placedKeys.length;
+    if (sub.phase === "placing_control" && !placedNothing) {
       dispatch({ type: "PLAY_CULTURE", payload: { playerId: localPlayerId, hexKeys: sub.placedKeys, tradeSpent: sub.tradeSpent } });
     }
-    if (sub.phase === "reinforcing" && sub.placedKeys.length > 0) {
+    if (sub.phase === "reinforcing" && !placedNothing) {
       dispatch({ type: "PLAY_GROWTH_REINFORCE", payload: { playerId: localPlayerId, hexKeys: sub.placedKeys, tradeSpent: sub.tradeSpent } });
+    }
+    // Finishing having placed nothing still spends the card — otherwise a card
+    // with nowhere legal to go leaves you owing a turn you cannot take.
+    if (placedNothing && sub.cardType) {
+      dispatch({ type: "END_FOCUS_CARD", payload: {
+        playerId: localPlayerId, cardType: sub.cardType, tradeSpent: 0 } });
     }
     resetSub();
   }

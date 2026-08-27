@@ -1551,11 +1551,31 @@ const Game = (() => {
     }
 
     if (type === "END_FOCUS_CARD") {
-      if (st.activeCard && st.activeCard.playerId === payload.playerId) finishActiveCard(st);
+      if (st.activeCard && st.activeCard.playerId === payload.playerId) {
+        finishActiveCard(st);
+        return st;
+      }
+      // A card you chose that turns out to be able to do nothing — nowhere to
+      // put a control token, no legal space for a city — is still the card you
+      // resolved this turn. Base p6: choose, resolve, reset. Resolving it for
+      // no effect is a legal turn; skipping your turn is not.
+      const player = getPlayer(st, payload.playerId);
+      if (player && FOCUS_TYPES.includes(payload.cardType) &&
+          canResolveCard(player, payload.cardType)) {
+        resolveCard(st, player, payload.cardType, payload.tradeSpent || 0);
+        log(st, `${player.name} resolved ${FOCUS_LABELS[payload.cardType]} for no effect.`);
+      }
       return st;
     }
 
     if (type === "END_TURN") {
+      // Base p6: a turn is choose a card, resolve it, reset it — and then "the
+      // turn ends". There is no passing. You cannot end a turn you have not
+      // taken, so this is refused until a card has been resolved. Science can
+      // always be resolved and END_FOCUS_CARD can always spend a chosen card,
+      // so there is no way to be stuck with nothing legal to do.
+      const ending = currentPlayer(st);
+      if (ending && !ending.cardPlayed && !st.activeCard && !payload.hostOverride) return st;
       // A card left mid-play still counts as played; it must never carry over.
       if (st.activeCard) finishActiveCard(st);
       const cp = currentPlayer(st);
