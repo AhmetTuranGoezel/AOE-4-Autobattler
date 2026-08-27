@@ -1521,6 +1521,7 @@ const UI = (() => {
     else if (sub.phase === "placing_city") { renderPlacingCity(); }
     else if (sub.phase === "placing_wonder") { renderPlacingWonder(); }
     else if (sub.phase === "picking_wonder") { renderPickingWonder(); }
+    else if (sub.phase === "choose_target") { renderChooseTarget(); }
     else { return; }
 
     const help = helpText(sub.phase);
@@ -1902,13 +1903,19 @@ const UI = (() => {
       return;
     }
 
-    const defender = ms.unitType === "army"
-      ? Game.findDefender(state, ms.currentKey, localPlayerId) : null;
+    const targets = ms.unitType === "army"
+      ? Game.findDefenders(state, ms.currentKey, localPlayerId) : [];
+    const defender = targets[0] || null;
     const canExplore = Game.isExploreEligible(state, ms.currentKey) && ms.remaining > 0 && !ms.explored;
 
     let html = "";
     if (defender) {
-      html += `<span class="bc-label bc-danger">${escapeHtml(defender.label)} \u00b7 power ${defender.power}</span>
+      // With more than one piece standing there the chip says so rather than
+      // naming one of them, because Attack leads to a choice.
+      const label = targets.length > 1
+        ? `${targets.map((d) => escapeHtml(d.label)).join(" and ")} \u00b7 pick your target`
+        : `${escapeHtml(defender.label)} \u00b7 power ${defender.power}`;
+      html += `<span class="bc-label bc-danger">${label}</span>
         <button class="bc-btn danger" id="bc-attack">Attack</button>
         <button class="bc-btn" id="bc-retreat">Retreat</button>`;
     } else {
@@ -2259,6 +2266,47 @@ const UI = (() => {
         : `Click another space to keep going, or the unit itself to stop. <kbd>Esc</kbd> cancels.`}</div>`;
   }
 
+  // Two pieces in one space is a real fork: the city is worth more and defends
+  // at double terrain, the army is softer and clears the way. Each option shows
+  // what you would actually be rolling against.
+  function renderChooseTarget() {
+    const t = sub.attackTargets;
+    if (!t) { resetSub(); return; }
+    const me = Game.getPlayer(state, localPlayerId);
+    const mine = me ? Game.getSlotValue(me, "military", state) +
+      Game.getMilitaryCombatBonus(me) +
+      Game.getLeaderAttackBonus(state, localPlayerId, t.hexKey) : 0;
+    dom.wizard.innerHTML = `
+      <div class="wiz-title">Which piece are you attacking?</div>
+      <div class="wiz-body">
+        <div class="tgt-mine">Your attack: <b>${mine}</b> before the die.</div>
+        ${t.list.map((d, i) => `
+          <button class="tgt-card" data-i="${i}">
+            <span class="tgt-name">${escapeHtml(d.label)}</span>
+            <span class="tgt-power">${d.power}</span>
+            <span class="tgt-parts">${(d.parts || []).filter((x) => x.value)
+              .map((x) => `${escapeHtml(x.label)} +${x.value}`).join(", ") || "no bonuses"}</span>
+          </button>`).join("")}
+      </div>
+      <div class="wiz-actions"><button class="ghost" id="tgt-back">Back</button></div>`;
+
+    document.querySelectorAll(".tgt-card").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const d = t.list[Number(btn.dataset.i)];
+        flashHex(t.hexKey, "rgb(239,83,80)", 800);
+        dispatch({ type: "PLAY_MILITARY_ATTACK", payload: {
+          playerId: localPlayerId, unitId: t.unitId, toKey: t.hexKey,
+          fromKey: t.fromKey, targetType: d.type } });
+        sub.attackTargets = null;
+        nextUnitOrFinish("army");
+      });
+    });
+    document.getElementById("tgt-back")?.addEventListener("click", () => {
+      sub.attackTargets = null;
+      continueMovement();
+    });
+  }
+
   function renderExploring() {
     const expTileId = exploringTileId();
     const expTile = expTileId ? state.tiles[expTileId] : null;
@@ -2331,16 +2379,23 @@ const UI = (() => {
     if (!me) { resetSub(); return; }
 
     if (ms.unitType === "army") {
-      const defender = Game.findDefender(state, ms.currentKey, localPlayerId);
-      const slot = Game.getSlotValue(me, "military", state);
+      // Base p11: you attack ONE piece in the space. Where a city and an army
+      // are both standing there, that is a real decision — so ask, but only
+      // then. One target means no question.
+      const targets = Game.findDefenders(state, ms.currentKey, localPlayerId);
+      if (targets.length > 1) {
+        sub.attackTargets = { hexKey: ms.currentKey, fromKey: ms.startKey,
+          unitId: ms.unitId, list: targets };
+        sub.phase = "choose_target";
+        render();
+        return;
+      }
+      const defender = targets[0] || null;
       if (defender) {
         flashHex(ms.currentKey, "rgb(239,83,80)", 800);
         dispatch({ type: "PLAY_MILITARY_ATTACK", payload: {
           playerId: localPlayerId, unitId: ms.unitId, toKey: ms.currentKey,
-          fromKey: ms.startKey, attackPower: slot,
-          defensePower: defender.power, defenderLabel: defender.label,
-          defenderParts: defender.parts || null,
-          defenderOwnerId: defender.ownerId || null
+          fromKey: ms.startKey, targetType: defender.type
         }});
       } else {
         dispatch({ type: "PLAY_MILITARY_MOVE", payload: {
@@ -2900,7 +2955,7 @@ const UI = (() => {
     sub.totalMarkers = 0; sub.validHexes = new Set(); sub.selectedUnit = null;
     sub.districtType = null; sub.spentResources = {}; sub.placedKeys = [];
     sub.movementState = null; sub.selectedWonder = null; sub.wonderProduction = 0;
-    sub.freeFrom = null;
+    sub.freeFrom = null; sub.attackTargets = null;
     render();
   }
 

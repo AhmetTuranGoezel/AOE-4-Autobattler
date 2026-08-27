@@ -336,6 +336,35 @@ input, select {
   margin-top: 6px;
   font-size: 11px;
 }
+/* Choosing which piece in a space to attack: each option shows what it defends
+   at and where that number comes from. */
+.tgt-mine { font-size: 12px; opacity: 0.85; margin-bottom: 8px; }
+.tgt-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: "name power" "parts power";
+  gap: 2px 10px;
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: inherit;
+  cursor: pointer;
+}
+.tgt-card:hover { border-color: #ef5350; background: #2a1f22; }
+.tgt-name { grid-area: name; font-weight: 600; font-size: 13px; }
+.tgt-parts { grid-area: parts; font-size: 11px; opacity: 0.7; }
+.tgt-power {
+  grid-area: power;
+  align-self: center;
+  font-size: 22px;
+  font-weight: 700;
+  color: #ef5350;
+}
+
 /* Jebel Barkal's resource burn sits under the token bid, in resource colours. */
 .cs-btn.cs-res {
   background: linear-gradient(180deg, #4a3b6b, #2b2140);

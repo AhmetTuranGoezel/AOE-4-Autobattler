@@ -1298,9 +1298,17 @@ const Game = (() => {
       // Nothing is rolled yet. The dice are thrown when somebody throws them,
       // and only then does the bidding start — the attacker spending everything
       // they mean to spend before the defender may answer (Terra p10).
+      // Both combat values are worked out here rather than taken from whoever
+      // sent the action, so the two sides of a network game can never disagree
+      // about the numbers they are staking a fight on.
+      const targets = findDefenders(st, payload.toKey, payload.playerId);
+      const defender = (payload.targetType &&
+        targets.find((d) => d.type === payload.targetType)) || targets[0];
+      if (!defender) return st;
+      const slot = getSlotValue(player, "military", st);
       const leaderBonus = getLeaderAttackBonus(st, payload.playerId, payload.toKey);
       const tierBonus = getMilitaryCombatBonus(player);
-      const atkParts = [{ label: "military card", value: payload.attackPower || 0 }];
+      const atkParts = [{ label: "military card", value: slot }];
       if (tierBonus) atkParts.push({ label: "card tier", value: tierBonus });
       if (leaderBonus) atkParts.push({ label: "leader", value: leaderBonus });
       st.combat = {
@@ -1308,12 +1316,14 @@ const Game = (() => {
         unitId: payload.unitId,
         fromKey: payload.fromKey || unit.position,
         toKey: payload.toKey,
-        defenderLabel: payload.defenderLabel,
-        defenderOwnerId: payload.defenderOwnerId || null,
-        atkBase: (payload.attackPower || 0) + tierBonus + leaderBonus,
-        defBase: payload.defensePower || 0,
+        defenderLabel: defender.label,
+        defenderOwnerId: defender.ownerId || null,
+        defenderType: defender.type,
+        defenderUnitId: defender.unitId || null,
+        atkBase: slot + tierBonus + leaderBonus,
+        defBase: defender.power,
         atkParts,
-        defParts: payload.defenderParts || [{ label: "defence", value: payload.defensePower || 0 }],
+        defParts: defender.parts || [{ label: "defence", value: defender.power }],
         leaderBonus,
         atkRoll: 0,
         defRoll: 0,
@@ -1323,7 +1333,7 @@ const Game = (() => {
         turn: "attacker",
         history: []
       };
-      log(st, `${player.name} attacks ${payload.defenderLabel}.`);
+      log(st, `${player.name} attacks ${defender.label}.`);
       return st;
     }
 
@@ -1892,7 +1902,8 @@ const Game = (() => {
     } else if (choice.kind === "remove_control") {
       const hexKey = payload.hexKey;
       const hex = st.map.hexes[hexKey];
-      if ((choice.hexKeys || []).includes(hexKey) && hex && hex.control && hex.control.ownerId !== player.id) {
+      if ((choice.hexKeys || []).includes(hexKey) && hex && hex.control &&
+          hex.control.ownerId !== player.id && !armyGuards(st, hexKey)) {
         hex.control = null;
         log(st, `${player.name} removed a rival control token (${choice.source || "effect"}).`);
         resolved = true;
@@ -1931,7 +1942,8 @@ const Game = (() => {
       // Step 1: the rival. Step 2 and 3 pick the two tokens.
       const victim = getPlayer(st, payload.optionId);
       const spots = victim ? Object.entries(st.map.hexes)
-        .filter(([, h]) => h.control && h.control.ownerId === victim.id).map(([k]) => k) : [];
+        .filter(([k, h]) => h.control && h.control.ownerId === victim.id && !armyGuards(st, k))
+        .map(([k]) => k) : [];
       if (victim && spots.length >= 2) {
         queuePendingChoice(st, {
           kind: "eiffel_pick", playerId: player.id, victimId: victim.id, picked: [],
@@ -1967,7 +1979,8 @@ const Game = (() => {
       const hexKey = payload.hexKey;
       const hex = st.map.hexes[hexKey];
       const taker = getPlayer(st, choice.takerId);
-      if ((choice.hexKeys || []).includes(hexKey) && hex && hex.control && taker) {
+      if ((choice.hexKeys || []).includes(hexKey) && hex && hex.control && taker &&
+          !armyGuards(st, hexKey)) {
         // "Unused, unreinforced" — the token that arrives is a plain one.
         hex.control = { ownerId: taker.id, fortified: false, district: hex.control.district || null };
         checkDevelopment(st, taker.id);
@@ -2251,12 +2264,25 @@ const Game = (() => {
     return returned;
   }
 
-  function defeatEnemyUnitsAt(st, hexKey, attackerId) {
-    st.players.forEach((p) => {
-      if (p.id === attackerId) return;
-      p.armies.forEach((u) => { if (u.position === hexKey) u.position = null; });
-      p.caravans.forEach((u) => { if (u.position === hexKey) u.position = null; });
-    });
+  // Terra p11: "Abilities that remove pieces or replace one player's piece with
+  // another player's piece cannot target a space with an army." An army on the
+  // ground shields whatever else is standing there.
+  function armyGuards(st, hexKey) {
+    return st.players.some((p) => p.armies.some((u) => u.position === hexKey));
+  }
+
+  // Whether the winning army may stand where it fought. Beating one piece does
+  // not clear the space, so anything of a rival's still there keeps you out.
+  function canOccupyAfterCombat(st, hexKey, attackerId) {
+    const h = st.map.hexes[hexKey];
+    if (!h) return false;
+    if (h.cityState) return false;
+    if (h.fortress && !h.city) return false;
+    if (h.city && h.city.ownerId !== attackerId) return false;
+    if (h.control && h.control.ownerId !== attackerId) return false;
+    if (h.barbarian) return false;
+    return !st.players.some((p) => p.id !== attackerId &&
+      p.armies.some((u) => u.position === hexKey));
   }
 
   // --- Combat, as an exchange -----------------------------------------------
@@ -2327,12 +2353,15 @@ const Game = (() => {
 
     if (win) {
       player.maxCombatWin = Math.max(player.maxCombatWin || 0, atkTotal);
-      unit.position = c.toKey;
-      if (hex.fortress && !hex.city) {
+      // Base p11: an attack has ONE target, and only that target is resolved.
+      // Terra p11's worked example makes the consequence plain — beating the
+      // army standing in a rival city leaves the city exactly where it was.
+      const target = c.defenderType || (hex.city ? "city" : hex.control ? "control" : null);
+      if (target === "fortress" && hex.fortress && !hex.city) {
         hex.city = { ownerId: c.attackerId, isCapital: false, developed: false, hasWonder: false, wonder: null };
         log(st, `${player.name} captured the fortress!`);
       }
-      if (hex.barbarian) {
+      if (target === "barbarian" && hex.barbarian) {
         hex.barbarian = false;
         st.pendingBarbReward = { playerId: c.attackerId };
         log(st, `${player.name} defeated a barbarian! Choose a focus card for +1 trade.`);
@@ -2345,7 +2374,7 @@ const Game = (() => {
           });
         }
       }
-      if (hex.cityState) {
+      if (target === "citystate" && hex.cityState) {
         const csType = hex.cityState.type;
         const csName = hex.cityState.name;
         player.trade[csType] = Math.min(CFG.maxTrade, player.trade[csType] + 1);
@@ -2355,23 +2384,20 @@ const Game = (() => {
         hex.cityState = null;
         hex.city = { ownerId: c.attackerId, isCapital: false, developed: false, hasWonder: false, wonder: null };
       }
-      if (hex.control && hex.control.ownerId !== c.attackerId) {
+      if (target === "control" && hex.control && hex.control.ownerId !== c.attackerId) {
         returnDiplomacyFromSource(st, player, hex.control.ownerId);
         hex.control = { ownerId: c.attackerId, fortified: false, district: null };
       }
-      if (hex.city && hex.city.ownerId !== c.attackerId) {
+      if (target === "city" && hex.city && hex.city.ownerId !== c.attackerId) {
         const defenderId = hex.city.ownerId;
         const defender = getPlayer(st, defenderId);
         returnDiplomacyFromSource(st, player, defenderId);
         if (defender) returnDiplomacyFromSource(st, defender, c.attackerId);
-        if (defender) {
-          defender.armies.forEach((u) => { if (u.position === c.toKey) u.position = null; });
-          defender.caravans.forEach((u) => { if (u.position === c.toKey) u.position = null; });
-        }
         // Statue of Liberty: the ring of rival control around the city falls with it.
         if (hasWonder(st, c.attackerId, "Statue of Liberty")) {
           hexNeighborKeys(hex.q, hex.r).forEach((nk) => {
             const nh = st.map.hexes[nk];
+            if (armyGuards(st, nk)) return;
             if (nh && nh.control && nh.control.ownerId !== c.attackerId) {
               nh.control = { ownerId: c.attackerId, fortified: false, district: nh.control.district };
             }
@@ -2389,7 +2415,19 @@ const Game = (() => {
         hex.city.ownerId = c.attackerId;
         hex.city.developed = false;
       }
-      defeatEnemyUnitsAt(st, c.toKey, c.attackerId);
+      // Terra p11: a beaten figure goes back to its player's card. Only the
+      // figure that was attacked — the rest of the space is untouched.
+      if ((target === "army" || target === "caravan") && c.defenderOwnerId) {
+        const loser = getPlayer(st, c.defenderOwnerId);
+        const beaten = loser && loser.armies.concat(loser.caravans)
+          .find((u) => u.id === c.defenderUnitId);
+        if (beaten) beaten.position = null;
+        log(st, `${player.name} beat ${loser ? loser.name + "'s" : "a"} ${target}; it returns to its card.`);
+      }
+
+      // "Victoria's army cannot occupy the same space as Shaka's city, so the
+      // army returns to the last space it occupied." (Terra p11)
+      unit.position = canOccupyAfterCombat(st, c.toKey, c.attackerId) ? c.toKey : c.fromKey;
       // Zulu: a won attack stocks the military card — doubly so vs cities.
       if (hasLeader(player, "zulu")) {
         const gain = 1 + (targetWasCityOrCS ? 1 : 0);
@@ -2400,7 +2438,9 @@ const Game = (() => {
       player.wonAttackThisTurn = true;
       log(st, `${player.name} won combat vs ${c.defenderLabel}! (${atkTotal} vs ${defTotal})`);
     } else {
-      unit.position = null;
+      // Base p11: "If the defender wins, nothing happens." A failed attack does
+      // not cost you the army — it just does not take the space.
+      unit.position = c.fromKey || unit.position;
       log(st, `${player.name} lost combat vs ${c.defenderLabel}. (${atkTotal} vs ${defTotal})`);
     }
     unit.movedThisCard = true;
@@ -3292,6 +3332,7 @@ const Game = (() => {
       const spots = [];
       Object.entries(st.map.hexes).forEach(([k, h]) => {
         if (!h.control || h.control.ownerId === pid) return;
+        if (armyGuards(st, k)) return;
         const nextToFriendly = hexNeighborKeys(h.q, h.r).some((nk) => {
           const nh = st.map.hexes[nk];
           if (!nh) return false;
@@ -3314,7 +3355,7 @@ const Game = (() => {
     if (hasWonder(st, pid, "Eiffel Tower")) {
       const byOwner = {};
       Object.entries(st.map.hexes).forEach(([k, h]) => {
-        if (!h.control || h.control.ownerId === pid) return;
+        if (!h.control || h.control.ownerId === pid || armyGuards(st, k)) return;
         (byOwner[h.control.ownerId] = byOwner[h.control.ownerId] || []).push(k);
       });
       const victims = Object.keys(byOwner).filter((id) => byOwner[id].length >= 2);
@@ -3710,11 +3751,19 @@ const Game = (() => {
       const owner = getPlayer(st, ownerId);
       return countAdjacentReinforced(st, hexKey, ownerId) * (hasLeader(owner, "china") ? 2 : 1);
     };
-    const breakdown = (ownerId, terrainPart) => {
+    // Terra p16, under Rival Piece: "+2 if there is at least 1 army friendly to
+    // the defender (other than the defender itself) also in the space."
+    const escortBonus = (ownerId, defendingUnitId) => {
+      const owner = getPlayer(st, ownerId);
+      if (!owner) return 0;
+      return owner.armies.some((u) => u.position === hexKey && u.id !== defendingUnitId) ? 2 : 0;
+    };
+    const breakdown = (ownerId, terrainPart, defendingUnitId) => {
       const list = [terrainPart];
       const push = (label, value) => { if (value) list.push({ label, value }); };
       push("reinforced", h.control && h.control.fortified ? 1 : 0);
       push("adjacent reinforced", reinforcedValue(ownerId));
+      push("friendly army in the space", escortBonus(ownerId, defendingUnitId));
       push("leader", defenderLeaderBonus(ownerId));
       push("wonder", getWonderDefenseBonus(st, ownerId, hexKey));
       return list;
@@ -3730,6 +3779,70 @@ const Game = (() => {
         { label: `${TERRAIN_LABELS[h.terrain] || h.terrain} terrain, doubled`, value: terrainDifficulty(h) * 2 });
       return { type: "city", label: h.city.isCapital ? "Capital" : "City", ownerId: h.city.ownerId,
         power: parts.reduce((a, x) => a + x.value, 0), parts };
+    }
+    // A lone rival figure is still a target: its defence is the space's terrain
+    // difficulty. Without this, walking onto an enemy army was a free move.
+    const rival = rivalUnitAt(st, hexKey, attackerId);
+    if (rival) {
+      const parts = breakdown(rival.playerId,
+        { label: `${TERRAIN_LABELS[h.terrain] || h.terrain} terrain`, value: terrainDifficulty(h) },
+        rival.unitId);
+      return { type: rival.kind, label: rival.kind === "army" ? "Army" : "Caravan",
+        ownerId: rival.playerId, unitId: rival.unitId,
+        power: parts.reduce((a, x) => a + x.value, 0), parts };
+    }
+    return null;
+  }
+
+  // Every rival piece in a space that may be attacked. Base p11 step 1: "the
+  // attacker chooses one rival piece in the space" — with a city and an army
+  // both standing there, which one you go for is your decision, not a fixed
+  // order the engine picks for you.
+  function findDefenders(st, hexKey, attackerId) {
+    const h = st.map.hexes[hexKey];
+    if (!h) return [];
+    // A barbarian, city-state or uncontrolled fort is the only thing in its
+    // space by construction, so there is never a choice to make.
+    const solo = findDefender(st, hexKey, attackerId);
+    if (solo && ["fortress", "barbarian", "citystate"].includes(solo.type)) return [solo];
+
+    const out = [];
+    const seen = new Set();
+    const add = (d) => { if (d && !seen.has(d.type)) { seen.add(d.type); out.push(d); } };
+    if (h.control && h.control.ownerId !== attackerId) add(defenderOfType(st, hexKey, attackerId, "control"));
+    if (h.city && h.city.ownerId !== attackerId) add(defenderOfType(st, hexKey, attackerId, "city"));
+    const rival = rivalUnitAt(st, hexKey, attackerId);
+    if (rival) add(defenderOfType(st, hexKey, attackerId, rival.kind));
+    return out;
+  }
+
+  // findDefender with the top of its priority order suppressed, so each piece
+  // in a shared space can be described on its own terms.
+  function defenderOfType(st, hexKey, attackerId, type) {
+    const h = st.map.hexes[hexKey];
+    if (!h) return null;
+    const saveControl = h.control, saveCity = h.city;
+    if (type !== "control") h.control = null;
+    if (type !== "city") h.city = null;
+    let d = null;
+    try { d = findDefender(st, hexKey, attackerId); } finally {
+      h.control = saveControl; h.city = saveCity;
+    }
+    return d && d.type === type ? d : null;
+  }
+
+  // The rival figure standing on a space, armies before caravans — an army is
+  // what an attacker has to beat, and it is the one that escorts the caravan.
+  function rivalUnitAt(st, hexKey, attackerId) {
+    for (const p of st.players) {
+      if (p.id === attackerId) continue;
+      const army = p.armies.find((u) => u.position === hexKey);
+      if (army) return { playerId: p.id, unitId: army.id, kind: "army" };
+    }
+    for (const p of st.players) {
+      if (p.id === attackerId) continue;
+      const car = p.caravans.find((u) => u.position === hexKey);
+      if (car) return { playerId: p.id, unitId: car.id, kind: "caravan" };
     }
     return null;
   }
@@ -3959,7 +4072,7 @@ const Game = (() => {
     getMilitaryMove, getEconomyMove, getCultureMarkers, getMilitaryCombatBonus,
     getCityRange, getWonderCost, getWonderToken, getVisibleWonders,
     combatTotals, combatTokens, combatResources, combatSpendable, canCrossWater, computeScore,
-    validControlHexes, validDistrictHexes, validReinforceHexes,
+    findDefenders, validControlHexes, validDistrictHexes, validReinforceHexes,
     validCityHexes, validWonderHexes, getReachable, findDefender, getUnitsAt,
     adjacentToCityState, adjacentToFriendlyControl, terrainDifficulty,
     countControl, countWonders, countDeveloped, countCities, findCapital,

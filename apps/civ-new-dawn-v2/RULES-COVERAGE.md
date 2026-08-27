@@ -252,6 +252,41 @@ face, clockwise from the starting space:
 - Checked at the end of each round, **before** the event wheel resolves.
 - A claimed marker stays put — except fortress agendas, which must be held.
 
+### Combat, read off the printed tables
+
+Terra p16's quick reference and base p11 between them settle the whole attack
+sequence. Three things here were wrong, and one was mine:
+
+- **A rival army or caravan is a legal target.** Base p11 says the defender
+  "must be a barbarian token, city-state, rival city, or rival control token" —
+  no figures. Terra changes that: p16 lists "Army or Caravan: Bonus = Defending
+  space's terrain difficulty", and p11's worked example has Victoria attack
+  Shaka's *army*. I had a test asserting the opposite; it was reading the base
+  book for a Terra game.
+- **An attack resolves one piece, not the whole space.** Base p11 step 1: "the
+  attacker chooses one rival piece in the space." The app used to capture the
+  city, replace the control token and clear every figure on any win. Terra p11's
+  example is explicit the other way: beating the army in Shaka's city leaves the
+  city where it was, and Victoria's army "cannot occupy the same space as
+  Shaka's city, so the army returns to the last space it occupied."
+- **Losing an attack does not cost you the army.** Base p11: "If the defender
+  wins, nothing happens." The app was removing the attacking army.
+
+Also added from p16: **+2 to the defence if an army friendly to the defender
+(other than the defender itself) is in the space**; and from Terra p11,
+**abilities that remove or replace a piece cannot target a space with an army**,
+which shields spaces from the Forbidden City, the Eiffel Tower, the Statue of
+Liberty and any other removal.
+
+Where a space holds two pieces the attacker is now asked which one, with both
+defence values and their provenance side by side — that choice is the player's,
+not a priority order the engine picks.
+
+One structural change came with it: **both combat values are computed by the
+engine**, not taken from the action's payload. A client used to send the numbers
+it had worked out, so the two sides of a networked game were trusting each other
+to agree.
+
 ### World wonders now resolved by the engine
 
 Added in this pass, all of them from the English card text:

@@ -346,13 +346,18 @@
       }
 
       {
-        // An army standing on an empty space is not a legal target.
+        // Terra p11's worked example has a player attack a rival army, and p16
+        // lists "Army or Caravan: defending space's terrain difficulty". The
+        // base game's list (p11) stops at cities and control tokens; Terra adds
+        // figures to it.
         const st = rulesState();
         const atk = st.players[0].id;
         const other = st.players[1];
         activate(st, "3,0", { terrain: "grass" });
         other.armies = [{ id: "a1", position: "3,0" }];
-        assert("a lone army is not an attack target", Game.findDefender(st, "3,0", atk) === null);
+        const lone = Game.findDefender(st, "3,0", atk);
+        assert("a lone army is an attack target", !!lone && lone.type === "army");
+        assert("and it defends at the space's terrain difficulty", lone.power === 1);
       }
 
       {
