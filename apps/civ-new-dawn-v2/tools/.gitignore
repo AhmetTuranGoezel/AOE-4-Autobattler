@@ -1,3 +1,6 @@
 # Regenerable from extract-mod.py, and mostly repeated card-sheet URLs.
 mod-assets.json
+mod.json
+WorkshopUpload*
+workshop-source.json
 __pycache__/
