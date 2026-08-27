@@ -2,10 +2,10 @@
 
 // Real photographs of the printed map tiles, when they are on this machine.
 //
-// tools/extract-mod.py pulls the Tabletop Simulator save apart and writes one
-// PNG per tile side to assets/tts-extracted/map-tiles/individual/. Those files
-// are publisher artwork, so they are gitignored — present for whoever ran the
-// extractor, absent everywhere else. Nothing here may assume they exist.
+// tools/build-web-assets.py writes a compact WebP per tile side to
+// assets/tts-web/map-tiles/individual/ — 42 files, all 21 tiles, both faces,
+// and those ARE committed. The full-size PNGs under assets/tts-extracted/ are
+// not. Nothing here assumes a file exists: every path is probed.
 //
 // The extractor numbers tiles 1-21, the way the physical tiles are numbered.
 // This app numbers them "01".."16" and "TI01".."TI05". The bridge below is
@@ -15,7 +15,8 @@
 // is nothing printed on them to match. Both are marked, so nobody reads more
 // certainty into this table than it has.
 const CivTileArt = (() => {
-  const BASE = "assets/tts-extracted/map-tiles/individual/";
+  const BASE = "assets/tts-web/map-tiles/individual/";
+  const EXT = ".webp";
 
   // match: the two side names line up with the physical tile — this is certain.
   // assign: no names to go on. Stable and one-to-one, but arbitrary within its
@@ -60,7 +61,7 @@ const CivTileArt = (() => {
     if (!entry) return null;
     const s = (side === "B") ? "B" : "A";
     const printed = entry.swap ? (s === "A" ? "b" : "a") : s.toLowerCase();
-    return `${BASE}tile-${pad(entry.n)}-side-${printed}.png`;
+    return `${BASE}tile-${pad(entry.n)}-side-${printed}${EXT}`;
   }
 
   function tileFacts(tileId) {

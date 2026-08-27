@@ -282,8 +282,11 @@ certainty than there is.
 
 Clicking any space on the board opens that tile: which printed tile it is, both
 of its faces, which is up, and every space on it with its terrain and what is
-standing there. Where the extracted photographs are on the machine it shows
-those; where they are not it draws the layout instead.
+standing there. The faces are the real photographs — `assets/tts-web/` is
+committed — and the drawn stand-in is only used if an image is missing.
+
+The art independently confirms the mapping: TI02 resolves to printed tile 19,
+and tile 19's two faces are unmistakably Ha Long Bay and Gobustan.
 
 ### Combat, read off the printed tables
 
@@ -410,11 +413,19 @@ Added in this pass, all of them from the English card text:
 Stated plainly, because it would otherwise look authentic:
 
 - **Per-hex tile terrain.** Every tile's 10-cell terrain layout is mine. So are
-  the resource positions and the barbarian letters. `tools/extract-mod.py` can
-  now pull real photographs of all 21 tiles, both sides, off the Tabletop
-  Simulator save — so the layouts *can* be replaced with the printed ones by
-  somebody who can see those files. Until that is done the tile inspector says
-  plainly that what the game is using is a stand-in. The Tabletop Simulator mod
+  the resource positions and the barbarian letters. This is now the last big
+  invented thing, and it is finally fixable: `assets/tts-web/map-tiles/` holds
+  photographs of all 21 tiles, both faces, committed. Reading the printed
+  terrain off them and replacing these layouts is a job on its own — 420 spaces
+  to classify — and until it is done the tile inspector says plainly that what
+  the game is using is a stand-in.
+
+  What the photographs already settled: **the printed tile really is 10 hexes in
+  columns of 4/4/2**, measured off the art rather than inferred, which is the
+  shape this app has always used. Each face carries its number and side in the
+  corner ("1A", "13A"), and those match the extractor's filenames, so the side
+  assignment is confirmed too. A tile's B face is its A geometry mirrored
+  vertically — worth knowing for anyone sampling these images. The Tabletop Simulator mod
   carries zero terrain data (I checked: no occurrence of any terrain word in the
   save), and the tile images are unreachable from this machine.
 - ~~**Tile geometry.**~~ Struck out: I wrote here that the printed tiles are 7
