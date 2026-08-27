@@ -268,6 +268,23 @@ face, clockwise from the starting space:
   testing the wrong place at that, since the row reads 1, 1, 2, 3, 4, 5 and the
   "5" slot is the sixth position, not the fifth.
 
+### Tile identity
+
+`tile-art.js` bridges this app's tile ids to the numbers on the physical tiles.
+Twelve are certain: a tile whose two sides are Cliffs of Dover and Torres del
+Paine is printed tile 1, and nothing else is. Two of those twelve have their
+sides the other way round from this app's A/B, which the table records so a
+picture is never shown on the wrong face. The other nine — five capitals and
+four plain tiles — carry nothing printed to tell them apart, so they are
+assigned: stable, one-to-one, and arbitrary. Every entry is marked with which
+it is, and the tile inspector repeats it on screen rather than implying more
+certainty than there is.
+
+Clicking any space on the board opens that tile: which printed tile it is, both
+of its faces, which is up, and every space on it with its terrain and what is
+standing there. Where the extracted photographs are on the machine it shows
+those; where they are not it draws the layout instead.
+
 ### Combat, read off the printed tables
 
 Terra p16's quick reference and base p11 between them settle the whole attack
@@ -393,7 +410,11 @@ Added in this pass, all of them from the English card text:
 Stated plainly, because it would otherwise look authentic:
 
 - **Per-hex tile terrain.** Every tile's 10-cell terrain layout is mine. So are
-  the resource positions and the barbarian letters. The Tabletop Simulator mod
+  the resource positions and the barbarian letters. `tools/extract-mod.py` can
+  now pull real photographs of all 21 tiles, both sides, off the Tabletop
+  Simulator save — so the layouts *can* be replaced with the printed ones by
+  somebody who can see those files. Until that is done the tile inspector says
+  plainly that what the game is using is a stand-in. The Tabletop Simulator mod
   carries zero terrain data (I checked: no occurrence of any terrain word in the
   save), and the tile images are unreachable from this machine.
 - ~~**Tile geometry.**~~ Struck out: I wrote here that the printed tiles are 7

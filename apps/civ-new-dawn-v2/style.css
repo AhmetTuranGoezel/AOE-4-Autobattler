@@ -336,6 +336,33 @@ input, select {
   margin-top: 6px;
   font-size: 11px;
 }
+/* Tile inspector: both faces side by side, the real photograph where somebody
+   has run the extractor and the drawn stand-in where they have not. */
+.tile-faces { display: flex; gap: 14px; flex-wrap: wrap; margin: 12px 0 16px; }
+.tile-face {
+  flex: 1 1 200px;
+  margin: 0;
+  padding: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  text-align: center;
+}
+.tile-face.up { border-color: #ffd54f; box-shadow: 0 0 0 1px rgba(255, 213, 79, 0.3); }
+.tile-face img { width: 100%; height: auto; border-radius: 6px; display: block; }
+/* The drawing is only for when there is no photograph. */
+.tile-face .tile-face-fallback { display: none; }
+.tile-face.no-art img { display: none; }
+.tile-face.no-art .tile-face-fallback { display: block; }
+.tile-face:not(:has(img)) .tile-face-fallback { display: block; }
+.tile-side-svg { width: 100%; height: auto; max-height: 190px; }
+.tile-face figcaption { margin-top: 6px; font-size: 11px; opacity: 0.75; }
+.tile-cells { width: 100%; border-collapse: collapse; font-size: 12px; }
+.tile-cells th, .tile-cells td {
+  padding: 4px 8px; text-align: left; border-bottom: 1px solid var(--border);
+}
+.tile-cells th { font-size: 11px; text-transform: uppercase; opacity: 0.7; }
+
 /* The side whose die is still in the cup, while the other number sits on the
    table waiting to be beaten. */
 .cs-side.cs-next .cs-die {
