@@ -505,9 +505,10 @@ const UI = (() => {
           const playerTiles = state.setup.playerTiles[localPlayerId] || [];
           if (playerTiles.length > 0) {
             const tileId = playerTiles[0];
-            // Green means "the tile fits here", not "the tile fits here at the
-            // angle the buttons happen to be on".
-            setupValid = Game.getTileAnchorsAnyRotation(state, tileId);
+            // Deliberately NOT lighting up every legal anchor. Working out where
+            // your land can go is the decision; a board covered in green answers
+            // it for you. Point at a space and the ghost says yes or no — that
+            // is the only help there is, and you have to go looking for it.
             if (mouseHex) {
               const anchorKey = Game.key(mouseHex.q, mouseHex.r);
               const fit = Game.tilePlacementFor(state, tileId, anchorKey, sub.tileRotation);
@@ -1675,9 +1676,13 @@ const UI = (() => {
             <button id="rot-inc" class="sm">\u21bb</button>
             <button id="side-toggle" class="sm">Side ${sub.tileSide}</button>
           </div>
-          <br><strong>Just click a green space</strong> \u2014 the tile turns itself to fit.<br>
-          Scroll or <kbd>R</kbd> to turn it yourself, <kbd>F</kbd> to flip it over.<br>
+          <br><strong>Find it a home.</strong> Hover the board \u2014 the tile shows
+          <strong style="color:#66bb6a">green</strong> where it fits and
+          <strong style="color:#ef5350">red</strong> where it does not. Click to lay it.<br>
+          Scroll or <kbd>R</kbd> to turn it, <kbd>F</kbd> to flip it over.<br>
           Tiles remaining: <strong>${playerTiles.length}</strong>
+          ${Game.getTileAnchorsAnyRotation(state, tileId).size === 0
+            ? `<div class="wiz-note">There is nowhere on the board this tile can go.</div>` : ""}
         </div>`;
 
       document.getElementById("rot-dec").addEventListener("click", () => turnTile(-1));
