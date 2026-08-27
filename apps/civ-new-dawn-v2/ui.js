@@ -2802,7 +2802,93 @@ const UI = (() => {
     </div>`;
   }
 
-  function openReference(which) {
+  // Everything about the tile a space belongs to: which physical tile it is,
+  // which side is up, what is printed on it, and — where somebody has run the
+  // extractor — a photograph of the real thing.
+  function renderTileRef(tileId) {
+    const tile = (state.tiles && state.tiles[tileId]) ||
+      (state.setup && state.setup.tiles && state.setup.tiles[tileId]);
+    const def = Game.getTileDef(tileId);
+    const side = tile ? (tile.side || "A") : "A";
+    const facts = window.CivTileArt ? CivTileArt.tileFacts(tileId) : null;
+    const cells = Object.entries(state.map.hexes)
+      .filter(([, h]) => h.tileId === tileId)
+      .sort((a, b) => (a[1].tileCell || 0) - (b[1].tileCell || 0));
+
+    const feature = (h) => {
+      const bits = [];
+      if (h.city) bits.push(h.city.isCapital ? "capital" : "city");
+      if (h.cityState) bits.push(h.cityState.name);
+      if (h.naturalWonder) bits.push(h.naturalWonder);
+      else if (h.resource) bits.push(h.resource);
+      if (h.fortress) bits.push("fort");
+      if (h.barbarian) bits.push("barbarian");
+      if (h.control) bits.push(h.control.district || "control");
+      return bits.join(", ");
+    };
+
+    const rows = cells.map(([k, h]) => `<tr>
+      <td>${h.tileCell + 1}</td>
+      <td>${escapeHtml(Game.TERRAIN_LABELS[h.terrain] || h.terrain)}</td>
+      <td>${Game.TERRAIN[h.terrain]}</td>
+      <td>${escapeHtml(feature(h)) || "\u2014"}</td></tr>`).join("");
+
+    const both = ["A", "B"].map((s) => {
+      const src = window.CivTileArt ? CivTileArt.tileImagePath(tileId, s) : null;
+      return `<figure class="tile-face${s === side ? " up" : ""}">
+        ${src ? `<img src="${src}" alt="Tile ${escapeHtml(tileId)} side ${s}"
+             onerror="this.closest('figure').classList.add('no-art')">` : ""}
+        <div class="tile-face-fallback">${renderTileSideSvg(tileId, s)}</div>
+        <figcaption>Side ${s}${s === side ? " \u2014 face up" : ""}</figcaption>
+      </figure>`;
+    }).join("");
+
+    return `<div class="ref-card">
+      <button class="detail-close" id="ref-close">\u2715</button>
+      <h2 class="ref-title">Tile ${escapeHtml(tileId)}${def ? ` \u2014 ${escapeHtml(def.kind)}` : ""}</h2>
+      <p class="ref-lede">
+        ${facts ? `Printed tile <strong>${facts.number}</strong>${
+            facts.certain
+              ? ` \u2014 identified by its sides (${escapeHtml(facts.sides)}).`
+              : ", assigned. Nothing is printed on this tile to tell it from the others in its group."}`
+          : "This tile has no counterpart in the printed set."}
+      </p>
+      <div class="tile-faces">${both}</div>
+      <p class="ref-lede">The terrain below is what the game is actually using.
+        It is my own layout, not the printed one \u2014 see RULES-COVERAGE.md.</p>
+      <table class="tile-cells"><thead><tr>
+        <th>Space</th><th>Terrain</th><th>Difficulty</th><th>On it</th>
+      </tr></thead><tbody>${rows}</tbody></table>
+    </div>`;
+  }
+
+  // The drawn stand-in, used when there is no photograph of the tile.
+  function renderTileSideSvg(tileId, side) {
+    const def = Game.getTileDef(tileId);
+    const cells = def && def.sides && def.sides[side] ? def.sides[side].cells : null;
+    if (!cells) return "";
+    const pts = Game.TILE_OFFSETS.map((o) => ({
+      x: Math.sqrt(3) * (o.q + o.r / 2),
+      y: 1.5 * o.r
+    }));
+    const minX = Math.min(...pts.map((p) => p.x)) - 1.1;
+    const minY = Math.min(...pts.map((p) => p.y)) - 1.1;
+    const w = Math.max(...pts.map((p) => p.x)) - minX + 1.1;
+    const h = Math.max(...pts.map((p) => p.y)) - minY + 1.1;
+    const hexes = pts.map((p, i) => {
+      const c = cells[i] || {};
+      const corners = [];
+      for (let a = 0; a < 6; a++) {
+        const ang = (Math.PI / 180) * (60 * a - 30);
+        corners.push(`${(p.x - minX + Math.cos(ang)).toFixed(3)},${(p.y - minY + Math.sin(ang)).toFixed(3)}`);
+      }
+      return `<polygon points="${corners.join(" ")}" fill="${TERRAIN_COLORS[c.terrain] || "#555"}"
+        stroke="rgba(0,0,0,0.35)" stroke-width="0.06"/>`;
+    }).join("");
+    return `<svg viewBox="${0} ${0} ${w.toFixed(2)} ${h.toFixed(2)}" class="tile-side-svg">${hexes}</svg>`;
+  }
+
+  function openReference(which, arg) {
     const overlay = document.getElementById("reference");
     const body = document.getElementById("reference-body");
     if (!overlay || !body || !state) return;
@@ -2810,6 +2896,7 @@ const UI = (() => {
       body.innerHTML = which === "wonders" ? renderWondersRef()
         : which === "civ" ? renderCivRef()
         : which === "victory" ? renderVictoryRef()
+        : which === "tile" ? renderTileRef(arg)
         : renderDiplomacyRef();
     } catch (err) {
       body.innerHTML = `<div class="ref-card"><button class="detail-close" id="ref-close">\u2715</button>
@@ -3028,6 +3115,16 @@ const UI = (() => {
 
   function handleHexClick(hexKey) {
     if (!state) return;
+
+    // With nothing else going on, clicking a space asks about the land it is
+    // part of. Idle only — an action in progress always owns the click.
+    if (sub.phase === "idle" && !activeHexChoice() && state.phase === "playing") {
+      const h = state.map.hexes[hexKey];
+      if (h && h.active && h.tileId && h.tileId !== "water-fill") {
+        openReference("tile", h.tileId);
+        return;
+      }
+    }
 
     // A choice waiting on a space takes the click before anything else.
     const hexChoice = activeHexChoice();
