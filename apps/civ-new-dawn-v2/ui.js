@@ -3553,7 +3553,7 @@ const UI = (() => {
         <span class="cface-dots">${dots}</span>
         <span class="cface-trade">${escapeHtml(Game.FOCUS_TRADE_DESC[cardType])}</span>
       </div>
-      <div class="cface-slot">Focus slot ${slot}</div>
+      ${o.hideSlot ? "" : `<div class="cface-slot">Focus slot ${slot}</div>`}
     </div>`;
   }
 
@@ -4256,7 +4256,7 @@ const UI = (() => {
         el.style.setProperty("--shine-y", `${(y * 100).toFixed(1)}%`);
       });
       el.addEventListener("mouseenter", () => {
-        dom.mapTooltip.innerHTML = renderCardFace(me, cardType);
+        dom.mapTooltip.innerHTML = renderCardFace(me, cardType, { hideSlot: true });
         dom.mapTooltip.classList.add("card-face");
         dom.mapTooltip.classList.remove("hidden");
         const rect = el.getBoundingClientRect();
