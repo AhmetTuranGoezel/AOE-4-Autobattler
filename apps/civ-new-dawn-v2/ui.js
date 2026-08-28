@@ -30,6 +30,7 @@ const UI = (() => {
   // The board wears the printed tile faces. Off, it falls back to the drawn
   // terrain — which is the same terrain, so nothing about play changes.
   let tileArt = true;
+  let pieceArt = true;
 
   const TERRAIN_COLORS = {
     grass: '#6faa3f', hill: '#c8993a', forest: '#1d6650',
@@ -937,10 +938,58 @@ const UI = (() => {
     ctx.closePath();
   }
 
+  // Loaded token art, keyed by URL. A miss starts the load and returns null;
+  // the board redraws when it arrives, so a slow first paint costs a frame,
+  // not a missing piece. A failed load is remembered as null so a broken path
+  // costs one request rather than one per frame.
+  const tokenImages = new Map();
+  function tokenImage(url) {
+    if (!url) return null;
+    if (tokenImages.has(url)) return tokenImages.get(url);
+    const img = new Image();
+    img.onload = () => { renderCanvas(); };
+    img.onerror = () => { tokenImages.set(url, null); };
+    img.src = url;
+    tokenImages.set(url, img);
+    return img;
+  }
+
+  // Draw a round or hex token centred on a space, at a size given as a
+  // fraction of the hex. Returns false when the art is not there yet, so every
+  // caller can fall back to the shape it used to draw.
+  function drawToken(url, cx, cy, frac, opts) {
+    const img = tokenImage(url);
+    if (!img || !img.complete || !img.naturalWidth) return false;
+    const o = opts || {};
+    const w = HEX_SIZE * 2 * frac;
+    const hgt = w * (img.naturalHeight / img.naturalWidth);
+    ctx.save();
+    if (o.alpha !== undefined) ctx.globalAlpha = o.alpha;
+    if (o.shadow) {
+      ctx.shadowColor = "rgba(0,0,0,0.55)";
+      ctx.shadowBlur = HEX_SIZE * 0.12;
+      ctx.shadowOffsetY = HEX_SIZE * 0.04;
+    }
+    ctx.drawImage(img, cx - w / 2, cy - hgt / 2, w, hgt);
+    ctx.restore();
+    return true;
+  }
+
+  // The colour a piece is drawn in. Player colours are the printed four now,
+  // but a save from before that still carries an old hex, so it goes through
+  // the component matcher rather than being used raw.
+  function seatOf(playerId) {
+    const p = playerId ? Game.getPlayer(state, playerId) : null;
+    return p ? p.color : null;
+  }
+
   function drawHexContent(cx, cy, h, k) {
     const s = HEX_SIZE / 30;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
+    // Below a certain size the printed tokens turn to mush and the drawn
+    // shapes read better, so the art only comes out when there is room.
+    const art = pieceArt && !!window.CivCardArt && HEX_SIZE >= 26;
 
     // ── Center piece: city / city-state / fortress / barbarian / control ──
     if (h.city) {
@@ -976,6 +1025,9 @@ const UI = (() => {
         ctx.fillText("♦", cx + w / 2 + 3 * s, cy - 2 * s);
       }
     } else if (h.cityState) {
+      if (art && drawToken(CivCardArt.cityStateToken(h.cityState.name), cx, cy, 0.86, { shadow: true })) {
+        // The printed token carries the name and the type badge already.
+      } else {
       // neutral city-state: purple diamond with initials
       const r = 8.5 * s;
       ctx.beginPath();
@@ -986,8 +1038,19 @@ const UI = (() => {
       ctx.font = `bold ${Math.round(6.5 * s)}px sans-serif`;
       ctx.fillStyle = "#fff";
       ctx.fillText(h.cityState.name.slice(0, 3).toUpperCase(), cx, cy);
+      }
     } else if (h.fortress) {
       const owner = h.fortressOwnerId ? Game.getPlayer(state, h.fortressOwnerId) : null;
+      if (art && drawToken(CivCardArt.fort(), cx, cy, 0.86, { shadow: true })) {
+        // An uncontrolled fort is the printed hex alone; once somebody holds
+        // it their colour goes round the outside, so you can see whose it is
+        // without hunting for a legend.
+        if (owner) {
+          ctx.beginPath();
+          hexSubPath(cx, cy, HEX_SIZE * 0.8);
+          ctx.lineWidth = 2.6 * s; ctx.strokeStyle = owner.color; ctx.stroke();
+        }
+      } else {
       const w = 13 * s, hh = 10 * s;
       roundRect(cx - w / 2, cy - hh / 2 + 1 * s, w, hh, 1.5 * s);
       ctx.fillStyle = owner ? owner.color : "#9aa1ad"; ctx.fill();
@@ -996,10 +1059,18 @@ const UI = (() => {
       for (let i = -1; i <= 1; i++) {
         ctx.fillRect(cx + i * 4.2 * s - 1.5 * s, cy - hh / 2 - 2.5 * s, 3 * s, 3.5 * s);
       }
+      }
     } else if (h.control) {
       const owner = Game.getPlayer(state, h.control.ownerId);
       const color = owner ? owner.color : "#fff";
-      if (h.control.district) {
+      // A district replaces the plain token; a plain token has two printed
+      // faces, and reinforcing it is a flip to the back with its ring of dots.
+      const face = art && (h.control.district
+        ? CivCardArt.district(color, h.control.district)
+        : CivCardArt.control(color, h.control.fortified));
+      if (face && drawToken(face, cx, cy, h.control.district ? 0.8 : 0.6, { shadow: true })) {
+        // Nothing else to draw: the face says whose it is and what it is.
+      } else if (h.control.district) {
         const w = 15 * s, hh = 11 * s;
         roundRect(cx - w / 2, cy - hh / 2, w, hh, 2 * s);
         ctx.fillStyle = "rgba(20,22,36,0.85)"; ctx.fill();
@@ -1019,6 +1090,12 @@ const UI = (() => {
     }
 
     if (h.barbarian) {
+      // Terra p6 step 4a: the token whose letter matches the space. A space
+      // with no letter still has to look the same on every client, so the
+      // token is picked from the space, never from a roll.
+      if (art && drawToken(CivCardArt.barbarianForSpace(h.barbarianId, k), cx, cy, 0.5, { shadow: true })) {
+        // The printed helm and its letter are the whole marker.
+      } else {
       const r = 7 * s;
       ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
       ctx.fillStyle = "#b3261e"; ctx.fill();
@@ -1026,11 +1103,21 @@ const UI = (() => {
       ctx.font = `bold ${Math.round(9 * s)}px sans-serif`;
       ctx.fillStyle = "#fff";
       ctx.fillText("☠", cx, cy + 0.5 * s);
+      }
     }
 
     // ── Top badge: resource / natural wonder pill ──
     if (h.resource || h.naturalWonder) {
       const isWonder = h.resource === "wonder" || h.naturalWonder;
+      // A natural wonder token names the wonder and shows the resource it
+      // gives; a plain resource token is just the resource. Both are printed,
+      // so the pill below is only the fallback.
+      const badge = art && (h.naturalWonder
+        ? CivCardArt.naturalWonder(h.naturalWonder)
+        : (h.resource && h.resource !== "wonder" ? CivCardArt.resource(h.resource) : ""));
+      if (badge && drawToken(badge, cx, cy - HEX_SIZE * 0.52, h.naturalWonder ? 0.62 : 0.34, { shadow: true })) {
+        return drawUnits(cx, cy, k, s);
+      }
       const resLabels = { marble: "MRB", mercury: "MRC", oil: "OIL", diamonds: "DIA", wonder: "NW" };
       const label = isWonder ? "NW" : (resLabels[h.resource] || String(h.resource).slice(0, 3).toUpperCase());
       const w = (label.length > 2 ? 16 : 12) * s, hh = 8 * s;
@@ -1043,24 +1130,28 @@ const UI = (() => {
       ctx.fillText(label, cx, by + 0.4 * s);
     }
 
-    // ── Bottom row: units as coloured discs ──
+    drawUnits(cx, cy, k, s);
+  }
+
+  // The figures standing in a space, along the bottom edge so they never sit
+  // on top of whatever holds the ground.
+  function drawUnits(cx, cy, k, s) {
     const units = Game.getUnitsAt(state, k);
-    if (units.length) {
-      const uy = cy + HEX_SIZE * 0.55;
-      const spread = 11 * s;
-      const x0 = cx - ((units.length - 1) * spread) / 2;
-      units.forEach((u, i) => {
-        const ux = x0 + i * spread;
-        ctx.beginPath(); ctx.arc(ux, uy, 5.2 * s, 0, Math.PI * 2);
-        ctx.fillStyle = u.color; ctx.fill();
-        ctx.lineWidth = 1.6 * s;
-        ctx.strokeStyle = u.type === "army" ? "#fff" : "rgba(20,20,30,0.9)";
-        ctx.stroke();
-        ctx.font = `bold ${Math.round(6.5 * s)}px sans-serif`;
-        ctx.fillStyle = u.type === "army" ? "#fff" : "rgba(15,15,25,0.95)";
-        ctx.fillText(u.type === "army" ? "⚔" : "C", ux, uy + 0.4 * s);
-      });
-    }
+    if (!units.length) return;
+    const uy = cy + HEX_SIZE * 0.55;
+    const spread = 11 * s;
+    const x0 = cx - ((units.length - 1) * spread) / 2;
+    units.forEach((u, i) => {
+      const ux = x0 + i * spread;
+      ctx.beginPath(); ctx.arc(ux, uy, 5.2 * s, 0, Math.PI * 2);
+      ctx.fillStyle = u.color; ctx.fill();
+      ctx.lineWidth = 1.6 * s;
+      ctx.strokeStyle = u.type === "army" ? "#fff" : "rgba(20,20,30,0.9)";
+      ctx.stroke();
+      ctx.font = `bold ${Math.round(6.5 * s)}px sans-serif`;
+      ctx.fillStyle = u.type === "army" ? "#fff" : "rgba(15,15,25,0.95)";
+      ctx.fillText(u.type === "army" ? "⚔" : "C", ux, uy + 0.4 * s);
+    });
   }
 
   // ── Mouse / Keyboard ─────────────────────────────────────
