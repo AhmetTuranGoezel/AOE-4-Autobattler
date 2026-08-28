@@ -2184,3 +2184,26 @@ kbd {
   .tech-panel.advancing .tech-dial { animation: none; }
   .ibrahim-mini img { transition: none; }
 }
+
+/* Figures still standing on their focus card. Base p4 starts a caravan on
+   Foreign Trade and no army on the map at all, and Terra p10 sends a beaten
+   army back here — so the card is where you count what you have left to send.
+   A dimmed figure is one that is out on the board. */
+.cface-onboard,
+.fc-body .cface-onboard {
+  display: flex;
+  gap: 3px;
+  justify-content: center;
+  margin: 4px 0 2px;
+  line-height: 1;
+}
+.cf-fig {
+  font-size: 13px;
+  color: #f4e4b8;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+.cf-fig.out {
+  opacity: 0.28;
+  transform: scale(0.82);
+}

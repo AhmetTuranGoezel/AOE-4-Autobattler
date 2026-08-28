@@ -79,6 +79,16 @@
       assert("lobby fills to four players", lob.players.length === 4 && lob.phase === "lobby");
       lob = Game.applyAction(lob, { type: "ADD_PLAYER", payload: Game.createPlayer("p5", "P5", "#f77f00") });
       assert("lobby rejects a fifth player", lob.players.length === 4);
+      // Seats are dealt, not chosen. The game ships five sets of focus cards
+      // and dials but only four control-token colours, and two players sharing
+      // a colour would be two players with the same tokens on the board.
+      assert("four seats, four different printed colours",
+        new Set(lob.players.map((p) => p.color)).size === 4 &&
+        lob.players.every((p) => Game.SEAT_COLORS.includes(p.color)));
+      let dup = Game.createLobbyState([Game.createPlayer("d1", "D1", "#169eae")]);
+      dup = Game.applyAction(dup, { type: "ADD_PLAYER", payload: Game.createPlayer("d2", "D2", "#169eae") });
+      assert("asking for a taken colour gets the next free one",
+        dup.players[0].color === "#169eae" && dup.players[1].color !== "#169eae");
       lob = Game.applyAction(lob, { type: "START_GAME", payload: { playerId: lob.players[0].id } });
       assert("START_GAME builds a four-player setup", lob.phase === "setup" && lob.setup.phase === "fortress" && lob.setup.order.length === 4);
       let midGame = Game.createState(players(2));

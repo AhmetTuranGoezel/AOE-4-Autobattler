@@ -598,6 +598,7 @@ const Game = (() => {
 
   function createState(players) {
     const map = buildEmptyMap(CFG.mapRadius);
+    seatPlayers(players);
     const playerIds = players.map((p) => p.id);
     const setup = createSetupState(playerIds);
 
@@ -637,7 +638,7 @@ const Game = (() => {
   // everyone is present. Only then is the real board (createState) built, so a
   // late join can never wipe an in-progress setup.
   function createLobbyState(players, opts) {
-    const list = (players || []).slice(0, CFG.maxPlayers);
+    const list = seatPlayers((players || []).slice(0, CFG.maxPlayers));
     return {
       rulesVersion: RULE_VERSION,
       phase: "lobby",
@@ -694,6 +695,31 @@ const Game = (() => {
       while (list.length > n) list.pop();
       while (list.length < n) list.push({ id: key + "-" + (list.length + 1) + "-" + player.id.slice(0, 4), position: null });
     }
+  }
+
+  // The four printed player colours. The game ships five sets of focus cards
+  // and dials, but only these four have a control token with a reinforced
+  // back — and CFG.maxPlayers is four, so purple is the spare. Seats are
+  // handed out from this list rather than chosen freely: two players in the
+  // same colour would be two players with the same tokens on the board.
+  const SEAT_COLORS = ["#169eae", "#d94747", "#e88b24", "#76a94f"];
+
+  function seatColor(taken, wanted) {
+    const free = SEAT_COLORS.filter((c) => !taken.includes(c));
+    if (!free.length) return SEAT_COLORS[taken.length % SEAT_COLORS.length];
+    const want = String(wanted || "").toLowerCase();
+    return free.find((c) => c === want) || free[0];
+  }
+
+  // Give everyone in a list a distinct seat colour, keeping what they asked
+  // for where it is still free.
+  function seatPlayers(list) {
+    const taken = [];
+    (list || []).forEach((p) => {
+      p.color = seatColor(taken, p.color);
+      taken.push(p.color);
+    });
+    return list;
   }
 
   function createPlayer(id, name, color) {
@@ -868,6 +894,7 @@ const Game = (() => {
       if (st.phase !== "lobby" && st.phase !== "setup") return st;
       if (st.players.length >= CFG.maxPlayers) return st;
       migratePlayer(payload);
+      payload.color = seatColor(st.players.map((p) => p.color), payload.color);
       st.players.push(payload);
       st.turn.order.push(payload.id);
       if (st.phase === "lobby") {
@@ -4212,6 +4239,7 @@ const Game = (() => {
     hasWonder, getWonderAttackBonus, getWonderDefenseBonus,
     TILE_OFFSETS, getCoreAnchors,
     createState, createLobbyState, createPlayer, migrateState, applyAction, currentPlayer, getPlayer,
+    SEAT_COLORS, seatColor,
     getSlotValue, getSlotIndex, getCardTier, getCardTierValue: getCardTier,
     getMilitaryMove, getEconomyMove, getCultureMarkers, getMilitaryCombatBonus,
     getCityRange, getWonderCost, getWonderToken, getVisibleWonders,

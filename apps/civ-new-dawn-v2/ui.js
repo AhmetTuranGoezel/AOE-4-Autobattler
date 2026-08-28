@@ -938,6 +938,24 @@ const UI = (() => {
     ctx.closePath();
   }
 
+  // The figures still standing on a card. Terra p10 and base p4 put armies on
+  // the military card and caravans on the economy card until something moves
+  // them out, so the card is where you count them — and where you can see at a
+  // glance how many you have left to send.
+  function onCardFigures(player, cardType) {
+    const kind = cardType === "military" ? "armies" : cardType === "economy" ? "caravans" : null;
+    if (!kind) return "";
+    const list = player[kind] || [];
+    if (!list.length) return "";
+    const home = list.filter((u) => !u.position).length;
+    const glyph = kind === "armies" ? "\u2694" : "\u26fa";
+    let pips = "";
+    for (let i = 0; i < list.length; i++) {
+      pips += `<span class="cf-fig${i < home ? "" : " out"}">${glyph}</span>`;
+    }
+    return `<div class="cface-onboard" title="${home} of ${list.length} still on this card">${pips}</div>`;
+  }
+
   // Loaded token art, keyed by URL. A miss starts the load and returns null;
   // the board redraws when it arrives, so a slow first paint costs a frame,
   // not a missing piece. A failed load is remembered as null so a broken path
@@ -3206,6 +3224,7 @@ const UI = (() => {
       <div class="cface-title">${escapeHtml(name)}</div>
       <div class="cface-text">${escapeHtml(printed)}</div>
       ${figures ? `<div class="cface-figures">${escapeHtml(figures)}</div>` : ""}
+      ${onCardFigures(player, cardType)}
       ${manual}
       <div class="cface-foot">
         <span class="cface-dots">${dots}</span>
@@ -3821,6 +3840,7 @@ const UI = (() => {
             <span class="fc-cardname">${uniqueCard ? "★ " : ""}${escapeHtml(cardName)}</span>
           </div>
           <div class="fc-printed">${escapeHtml(printed)}</div>
+          ${onCardFigures(me, cardType)}
         </div>
         <div class="fc-footer">
           <span class="fc-trade-note">${escapeHtml(Game.FOCUS_TRADE_DESC[cardType] || "")}</span>
