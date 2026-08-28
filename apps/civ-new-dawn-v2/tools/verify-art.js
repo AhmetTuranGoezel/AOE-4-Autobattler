@@ -79,6 +79,10 @@ const slug = (s) => s.toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g, "-")
   const leaders = RULES.LEADERS.map((l) => l.id);
   check("every leader has a civilization sheet", leaders.every((id) => manifest.civ[id]));
   check("every leader has a unique focus card", leaders.every((id) => manifest.unique[id]));
+  check("every civilization uses a playable deck-211 focus card",
+    leaders.every((id) => /__deck-211-/.test(manifest.unique[id] || "")));
+  check("Sumeria uses Craftsmanship, not its solo AI behaviour card",
+    /^cards\/focus\/craftsmanship__deck-211-/.test(manifest.unique.sumeria || ""));
 
   const wonders = [];
   Object.values(RULES.WONDER_DECKS).forEach((d) => d.forEach((w) => wonders.push(w.name)));
@@ -111,6 +115,12 @@ const slug = (s) => s.toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g, "-")
 
   check("every government has a token",
     Object.keys(RULES.GOVERNMENTS).every((t) => manifest.gov[t]));
+  // The base rulebook's setup diagram labels the portrait token as Marble;
+  // Mercury is the silver-droplet token. Keep the TTS filenames attached to
+  // those identities instead of swapping them by visual guesswork.
+  check("marble and mercury use the printed resource symbols",
+    /^tokens\/marble__/.test(manifest.resource.marble || "") &&
+    /^tokens\/mercury__/.test(manifest.resource.mercury || ""));
   check("every focus bar colour has art", manifest.colors.every((c) => manifest.focusBar[c]));
   check("every seat colour has a tech dial", manifest.colors.every((c) => manifest.dial[c]));
 }

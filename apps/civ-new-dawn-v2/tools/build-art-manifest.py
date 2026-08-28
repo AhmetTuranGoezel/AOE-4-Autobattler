@@ -160,6 +160,32 @@ FOCUS_CARDS = {
     "civil-service": ("culture", 3), "mass-media": ("culture", 4),
 }
 
+# Terra's 18 playable civilization focus cards are the faces in deck 211.
+# Deck 5 contains similarly named solo-mode AI behaviour cards; their filenames
+# also carry the civilization/type/tier and used to win the generic matcher,
+# putting an AI priority card into Sumeria's focus row. Keep this explicit map
+# keyed by the name printed on the playable card so that cannot happen again.
+UNIQUE_CARDS = {
+    "radio": ("america", "culture", 4),
+    "mysticism": ("aztec", "growth", 1),
+    "writing": ("china", "science", 1),
+    "wheel": ("egypt", "economy", 1),
+    "natural-history": ("england", "science", 3),
+    "humanism": ("france", "culture", 3),
+    "siege-tactics": ("georgia", "military", 3),
+    "industrialization": ("japan", "industry", 3),
+    "state-workforce": ("inca", "culture", 2),
+    "shipbuilding": ("indonesia", "economy", 2),
+    "cartography": ("netherlands", "economy", 3),
+    "construction": ("nubia", "industry", 2),
+    "banking": ("ottoman", "economy", 3),
+    "astronomy": ("poland", "science", 2),
+    "military-engineering": ("rome", "growth", 2),
+    "horseback-riding": ("scythia", "military", 1),
+    "craftsmanship": ("sumeria", "industry", 1),
+    "scorched-earth": ("zulu", "military", 2),
+}
+
 # deck number -> (colour, tech level).
 FOCUS_DECKS = {
     212: ("red", 1), 216: ("blue", 1), 220: ("green", 1), 224: ("orange", 1), 228: ("purple", 1),
@@ -244,24 +270,43 @@ def build_focus_by_color():
 
 
 def build_focus():
-    """The reference focus deck, whose filenames carry type and tier outright:
-    `<name>-<type>-<tier>`, and for the uniques `<name>-<type>-<tier>-<civ>`."""
+    """Build the standard reference faces and playable civilization cards.
+
+    Standard cards name their type and tier. Civilization cards come from deck
+    211 and are matched through UNIQUE_CARDS; the same-looking deck-5 filenames
+    are solo AI cards and deliberately never enter the playable manifest.
+    """
     face, back, unique, unique_meta = {}, {}, {}, {}
     std = re.compile(r"^(.+)-(%s)-([1-4])$" % "|".join(FOCUS_TYPES))
-    uniq = re.compile(r"^(.+)-(%s)-([1-4])-([a-z]+)$" % "|".join(FOCUS_TYPES))
+    solo_unique = re.compile(r"^(.+)-(%s)-([1-4])-([a-z]+)$" % "|".join(FOCUS_TYPES))
     for path in listing("cards/focus"):
         name = os.path.basename(path)
         stem = name.split("__")[0]
         is_back = "__back" in name
-        m = uniq.match(stem)
-        if m and not is_back:
-            unique[m.group(4)] = path
-            unique_meta[m.group(4)] = {"name": m.group(1).replace("-", " "),
-                                       "type": m.group(2), "tier": int(m.group(3))}
+
+        if "__deck-211-" in name:
+            if not is_back and stem in UNIQUE_CARDS:
+                leader, focus_type, tier = UNIQUE_CARDS[stem]
+                unique[leader] = path
+                unique_meta[leader] = {
+                    "name": stem.replace("-", " "),
+                    "type": focus_type,
+                    "tier": tier,
+                }
             continue
-        m = std.match(stem)
+
+        # Deck 5 is for solo play, not a second set of civilization focus cards.
+        if solo_unique.fullmatch(stem):
+            continue
+
+        m = std.fullmatch(stem)
         if m:
             (back if is_back else face)[f"{m.group(2)}-{m.group(3)}"] = path
+
+    expected = {data[0] for data in UNIQUE_CARDS.values()}
+    missing = sorted(expected - set(unique))
+    if missing:
+        raise SystemExit("no playable unique focus card for: " + ", ".join(missing))
     return face, back, unique, unique_meta
 
 

@@ -234,6 +234,14 @@
       assert("a civ's unique card overrides that text", Game.getCardEffectText(cardP, "economy").indexOf("Wheel") >= 0 ||
         Game.getCardEffectText(cardP, "economy") === Game.LEADERS.find((l) => l.id === "egypt").unique.text);
 
+      const govP = Game.createPlayer("gov", "Gov", "#fff");
+      govP.focusRow = ["growth", "military", "science", "economy", "industry", "culture"];
+      govP.government = "growth";
+      assert("Monarchy moves Growth exactly two focus places",
+        Game.GOVERNMENTS.growth.name === "Monarchy" &&
+        Game.GOVERNMENTS.growth.shift === 2 &&
+        Game.getSlotValue(govP, "growth") === Game.FOCUS_SLOTS[2]);
+
 
 
       const indo = Game.createPlayer("in", "I", "#fff"); indo.leaderId = "indonesia";

@@ -1792,11 +1792,17 @@ const UI = (() => {
     const myWonderStr = myWonders.length ? myWonders.join(", ") : "none";
     const visibleWonders = Game.getVisibleWonders ? Game.getVisibleWonders(state).filter((w) => !builtWonders.has(w.name)) : [];
     const wonderList = visibleWonders.length
-      ? visibleWonders.map((w) => `<div class="wface era-${w.era}">
-          <div class="wface-head"><span class="wface-name">${escapeHtml(w.name)}</span><span class="wface-cost">${w.cost}</span></div>
-          <div class="wface-meta">${escapeHtml(w.era)} · ${escapeHtml(w.type)}</div>
-          <div class="wface-text">${escapeHtml(w.effect || "")}</div>
-        </div>`).join("")
+      ? visibleWonders.map((w) => {
+          const face = window.CivCardArt ? CivCardArt.wonderCard(w.name) : "";
+          return `<div class="wface era-${w.era}${face ? " has-art" : ""}">
+            ${face ? `<img class="wface-art" src="${escapeHtml(face)}" alt="${escapeHtml(w.name)} world wonder card" loading="lazy" draggable="false">` : ""}
+            <div class="wface-copy">
+              <div class="wface-head"><span class="wface-name">${escapeHtml(w.name)}</span><span class="wface-cost">${w.cost}</span></div>
+              <div class="wface-meta">${escapeHtml(w.era)} · ${escapeHtml(w.type)}</div>
+              <div class="wface-text">${escapeHtml(w.effect || "")}</div>
+            </div>
+          </div>`;
+        }).join("")
       : `<div style="color:var(--text2)">none</div>`;
     const myLeader = Game.getLeader ? Game.getLeader(me) : null;
     let leaderRow = "";
@@ -2398,14 +2404,18 @@ const UI = (() => {
 
     const wonderCards = wonders.map((w) => {
       const cost = me ? Game.getWonderCost(w.name, me, state) : w.cost;
-      return `<div class="ts-wonder type-${w.type} era-${w.era}" title="${escapeHtml(w.effect || "")}">
-        <div class="ts-w-top">
-          <span class="ts-w-icon">${WONDER_ICONS[w.type] || "\u2b50"}</span>
-          <span class="ts-w-era">${escapeHtml(w.era)}</span>
-          <span class="ts-w-cost">${cost}${cost !== w.cost ? `<s>${w.cost}</s>` : ""}</span>
+      const face = window.CivCardArt ? CivCardArt.wonderCard(w.name) : "";
+      return `<div class="ts-wonder type-${w.type} era-${w.era}${face ? " has-art" : ""}" title="${escapeHtml(w.effect || "")}">
+        ${face ? `<img class="ts-w-face" src="${escapeHtml(face)}" alt="${escapeHtml(w.name)} world wonder card" draggable="false">` : ""}
+        <div class="ts-w-info">
+          <div class="ts-w-top">
+            <span class="ts-w-icon">${WONDER_ICONS[w.type] || "\u2b50"}</span>
+            <span class="ts-w-era">${escapeHtml(w.era)}</span>
+            <span class="ts-w-cost">${cost}${cost !== w.cost ? `<s>${w.cost}</s>` : ""}</span>
+          </div>
+          <div class="ts-w-name">${escapeHtml(w.name)}</div>
+          ${w.token ? `<div class="ts-w-token">\ud83e\ude99 costs 1 less \u00b7 leaves next dial</div>` : ""}
         </div>
-        <div class="ts-w-name">${escapeHtml(w.name)}</div>
-        ${w.token ? `<div class="ts-w-token">\ud83e\ude99 costs 1 less \u00b7 leaves next dial</div>` : ""}
       </div>`;
     }).join("");
 
@@ -2505,6 +2515,21 @@ const UI = (() => {
   // The fight takes the board: the map dims, both hexes stay lit, and the dice
   // are the biggest thing on screen. While a side still has military trade
   // tokens it gets to look at the roll and decide — +1, or a fresh die.
+  const DIE_PIPS = {
+    1: [5], 2: [1, 9], 3: [1, 5, 9], 4: [1, 3, 7, 9],
+    5: [1, 3, 5, 7, 9], 6: [1, 3, 4, 6, 7, 9]
+  };
+
+  function dieFace(value) {
+    const face = Math.max(1, Math.min(6, Number(value) || 1));
+    const occupied = new Set(DIE_PIPS[face]);
+    let pips = "";
+    for (let position = 1; position <= 9; position++) {
+      pips += `<span class="die-pip${occupied.has(position) ? " on" : ""}"></span>`;
+    }
+    return `<span class="die-pips" aria-hidden="true">${pips}</span>`;
+  }
+
   function renderCombatStage() {
     const stage = dom.combatStage;
     if (!stage) return;
@@ -2513,11 +2538,10 @@ const UI = (() => {
     if (!live && !done) {
       stage.classList.add("hidden");
       stage.innerHTML = "";
-      lastStageKey = null;
+      lastStageDice = null;
       return;
     }
 
-    const DICE = ["\u2680", "\u2681", "\u2682", "\u2683", "\u2684", "\u2685"];
     const atkName = live
       ? (Game.getPlayer(state, live.attackerId) || {}).name
       : done.attacker;
@@ -2541,7 +2565,8 @@ const UI = (() => {
     const side = (cls, label, roll, total, note, down, next) => `
       <div class="cs-side ${cls}${next ? " cs-next" : ""}">
         <div class="cs-name">${escapeHtml(label || "?")}</div>
-        <div class="cs-die ${cls}${down ? "" : " waiting"}">${down ? DICE[(roll || 1) - 1] : "\u2b1c"}</div>
+        <div class="cs-die ${cls}${down ? "" : " waiting"}" role="img"
+          aria-label="${down ? `Rolled ${roll || 1}` : "Not rolled yet"}">${down ? dieFace(roll) : `<span class="die-wait" aria-hidden="true">?</span>`}</div>
         <div class="cs-total">${down ? total : "\u2013"}</div>
         <div class="cs-note">${note}</div>
       </div>`;
@@ -2651,39 +2676,42 @@ const UI = (() => {
       state.lastCombat = null; render();
     });
 
-    // Re-tumble only when a die has actually changed, so the stage does not
-    // spin every time the panel re-renders.
-    const key = `${live ? "live" : "done"}:${atkThrown}:${defThrown}:${atkRoll}:${defRoll}:${totals.atk}:${totals.def}`;
-    if ((atkThrown || defThrown) && key !== lastStageKey) {
-      // Tumble only what has actually left the cup, so the second throw is its
-      // own moment rather than a re-run of the first.
-      if (atkThrown) rollDice(stage.querySelector(".cs-die.atk"), atkRoll);
-      if (defThrown) rollDice(stage.querySelector(".cs-die.def"), defRoll);
+    // Track each physical die separately. A panel-wide key made the attacker's
+    // settled die visibly roll again when the defender threw or somebody paid
+    // +1 even though that die had not changed.
+    const combatId = `${atkName || "?"}|${defName || "?"}|${(live || done).toKey || "?"}`;
+    const sameCombat = lastStageDice && lastStageDice.id === combatId;
+    const atkChanged = atkThrown && (!sameCombat || !lastStageDice.atkThrown || lastStageDice.atkRoll !== atkRoll);
+    const defChanged = defThrown && (!sameCombat || !lastStageDice.defThrown || lastStageDice.defRoll !== defRoll);
+    if (atkChanged) rollDice(stage.querySelector(".cs-die.atk"), atkRoll);
+    if (defChanged) rollDice(stage.querySelector(".cs-die.def"), defRoll);
+    if (atkChanged || defChanged) {
       flashHex((live || done).toKey || (state.combat && state.combat.toKey), "rgb(239,83,80)", 900);
-      lastStageKey = key;
     }
+    lastStageDice = { id: combatId, atkThrown, defThrown, atkRoll, defRoll };
   }
 
-  let lastStageKey = null;
+  let lastStageDice = null;
 
-  // Spin a die through random faces before it settles on what was actually
-  // rolled. Purely decorative — the result is already decided.
+  // A short cast through pip faces before settling on the decided result. The
+  // transform runs once; it never spins indefinitely like a slot machine.
   function rollDice(el, result) {
     if (!el || reducedMotion()) return;
-    const faces = ["\u2680", "\u2681", "\u2682", "\u2683", "\u2684", "\u2685"];
-    const final = faces[(result || 1) - 1];
+    const final = Math.max(1, Math.min(6, Number(result) || 1));
     let ticks = 0;
+    el.classList.remove("landed");
     el.classList.add("rolling");
     const id = setInterval(() => {
-      el.textContent = faces[Math.floor(Math.random() * 6)];
-      if (++ticks >= 14) {
+      el.innerHTML = dieFace(1 + Math.floor(Math.random() * 6));
+      if (++ticks >= 8) {
         clearInterval(id);
-        el.textContent = final;
+        el.innerHTML = dieFace(final);
+        el.setAttribute("aria-label", `Rolled ${final}`);
         el.classList.remove("rolling");
         el.classList.add("landed");
         setTimeout(() => el.classList.remove("landed"), 400);
       }
-    }, 62);
+    }, 80);
   }
 
   const reducedMotion = () =>
@@ -3098,9 +3126,13 @@ const UI = (() => {
     visible.forEach((w) => {
       const affordable = prod >= w.cost;
       const disabled = affordable ? "" : " disabled";
-      html += `<button class="sm wonder-pick${disabled}" data-name="${w.name}" style="margin:2px;text-align:left;display:block;width:100%"${disabled ? " disabled" : ""}>
-        <strong>${w.name}</strong> (${w.type}, ${w.era}, cost ${w.cost})${affordable ? "" : ` <span style="color:var(--danger)">need ${w.cost}</span>`}<br>
-        <span style="font-size:10px;opacity:0.8">${w.effect}</span>
+      const face = window.CivCardArt ? CivCardArt.wonderCard(w.name) : "";
+      html += `<button class="sm wonder-pick${disabled}" data-name="${escapeHtml(w.name)}"${disabled ? " disabled" : ""}>
+        ${face ? `<img src="${escapeHtml(face)}" alt="" draggable="false">` : ""}
+        <span class="wonder-pick-copy">
+          <strong>${escapeHtml(w.name)}</strong> (${escapeHtml(w.type)}, ${escapeHtml(w.era)}, cost ${w.cost})${affordable ? "" : ` <span style="color:var(--danger)">need ${w.cost}</span>`}<br>
+          <span class="wonder-pick-effect">${escapeHtml(w.effect || "")}</span>
+        </span>
       </button>`;
     });
     if (!visible.length) html += `<div style="opacity:0.5;font-size:11px">No visible wonders left.</div>`;
@@ -3155,9 +3187,8 @@ const UI = (() => {
       <h2 class="ref-title">World Wonders</h2>
       <p class="ref-lede">Built with the industry card. Production is that card's
         place number, +1 per industry trade token spent, and +2 for every resource
-        you put in. You need a city of your own that has no wonder yet.
-        <em>Which resources a given wonder accepts is printed on its card art,
-        which I do not have — so any resource counts here.</em></p>`;
+        you put in. You need a city of your own that has no wonder yet. The full
+        printed card is shown for its accepted resources and complete effect.</p>`;
     types.forEach((type) => {
       html += `<h3 class="ref-group">${Game.FOCUS_LABELS[type] || type}</h3><div class="ref-grid">`;
       (byType[type] || []).slice()
@@ -3166,9 +3197,9 @@ const UI = (() => {
           const st8 = wonderState(w.name);
           const afford = me ? Game.getWonderCost(w.name, me, state) : w.cost;
           const token = Game.getWonderToken(state, w.name);
-          const wArt = window.CivCardArt ? CivCardArt.wonder(w.name) : "";
-          html += `<div class="wcard type-${type} era-${w.era} st-${st8.cls}${wArt ? " has-art" : ""}"${
-            wArt ? ` style="${wArt}"` : ""}>
+          const wArt = window.CivCardArt ? CivCardArt.wonderCard(w.name) : "";
+          html += `<div class="wcard type-${type} era-${w.era} st-${st8.cls}${wArt ? " has-face" : ""}">
+            ${wArt ? `<img class="wcard-face" src="${escapeHtml(wArt)}" alt="${escapeHtml(w.name)} world wonder card" loading="lazy" draggable="false">` : ""}
             <div class="wcard-top">
               <span class="wcard-icon">${WONDER_ICONS[type] || "\u2b50"}</span>
               <span class="wcard-era">${escapeHtml(w.era)}</span>
@@ -4085,6 +4116,7 @@ const UI = (() => {
     dom.focusRow.innerHTML = me.focusRow.map((cardType, idx) => {
       const effective = Game.getSlotValue(me, cardType, state);
       const govt = me.government === cardType ? (Game.GOVERNMENTS || {})[cardType] : null;
+      const govtArt = govt && window.CivCardArt ? CivCardArt.gov(cardType) : "";
       const tier = Game.getCardTier(me, cardType);
       const uniqueCard = Game.getActiveUniqueCard ? Game.getActiveUniqueCard(me, cardType) : null;
       const cardName = uniqueCard ? uniqueCard.name : Game.CARD_NAMES[cardType][tier - 1];
@@ -4111,8 +4143,10 @@ const UI = (() => {
         data-card="${cardType}" data-idx="${idx}" role="button" tabindex="${canPlay ? "0" : "-1"}"
         aria-label="Play ${escapeHtml(cardName)}, ${Game.FOCUS_LABELS[cardType]} tier ${tier}, focus slot ${effective}"${cardArt ? ` style='${cardArt}'` : ""}>
         <div class="fc-live">
-          <span class="fc-live-slot" title="Current focus strength">${effective}</span>
-          ${govt ? `<span class="fc-gov-token" title="${escapeHtml(govt.name)}: resolves ${govt.shift} places farther right">${escapeHtml(govt.name)}</span>` : ""}
+          ${govt ? `<span class="fc-gov-token" title="${escapeHtml(govt.name)}: resolves ${govt.shift} places farther right">
+            ${govtArt ? `<img src="${escapeHtml(govtArt)}" alt="" draggable="false">` : `<span class="fc-gov-name">${escapeHtml(govt.name)}</span>`}
+            <span class="fc-gov-shift">+${govt.shift} places</span>
+          </span>` : ""}
           ${uniqueCard ? `<span class="fc-unique-seal" title="Unique ${escapeHtml(me.leaderId)} card">★</span>` : ""}
         </div>
         <div class="fc-header">

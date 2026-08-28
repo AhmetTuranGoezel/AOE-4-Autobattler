@@ -1053,6 +1053,21 @@ input, select {
   background: rgba(255, 255, 255, 0.035);
   border-left: 3px solid var(--border);
 }
+.wface.has-art {
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr);
+  gap: 7px;
+  align-items: start;
+  padding: 5px;
+}
+.wface-art {
+  display: block;
+  width: 62px;
+  height: auto;
+  border-radius: 3px;
+  box-shadow: 0 2px 7px rgba(0, 0, 0, 0.52);
+}
+.wface-copy { min-width: 0; }
 .wface-head { display: flex; align-items: baseline; gap: 6px; }
 .wface-name { flex: 1; font-weight: 700; font-size: 11px; }
 .wface-cost {
@@ -1187,6 +1202,26 @@ input, select {
 .wcard.type-economy  .wcard-top { background: linear-gradient(120deg, #e65100, #f57c00); }
 .wcard.type-military .wcard-top { background: linear-gradient(120deg, #b71c1c, #d32f2f); }
 .wcard.type-industry .wcard-top { background: linear-gradient(120deg, #bf360c, #e64a19); }
+
+.wonder-pick {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  width: 100%;
+  margin: 3px 0;
+  padding: 6px;
+  text-align: left;
+}
+.wonder-pick img {
+  flex: 0 0 66px;
+  display: block;
+  width: 66px;
+  height: auto;
+  border-radius: 4px;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.52);
+}
+.wonder-pick-copy { min-width: 0; line-height: 1.35; }
+.wonder-pick-effect { font-size: 10px; opacity: 0.8; }
 
 /* Era shows as a stripe down the side, so the three ages read at a glance. */
 .wcard.era-ancient  { border-left: 4px solid #8d6e63; }
@@ -1422,13 +1457,53 @@ input, select {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .cs-die {
-  font-size: 62px; line-height: 1.05;
-  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.6));
+  width: 76px;
+  height: 76px;
+  margin: 8px auto 6px;
+  padding: 11px;
+  display: grid;
+  place-items: stretch;
+  border: 2px solid rgba(93, 74, 47, 0.62);
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 33% 24%, rgba(255,255,255,0.94), transparent 28%),
+    linear-gradient(145deg, #fff9e8, #dccca8);
+  box-shadow:
+    inset 0 0 0 2px rgba(255,255,255,0.46),
+    inset -5px -7px 12px rgba(77,54,25,0.18),
+    0 7px 13px rgba(0,0,0,0.55);
+  transform-origin: 50% 70%;
 }
 .cs-die.atk { color: var(--accent2); }
 .cs-die.def { color: var(--danger); }
-.cs-die.rolling { animation: die-tumble 0.5s linear infinite; }
+.die-pips {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  width: 100%;
+  height: 100%;
+}
+.die-pip {
+  width: 11px;
+  height: 11px;
+  place-self: center;
+  border-radius: 50%;
+  background: transparent;
+}
+.die-pip.on {
+  background: currentColor;
+  box-shadow: inset 0 2px 2px rgba(255,255,255,0.34), 0 1px 2px rgba(0,0,0,0.48);
+}
+.die-wait { place-self: center; font: 800 32px/1 Georgia, serif; color: var(--text2); }
+.cs-die.rolling { animation: die-cast 0.58s cubic-bezier(.24,.78,.33,1) both; }
 .cs-die.landed { animation: die-land 0.4s cubic-bezier(0.2, 1.4, 0.4, 1); }
+@keyframes die-cast {
+  0%   { transform: translate(-24px, -38px) rotate(-32deg) scale(0.72); opacity: 0.35; }
+  42%  { transform: translate(15px, -12px) rotate(24deg) scale(0.92); opacity: 1; }
+  72%  { transform: translate(-5px, 5px) rotate(-7deg) scale(1.06); }
+  88%  { transform: translate(2px, -3px) rotate(3deg) scale(0.98); }
+  100% { transform: none; }
+}
 .cs-total { font-size: 26px; font-weight: 800; }
 .cs-note { font-size: 10px; color: var(--text2); margin-top: 4px; text-align: left; }
 .cs-line {
@@ -1436,7 +1511,7 @@ input, select {
   padding: 1px 6px; line-height: 1.5;
 }
 .cs-line b { color: var(--text); font-weight: 700; }
-.cs-die.waiting { opacity: 0.35; }
+.cs-die.waiting { opacity: 0.35; border-style: dashed; background: rgba(255,255,255,0.06); }
 .cs-x { font-size: 22px; color: var(--warn); flex: 0 0 auto; }
 
 .cs-story {
@@ -1641,6 +1716,25 @@ kbd {
   background: linear-gradient(160deg, rgba(255,255,255,0.10), rgba(0,0,0,0.28));
   border-left: 3px solid var(--border-2, #3a4a6b);
 }
+.ts-wonder.has-art {
+  width: 84px;
+  padding: 3px;
+  overflow: hidden;
+  background: rgba(12, 16, 27, 0.92);
+}
+.ts-w-face {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 4px;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.52);
+}
+.ts-w-info { padding-top: 2px; }
+.ts-wonder.has-art .ts-w-icon,
+.ts-wonder.has-art .ts-w-era { display: none; }
+.ts-wonder.has-art .ts-w-name { font-size: 8.5px; }
+.ts-wonder.has-art .ts-w-cost { margin-left: auto; font-size: 10px; }
+.ts-wonder.has-art .ts-w-token { font-size: 7px; }
 .ts-wonder.type-military { border-left-color: #ef5350; }
 .ts-wonder.type-culture  { border-left-color: #ab47bc; }
 .ts-wonder.type-economy  { border-left-color: #ffa726; }
@@ -1722,7 +1816,7 @@ kbd {
    faces, leader sheets, and science dials. These rules deliberately sit last:
    the hand-drawn UI remains the fallback, while real components take over when
    card-art.js supplies a path. */
-:root { --focus-height: clamp(236px, 28vh, 294px); }
+:root { --focus-height: clamp(278px, 33vh, 330px); }
 
 #focus-bar {
   position: relative;
@@ -1738,12 +1832,12 @@ kbd {
 #focus-row {
   --focus-gap: clamp(4px, 0.65vw, 10px);
   position: relative;
-  width: min(1024px, 100%);
+  width: min(1024px, 100%, calc((var(--focus-height) - 78px) * 4.2));
   height: 100%;
   gap: var(--focus-gap);
   justify-content: center;
   align-items: flex-end;
-  padding: 42px 4px 7px;
+  padding: 0 4px 7px;
   isolation: isolate;
 }
 
@@ -1771,7 +1865,7 @@ kbd {
   width: min(
     158px,
     calc((100% - (5 * var(--focus-gap))) / 6),
-    calc((var(--focus-height) - 48px) * 0.643)
+    calc((var(--focus-height) - 78px) * 0.643)
   );
   height: auto;
   aspect-ratio: 649 / 1009;
@@ -1837,35 +1931,34 @@ kbd {
   gap: 4px;
   pointer-events: none;
 }
-.fc-live-slot {
-  width: 30px;
-  height: 30px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  color: #fffbe7;
-  background: radial-gradient(circle at 35% 28%, #d9c58b, #755925 70%);
-  border: 2px solid #ead9a6;
-  box-shadow: 0 3px 8px rgba(0,0,0,0.62), inset 0 0 0 1px rgba(67,45,15,0.5);
-  font: 900 16px/1 Georgia, serif;
-  text-shadow: 0 1px 2px #3c260b;
-}
 .fc-gov-token {
-  max-width: 82px;
-  padding: 3px 6px;
-  border-radius: 999px;
+  position: relative;
+  display: block;
+  width: min(76px, 72%);
+  padding: 0;
+  border-radius: 6px;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   color: #fff3c4;
   background: rgba(51,35,10,0.88);
   border: 1px solid rgba(237,204,112,0.74);
   box-shadow: 0 2px 7px rgba(0,0,0,0.5);
-  font-size: 8px;
+  font-size: 7px;
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+.fc-gov-token img { display: block; width: 100%; height: auto; }
+.fc-gov-name { display: block; padding: 5px 6px; white-space: nowrap; }
+.fc-gov-shift {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  padding: 2px 4px;
+  border-radius: 999px;
+  white-space: nowrap;
+  color: #fff8d8;
+  background: rgba(20, 15, 8, 0.88);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.62);
 }
 .fc-unique-seal {
   margin-left: auto;
@@ -2178,9 +2271,8 @@ kbd {
 #inp-color option { background: #182036; color: #f4ead0; }
 
 @media (max-width: 900px), (max-height: 740px) {
-  :root { --focus-height: 218px; }
-  #focus-row { padding-top: 36px; }
-  .fcard { width: min(calc((100% - (5 * var(--focus-gap))) / 6), 110px); }
+  :root { --focus-height: clamp(248px, 33vw, 300px); }
+  #focus-row { max-width: 900px; }
   .tech-panel { grid-template-columns: 1fr; }
   .tech-dial { width: 118px; height: 118px; margin: auto; }
   .tech-needle { height: 44px; margin-top: -44px; }
@@ -2246,9 +2338,15 @@ kbd {
   width: 100%;
   height: auto;
   border-radius: 6px 6px 0 0;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5);
+}
+.wcard-face {
+  margin: 0;
+  width: 100%;
+}
+.vcard-face {
   margin: -8px -8px 6px;
   width: calc(100% + 16px);
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5);
 }
 .vcard.has-art .vcard-half { font-size: 12px; }
 .wcard.has-face .wcard-top { opacity: 0.72; }
