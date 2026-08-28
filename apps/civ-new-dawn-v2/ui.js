@@ -2906,8 +2906,13 @@ const UI = (() => {
         <strong>either</strong> one claims the card (base p12). Claim <strong>four</strong> of these five
         to win (Terra p8). Victory is checked at the end of each round, before the dial turns. A claim
         sticks even if you stop meeting it \u2014 except the fort cards, which must be held.</p>
-      <div class="ref-grid">${active.map((card) => `
-        <div class="vcard ${claims[card.id] ? "won" : ""}">
+      <div class="ref-grid">${active.map((card) => {
+        // The printed card is indexed by the agendas on it, because that is
+        // the only thing it and the rules data have in common.
+        const face = window.CivCardArt ? CivCardArt.victory(card.agendas[0]) : "";
+        return `
+        <div class="vcard ${claims[card.id] ? "won" : ""}${face ? " has-art" : ""}">
+          ${face ? `<img class="vcard-face" src="${face}" alt="" draggable="false">` : ""}
           <div class="vcard-top">${claims[card.id] ? "\u2713 claimed" : "not yet"}${card.fortress ? " \u00b7 must be held" : ""}</div>
           ${card.agendas.map((id) => {
             const a = agendaMap[id] || { name: id, description: "" };
@@ -2916,7 +2921,8 @@ const UI = (() => {
               <div class="vcard-text">${escapeHtml(a.description || "")}</div>
             </div>`;
           }).join(`<div class="vcard-or">or</div>`)}
-        </div>`).join("")}</div>
+        </div>`;
+      }).join("")}</div>
     </div>`;
   }
 
@@ -2943,9 +2949,14 @@ const UI = (() => {
       </div>`;
     }).join("") + `</div>` : `<p class="ref-empty">None yet — send a caravan to a city-state or a rival city.</p>`;
 
-    html += `<h3 class="ref-group">The four rival cards</h3><div class="ref-grid">`;
+    // Each colour has its own set, so the pictures are shown in the colour of
+    // whoever is asking — that is the deck you would actually be handing out.
+    const mySeat = me ? me.color : null;
+    html += `<h3 class="ref-group">The rival cards</h3><div class="ref-grid">`;
     Object.entries(cards).forEach(([id, c]) => {
-      html += `<div class="wcard type-military">
+      const face = window.CivCardArt ? CivCardArt.diplomacy(mySeat, id) : "";
+      html += `<div class="wcard type-military${face ? " has-face" : ""}">
+        ${face ? `<img class="wcard-face" src="${face}" alt="" draggable="false">` : ""}
         <div class="wcard-top"><span class="wcard-icon">\ud83d\udcdc</span><span class="wcard-era">rival card</span></div>
         <div class="wcard-name">${escapeHtml(c.name)}</div>
         <div class="wcard-body"><p class="wcard-text">${escapeHtml(c.text || c.effect || "")}</p></div>
@@ -2961,7 +2972,9 @@ const UI = (() => {
     html += `<h3 class="ref-group">City-states on the map (${seen.length})</h3>`;
     html += seen.length ? `<div class="ref-grid">` + seen.map(({ key, cs }) => {
       const data = (Game.CITY_STATE_DATA || {})[cs.name] || {};
-      return `<div class="wcard type-${cs.type}">
+      const face = window.CivCardArt ? CivCardArt.cityStateCard(cs.name) : "";
+      return `<div class="wcard type-${cs.type}${face ? " has-face" : ""}">
+        ${face ? `<img class="wcard-face" src="${face}" alt="" draggable="false">` : ""}
         <div class="wcard-top">
           <span class="wcard-icon">\ud83c\udfdb\ufe0f</span>
           <span class="wcard-era">${escapeHtml(cs.type)}</span>
@@ -3840,8 +3853,8 @@ const UI = (() => {
             <span class="fc-cardname">${uniqueCard ? "★ " : ""}${escapeHtml(cardName)}</span>
           </div>
           <div class="fc-printed">${escapeHtml(printed)}</div>
-          ${onCardFigures(me, cardType)}
         </div>
+        ${onCardFigures(me, cardType)}
         <div class="fc-footer">
           <span class="fc-trade-note">${escapeHtml(Game.FOCUS_TRADE_DESC[cardType] || "")}</span>
           <span class="fc-dots">${tradeDots}</span>

@@ -2207,3 +2207,39 @@ kbd {
   opacity: 0.28;
   transform: scale(0.82);
 }
+/* On a card showing its printed face the body is hidden, so the figures get
+   their own pill in the opposite corner from the trade dots. */
+.fcard.has-art .cface-onboard {
+  position: absolute;
+  z-index: 8;
+  left: 4px;
+  bottom: 4px;
+  margin: 0;
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: rgba(23, 19, 12, 0.75);
+  box-shadow: 0 2px 7px rgba(0, 0, 0, 0.5);
+}
+
+/* Printed card faces in the reference overlays.
+   The picture goes on top and the rules text stays underneath: the text is
+   still what a screen reader gets, and it is what shows when a card has no
+   art in the pack. */
+.wcard.has-face,
+.vcard.has-art {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.wcard-face,
+.vcard-face {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 6px 6px 0 0;
+  margin: -8px -8px 6px;
+  width: calc(100% + 16px);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5);
+}
+.vcard.has-art .vcard-half { font-size: 12px; }
+.wcard.has-face .wcard-top { opacity: 0.72; }

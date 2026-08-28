@@ -360,23 +360,27 @@
   };
 
   // A victory card is divided into TWO agendas and you complete either one to
-  // claim the card (base p12). The pairings below are mine — the printed cards
-  // pair specific agendas and neither rulebook nor the Tabletop Simulator mod
-  // records which — so each card puts a "build it" agenda opposite a "take it"
-  // one, which is how the printed cards read.
+  // claim the card (base p12). These pairings used to be invented, because
+  // neither rulebook lists them; they are now read off the printed cards in
+  // assets/tts-web/cards/victory. Which two agendas share a card decides what
+  // is reachable in a game — three of the ten are drawn each time (Terra p8)
+  // and either half claims its card — so a wrong pairing is a wrong game.
+  //
+  // The two fort cards carry a single agenda each and must be held: lose the
+  // fort and the claim goes with it.
   const VICTORY_CARDS = [
-    { id: "vc-forts-1", fortress: true, agendas: ["fortified"] },
-    { id: "vc-forts-2", fortress: true, agendas: ["expeditionary"] },
-    { id: "vc-war",     agendas: ["warmonger", "devastating"] },
-    { id: "vc-shield",  agendas: ["paranoid", "defensive"] },
-    { id: "vc-spread",  agendas: ["civilized", "expansionist"] },
-    { id: "vc-purse",   agendas: ["money_grubber", "hoarder"] },
-    { id: "vc-reach",   agendas: ["explorer", "provincial"] },
-    { id: "vc-arts",    agendas: ["aesthetic", "diplomatic"] },
-    { id: "vc-works",   agendas: ["industrious", "populous"] },
-    { id: "vc-nature",  agendas: ["preservationist", "diversified"] },
-    { id: "vc-eras",    agendas: ["prolific", "progressive"] },
-    { id: "vc-learned", agendas: ["technophile", "scholarly"] }
+    { id: "vc-forts-1",   fortress: true, agendas: ["fortified"] },
+    { id: "vc-forts-2",   fortress: true, agendas: ["expeditionary"] },
+    { id: "vc-cities",    agendas: ["populous", "preservationist"] },
+    { id: "vc-war",       agendas: ["warmonger", "paranoid"] },
+    { id: "vc-spread",    agendas: ["civilized", "money_grubber"] },
+    { id: "vc-reach",     agendas: ["explorer", "aesthetic"] },
+    { id: "vc-shield",    agendas: ["defensive", "devastating"] },
+    { id: "vc-learned",   agendas: ["technophile", "scholarly"] },
+    { id: "vc-provinces", agendas: ["provincial", "diversified"] },
+    { id: "vc-works",     agendas: ["industrious", "progressive"] },
+    { id: "vc-empire",    agendas: ["expansionist", "prolific"] },
+    { id: "vc-envoys",    agendas: ["diplomatic", "hoarder"] }
   ];
 
   const AGENDA_CARDS = [

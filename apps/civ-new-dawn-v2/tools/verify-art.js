@@ -151,6 +151,20 @@ const slug = (s) => s.toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g, "-")
 
   check("every agenda finds its victory card",
     RULES.AGENDA_CARDS.every((a) => ART.victory(a.id)));
+  // A card is looked up by the agendas on it, so if the rules data pairs two
+  // agendas the printed card does not, the picture and the text below it stop
+  // describing the same card. This is the check that keeps them together.
+  let vbad = 0;
+  RULES.VICTORY_CARDS.forEach((c) => {
+    const printed = manifest.victory.find((v) => v.agendas.indexOf(c.agendas[0]) >= 0);
+    const same = printed && printed.agendas.length === c.agendas.length &&
+      c.agendas.every((a) => printed.agendas.indexOf(a) >= 0);
+    if (!same) {
+      vbad++;
+      console.log(`  ${c.id} pairs ${c.agendas.join(" + ")}, the card pairs ${printed ? printed.agendas.join(" + ") : "nothing"}`);
+    }
+  });
+  check("every victory card pairs the agendas its printed face does", vbad === 0);
   check("Ibrahim has a card", !!ART.ibrahim());
   check("a barbarian space always gets a token, lettered or not",
     !!ART.barbarianForSpace("G", "0,0") && !!ART.barbarianForSpace(null, "3,-1"));
