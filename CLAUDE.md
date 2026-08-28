@@ -44,3 +44,28 @@ The browser UI consumes that registry from `apps/civ-new-dawn-v2/ui.js`:
 
 The supported physical component colors are blue, red, orange, green, and
 purple. Reuse `CivCardArt.colorId()` when a color-to-component lookup is needed.
+
+## Civ: A New Dawn rules/UX invariants
+
+These are intentional current behaviours; preserve them when working in
+`apps/civ-new-dawn-v2`:
+
+- The physical tech-level tabs are II at 3/6, III at 10/14, and IV at 19/24.
+  Each crossed tab queues an optional exact-level focus-card choice.
+- Armies and caravans not on the map stay on their focus cards. Setup must not
+  place them on the capital, where they would incorrectly affect defence.
+- `Cancel`/`Back` never spends an open multi-figure focus card. It discards only
+  the current unconfirmed route; `Done with card` is the explicit commit.
+- `UNDO_TURN` restores a serialized start-of-turn checkpoint until public or
+  hidden information makes that dishonest. Combat dice/rerolls, resolved
+  exploration, and revealing the next wonder card lock it.
+- A declared attack has `CANCEL_COMBAT` until the first die is rolled.
+- Fortress setup does not paint every legal space green. Validation remains in
+  the engine and an invalid click explains the placement rule.
+- The civilization lobby shows all 18 uncropped printed sheets in one gallery
+  plus a full-size preview; do not return it to cropped background cards or a
+  narrow scrolling wizard.
+
+The browser rule harness is `apps/civ-new-dawn-v2/test.html`. It currently
+includes regression coverage for these behaviours in addition to the wider
+base/Terra rules checks.

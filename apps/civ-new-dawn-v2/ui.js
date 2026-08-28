@@ -4,6 +4,8 @@ const UI = (() => {
   let state = null;
   let localPlayerId = null;
   let roomCode = null;
+  let lobbyPreviewLeaderId = null;
+  let wizardCollapsed = false;
   const lastTechByPlayer = new Map();
 
   // Canvas
@@ -238,6 +240,13 @@ const UI = (() => {
     dom.tableStrip = document.getElementById("table-strip");
     dom.gameLog = document.getElementById("game-log");
     dom.focusRow = document.getElementById("focus-row");
+
+    document.getElementById("btn-undo")?.addEventListener("click", () => {
+      const status = Game.getUndoStatus ? Game.getUndoStatus(state, localPlayerId) : { canUndo: false };
+      if (!status.canUndo) { showToast(status.reason || "This turn cannot be undone"); return; }
+      clearSub();
+      dispatch({ type: "UNDO_TURN", payload: { playerId: localPlayerId } });
+    });
 
     document.getElementById("btn-local").addEventListener("click", startLocal);
     document.getElementById("btn-create").addEventListener("click", startCreate);
@@ -519,7 +528,8 @@ const UI = (() => {
       const activeId = state.setup.order[state.setup.turnIndex];
       if (activeId === localPlayerId) {
         if (state.setup.phase === "fortress") {
-          setupValid = Game.getValidFortressHexes(state);
+          // Fortress placement is a board-reading decision. Do not paint every
+          // legal answer green; an invalid click gets a plain-language reason.
         } else if (state.setup.phase === "tile" || state.setup.phase === "capital_tile") {
           const playerTiles = state.setup.playerTiles[localPlayerId] || [];
           if (playerTiles.length > 0) {
@@ -1526,10 +1536,13 @@ const UI = (() => {
 
   function render() {
     if (!state) return;
+    dom.game.classList.toggle("lobby-active", state.phase === "lobby");
+    dom.game.classList.toggle("preplay", state.phase === "lobby" || state.phase === "setup");
     renderHeader();
     renderPlayers();
     renderCanvas();
     renderWizard();
+    decorateWizard();
     renderHostTools();
     renderEventWheel();
     renderCombatStage();
@@ -1595,6 +1608,13 @@ const UI = (() => {
 
   function renderHeader() {
     const cp = Game.currentPlayer(state);
+    const undoBtn = document.getElementById("btn-undo");
+    const undo = Game.getUndoStatus ? Game.getUndoStatus(state, localPlayerId) : { canUndo: false, reason: "Undo unavailable." };
+    if (undoBtn) {
+      undoBtn.disabled = !undo.canUndo;
+      undoBtn.classList.toggle("undo-ready", !!undo.canUndo);
+      undoBtn.title = undo.reason || "Undo current turn";
+    }
     if (state.phase === "lobby") {
       dom.hdrRound.textContent = "Lobby";
       dom.hdrTurn.textContent = `${state.players.length}/${Game.CFG.maxPlayers} players`;
@@ -1820,8 +1840,8 @@ const UI = (() => {
     const isMyTurn = cp && cp.id === localPlayerId;
     const me = Game.getPlayer(state, localPlayerId);
 
-    // The fight itself happens on the board, not in this panel.
-    if (state.combat || state.lastCombat) { renderIdleWizard(isMyTurn, cp, me); return; }
+    // The fight itself happens on the board, not under a second prompt panel.
+    if (state.combat || state.lastCombat) { dom.wizard.innerHTML = ""; return; }
     if (state.pendingBarbReward && state.pendingBarbReward.playerId === localPlayerId) { renderBarbReward(me); return; }
     const pending = getVisiblePendingChoice(me);
     if (pending && sub.phase === "idle") { renderPendingChoice(pending); return; }
@@ -1847,6 +1867,32 @@ const UI = (() => {
     if (help) dom.wizard.insertAdjacentHTML("beforeend", `<div class="wiz-help">${help}</div>`);
   }
 
+  function decorateWizard() {
+    if (!dom.wizard || !state) return;
+    const lobby = state.phase === "lobby";
+    dom.wizard.classList.toggle("lobby-mode", lobby);
+    dom.wizard.classList.toggle("setup-mode", state.phase === "setup");
+    dom.wizard.classList.toggle("action-mode", state.phase === "playing");
+    dom.wizard.classList.toggle("collapsed", !lobby && wizardCollapsed);
+    if (lobby || !dom.wizard.innerHTML.trim()) return;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "wiz-collapse";
+    button.setAttribute("aria-label", wizardCollapsed ? "Expand action panel" : "Minimize action panel");
+    button.title = wizardCollapsed ? "Show action panel" : "Minimize action panel";
+    button.textContent = wizardCollapsed ? "▴" : "▾";
+    button.addEventListener("click", () => {
+      wizardCollapsed = !wizardCollapsed;
+      render();
+    });
+    dom.wizard.prepend(button);
+  }
+
+  function refreshWizard() {
+    renderWizard();
+    decorateWizard();
+  }
+
   function renderLobby() {
     const isHost = Net.getIsHost();
     const code = roomCode || Net.getLocalId() || "";
@@ -1868,56 +1914,98 @@ const UI = (() => {
     const me = Game.getPlayer(state, localPlayerId);
     const takenBy = {};
     state.players.forEach((p) => { if (p.leaderId && p.leaderId !== "random") takenBy[p.leaderId] = p.id; });
+    if (!lobbyPreviewLeaderId) {
+      lobbyPreviewLeaderId = me && me.leaderId && me.leaderId !== "random" ? me.leaderId : "random";
+    }
+    const preview = leaderById[lobbyPreviewLeaderId] || null;
+    const previewTakenBy = preview && takenBy[preview.id] && takenBy[preview.id] !== localPlayerId
+      ? Game.getPlayer(state, takenBy[preview.id]) : null;
+    const previewUnique = preview && preview.unique
+      ? `${preview.unique.name} (${Game.FOCUS_LABELS[preview.unique.type] || preview.unique.type} ${["I","II","III","IV"][preview.unique.tier - 1]})`
+      : "";
+    const previewArt = preview && window.CivCardArt ? CivCardArt.civilization(preview.id) : "";
     const leaderCards = (Game.LEADERS || []).map((l) => {
       const takenByOther = takenBy[l.id] && takenBy[l.id] !== localPlayerId;
       const mine = me && me.leaderId === l.id;
       const uniqueLine = l.unique ? `${l.unique.name} (${Game.FOCUS_LABELS[l.unique.type] || l.unique.type} ${["I","II","III","IV"][l.unique.tier - 1]})` : "";
       const tip = `${l.ability.text}${l.unique ? `\n\nUnique card — ${uniqueLine}: ${l.unique.text}` : ""}`;
-      const art = window.CivCardArt ? CivCardArt.civilizationStyle(l.id) : "";
-      return `<button class="leader-card${mine ? " picked" : ""}${takenByOther ? " taken" : ""}${art ? " has-art" : ""}" data-leader="${l.id}"
-        ${takenByOther ? "disabled" : ""} title="${escapeHtml(tip)}" aria-label="Choose ${escapeHtml(l.civ)}"${art ? ` style='${art}'` : ""}>
-        <span class="lc-shade" aria-hidden="true"></span>
-        <span class="lc-civ">${escapeHtml(l.civ)}</span>
-        <span class="lc-name">${escapeHtml(l.ability.text.slice(0, 64))}${l.ability.text.length > 64 ? "…" : ""}</span>
-        <span class="lc-ability">★ ${escapeHtml(uniqueLine)}</span>
+      const art = window.CivCardArt ? CivCardArt.civilization(l.id) : "";
+      return `<button class="leader-card leader-thumb${mine ? " picked" : ""}${takenByOther ? " taken" : ""}${lobbyPreviewLeaderId === l.id ? " previewing" : ""}"
+        data-preview-leader="${l.id}" title="${escapeHtml(tip)}" aria-label="Preview ${escapeHtml(l.civ)}">
+        ${art ? `<img src="${escapeHtml(art)}" alt="${escapeHtml(l.civ)} civilization sheet">` : `<span class="leader-art-fallback">${escapeHtml(l.civ)}</span>`}
+        <span class="leader-thumb-label"><b>${escapeHtml(l.civ)}</b>${mine ? " · selected" : takenByOther ? " · taken" : ""}</span>
         <span class="lc-src ${l.source}">${l.source === "terra" ? "Terra" : "Base"}</span>
       </button>`;
     }).join("");
+    const randomPicked = !me || !me.leaderId || me.leaderId === "random";
+    const previewPanel = preview ? `
+      <div class="leader-preview-art">${previewArt
+        ? `<img src="${escapeHtml(previewArt)}" alt="Full ${escapeHtml(preview.civ)} civilization sheet">`
+        : `<div class="leader-art-fallback large">${escapeHtml(preview.civ)}</div>`}</div>
+      <div class="leader-preview-copy">
+        <div><span class="lc-src ${preview.source}">${preview.source === "terra" ? "Terra Incognita" : "Base game"}</span></div>
+        <h2>${escapeHtml(preview.civ)}${preview.name && preview.name !== preview.civ ? ` <small>${escapeHtml(preview.name)}</small>` : ""}</h2>
+        <p>${escapeHtml(preview.ability.text)}</p>
+        ${previewUnique ? `<p class="leader-unique"><b>Unique focus card:</b> ${escapeHtml(previewUnique)}<br>${escapeHtml(preview.unique.text)}</p>` : ""}
+        <button id="leader-confirm" class="wiz-primary" ${previewTakenBy ? "disabled" : ""}>${previewTakenBy
+          ? `Taken by ${escapeHtml(previewTakenBy.name)}`
+          : me && me.leaderId === preview.id ? `${escapeHtml(preview.civ)} selected ✓` : `Choose ${escapeHtml(preview.civ)}`}</button>
+      </div>` : `
+      <div class="leader-random-art"><span>?</span><b>Random civilization</b><small>A remaining sheet is dealt when the game starts.</small></div>
+      <div class="leader-preview-copy">
+        <h2>Let fate decide</h2>
+        <p>You will receive one of the civilization sheets no player selected.</p>
+        <button id="leader-confirm" class="wiz-primary">${randomPicked ? "Random selected ✓" : "Choose Random"}</button>
+      </div>`;
+
     const leaderSection = me ? `
-      <div class="lobby-players-head" style="margin-top:12px">Choose your civilization</div>
-      <div class="leader-grid">
-        <button class="leader-card random${!me.leaderId || me.leaderId === "random" ? " picked" : ""}" data-leader="random" title="Draw a random remaining leader at game start">
-          <span class="lc-civ">Random</span><span class="lc-name">Fate decides</span><span class="lc-ability">Dealt at start</span>
-        </button>
-        ${leaderCards}
+      <div class="leader-picker-head">
+        <div><b>Choose your civilization</b><span>All 18 sheets are visible; click once to inspect, then confirm.</span></div>
+        <label>Jump to
+          <select id="leader-jump">
+            <option value="random"${lobbyPreviewLeaderId === "random" ? " selected" : ""}>Random</option>
+            ${(Game.LEADERS || []).map((l) => `<option value="${l.id}"${lobbyPreviewLeaderId === l.id ? " selected" : ""}>${escapeHtml(l.civ)}</option>`).join("")}
+          </select>
+        </label>
+      </div>
+      <div class="leader-picker">
+        <div class="leader-preview">${previewPanel}</div>
+        <div class="leader-grid" aria-label="Civilization sheets">
+          <button class="leader-card leader-thumb random${randomPicked ? " picked" : ""}${lobbyPreviewLeaderId === "random" ? " previewing" : ""}"
+            data-preview-leader="random" title="Draw a random remaining leader at game start">
+            <span class="leader-random-thumb">?</span><span class="leader-thumb-label"><b>Random</b>${randomPicked ? " · selected" : ""}</span>
+          </button>
+          ${leaderCards}
+        </div>
       </div>` : "";
 
     const solo = !!state.solo;
     dom.wizard.innerHTML = `
-      <div class="wiz-title">${solo ? "Solo Game" : "Game Lobby"}</div>
-      ${solo ? `<div class="wiz-hint">Pick the civilization you want to play, then begin.</div>` : `
-      <div class="lobby-code-row">
-        <div class="lobby-code-label">Room code</div>
-        <div class="lobby-code"><code id="lobby-code-val">${escapeHtml(code)}</code>
-          <button id="lobby-copy" class="sm">Copy</button></div>
-        <div class="wiz-hint">Share this code so friends can Join.</div>
+      <div class="lobby-topline">
+        <div><div class="wiz-title">${solo ? "Solo Game" : "Game Lobby"}</div>
+          <div class="wiz-hint">Inspect the complete printed sheet before choosing.</div></div>
+        ${solo ? "" : `<div class="lobby-code-row"><span>Room</span><code id="lobby-code-val">${escapeHtml(code)}</code><button id="lobby-copy" class="sm">Copy</button></div>`}
+        <div class="lobby-players compact"><div class="lobby-players-head">Players (${n}/${max})</div>${playerList}</div>
       </div>
-      <div class="lobby-players">
-        <div class="lobby-players-head">Players (${n}/${max})</div>
-        ${playerList}
-        ${n < min ? `<div class="wiz-hint">Need at least ${min} players to start.</div>` : ""}
-      </div>`}
       ${leaderSection}
-      ${isHost
-        ? `<button id="lobby-start" class="wiz-primary" ${canStart ? "" : "disabled"}>${
-            solo ? "Begin" : `Start Game (${n} player${n === 1 ? "" : "s"})`}</button>`
-        : `<div class="wiz-body">Waiting for the host to start the game...</div>`}
+      <div class="lobby-footer">${n < min && !solo ? `<span>Need at least ${min} players to start.</span>` : "<span></span>"}
+        ${isHost
+          ? `<button id="lobby-start" class="wiz-primary" ${canStart ? "" : "disabled"}>${solo ? "Begin" : `Start Game (${n} player${n === 1 ? "" : "s"})`}</button>`
+          : `<div class="wiz-body">Waiting for the host to start the game...</div>`}</div>
     `;
 
-    dom.wizard.querySelectorAll(".leader-card").forEach((btn) => {
+    dom.wizard.querySelectorAll("[data-preview-leader]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        dispatch({ type: "SET_LEADER", payload: { playerId: localPlayerId, leaderId: btn.dataset.leader } });
+        lobbyPreviewLeaderId = btn.dataset.previewLeader;
+        renderLobby();
       });
+    });
+    document.getElementById("leader-jump")?.addEventListener("change", (e) => {
+      lobbyPreviewLeaderId = e.target.value;
+      renderLobby();
+    });
+    document.getElementById("leader-confirm")?.addEventListener("click", () => {
+      dispatch({ type: "SET_LEADER", payload: { playerId: localPlayerId, leaderId: preview ? preview.id : "random" } });
     });
 
     const copyBtn = document.getElementById("lobby-copy");
@@ -1953,7 +2041,7 @@ const UI = (() => {
         <div class="wiz-body">
           Click an <strong>inactive hex</strong> bordering at least 2 active hexes.<br>
           This is a neutral defensive hex (defense ${Game.CFG.fortressDefense}). Your capital will go on your hometown tile next.<br>
-          Valid positions glow <strong style="color:#66bb6a">green</strong>.
+          Read the board and choose; legal spaces are deliberately not highlighted.
         </div>`;
       return;
     }
@@ -2101,11 +2189,16 @@ const UI = (() => {
       // of raw axial keys — "3,-2" — which nobody can read off a board.
       body += `<div class="pending-note">Click one of the <strong>${choice.hexKeys.length}</strong>
         highlighted spaces on the map.</div>`;
-    } else {
+    } else if (!choice.optional) {
       controls = `<div class="wiz-actions"><button id="pending-manual-ok">Resolve</button></div>`;
+    } else {
+      body += `<div class="pending-note">No eligible option remains; you may skip this opportunity.</div>`;
     }
 
-    if (Net.getIsHost()) {
+    const mine = choice.playerId === localPlayerId;
+    if (choice.optional && (mine || Net.getIsHost())) {
+      controls += `<div class="wiz-actions"><button class="ghost sm" id="pending-skip">Skip</button></div>`;
+    } else if (Net.getIsHost()) {
       controls += `<div class="wiz-actions"><button class="ghost sm" id="pending-dismiss">Dismiss</button></div>`;
     }
 
@@ -2121,6 +2214,11 @@ const UI = (() => {
     });
     document.getElementById("pending-manual-ok")?.addEventListener("click", () => {
       dispatch({ type: "RESOLVE_PENDING_CHOICE", payload: { playerId: localPlayerId, choiceId: choice.id, hostOverride: Net.getIsHost() } });
+    });
+    document.getElementById("pending-skip")?.addEventListener("click", () => {
+      dispatch({ type: "RESOLVE_PENDING_CHOICE", payload: {
+        playerId: localPlayerId, choiceId: choice.id, dismiss: true, hostOverride: Net.getIsHost()
+      } });
     });
     document.getElementById("pending-dismiss")?.addEventListener("click", () => {
       dispatch({ type: "RESOLVE_PENDING_CHOICE", payload: { playerId: localPlayerId, choiceId: choice.id, dismiss: true, hostOverride: true } });
@@ -2216,7 +2314,7 @@ const UI = (() => {
       chip.classList.remove("hidden");
       document.getElementById("bc-skip")?.addEventListener("click", () => dispatch({
         type: "RESOLVE_PENDING_CHOICE",
-        payload: { playerId: localPlayerId, choiceId: hexChoice.id, dismiss: true, hostOverride: true } }));
+        payload: { playerId: localPlayerId, choiceId: hexChoice.id, dismiss: true, hostOverride: Net.getIsHost() } }));
       return;
     }
 
@@ -2329,7 +2427,10 @@ const UI = (() => {
       const mineToThrow = live.attackerId === localPlayerId;
       foot = mineToThrow || Net.getIsHost()
         ? `<div class="cs-turn">Your die first.</div>
-           <div class="cs-actions"><button class="cs-btn primary" id="cs-roll" data-side="attacker">Throw</button></div>`
+           <div class="cs-actions">
+             <button class="cs-btn primary" id="cs-roll" data-side="attacker">Throw</button>
+             <button class="cs-btn" id="cs-cancel-attack">Cancel attack</button>
+           </div>`
         : `<div class="cs-turn">Waiting for ${escapeHtml(atkName || "the attacker")} to throw\u2026</div>`;
     } else if (live && !defThrown) {
       const roller = Game.combatDefenderRoller(state, live);
@@ -2397,6 +2498,9 @@ const UI = (() => {
     rollBtn?.addEventListener("click", () => dispatch({
       type: "COMBAT_ROLL", payload: { playerId: localPlayerId,
         side: rollBtn.dataset.side, hostOverride: Net.getIsHost() } }));
+    document.getElementById("cs-cancel-attack")?.addEventListener("click", () => dispatch({
+      type: "CANCEL_COMBAT", payload: { playerId: localPlayerId, hostOverride: Net.getIsHost() }
+    }));
     document.getElementById("cs-plus")?.addEventListener("click", () => bid("plus"));
     document.getElementById("cs-reroll")?.addEventListener("click", () => bid("reroll"));
     document.querySelectorAll(".cs-res").forEach((b) => b.addEventListener("click", () => dispatch({
@@ -2506,8 +2610,8 @@ const UI = (() => {
       <div class="wiz-actions"><button class="ghost sm" id="wiz-nothing"
         title="Resolve and reset this card without doing anything. It still counts as your turn's card.">Resolve for nothing</button></div>`;
     if (spendsUpFront) {
-      document.getElementById("tc-dec").addEventListener("click", () => { sub.tradeSpent = Math.max(0, sub.tradeSpent - 1); renderWizard(); });
-      document.getElementById("tc-inc").addEventListener("click", () => { sub.tradeSpent = Math.min(tradeAvail, sub.tradeSpent + 1); renderWizard(); });
+      document.getElementById("tc-dec").addEventListener("click", () => { sub.tradeSpent = Math.max(0, sub.tradeSpent - 1); refreshWizard(); });
+      document.getElementById("tc-inc").addEventListener("click", () => { sub.tradeSpent = Math.min(tradeAvail, sub.tradeSpent + 1); refreshWizard(); });
     }
     document.getElementById("wiz-start").addEventListener("click", startAction);
     document.getElementById("wiz-cancel").addEventListener("click", cancelAction);
@@ -2540,7 +2644,7 @@ const UI = (() => {
         <button id="wiz-reinforce">Reinforce</button>
         <button class="ghost" id="wiz-cancel3">Cancel</button>
       </div>`;
-    document.getElementById("wiz-district").addEventListener("click", () => { sub.phase = "pick_district"; renderWizard(); });
+    document.getElementById("wiz-district").addEventListener("click", () => { sub.phase = "pick_district"; refreshWizard(); });
     document.getElementById("wiz-reinforce").addEventListener("click", startReinforce);
     document.getElementById("wiz-cancel3").addEventListener("click", cancelAction);
   }
@@ -2558,7 +2662,7 @@ const UI = (() => {
     document.querySelectorAll(".dist-btn").forEach((btn) => {
       btn.addEventListener("click", () => { sub.districtType = btn.dataset.d; startDistrictPlace(); });
     });
-    document.getElementById("wiz-back-growth").addEventListener("click", () => { sub.phase = "growth_choice"; renderWizard(); });
+    document.getElementById("wiz-back-growth").addEventListener("click", () => { sub.phase = "growth_choice"; refreshWizard(); });
   }
 
   function renderPlacingDistrict() {
@@ -2602,7 +2706,7 @@ const UI = (() => {
       <div class="wiz-body">${hint}${left > 1 ? `<br><span class="wiz-note">${left} still to move on this card.</span>` : ""}</div>
       <div class="wiz-actions">
         ${cardOpen && selectingUnit ? `<button id="wiz-done-card">Done with card</button>` : ""}
-        <button class="ghost" id="wiz-cancel6">Cancel</button>
+        <button class="ghost" id="wiz-cancel6">${cardOpen ? "Back to unit choice" : "Cancel"}</button>
       </div>`;
     document.getElementById("wiz-done-card")?.addEventListener("click", () => {
       dispatch({ type: "END_FOCUS_CARD", payload: { playerId: localPlayerId } });
@@ -2823,7 +2927,7 @@ const UI = (() => {
         <button class="ghost" id="wiz-cancel7">Cancel</button>
       </div>`;
     document.querySelectorAll(".res-btn").forEach((btn) => {
-      btn.addEventListener("click", () => { sub.spentResources[btn.dataset.r] = !sub.spentResources[btn.dataset.r]; renderWizard(); });
+      btn.addEventListener("click", () => { sub.spentResources[btn.dataset.r] = !sub.spentResources[btn.dataset.r]; refreshWizard(); });
     });
     document.getElementById("wiz-build-city").addEventListener("click", () => startBuildCity(totalProd));
     document.getElementById("wiz-build-wonder").addEventListener("click", () => startBuildWonder(totalProd));
@@ -3360,7 +3464,7 @@ const UI = (() => {
       sub.validHexes = Game.validControlHexes(state, localPlayerId, slot);
       render(); return;
     }
-    if (sub.cardType === "growth") { sub.phase = "growth_choice"; renderWizard(); return; }
+    if (sub.cardType === "growth") { sub.phase = "growth_choice"; refreshWizard(); return; }
     if (sub.cardType === "economy") {
       sub.phase = "move_caravan"; sub.selectedUnit = null;
       // Highlight pickable caravans; Trajan may also launch from any friendly city.
@@ -3379,7 +3483,7 @@ const UI = (() => {
       sub.validHexes = Game.unitStartSpaces(state, me, "army");
       render(); return;
     }
-    if (sub.cardType === "industry") { sub.phase = "industry_choice"; sub.spentResources = {}; renderWizard(); return; }
+    if (sub.cardType === "industry") { sub.phase = "industry_choice"; sub.spentResources = {}; refreshWizard(); return; }
   }
 
   function startDistrictPlace() {
@@ -3419,7 +3523,7 @@ const UI = (() => {
   function startBuildWonder(production) {
     sub.phase = "picking_wonder";
     sub.wonderProduction = production;
-    renderWizard();
+    refreshWizard();
   }
 
   function finishAction() {
@@ -3441,20 +3545,48 @@ const UI = (() => {
 
   function cancelAction() {
     if (state && state.activeCard && state.activeCard.playerId === localPlayerId) {
-      dispatch({ type: "END_FOCUS_CARD", payload: { playerId: localPlayerId } });
-      resetSub();
+      // Earlier figures on this card may already have moved. Cancelling only
+      // throws away the current, still-local route; "Done with card" is the
+      // explicit action that spends and resets the focus card.
+      resumeActiveCard();
       return;
     }
-    resetSub();
+    clearSub();
     render();
   }
 
-  function resetSub() {
+  function clearSub() {
     sub.phase = "idle"; sub.cardType = null; sub.tradeSpent = 0; sub.remaining = 0;
     sub.totalMarkers = 0; sub.validHexes = new Set(); sub.selectedUnit = null;
     sub.districtType = null; sub.spentResources = {}; sub.placedKeys = [];
     sub.movementState = null; sub.selectedWonder = null; sub.wonderProduction = 0;
     sub.freeFrom = null; sub.attackTargets = null;
+  }
+
+  function resumeActiveCard() {
+    const active = state && state.activeCard;
+    const me = Game.getPlayer(state, localPlayerId);
+    if (!active || !me || active.playerId !== localPlayerId ||
+        (active.cardType !== "economy" && active.cardType !== "military")) {
+      clearSub(); render(); return;
+    }
+    clearSub();
+    sub.cardType = active.cardType;
+    sub.tradeSpent = active.tradeSpent || 0;
+    const kind = active.cardType === "economy" ? "caravan" : "army";
+    sub.phase = kind === "caravan" ? "move_caravan" : "move_army";
+    const starts = Game.unitStartSpaces(state, me, kind);
+    if (kind === "caravan" && me.leaderId === "rome" && me.caravans.some((u) => u.position)) {
+      Object.entries(state.map.hexes).forEach(([k, h]) => {
+        if (h.city && h.city.ownerId === localPlayerId) starts.add(k);
+      });
+    }
+    sub.validHexes = starts;
+    render();
+  }
+
+  function resetSub() {
+    clearSub();
     render();
   }
 
@@ -3497,6 +3629,10 @@ const UI = (() => {
       if (activeId !== localPlayerId) return;
 
       if (state.setup.phase === "fortress") {
+        if (!Game.getValidFortressHexes(state).has(hexKey)) {
+          showToast("A fortress needs an inactive space beside at least 2 active spaces");
+          return;
+        }
         flashHex(hexKey, "rgb(255,213,79)", 600);
         dispatch({ type: "PLACE_FORTRESS", payload: { playerId: localPlayerId, hexKey } });
         return;
@@ -4005,7 +4141,7 @@ const UI = (() => {
           // clicking the card is the decision, and the action starts.
           const meNow = Game.getPlayer(state, localPlayerId);
           if (meNow && !meNow.trade[sub.cardType]) { startAction(); return; }
-          renderWizard();
+          refreshWizard();
           renderFocusRow();
         });
       });

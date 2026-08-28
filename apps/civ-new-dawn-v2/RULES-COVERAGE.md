@@ -63,14 +63,18 @@ token" got wrong, and it was wrong in both the engine and the UI.
 - A side with no owner (barbarian, city-state, uncontrolled fort) or an empty
   military card has no decision and is skipped.
 - Highest total wins; **a tie goes to the defender**
-- An army standing on an open space is **not** a legal target
+- Terra adds armies and caravans as legal targets. A lone figure defends with
+  the terrain difficulty of its space (Terra quick reference p16).
 
 ### Units
 
 - Army and caravan counts are **printed on the military and economy cards**.
   There is no recruit action anywhere in either rulebook — `syncUnitCounts()`
   keeps the figures matching the card tier, up or down.
-- New figures enter at the capital.
+- Figures that are not deployed remain **on their focus cards**. An army or
+  caravan on its card launches from the capital or a mature city when its card
+  resolves; it is not placed on the capital during setup and therefore adds no
+  defence there.
 
 ### Cities
 
@@ -105,6 +109,20 @@ token" got wrong, and it was wrong in both the engine and the UI.
   and `END_FOCUS_CARD` closes it.
 - No more than one caravan may reach the same city or city-state in a turn (p9).
 
+### Cancel and safe undo (interface guardrails)
+
+- Cancelling a card before any action is dispatched simply returns it to the
+  row. During a multi-figure economy/military card, **Back** discards only the
+  current unconfirmed route; earlier confirmed figures stay moved and the card
+  stays open. Only **Done with card** resets it.
+- A declared attack can be cancelled until the first die is thrown. Nothing has
+  moved or reset at that point. Once either die is public, cancellation and turn
+  undo are locked.
+- **Undo Turn** restores the exact start-of-turn checkpoint while every resolved
+  step is reversible. It is locked after a combat die/reroll, after exploration
+  is resolved, or after a built wonder reveals the next card. Ending the turn
+  commits it and starts a fresh checkpoint for the next player.
+
 ### Caravans (base p9)
 
 - A caravan that reaches a city-state or rival city goes **back onto the economy
@@ -119,8 +137,13 @@ token" got wrong, and it was wrong in both the engine and the UI.
 ### The technology dial (base p8 and p16)
 
 - The science card advances the arrow by its slot number.
+- The printed level tabs are **II at 3 and 6, III at 10 and 14, IV at 19 and
+  24**. `TECH_LEVEL_SPACES` uses those six physical positions.
 - Reaching a level lets you take a card of **exactly that level**, not one step up.
-- Crossing two level spaces in one turn grants **both**.
+- Every tab reached or passed is a separate opportunity; crossing several in
+  one advance grants all of them. Later prompts refresh after each card taken.
+- Taking the card is optional ("may"); the owning player has a real **Skip**
+  control rather than needing the host to dismiss the prompt.
 - Past space 24 the arrow goes **directly to 15**, so the tail can be run again for
   further level IV cards.
 
@@ -310,8 +333,9 @@ sequence. Three things here were wrong, and one was mine:
   example is explicit the other way: beating the army in Shaka's city leaves the
   city where it was, and Victoria's army "cannot occupy the same space as
   Shaka's city, so the army returns to the last space it occupied."
-- **Losing an attack does not cost you the army.** Base p11: "If the defender
-  wins, nothing happens." The app was removing the attacking army.
+- **Terra changes what a lost army attack means.** The base rule's "nothing
+  happens" is superseded for expansion armies: if the defender wins, the
+  attacking army is defeated and returns to its military card (Terra p10).
 
 Also added from p16: **+2 to the defence if an army friendly to the defender
 (other than the defender itself) is in the space**; and from Terra p11,
@@ -382,16 +406,16 @@ Added in this pass, all of them from the English card text:
 
 ## 2. Implemented, but approximated
 
-- **1 of the 34 world wonders is a table reminder.** Its printed text is shown on
-  the card, but the effect is not automated. The other 33 resolve themselves.
+- **1 of the 36 world wonders is a table reminder.** Its printed text is shown on
+  the card, but the effect is not automated. The other 35 resolve themselves.
   The one is **Oxford University**: "when you replace a focus card other than a
   science card, you do not have to replace it with a card of the same type." The
   row here is six card *types* with a tier each, so there is no way to hold two
   culture cards and no military one. Automating it means rebuilding the focus row
   as a list of card instances, which touches almost everything that reads a row.
-- **The advanced pre-game tile draft** (each player dealt 2 tiles and placing in
-  turn order, Terra p14) is not implemented. The app builds the four-tile core to
-  the rules and then draws from a shared exploration stack during play.
+- **The optional advanced pre-game tile draft** (each player dealt 2 tiles and
+  placing in turn order, Terra p14) is not implemented. Standard setup and the
+  shared exploration stack are implemented.
 - **How far a government marker shifts a card.** All six are 2 here. Terra p13
   now backs three of them directly: the Monarchy worked example ("two slots to
   the right ... the 5 slot instead of the 3 slot"), the Republic worked example
@@ -403,10 +427,6 @@ Added in this pass, all of them from the English card text:
   *suitable* one. That mapping is printed on the card art and appears in neither
   the reference PDF nor the mod save, so any resource counts for any wonder here.
   The Wonders panel says so rather than implying otherwise.
-- **The tech dial's level positions** (8, 16, 24) are evenly spread rather than
-  read off the printed dial. Level IV sits on 24, which the "past 24 go back to
-  15" rule requires.
-
 ### Known gaps, read in the English books and not yet closed
 
 - **Agenda wording.** Terra p16 prints exact targets for all twelve agendas. A few

@@ -794,6 +794,7 @@ const Game = (() => {
       st.combat.defRolled = !!st.combat.rolled;
     }
     st.pendingChoices = st.pendingChoices || [];
+    if (st.turnUndo === undefined) st.turnUndo = null;
     st.manualLog = st.manualLog || [];
     st.log = st.log || [];
     Object.values(st.map?.hexes || {}).forEach((h) => {
@@ -802,6 +803,87 @@ const Game = (() => {
       if (h.cityState && h.cityState.diplomacyCards === undefined) h.cityState.diplomacyCards = 2;
     });
     return st;
+  }
+
+  // A turn can be put back exactly as it began until the table has learned
+  // something that cannot honestly be "unlearned" (a die result, explored
+  // land, or the next wonder card). The checkpoint travels with the state, so
+  // Undo behaves the same for the host and for a player connected over PeerJS.
+  const TURN_ACTIONS = new Set([
+    "END_FOCUS_CARD", "END_TURN", "RESOLVE_PENDING_CHOICE", "ADD_TRADE",
+    "PLAY_CULTURE", "PLAY_GROWTH_REINFORCE", "PLAY_GROWTH_DISTRICT",
+    "PLAY_SCIENCE", "PLAY_ECONOMY", "PLAY_MILITARY_MOVE",
+    "PLAY_MILITARY_ATTACK", "PLAY_INDUSTRY_CITY", "PLAY_INDUSTRY_WONDER",
+    "EXPLORE_TILE", "ABANDON_EXPLORATION", "COMBAT_ROLL", "COMBAT_SPEND",
+    "COMBAT_PASS", "CANCEL_COMBAT", "UNDO_TURN"
+  ]);
+
+  function stateWithoutUndo(st) {
+    const plain = { ...st };
+    delete plain.turnUndo;
+    return JSON.parse(JSON.stringify(plain));
+  }
+
+  function armTurnUndo(st) {
+    if (!st || st.phase !== "playing") { if (st) st.turnUndo = null; return; }
+    const player = currentPlayer(st);
+    if (!player) { st.turnUndo = null; return; }
+    st.turnUndo = {
+      playerId: player.id,
+      round: st.turn.round,
+      turnIndex: st.turn.index,
+      actions: 0,
+      locked: false,
+      reason: "",
+      snapshot: stateWithoutUndo(st)
+    };
+  }
+
+  function ensureTurnUndo(st) {
+    const cp = currentPlayer(st);
+    const undo = st.turnUndo;
+    if (!cp || !undo || undo.playerId !== cp.id || undo.round !== st.turn.round ||
+        undo.turnIndex !== st.turn.index) armTurnUndo(st);
+  }
+
+  function getUndoStatus(st, playerId) {
+    const cp = st && st.phase === "playing" ? currentPlayer(st) : null;
+    const undo = st && st.turnUndo;
+    if (!cp || !undo || undo.playerId !== cp.id || (playerId && playerId !== cp.id)) {
+      return { canUndo: false, reason: "Undo is available only during your turn.", actions: 0 };
+    }
+    if (undo.locked || !undo.snapshot) {
+      return { canUndo: false, reason: undo.reason || "This turn has passed an irreversible step.", actions: undo.actions || 0 };
+    }
+    if (!(undo.actions > 0)) {
+      return { canUndo: false, reason: "Nothing in this turn needs undoing yet.", actions: 0 };
+    }
+    return { canUndo: true, reason: "Restore the start of this turn.", actions: undo.actions };
+  }
+
+  function irreversibleReason(type, payload) {
+    if (type === "COMBAT_ROLL" || (type === "COMBAT_SPEND" && payload.mode === "reroll")) {
+      return "Undo is locked because a combat die has been rolled.";
+    }
+    if (type === "EXPLORE_TILE" || type === "ABANDON_EXPLORATION") {
+      return "Undo is locked because an exploration tile has been revealed and resolved.";
+    }
+    if (type === "PLAY_INDUSTRY_WONDER") {
+      return "Undo is locked because building the wonder revealed the next card.";
+    }
+    return "";
+  }
+
+  function restoreTurn(st, payload) {
+    const cp = currentPlayer(st);
+    if (!cp || (!payload.hostOverride && payload.playerId !== cp.id)) return st;
+    const status = getUndoStatus(st, payload.playerId);
+    if (!status.canUndo) return st;
+    const name = (currentPlayer(st) || {}).name || "Player";
+    const restored = migrateState(JSON.parse(JSON.stringify(st.turnUndo.snapshot)));
+    log(restored, `${name} undid the current turn.`);
+    armTurnUndo(restored);
+    return restored;
   }
 
   // --- Finalize Setup ---
@@ -817,12 +899,12 @@ const Game = (() => {
     st.tileDeck = st.tileStack.slice();
 
     st.players.forEach((player) => {
-      const capKey = findCapital(st, player.id);
-      if (capKey) {
-        syncUnitCounts(st, player);
-        player.armies.forEach((u) => { if (!u.position) u.position = capKey; });
-        player.caravans.forEach((u) => { if (!u.position) u.position = capKey; });
-      }
+      // Base p4/p8: the starting caravan is on Foreign Trade, and armies wait
+      // on the military card until that card sends them out. Putting either on
+      // the capital would incorrectly add a figure to that space's defence.
+      syncUnitCounts(st, player);
+      player.armies.forEach((u) => { u.position = null; u.movedThisCard = false; });
+      player.caravans.forEach((u) => { u.position = null; u.movedThisCard = false; });
     });
 
     // Poland: before their first turn they raid a rival's diplomacy hand.
@@ -837,6 +919,7 @@ const Game = (() => {
     });
 
     log(st, "Setup complete! Game begins.");
+    armTurnUndo(st);
   }
 
   // --- Actions ---
@@ -845,7 +928,27 @@ const Game = (() => {
     migrateState(st);
     const { type, payload = {} } = action;
     const logBefore = st.log ? st.log.length : 0;
+    const tracksTurn = st.phase === "playing" && TURN_ACTIONS.has(type) && type !== "UNDO_TURN";
+    if (tracksTurn) ensureTurnUndo(st);
+    const before = tracksTurn ? JSON.stringify(stateWithoutUndo(st)) : "";
     const result = applyActionInner(st, action);
+    const changed = tracksTurn && before !== JSON.stringify(stateWithoutUndo(result));
+    if (changed) {
+      if (type === "END_TURN") {
+        // Ending the turn commits it. The next player gets a fresh checkpoint
+        // after all round/start-of-turn effects have been queued.
+        armTurnUndo(result);
+      } else {
+        ensureTurnUndo(result);
+        result.turnUndo.actions = (result.turnUndo.actions || 0) + 1;
+        const reason = irreversibleReason(type, payload);
+        if (reason) {
+          result.turnUndo.locked = true;
+          result.turnUndo.reason = reason;
+          result.turnUndo.snapshot = null;
+        }
+      }
+    }
     if (result.log && result.log.length > logBefore && payload && payload.playerId) {
       result.lastAction = { type, playerId: payload.playerId, ts: Date.now() };
     }
@@ -854,6 +957,8 @@ const Game = (() => {
 
   function applyActionInner(st, action) {
     const { type, payload = {} } = action;
+
+    if (type === "UNDO_TURN") return restoreTurn(st, payload);
 
     if (type === "SET_LEADER") {
       if (st.phase !== "lobby") return st;
@@ -1404,6 +1509,19 @@ const Game = (() => {
       return st;
     }
 
+    if (type === "CANCEL_COMBAT") {
+      const c = st.combat;
+      // Once either die is on the table, the result is public information and
+      // the attack cannot be taken back. Before that point nothing has moved,
+      // no focus card has reset, and cancelling is safe.
+      if (!c || c.atkRolled || c.defRolled || c.rolled || c.turn === "done") return st;
+      if (!payload.hostOverride && payload.playerId !== c.attackerId) return st;
+      const attacker = getPlayer(st, c.attackerId);
+      st.combat = null;
+      log(st, `${attacker ? attacker.name : "The attacker"} cancelled the attack before rolling.`);
+      return st;
+    }
+
     if (type === "COMBAT_ROLL") {
       const c = st.combat;
       if (!c || c.rolled || c.turn === "done") return st;
@@ -1829,11 +1947,28 @@ const Game = (() => {
     }
   }
 
-  // Spaces on the tech dial that carry a technology level. Reaching or passing
-  // one lets you swap in a focus card of exactly that level. The rulebook does
-  // not number the spaces in text, so the positions here are evenly spread —
-  // but level IV sits on 24, which the "past 24 go back to 15" rule requires.
-  const TECH_LEVEL_SPACES = { 8: 2, 16: 3, 24: 4 };
+  // Spaces on the physical 0-24 dial that carry a technology-level tab.
+  // The printed face has II at 3/6, III at 10/14, and IV at 19/24. Reaching or
+  // passing each tab is a separate opportunity to gain that exact-level card.
+  const TECH_LEVEL_SPACES = { 3: 2, 6: 2, 10: 3, 14: 3, 19: 4, 24: 4 };
+
+  function scienceUpgradeOptions(player, level) {
+    const opts = [];
+    FOCUS_TYPES.filter((f) => (player.cardTiers[f] || 1) < level).forEach((f) => {
+      opts.push({ id: f, label: `${FOCUS_LABELS[f]} \u2192 tier ${level}` });
+      const uniq = uniqueUpgradeOption(player, f, level);
+      if (uniq) opts.push(uniq);
+    });
+    return opts;
+  }
+
+  function refreshScienceUpgradeChoices(st, player) {
+    (st.pendingChoices || []).forEach((choice) => {
+      if (choice.kind === "science_upgrade" && choice.playerId === player.id && choice.techLevel) {
+        choice.options = scienceUpgradeOptions(player, choice.techLevel);
+      }
+    });
+  }
 
   function advanceTech(st, player, amount) {
     if (!(amount > 0)) return;
@@ -1856,17 +1991,11 @@ const Game = (() => {
 
     reached.sort((a, b) => a - b).forEach((level) => {
       player.techTier = Math.max(player.techTier || 1, level);
-      const options = FOCUS_TYPES.filter((f) => (player.cardTiers[f] || 1) < level);
-      if (!options.length) {
+      const opts = scienceUpgradeOptions(player, level);
+      if (!opts.length) {
         log(st, `${player.name} reached technology level ${level} with nothing left to upgrade.`);
         return;
       }
-      const opts = [];
-      options.forEach((f) => {
-        opts.push({ id: f, label: `${FOCUS_LABELS[f]} \u2192 tier ${level}` });
-        const uniq = uniqueUpgradeOption(player, f, level);
-        if (uniq) opts.push(uniq);
-      });
       queuePendingChoice(st, {
         kind: "science_upgrade",
         playerId: player.id,
@@ -1923,9 +2052,12 @@ const Game = (() => {
       const takeUnique = typeof payload.optionId === "string" && payload.optionId.startsWith("unique_");
       const cardType = takeUnique ? payload.optionId.slice("unique_".length) : payload.optionId;
       const curTier = player.cardTiers[cardType] || 1;
+      const targetTier = choice.techLevel
+        ? Math.max(curTier, Math.min(4, choice.techLevel))
+        : curTier + 1;
       const uniqueOk = !takeUnique || !!uniqueUpgradeOption(player, cardType,
-        choice.techLevel ? Math.max(curTier, Math.min(4, choice.techLevel)) : curTier + 1);
-      if (FOCUS_TYPES.includes(cardType) && curTier < 4 && uniqueOk &&
+        targetTier);
+      if (FOCUS_TYPES.includes(cardType) && curTier < 4 && targetTier > curTier && uniqueOk &&
           (!choice.onlyTier || curTier === choice.onlyTier)) {
         // A tech level hands you a card of exactly that level, not the next one
         // up (p8). Wonder-driven upgrades carry no level, so they step by one.
@@ -1936,6 +2068,10 @@ const Game = (() => {
         if (takeUnique) player.uniqueTaken = true;
         player.upgradedThisTurn = true;   // University of Sankore looks at this
         if (cardType === "military" || cardType === "economy") syncUnitCounts(st, player);
+        // Crossing more than one printed tab creates more than one prompt. Once
+        // a card is taken, later prompts must stop offering that same card at a
+        // level it has already reached.
+        refreshScienceUpgradeChoices(st, player);
         log(st, takeUnique
           ? `${player.name} took their unique card ${getCardName(player, cardType)} at tier ${player.cardTiers[cardType]}.`
           : `${player.name} upgraded ${FOCUS_LABELS[cardType]} to tier ${player.cardTiers[cardType]}.`);
@@ -2229,7 +2365,11 @@ const Game = (() => {
       resolved = true;
     }
 
-    if (resolved || payload.dismiss) {
+    const dismissed = !!payload.dismiss && (!!choice.optional || !!payload.hostOverride);
+    if (dismissed && choice.optional) {
+      log(st, `${player.name} declined ${choice.title || "an optional choice"}.`);
+    }
+    if (resolved || dismissed) {
       st.pendingChoices.splice(idx, 1);
     }
     return st;
@@ -4313,10 +4453,10 @@ const Game = (() => {
     DISTRICTS, DISTRICT_LABELS, DISTRICT_EFFECTS, RESOURCES, EVENTS, EVENT_NAMES, EVENT_LABELS, CFG,
     WONDERS, ALL_WONDERS, WONDER_ERAS, CARD_TIERS, AGENDA_CARDS, victoryCards, DIPLOMACY_CARDS, CITY_STATE_DATA,
     LEADERS, getLeader, getLeaderAttackBonus, getCardName, getActiveUniqueCard, uniqueInPlay,
-    CARD_DEFS, getCardEffectText, syncUnitCounts, advanceTech, resolveEvent, GOVERNMENTS, CIV_STYLE,
+    CARD_DEFS, getCardEffectText, syncUnitCounts, advanceTech, TECH_LEVEL_SPACES, resolveEvent, GOVERNMENTS, CIV_STYLE,
     hasWonder, getWonderAttackBonus, getWonderDefenseBonus,
     TILE_OFFSETS, getCoreAnchors,
-    createState, createLobbyState, createPlayer, migrateState, applyAction, currentPlayer, getPlayer,
+    createState, createLobbyState, createPlayer, migrateState, finalizeSetup, applyAction, currentPlayer, getPlayer, getUndoStatus,
     SEAT_COLORS, seatColor,
     getDiplomacyAttackBonus, getDiplomacyDefenseBonus, nonAggressionWith, openBordersWith,
     isCityDeveloped,

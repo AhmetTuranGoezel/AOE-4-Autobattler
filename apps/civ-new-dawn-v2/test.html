@@ -211,6 +211,13 @@
       ["Cliffs of Dover", "Crater Lake", "Mt Kilimanjaro", "Mato Tipila", "Gobustan"].forEach((w) =>
         assert("natural wonder present: " + w, natWonders.has(w)));
       assert("twelve city-states on the tiles", cityStatesOnTiles.size === 12);
+      const tile20 = data.TILES.find((t) => t.id === "10");
+      const tile20AStates = tile20.sides.A.cells.map((c) => c.cityState).filter(Boolean);
+      const tile20BStates = tile20.sides.B.cells.map((c) => c.cityState).filter(Boolean);
+      assert("printed tile 20A contains industrial Auckland",
+        tile20AStates.length === 1 && tile20AStates[0] === "Auckland" && data.CITY_STATES.Auckland.type === "industry");
+      assert("printed tile 20B contains military Akkad",
+        tile20BStates.length === 1 && tile20BStates[0] === "Akkad" && data.CITY_STATES.Akkad.type === "military");
 
       const allDefs = Object.values(data.CARD_DEFS).flatMap((t) => Object.values(t));
       assert("all 24 focus cards defined", allDefs.length === 24);
@@ -587,26 +594,105 @@
       }
 
       {
-        // The tech dial, p8 and Terra p15.
+        // The physical tech dial, base p8. Its printed tabs — not evenly
+        // guessed thirds — are II at 3/6, III at 10/14, IV at 19/24.
+        assert("tech-level spaces match the printed dial",
+          JSON.stringify(Game.TECH_LEVEL_SPACES) === JSON.stringify({ 3: 2, 6: 2, 10: 3, 14: 3, 19: 4, 24: 4 }));
         const st0 = rulesState();
         const me = st0.players[0];
         me.tech = 0;
-        Game.advanceTech(st0, me, 8);
+        Game.advanceTech(st0, me, 6);
+        assert("both printed level-II tabs grant an opportunity",
+          st0.pendingChoices.filter((c) => c.kind === "science_upgrade" && c.techLevel === 2).length === 2);
         const lvl2 = st0.pendingChoices.find((c) => c.kind === "science_upgrade");
         assert("reaching a level offers a card of exactly that level", !!lvl2 && lvl2.techLevel === 2);
         const took = Game.applyAction(st0, { type: "RESOLVE_PENDING_CHOICE", payload: { playerId: me.id, choiceId: lvl2.id, optionId: "culture" } });
         assert("the card lands on the level reached", took.players[0].cardTiers.culture === 2);
+        const secondII = took.pendingChoices.find((c) => c.kind === "science_upgrade" && c.techLevel === 2);
+        assert("later same-level prompts refresh after a card is taken",
+          !!secondII && !secondII.options.some((o) => o.id === "culture" || o.id === "unique_culture"));
+        const skipped = Game.applyAction(took, { type: "RESOLVE_PENDING_CHOICE", payload: {
+          playerId: me.id, choiceId: secondII.id, dismiss: true
+        } });
+        assert("the player may decline an optional tech card",
+          !skipped.pendingChoices.some((c) => c.id === secondII.id));
 
         const st1 = rulesState();
         st1.players[0].tech = 0;
         Game.advanceTech(st1, st1.players[0], 16);
-        assert("crossing two levels in one turn grants both",
-          st1.pendingChoices.filter((c) => c.kind === "science_upgrade").length === 2);
+        assert("crossing four printed tabs grants all four opportunities",
+          st1.pendingChoices.filter((c) => c.kind === "science_upgrade").length === 4 &&
+          st1.pendingChoices.map((c) => c.techLevel).join(",") === "2,2,3,3");
 
         const st2 = rulesState();
         st2.players[0].tech = 22;
         Game.advanceTech(st2, st2.players[0], 4);
         assert("past space 24 the arrow goes to 15", st2.players[0].tech === 15);
+      }
+
+      {
+        // Safe turn undo: reversible choices may go back to the start of this
+        // turn. Public information (dice and explored land) closes that door.
+        let st = rulesState();
+        const me = st.players[0];
+        st.turn.index = st.turn.order.indexOf(me.id);
+        const originalRow = me.focusRow.join(",");
+        st = Game.applyAction(st, { type: "PLAY_SCIENCE", payload: {
+          playerId: me.id, amount: 2, tradeSpent: 0
+        } });
+        assert("a resolved card can be undone before hidden information appears",
+          Game.getUndoStatus(st, me.id).canUndo);
+        st = Game.applyAction(st, { type: "UNDO_TURN", payload: { playerId: me.id } });
+        assert("undo restores the start of the turn exactly",
+          st.players[0].tech === 0 && !st.players[0].cardPlayed && st.players[0].focusRow.join(",") === originalRow);
+        assert("the restored turn has no second undo until another action",
+          !Game.getUndoStatus(st, me.id).canUndo);
+
+        const actor = st.players[0];
+        activate(st, "0,0", { city: { ownerId: actor.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
+        activate(st, "1,0", { control: { ownerId: st.players[1].id, fortified: false, district: null } });
+        actor.armies = [{ id: "undo-army", position: "0,0" }];
+        st = Game.applyAction(st, { type: "PLAY_MILITARY_ATTACK", payload: {
+          playerId: actor.id, unitId: "undo-army", fromKey: "0,0", toKey: "1,0", targetType: "control"
+        } });
+        assert("an attack can be cancelled before either die is rolled", !!st.combat && Game.getUndoStatus(st, actor.id).canUndo);
+        st = Game.applyAction(st, { type: "CANCEL_COMBAT", payload: { playerId: actor.id } });
+        assert("cancelling before the roll leaves no combat and spends no card",
+          !st.combat && !st.players[0].cardPlayed && st.players[0].armies[0].position === "0,0");
+        st = Game.applyAction(st, { type: "PLAY_MILITARY_ATTACK", payload: {
+          playerId: actor.id, unitId: "undo-army", fromKey: "0,0", toKey: "1,0", targetType: "control"
+        } });
+        st = Game.applyAction(st, { type: "COMBAT_ROLL", payload: { playerId: actor.id, side: "attacker" } });
+        assert("the first combat die locks turn undo", !Game.getUndoStatus(st, actor.id).canUndo && /die/.test(Game.getUndoStatus(st, actor.id).reason));
+        const rolled = st.combat.atkRoll;
+        st = Game.applyAction(st, { type: "UNDO_TURN", payload: { playerId: actor.id } });
+        assert("undo cannot erase a public die result", st.combat && st.combat.atkRoll === rolled);
+
+        let explored = rulesState();
+        const explorer = explored.players[0];
+        explored.turn.index = explored.turn.order.indexOf(explorer.id);
+        explored.tileStack = explored.setup.tileStack.slice();
+        explored.tileDeck = explored.tileStack.slice();
+        explorer.armies = [{ id: "explorer", position: "0,0" }];
+        explored = Game.applyAction(explored, { type: "ABANDON_EXPLORATION", payload: {
+          playerId: explorer.id, fromKey: "0,0"
+        } });
+        assert("resolving exploration locks turn undo", !Game.getUndoStatus(explored, explorer.id).canUndo && /exploration/.test(Game.getUndoStatus(explored, explorer.id).reason));
+      }
+
+      {
+        // Final setup must leave every figure printed on its focus card.
+        const st = Game.createState(players(2));
+        st.players.forEach((p) => {
+          Game.syncUnitCounts(st, p);
+          p.armies.forEach((u) => { u.position = "0,0"; });
+          p.caravans.forEach((u) => { u.position = "0,0"; });
+        });
+        Game.finalizeSetup(st);
+        assert("final setup keeps armies off the capital",
+          st.players.every((p) => p.armies.every((u) => u.position === null)));
+        assert("final setup keeps caravans on their economy cards",
+          st.players.every((p) => p.caravans.every((u) => u.position === null)));
       }
 
       {
