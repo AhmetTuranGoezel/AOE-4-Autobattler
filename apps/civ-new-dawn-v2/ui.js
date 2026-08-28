@@ -31,6 +31,7 @@ const UI = (() => {
   // terrain — which is the same terrain, so nothing about play changes.
   let tileArt = true;
   let pieceArt = true;
+  let tableArt = true;
 
   const TERRAIN_COLORS = {
     grass: '#6faa3f', hill: '#c8993a', forest: '#1d6650',
@@ -505,6 +506,7 @@ const UI = (() => {
     ctx.clearRect(0, 0, cw, ch);
     ctx.fillStyle = "#111122";
     ctx.fillRect(0, 0, cw, ch);
+    drawTable(cw, ch);
 
     const hexes = state.map.hexes;
 
@@ -780,6 +782,22 @@ const UI = (() => {
       const m = fitAffine(src, dst);
       if (!m) return;
 
+      // A tile is a piece of card lying on the board, so it throws a shadow.
+      // This has to be filled before the clip goes on, or the clip would cut
+      // the shadow off at the same edge it is supposed to fall outside of.
+      ctx.save();
+      ctx.beginPath();
+      for (const [, h] of cells) {
+        const p = axialToPixel(h.q, h.r);
+        hexSubPath(p.x, p.y, HEX_SIZE + 0.6);
+      }
+      ctx.shadowColor = "rgba(0,0,0,0.5)";
+      ctx.shadowBlur = HEX_SIZE * 0.28;
+      ctx.shadowOffsetY = HEX_SIZE * 0.1;
+      ctx.fillStyle = "#0b0d14";
+      ctx.fill();
+      ctx.restore();
+
       ctx.save();
       ctx.beginPath();
       for (const [, h] of cells) {
@@ -956,6 +974,37 @@ const UI = (() => {
     return `<div class="cface-onboard" title="${home} of ${list.length} still on this card">${pips}</div>`;
   }
 
+  // The board the tiles are laid on: the printed parchment with its compass
+  // rose and sea monsters. It is pinned to the world, not the viewport, so it
+  // pans and zooms with the tiles the way a real board does under real tiles,
+  // and it is drawn large enough that the map never runs off the edge of it.
+  function drawTable(cw, ch) {
+    if (!tableArt || !window.CivCardArt) return;
+    const img = tokenImage(CivCardArt.board(0));
+    if (!img || !img.complete || !img.naturalWidth) return;
+    const origin = axialToPixel(0, 0);
+    // Wide enough for the biggest board the tile stack can build, so growing
+    // the map never exposes a seam.
+    const span = HEX_SIZE * 30;
+    ctx.save();
+    ctx.globalAlpha = 0.88;
+    ctx.drawImage(img, origin.x - span / 2, origin.y - span / 2, span, span);
+    // Take the parchment down a stop. At full strength it is brighter than the
+    // tiles lying on it, which reads as the board floating above them.
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "rgba(24,22,32,0.34)";
+    ctx.fillRect(origin.x - span / 2, origin.y - span / 2, span, span);
+    // Sink the edges into the dark so the parchment reads as a board on a
+    // table rather than a rectangle pasted over the background.
+    const fade = ctx.createRadialGradient(origin.x, origin.y, span * 0.30,
+                                          origin.x, origin.y, span * 0.52);
+    fade.addColorStop(0, "rgba(17,17,34,0)");
+    fade.addColorStop(1, "rgba(17,17,34,1)");
+    ctx.fillStyle = fade;
+    ctx.fillRect(origin.x - span / 2, origin.y - span / 2, span, span);
+    ctx.restore();
+  }
+
   // Loaded token art, keyed by URL. A miss starts the load and returns null;
   // the board redraws when it arrives, so a slow first paint costs a frame,
   // not a missing piece. A failed load is remembered as null so a broken path
@@ -975,6 +1024,11 @@ const UI = (() => {
   // Draw a round or hex token centred on a space, at a size given as a
   // fraction of the hex. Returns false when the art is not there yet, so every
   // caller can fall back to the shape it used to draw.
+  //
+  // Everything is clipped to the space it sits in. Several of the extracted
+  // tokens are hexes photographed on a black rectangle rather than cut out —
+  // the fortress is one — and without the clip those corners paint over the
+  // tile underneath.
   function drawToken(url, cx, cy, frac, opts) {
     const img = tokenImage(url);
     if (!img || !img.complete || !img.naturalWidth) return false;
@@ -982,6 +1036,9 @@ const UI = (() => {
     const w = HEX_SIZE * 2 * frac;
     const hgt = w * (img.naturalHeight / img.naturalWidth);
     ctx.save();
+    ctx.beginPath();
+    hexSubPath(cx, cy, HEX_SIZE);
+    ctx.clip();
     if (o.alpha !== undefined) ctx.globalAlpha = o.alpha;
     if (o.shadow) {
       ctx.shadowColor = "rgba(0,0,0,0.55)";

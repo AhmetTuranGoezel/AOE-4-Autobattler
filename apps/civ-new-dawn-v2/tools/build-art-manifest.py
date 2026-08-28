@@ -327,6 +327,75 @@ def build_wonder_tokens():
     return out
 
 
+def clear_flat_background(im, tol=26):
+    """Flood the flat background in from the four corners and trim.
+
+    Only pixels connected to an edge are cleared, so a white highlight inside
+    the token keeps its opacity. Returns None when the corners disagree — a
+    token photographed against a busy backdrop is left alone rather than eaten
+    into.
+    """
+    w, h = im.size
+    px = im.load()
+    corners = [px[0, 0], px[w - 1, 0], px[0, h - 1], px[w - 1, h - 1]]
+    r0, g0, b0 = corners[0][:3]
+    for c in corners[1:]:
+        if abs(c[0] - r0) > tol or abs(c[1] - g0) > tol or abs(c[2] - b0) > tol:
+            return None
+
+    seen = bytearray(w * h)
+    stack = [(0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1)]
+    while stack:
+        x, y = stack.pop()
+        if x < 0 or y < 0 or x >= w or y >= h:
+            continue
+        i = y * w + x
+        if seen[i]:
+            continue
+        r, g, b, a = px[x, y]
+        if a and (abs(r - r0) > tol or abs(g - g0) > tol or abs(b - b0) > tol):
+            continue
+        seen[i] = 1
+        px[x, y] = (r, g, b, 0)
+        stack.extend(((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)))
+
+    box = im.getbbox()
+    return im.crop(box) if box else im
+
+
+def cutout(rel_path, tol=26):
+    """Make a token's flat background transparent, and cache the result.
+
+    Some of the extracted tokens carry their alpha and some do not: the plain
+    control token is cut out, its reinforced back is the same disc on solid
+    white, and the districts sit on a rectangle of grey stone. Drawn as they
+    are, those rectangles paint over the tile underneath.
+
+    The background is found by flooding in from the four corners, so only pixels
+    connected to an edge are cleared — a white highlight inside the token keeps
+    its opacity. Returns the original path unchanged when the file already has
+    alpha, or when Pillow is not installed.
+    """
+    try:
+        from PIL import Image
+    except ImportError:
+        return rel_path
+
+    src = os.path.join(PACK, *rel_path.split("/"))
+    im = Image.open(src)
+    if im.mode in ("RGBA", "LA") or "transparency" in im.info:
+        return rel_path
+
+    im = clear_flat_background(im.convert("RGBA"), tol)
+    if im is None:
+        return rel_path
+    out_dir = os.path.join(PACK, "tokens", "derived")
+    os.makedirs(out_dir, exist_ok=True)
+    name = "cut-" + os.path.basename(rel_path)
+    im.save(os.path.join(out_dir, name), "WEBP", quality=90)
+    return rel("tokens/derived", name)
+
+
 def slice_city_state_tokens():
     """Cut the six two-up atlases into twelve single tokens."""
     try:
@@ -345,11 +414,11 @@ def slice_city_state_tokens():
         for name, box in ((left, (0, 0, half, im.height)),
                           (right, (half, 0, im.width, im.height))):
             crop = im.crop(box)
-            # The atlases are padded; trim to what is actually drawn so the
-            # token can be centred on a hex without guessing its margins.
-            bbox = crop.getbbox()
-            if bbox:
-                crop = crop.crop(bbox)
+            # Two of the six atlases carry no alpha at all — the tokens sit on
+            # flat black or flat white — so the same flood that cuts out the
+            # control tokens runs here, and the trim comes with it.
+            cut = clear_flat_background(crop)
+            crop = cut if cut is not None else crop.crop(crop.getbbox() or (0, 0, crop.width, crop.height))
             out_name = f"cs-{slug(name)}.webp"
             crop.save(os.path.join(out_dir, out_name), "WEBP", quality=88)
             made[name] = rel("tokens/derived", out_name)
@@ -368,13 +437,13 @@ def main():
         name = os.path.basename(path)
         color = name.split("__")[0].split("-")[1]
         side = "plain" if "image-face" in name else "reinforced"
-        control.setdefault(color, {})[side] = path
+        control.setdefault(color, {})[side] = cutout(path)
 
     faces = listing("tokens", r"^district__image-face")
     if len(faces) != len(COLORS) * len(DISTRICT_ORDER):
         raise SystemExit(f"districts: expected {len(COLORS) * len(DISTRICT_ORDER)}, got {len(faces)}")
     for i, path in enumerate(faces):
-        district.setdefault(COLORS[i // len(DISTRICT_ORDER)], {})[DISTRICT_ORDER[i % len(DISTRICT_ORDER)]] = path
+        district.setdefault(COLORS[i // len(DISTRICT_ORDER)], {})[DISTRICT_ORDER[i % len(DISTRICT_ORDER)]] = cutout(path)
 
     for color, path in zip_exact(listing("tokens", r"^science"), DIAL_COLORS, "tech dials"):
         dial[color] = path
@@ -389,14 +458,14 @@ def main():
     for kind, path in zip_exact(listing("tokens", r"^gov"), GOVERNMENTS, "government tokens"):
         gov[kind] = path
     for letter, path in zip_exact(listing("tokens", r"^barb"), BARBARIANS, "barbarian tokens"):
-        barb[letter] = path
+        barb[letter] = cutout(path)
 
     natural, resource = {}, {}
     res_files = []
     for pat in (r"^nat-wonder", r"^diamond", r"^marble", r"^mercury", r"^oil"):
         res_files += listing("tokens", pat)
     for (kind, name), path in zip_exact(res_files, RESOURCE_GROUP, "resource tokens"):
-        (natural if kind == "nw" else resource)[name] = path
+        (natural if kind == "nw" else resource)[name] = cutout(path)
 
     diplomacy = {}
     for (color, kind), path in zip_exact(listing("cards/diplomacy"), DIPLOMACY, "diplomacy cards"):
@@ -431,7 +500,7 @@ def main():
         # a turn. It is a deck of one, so there is nothing to disambiguate.
         "ibrahim": (listing("cards/focus", r"^deck-201-card-00") or [None])[0],
         "barbDirection": barb_direction,
-        "fort": (listing("tokens", r"^fort") or [None])[0],
+        "fort": cutout((listing("tokens", r"^fort") or [None])[0]),
         "eventTracker": (listing("tokens", r"^event-tracker") or [None])[0],
         "boards": listing("boards"),
     }

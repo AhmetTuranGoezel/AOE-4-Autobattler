@@ -608,57 +608,57 @@ window.CivArtData = {
  },
  "control": {
   "blue": {
-   "reinforced": "other-images/control-blue__image-back__ugc-1994562021176696478__b24449476890bf88.webp",
+   "reinforced": "tokens/derived/cut-control-blue__image-back__ugc-1994562021176696478__b24449476890bf88.webp",
    "plain": "other-images/control-blue__image-face__ugc-1994562021176696398__23fd4a296c3b4060.webp"
   },
   "green": {
    "reinforced": "other-images/control-green__image-back__ugc-1994562021176703662__447aa0f168cd8fc2.webp",
-   "plain": "other-images/control-green__image-face__ugc-1994562021176703569__de486a2df2999f3e.webp"
+   "plain": "tokens/derived/cut-control-green__image-face__ugc-1994562021176703569__de486a2df2999f3e.webp"
   },
   "orange": {
-   "reinforced": "other-images/control-orange__image-back__ugc-1994562021176703786__5ac2f6f3b2887ad2.webp",
+   "reinforced": "tokens/derived/cut-control-orange__image-back__ugc-1994562021176703786__5ac2f6f3b2887ad2.webp",
    "plain": "other-images/control-orange__image-face__ugc-1994562021176703731__de40a9db999cfb36.webp"
   },
   "red": {
-   "reinforced": "other-images/control-red__image-back__ugc-1994562021176703452__50a5c8462fbf8982.webp",
+   "reinforced": "tokens/derived/cut-control-red__image-back__ugc-1994562021176703452__50a5c8462fbf8982.webp",
    "plain": "other-images/control-red__image-face__ugc-1994562021176703344__337f8cb60a4a8b8b.webp"
   }
  },
  "district": {
   "green": {
-   "theater": "tokens/district__image-face__ugc-1658972912262965312__e167614163a81db2.webp",
-   "campus": "tokens/district__image-face__ugc-1658972912262993062__b97555849f832ab1.webp",
-   "industrial": "tokens/district__image-face__ugc-1658972912262994405__d8ca1e39d96d5572.webp",
+   "theater": "tokens/derived/cut-district__image-face__ugc-1658972912262965312__e167614163a81db2.webp",
+   "campus": "tokens/derived/cut-district__image-face__ugc-1658972912262993062__b97555849f832ab1.webp",
+   "industrial": "tokens/derived/cut-district__image-face__ugc-1658972912262994405__d8ca1e39d96d5572.webp",
    "trade": "tokens/district__image-face__ugc-1658972912262995631__3edba0d5f7032d51.webp",
    "encampment": "tokens/district__image-face__ugc-1658972912262997563__b944caf42c3377f2.webp"
   },
   "blue": {
-   "theater": "tokens/district__image-face__ugc-1658972912263026893__ed22eb2515f51ab0.webp",
-   "campus": "tokens/district__image-face__ugc-1658972912263027991__f48103659c87733a.webp",
+   "theater": "tokens/derived/cut-district__image-face__ugc-1658972912263026893__ed22eb2515f51ab0.webp",
+   "campus": "tokens/derived/cut-district__image-face__ugc-1658972912263027991__f48103659c87733a.webp",
    "industrial": "tokens/district__image-face__ugc-1658972912263031384__ca36d28b09bdbe21.webp",
    "trade": "tokens/district__image-face__ugc-1658972912263033296__547326f730c6a096.webp",
    "encampment": "tokens/district__image-face__ugc-1658972912263034593__da14b7f535748b77.webp"
   },
   "orange": {
-   "theater": "tokens/district__image-face__ugc-1658972912263059284__5bba85309b4ea409.webp",
-   "campus": "tokens/district__image-face__ugc-1658972912263062892__a667677879b01614.webp",
-   "industrial": "tokens/district__image-face__ugc-1658972912263065796__1853b00ff24b77b6.webp",
-   "trade": "tokens/district__image-face__ugc-1658972912263067451__4980b98555cb1adc.webp",
-   "encampment": "tokens/district__image-face__ugc-1658972912263069639__7abb10a8e860264f.webp"
+   "theater": "tokens/derived/cut-district__image-face__ugc-1658972912263059284__5bba85309b4ea409.webp",
+   "campus": "tokens/derived/cut-district__image-face__ugc-1658972912263062892__a667677879b01614.webp",
+   "industrial": "tokens/derived/cut-district__image-face__ugc-1658972912263065796__1853b00ff24b77b6.webp",
+   "trade": "tokens/derived/cut-district__image-face__ugc-1658972912263067451__4980b98555cb1adc.webp",
+   "encampment": "tokens/derived/cut-district__image-face__ugc-1658972912263069639__7abb10a8e860264f.webp"
   },
   "red": {
-   "theater": "tokens/district__image-face__ugc-1658972912263091935__e743e563e246ab93.webp",
-   "campus": "tokens/district__image-face__ugc-1658972912263093151__9f3d454bcf510217.webp",
-   "industrial": "tokens/district__image-face__ugc-1658972912263094819__b413ed91ffc6b6f3.webp",
-   "trade": "tokens/district__image-face__ugc-1658972912263095901__937645a2a71b301b.webp",
-   "encampment": "tokens/district__image-face__ugc-1658972912263097213__c2d0639bdf680a00.webp"
+   "theater": "tokens/derived/cut-district__image-face__ugc-1658972912263091935__e743e563e246ab93.webp",
+   "campus": "tokens/derived/cut-district__image-face__ugc-1658972912263093151__9f3d454bcf510217.webp",
+   "industrial": "tokens/derived/cut-district__image-face__ugc-1658972912263094819__b413ed91ffc6b6f3.webp",
+   "trade": "tokens/derived/cut-district__image-face__ugc-1658972912263095901__937645a2a71b301b.webp",
+   "encampment": "tokens/derived/cut-district__image-face__ugc-1658972912263097213__c2d0639bdf680a00.webp"
   },
   "purple": {
-   "theater": "tokens/district__image-face__ugc-1658972912263121347__1e99c0de853aa561.webp",
+   "theater": "tokens/derived/cut-district__image-face__ugc-1658972912263121347__1e99c0de853aa561.webp",
    "campus": "tokens/district__image-face__ugc-1658972912263123018__29d3d03fff54e7f1.webp",
-   "industrial": "tokens/district__image-face__ugc-1658972912263125339__0727e48a2380e00f.webp",
-   "trade": "tokens/district__image-face__ugc-1658972912263126541__75799058cdf7b0c5.webp",
-   "encampment": "tokens/district__image-face__ugc-1658972912263127743__269d9baf4feacf01.webp"
+   "industrial": "tokens/derived/cut-district__image-face__ugc-1658972912263125339__0727e48a2380e00f.webp",
+   "trade": "tokens/derived/cut-district__image-face__ugc-1658972912263126541__75799058cdf7b0c5.webp",
+   "encampment": "tokens/derived/cut-district__image-face__ugc-1658972912263127743__269d9baf4feacf01.webp"
   }
  },
  "dial": {
@@ -711,7 +711,7 @@ window.CivArtData = {
  },
  "ibrahim": "cards/focus/deck-201-card-00__deck-201-cell-00__6b20af35a0e9c3cc.webp",
  "barbDirection": "tokens/asset__image-face__ugc-1994562021176697101__c77618bfc8a9d19b.webp",
- "fort": "tokens/fort__image-face__ugc-1685995054105782372__02e783edfb48e3f4.webp",
+ "fort": "tokens/derived/cut-fort__image-face__ugc-1685995054105782372__02e783edfb48e3f4.webp",
  "eventTracker": "tokens/event-tracker__image-face__ugc-1994562021176696876__f63e2bbadcc73eaf.webp",
  "boards": [
   "boards/asset__image-face__ugc-1695028978276055426__a5d9309776ab5359.webp",
