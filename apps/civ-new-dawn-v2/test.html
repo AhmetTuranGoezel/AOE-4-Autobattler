@@ -216,7 +216,9 @@
       assert("all 24 focus cards defined", allDefs.length === 24);
       assert("every focus card has effect text", allDefs.every((d) => (d.effectText || "").length > 30));
       assert("focus text reflects the engine's own tiers", data.CARD_DEFS.economy[3].effectText.includes("6 spaces") && data.CARD_DEFS.military[4].effectText.includes("plus 3"));
-      assert("all four diplomacy cards have full text", Object.values(data.DIPLOMACY_CARDS).length === 4 &&
+      // Base p13: every player has a set of five, one per colour — Joint War,
+      // Defensive Pact, Non-Aggression Pact, Embassy and Open Borders.
+      assert("all five diplomacy cards have full text", Object.values(data.DIPLOMACY_CARDS).length === 5 &&
         Object.values(data.DIPLOMACY_CARDS).every((d) => (d.text || "").length > 40));
 
       const cardP = Game.createPlayer("cp", "C", "#fff");

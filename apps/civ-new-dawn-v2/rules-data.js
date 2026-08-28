@@ -315,26 +315,35 @@
 
   // The four player diplomacy cards. Each player holds one set; a caravan
   // trading at a rival city hands one of these to that rival.
+  // Each player has a set of five diplomacy cards in their own colour, and gets
+  // no effect from their own (base p13). The wording below is off the printed
+  // cards in assets/tts-web/cards/diplomacy, which name the giver by colour:
+  // "the purple player's capital", and so on.
   const DIPLOMACY_CARDS = {
     joint_war: {
       name: "Joint War",
-      effect: "+2 attack unless attacking owner.",
-      text: "Whenever you attack, increase your combat value by 2, unless you are attacking the player who gave you this card."
+      effect: "+2 attacking, except against the giver.",
+      text: "When attacking, increase your combat value by 2 unless you are attacking the player who gave you this card."
     },
     defensive_pact: {
       name: "Defensive Pact",
-      effect: "+2 defense unless owner attacks.",
-      text: "Whenever you defend, increase your combat value by 2, unless the player who gave you this card is the attacker."
+      effect: "+2 defending, except against the giver.",
+      text: "When defending, increase your combat value by 2 unless the player who gave you this card is attacking."
     },
     non_aggression: {
       name: "Non-Aggression Pact",
-      effect: "Cannot attack owner; retaliation swaps military.",
-      text: "You cannot attack the player who gave you this card. If that player attacks you, they must give you their military focus card in exchange for yours."
+      effect: "You cannot attack the giver; if they attack you, swap your military card.",
+      text: "You cannot attack or destroy the pieces of the player who gave you this card. If that player attacks or destroys any of your pieces, you may return this card to swap your military focus card with any other card in your focus row."
     },
     embassy: {
       name: "Embassy",
-      effect: "Capital trade gives owner trade and trader resource.",
-      text: "Whenever a caravan moves to your capital, the player who gave you this card places 1 trade token on one of their focus cards, and you gain 1 resource of your choice from the supply."
+      effect: "A caravan to the giver's capital pays them trade and pays you a resource.",
+      text: "When you move a caravan to the capital of the player who gave you this card (including the one used to take it), place 1 trade token from the supply on a card in that player's focus row. Then, gain 1 resource of your choice from the supply."
+    },
+    open_borders: {
+      name: "Open Borders",
+      effect: "The giver's cities and control tokens count as friendly to you.",
+      text: "The cities and control tokens of the player who gave you this card are friendly to you for the purposes of your districts' effects and your cities' maturity."
     }
   };
 
@@ -345,18 +354,18 @@
   // focus card type. You hold one marker at a time; a new choice moves it.
   //
   // A card carrying a marker is resolved as if it sat `shift` places further
-  // right. The rulebook works Monarchy through at 2 ("2 Plaetze weiter rechts"),
-  // and Fantasy Flight's own announcement describes Oligarchy the same way for an
-  // economy card. Two governments, two card types, the same number — with one
-  // government per card type the set is symmetrical, so all six are 2 here.
-  // Noted in RULES-COVERAGE.md as reasoned rather than read off the markers.
+  // right, and the marker prints that number as arrows beside its focus icon.
+  // These were all 2 on the reasoning that the set ought to be symmetrical;
+  // the markers in assets/tts-web/tokens/gov* say otherwise. Four of them
+  // print two arrows, but Communism and Democracy print one — the two whose
+  // focus types are the strongest to shift, which is why they are cheaper.
   const GOVERNMENTS = {
     culture:  { name: "Republic",  shift: 2 },
     growth:   { name: "Monarchy",  shift: 2 },
-    science:  { name: "Democracy", shift: 2 },
+    science:  { name: "Democracy", shift: 1 },
     economy:  { name: "Oligarchy", shift: 2 },
     military: { name: "Autocracy", shift: 2 },
-    industry: { name: "Communism", shift: 2 }
+    industry: { name: "Communism", shift: 1 }
   };
 
   // A victory card is divided into TWO agendas and you complete either one to

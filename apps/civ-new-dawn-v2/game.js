@@ -1337,6 +1337,13 @@ const Game = (() => {
       if (!unit.position && !launchSpaces(st, player.id).has(from)) return st;
       const reachable = getReachable(st, from, getMilitaryMove(player, st), "army", payload.playerId);
       if (!reachable.has(payload.toKey) && from !== payload.toKey) return st;
+      // A Non-Aggression Pact stops the attack before it starts: "You cannot
+      // attack or destroy the pieces of the player who gave you this card."
+      const holds = hexOwnerAt(st, payload.toKey);
+      if (nonAggressionWith(st, payload.playerId, holds)) {
+        log(st, `${player.name} cannot attack ${getPlayer(st, holds).name} — a non-aggression pact stands between them.`);
+        return st;
+      }
 
       // Nothing is rolled yet. The dice are thrown when somebody throws them,
       // and only then does the bidding start — the attacker spending everything
@@ -2965,15 +2972,23 @@ const Game = (() => {
 
   function isCityDeveloped(st, hex) {
     if (!hex.city) return false;
+    const ownerId = hex.city.ownerId;
     // Sydney Opera House: rival control tokens also count toward maturity.
-    const anyControlCounts = hasWonder(st, hex.city.ownerId, "Sydney Opera House");
+    const anyControlCounts = hasWonder(st, ownerId, "Sydney Opera House");
     return hexNeighborKeys(hex.q, hex.r).every((nk) => {
       const n = st.map.hexes[nk];
       if (!n) return true;
       if (!n.active) return true;
       if (n.terrain === "water") return true;
-      if (n.control && n.control.ownerId === hex.city.ownerId) return true;
+      if (n.control && n.control.ownerId === ownerId) return true;
       if (anyControlCounts && n.control) return true;
+      // Open Borders: "The cities and control tokens of the player who gave you
+      // this card are friendly to you for the purposes of your districts'
+      // effects and your cities' maturity." The districts in this game key off
+      // terrain and mature cities rather than off whose token is next door, so
+      // maturity is where the card actually bites.
+      if (n.control && openBordersWith(st, ownerId, n.control.ownerId)) return true;
+      if (n.city && openBordersWith(st, ownerId, n.city.ownerId)) return true;
       return false;
     });
   }
@@ -3675,6 +3690,51 @@ const Game = (() => {
 
   // Leader combat bonus for an attack into toKey (shown in the combat preview
   // and applied by the engine so both always agree).
+  // Diplomacy cards you hold from a rival. You get nothing from your own
+  // (base p13), which falls out for free: a card is only in your hand because
+  // somebody else gave it to you.
+  function heldDiplomacy(player, cardId) {
+    return (player && player.diplomacy || []).filter((d) => d.cardId === cardId);
+  }
+
+  // Joint War: "+2 when attacking unless you are attacking the player who gave
+  // you this card." Two Joint Wars from two rivals both apply when you attack
+  // a third, which is what the printed cards say and what makes them worth
+  // collecting.
+  function getDiplomacyAttackBonus(st, playerId, toKey) {
+    const player = getPlayer(st, playerId);
+    if (!player || !toKey) return 0;
+    const against = hexOwnerAt(st, toKey);
+    return heldDiplomacy(player, "joint_war")
+      .filter((d) => !against || d.fromId !== against).length * 2;
+  }
+
+  // Defensive Pact, from the defender's side: "+2 when defending unless the
+  // player who gave you this card is attacking."
+  function getDiplomacyDefenseBonus(st, defenderId, attackerId) {
+    const player = getPlayer(st, defenderId);
+    if (!player) return 0;
+    return heldDiplomacy(player, "defensive_pact")
+      .filter((d) => d.fromId !== attackerId).length * 2;
+  }
+
+  // Non-Aggression Pact: "You cannot attack or destroy the pieces of the player
+  // who gave you this card."
+  function nonAggressionWith(st, playerId, otherId) {
+    const player = getPlayer(st, playerId);
+    if (!player || !otherId || playerId === otherId) return false;
+    return heldDiplomacy(player, "non_aggression").some((d) => d.fromId === otherId);
+  }
+
+  // Open Borders: "The cities and control tokens of the player who gave you
+  // this card are friendly to you for the purposes of your districts' effects
+  // and your cities' maturity."
+  function openBordersWith(st, playerId, otherId) {
+    const player = getPlayer(st, playerId);
+    if (!player || !otherId || playerId === otherId) return false;
+    return heldDiplomacy(player, "open_borders").some((d) => d.fromId === otherId);
+  }
+
   function getLeaderAttackBonus(st, playerId, toKey) {
     const player = getPlayer(st, playerId);
     if (!player || !toKey) return 0;
@@ -3686,6 +3746,8 @@ const Game = (() => {
     if (hasLeader(player, "ottoman") && st.ibrahimHolder && hexOwnerAt(st, toKey) === st.ibrahimHolder) bonus += 2;
     // World wonders the attacker controls.
     bonus += getWonderAttackBonus(st, playerId, toKey);
+    // Joint War pacts held against anyone but the defender.
+    bonus += getDiplomacyAttackBonus(st, playerId, toKey);
     return bonus;
   }
 
@@ -3934,6 +3996,7 @@ const Game = (() => {
       push("friendly army in the space", escortBonus(ownerId, defendingUnitId));
       push("leader", defenderLeaderBonus(ownerId));
       push("wonder", getWonderDefenseBonus(st, ownerId, hexKey));
+      push("defensive pact", getDiplomacyDefenseBonus(st, ownerId, attackerId));
       return list;
     };
     if (h.control && h.control.ownerId !== attackerId) {
@@ -4240,6 +4303,8 @@ const Game = (() => {
     TILE_OFFSETS, getCoreAnchors,
     createState, createLobbyState, createPlayer, migrateState, applyAction, currentPlayer, getPlayer,
     SEAT_COLORS, seatColor,
+    getDiplomacyAttackBonus, getDiplomacyDefenseBonus, nonAggressionWith, openBordersWith,
+    isCityDeveloped,
     getSlotValue, getSlotIndex, getCardTier, getCardTierValue: getCardTier,
     getMilitaryMove, getEconomyMove, getCultureMarkers, getMilitaryCombatBonus,
     getCityRange, getWonderCost, getWonderToken, getVisibleWonders,
