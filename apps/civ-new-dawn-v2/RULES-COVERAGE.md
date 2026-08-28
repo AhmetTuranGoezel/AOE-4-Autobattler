@@ -306,9 +306,29 @@ certainty than there is.
 **The board wears the printed faces.** Every placed tile is drawn as its own
 photograph, fitted to its ten hexes with an affine solve over the ten cell
 centres — exact, and a reflection rather than a rotation for a B face, which is
-why it is solved rather than assumed. The picture and the terrain underneath are
-two readings of the same artwork, so they cannot drift apart. If an image is
-missing the drawn terrain shows through instead, unchanged.
+why it is solved rather than assumed. If an image is missing the drawn terrain
+shows through instead, unchanged.
+
+This used to claim the picture and the terrain "cannot drift apart", because
+both come off the same artwork. That was wrong, and it hid two real bugs. The
+*geometry* cannot drift — cell 6 of the photograph is always drawn on the hex
+holding cell 6 of the data. What the data says that cell **is** was read by eye,
+and an eye reading 420 hexes misses some. When it does, the space shows the
+right picture and plays by the wrong rule, which is worse than an obvious
+error: printed 9A cell 9 is a bay read as "hill", so control tokens could be
+placed on open water, and printed 11A cell 8 is grass read as "hill", so a
+growth card resolving from a grass slot refused a space printed for it. Both
+were reported from the table, not caught here.
+
+`tools/audit-tile-terrain.py` now measures every cell against its own
+photograph. Water is unambiguous in the pixels — the only blue-dominant
+surface on these tiles — so a water/land disagreement is a hard error. The land
+types are a green-olive-grey continuum that genuinely overlaps, so those are
+reported for a person to look at rather than decided by the tool. It currently
+flags **23 land cells** worth a second look; those have not been changed,
+because a colour average is not better evidence than a careful look at the
+crop, and re-transcribing on a heuristic would trade known errors for unknown
+ones.
 
 Clicking any space opens that tile: which printed tile it is, both of its faces,
 which is up, and every space on it with its terrain and what is standing there.
@@ -456,6 +476,13 @@ Stated plainly, because it would otherwise look authentic:
   wonder tiles with one wonder per face, 6 city-state tiles with one per face,
   and every city-state name resolving to a card in `CITY_STATES`. Those counts
   come from the mod's own tile metadata, not from my reading, and they agree.
+
+  Those checks are all structural, though — they confirm the right *number* of
+  the right *kinds* of thing, and none of them looks at what terrain a given
+  space actually is. Two spaces were read wrong and both shipped (see "The
+  board wears the printed faces" above). `tools/audit-tile-terrain.py` covers
+  the gap those checks left: it is the only thing here that compares a cell's
+  claimed terrain against its own pixels.
 
   Sampling geometry, for anyone checking the work: each extracted face is
   635×990 with a hex circumradius of 127 and columns at x = 127 / 317.5 / 508.

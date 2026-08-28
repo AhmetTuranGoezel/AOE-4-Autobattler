@@ -50,6 +50,19 @@
       assert("21 physical tile entries", data.TILES.length === 21);
       assert("every tile has two 10-cell sides", data.TILES.every((t) => t.sides && t.sides.A.cells.length === 10 && t.sides.B.cells.length === 10));
       assert("five capital tiles", data.TILES.filter((t) => t.kind === "capital").length === 5);
+      // Two cells were transcribed wrong off the printed faces and both reached
+      // the table as bugs: 9A cell 9 is the bay next to the capital, read as
+      // "hill", so control tokens and districts could be placed on open water;
+      // 11A cell 8 is grass beside the capital, read as "hill", so a growth
+      // card resolving from a grass slot refused a space that is printed for
+      // it. tools/audit-tile-terrain.py measures every cell against its
+      // photograph and is what should catch the next one — these two are
+      // pinned here so a re-transcription cannot quietly put them back.
+      const cellTerrain = (id, side, i) =>
+        (data.TILES.find((t) => t.id === id) || { sides: { A: { cells: [] }, B: { cells: [] } } })
+          .sides[side].cells[i].terrain;
+      assert("printed 9A cell 9 is the bay, not a hill", cellTerrain("02", "A", 9) === "water");
+      assert("printed 11A cell 8 is grass, not a hill", cellTerrain("03", "A", 8) === "grass");
       // The whole printed wonder deck is in the data. Terra p6 step 7b takes
       // cards out at setup, at random, not by name — makeWonderDecks does it.
       assert("all 36 printed wonders in the decks",

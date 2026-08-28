@@ -50,14 +50,23 @@
       { 0: { resource: "marble" }, 6: { feature: "capital" } },
       { 1: { resource: "diamonds" }, 6: { feature: "capital" } }),
     // Printed tile 9
+    // Cell 9 read as "hill" on the first pass and is water: the bay in cell 7
+    // continues into it, and it measures (79,115,99) against (112,107,47) for
+    // this tile's actual hills. It sits next to the capital, so the miss let
+    // control tokens and districts be placed out to sea.
     tile("02", "capital",
-      ["mountain","hill","hill","grass","grass","grass","hill","water","hill","hill"],
+      ["mountain","hill","hill","grass","grass","grass","hill","water","hill","water"],
       ["forest","forest","grass","forest","grass","hill","hill","forest","hill","water"],
       { 0: { resource: "diamonds" }, 6: { feature: "capital" } },
       { 1: { resource: "oil" }, 6: { feature: "capital" } }),
     // Printed tile 11
+    // Cell 8 read as "hill" and is grass: it measures (144,153,53), greener
+    // than this tile's own capital grass at (135,147,57), where its hills are
+    // olive and red-dominant at (118,115,49). It borders the capital, so the
+    // miss put a difficulty-2 space where a difficulty-1 one is printed and
+    // blocked growth cards resolving from a grass slot.
     tile("03", "capital",
-      ["forest","hill","hill","mountain","forest","forest","grass","mountain","hill","hill"],
+      ["forest","hill","hill","mountain","forest","forest","grass","mountain","grass","hill"],
       ["grass","desert","grass","hill","grass","mountain","grass","hill","hill","water"],
       { 0: { barbarian: "G" }, 3: { resource: "diamonds" }, 6: { feature: "capital" } },
       { 4: { resource: "mercury" }, 6: { feature: "capital" } }),
