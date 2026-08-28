@@ -123,6 +123,7 @@ const slug = (s) => s.toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g, "-")
     /^tokens\/mercury__/.test(manifest.resource.mercury || ""));
   check("every focus bar colour has art", manifest.colors.every((c) => manifest.focusBar[c]));
   check("every seat colour has a tech dial", manifest.colors.every((c) => manifest.dial[c]));
+  check("the printed event dial has art", !!manifest.eventDial);
 }
 
 // --- the barbarian letters actually printed on the tiles ------------------

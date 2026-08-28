@@ -600,6 +600,15 @@ def main():
         "barbDirection": barb_direction,
         "fort": hexify(cutout((listing("tokens", r"^fort") or [None])[0])),
         "eventTracker": (listing("tokens", r"^event-tracker") or [None])[0],
+        # The printed event dial itself (Terra p6): six wedges, none blank, two
+        # carrying a second icon. Filed under the generic "asset" role with no
+        # name of its own, so it is matched by its one fixed UGC id rather than
+        # a pattern that would also catch the "asset"-named TTS button labels
+        # (Draw Map Tile, Play, Build Wonder, ...) sitting in the same folder.
+        # The wedge with the star (space 1, where the pointer starts) sits at
+        # the photo's own 11 o'clock; the ring draws space 1 at 12, so the
+        # renderer turns this image 30 degrees to match — see style.css .ew-photo.
+        "eventDial": (listing("other-images", r"^asset__image-face__ugc-1658972912263484170") or [None])[0],
         "boards": listing("boards"),
     }
 

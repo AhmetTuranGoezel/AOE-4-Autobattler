@@ -156,6 +156,7 @@ const CivCardArt = (() => {
     focusBar: focusBarUrl,
     fort: () => at(DATA && DATA.fort),
     eventTracker: () => at(DATA && DATA.eventTracker),
+    eventDial: () => at(DATA && DATA.eventDial),
     barbDirection: () => at(DATA && DATA.barbDirection),
     board: (i) => at(((DATA && DATA.boards) || [])[i || 0]),
     ibrahim: () => at(DATA && DATA.ibrahim),

@@ -4056,9 +4056,11 @@ const UI = (() => {
     // Build the dial once and move its parts thereafter.
     const shape = JSON.stringify(wheel.events);
     if (dom.eventWheel.dataset.shape !== shape) {
+      const photo = window.CivCardArt ? CivCardArt.eventDial() : "";
       dom.eventWheel.innerHTML = `<h3>Event Dial</h3>
         <div class="ew-dial">
-          <div class="ew-ring">${segs}</div>
+          ${photo ? `<div class="ew-photo" style="background-image:url('${photo}')"></div>` : ""}
+          <div class="ew-ring ${photo ? "has-photo" : "no-photo"}">${segs}</div>
           <div class="ew-hand"></div>
           <div class="ew-hub"></div>
         </div>
