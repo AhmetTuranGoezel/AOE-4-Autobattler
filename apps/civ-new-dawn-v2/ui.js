@@ -2600,7 +2600,9 @@ const UI = (() => {
         }});
       } else {
         dispatch({ type: "PLAY_MILITARY_MOVE", payload: {
-          playerId: localPlayerId, unitId: ms.unitId, toKey: ms.currentKey, tradeSpent: sub.tradeSpent
+          playerId: localPlayerId, unitId: ms.unitId, toKey: ms.currentKey,
+          // An army that started on its card needs to say which city it left.
+          startKey: ms.startKey, tradeSpent: sub.tradeSpent
         }});
       }
     } else {
@@ -3179,7 +3181,7 @@ const UI = (() => {
     if (sub.cardType === "economy") {
       sub.phase = "move_caravan"; sub.selectedUnit = null;
       // Highlight pickable caravans; Trajan may also launch from any friendly city.
-      const starts = new Set(me.caravans.filter((u) => u.position).map((u) => u.position));
+      const starts = Game.unitStartSpaces(state, me, "caravan");
       if (Game.getLeader(me) && me.leaderId === "rome" && me.caravans.some((u) => u.position)) {
         Object.entries(state.map.hexes).forEach(([k, h]) => {
           if (h.city && h.city.ownerId === localPlayerId) starts.add(k);
@@ -3189,7 +3191,9 @@ const UI = (() => {
     }
     if (sub.cardType === "military") {
       sub.phase = "move_army"; sub.selectedUnit = null;
-      sub.validHexes = new Set(me.armies.filter((u) => u.position).map((u) => u.position));
+      // Armies still on the military card march out of your capital or a mature
+      // city (Terra p10), so those spaces are pickable too.
+      sub.validHexes = Game.unitStartSpaces(state, me, "army");
       render(); return;
     }
     if (sub.cardType === "industry") { sub.phase = "industry_choice"; sub.spentResources = {}; renderWizard(); return; }
@@ -3399,8 +3403,9 @@ const UI = (() => {
         if (!unit && myCity) {
           // A caravan resting on the economy card sets out from a city. Rome may
           // use any of theirs; everyone else launches from the capital.
+          // Base p8: out of the capital or a MATURE city. Rome may use any.
           const onCard = me.caravans.find((u) => !u.position && free(u));
-          if (onCard && (me.leaderId === "rome" || h.city.isCapital)) {
+          if (onCard && (me.leaderId === "rome" || h.city.isCapital || h.city.developed)) {
             unit = onCard;
             romeStart = hexKey;
           }
@@ -3435,7 +3440,17 @@ const UI = (() => {
     }
     if (sub.phase === "move_army") {
       if (!sub.selectedUnit) {
-        const unit = me.armies.find((u) => u.position === hexKey && !u.movedThisCard);
+        const free = (u) => !u.movedThisCard;
+        let unit = me.armies.find((u) => u.position === hexKey && free(u));
+        let launched = null;
+        const ah = state.map.hexes[hexKey];
+        if (!unit && ah && ah.city && ah.city.ownerId === localPlayerId &&
+            (ah.city.isCapital || ah.city.developed)) {
+          // Terra p10: an army on the military card marches out of your capital
+          // or a mature city as though it were already standing there.
+          const onCard = me.armies.find((u) => !u.position && free(u));
+          if (onCard) { unit = onCard; launched = hexKey; }
+        }
         if (!unit) return;
         sub.selectedUnit = unit;
         const maxMove = Game.getMilitaryMove(me);

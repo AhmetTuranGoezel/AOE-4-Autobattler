@@ -370,14 +370,19 @@
         // Army and caravan counts come off the military and economy cards.
         const st = rulesState();
         const me = st.players[0];
-        // Figures live on the cards until a capital exists to enter at.
+        // A figure you have not deployed stands on its card, not on the board.
         activate(st, "0,0", { city: { ownerId: me.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
         Game.syncUnitCounts(st, me);
         const wantArmies = Game.CARD_TIERS.military.armies[Game.getCardTier(me, "military") - 1];
         assert("armies match the military card tier", me.armies.length === wantArmies);
         assert("caravans match the economy card tier",
           me.caravans.length === Game.CARD_TIERS.economy.wagons[Game.getCardTier(me, "economy") - 1]);
-        assert("new figures enter at the capital", me.armies.every((u) => u.position === "0,0"));
+        // Base p4 starts each player with a caravan on the Foreign Trade card
+        // and puts no army on the map at all. It is not just bookkeeping: a
+        // figure standing in a space adds 2 to its defence (Terra p16), so
+        // parking new figures on the capital quietly fortified it.
+        assert("new figures start on their cards", me.armies.every((u) => u.position === null));
+        assert("and so do the caravans", me.caravans.every((u) => u.position === null));
         me.cardTiers.military = 2;
         Game.syncUnitCounts(st, me);
         assert("upgrading the military card adds its army",
