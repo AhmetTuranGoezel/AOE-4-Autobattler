@@ -540,12 +540,14 @@ const UI = (() => {
             // is the only help there is, and you have to go looking for it.
             if (mouseHex) {
               const anchorKey = Game.key(mouseHex.q, mouseHex.r);
-              const fit = Game.tilePlacementFor(state, tileId, anchorKey, sub.tileRotation);
-              const rot = fit ? fit.rotation : sub.tileRotation;
-              const keys = Game.getTileHexKeys(anchorKey, rot, hexes);
+              // The angle you set is the angle you see. This used to ask
+              // tilePlacementFor, which searches all six and hands back the
+              // first that fits — so the tile turned itself under the cursor
+              // and you laid down something other than what was on screen.
+              const keys = Game.getTileHexKeys(anchorKey, sub.tileRotation, hexes);
               if (keys.length === Game.TILE_OFFSETS.length) {
                 ghostKeys = new Set(keys);
-                ghostValid = !!fit;
+                ghostValid = Game.validateTilePlacement(state, tileId, anchorKey, sub.tileRotation).ok;
               }
             }
           }
@@ -558,11 +560,16 @@ const UI = (() => {
         mouseHex && state.tileStack && state.tileStack.length > 0) {
       const tileId = exploringTileId();
       const anchorKey = Game.key(mouseHex.q, mouseHex.r);
-      const fit = Game.tilePlacementFor(state, tileId, anchorKey, sub.tileRotation, Game.validateExploration);
-      const keys = Game.getTileHexKeys(anchorKey, fit ? fit.rotation : sub.tileRotation, hexes);
+      const keys = Game.getTileHexKeys(anchorKey, sub.tileRotation, hexes);
       if (keys.length === Game.TILE_OFFSETS.length) {
         ghostKeys = new Set(keys);
-        ghostValid = !!fit;
+        // Terra p12: the new land has to touch four spaces already on the map,
+        // including the one you are exploring from — so the ghost is only
+        // green when this angle manages both.
+        const originKey = exploreOrigin();
+        ghostValid = Game.validateExploration(state, tileId, anchorKey, sub.tileRotation).ok &&
+          (!originKey || keys.some((ck) =>
+            Game.hexNeighborKeys(Game.parseQ(ck), Game.parseR(ck)).includes(originKey)));
       }
     }
 
@@ -855,6 +862,94 @@ const UI = (() => {
     });
   }
 
+  // The photograph of the face being held, laid over the spaces it would cover.
+  // This is the same fit drawTileArt uses for a placed tile — the ghost and the
+  // board are then literally the same picture, so what you see under the cursor
+  // is what ends up on the table.
+  function drawGhostPhoto(ghostKeyArr, tileId, valid) {
+    if (!tileArt || !window.CivTileArt || !tileId) return false;
+    if (ghostKeyArr.length !== Game.TILE_OFFSETS.length) return false;
+    const side = sub.tileSide === "B" ? "B" : "A";
+    const img = CivTileArt.tileImage(tileId, side, () => { renderCanvas(); });
+    if (!img || !img.complete || !img.naturalWidth) return false;
+
+    const pts = CivTileArt.cellPoints(side);
+    const src = [], dst = [];
+    ghostKeyArr.forEach((k, idx) => {
+      const h = state.map.hexes[k];
+      if (!h) return;
+      const p = axialToPixel(h.q, h.r);
+      src.push(pts[idx]);
+      dst.push([p.x, p.y]);
+    });
+    if (src.length !== Game.TILE_OFFSETS.length) return false;
+    const m = fitAffine(src, dst);
+    if (!m) return false;
+
+    ctx.save();
+    ctx.beginPath();
+    ghostKeyArr.forEach((k) => {
+      const h = state.map.hexes[k];
+      if (!h) return;
+      const p = axialToPixel(h.q, h.r);
+      hexSubPath(p.x, p.y, HEX_SIZE + 0.6);
+    });
+    ctx.clip();
+    ctx.globalAlpha = valid ? 0.82 : 0.5;
+    ctx.setTransform(m.a, m.b, m.c, m.d, m.e, m.f);
+    ctx.drawImage(img, 0, 0);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.restore();
+    return true;
+  }
+
+  // What is printed on one space of the tile you are holding: the capital star,
+  // a natural wonder, a city-state, a barbarian, a resource. Same token art as
+  // the board, so nothing has to be decoded from a letter.
+  function drawGhostCellMarks(cx, cy, cell, hexKey) {
+    const s = HEX_SIZE / 30;
+    const art = pieceArt && !!window.CivCardArt && HEX_SIZE >= 22;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    if (cell.feature === "capital") {
+      ctx.font = `bold ${Math.round(16 * s)}px sans-serif`;
+      ctx.fillStyle = "#ffd54f";
+      ctx.strokeStyle = "rgba(0,0,0,0.85)";
+      ctx.lineWidth = 2.4 * s;
+      ctx.strokeText("\u2605", cx, cy);
+      ctx.fillText("\u2605", cx, cy);
+      return;
+    }
+    if (cell.cityState) {
+      if (art && drawToken(CivCardArt.cityStateToken(cell.cityState), cx, cy, HEX_TOKEN)) return;
+      ctx.font = `bold ${Math.round(6.5 * s)}px sans-serif`;
+      ctx.fillStyle = "#fff";
+      ctx.fillText(cell.cityState.slice(0, 3).toUpperCase(), cx, cy);
+      return;
+    }
+    if (cell.naturalWonder) {
+      if (art && drawToken(CivCardArt.naturalWonder(cell.naturalWonder), cx, cy, 0.56)) return;
+      ctx.font = `bold ${Math.round(12 * s)}px sans-serif`;
+      ctx.fillStyle = "#e1bee7";
+      ctx.fillText("\u2726", cx, cy);
+      return;
+    }
+    if (cell.barbarian) {
+      if (art && drawToken(CivCardArt.barbarianForSpace(cell.barbarian, hexKey), cx, cy, 0.38)) return;
+      ctx.font = `bold ${Math.round(10 * s)}px sans-serif`;
+      ctx.fillStyle = "#ffb4a9";
+      ctx.fillText(String(cell.barbarian), cx, cy);
+      return;
+    }
+    if (cell.resource) {
+      if (art && drawToken(CivCardArt.resource(cell.resource), cx, cy, 0.3)) return;
+      ctx.font = `bold ${Math.round(9 * s)}px sans-serif`;
+      ctx.fillStyle = "#ffe082";
+      ctx.fillText("\u25c6", cx, cy);
+    }
+  }
+
   function drawGhostTile(ghostKeys, valid) {
     const hexes = state.map.hexes;
     const fillColor = valid ? "rgba(102,187,106,0.25)" : "rgba(239,83,80,0.2)";
@@ -874,42 +969,35 @@ const UI = (() => {
     const ghostKeyArr = mouseHex ? Game.getTileHexKeys(
       Game.key(mouseHex.q, mouseHex.r), sub.tileRotation, hexes
     ) : [];
-    const isCapitalTile = tile && tile.type === "capital";
-    const capitalGhostKey = isCapitalTile ? ghostKeyArr[6] : null;
-    const anchorKey = mouseHex ? Game.key(mouseHex.q, mouseHex.r) : null;
 
-    const CAP_TERRAIN_COLORS = [
-      "#8b7355", "#4a7c3f", "#2d5a27", "#8b7355",
-      "#2d5a27", "#4a7c3f", "#4a7c3f", "#c4a35a",
-      "#8b7355", "#4a7c3f"
-    ];
-    const GENERIC_TERRAIN = [
-      "#4a7c3f", "#2d5a27", "#8b7355", "#4a7c3f",
-      "#c4a35a", "#4a7c3f", "#8b7355", "#2d5a27",
-      "#4a7c3f", "#8b7355"
-    ];
+    // The face you are actually holding. This used to paint from two lists of
+    // colours typed into this function, the same ten for every tile — so you
+    // could not see what was on the land, and turning it over changed nothing
+    // on screen because the side never reached the drawing at all.
+    const def = tileId && Game.getTileDef ? Game.getTileDef(tileId) : null;
+    const face = def && def.sides ? (def.sides[sub.tileSide] || def.sides.A) : null;
+    const faceCells = face ? face.cells : null;
+    const photoDrawn = drawGhostPhoto(ghostKeyArr, tileId, valid);
 
     ghostKeys.forEach((k) => {
       const h = hexes[k];
       if (!h) return;
       const p = axialToPixel(h.q, h.r);
+      const idx = ghostKeyArr.indexOf(k);
+      const cell = faceCells && idx >= 0 ? faceCells[idx] : null;
       hexPath(p.x, p.y, HEX_SIZE);
 
       if (h.active) {
+        // Occupied ground: this is why it will not go here.
         ctx.fillStyle = "rgba(239,83,80,0.35)";
         ctx.fill();
-      } else if (tile) {
-        const idx = ghostKeyArr.indexOf(k);
-        if (isCapitalTile) {
-          ctx.fillStyle = idx >= 0 ? CAP_TERRAIN_COLORS[idx] : fillColor;
-        } else if (tile.type === "natural" && k === anchorKey) {
-          ctx.fillStyle = "#9c27b0";
-        } else if (tile.type === "citystate" && k === anchorKey) {
-          ctx.fillStyle = "#ff9800";
-        } else {
-          ctx.fillStyle = idx >= 0 ? GENERIC_TERRAIN[idx] : fillColor;
-        }
-        ctx.globalAlpha = valid ? 0.7 : 0.4;
+      } else if (photoDrawn) {
+        // The photograph is already down; only tint it for legal or not.
+        ctx.fillStyle = valid ? "rgba(102,187,106,0.12)" : "rgba(239,83,80,0.3)";
+        ctx.fill();
+      } else if (cell) {
+        ctx.fillStyle = TERRAIN_COLORS[cell.terrain] || fillColor;
+        ctx.globalAlpha = valid ? 0.75 : 0.4;
         ctx.fill();
         ctx.globalAlpha = 1.0;
       } else {
@@ -917,20 +1005,13 @@ const UI = (() => {
         ctx.fill();
       }
 
-      if (!tile) return;
-      ctx.fillStyle = "#fff";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      if (k === capitalGhostKey) {
-        ctx.font = "bold 10px sans-serif";
-        ctx.fillText("★ CAP", p.x, p.y);
-      } else if (k === anchorKey && tile.type === "natural") {
-        ctx.font = "bold 10px sans-serif";
-        ctx.fillText("★ WND", p.x, p.y);
-      } else if (k === anchorKey && tile.type === "citystate") {
-        ctx.font = "bold 9px sans-serif";
-        ctx.fillText("⬟ CS", p.x, p.y);
-      }
+      // What is printed on that space, drawn with the same tokens the board
+      // uses, so the ghost and the placed tile are the same picture.
+      if (!cell) return;
+      ctx.save();
+      ctx.globalAlpha = valid ? 0.95 : 0.55;
+      drawGhostCellMarks(p.x, p.y, cell, k);
+      ctx.restore();
     });
 
     // Ghost outline
@@ -1019,6 +1100,12 @@ const UI = (() => {
   // the board redraws when it arrives, so a slow first paint costs a frame,
   // not a missing piece. A failed load is remembered as null so a broken path
   // costs one request rather than one per frame.
+  // A pointy-top hex of circumradius r is r*sqrt(3) across, and drawToken sizes
+  // by width as a fraction of 2r — so this is the fraction at which a hex token
+  // covers its space exactly, which is how fortresses, districts and
+  // city-states sit on the physical board.
+  const HEX_TOKEN = Math.sqrt(3) / 2;
+
   const tokenImages = new Map();
   function tokenImage(url) {
     if (!url) return null;
@@ -1110,7 +1197,7 @@ const UI = (() => {
         ctx.fillText("♦", cx + w / 2 + 3 * s, cy - 2 * s);
       }
     } else if (h.cityState) {
-      if (art && drawToken(CivCardArt.cityStateToken(h.cityState.name), cx, cy, 0.86, { shadow: true })) {
+      if (art && drawToken(CivCardArt.cityStateToken(h.cityState.name), cx, cy, HEX_TOKEN, { shadow: true })) {
         // The printed token carries the name and the type badge already.
       } else {
       // neutral city-state: purple diamond with initials
@@ -1126,7 +1213,7 @@ const UI = (() => {
       }
     } else if (h.fortress) {
       const owner = h.fortressOwnerId ? Game.getPlayer(state, h.fortressOwnerId) : null;
-      if (art && drawToken(CivCardArt.fort(), cx, cy, 0.86, { shadow: true })) {
+      if (art && drawToken(CivCardArt.fort(), cx, cy, HEX_TOKEN, { shadow: true })) {
         // An uncontrolled fort is the printed hex alone; once somebody holds
         // it their colour goes round the outside, so you can see whose it is
         // without hunting for a legend.
@@ -1153,7 +1240,7 @@ const UI = (() => {
       const face = art && (h.control.district
         ? CivCardArt.district(color, h.control.district)
         : CivCardArt.control(color, h.control.fortified));
-      if (face && drawToken(face, cx, cy, h.control.district ? 0.8 : 0.6, { shadow: true })) {
+      if (face && drawToken(face, cx, cy, h.control.district ? HEX_TOKEN : 0.44, { shadow: true })) {
         // Nothing else to draw: the face says whose it is and what it is.
       } else if (h.control.district) {
         const w = 15 * s, hh = 11 * s;
@@ -1178,7 +1265,7 @@ const UI = (() => {
       // Terra p6 step 4a: the token whose letter matches the space. A space
       // with no letter still has to look the same on every client, so the
       // token is picked from the space, never from a roll.
-      if (art && drawToken(CivCardArt.barbarianForSpace(h.barbarianId, k), cx, cy, 0.5, { shadow: true })) {
+      if (art && drawToken(CivCardArt.barbarianForSpace(h.barbarianId, k), cx, cy, 0.38, { shadow: true })) {
         // The printed helm and its letter are the whole marker.
       } else {
       const r = 7 * s;
@@ -1200,7 +1287,7 @@ const UI = (() => {
       const badge = art && (h.naturalWonder
         ? CivCardArt.naturalWonder(h.naturalWonder)
         : (h.resource && h.resource !== "wonder" ? CivCardArt.resource(h.resource) : ""));
-      if (badge && drawToken(badge, cx, cy - HEX_SIZE * 0.52, h.naturalWonder ? 0.62 : 0.34, { shadow: true })) {
+      if (badge && drawToken(badge, cx, cy - HEX_SIZE * 0.5, h.naturalWonder ? 0.56 : 0.3, { shadow: true })) {
         return drawUnits(cx, cy, k, s);
       }
       const resLabels = { marble: "MRB", mercury: "MRC", oil: "OIL", diamonds: "DIA", wonder: "NW" };
@@ -1329,19 +1416,20 @@ const UI = (() => {
     return state.setup.order[state.setup.turnIndex] === localPlayerId;
   }
 
-  // The little tile in the panel is the thing in your hand, so it should move
-  // when you spin it round or turn it over.
-  let pendingPreviewAnim = null;
+  // The tile in the panel is the thing in your hand, so it should move when you
+  // spin it round or turn it over. The card redraws at the new angle and side,
+  // and so does the ghost on the board — they read the same two variables.
+  let pendingCardMove = null;
 
   function turnTile(step) {
     sub.tileRotation = (sub.tileRotation + step + 6) % 6;
-    if (!reducedMotion()) pendingPreviewAnim = step > 0 ? "turn-cw" : "turn-ccw";
+    if (!reducedMotion()) pendingCardMove = step > 0 ? "turn-cw" : "turn-ccw";
     render();
   }
 
   function flipTile() {
     sub.tileSide = sub.tileSide === "A" ? "B" : "A";
-    if (!reducedMotion()) pendingPreviewAnim = "flip";
+    if (!reducedMotion()) pendingCardMove = "flip";
     render();
   }
 
@@ -2065,7 +2153,7 @@ const UI = (() => {
       dom.wizard.innerHTML = `
         <div class="wiz-title">${isCapitalPhase ? "Place Your Capital Tile" : `Place Tile: ${tileType} (${tileId})`}</div>
         <div class="wiz-body">
-          <div class="tile-preview">${renderTilePreview()}</div>
+          <div class="tile-preview">${renderTileCard(tileId)}</div>
           <div class="trade-counter">
             <span>Turn it:</span>
             <button id="rot-dec" class="sm">\u21ba</button>
@@ -2088,55 +2176,106 @@ const UI = (() => {
     }
   }
 
-  function renderTilePreview() {
-    const offsets = Game.TILE_OFFSETS.map((off) => Game.rotateAxial(off, sub.tileRotation));
-    const minQ = Math.min(...offsets.map((o) => o.q));
-    const minR = Math.min(...offsets.map((o) => o.r));
-    const cells = offsets.map((o, i) => ({ q: o.q - minQ, r: o.r - minR, idx: i }));
-    const s = 10;
-    const anim = pendingPreviewAnim ? ` tp-${pendingPreviewAnim}` : "";
-    pendingPreviewAnim = null;
-    let svg = `<svg class="tp-svg${anim}" width="130" height="75" viewBox="-5 -5 130 75">`;
+  // The tile in your hand, big enough to read.
+  //
+  // This replaced a 130x75 diagram at hex size 10 whose spaces were labelled
+  // "C", "W", "CS", a bare letter for a barbarian and a lozenge for a resource.
+  // You cannot plan a placement off that. It now draws the face at the side and
+  // angle you have it turned to — the same geometry the ghost uses on the board
+  // — with the real tokens on the spaces, and names everything underneath.
+  function renderTileCard(tileId) {
+    const def = tileId && Game.getTileDef ? Game.getTileDef(tileId) : null;
+    if (!def || !def.sides) return "";
+    const side = sub.tileSide === "B" ? "B" : "A";
+    const face = def.sides[side] || def.sides.A;
+    const cells = face.cells || [];
 
-    let tile = null;
-    if (state && state.phase === "setup") {
-      const playerTiles = state.setup.playerTiles[localPlayerId] || [];
-      tile = playerTiles[0] ? state.setup.tiles[playerTiles[0]] : null;
-    } else if (state && isExploring(sub.phase)) {
-      const tid = exploringTileId();
-      tile = tid ? state.tiles[tid] : null;
-    }
-    // Show the tile's real face, so turning it over actually looks like turning
-    // it over — the preview used to invent its own colours and both sides of
-    // every tile came out identical.
-    const def = tile && Game.getTileDef ? Game.getTileDef(tile.id) : null;
-    const face = def && def.sides ? (def.sides[sub.tileSide] || def.sides.A) : null;
-    const faceCells = face ? face.cells : null;
-    const tileType = tile ? tile.type : "normal";
+    const offs = Game.TILE_OFFSETS.map((o) => Game.rotateAxial(o, sub.tileRotation));
+    const pts = offs.map((o) => ({ x: Math.sqrt(3) * (o.q + o.r / 2), y: 1.5 * o.r }));
+    const minX = Math.min(...pts.map((p) => p.x)) - 1.08;
+    const minY = Math.min(...pts.map((p) => p.y)) - 1.08;
+    const w = Math.max(...pts.map((p) => p.x)) - minX + 1.08;
+    const h = Math.max(...pts.map((p) => p.y)) - minY + 1.08;
 
-    cells.forEach((c) => {
-      const cx = s * SQRT3 * (c.q + c.r / 2) + 5;
-      const cy = s * 1.5 * c.r + 15;
-      const pts = [];
-      for (let i = 0; i < 6; i++) {
-        const a = Math.PI / 180 * (60 * i - 30);
-        pts.push(`${cx + s * Math.cos(a)},${cy + s * Math.sin(a)}`);
+    const art = window.CivCardArt;
+    const body = pts.map((p, i) => {
+      const c = cells[i] || {};
+      const cx = p.x - minX, cy = p.y - minY;
+      const corners = [];
+      for (let a = 0; a < 6; a++) {
+        const ang = (Math.PI / 180) * (60 * a - 30);
+        corners.push(`${(cx + Math.cos(ang)).toFixed(3)},${(cy + Math.sin(ang)).toFixed(3)}`);
       }
-      const cell = faceCells ? faceCells[c.idx] : null;
-      let fill = TERRAIN_COLORS[cell ? cell.terrain : "grass"] || "#4a7c3f";
-      let label = "";
-      if (cell && cell.feature === "capital") { fill = "#ffd54f"; label = "C"; }
-      else if (cell && cell.naturalWonder) { fill = "#9c27b0"; label = "W"; }
-      else if (cell && cell.cityState) { fill = "#ff9800"; label = "CS"; }
-      else if (cell && cell.barbarian) { label = cell.barbarian; }
-      else if (cell && cell.resource) { label = "\u25c6"; }
-      svg += `<polygon points="${pts.join(" ")}" fill="${fill}" stroke="#fff3" stroke-width="0.5"/>`;
-      if (label) {
-        svg += `<text x="${cx}" y="${cy + 1}" fill="${label === "C" ? "#000" : "#fff"}" font-size="6" font-weight="bold" text-anchor="middle" dominant-baseline="middle">${label}</text>`;
+      let out = `<polygon points="${corners.join(" ")}" fill="${TERRAIN_COLORS[c.terrain] || "#555"}"
+        stroke="rgba(0,0,0,0.4)" stroke-width="0.05"/>`;
+      // The token that is printed on the space, at the size it sits there.
+      const put = (href, r) => `<image href="${href}" x="${(cx - r).toFixed(3)}" y="${(cy - r).toFixed(3)}"
+        width="${(r * 2).toFixed(3)}" height="${(r * 2).toFixed(3)}" preserveAspectRatio="xMidYMid meet"/>`;
+      if (c.feature === "capital") {
+        out += `<text x="${cx.toFixed(3)}" y="${(cy + 0.34).toFixed(3)}" font-size="1.1"
+          text-anchor="middle" fill="#ffd54f" stroke="rgba(0,0,0,0.85)" stroke-width="0.09"
+          paint-order="stroke">\u2605</text>`;
+      } else if (c.cityState && art && art.cityStateToken(c.cityState)) {
+        out += put(art.cityStateToken(c.cityState), 0.95);
+      } else if (c.naturalWonder && art && art.naturalWonder(c.naturalWonder)) {
+        out += put(art.naturalWonder(c.naturalWonder), 0.7);
+      } else if (c.barbarian && art && art.barbarianForSpace(c.barbarian, String(i))) {
+        out += put(art.barbarianForSpace(c.barbarian, String(i)), 0.48);
+      } else if (c.resource && art && art.resource(c.resource)) {
+        out += put(art.resource(c.resource), 0.4);
+      }
+      return out;
+    }).join("");
+
+    // Everything printed on this face, named, with the piece beside the name.
+    const rows = [];
+    const line = (href, label, note) => rows.push(`<li>${
+      href ? `<img class="tl-icon" src="${href}" alt="">` : `<span class="tl-icon"></span>`
+    }<span class="tl-name">${escapeHtml(label)}</span>${
+      note ? `<span class="tl-note">${escapeHtml(note)}</span>` : ""}</li>`);
+
+    if (cells.some((c) => c.feature === "capital")) line("", "Capital space", "where your first city goes");
+    cells.forEach((c) => {
+      if (c.cityState) {
+        const data = (Game.CITY_STATE_DATA || {})[c.cityState] || {};
+        line(art ? art.cityStateToken(c.cityState) : "", c.cityState,
+          data.type ? `${data.type} city-state` : "city-state");
       }
     });
-    svg += `</svg>`;
-    return svg;
+    cells.forEach((c) => {
+      if (c.naturalWonder) line(art ? art.naturalWonder(c.naturalWonder) : "", c.naturalWonder, "natural wonder");
+    });
+    const res = {};
+    cells.forEach((c) => { if (c.resource) res[c.resource] = (res[c.resource] || 0) + 1; });
+    Object.entries(res).forEach(([kind, n]) => {
+      line(art ? art.resource(kind) : "", kind, n > 1 ? `${n} spaces` : "1 space");
+    });
+    cells.forEach((c) => {
+      if (c.barbarian) line(art ? art.barbarianForSpace(c.barbarian, "0") : "",
+        `Barbarian ${c.barbarian}`, "starts here");
+    });
+    // Terrain is the thing you actually plan around, so it is always listed.
+    const terr = {};
+    cells.forEach((c) => { terr[c.terrain] = (terr[c.terrain] || 0) + 1; });
+    const terrText = Object.entries(terr)
+      .sort((a, b) => (Game.TERRAIN[a[0]] || 0) - (Game.TERRAIN[b[0]] || 0))
+      .map(([t, n]) => `${n}\u00d7 ${Game.TERRAIN_LABELS[t] || t} (${Game.TERRAIN[t]})`)
+      .join(", ");
+
+    const photo = window.CivTileArt ? CivTileArt.tileImagePath(tileId, side) : null;
+    const move = pendingCardMove ? ` tc-${pendingCardMove}` : "";
+    pendingCardMove = null;
+    return `<div class="tile-card${move}">
+      <div class="tc-top">
+        <svg class="tc-face" viewBox="0 0 ${w.toFixed(2)} ${h.toFixed(2)}"
+          role="img" aria-label="Tile ${escapeHtml(tileId)}, side ${side}, turned to ${sub.tileRotation + 1} of 6">${body}</svg>
+        ${photo ? `<img class="tc-photo" src="${photo}" alt="Printed tile, side ${side}"
+          onerror="this.remove()">` : ""}
+      </div>
+      <div class="tc-side">Side ${side} \u00b7 turned ${sub.tileRotation + 1}/6</div>
+      ${rows.length ? `<ul class="tc-list">${rows.join("")}</ul>` : ""}
+      <div class="tc-terrain">${escapeHtml(terrText)}</div>
+    </div>`;
   }
 
   // A pending choice that wants a space rather than an option. The map, the
@@ -2785,16 +2924,13 @@ const UI = (() => {
     dom.wizard.innerHTML = `
       <div class="wiz-title">Exploring: ${expType} Tile</div>
       <div class="wiz-body">
-        <div class="tile-preview">${renderTilePreview()}</div>
+        <div class="tile-preview">${renderTileCard(expTileId)}</div>
         <div class="trade-counter">
-          <span>Rotation:</span>
-          <button id="rot-dec" class="sm">Q</button>
+          <span>Turn it:</span>
+          <button id="rot-dec" class="sm">\u21ba</button>
           <span class="tc-val">${sub.tileRotation + 1}/6</span>
-          <button id="rot-inc" class="sm">E</button>
-        </div>
-        <div class="trade-counter">
-          <span>Side:</span>
-          <button id="side-toggle" class="sm">${sub.tileSide}</button>
+          <button id="rot-inc" class="sm">\u21bb</button>
+          <button id="side-toggle" class="sm">Side ${sub.tileSide}</button>
         </div>
         <br>Place the tile touching ${sub.phase === "free_exploring" ? "the space you chose" : "your unit's hex"}.<br>
         <strong style="color:#66bb6a">Green</strong> = valid, <strong style="color:#ef5350">Red</strong> = invalid.
@@ -3250,63 +3386,6 @@ const UI = (() => {
   // Everything about the tile a space belongs to: which physical tile it is,
   // which side is up, what is printed on it, and — where somebody has run the
   // extractor — a photograph of the real thing.
-  function renderTileRef(tileId) {
-    const tile = (state.tiles && state.tiles[tileId]) ||
-      (state.setup && state.setup.tiles && state.setup.tiles[tileId]);
-    const def = Game.getTileDef(tileId);
-    const side = tile ? (tile.side || "A") : "A";
-    const facts = window.CivTileArt ? CivTileArt.tileFacts(tileId) : null;
-    const cells = Object.entries(state.map.hexes)
-      .filter(([, h]) => h.tileId === tileId)
-      .sort((a, b) => (a[1].tileCell || 0) - (b[1].tileCell || 0));
-
-    const feature = (h) => {
-      const bits = [];
-      if (h.city) bits.push(h.city.isCapital ? "capital" : "city");
-      if (h.cityState) bits.push(h.cityState.name);
-      if (h.naturalWonder) bits.push(h.naturalWonder);
-      else if (h.resource) bits.push(h.resource);
-      if (h.fortress) bits.push("fort");
-      if (h.barbarian) bits.push("barbarian");
-      if (h.control) bits.push(h.control.district || "control");
-      return bits.join(", ");
-    };
-
-    const rows = cells.map(([k, h]) => `<tr>
-      <td>${h.tileCell + 1}</td>
-      <td>${escapeHtml(Game.TERRAIN_LABELS[h.terrain] || h.terrain)}</td>
-      <td>${Game.TERRAIN[h.terrain]}</td>
-      <td>${escapeHtml(feature(h)) || "\u2014"}</td></tr>`).join("");
-
-    const both = ["A", "B"].map((s) => {
-      const src = window.CivTileArt ? CivTileArt.tileImagePath(tileId, s) : null;
-      return `<figure class="tile-face${s === side ? " up" : ""}">
-        ${src ? `<img src="${src}" alt="Tile ${escapeHtml(tileId)} side ${s}"
-             onerror="this.closest('figure').classList.add('no-art')">` : ""}
-        <div class="tile-face-fallback">${renderTileSideSvg(tileId, s)}</div>
-        <figcaption>Side ${s}${s === side ? " \u2014 face up" : ""}</figcaption>
-      </figure>`;
-    }).join("");
-
-    return `<div class="ref-card">
-      <button class="detail-close" id="ref-close">\u2715</button>
-      <h2 class="ref-title">Tile ${escapeHtml(tileId)}${def ? ` \u2014 ${escapeHtml(def.kind)}` : ""}</h2>
-      <p class="ref-lede">
-        ${facts ? `Printed tile <strong>${facts.number}</strong>${
-            facts.certain
-              ? ` \u2014 identified by its sides (${escapeHtml(facts.sides)}).`
-              : ", assigned. Nothing is printed on this tile to tell it from the others in its group."}`
-          : "This tile has no counterpart in the printed set."}
-      </p>
-      <div class="tile-faces">${both}</div>
-      <p class="ref-lede">The terrain below is what the game is actually using.
-        It is my own layout, not the printed one \u2014 see RULES-COVERAGE.md.</p>
-      <table class="tile-cells"><thead><tr>
-        <th>Space</th><th>Terrain</th><th>Difficulty</th><th>On it</th>
-      </tr></thead><tbody>${rows}</tbody></table>
-    </div>`;
-  }
-
   // The drawn stand-in, used when there is no photograph of the tile.
   function renderTileSideSvg(tileId, side) {
     const def = Game.getTileDef(tileId);
@@ -3341,7 +3420,6 @@ const UI = (() => {
       body.innerHTML = which === "wonders" ? renderWondersRef()
         : which === "civ" ? renderCivRef()
         : which === "victory" ? renderVictoryRef()
-        : which === "tile" ? renderTileRef(arg)
         : renderDiplomacyRef();
     } catch (err) {
       body.innerHTML = `<div class="ref-card"><button class="detail-close" id="ref-close">\u2715</button>
@@ -3595,16 +3673,6 @@ const UI = (() => {
   function handleHexClick(hexKey) {
     if (!state) return;
 
-    // With nothing else going on, clicking a space asks about the land it is
-    // part of. Idle only — an action in progress always owns the click.
-    if (sub.phase === "idle" && !activeHexChoice() && state.phase === "playing") {
-      const h = state.map.hexes[hexKey];
-      if (h && h.active && h.tileId && h.tileId !== "water-fill") {
-        openReference("tile", h.tileId);
-        return;
-      }
-    }
-
     // A choice waiting on a space takes the click before anything else.
     const hexChoice = activeHexChoice();
     if (hexChoice) {
@@ -3641,14 +3709,19 @@ const UI = (() => {
         const playerTiles = state.setup.playerTiles[localPlayerId] || [];
         if (playerTiles.length === 0) return;
         const tileId = playerTiles[0];
-        // Turn the tile for them. Clicking somewhere the tile genuinely fits
-        // should never be ignored just because the angle is wrong.
-        const fit = Game.tilePlacementFor(state, tileId, hexKey, sub.tileRotation);
-        if (!fit) { showToast("The tile will not fit there"); return; }
-        sub.tileRotation = fit.rotation;
-        const tileKeys = Game.getTileHexKeys(hexKey, fit.rotation, state.map.hexes);
+        // You lay the tile down the way you are holding it. This used to turn
+        // it for you — search all six angles, take the first that fits — which
+        // meant the board ended up with something you had never seen.
+        if (!Game.validateTilePlacement(state, tileId, hexKey, sub.tileRotation).ok) {
+          const other = Game.tilePlacementFor(state, tileId, hexKey, sub.tileRotation);
+          showToast(other
+            ? `Not at this angle \u2014 turn it to ${other.rotation + 1}/6 and it fits here`
+            : "The tile will not fit there, at any angle");
+          return;
+        }
+        const tileKeys = Game.getTileHexKeys(hexKey, sub.tileRotation, state.map.hexes);
         flashHexes(tileKeys, "rgb(102,187,106)", 600);
-        dispatch({ type: "PLACE_TILE", payload: { playerId: localPlayerId, tileId, anchorKey: hexKey, rotation: fit.rotation, side: sub.tileSide } });
+        dispatch({ type: "PLACE_TILE", payload: { playerId: localPlayerId, tileId, anchorKey: hexKey, rotation: sub.tileRotation, side: sub.tileSide } });
         return;
       }
       return;
@@ -3803,19 +3876,26 @@ const UI = (() => {
       const originKey = exploreOrigin();
       if (!state.tileStack || state.tileStack.length === 0 || !originKey) return;
       const tileId = exploringTileId();
-      // The new tile has to touch the space you are exploring from, so look for
-      // an angle that manages both rather than refusing the click.
-      let fit = null;
-      for (let i = 0; i < 6; i++) {
-        const rot = (sub.tileRotation + i) % 6;
-        if (!Game.validateExploration(state, tileId, hexKey, rot).ok) continue;
+      // Terra p12: it has to touch four spaces already on the map, one of them
+      // the space you are exploring from. Both are checked at the angle you set
+      // — this used to hunt for an angle that managed it and lay that instead.
+      const fitsHere = (rot) => {
+        if (!Game.validateExploration(state, tileId, hexKey, rot).ok) return false;
         const cells = Game.getTileHexKeys(hexKey, rot, state.map.hexes);
-        if (!cells.some((ck) => Game.hexNeighborKeys(Game.parseQ(ck), Game.parseR(ck)).includes(originKey))) continue;
-        fit = rot; break;
+        return cells.some((ck) => Game.hexNeighborKeys(Game.parseQ(ck), Game.parseR(ck)).includes(originKey));
+      };
+      if (!fitsHere(sub.tileRotation)) {
+        let other = null;
+        for (let i = 1; i < 6; i++) {
+          const rot = (sub.tileRotation + i) % 6;
+          if (fitsHere(rot)) { other = rot; break; }
+        }
+        showToast(other !== null
+          ? `Not at this angle \u2014 turn it to ${other + 1}/6 and it fits here`
+          : "The new land will not reach there, at any angle");
+        return;
       }
-      if (fit === null) { showToast("The new land will not fit there"); return; }
-      sub.tileRotation = fit;
-      dispatch({ type: "EXPLORE_TILE", payload: { playerId: localPlayerId, anchorKey: hexKey, rotation: fit, side: sub.tileSide, fromKey: originKey } });
+      dispatch({ type: "EXPLORE_TILE", payload: { playerId: localPlayerId, anchorKey: hexKey, rotation: sub.tileRotation, side: sub.tileSide, fromKey: originKey } });
       // Apadana's expedition costs no movement, because there is nothing moving.
       if (sub.phase === "free_exploring") { resetSub(); render(); return; }
       ms.remaining -= 1;
