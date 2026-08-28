@@ -417,6 +417,39 @@
       }
 
       {
+        // Early Empire's printed requirement is adjacency to a friendly CITY.
+        // A friendly control token must never extend that placement range.
+        const st = rulesState();
+        const me = st.players[0];
+        me.focusRow = ["culture", "growth", "science", "economy", "military", "industry"];
+        activate(st, "0,0", { city: { ownerId: me.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
+        activate(st, "1,0", { control: { ownerId: me.id, fortified: false, district: null } });
+        activate(st, "2,0");
+        assert("Early Empire excludes spaces adjacent only to friendly control",
+          !Game.validControlHexes(st, me.id, Game.getSlotValue(me, "culture", st)).has("2,0"));
+        Game.applyAction(st, { type: "PLAY_CULTURE", payload: { playerId: me.id, hexKeys: ["2,0"], tradeSpent: 0 } });
+        assert("Early Empire rejects forged control-token chains",
+          !st.map.hexes["2,0"].control && !me.cardPlayed);
+
+        const cityAdjacent = rulesState();
+        const owner = cityAdjacent.players[0];
+        owner.focusRow = ["culture", "growth", "science", "economy", "military", "industry"];
+        activate(cityAdjacent, "0,0", { city: { ownerId: owner.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
+        activate(cityAdjacent, "1,0");
+        Game.applyAction(cityAdjacent, { type: "PLAY_CULTURE", payload: { playerId: owner.id, hexKeys: ["1,0"], tradeSpent: 0 } });
+        assert("Early Empire accepts adjacency to a friendly city",
+          cityAdjacent.map.hexes["1,0"].control?.ownerId === owner.id);
+      }
+
+      {
+        // The printed bust is Marble; the three silver drops are Mercury.
+        const tile = (id) => CivRulesData.TILES.find((entry) => entry.id === id);
+        assert("tile resources keep Marble and Mercury identities",
+          tile("01").sides.A.cells[0].resource === "mercury" &&
+          tile("03").sides.B.cells[4].resource === "marble");
+      }
+
+      {
         // Military tokens buy combat value only — never movement.
         const st = rulesState();
         const me = st.players[0];

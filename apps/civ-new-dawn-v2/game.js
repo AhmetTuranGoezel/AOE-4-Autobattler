@@ -1284,7 +1284,10 @@ const Game = (() => {
         if (!hx || !hx.active || hx.terrain === "water" || hx.city || hx.barbarian || hx.cityState) continue;
         if (hx.control) continue;
         if (placementDifficulty(st, hx, player, "control") > effectiveSlot) continue;
-        if (!adjacentToFriendlyCity(st, hx, payload.playerId) && !adjacentToFriendlyControl(st, hx, payload.playerId)
+        // Early Empire and its upgrades require adjacency to a friendly city.
+        // Enforce that here as well as in validControlHexes so a forged action
+        // cannot chain control tokens outward from another friendly token.
+        if (!adjacentToFriendlyCity(st, hx, payload.playerId)
           && !chichenAllows(st, payload.playerId, hx)) continue;
         if (hx.resource && hx.resource !== "wonder") {
           if (player.resources[hx.resource] !== undefined) player.resources[hx.resource]++;
