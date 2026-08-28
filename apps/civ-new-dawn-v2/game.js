@@ -1292,6 +1292,21 @@ const Game = (() => {
             options: RESOURCES.map((r) => ({ id: r, label: r }))
           });
         }
+        // Embassy: "When you move a caravan to the capital of the player who
+        // gave you this card (including the one used to take it), place 1 trade
+        // token from the supply on a card in that player's focus row. Then,
+        // gain 1 resource of your choice from the supply." The token goes to
+        // them — an embassy is worth something to the host as well.
+        if (hex.city.isCapital && hostPlayer &&
+            heldDiplomacy(player, "embassy").some((d) => d.fromId === hostPlayer.id)) {
+          hostPlayer.trade.economy = Math.min(CFG.maxTrade, hostPlayer.trade.economy + 1);
+          log(st, `Embassy: ${hostPlayer.name} gains +1 economy trade from ${player.name}'s caravan.`);
+          queuePendingChoice(st, {
+            kind: "gain_resource", playerId: player.id,
+            title: "Embassy: Gain a Resource",
+            options: RESOURCES.map((r) => ({ id: r, label: r }))
+          });
+        }
         unit.position = null;   // back onto the economy card
         log(st, `${player.name}'s caravan traded at a rival city (+${tradeGain} trade to place). Back to the economy card.`);
       } else {
