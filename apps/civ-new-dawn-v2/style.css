@@ -1707,3 +1707,480 @@ kbd {
   margin: 4px 0; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase;
   color: var(--text2); text-align: center;
 }
+
+/* --- Physical tabletop presentation ------------------------------------ */
+/* The tracked WebP pack contains the real five-color focus bars, focus-card
+   faces, leader sheets, and science dials. These rules deliberately sit last:
+   the hand-drawn UI remains the fallback, while real components take over when
+   card-art.js supplies a path. */
+:root { --focus-height: clamp(236px, 28vh, 294px); }
+
+#focus-bar {
+  position: relative;
+  align-items: stretch;
+  padding: 0 10px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.035), transparent 16%),
+    radial-gradient(ellipse at 50% 0%, #202b45 0%, #11182a 70%);
+  border-top-color: rgba(204, 180, 118, 0.38);
+  box-shadow: 0 -12px 28px rgba(0,0,0,0.34);
+}
+
+#focus-row {
+  --focus-gap: clamp(4px, 0.65vw, 10px);
+  position: relative;
+  width: min(1024px, 100%);
+  height: 100%;
+  gap: var(--focus-gap);
+  justify-content: center;
+  align-items: flex-end;
+  padding: 42px 4px 7px;
+  isolation: isolate;
+}
+
+#focus-row.has-board-art::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  top: 6px;
+  left: 0;
+  width: 100%;
+  aspect-ratio: 1024 / 63;
+  background-image: var(--focus-board-art);
+  background-repeat: no-repeat;
+  background-position: center top;
+  background-size: 100% 100%;
+  filter: drop-shadow(0 5px 7px rgba(0,0,0,0.55));
+  pointer-events: none;
+}
+
+.fcard {
+  --tilt-x: 0deg;
+  --tilt-y: 0deg;
+  --shine-x: 50%;
+  --shine-y: 15%;
+  width: min(
+    158px,
+    calc((100% - (5 * var(--focus-gap))) / 6),
+    calc((var(--focus-height) - 48px) * 0.643)
+  );
+  height: auto;
+  aspect-ratio: 649 / 1009;
+  margin-bottom: 0 !important;
+  z-index: 1;
+  transform-style: preserve-3d;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  border-radius: 7px;
+  border-color: rgba(220, 203, 157, 0.38);
+  box-shadow: 0 8px 15px rgba(0,0,0,0.48), 0 1px 0 rgba(255,255,255,0.22) inset;
+}
+
+/* The old type-colour fallbacks use the background shorthand at a higher
+   specificity. Reassert image fitting once real component art is present so
+   the entire printed face stays visible instead of showing its top-left crop. */
+.fcard.has-art {
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+}
+
+.fcard.has-art::before {
+  background:
+    linear-gradient(90deg, rgba(255,255,255,0.08), transparent 8%, transparent 92%, rgba(0,0,0,0.18)),
+    linear-gradient(180deg, transparent 72%, rgba(0,0,0,0.16));
+}
+
+.fcard.has-art::after {
+  content: "";
+  position: absolute;
+  inset: -20%;
+  z-index: 5;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(circle at var(--shine-x) var(--shine-y), rgba(255,255,255,0.38), transparent 27%);
+  mix-blend-mode: soft-light;
+  transition: opacity 0.2s ease;
+}
+
+.fcard.has-art:not(.disabled):hover {
+  transform: perspective(720px) translateY(-11px) scale(1.035) rotateX(var(--tilt-x)) rotateY(var(--tilt-y));
+  box-shadow: 0 20px 34px rgba(0,0,0,0.62), 0 0 0 1px rgba(243,221,159,0.45);
+}
+.fcard.has-art:not(.disabled):hover::after { opacity: 0.86; }
+
+/* A card may be inspected even when it is not currently playable. */
+.fcard.disabled {
+  opacity: 0.76;
+  pointer-events: auto;
+  cursor: default;
+  filter: saturate(0.72) brightness(0.78);
+}
+.fcard.disabled:hover { transform: translateY(-4px); filter: saturate(0.9) brightness(0.9); z-index: 10; }
+
+.fc-live {
+  position: absolute;
+  inset: 5px 5px auto;
+  z-index: 7;
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  pointer-events: none;
+}
+.fc-live-slot {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #fffbe7;
+  background: radial-gradient(circle at 35% 28%, #d9c58b, #755925 70%);
+  border: 2px solid #ead9a6;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.62), inset 0 0 0 1px rgba(67,45,15,0.5);
+  font: 900 16px/1 Georgia, serif;
+  text-shadow: 0 1px 2px #3c260b;
+}
+.fc-gov-token {
+  max-width: 82px;
+  padding: 3px 6px;
+  border-radius: 999px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #fff3c4;
+  background: rgba(51,35,10,0.88);
+  border: 1px solid rgba(237,204,112,0.74);
+  box-shadow: 0 2px 7px rgba(0,0,0,0.5);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.fc-unique-seal {
+  margin-left: auto;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff0a6;
+  background: #263b55e8;
+  border: 1px solid #d9bd67;
+  border-radius: 50%;
+  box-shadow: 0 2px 7px #0009;
+}
+
+.fcard.has-art .fc-header,
+.fcard.has-art .fc-body { opacity: 0; }
+.fcard.has-art .fc-footer {
+  position: absolute;
+  z-index: 8;
+  right: 4px;
+  bottom: 4px;
+  width: auto;
+  padding: 3px 5px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(23,19,12,0.75);
+  box-shadow: 0 2px 7px rgba(0,0,0,0.5);
+}
+.fcard.has-art .fc-trade-note { display: none; }
+.fcard.has-art .fc-dots { display: flex; gap: 3px; letter-spacing: 0; }
+.fcard.has-art .trade-filled,
+.fcard.has-art .trade-empty {
+  width: 10px;
+  height: 10px;
+  display: inline-flex;
+  overflow: hidden;
+  color: transparent;
+  border-radius: 50%;
+}
+.fcard.has-art .trade-filled {
+  background: radial-gradient(circle at 35% 30%, #fff0a7, #d6991b 48%, #70430b 72%);
+  border: 1px solid #ffe682;
+  box-shadow: 0 1px 4px #000;
+}
+.fcard.has-art .trade-empty {
+  background: rgba(0,0,0,0.38);
+  border: 1px solid rgba(255,244,197,0.5);
+}
+
+/* Full printed face on previews; state markers float above instead of hiding
+   the card's own typography. */
+.cface.has-art {
+  width: min(278px, calc(100vw - 20px));
+  min-height: 0;
+  aspect-ratio: 649 / 1009;
+  position: relative;
+  background-position: center;
+  background-size: 100% 100%;
+  border-color: rgba(218,198,143,0.6);
+  box-shadow: 0 18px 42px rgba(0,0,0,0.7);
+}
+.cface.has-art .cface-head,
+.cface.has-art .cface-title,
+.cface.has-art .cface-text,
+.cface.has-art .cface-figures,
+.cface.has-art .cface-manual { display: none; }
+.cface.has-art .cface-foot {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(22,17,10,0.8);
+}
+.cface.has-art .cface-trade { display: none; }
+.cface.has-art .cface-slot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 5px 8px;
+  border: 1px solid rgba(255,234,173,0.68);
+  border-radius: 999px;
+  color: #fff6d4;
+  background: rgba(48,33,10,0.82);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.6);
+  font-weight: 800;
+}
+
+/* Civilization selector: the sheet itself is the card, with a light readable
+   label over it rather than a plain text tile. */
+.leader-grid {
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  max-height: min(54vh, 570px);
+  gap: 10px;
+}
+.leader-card { min-height: 116px; }
+.leader-card.random {
+  grid-column: 1 / -1;
+  min-height: 68px;
+  padding-block: 9px;
+}
+.leader-card.has-art {
+  min-height: 150px;
+  justify-content: flex-end;
+  overflow: hidden;
+  padding: 54px 9px 8px;
+  isolation: isolate;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;
+  border-color: rgba(218,198,143,0.36);
+}
+.leader-card.has-art .lc-shade {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(180deg, transparent 38%, rgba(7,9,14,0.28) 58%, rgba(7,9,14,0.96) 100%);
+}
+.leader-card.has-art .lc-civ {
+  color: #fff6d4;
+  font: 800 15px/1.1 Georgia, serif;
+  text-shadow: 0 2px 4px #000;
+}
+.leader-card.has-art .lc-name { display: none; }
+.leader-card.has-art .lc-ability {
+  color: #ffe7a2;
+  text-shadow: 0 1px 3px #000;
+}
+.leader-card.has-art .lc-src { z-index: 2; }
+
+.civ-sheet {
+  margin: -10px -10px 16px;
+  position: relative;
+}
+.civ-sheet img {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 10px;
+  border: 1px solid rgba(222,201,143,0.46);
+  box-shadow: 0 16px 38px rgba(0,0,0,0.54);
+}
+.civ-sheet figcaption {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  color: #f6e8bf;
+  background: rgba(30,22,12,0.74);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.civ-sheet + .civ-head { margin-top: 0; }
+
+.ibrahim-feature {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.2fr) minmax(180px, 1fr);
+  gap: 16px;
+  align-items: center;
+  padding: 12px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(36,62,43,0.82), rgba(19,31,23,0.94));
+  border: 1px solid rgba(152,190,133,0.42);
+}
+.ibrahim-feature img {
+  width: 100%;
+  display: block;
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+}
+.ibrahim-feature p { margin-top: 6px; color: var(--text2); line-height: 1.5; }
+
+/* The actual five-color science dial, with a pointer driven by game state. */
+.tech-panel {
+  display: grid;
+  grid-template-columns: minmax(66px, 1fr) 136px;
+  gap: 5px;
+  align-items: center;
+  margin: 6px 0 9px;
+  padding: 7px;
+  border-radius: 10px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 78% 48%, rgba(255,255,255,0.10), transparent 42%),
+    linear-gradient(145deg, #2b3040, #171c2a);
+  border: 1px solid rgba(204,180,118,0.38);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 5px 16px rgba(0,0,0,0.35);
+}
+.tech-copy { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.tech-kicker {
+  color: #d9c994;
+  font: 700 8px/1.1 Georgia, serif;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.tech-copy strong { margin-top: 2px; color: #fff7d5; font: 800 30px/1 Georgia, serif; }
+.tech-copy > span:not(.tech-kicker) { color: var(--text2); font-size: 9px; }
+.tech-copy small { margin-top: 5px; color: var(--accent2); font-size: 8px; line-height: 1.25; }
+.tech-dial {
+  position: relative;
+  width: 136px;
+  height: 136px;
+  border-radius: 50%;
+  filter: drop-shadow(0 7px 8px rgba(0,0,0,0.52));
+}
+.tech-dial img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  border-radius: 50%;
+  user-select: none;
+}
+.tech-needle {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  top: 50%;
+  width: 4px;
+  height: 51px;
+  margin: -51px 0 0 -2px;
+  transform-origin: 50% 100%;
+  transform: rotate(calc(var(--tech-to) * 14.4deg));
+  border-radius: 4px 4px 1px 1px;
+  background: linear-gradient(90deg, #74531e, #fff0a5 45%, #9c6e22 100%);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.8);
+}
+.tech-needle::before {
+  content: "";
+  position: absolute;
+  top: -7px;
+  left: -4px;
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 11px solid #e8c86a;
+  filter: drop-shadow(0 1px 1px #0008);
+}
+.tech-hub {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  top: 50%;
+  width: 24px;
+  height: 24px;
+  margin: -12px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #f2dea0, #7f622d 68%, #30210b);
+  border: 2px solid #e1cd91;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.65);
+}
+.tech-value {
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  bottom: 29px;
+  min-width: 26px;
+  padding: 2px 5px;
+  transform: translateX(-50%);
+  color: #fff7d7;
+  background: rgba(24,18,9,0.76);
+  border: 1px solid rgba(240,213,137,0.64);
+  border-radius: 999px;
+  text-align: center;
+  font: 800 10px/1 Georgia, serif;
+  box-shadow: 0 2px 5px #0008;
+}
+.tech-panel.advancing .tech-needle {
+  animation: tech-advance 0.88s cubic-bezier(0.2, 0.85, 0.25, 1.2);
+}
+.tech-panel.advancing .tech-dial { animation: tech-glow 0.9s ease; }
+@keyframes tech-advance {
+  from { transform: rotate(calc(var(--tech-from) * 14.4deg)); }
+  to { transform: rotate(calc(var(--tech-to) * 14.4deg)); }
+}
+@keyframes tech-glow {
+  0%, 100% { filter: drop-shadow(0 7px 8px rgba(0,0,0,0.52)); }
+  45% { filter: drop-shadow(0 0 15px rgba(111,212,255,0.86)); }
+}
+
+.ibrahim-mini {
+  position: relative;
+  width: 100%;
+  padding: 0;
+  margin: 3px 0 8px;
+  overflow: hidden;
+  border-radius: 8px;
+  border-color: rgba(146,190,128,0.55);
+  background: #16271c;
+}
+.ibrahim-mini img { width: 100%; display: block; transition: transform 0.25s ease; }
+.ibrahim-mini span {
+  position: absolute;
+  right: 7px;
+  bottom: 5px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(10,20,12,0.8);
+  color: #dff2d3;
+  font: 700 9px/1.3 Georgia, serif;
+}
+.ibrahim-mini:hover img { transform: scale(1.025); }
+
+#inp-color option { background: #182036; color: #f4ead0; }
+
+@media (max-width: 900px), (max-height: 740px) {
+  :root { --focus-height: 218px; }
+  #focus-row { padding-top: 36px; }
+  .fcard { width: min(calc((100% - (5 * var(--focus-gap))) / 6), 110px); }
+  .tech-panel { grid-template-columns: 1fr; }
+  .tech-dial { width: 118px; height: 118px; margin: auto; }
+  .tech-needle { height: 44px; margin-top: -44px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fcard.has-art:not(.disabled):hover { transform: translateY(-5px); }
+  .fcard.has-art::after { display: none; }
+  .tech-panel.advancing .tech-needle,
+  .tech-panel.advancing .tech-dial { animation: none; }
+  .ibrahim-mini img { transition: none; }
+}

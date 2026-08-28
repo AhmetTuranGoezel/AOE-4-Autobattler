@@ -4,6 +4,7 @@ const UI = (() => {
   let state = null;
   let localPlayerId = null;
   let roomCode = null;
+  const lastTechByPlayer = new Map();
 
   // Canvas
   let canvas = null;
@@ -1471,6 +1472,25 @@ const UI = (() => {
     const me = Game.getPlayer(state, localPlayerId);
     if (!me) { dom.myStats.innerHTML = ""; return; }
     const res = Object.entries(me.resources).filter(([, v]) => v > 0).map(([k, v]) => `${k}: ${v}`).join(", ") || "none";
+    const techNow = Number(me.tech) || 0;
+    const previousTech = lastTechByPlayer.has(me.id) ? lastTechByPlayer.get(me.id) : techNow;
+    const techMoved = previousTech !== techNow;
+    lastTechByPlayer.set(me.id, techNow);
+    const dialSrc = window.CivCardArt ? CivCardArt.techDial(me.color) : "";
+    const techDial = `<div class="tech-panel${techMoved ? " advancing" : ""}">
+      <div class="tech-copy">
+        <span class="tech-kicker">Science dial</span>
+        <strong>${techNow}</strong><span> / ${Game.CFG.techWheelSize}</span>
+        <small>Technology tier ${me.techTier}</small>
+      </div>
+      <div class="tech-dial" role="img" aria-label="Science dial at ${techNow} of ${Game.CFG.techWheelSize}"
+        style="--tech-from:${previousTech};--tech-to:${techNow}">
+        ${dialSrc ? `<img src="${dialSrc}" alt="" draggable="false">` : ""}
+        <span class="tech-needle" aria-hidden="true"></span>
+        <span class="tech-hub" aria-hidden="true"></span>
+        <span class="tech-value">${techNow}</span>
+      </div>
+    </div>`;
     const govs = Game.GOVERNMENTS || {};
     const gov = me.government && govs[me.government]
       ? `${govs[me.government].name} <span class="lb-ut">(${Game.FOCUS_LABELS[me.government]} +${govs[me.government].shift} places)</span>`
@@ -1517,8 +1537,12 @@ const UI = (() => {
       leaderRow = `<div class="leader-box"><div class="lb-head">${escapeHtml(myLeader.civ)}${myLeader.ability.manual ? ' <span class="lb-ut">(manual ability)</span>' : ""}</div>
          <div class="lb-ability">${escapeHtml(myLeader.ability.text)}</div>${uniqueLine}</div>`;
     }
-    dom.myStats.innerHTML = `<h3>My Stats</h3>${leaderRow}<div class="stat-grid">
-      <span>Tech:</span><span class="sv">${me.tech}/${Game.CFG.techWheelSize} (T${me.techTier})</span>
+    const ibrahim = state.ibrahimHolder === localPlayerId && window.CivCardArt
+      ? `<div class="ibrahim-mini" title="Ibrahim is currently in your tableau">
+          <img src="${CivCardArt.ibrahim()}" alt="Ibrahim unique diplomacy card">
+          <span>Ibrahim</span>
+        </div>` : "";
+    dom.myStats.innerHTML = `<h3>My Tableau</h3>${techDial}${leaderRow}${ibrahim}<div class="stat-grid">
       <span>Card Tiers:</span><span class="sv">${tiers}</span>
       <span>Armies:</span><span class="sv">${me.armies.length}/${maxA}</span>
       <span>Caravans:</span><span class="sv">${me.caravans.length}/${maxW}</span>
@@ -1683,8 +1707,10 @@ const UI = (() => {
       const mine = me && me.leaderId === l.id;
       const uniqueLine = l.unique ? `${l.unique.name} (${Game.FOCUS_LABELS[l.unique.type] || l.unique.type} ${["I","II","III","IV"][l.unique.tier - 1]})` : "";
       const tip = `${l.ability.text}${l.unique ? `\n\nUnique card — ${uniqueLine}: ${l.unique.text}` : ""}`;
-      return `<button class="leader-card${mine ? " picked" : ""}${takenByOther ? " taken" : ""}" data-leader="${l.id}"
-        ${takenByOther ? "disabled" : ""} title="${escapeHtml(tip)}">
+      const art = window.CivCardArt ? CivCardArt.civilizationStyle(l.id) : "";
+      return `<button class="leader-card${mine ? " picked" : ""}${takenByOther ? " taken" : ""}${art ? " has-art" : ""}" data-leader="${l.id}"
+        ${takenByOther ? "disabled" : ""} title="${escapeHtml(tip)}" aria-label="Choose ${escapeHtml(l.civ)}"${art ? ` style='${art}'` : ""}>
+        <span class="lc-shade" aria-hidden="true"></span>
         <span class="lc-civ">${escapeHtml(l.civ)}</span>
         <span class="lc-name">${escapeHtml(l.ability.text.slice(0, 64))}${l.ability.text.length > 64 ? "…" : ""}</span>
         <span class="lc-ability">★ ${escapeHtml(uniqueLine)}</span>
@@ -2882,8 +2908,23 @@ const UI = (() => {
       uniqueFace = renderCardFace(mock, u.type);
     }
 
+    const civArt = window.CivCardArt ? CivCardArt.civilization(lead.id) : "";
+    const civSheet = civArt ? `<figure class="civ-sheet">
+      <img src="${civArt}" alt="${escapeHtml(lead.civ)} civilization and leader sheet" draggable="false">
+      <figcaption>The original civilization sheet</figcaption>
+    </figure>` : "";
+    const ibrahimHolder = state.ibrahimHolder ? Game.getPlayer(state, state.ibrahimHolder) : null;
+    const ibrahimCard = lead.id === "ottoman" && window.CivCardArt
+      ? `<h3 class="ref-group">Ibrahim</h3>
+        <div class="ibrahim-feature">
+          <img src="${CivCardArt.ibrahim()}" alt="Ibrahim card" draggable="false">
+          <div><strong>${ibrahimHolder ? `Held by ${escapeHtml(ibrahimHolder.name)}` : "Not assigned yet"}</strong>
+          <p>The holder and the Ottoman player each gain a trade token when the holder's caravan reaches an Ottoman city.</p></div>
+        </div>` : "";
+
     return `<div class="ref-card">
       <button class="detail-close" id="ref-close" aria-label="Close">✕</button>
+      ${civSheet}
       <div class="civ-head" style="--civ:${style.color}">
         <span class="civ-emblem">${style.emblem}</span>
         <div>
@@ -2911,6 +2952,8 @@ const UI = (() => {
             u.auto ? "Handled automatically" : "Resolve at the table"}</span>
         </div>
       </div>` : ""}
+
+      ${ibrahimCard}
 
       <h3 class="ref-group">Starting focus row</h3>
       <p class="ref-lede">The order your cards begin in. A card resolves at the
@@ -3058,10 +3101,10 @@ const UI = (() => {
     const manual = unique && !unique.auto
       ? `<div class="cface-manual">Special clause is a table rule — resolve it between you.</div>` : "";
     const art = window.CivCardArt
-      ? (unique ? CivCardArt.unique(player.leaderId) : CivCardArt.focus(cardType, tier))
+      ? (unique ? CivCardArt.unique(player.leaderId) : CivCardArt.focus(cardType, tier, player.color))
       : "";
-    return `<div class="cface type-${cardType}${unique ? " unique" : ""}${o.compact ? " compact" : ""}${art ? " has-art" : ""}"${
-      art ? ` style="${art}"` : ""}>
+    return `<div class="cface type-${cardType}${unique ? " unique" : ""}${o.compact ? " compact" : ""}${art ? " has-art" : ""}"
+      role="img" aria-label="${escapeHtml(name)}, ${Game.FOCUS_LABELS[cardType]} tier ${tier}"${art ? ` style='${art}'` : ""}>
       <div class="cface-head">
         <span class="cface-icon">${Game.CARD_ICONS[cardType]}</span>
         <span class="cface-type">${Game.FOCUS_LABELS[cardType]}</span>
@@ -3613,6 +3656,10 @@ const UI = (() => {
     const isMyTurn = cp && cp.id === localPlayerId;
     const canPlay = isMyTurn && !me.cardPlayed && sub.phase === "idle";
     const TIER_LABELS = ["I", "II", "III", "IV"];
+    const focusBoard = window.CivCardArt ? CivCardArt.focusBar(me.color) : "";
+    dom.focusRow.classList.toggle("has-board-art", !!focusBoard);
+    if (focusBoard) dom.focusRow.style.setProperty("--focus-board-art", `url("${focusBoard}")`);
+    else dom.focusRow.style.removeProperty("--focus-board-art");
 
     const oldRects = {};
     document.querySelectorAll(".fcard").forEach((el) => {
@@ -3643,7 +3690,17 @@ const UI = (() => {
       // Laid out like the printed card: type band across the top, the name and
       // its tier, what it actually does, and the trade track along the bottom.
       const printed = Game.getCardEffectText ? Game.getCardEffectText(me, cardType) : "";
-      return `<div class="fcard type-${cardType}${disabled}${selected}${played}${uniqueCard ? " unique" : ""}" data-card="${cardType}" data-idx="${idx}">
+      const cardArt = window.CivCardArt
+        ? (uniqueCard ? CivCardArt.unique(me.leaderId) : CivCardArt.focus(cardType, tier, me.color))
+        : "";
+      return `<div class="fcard type-${cardType}${disabled}${selected}${played}${uniqueCard ? " unique" : ""}${cardArt ? " has-art" : ""}"
+        data-card="${cardType}" data-idx="${idx}" role="button" tabindex="${canPlay ? "0" : "-1"}"
+        aria-label="Play ${escapeHtml(cardName)}, ${Game.FOCUS_LABELS[cardType]} tier ${tier}, focus slot ${effective}"${cardArt ? ` style='${cardArt}'` : ""}>
+        <div class="fc-live">
+          <span class="fc-live-slot" title="Current focus strength">${effective}</span>
+          ${govt ? `<span class="fc-gov-token" title="${escapeHtml(govt.name)}: resolves ${govt.shift} places farther right">${escapeHtml(govt.name)}</span>` : ""}
+          ${uniqueCard ? `<span class="fc-unique-seal" title="Unique ${escapeHtml(me.leaderId)} card">★</span>` : ""}
+        </div>
         <div class="fc-header">
           <span class="fc-icon">${icon}</span>
           <span class="fc-type">${Game.FOCUS_LABELS[cardType]}</span>
@@ -3652,7 +3709,7 @@ const UI = (() => {
         <div class="fc-body">
           <div class="fc-nameline">
             <span class="fc-power">${effective}${govt ? `<span class="gov-plus" title="${govt.name}: resolves ${govt.shift} places further right">${govt.name[0]}</span>` : ""}</span>
-            <span class="fc-cardname">${uniqueCard ? "★ " : ""}${cardName}</span>
+            <span class="fc-cardname">${uniqueCard ? "★ " : ""}${escapeHtml(cardName)}</span>
           </div>
           <div class="fc-printed">${escapeHtml(printed)}</div>
         </div>
@@ -3696,6 +3753,16 @@ const UI = (() => {
 
     document.querySelectorAll(".fcard").forEach((el) => {
       const cardType = el.dataset.card;
+      el.addEventListener("pointermove", (e) => {
+        if (reducedMotion() || el.classList.contains("disabled")) return;
+        const rect = el.getBoundingClientRect();
+        const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        const y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+        el.style.setProperty("--tilt-x", `${((0.5 - y) * 8).toFixed(2)}deg`);
+        el.style.setProperty("--tilt-y", `${((x - 0.5) * 10).toFixed(2)}deg`);
+        el.style.setProperty("--shine-x", `${(x * 100).toFixed(1)}%`);
+        el.style.setProperty("--shine-y", `${(y * 100).toFixed(1)}%`);
+      });
       el.addEventListener("mouseenter", () => {
         dom.mapTooltip.innerHTML = renderCardFace(me, cardType);
         dom.mapTooltip.classList.add("card-face");
@@ -3707,8 +3774,18 @@ const UI = (() => {
         dom.mapTooltip.style.top = Math.max(4, rect.top - tip.height - 8) + "px";
       });
       el.addEventListener("mouseleave", () => {
+        el.style.removeProperty("--tilt-x");
+        el.style.removeProperty("--tilt-y");
+        el.style.removeProperty("--shine-x");
+        el.style.removeProperty("--shine-y");
         dom.mapTooltip.classList.add("hidden");
         dom.mapTooltip.classList.remove("card-face");
+      });
+      el.addEventListener("keydown", (e) => {
+        if ((e.key === "Enter" || e.key === " ") && !el.classList.contains("disabled")) {
+          e.preventDefault();
+          el.click();
+        }
       });
     });
 

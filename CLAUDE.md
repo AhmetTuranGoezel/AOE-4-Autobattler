@@ -14,3 +14,22 @@ gameplay images.
 
 The full-resolution source extraction is intentionally Git-ignored. The WebP
 files are the repository-safe copies to inspect and use in the browser app.
+
+### Current browser integration
+
+`apps/civ-new-dawn-v2/card-art.js` is the semantic, runtime-safe artwork
+registry. It maps focus type + tier + physical player color, civilization IDs,
+unique focus cards, science dials, focus bars, and Ibrahim directly to tracked
+WebP paths. Keep this module free of gameplay state and do not restore the old
+ignored `assets/mod/*.jpg` sprite-sheet dependency.
+
+The browser UI consumes that registry from `apps/civ-new-dawn-v2/ui.js`:
+
+- the focus row uses the color-matched printed cards and focus bar;
+- the tableau uses the color-matched science dial;
+- the lobby and Civilization reference use the printed civilization sheets;
+- live state (slot strength, trade, government, and unique-card status) remains
+  an HTML overlay, so artwork and rules state do not become coupled.
+
+The supported physical component colors are blue, red, orange, green, and
+purple. Reuse `CivCardArt.colorId()` when a color-to-component lookup is needed.
