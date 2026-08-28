@@ -556,18 +556,18 @@ window.CivArtData = {
   "Seoul": "cards/city-states/deck-230-card-11__deck-230-cell-11__234a965ff7027307.webp"
  },
  "cityStateToken": {
-  "Auckland": "tokens/derived/cs-auckland.webp",
-  "Akkad": "tokens/derived/cs-akkad.webp",
-  "Antananarivo": "tokens/derived/cs-antananarivo.webp",
-  "Palenque": "tokens/derived/cs-palenque.webp",
-  "Buenos Aires": "tokens/derived/cs-buenos-aires.webp",
-  "Kabul": "tokens/derived/cs-kabul.webp",
-  "Mohenjo Daro": "tokens/derived/cs-mohenjo-daro.webp",
-  "Geneva": "tokens/derived/cs-geneva.webp",
-  "Seoul": "tokens/derived/cs-seoul.webp",
-  "Brussels": "tokens/derived/cs-brussels.webp",
-  "Carthage": "tokens/derived/cs-carthage.webp",
-  "Kumasi": "tokens/derived/cs-kumasi.webp"
+  "Auckland": "tokens/derived/hex-cs-auckland.webp",
+  "Akkad": "tokens/derived/hex-cs-akkad.webp",
+  "Antananarivo": "tokens/derived/hex-cs-antananarivo.webp",
+  "Palenque": "tokens/derived/hex-cs-palenque.webp",
+  "Buenos Aires": "tokens/derived/hex-cs-buenos-aires.webp",
+  "Kabul": "tokens/derived/hex-cs-kabul.webp",
+  "Mohenjo Daro": "tokens/derived/hex-cs-mohenjo-daro.webp",
+  "Geneva": "tokens/derived/hex-cs-geneva.webp",
+  "Seoul": "tokens/derived/hex-cs-seoul.webp",
+  "Brussels": "tokens/derived/hex-cs-brussels.webp",
+  "Carthage": "tokens/derived/hex-cs-carthage.webp",
+  "Kumasi": "tokens/derived/hex-cs-kumasi.webp"
  },
  "diplomacy": {
   "purple": {
@@ -626,39 +626,39 @@ window.CivArtData = {
  },
  "district": {
   "green": {
-   "theater": "tokens/derived/cut-district__image-face__ugc-1658972912262965312__e167614163a81db2.webp",
-   "campus": "tokens/derived/cut-district__image-face__ugc-1658972912262993062__b97555849f832ab1.webp",
-   "industrial": "tokens/derived/cut-district__image-face__ugc-1658972912262994405__d8ca1e39d96d5572.webp",
-   "trade": "tokens/district__image-face__ugc-1658972912262995631__3edba0d5f7032d51.webp",
-   "encampment": "tokens/district__image-face__ugc-1658972912262997563__b944caf42c3377f2.webp"
+   "theater": "tokens/derived/hex-district__image-face__ugc-1658972912262965312__e167614163a81db2.webp",
+   "campus": "tokens/derived/hex-district__image-face__ugc-1658972912262993062__b97555849f832ab1.webp",
+   "industrial": "tokens/derived/hex-district__image-face__ugc-1658972912262994405__d8ca1e39d96d5572.webp",
+   "trade": "tokens/derived/hex-district__image-face__ugc-1658972912262995631__3edba0d5f7032d51.webp",
+   "encampment": "tokens/derived/hex-district__image-face__ugc-1658972912262997563__b944caf42c3377f2.webp"
   },
   "blue": {
-   "theater": "tokens/derived/cut-district__image-face__ugc-1658972912263026893__ed22eb2515f51ab0.webp",
-   "campus": "tokens/derived/cut-district__image-face__ugc-1658972912263027991__f48103659c87733a.webp",
-   "industrial": "tokens/district__image-face__ugc-1658972912263031384__ca36d28b09bdbe21.webp",
-   "trade": "tokens/district__image-face__ugc-1658972912263033296__547326f730c6a096.webp",
-   "encampment": "tokens/district__image-face__ugc-1658972912263034593__da14b7f535748b77.webp"
+   "theater": "tokens/derived/hex-district__image-face__ugc-1658972912263026893__ed22eb2515f51ab0.webp",
+   "campus": "tokens/derived/hex-district__image-face__ugc-1658972912263027991__f48103659c87733a.webp",
+   "industrial": "tokens/derived/hex-district__image-face__ugc-1658972912263031384__ca36d28b09bdbe21.webp",
+   "trade": "tokens/derived/hex-district__image-face__ugc-1658972912263033296__547326f730c6a096.webp",
+   "encampment": "tokens/derived/hex-district__image-face__ugc-1658972912263034593__da14b7f535748b77.webp"
   },
   "orange": {
-   "theater": "tokens/derived/cut-district__image-face__ugc-1658972912263059284__5bba85309b4ea409.webp",
-   "campus": "tokens/derived/cut-district__image-face__ugc-1658972912263062892__a667677879b01614.webp",
-   "industrial": "tokens/derived/cut-district__image-face__ugc-1658972912263065796__1853b00ff24b77b6.webp",
-   "trade": "tokens/derived/cut-district__image-face__ugc-1658972912263067451__4980b98555cb1adc.webp",
-   "encampment": "tokens/derived/cut-district__image-face__ugc-1658972912263069639__7abb10a8e860264f.webp"
+   "theater": "tokens/derived/hex-district__image-face__ugc-1658972912263059284__5bba85309b4ea409.webp",
+   "campus": "tokens/derived/hex-district__image-face__ugc-1658972912263062892__a667677879b01614.webp",
+   "industrial": "tokens/derived/hex-district__image-face__ugc-1658972912263065796__1853b00ff24b77b6.webp",
+   "trade": "tokens/derived/hex-district__image-face__ugc-1658972912263067451__4980b98555cb1adc.webp",
+   "encampment": "tokens/derived/hex-district__image-face__ugc-1658972912263069639__7abb10a8e860264f.webp"
   },
   "red": {
-   "theater": "tokens/derived/cut-district__image-face__ugc-1658972912263091935__e743e563e246ab93.webp",
-   "campus": "tokens/derived/cut-district__image-face__ugc-1658972912263093151__9f3d454bcf510217.webp",
-   "industrial": "tokens/derived/cut-district__image-face__ugc-1658972912263094819__b413ed91ffc6b6f3.webp",
-   "trade": "tokens/derived/cut-district__image-face__ugc-1658972912263095901__937645a2a71b301b.webp",
-   "encampment": "tokens/derived/cut-district__image-face__ugc-1658972912263097213__c2d0639bdf680a00.webp"
+   "theater": "tokens/derived/hex-district__image-face__ugc-1658972912263091935__e743e563e246ab93.webp",
+   "campus": "tokens/derived/hex-district__image-face__ugc-1658972912263093151__9f3d454bcf510217.webp",
+   "industrial": "tokens/derived/hex-district__image-face__ugc-1658972912263094819__b413ed91ffc6b6f3.webp",
+   "trade": "tokens/derived/hex-district__image-face__ugc-1658972912263095901__937645a2a71b301b.webp",
+   "encampment": "tokens/derived/hex-district__image-face__ugc-1658972912263097213__c2d0639bdf680a00.webp"
   },
   "purple": {
-   "theater": "tokens/derived/cut-district__image-face__ugc-1658972912263121347__1e99c0de853aa561.webp",
-   "campus": "tokens/district__image-face__ugc-1658972912263123018__29d3d03fff54e7f1.webp",
-   "industrial": "tokens/derived/cut-district__image-face__ugc-1658972912263125339__0727e48a2380e00f.webp",
-   "trade": "tokens/derived/cut-district__image-face__ugc-1658972912263126541__75799058cdf7b0c5.webp",
-   "encampment": "tokens/derived/cut-district__image-face__ugc-1658972912263127743__269d9baf4feacf01.webp"
+   "theater": "tokens/derived/hex-district__image-face__ugc-1658972912263121347__1e99c0de853aa561.webp",
+   "campus": "tokens/derived/hex-district__image-face__ugc-1658972912263123018__29d3d03fff54e7f1.webp",
+   "industrial": "tokens/derived/hex-district__image-face__ugc-1658972912263125339__0727e48a2380e00f.webp",
+   "trade": "tokens/derived/hex-district__image-face__ugc-1658972912263126541__75799058cdf7b0c5.webp",
+   "encampment": "tokens/derived/hex-district__image-face__ugc-1658972912263127743__269d9baf4feacf01.webp"
   }
  },
  "dial": {
@@ -711,7 +711,7 @@ window.CivArtData = {
  },
  "ibrahim": "cards/focus/deck-201-card-00__deck-201-cell-00__6b20af35a0e9c3cc.webp",
  "barbDirection": "tokens/asset__image-face__ugc-1994562021176697101__c77618bfc8a9d19b.webp",
- "fort": "tokens/derived/cut-fort__image-face__ugc-1685995054105782372__02e783edfb48e3f4.webp",
+ "fort": "tokens/derived/hex-fort__image-face__ugc-1685995054105782372__02e783edfb48e3f4.webp",
  "eventTracker": "tokens/event-tracker__image-face__ugc-1994562021176696876__f63e2bbadcc73eaf.webp",
  "boards": [
   "boards/asset__image-face__ugc-1695028978276055426__a5d9309776ab5359.webp",

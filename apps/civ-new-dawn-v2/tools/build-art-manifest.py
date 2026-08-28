@@ -23,6 +23,7 @@ assets/tts-web/tokens/derived/.
 """
 
 import json
+import math
 import os
 import re
 import sys
@@ -396,6 +397,58 @@ def cutout(rel_path, tol=26):
     return rel("tokens/derived", name)
 
 
+def hexify(rel_path):
+    """Store a hex token as a clean pointy-top hex that fills a space exactly.
+
+    The pack mixes the two hex orientations. The fortress and the city-states
+    are photographed flat-top (wider than tall, 2/sqrt(3)); the districts are
+    already pointy-top but sit on a rectangle of grey stone that no flood fill
+    reaches cleanly. The board draws pointy-top, so a flat-top token lands 90
+    degrees out and its corners spill over the neighbours.
+
+    Rotating and masking here means the renderer can simply draw the file into
+    the space and be right, with nothing to fudge per token.
+    """
+    try:
+        from PIL import Image, ImageDraw
+    except ImportError:
+        return rel_path
+
+    src = os.path.join(PACK, *rel_path.split("/"))
+    im = Image.open(src).convert("RGBA")
+    box = im.getbbox()
+    if box:
+        im = im.crop(box)
+
+    # Flat-top is wider than tall. Turn it upright.
+    if im.width > im.height * 1.05:
+        im = im.rotate(90, expand=True, resample=Image.BICUBIC)
+
+    # Fit the widest pointy-top hex inside what we have, then mask to it. A
+    # pointy-top hex of height h is h*sqrt(3)/2 across.
+    h = im.height
+    w = int(round(h * math.sqrt(3) / 2))
+    if w > im.width:
+        w = im.width
+        h = int(round(w * 2 / math.sqrt(3)))
+    im = im.resize((w, h), Image.LANCZOS)
+
+    mask = Image.new("L", (w, h), 0)
+    cx, cy, r = w / 2, h / 2, h / 2
+    ImageDraw.Draw(mask).polygon(
+        [(cx + r * math.sin(math.radians(60 * i)),
+          cy - r * math.cos(math.radians(60 * i))) for i in range(6)],
+        fill=255)
+    out = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    out.paste(im, (0, 0), mask)
+
+    out_dir = os.path.join(PACK, "tokens", "derived")
+    os.makedirs(out_dir, exist_ok=True)
+    name = "hex-" + os.path.basename(rel_path).replace("cut-", "")
+    out.save(os.path.join(out_dir, name), "WEBP", quality=90)
+    return rel("tokens/derived", name)
+
+
 def slice_city_state_tokens():
     """Cut the six two-up atlases into twelve single tokens."""
     try:
@@ -421,7 +474,7 @@ def slice_city_state_tokens():
             crop = cut if cut is not None else crop.crop(crop.getbbox() or (0, 0, crop.width, crop.height))
             out_name = f"cs-{slug(name)}.webp"
             crop.save(os.path.join(out_dir, out_name), "WEBP", quality=88)
-            made[name] = rel("tokens/derived", out_name)
+            made[name] = hexify(rel("tokens/derived", out_name))
     return made
 
 
@@ -443,7 +496,7 @@ def main():
     if len(faces) != len(COLORS) * len(DISTRICT_ORDER):
         raise SystemExit(f"districts: expected {len(COLORS) * len(DISTRICT_ORDER)}, got {len(faces)}")
     for i, path in enumerate(faces):
-        district.setdefault(COLORS[i // len(DISTRICT_ORDER)], {})[DISTRICT_ORDER[i % len(DISTRICT_ORDER)]] = cutout(path)
+        district.setdefault(COLORS[i // len(DISTRICT_ORDER)], {})[DISTRICT_ORDER[i % len(DISTRICT_ORDER)]] = hexify(cutout(path))
 
     for color, path in zip_exact(listing("tokens", r"^science"), DIAL_COLORS, "tech dials"):
         dial[color] = path
@@ -500,7 +553,7 @@ def main():
         # a turn. It is a deck of one, so there is nothing to disambiguate.
         "ibrahim": (listing("cards/focus", r"^deck-201-card-00") or [None])[0],
         "barbDirection": barb_direction,
-        "fort": cutout((listing("tokens", r"^fort") or [None])[0]),
+        "fort": hexify(cutout((listing("tokens", r"^fort") or [None])[0])),
         "eventTracker": (listing("tokens", r"^event-tracker") or [None])[0],
         "boards": listing("boards"),
     }

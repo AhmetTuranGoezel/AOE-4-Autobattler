@@ -4234,9 +4234,13 @@ const Game = (() => {
     if (!st.tileStack || st.tileStack.length === 0) return false;
     const h = st.map.hexes[hexKey];
     if (!h || !h.active) return false;
+    // On the edge of the map means the space next door is not board. A space on
+    // the outermost ring of the coordinate grid has no entry there at all —
+    // which is as off the map as it gets, and used to read as "not an edge",
+    // so nobody standing on the rim could explore.
     const onEdge = hexNeighborKeys(h.q, h.r).some((nk) => {
       const nh = st.map.hexes[nk];
-      return nh && !nh.active;
+      return !nh || !nh.active;
     });
     if (!onEdge) return false;
     return tileHasCapital(st, h.tileId);
