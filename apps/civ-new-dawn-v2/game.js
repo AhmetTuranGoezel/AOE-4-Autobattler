@@ -287,6 +287,12 @@ const Game = (() => {
     if (cellKeys.length !== TILE_OFFSETS.length) return { ok: false };
     if (cellKeys.some((k) => st.map.hexes[k].active)) return { ok: false };
 
+    // The advanced draft (Terra p14) places the first tiles of the game onto an
+    // otherwise empty board — nothing exists yet for them to touch. Standard
+    // setup never reaches this function with an empty map (its core tiles are
+    // placed directly, unvalidated), so this only ever fires for that bootstrap.
+    if (!Object.values(st.map.hexes).some((h) => h.active)) return { ok: true, touchesCore: false, touchesCoreAdj: false };
+
     const cellSet = new Set(cellKeys);
     // Terra p5, step h: a capital tile must touch four spaces "on forts and/or
     // core tiles", and the diagram spells out that "spaces on other capital
@@ -504,7 +510,8 @@ const Game = (() => {
 
   // --- Setup State Creation ---
 
-  function createSetupState(playerIds) {
+  function createSetupState(playerIds, opts) {
+    opts = opts || {};
     const tiles = {};
     const order = shuffle(playerIds.slice());
 
@@ -541,6 +548,37 @@ const Game = (() => {
     });
 
     shuffle(mapDeck);
+
+    // Terra p14's optional advanced variant: instead of the core being four
+    // tiles (two at 2-3 players) revealed off the shuffled stack, each player
+    // is dealt 2 tiles and places them in turn order — the same figure-free
+    // placement PLACE_TILE already does for capitals, just earlier and on an
+    // empty board. The exact composition rule isn't in the source this app
+    // was built from (see RULES-COVERAGE.md); this deals 2 per player from the
+    // same shuffled deck standard setup would have drawn its core from, marked
+    // core exactly like the standard tiles so later fortress/capital adjacency
+    // checks don't need to know which setup mode ran.
+    if (opts.advancedDraft) {
+      const draftTiles = {};
+      playerIds.forEach((id) => {
+        const dealt = mapDeck.splice(0, Math.min(2, mapDeck.length));
+        dealt.forEach((tile) => { tile.isCore = true; });
+        draftTiles[id] = dealt.map((t) => t.id);
+      });
+      return {
+        phase: "draft_tile",
+        order,
+        turnIndex: 0,
+        tiles,
+        playerTiles,
+        draftTiles,
+        coreTiles: [],
+        coreSide: null,
+        fortressPlaced: {},
+        tileStack: mapDeck.map((t) => t.id)
+      };
+    }
+
     const coreCount = playerIds.length <= 3 ? 2 : 4;
     const coreTiles = mapDeck.splice(0, Math.min(coreCount, mapDeck.length));
     coreTiles.forEach((tile) => { tile.isCore = true; });
@@ -552,6 +590,7 @@ const Game = (() => {
       turnIndex: 0,
       tiles,
       playerTiles,
+      draftTiles: {},
       coreTiles: coreTiles.map((t) => t.id),
       coreSide,
       fortressPlaced: {},
@@ -596,15 +635,17 @@ const Game = (() => {
     });
   }
 
-  function createState(players) {
+  function createState(players, opts) {
+    opts = opts || {};
     const map = buildEmptyMap(CFG.mapRadius);
     seatPlayers(players);
     const playerIds = players.map((p) => p.id);
-    const setup = createSetupState(playerIds);
+    const setup = createSetupState(playerIds, opts);
 
     const st = {
       rulesVersion: RULE_VERSION,
       phase: "setup",
+      advancedDraft: !!opts.advancedDraft,
       map,
       players: players.slice(),
       turn: { order: setup.order.slice(), index: 0, round: 1 },
@@ -622,14 +663,17 @@ const Game = (() => {
       log: []
     };
 
-    const anchors = getCoreAnchors(st.players.length);
-    setup.coreTiles.forEach((tileId, i) => {
-      const anchor = anchors[i];
-      const anchorKey = key(anchor.q, anchor.r);
-      placeTileOnMap(st, tileId, anchorKey, anchor.rotation, setup.coreSide || "A");
-    });
-
-    log(st, "Core tiles placed. Fortress placement begins.");
+    if (opts.advancedDraft) {
+      log(st, "Advanced setup: each player drafts 2 tiles to build the core.");
+    } else {
+      const anchors = getCoreAnchors(st.players.length);
+      setup.coreTiles.forEach((tileId, i) => {
+        const anchor = anchors[i];
+        const anchorKey = key(anchor.q, anchor.r);
+        placeTileOnMap(st, tileId, anchorKey, anchor.rotation, setup.coreSide || "A");
+      });
+      log(st, "Core tiles placed. Fortress placement begins.");
+    }
     return st;
   }
 
@@ -985,7 +1029,7 @@ const Game = (() => {
       if (st.phase !== "lobby") return st;
       if (!st.solo && st.players.length < CFG.minPlayers) return st;
       assignRandomLeaders(st);
-      const newState = createState(st.players);
+      const newState = createState(st.players, { advancedDraft: !!payload.advancedDraft });
       newState.solo = !!st.solo;
       // Carry the lobby chatter into the game log for continuity.
       newState.log = (st.log || []).concat(newState.log);
@@ -1008,16 +1052,19 @@ const Game = (() => {
       }
       // Rebuild setup with new player
       if (st.phase === "setup") {
-        const newSetup = createSetupState(st.players.map((p) => p.id));
+        const newSetup = createSetupState(st.players.map((p) => p.id), { advancedDraft: st.advancedDraft });
         st.setup = newSetup;
         st.turn.order = newSetup.order.slice();
-        // Re-place core tiles
         st.map = buildEmptyMap(CFG.mapRadius);
-        const anchors = getCoreAnchors(st.players.length);
-        newSetup.coreTiles.forEach((tileId, i) => {
-          const anchor = anchors[i];
-          placeTileOnMap(st, tileId, key(anchor.q, anchor.r), anchor.rotation, newSetup.coreSide || "A");
-        });
+        if (!st.advancedDraft) {
+          // Re-place core tiles. The advanced draft has no automatic core to
+          // place — players draft it fresh, same as at game start.
+          const anchors = getCoreAnchors(st.players.length);
+          newSetup.coreTiles.forEach((tileId, i) => {
+            const anchor = anchors[i];
+            placeTileOnMap(st, tileId, key(anchor.q, anchor.r), anchor.rotation, newSetup.coreSide || "A");
+          });
+        }
         st.tileDeck = newSetup.tileStack.slice();
       }
       log(st, `${payload.name} joined.`);
@@ -1062,28 +1109,36 @@ const Game = (() => {
     }
 
     if (type === "PLACE_TILE") {
-      if (st.phase !== "setup" || st.setup.phase !== "capital_tile") return st;
+      const inDraft = st.setup.phase === "draft_tile";
+      if (st.phase !== "setup" || (st.setup.phase !== "capital_tile" && !inDraft)) return st;
       const activeId = st.setup.order[st.setup.turnIndex];
       if (payload.playerId !== activeId) return st;
-      const playerTiles = st.setup.playerTiles[payload.playerId] || [];
+      const hand = inDraft ? st.setup.draftTiles : st.setup.playerTiles;
+      const playerTiles = hand[payload.playerId] || [];
       if (!playerTiles.includes(payload.tileId)) return st;
 
       const result = validateTilePlacement(st, payload.tileId, payload.anchorKey, payload.rotation);
       if (!result.ok) return st;
 
       placeTileOnMap(st, payload.tileId, payload.anchorKey, payload.rotation, payload.side);
-      st.setup.playerTiles[payload.playerId] = playerTiles.filter((id) => id !== payload.tileId);
+      hand[payload.playerId] = playerTiles.filter((id) => id !== payload.tileId);
 
       const player = getPlayer(st, payload.playerId);
       const tile = st.setup.tiles[payload.tileId];
-      log(st, `${player ? player.name : "Player"} placed a ${tile.type} tile.`);
+      log(st, `${player ? player.name : "Player"} placed a ${inDraft ? "drafted" : tile.type} tile.`);
 
-      // Check if all tiles placed
-      const allDone = st.setup.order.every((id) => (st.setup.playerTiles[id] || []).length === 0);
+      // Check if all tiles placed for this phase
+      const allDone = st.setup.order.every((id) => (hand[id] || []).length === 0);
       if (allDone) {
-        finalizeSetup(st);
+        if (inDraft) {
+          st.setup.phase = "fortress";
+          st.setup.turnIndex = 0;
+          log(st, "Core drafted and placed. Fortress placement begins.");
+        } else {
+          finalizeSetup(st);
+        }
       } else {
-        advanceSetupTurnTile(st);
+        advanceSetupTurnTile(st, inDraft ? "draftTiles" : "playerTiles");
       }
       return st;
     }
@@ -1823,12 +1878,13 @@ const Game = (() => {
     st.turn.index = next;
   }
 
-  function advanceSetupTurnTile(st) {
+  function advanceSetupTurnTile(st, field) {
+    const hand = st.setup[field || "playerTiles"];
     const order = st.setup.order;
     let next = st.setup.turnIndex;
     for (let i = 0; i < order.length; i++) {
       next = (next + 1) % order.length;
-      if ((st.setup.playerTiles[order[next]] || []).length > 0) break;
+      if ((hand[order[next]] || []).length > 0) break;
     }
     st.setup.turnIndex = next;
     st.turn.index = next;

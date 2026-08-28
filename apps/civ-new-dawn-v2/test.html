@@ -69,6 +69,43 @@
       const s4 = Game.createState(players(4));
       assert("4-player setup places four core tiles", s4.setup.coreTiles.length === 4);
 
+      // ── Advanced tile draft (Terra p14's optional variant) ──
+      // Not the standard flow this file otherwise checks: instead of the core
+      // revealing automatically, each player is dealt 2 tiles and places them
+      // in turn order. Opt-in only — everything above must keep passing with
+      // no opts argument at all, which is what "4-player setup places four
+      // core tiles" just did.
+      const sAdv = Game.createState(players(4), { advancedDraft: true });
+      assert("advanced draft starts in its own draft_tile phase", sAdv.setup.phase === "draft_tile");
+      assert("advanced draft skips the automatic core", sAdv.setup.coreTiles.length === 0);
+      assert("advanced draft deals exactly 2 tiles to every player",
+        sAdv.setup.order.every((id) => (sAdv.setup.draftTiles[id] || []).length === 2));
+      assert("drafted tiles are marked core, same as the standard core would be",
+        sAdv.setup.order.every((id) => (sAdv.setup.draftTiles[id] || [])
+          .every((tid) => sAdv.setup.tiles[tid].isCore)));
+
+      let draftState = sAdv;
+      let draftPlacements = 0;
+      while (draftState.setup.phase === "draft_tile" && draftPlacements < 20) {
+        const activeId = draftState.setup.order[draftState.setup.turnIndex];
+        const hand = draftState.setup.draftTiles[activeId] || [];
+        if (!hand.length) break;
+        const tileId = hand[0];
+        const anchorKey = Game.getTileAnchorsAnyRotation(draftState, tileId).values().next().value;
+        if (!anchorKey) break;
+        const placement = Game.tilePlacementFor(draftState, tileId, anchorKey, 0);
+        if (!placement) break;
+        draftState = Game.applyAction(draftState, { type: "PLACE_TILE",
+          payload: { playerId: activeId, tileId, anchorKey, rotation: placement.rotation, side: "A" } });
+        draftPlacements++;
+      }
+      assert("all 8 drafted tiles (4 players × 2) find a home", draftPlacements === 8);
+      assert("finishing the draft hands off to fortress placement", draftState.setup.phase === "fortress");
+      assert("the drafted tiles' own cells are marked core (some fill hexes may not be)",
+        Object.values(draftState.map.hexes).filter((h) => h.core).length === 80);
+      assert("fortress placement on a drafted core sees it as core",
+        Game.getValidFortressHexes(draftState).size > 0);
+
       // ── Online lobby flow ──
       let lob = Game.createLobbyState([players(1)[0]]);
       assert("lobby state starts in lobby phase", lob.phase === "lobby");

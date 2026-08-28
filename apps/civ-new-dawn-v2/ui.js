@@ -105,8 +105,18 @@ const UI = (() => {
     totalMarkers: 0, validHexes: new Set(), selectedUnit: null,
     districtType: null, spentResources: {}, placedKeys: [],
     tileRotation: 0, tileSide: "A",
-    movementState: null
+    movementState: null,
+    advancedDraft: false
   };
+
+  // The tile-in-hand for setup: capital/tile phase reads playerTiles, the
+  // advanced draft (Terra p14) reads its own hand so a capital dealt at the
+  // same time doesn't get placed early.
+  function setupHand(state, playerId) {
+    return state.setup.phase === "draft_tile"
+      ? (state.setup.draftTiles[playerId] || [])
+      : (state.setup.playerTiles[playerId] || []);
+  }
 
   // Animation system
   const anims = {
@@ -530,8 +540,8 @@ const UI = (() => {
         if (state.setup.phase === "fortress") {
           // Fortress placement is a board-reading decision. Do not paint every
           // legal answer green; an invalid click gets a plain-language reason.
-        } else if (state.setup.phase === "tile" || state.setup.phase === "capital_tile") {
-          const playerTiles = state.setup.playerTiles[localPlayerId] || [];
+        } else if (state.setup.phase === "tile" || state.setup.phase === "capital_tile" || state.setup.phase === "draft_tile") {
+          const playerTiles = setupHand(state, localPlayerId);
           if (playerTiles.length > 0) {
             const tileId = playerTiles[0];
             // Deliberately NOT lighting up every legal anchor. Working out where
@@ -1412,7 +1422,7 @@ const UI = (() => {
   function placingTile() {
     if (isExploring(sub.phase)) return true;
     if (!state || state.phase !== "setup") return false;
-    if (state.setup.phase !== "tile" && state.setup.phase !== "capital_tile") return false;
+    if (state.setup.phase !== "tile" && state.setup.phase !== "capital_tile" && state.setup.phase !== "draft_tile") return false;
     return state.setup.order[state.setup.turnIndex] === localPlayerId;
   }
 
@@ -2084,7 +2094,10 @@ const UI = (() => {
       ${leaderSection}
       <div class="lobby-footer">${n < min && !solo ? `<span>Need at least ${min} players to start.</span>` : "<span></span>"}
         ${isHost
-          ? `<button id="lobby-start" class="wiz-primary" ${canStart ? "" : "disabled"}>${solo ? "Begin" : `Start Game (${n} player${n === 1 ? "" : "s"})`}</button>`
+          ? `<label class="lobby-draft-toggle" title="Terra p14's optional variant: each player drafts 2 tiles and places them in turn order instead of the core revealing automatically.">
+              <input type="checkbox" id="lobby-advanced-draft" ${sub.advancedDraft ? "checked" : ""}> Advanced setup: draft core tiles
+            </label>
+            <button id="lobby-start" class="wiz-primary" ${canStart ? "" : "disabled"}>${solo ? "Begin" : `Start Game (${n} player${n === 1 ? "" : "s"})`}</button>`
           : `<div class="wiz-body">Waiting for the host to start the game...</div>`}</div>
     `;
 
@@ -2111,12 +2124,15 @@ const UI = (() => {
         showToast(val);
       }
     });
+    document.getElementById("lobby-advanced-draft")?.addEventListener("change", (e) => {
+      sub.advancedDraft = e.target.checked;
+    });
     const startBtn = document.getElementById("lobby-start");
     if (startBtn) startBtn.addEventListener("click", () => {
       if (!state.solo && state.players.length < Game.CFG.minPlayers) {
         showToast(`Need at least ${Game.CFG.minPlayers} players`); return;
       }
-      dispatch({ type: "START_GAME", payload: { playerId: localPlayerId } });
+      dispatch({ type: "START_GAME", payload: { playerId: localPlayerId, advancedDraft: sub.advancedDraft } });
     });
   }
 
@@ -2140,10 +2156,11 @@ const UI = (() => {
       return;
     }
 
-    if (state.setup.phase === "tile" || state.setup.phase === "capital_tile") {
+    if (state.setup.phase === "tile" || state.setup.phase === "capital_tile" || state.setup.phase === "draft_tile") {
       const isCapitalPhase = state.setup.phase === "capital_tile";
-      const phaseLabel = isCapitalPhase ? "Capital Tile Placement" : "Tile Placement";
-      const playerTiles = state.setup.playerTiles[activeId] || [];
+      const isDraftPhase = state.setup.phase === "draft_tile";
+      const phaseLabel = isCapitalPhase ? "Capital Tile Placement" : (isDraftPhase ? "Draft: Core Tile Placement" : "Tile Placement");
+      const playerTiles = setupHand(state, activeId);
       if (!isMySetupTurn) {
         dom.wizard.innerHTML = `<div class="wiz-title">${phaseLabel}</div><div class="wiz-body">Waiting for <strong>${activeP ? activeP.name : "..."}</strong>. (${playerTiles.length} remaining)</div>`;
         return;
@@ -2157,8 +2174,9 @@ const UI = (() => {
       const tileType = tile ? tile.type.charAt(0).toUpperCase() + tile.type.slice(1) : "?";
 
       dom.wizard.innerHTML = `
-        <div class="wiz-title">${isCapitalPhase ? "Place Your Capital Tile" : `Place Tile: ${tileType} (${tileId})`}</div>
+        <div class="wiz-title">${isCapitalPhase ? "Place Your Capital Tile" : (isDraftPhase ? `Place Drafted Tile: ${tileType} (${tileId})` : `Place Tile: ${tileType} (${tileId})`)}</div>
         <div class="wiz-body">
+          ${isDraftPhase ? `<div class="wiz-hint">Advanced setup: this tile joins the shared core — place it touching the growing map.</div>` : ""}
           <div class="tile-preview">${renderTileCard(tileId)}</div>
           <div class="trade-counter">
             <span>Turn it:</span>
@@ -3736,8 +3754,8 @@ const UI = (() => {
         dispatch({ type: "PLACE_FORTRESS", payload: { playerId: localPlayerId, hexKey } });
         return;
       }
-      if (state.setup.phase === "tile" || state.setup.phase === "capital_tile") {
-        const playerTiles = state.setup.playerTiles[localPlayerId] || [];
+      if (state.setup.phase === "tile" || state.setup.phase === "capital_tile" || state.setup.phase === "draft_tile") {
+        const playerTiles = setupHand(state, localPlayerId);
         if (playerTiles.length === 0) return;
         const tileId = playerTiles[0];
         // You lay the tile down the way you are holding it. This used to turn
