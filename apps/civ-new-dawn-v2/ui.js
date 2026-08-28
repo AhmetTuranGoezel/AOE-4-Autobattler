@@ -3147,7 +3147,10 @@ const UI = (() => {
         break;
       case "military": {
         const combatBonus = Game.getMilitaryCombatBonus(player);
-        outcome = `Move each army up to <strong>${Game.getMilitaryMove(player)}</strong> spaces. ` +
+        // The Pentagon lifts the distance entirely, which the engine models as
+        // a budget nobody can spend. Saying "99" would just look like a bug.
+        const reach = Game.getMilitaryMove(player, state);
+        outcome = `Move each army up to <strong>${reach >= 99 ? "any number of" : reach}</strong> spaces. ` +
           `Combat: d6 + ${slot}${combatBonus ? ` +${combatBonus} tier` : ""}, plus any tokens spent in the fight.`;
         break;
       }
@@ -3453,7 +3456,7 @@ const UI = (() => {
         }
         if (!unit) return;
         sub.selectedUnit = unit;
-        const maxMove = Game.getMilitaryMove(me);
+        const maxMove = Game.getMilitaryMove(me, state);
         sub.movementState = { unitType: "army", unitId: unit.id, maxMove, remaining: maxMove, currentKey: hexKey, startKey: hexKey, explored: false };
         sub.validHexes = Game.getReachable(state, hexKey, maxMove, "army", localPlayerId);
         render();

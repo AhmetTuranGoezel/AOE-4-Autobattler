@@ -35,6 +35,13 @@
   // Side A cell centres run bottom-to-top per column; side B is the same
   // geometry mirrored vertically. Cell 6 is the capital space, which is where
   // the printed star sits on all five capital tiles.
+  //
+  // The barbarian letters are the ones printed inside the helm on the tile,
+  // matching the lettered barbarian tokens. They repeat across tiles and they
+  // are decoration — nothing reads them but the tile inspector and the token
+  // drawn on the space. They came off a 635x990 scan where the helm is about
+  // forty pixels across, so E, F and H are the ones to re-check first if one
+  // ever looks wrong.
   const TILES = [
     // Printed tile 7
     tile("01", "capital",
@@ -52,7 +59,7 @@
     tile("03", "capital",
       ["forest","hill","hill","mountain","forest","forest","grass","mountain","hill","hill"],
       ["grass","desert","grass","hill","grass","mountain","grass","hill","hill","water"],
-      { 0: { barbarian: "A" }, 3: { resource: "diamonds" }, 6: { feature: "capital" } },
+      { 0: { barbarian: "G" }, 3: { resource: "diamonds" }, 6: { feature: "capital" } },
       { 4: { resource: "mercury" }, 6: { feature: "capital" } }),
     // Printed tile 16
     tile("04", "capital",
@@ -82,8 +89,8 @@
     tile("08", "citystate",
       ["mountain","forest","mountain","water","grass","mountain","grass","water","water","water"],
       ["grass","grass","mountain","desert","grass","mountain","hill","desert","mountain","water"],
-      { 1: { barbarian: "C" }, 2: { resource: "mercury" }, 6: { cityState: "Buenos Aires" } },
-      { 0: { cityState: "Kabul" }, 2: { barbarian: "D" }, 7: { resource: "oil" } }),
+      { 1: { barbarian: "H" }, 2: { resource: "mercury" }, 6: { cityState: "Buenos Aires" } },
+      { 0: { cityState: "Kabul" }, 2: { barbarian: "E" }, 7: { resource: "oil" } }),
     // Printed tile 14 — Geneva / Mohenjo Daro
     tile("09", "citystate",
       ["mountain","hill","hill","forest","forest","forest","forest","hill","forest","grass"],
@@ -94,20 +101,20 @@
     tile("10", "citystate",
       ["hill","forest","grass","water","water","water","water","mountain","hill","water"],
       ["desert","desert","water","desert","desert","water","grass","desert","desert","desert"],
-      { 2: { cityState: "Auckland" }, 7: { resource: "diamonds" }, 8: { barbarian: "E" } },
-      { 0: { barbarian: "F" }, 4: { resource: "marble" }, 6: { cityState: "Akkad" } }),
+      { 2: { cityState: "Auckland" }, 7: { resource: "diamonds" }, 8: { barbarian: "K" } },
+      { 0: { barbarian: "K" }, 4: { resource: "marble" }, 6: { cityState: "Akkad" } }),
     // Printed tile 4 — Galapagos Islands / Grand Mesa
     tile("11", "natural",
       ["mountain","mountain","hill","forest","grass","hill","desert","mountain","desert","desert"],
       ["mountain","hill","grass","water","hill","water","grass","water","water","water"],
-      { 0: { resource: "marble" }, 4: { barbarian: "G" }, 6: { naturalWonder: "Galapagos Islands" } },
-      { 0: { barbarian: "H" }, 6: { naturalWonder: "Grand Mesa" } }),
+      { 0: { resource: "marble" }, 4: { barbarian: "D" }, 6: { naturalWonder: "Galapagos Islands" } },
+      { 0: { barbarian: "D" }, 6: { naturalWonder: "Grand Mesa" } }),
     // Printed tile 18 — Mato Tipila / Dead Sea
     tile("12", "natural",
       ["grass","hill","desert","mountain","water","hill","desert","desert","water","desert"],
       ["grass","grass","hill","grass","forest","forest","desert","hill","hill","grass"],
-      { 6: { naturalWonder: "Mato Tipila" }, 7: { resource: "oil" }, 9: { barbarian: "I" } },
-      { 0: { resource: "mercury" }, 5: { barbarian: "J" }, 6: { naturalWonder: "Dead Sea" } }),
+      { 6: { naturalWonder: "Mato Tipila" }, 7: { resource: "oil" }, 9: { barbarian: "F" } },
+      { 0: { resource: "mercury" }, 5: { barbarian: "E" }, 6: { naturalWonder: "Dead Sea" } }),
     // Printed tile 13 — Mt Kilimanjaro / Pantanal
     tile("13", "natural",
       ["forest","forest","desert","desert","hill","grass","mountain","desert","hill","hill"],
@@ -118,20 +125,20 @@
     tile("14", "normal",
       ["mountain","mountain","grass","water","forest","hill","water","mountain","grass","desert"],
       ["desert","forest","grass","desert","forest","desert","desert","desert","desert","desert"],
-      { 1: { barbarian: "K" }, 4: { resource: "oil" }, 9: { resource: "mercury" } },
-      { 0: { resource: "marble" }, 6: { barbarian: "L" }, 7: { resource: "oil" } }),
+      { 1: { barbarian: "C" }, 4: { resource: "oil" }, 9: { resource: "mercury" } },
+      { 0: { resource: "marble" }, 6: { barbarian: "C" }, 7: { resource: "oil" } }),
     // Printed tile 5
     tile("15", "normal",
       ["forest","forest","hill","hill","grass","grass","mountain","hill","grass","mountain"],
       ["grass","grass","grass","hill","grass","hill","mountain","forest","forest","forest"],
       { 1: { resource: "oil" }, 9: { resource: "diamonds" } },
-      { 1: { barbarian: "M" }, 6: { resource: "marble" } }),
+      { 1: { barbarian: "E" }, 6: { resource: "marble" } }),
     // Printed tile 1 — Cliffs of Dover / Torres del Paine
     tile("16", "natural",
       ["water","mountain","mountain","mountain","mountain","hill","mountain","hill","grass","desert"],
       ["grass","grass","hill","forest","water","water","mountain","grass","water","water"],
-      { 2: { barbarian: "N" }, 4: { resource: "mercury" }, 6: { naturalWonder: "Cliffs of Dover" } },
-      { 6: { naturalWonder: "Torres del Paine" }, 7: { barbarian: "O" } }),
+      { 2: { barbarian: "A" }, 4: { resource: "mercury" }, 6: { naturalWonder: "Cliffs of Dover" } },
+      { 6: { naturalWonder: "Torres del Paine" }, 7: { barbarian: "A" } }),
     // Printed tile 21 — Antananarivo / Palenque
     tile("TI01", "citystate",
       ["grass","mountain","forest","water","hill","hill","water","grass","water","forest"],
@@ -154,13 +161,13 @@
     tile("TI04", "normal",
       ["mountain","desert","desert","hill","mountain","water","water","grass","grass","grass"],
       ["water","water","grass","desert","water","grass","forest","forest","desert","hill"],
-      { 1: { barbarian: "P" }, 2: { resource: "oil" } },
-      { 3: { resource: "mercury" }, 6: { barbarian: "Q" }, 8: { resource: "diamonds" } }),
+      { 1: { barbarian: "F" }, 2: { resource: "oil" } },
+      { 3: { resource: "mercury" }, 6: { barbarian: "E" }, 8: { resource: "diamonds" } }),
     // Printed tile 2 — Crater Lake / Mount Everest
     tile("TI05", "natural",
       ["mountain","hill","grass","hill","mountain","mountain","mountain","mountain","hill","hill"],
       ["forest","hill","mountain","mountain","forest","mountain","water","mountain","hill","mountain"],
-      { 4: { barbarian: "R" }, 6: { naturalWonder: "Crater Lake" } },
+      { 4: { barbarian: "B" }, 6: { naturalWonder: "Crater Lake" } },
       { 5: { naturalWonder: "Mount Everest" }, 9: { resource: "diamonds" } })
   ];
 
@@ -225,7 +232,9 @@
       { name: "Ruhr Valley", era: "modern", cost: 11, auto: true,
         effect: "When defending, increase your combat value by 5." },
       { name: "Statue of Liberty", era: "modern", cost: 12, auto: true,
-        effect: "Before you replace a rival city with 1 of your cities, replace all rival control tokens that are adjacent to that rival city with your unused, unreinforced control tokens." }
+        effect: "Before you replace a rival city with 1 of your cities, replace all rival control tokens that are adjacent to that rival city with your unused, unreinforced control tokens." },
+      { name: "Pentagon", era: "modern", cost: 12, auto: true,
+        effect: "When attacking, increase your combat value by 2. Your armies can move any number of spaces. (They must still obey all other movement rules.)" }
     ],
     culture: [
       { name: "Stonehenge", era: "ancient", cost: 7, auto: true,
@@ -258,6 +267,8 @@
         effect: "When you move a caravan to a city-state, place 1 additional trade token from the supply on any 1 of your focus cards." },
       { name: "Great Zimbabwe", era: "medieval", cost: 9, auto: true,
         effect: "You can place trade tokens on this card instead of on your focus cards, up to a limit of 4. At the start of your turn, you may move trade tokens from this card to cards in your focus row." },
+      { name: "Machu Picchu", era: "medieval", cost: 10, auto: true,
+        effect: "When you resolve the card in the first or second slot of your focus row, resolve it as though it is 2 slots farther to the right." },
       { name: "Big Ben", era: "modern", cost: 10, auto: true,
         effect: "When attacking or defending, increase your combat value by +2 for each of your caravans adjacent to the defending space." },
       { name: "Estadio Do Maracana", era: "modern", cost: 10, auto: true,
@@ -280,7 +291,7 @@
         effect: "You can have 4 diplomacy cards from each other player. When you build this wonder, you may take a total of 3 diplomacy cards of your choice from other players." },
       { name: "Oxford University", era: "modern", cost: 10,
         effect: "When you replace (tech upgrade) a focus card other than a science focus card, you do not have to replace it with a card of the same type." },
-      { name: "Amundsen-Scott RS", era: "modern", cost: 10, auto: true,
+      { name: "Amundsen-Scott Research Station", era: "modern", cost: 10, auto: true,
         effect: "When you build this wonder, build a city on any legal space on the edge of the map and place this wonder in that city. THEN, place up to 2 control tokens in spaces adjacent to that city." },
       { name: "Kremlin", era: "modern", cost: 11, auto: true,
         effect: "When attacking a rival space (not city-state), increase your combat value by 4 if you have more reinforced control tokens on the map than the defending player." }

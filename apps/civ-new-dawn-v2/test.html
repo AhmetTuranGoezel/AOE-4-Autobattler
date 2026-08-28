@@ -50,7 +50,10 @@
       assert("21 physical tile entries", data.TILES.length === 21);
       assert("every tile has two 10-cell sides", data.TILES.every((t) => t.sides && t.sides.A.cells.length === 10 && t.sides.B.cells.length === 10));
       assert("five capital tiles", data.TILES.filter((t) => t.kind === "capital").length === 5);
-      assert("no removed wonders in Terra Incognita decks", !JSON.stringify(data.WONDER_DECKS).includes("Pentagon") && !JSON.stringify(data.WONDER_DECKS).includes("Machu Picchu"));
+      // The whole printed wonder deck is in the data. Terra p6 step 7b takes
+      // cards out at setup, at random, not by name — makeWonderDecks does it.
+      assert("all 36 printed wonders in the decks",
+        Object.values(data.WONDER_DECKS).reduce((n, d) => n + d.length, 0) === 36);
 
       const s2 = Game.createState(players(2));
       // Terra setup 3d: four core tiles, but only two at 2-3 players, drawn off
@@ -103,8 +106,22 @@
       assert("Egypt builds wonders for 1 less", Game.getWonderCost(Game.ALL_WONDERS[0].name, egy) === Game.getWonderCost(Game.ALL_WONDERS[0].name, plain) - 1);
       // ── World wonders ──
       const wonderNames = Game.ALL_WONDERS.map((w) => w.name);
-      assert("34 world wonders after Terra Incognita removals", wonderNames.length === 34);
-      assert("Pentagon and Machu Picchu removed", !wonderNames.includes("Pentagon") && !wonderNames.includes("Machu Picchu"));
+      // Terra p6 step 7b does not name the cards it takes out: "Divide each
+      // wonder pile by era into three facedown piles. Randomize each era pile
+      // and remove one card at random from each ancient and medieval era pile."
+      // So all 36 printed wonders are in the data, evenly 3 per era per type,
+      // and makeWonderDecks does the removing — 7 of each type reach the table.
+      assert("36 world wonders, the whole printed deck", wonderNames.length === 36);
+      assert("nine of each type, three per era", ["military", "culture", "economy", "science"].every((t) => {
+        const deck = Game.ALL_WONDERS.filter((w) => w.type === t);
+        const eras = { ancient: 0, medieval: 0, modern: 0 };
+        deck.forEach((w) => { eras[w.era]++; });
+        return deck.length === 9 && eras.ancient === 3 && eras.medieval === 3 && eras.modern === 3;
+      }));
+      // With three of every era, setup always has one to take from the ancient
+      // and medieval piles, so seven of each type reach the table.
+      const dealt = Game.createState(players(2)).wonderDecks;
+      assert("setup deals seven of each type", Object.values(dealt).every((d) => d.deck.length === 7));
       assert("every wonder has era, cost and printed effect text", Game.ALL_WONDERS.every((w) =>
         ["ancient", "medieval", "modern"].includes(w.era) && w.cost >= 7 && w.cost <= 12 && (w.effect || "").length > 20));
       let wst = Game.createState(players(2));
@@ -125,7 +142,7 @@
       assert("Colossus adds 6 caravan movement", Game.getEconomyMove(ecoP, wst) === ecoBefore + 6);
       // Wonders that shape where you may place, not just how hard you hit
       const autoCount = Game.ALL_WONDERS.filter((w) => w.auto).length;
-      assert("33 of the 34 wonders are engine-enforced", autoCount === 33);
+      assert("35 of the 36 wonders are engine-enforced", autoCount === 35);
       // The one left is a table reminder; naming it keeps the list honest.
       const manual = Game.ALL_WONDERS.filter((w) => !w.auto).map((w) => w.name).sort().join(", ");
       assert("and the one left is Oxford University", manual === "Oxford University");

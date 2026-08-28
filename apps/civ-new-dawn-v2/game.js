@@ -1287,7 +1287,7 @@ const Game = (() => {
       const from = unit.position || payload.startKey;
       if (!from) return st;
       if (!unit.position && !launchSpaces(st, player.id).has(from)) return st;
-      const reachable = getReachable(st, from, getMilitaryMove(player), "army", payload.playerId);
+      const reachable = getReachable(st, from, getMilitaryMove(player, st), "army", payload.playerId);
       if (!reachable.has(payload.toKey)) return st;
       unit.position = payload.toKey; log(st, `${player.name} moved army.`);
       unit.movedThisCard = true;
@@ -1308,7 +1308,7 @@ const Game = (() => {
       const from = unit.position || payload.fromKey;
       if (!from) return st;
       if (!unit.position && !launchSpaces(st, player.id).has(from)) return st;
-      const reachable = getReachable(st, from, getMilitaryMove(player), "army", payload.playerId);
+      const reachable = getReachable(st, from, getMilitaryMove(player, st), "army", payload.playerId);
       if (!reachable.has(payload.toKey) && from !== payload.toKey) return st;
 
       // Nothing is rolled yet. The dice are thrown when somebody throws them,
@@ -1536,7 +1536,7 @@ const Game = (() => {
       if (wonder.name === "Apadana") {
         queueApadanaExplore(st, player);
       }
-      if (wonder.name === "Amundsen-Scott RS") {
+      if (wonder.name === "Amundsen-Scott Research Station") {
         queueAmundsenSite(st, player, payload.hexKey);
       }
       if (wonder.name === "Porcelain Tower") {
@@ -1982,7 +1982,7 @@ const Game = (() => {
         hex.city = { ownerId: player.id, isCapital: false, developed: false,
           hasWonder: true, wonder };
         checkDevelopment(st, player.id);
-        log(st, `${player.name} founded a city on the rim for Amundsen-Scott RS.`);
+        log(st, `${player.name} founded a city on the rim for Amundsen-Scott Research Station.`);
         queueAmundsenTokens(st, player, hexKey, 2);
         resolved = true;
       }
@@ -3186,11 +3186,21 @@ const Game = (() => {
     // Taj Mahal: 1 place per world wonder you control matching this card's type.
     const tajShift = st && hasWonder(st, player.id, "Taj Mahal")
       ? countWondersOfType(st, player.id, cardType) : 0;
-    const shift = getGovShift(player, cardType) + georgiaShift + tajShift;
+    // Machu Picchu: "When you resolve the card in the first or second slot of
+    // your focus row, resolve it as though it is 2 slots farther to the right."
+    // It reads the printed slot, not the shifted one, so it is decided before
+    // anything else moves the card along.
+    const machuShift = st && idx < 2 && hasWonder(st, player.id, "Machu Picchu") ? 2 : 0;
+    const shift = getGovShift(player, cardType) + georgiaShift + tajShift + machuShift;
     return slotAfterShift(idx, shift);
   }
 
-  function getMilitaryMove(player) {
+  function getMilitaryMove(player, st) {
+    // Pentagon: "Your armies can move any number of spaces. (They must still
+    // obey all other movement rules.)" Only the distance is lifted — stopping
+    // on a rival piece, ending on entering a barbarian, and the rest still
+    // apply, so this is a very large budget rather than a special case.
+    if (st && hasWonder(st, player.id, "Pentagon")) return 99;
     const tier = getCardTier(player, "military");
     // Scythia's Horseback Riding (unique Military I): armies ride 6 spaces.
     if (uniqueInPlay(player, "scythia")) return 6;
@@ -3337,7 +3347,7 @@ const Game = (() => {
     });
   }
 
-  // Amundsen-Scott RS does not go into a city you already hold — it founds one
+  // Amundsen-Scott Research Station does not go into a city you already hold — it founds one
   // on any legal edge space and stands in that. Then up to 2 control tokens
   // land next to it.
   function queueAmundsenSite(st, player, builtAtKey) {
@@ -3347,8 +3357,8 @@ const Game = (() => {
     if (!spots.length) return;
     queuePendingChoice(st, {
       kind: "amundsen_site", playerId: player.id, fromKey: builtAtKey,
-      title: "Amundsen-Scott RS: Found Its City on the Rim",
-      source: "Amundsen-Scott RS", hexKeys: spots
+      title: "Amundsen-Scott Research Station: Found Its City on the Rim",
+      source: "Amundsen-Scott Research Station", hexKeys: spots
     });
   }
 
@@ -3363,8 +3373,8 @@ const Game = (() => {
     if (!spots.length) return;
     queuePendingChoice(st, {
       kind: "place_control", playerId: player.id,
-      title: `Amundsen-Scott RS: Place a Control Token (${remaining} left)`,
-      source: "Amundsen-Scott RS", hexKeys: spots, optional: true,
+      title: `Amundsen-Scott Research Station: Place a Control Token (${remaining} left)`,
+      source: "Amundsen-Scott Research Station", hexKeys: spots, optional: true,
       chainKey: cityKey, chainLeft: remaining - 1
     });
   }
@@ -3519,6 +3529,7 @@ const Game = (() => {
     let bonus = 0;
     if (hasWonder(st, playerId, "Terracotta Army")) bonus += 2;
     if (hasWonder(st, playerId, "Alhambra")) bonus += 2;
+    if (hasWonder(st, playerId, "Pentagon")) bonus += 2;
     if (hasWonder(st, playerId, "Big Ben")) bonus += 2 * countAdjacentCaravans(st, toKey, playerId);
     if (hasWonder(st, playerId, "Kremlin")) {
       const h = st.map.hexes[toKey];
