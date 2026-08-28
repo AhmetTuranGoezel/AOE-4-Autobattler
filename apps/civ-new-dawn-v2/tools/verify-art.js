@@ -123,6 +123,9 @@ const slug = (s) => s.toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g, "-")
     /^tokens\/mercury__/.test(manifest.resource.mercury || ""));
   check("every focus bar colour has art", manifest.colors.every((c) => manifest.focusBar[c]));
   check("every seat colour has a tech dial", manifest.colors.every((c) => manifest.dial[c]));
+  check("every player-piece mesh has a render in all five colours",
+    ["army", "caravan", "city", "capital"].every((kind) =>
+      manifest.colors.every((c) => (manifest.piece[kind] || {})[c])));
   check("the printed event dial has art", !!manifest.eventDial);
 }
 
@@ -149,6 +152,9 @@ const slug = (s) => s.toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g, "-")
     seats.every((c) => ART.control(c, false) && ART.control(c, true)));
   check("a legacy save colour still finds its components",
     ART.control("#457b9d", false) === ART.control("blue", false));
+  check("all four player-piece models resolve through the module",
+    ["army", "caravan", "city", "capital"].every((kind) =>
+      seats.every((c) => ART.piece(kind, c))));
 
   check("every focus card resolves through the module",
     Object.keys(RULES.CARD_DEFS).every((t) =>

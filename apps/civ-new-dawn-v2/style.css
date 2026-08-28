@@ -318,6 +318,23 @@ input, select {
   justify-content: center;
 }
 .tile-preview svg { display: block; }
+.fortress-preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0 9px;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.18);
+}
+.fortress-preview img {
+  width: 68px;
+  height: 78px;
+  object-fit: contain;
+  filter: drop-shadow(0 5px 5px rgba(0, 0, 0, 0.45));
+}
+.fortress-preview span { font-size: 11px; color: var(--text2); }
 
 .district-grid {
   display: grid;
@@ -1146,6 +1163,13 @@ input, select {
 /* These read as cards, in the same colour language as the focus bar, rather
    than as rows of a table. */
 .ref-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+/* World Wonders now only ever lists what has actually happened (built,
+   removed, or on top of its deck) — a handful of cards at most, not 36 — so
+   there's room to make each one read like the printed card instead of a
+   thumbnail. */
+.wonders-grid { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 18px; }
+.wonders-grid .wcard-name { font-size: 15px; }
+.wonders-grid .wcard-text { font-size: 12.5px; line-height: 1.6; }
 
 .wcard {
   display: flex; flex-direction: column;
@@ -2317,6 +2341,11 @@ kbd {
   line-height: 1;
 }
 .cf-fig {
+  display: inline-block;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
   font-size: 13px;
   color: #f4e4b8;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);

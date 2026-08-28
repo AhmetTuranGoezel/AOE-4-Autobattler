@@ -533,13 +533,20 @@ const UI = (() => {
     let setupValid = new Set();
     let ghostKeys = new Set();
     let ghostValid = false;
+    let fortressGhostKey = null;
 
     if (state.phase === "setup") {
       const activeId = state.setup.order[state.setup.turnIndex];
       if (activeId === localPlayerId) {
         if (state.setup.phase === "fortress") {
           // Fortress placement is a board-reading decision. Do not paint every
-          // legal answer green; an invalid click gets a plain-language reason.
+          // legal answer green; the only preview is the single space currently
+          // under the pointer, and an invalid click gets a plain-language reason.
+          if (mouseHex) {
+            const hoveredKey = Game.key(mouseHex.q, mouseHex.r);
+            const hovered = hexes[hoveredKey];
+            if (hovered && !hovered.active) fortressGhostKey = hoveredKey;
+          }
         } else if (state.setup.phase === "tile" || state.setup.phase === "capital_tile" || state.setup.phase === "draft_tile") {
           const playerTiles = setupHand(state, localPlayerId);
           if (playerTiles.length > 0) {
@@ -679,6 +686,22 @@ const UI = (() => {
 
     // Layer 6: Ghost tile
     if (ghostKeys.size > 0) drawGhostTile(ghostKeys, ghostValid);
+
+    // The fortress follows the pointer as one neutral cardboard preview. It
+    // deliberately has no green/red legality tint and reveals no other space.
+    if (fortressGhostKey) {
+      const h = hexes[fortressGhostKey];
+      const p = axialToPixel(h.q, h.r);
+      const fort = window.CivCardArt && CivCardArt.fort();
+      if (!(fort && drawToken(fort, p.x, p.y, HEX_TOKEN, { alpha: 0.76, shadow: true }))) {
+        ctx.save();
+        ctx.globalAlpha = 0.76;
+        hexPath(p.x, p.y, HEX_SIZE * 0.78);
+        ctx.fillStyle = "#9aa1ad"; ctx.fill();
+        ctx.strokeStyle = "#e6e9ef"; ctx.lineWidth = 1.5; ctx.stroke();
+        ctx.restore();
+      }
+    }
 
     // Layer 7: Current unit position during movement
     if (sub.movementState && sub.movementState.currentKey) {
@@ -1067,10 +1090,14 @@ const UI = (() => {
     const list = player[kind] || [];
     if (!list.length) return "";
     const home = list.filter((u) => !u.position).length;
+    const pieceKind = kind === "armies" ? "army" : "caravan";
     const glyph = kind === "armies" ? "\u2694" : "\u26fa";
+    const sprite = window.CivCardArt ? CivCardArt.piece(pieceKind, player.color) : "";
     let pips = "";
     for (let i = 0; i < list.length; i++) {
-      pips += `<span class="cf-fig${i < home ? "" : " out"}">${glyph}</span>`;
+      pips += sprite
+        ? `<img class="cf-fig${i < home ? "" : " out"}" src="${sprite}" alt="${pieceKind}">`
+        : `<span class="cf-fig${i < home ? "" : " out"}">${glyph}</span>`;
     }
     return `<div class="cface-onboard" title="${home} of ${list.length} still on this card">${pips}</div>`;
   }
@@ -1157,6 +1184,27 @@ const UI = (() => {
     return true;
   }
 
+  // Cities and figures are models rather than cardboard tokens. Their WebP
+  // renders already include transparent breathing room and a tabletop shadow,
+  // so they must not be cropped to the hex like printed tokens are.
+  function drawPiece(url, cx, cy, frac, opts) {
+    const img = tokenImage(url);
+    if (!img || !img.complete || !img.naturalWidth) return false;
+    const o = opts || {};
+    const size = HEX_SIZE * 2 * frac;
+    ctx.save();
+    if (o.alpha !== undefined) ctx.globalAlpha = o.alpha;
+    if (o.rotation) {
+      ctx.translate(cx, cy);
+      ctx.rotate(o.rotation);
+      ctx.drawImage(img, -size / 2, -size / 2, size, size);
+    } else {
+      ctx.drawImage(img, cx - size / 2, cy - size / 2, size, size);
+    }
+    ctx.restore();
+    return true;
+  }
+
   // The colour a piece is drawn in. Player colours are the printed four now,
   // but a save from before that still carries an old hex, so it goes through
   // the component matcher rather than being used raw.
@@ -1178,16 +1226,20 @@ const UI = (() => {
       const owner = Game.getPlayer(state, h.city.ownerId);
       const color = owner ? owner.color : "#fff";
       const w = 17 * s, hh = 11 * s;
-      // building base with roof, owner-coloured, dark outline
-      roundRect(cx - w / 2, cy - hh / 2 + 2 * s, w, hh, 2.5 * s);
-      ctx.fillStyle = color; ctx.fill();
-      ctx.lineWidth = 1.6 * s; ctx.strokeStyle = "rgba(10,10,20,0.85)"; ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(cx - w / 2 - 1.5 * s, cy - hh / 2 + 2.5 * s);
-      ctx.lineTo(cx, cy - hh / 2 - 5 * s);
-      ctx.lineTo(cx + w / 2 + 1.5 * s, cy - hh / 2 + 2.5 * s);
-      ctx.closePath();
-      ctx.fillStyle = color; ctx.fill(); ctx.stroke();
+      const model = art && CivCardArt.piece(h.city.isCapital ? "capital" : "city", color);
+      const modelDrawn = model && drawPiece(model, cx, cy + 1.5 * s, 0.63);
+      if (!modelDrawn) {
+        // Fallback for a copy of the game without the tracked artwork pack.
+        roundRect(cx - w / 2, cy - hh / 2 + 2 * s, w, hh, 2.5 * s);
+        ctx.fillStyle = color; ctx.fill();
+        ctx.lineWidth = 1.6 * s; ctx.strokeStyle = "rgba(10,10,20,0.85)"; ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(cx - w / 2 - 1.5 * s, cy - hh / 2 + 2.5 * s);
+        ctx.lineTo(cx, cy - hh / 2 - 5 * s);
+        ctx.lineTo(cx + w / 2 + 1.5 * s, cy - hh / 2 + 2.5 * s);
+        ctx.closePath();
+        ctx.fillStyle = color; ctx.fill(); ctx.stroke();
+      }
       if (h.city.developed) { // developed = white keystone dot on the roof
         ctx.beginPath(); ctx.arc(cx, cy - hh / 2 - 1 * s, 1.8 * s, 0, Math.PI * 2);
         ctx.fillStyle = "#fff"; ctx.fill();
@@ -1321,10 +1373,13 @@ const UI = (() => {
     const units = Game.getUnitsAt(state, k);
     if (!units.length) return;
     const uy = cy + HEX_SIZE * 0.55;
-    const spread = 11 * s;
+    const spread = 13 * s;
     const x0 = cx - ((units.length - 1) * spread) / 2;
     units.forEach((u, i) => {
       const ux = x0 + i * spread;
+      const kind = u.type === "army" ? "army" : "caravan";
+      const model = pieceArt && window.CivCardArt && CivCardArt.piece(kind, u.color);
+      if (model && drawPiece(model, ux, uy, 0.32)) return;
       ctx.beginPath(); ctx.arc(ux, uy, 5.2 * s, 0, Math.PI * 2);
       ctx.fillStyle = u.color; ctx.fill();
       ctx.lineWidth = 1.6 * s;
@@ -2146,9 +2201,11 @@ const UI = (() => {
         dom.wizard.innerHTML = `<div class="wiz-title">Fortress Placement</div><div class="wiz-body">Waiting for <strong>${activeP ? activeP.name : "..."}</strong>.</div>`;
         return;
       }
+      const fort = window.CivCardArt && CivCardArt.fort();
       dom.wizard.innerHTML = `
         <div class="wiz-title">Place Your Fortress</div>
         <div class="wiz-body">
+          ${fort ? `<div class="fortress-preview"><img src="${fort}" alt="Fortress tile"><span>This tile follows your pointer.</span></div>` : ""}
           Click an <strong>inactive hex</strong> bordering at least 2 active hexes.<br>
           This is a neutral defensive hex (defense ${Game.CFG.fortressDefense}). Your capital will go on your hometown tile next.<br>
           Read the board and choose; legal spaces are deliberately not highlighted.
@@ -3227,14 +3284,25 @@ const UI = (() => {
       <h2 class="ref-title">World Wonders</h2>
       <p class="ref-lede">Built with the industry card. Production is that card's
         place number, +1 per industry trade token spent, and +2 for every resource
-        you put in. You need a city of your own that has no wonder yet. The full
-        printed card is shown for its accepted resources and complete effect.</p>`;
+        you put in. You need a city of your own that has no wonder yet.</p>`;
+    let anyShown = false;
     types.forEach((type) => {
-      html += `<h3 class="ref-group">${Game.FOCUS_LABELS[type] || type}</h3><div class="ref-grid">`;
-      (byType[type] || []).slice()
-        .sort((a, b) => (a.era || "").localeCompare(b.era || "") || a.cost - b.cost)
-        .forEach((w) => {
-          const st8 = wonderState(w.name);
+      // Two of every ancient/medieval deck are shuffled out face-down before
+      // the game starts (Terra p14) and never surface again — the whole point
+      // being that nobody, including this reference, is meant to know which.
+      // wonderState()'s "still in the deck" label covers both a wonder that
+      // genuinely hasn't come up yet AND one that never will; showing it here
+      // let a long game out the excluded ones by elimination once everything
+      // else cycled through, so this only lists what has actually happened —
+      // built, removed mid-game, or on top of its deck right now.
+      const shown = (byType[type] || []).slice()
+        .map((w) => ({ w, st8: wonderState(w.name) }))
+        .filter(({ st8 }) => st8.cls !== "deck")
+        .sort((a, b) => (a.w.era || "").localeCompare(b.w.era || "") || a.w.cost - b.w.cost);
+      if (!shown.length) return;
+      anyShown = true;
+      html += `<h3 class="ref-group">${Game.FOCUS_LABELS[type] || type}</h3><div class="ref-grid wonders-grid">`;
+      shown.forEach(({ w, st8 }) => {
           const afford = me ? Game.getWonderCost(w.name, me, state) : w.cost;
           const token = Game.getWonderToken(state, w.name);
           const wArt = window.CivCardArt ? CivCardArt.wonderCard(w.name) : "";
@@ -3257,6 +3325,10 @@ const UI = (() => {
         });
       html += `</div>`;
     });
+    if (!anyShown) {
+      html += `<p class="ref-lede">No wonder has come up yet this game — the top card
+        of each deck appears here the moment it does.</p>`;
+    }
     html += `</div>`;
     return html;
   }

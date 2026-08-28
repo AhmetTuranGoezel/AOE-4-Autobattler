@@ -95,6 +95,7 @@ const CivCardArt = (() => {
   const focusBarUrl = (color) => at(group("focusBar")[colorId(color)]);
   const districtUrl = (color, kind) => at((group("district")[colorId(color)] || {})[kind]);
   const diplomacyUrl = (color, kind) => at((group("diplomacy")[colorId(color)] || {})[kind]);
+  const pieceUrl = (kind, color) => at((group("piece")[kind] || {})[colorId(color)]);
 
   // A control token has two faces: plain, and the reinforced back with the
   // ring of dots. Flipping it is what reinforcing looks like on the table.
@@ -150,6 +151,7 @@ const CivCardArt = (() => {
     gov: govUrl,
     district: districtUrl,
     diplomacy: diplomacyUrl,
+    piece: pieceUrl,
     control: controlUrl,
     victory: victoryUrl,
     techDial: dialUrl,

@@ -443,16 +443,14 @@ def cutout(rel_path, tol=26):
 
 
 def hexify(rel_path):
-    """Store a hex token as a clean pointy-top hex that fills a space exactly.
+    """Store a token as a clean pointy-top hex with upright printed content.
 
-    The pack mixes the two hex orientations. The fortress and the city-states
-    are photographed flat-top (wider than tall, 2/sqrt(3)); the districts are
-    already pointy-top but sit on a rectangle of grey stone that no flood fill
-    reaches cleanly. The board draws pointy-top, so a flat-top token lands 90
-    degrees out and its corners spill over the neighbours.
-
-    Rotating and masking here means the renderer can simply draw the file into
-    the space and be right, with nothing to fudge per token.
+    The fortress and city-state scans are flat-top. The old converter rotated
+    their entire photograph by 90 degrees: the outline then fitted, but names,
+    type crests and buildings all pointed east or west. For those faces we
+    reshape the cardboard boundary into the canvas' pointy-top bounding box
+    before masking it. Districts already have the right orientation and only
+    need fitting and masking.
     """
     try:
         from PIL import Image, ImageDraw
@@ -465,9 +463,10 @@ def hexify(rel_path):
     if box:
         im = im.crop(box)
 
-    # Flat-top is wider than tall. Turn it upright.
+    # Flat-top is wider than tall. Keep the print upright and reshape only its
+    # bounding box; rotating the photo would put labels and buildings sideways.
     if im.width > im.height * 1.05:
-        im = im.rotate(90, expand=True, resample=Image.BICUBIC)
+        im = im.resize((im.width, int(round(im.width * 2 / math.sqrt(3)))), Image.LANCZOS)
 
     # Fit the widest pointy-top hex inside what we have, then mask to it. A
     # pointy-top hex of height h is h*sqrt(3)/2 across.
@@ -520,6 +519,20 @@ def slice_city_state_tokens():
             out_name = f"cs-{slug(name)}.webp"
             crop.save(os.path.join(out_dir, out_name), "WEBP", quality=88)
             made[name] = hexify(rel("tokens/derived", out_name))
+    return made
+
+
+def build_player_pieces():
+    """Index the 2D renders made from the mod's four player-piece meshes."""
+    made = {}
+    for kind in ("army", "caravan", "city", "capital"):
+        made[kind] = {}
+        for color in COLORS:
+            path = f"pieces/{kind}-{color}.webp"
+            if not os.path.isfile(os.path.join(PACK, *path.split("/"))):
+                raise SystemExit(
+                    f"player pieces: missing {path}; run tools/build-piece-sprites.py")
+            made[kind][color] = path
     return made
 
 
@@ -586,6 +599,7 @@ def main():
                     for a, f in zip_exact(listing("cards/victory"), VICTORY, "victory cards")],
         "cityStateCard": dict(zip_exact(listing("cards/city-states"), CITY_STATE_CARDS, "city-state cards")),
         "cityStateToken": slice_city_state_tokens(),
+        "piece": build_player_pieces(),
         "diplomacy": diplomacy,
         "control": control,
         "district": district,

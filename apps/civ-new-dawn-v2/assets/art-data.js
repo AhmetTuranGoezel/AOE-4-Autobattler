@@ -569,6 +569,36 @@ window.CivArtData = {
   "Carthage": "tokens/derived/hex-cs-carthage.webp",
   "Kumasi": "tokens/derived/hex-cs-kumasi.webp"
  },
+ "piece": {
+  "army": {
+   "green": "pieces/army-green.webp",
+   "blue": "pieces/army-blue.webp",
+   "orange": "pieces/army-orange.webp",
+   "red": "pieces/army-red.webp",
+   "purple": "pieces/army-purple.webp"
+  },
+  "caravan": {
+   "green": "pieces/caravan-green.webp",
+   "blue": "pieces/caravan-blue.webp",
+   "orange": "pieces/caravan-orange.webp",
+   "red": "pieces/caravan-red.webp",
+   "purple": "pieces/caravan-purple.webp"
+  },
+  "city": {
+   "green": "pieces/city-green.webp",
+   "blue": "pieces/city-blue.webp",
+   "orange": "pieces/city-orange.webp",
+   "red": "pieces/city-red.webp",
+   "purple": "pieces/city-purple.webp"
+  },
+  "capital": {
+   "green": "pieces/capital-green.webp",
+   "blue": "pieces/capital-blue.webp",
+   "orange": "pieces/capital-orange.webp",
+   "red": "pieces/capital-red.webp",
+   "purple": "pieces/capital-purple.webp"
+  }
+ },
  "diplomacy": {
   "purple": {
    "non_aggression": "cards/diplomacy/deck-202-card-00__deck-202-cell-00__a2b44ce89a046ad4.webp",
