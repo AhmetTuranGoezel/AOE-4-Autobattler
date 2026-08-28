@@ -413,9 +413,17 @@ Added in this pass, all of them from the English card text:
   row here is six card *types* with a tier each, so there is no way to hold two
   culture cards and no military one. Automating it means rebuilding the focus row
   as a list of card instances, which touches almost everything that reads a row.
-- **The optional advanced pre-game tile draft** (each player dealt 2 tiles and
-  placing in turn order, Terra p14) is not implemented. Standard setup and the
-  shared exploration stack are implemented.
+- **The optional advanced pre-game tile draft** (Terra p14) is now a lobby
+  checkbox: each player is dealt 2 tiles and places them in turn order,
+  replacing the automatic core reveal. What's approximated is the composition
+  beyond "2 tiles, placed in turn order" — this app was not built from a copy
+  of Terra p14 itself, only from that one-line description, so questions like
+  whether the 2 tiles can include natural-wonder or city-state tiles, and
+  whether standard setup's fixed core count (4, or 2 at 2-3 players) still
+  bounds the draft in some way, are answered here by falling back to the
+  plainest reading rather than a page this app has not seen. Standard setup
+  (unaffected when the checkbox is off) and the shared exploration stack are
+  fully implemented, as before.
 - **How far a government marker shifts a card.** All six are 2 here. Terra p13
   now backs three of them directly: the Monarchy worked example ("two slots to
   the right ... the 5 slot instead of the 3 slot"), the Republic worked example
