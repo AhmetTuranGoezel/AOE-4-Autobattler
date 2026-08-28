@@ -679,8 +679,12 @@ const Game = (() => {
   // Your usable armies and caravans are printed on your military / economy
   // card ("2 armies"), so the counts follow the card tier rather than any
   // recruit action. Figures added here start at the capital.
+  // A figure you have not deployed sits ON ITS CARD, not on the board: base p8
+  // has each player start "with one caravan on his or her economy card", and
+  // armies live on the military card until a card moves them out. It matters
+  // beyond bookkeeping — a figure standing in a space adds 2 to its defence
+  // (Terra p16), so parking new units on the capital quietly fortified it.
   function syncUnitCounts(st, player) {
-    const capKey = st ? findCapital(st, player.id) : null;
     const want = {
       armies: CARD_TIERS.military.armies[getCardTier(player, "military") - 1],
       caravans: CARD_TIERS.economy.wagons[getCardTier(player, "economy") - 1]
@@ -688,7 +692,7 @@ const Game = (() => {
     for (const [key, n] of Object.entries(want)) {
       const list = player[key] || (player[key] = []);
       while (list.length > n) list.pop();
-      while (list.length < n) list.push({ id: key + "-" + (list.length + 1) + "-" + player.id.slice(0, 4), position: capKey });
+      while (list.length < n) list.push({ id: key + "-" + (list.length + 1) + "-" + player.id.slice(0, 4), position: null });
     }
   }
 
@@ -1276,10 +1280,14 @@ const Game = (() => {
       const player = getPlayer(st, payload.playerId);
       if (!canResolveCard(player, "military")) return st;
       const unit = player.armies.find((u) => u.id === payload.unitId);
-      if (!unit || !unit.position) return st;
+      if (!unit) return st;
       const moveHex = st.map.hexes[payload.toKey];
       if (!moveHex || !moveHex.active) return st;
-      const reachable = getReachable(st, unit.position, getMilitaryMove(player), "army", payload.playerId);
+      // An army still on its card sets off from a city it may launch from.
+      const from = unit.position || payload.startKey;
+      if (!from) return st;
+      if (!unit.position && !launchSpaces(st, player.id).has(from)) return st;
+      const reachable = getReachable(st, from, getMilitaryMove(player), "army", payload.playerId);
       if (!reachable.has(payload.toKey)) return st;
       unit.position = payload.toKey; log(st, `${player.name} moved army.`);
       unit.movedThisCard = true;
@@ -1293,11 +1301,15 @@ const Game = (() => {
       if (!canResolveCard(player, "military")) return st;
       if (st.combat && st.combat.turn !== "done") return st;   // one fight at a time
       const unit = player.armies.find((u) => u.id === payload.unitId);
-      if (!unit || !unit.position) return st;
+      if (!unit) return st;
       const hex = st.map.hexes[payload.toKey];
       if (!hex) return st;
-      const reachable = getReachable(st, unit.position, getMilitaryMove(player), "army", payload.playerId);
-      if (!reachable.has(payload.toKey) && unit.position !== payload.toKey) return st;
+      // An army on its card can march straight out of a city and attack.
+      const from = unit.position || payload.fromKey;
+      if (!from) return st;
+      if (!unit.position && !launchSpaces(st, player.id).has(from)) return st;
+      const reachable = getReachable(st, from, getMilitaryMove(player), "army", payload.playerId);
+      if (!reachable.has(payload.toKey) && from !== payload.toKey) return st;
 
       // Nothing is rolled yet. The dice are thrown when somebody throws them,
       // and only then does the bidding start — the attacker spending everything
@@ -1318,7 +1330,7 @@ const Game = (() => {
       st.combat = {
         attackerId: payload.playerId,
         unitId: payload.unitId,
-        fromKey: payload.fromKey || unit.position,
+        fromKey: payload.fromKey || unit.position || from,
         toKey: payload.toKey,
         defenderLabel: defender.label,
         defenderOwnerId: defender.ownerId || null,
@@ -2322,8 +2334,49 @@ const Game = (() => {
     return st.players.some((p) => p.armies.some((u) => u.position === hexKey));
   }
 
-  // Whether the winning army may stand where it fought. Beating one piece does
-  // not clear the space, so anything of a rival's still there keeps you out.
+  // Terra p10: "An army on a military card can move out of its player's capital
+  // city or mature cities as though it was already in that city's space." The
+  // same is true of a caravan on the economy card (base p8), so an undeployed
+  // figure launches from any of these.
+  function launchSpaces(st, playerId) {
+    const out = new Set();
+    Object.entries(st.map.hexes).forEach(([k, h]) => {
+      if (!h.city || h.city.ownerId !== playerId) return;
+      if (h.city.isCapital || h.city.developed) out.add(k);
+    });
+    return out;
+  }
+
+  // Where a figure of this kind may set off from: where it stands, or — if it
+  // is still on its card — out of the cities it may launch from.
+  function unitStartSpaces(st, player, kind) {
+    const list = kind === "army" ? player.armies : player.caravans;
+    const out = new Set();
+    let anyOnCard = false;
+    list.forEach((u) => { if (u.position) out.add(u.position); else anyOnCard = true; });
+    if (anyOnCard) launchSpaces(st, player.id).forEach((k) => out.add(k));
+    return out;
+  }
+
+  // Terra p10, on winning against a city or a control token (district
+  // included): "All rival armies and caravans in the space are defeated and
+  // returned to their players' focus cards." Beating a lone figure does NOT do
+  // this — only taking the ground under them.
+  function sweepFigures(st, hexKey, attackerId) {
+    st.players.forEach((p) => {
+      if (p.id === attackerId) return;
+      let n = 0;
+      p.armies.forEach((u) => { if (u.position === hexKey) { u.position = null; n++; } });
+      p.caravans.forEach((u) => { if (u.position === hexKey) { u.position = null; n++; } });
+      if (n) log(st, `${p.name} lost ${n} figure(s) with the space; they return to their cards.`);
+    });
+  }
+
+  // Whether the winning army may stand where it fought. Terra p10: it "remains
+  // in the attacked space unless that space still contains a city-state,
+  // unclaimed fort, or rival piece (for example ... attacked a space containing
+  // more than one rival piece)". A piece is a caravan as much as an army, so
+  // beating the escort and leaving the wagon standing does not clear the space.
   function canOccupyAfterCombat(st, hexKey, attackerId) {
     const h = st.map.hexes[hexKey];
     if (!h) return false;
@@ -2333,7 +2386,8 @@ const Game = (() => {
     if (h.control && h.control.ownerId !== attackerId) return false;
     if (h.barbarian) return false;
     return !st.players.some((p) => p.id !== attackerId &&
-      p.armies.some((u) => u.position === hexKey));
+      (p.armies.some((u) => u.position === hexKey) ||
+       p.caravans.some((u) => u.position === hexKey)));
   }
 
   // --- Combat, as an exchange -----------------------------------------------
@@ -2448,7 +2502,10 @@ const Game = (() => {
       }
       if (target === "control" && hex.control && hex.control.ownerId !== c.attackerId) {
         returnDiplomacyFromSource(st, player, hex.control.ownerId);
+        // Terra p10: beating a district replaces it with your own unreinforced,
+        // NON-district token — the district itself is destroyed, not captured.
         hex.control = { ownerId: c.attackerId, fortified: false, district: null };
+        sweepFigures(st, c.toKey, c.attackerId);
       }
       if (target === "city" && hex.city && hex.city.ownerId !== c.attackerId) {
         const defenderId = hex.city.ownerId;
@@ -2476,6 +2533,7 @@ const Game = (() => {
         }
         hex.city.ownerId = c.attackerId;
         hex.city.developed = false;
+        sweepFigures(st, c.toKey, c.attackerId);
       }
       // Terra p11: a beaten figure goes back to its player's card. Only the
       // figure that was attacked — the rest of the space is untouched.
@@ -2500,10 +2558,11 @@ const Game = (() => {
       player.wonAttackThisTurn = true;
       log(st, `${player.name} won combat vs ${c.defenderLabel}! (${atkTotal} vs ${defTotal})`);
     } else {
-      // Base p11: "If the defender wins, nothing happens." A failed attack does
-      // not cost you the army — it just does not take the space.
-      unit.position = c.fromKey || unit.position;
-      log(st, `${player.name} lost combat vs ${c.defenderLabel}. (${atkTotal} vs ${defTotal})`);
+      // Base p11 says "if the defender wins, nothing happens" — but Terra p10
+      // overrides it for army combat: "If the defender wins, the attacking army
+      // is defeated and returned to its player's military focus card."
+      unit.position = null;
+      log(st, `${player.name}'s army was defeated by ${c.defenderLabel} and returns to the military card. (${atkTotal} vs ${defTotal})`);
     }
     unit.movedThisCard = true;
     st.activeCard = {
@@ -3823,11 +3882,17 @@ const Game = (() => {
       if (!owner) return 0;
       return owner.armies.some((u) => u.position === hexKey && u.id !== defendingUnitId) ? 2 : 0;
     };
-    const breakdown = (ownerId, terrainPart, defendingUnitId) => {
+    // Terra p10: "An army or caravan that is being attacked has a combat value
+    // bonus equal to the difficulty of the terrain that figure is in. These
+    // figures do NOT receive bonuses from reinforced control tokens." A city or
+    // a control token gets the full stack; a figure gets terrain and escort.
+    const breakdown = (ownerId, terrainPart, defendingUnitId, isFigure) => {
       const list = [terrainPart];
       const push = (label, value) => { if (value) list.push({ label, value }); };
-      push("reinforced", h.control && h.control.fortified ? 1 : 0);
-      push("adjacent reinforced", reinforcedValue(ownerId));
+      if (!isFigure) {
+        push("reinforced", h.control && h.control.fortified ? 1 : 0);
+        push("adjacent reinforced", reinforcedValue(ownerId));
+      }
       push("friendly army in the space", escortBonus(ownerId, defendingUnitId));
       push("leader", defenderLeaderBonus(ownerId));
       push("wonder", getWonderDefenseBonus(st, ownerId, hexKey));
@@ -3851,7 +3916,7 @@ const Game = (() => {
     if (rival) {
       const parts = breakdown(rival.playerId,
         { label: `${TERRAIN_LABELS[h.terrain] || h.terrain} terrain`, value: terrainDifficulty(h) },
-        rival.unitId);
+        rival.unitId, true);
       return { type: rival.kind, label: rival.kind === "army" ? "Army" : "Caravan",
         ownerId: rival.playerId, unitId: rival.unitId,
         power: parts.reduce((a, x) => a + x.value, 0), parts };
@@ -3868,6 +3933,9 @@ const Game = (() => {
     if (!h) return [];
     // A barbarian, city-state or uncontrolled fort is the only thing in its
     // space by construction, so there is never a choice to make.
+    // A barbarian, city-state or uncontrolled fort is the only thing that can be
+    // attacked in its space — and Terra p10 is explicit that a barbarian MUST be
+    // the target, so there is no choice to offer either way.
     const solo = findDefender(st, hexKey, attackerId);
     if (solo && ["fortress", "barbarian", "citystate"].includes(solo.type)) return [solo];
 
@@ -4137,6 +4205,7 @@ const Game = (() => {
     getMilitaryMove, getEconomyMove, getCultureMarkers, getMilitaryCombatBonus,
     getCityRange, getWonderCost, getWonderToken, getVisibleWonders,
     combatTotals, combatTokens, combatResources, combatSpendable, combatDefenderRoller,
+    launchSpaces, unitStartSpaces,
     canCrossWater, computeScore,
     findDefenders, validControlHexes, validDistrictHexes, validReinforceHexes,
     validCityHexes, validWonderHexes, getReachable, findDefender, getUnitsAt,

@@ -82,8 +82,8 @@
     tile("08", "citystate",
       ["mountain","forest","mountain","water","grass","mountain","grass","water","water","water"],
       ["grass","grass","mountain","desert","grass","mountain","hill","desert","mountain","water"],
-      { 1: { barbarian: "C" }, 2: { resource: "mercury" }, 6: { cityState: "Kabul" } },
-      { 0: { cityState: "Buenos Aires" }, 2: { barbarian: "D" }, 7: { resource: "oil" } }),
+      { 1: { barbarian: "C" }, 2: { resource: "mercury" }, 6: { cityState: "Buenos Aires" } },
+      { 0: { cityState: "Kabul" }, 2: { barbarian: "D" }, 7: { resource: "oil" } }),
     // Printed tile 14 — Geneva / Mohenjo Daro
     tile("09", "citystate",
       ["mountain","hill","hill","forest","forest","forest","forest","hill","forest","grass"],
@@ -94,8 +94,8 @@
     tile("10", "citystate",
       ["hill","forest","grass","water","water","water","water","mountain","hill","water"],
       ["desert","desert","water","desert","desert","water","grass","desert","desert","desert"],
-      { 2: { cityState: "Akkad" }, 7: { resource: "diamonds" }, 8: { barbarian: "E" } },
-      { 0: { barbarian: "F" }, 4: { resource: "marble" }, 6: { cityState: "Auckland" } }),
+      { 2: { cityState: "Auckland" }, 7: { resource: "diamonds" }, 8: { barbarian: "E" } },
+      { 0: { barbarian: "F" }, 4: { resource: "marble" }, 6: { cityState: "Akkad" } }),
     // Printed tile 4 — Galapagos Islands / Grand Mesa
     tile("11", "natural",
       ["mountain","mountain","hill","forest","grass","hill","desert","mountain","desert","desert"],
