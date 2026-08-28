@@ -2825,8 +2825,8 @@ const UI = (() => {
       <div class="wiz-title">Growth: Choose Action</div>
       <div class="wiz-body">Place a district adjacent to your city, or reinforce existing control markers.</div>
       <div class="wiz-actions">
-        <button id="wiz-district">Place District</button>
-        <button id="wiz-reinforce">Reinforce</button>
+        <button id="wiz-district"><span class="wiz-btn-icon" aria-hidden="true">🏘️</span> Place District</button>
+        <button id="wiz-reinforce"><span class="wiz-btn-icon" aria-hidden="true">🛡️</span> Reinforce</button>
         <button class="ghost" id="wiz-cancel3">Cancel</button>
       </div>`;
     document.getElementById("wiz-district").addEventListener("click", () => { sub.phase = "pick_district"; refreshWizard(); });
@@ -3089,6 +3089,28 @@ const UI = (() => {
     return maxSteps;
   }
 
+  // A clicked hex outside sub.validHexes used to just do nothing — no toast,
+  // no hint. That reads as "the game didn't register my click" rather than
+  // "that space is not reachable for a real reason", so this works out which
+  // reason applies and says so. Best-effort: it checks the space itself, not
+  // full pathfinding, so a space that's merely unreachable through everything
+  // in between falls through to the generic message.
+  function explainUnreachable(hexKey, unitType, playerId) {
+    const h = state.map.hexes[hexKey];
+    if (!h || !h.active) return "That space hasn't been explored yet.";
+    const player = Game.getPlayer(state, playerId);
+    if (h.terrain === "water" && !Game.canCrossWater(player, unitType)) return "Can't cross water.";
+    if (unitType === "caravan" && h.barbarian) return "A caravan can't enter a barbarian space.";
+    if (h.terrain !== "water") {
+      const limit = Game.movementTerrainLimit(state, player, unitType);
+      if (Game.terrainDifficulty(h) > limit) {
+        const cardType = unitType === "caravan" ? "Economy" : "Military";
+        return `Terrain's too rough for your ${cardType} card to cross yet.`;
+      }
+    }
+    return "Too far to reach with the movement you have left.";
+  }
+
   function renderIndustryChoice(me) {
     const slot = Game.getSlotValue(me, "industry", state);
     let spentBonus = 0;
@@ -3104,8 +3126,8 @@ const UI = (() => {
       <div class="wiz-title">Industry (Production: ${totalProd})</div>
       <div class="wiz-body">Base ${slot} + ${sub.tradeSpent} trade + ${spentBonus} resources<br><div style="margin:6px 0">${resHtml}</div></div>
       <div class="wiz-actions">
-        <button id="wiz-build-city">Build City (cost=terrain, range=${Game.getCityRange(me)})</button>
-        <button id="wiz-build-wonder">Build Wonder (7/9/12)</button>
+        <button id="wiz-build-city"><span class="wiz-btn-icon" aria-hidden="true">🏰</span> Build City (cost=terrain, range=${Game.getCityRange(me)})</button>
+        <button id="wiz-build-wonder"><span class="wiz-btn-icon" aria-hidden="true">🗿</span> Build Wonder (7/9/12)</button>
         <button class="ghost" id="wiz-cancel7">Cancel</button>
       </div>`;
     document.querySelectorAll(".res-btn").forEach((btn) => {
@@ -3747,6 +3769,7 @@ const UI = (() => {
 
       if (state.setup.phase === "fortress") {
         if (!Game.getValidFortressHexes(state).has(hexKey)) {
+          flashHex(hexKey, "rgb(239,83,80)", 400);
           showToast("A fortress needs an inactive space beside at least 2 active spaces");
           return;
         }
@@ -3763,6 +3786,7 @@ const UI = (() => {
         // meant the board ended up with something you had never seen.
         if (!Game.validateTilePlacement(state, tileId, hexKey, sub.tileRotation).ok) {
           const other = Game.tilePlacementFor(state, tileId, hexKey, sub.tileRotation);
+          flashHex(hexKey, "rgb(239,83,80)", 400);
           showToast(other
             ? `Not at this angle \u2014 turn it to ${other.rotation + 1}/6 and it fits here`
             : "The tile will not fit there, at any angle");
@@ -3816,7 +3840,7 @@ const UI = (() => {
       resetSub(); return;
     }
     if (sub.phase === "reinforcing_after_district") {
-      if (!sub.validHexes.has(hexKey)) return;
+      if (!sub.validHexes.has(hexKey)) { showToast("Needs your own unreinforced control marker there"); return; }
       sub.placedKeys.push(hexKey);
       sub.remaining--;
       sub.validHexes.delete(hexKey);
@@ -3826,7 +3850,7 @@ const UI = (() => {
       return;
     }
     if (sub.phase === "reinforcing") {
-      if (!sub.validHexes.has(hexKey)) return;
+      if (!sub.validHexes.has(hexKey)) { showToast("Needs your own unreinforced control marker there"); return; }
       sub.placedKeys.push(hexKey);
       sub.remaining--;
       sub.validHexes.delete(hexKey);
@@ -3867,7 +3891,7 @@ const UI = (() => {
       } else {
         const ms0 = sub.movementState;
         if (ms0 && hexKey === ms0.currentKey) { endMovement(); return; }
-        if (!sub.validHexes.has(hexKey)) { showToast("Can't move there"); return; }
+        if (!sub.validHexes.has(hexKey)) { showToast(explainUnreachable(hexKey, "caravan", localPlayerId)); return; }
         const ms = sub.movementState;
         const dist = computeStepDistance(state, ms.currentKey, hexKey, ms.remaining, "caravan", localPlayerId);
         flashHex(hexKey, "rgb(102,187,106)", 400);
@@ -3901,7 +3925,7 @@ const UI = (() => {
       } else {
         const ms0 = sub.movementState;
         if (ms0 && hexKey === ms0.currentKey) { endMovement(); return; }
-        if (!sub.validHexes.has(hexKey)) return;
+        if (!sub.validHexes.has(hexKey)) { showToast(explainUnreachable(hexKey, "army", localPlayerId)); return; }
         const ms = sub.movementState;
         const dist = computeStepDistance(state, ms.currentKey, hexKey, ms.remaining, "army", localPlayerId);
         flashHex(hexKey, "rgb(239,83,80)", 400);
@@ -3939,6 +3963,7 @@ const UI = (() => {
           const rot = (sub.tileRotation + i) % 6;
           if (fitsHere(rot)) { other = rot; break; }
         }
+        flashHex(hexKey, "rgb(239,83,80)", 400);
         showToast(other !== null
           ? `Not at this angle \u2014 turn it to ${other + 1}/6 and it fits here`
           : "The new land will not reach there, at any angle");

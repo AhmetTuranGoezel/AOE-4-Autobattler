@@ -4528,7 +4528,7 @@ const Game = (() => {
     canCrossWater, computeScore,
     findDefenders, validControlHexes, validDistrictHexes, validReinforceHexes,
     validCityHexes, validWonderHexes, getReachable, findDefender, getUnitsAt,
-    adjacentToCityState, adjacentToFriendlyControl, terrainDifficulty,
+    adjacentToCityState, adjacentToFriendlyControl, terrainDifficulty, movementTerrainLimit, isForcedStopHex,
     countControl, countWonders, countDeveloped, countCities, findCapital,
     getClaimedAgendaCount,
     getValidFortressHexes, getValidTileAnchors, getTileAnchorsAnyRotation, tilePlacementFor, getTileDef,

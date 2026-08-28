@@ -282,6 +282,7 @@ input, select {
 .wiz-body { font-size: 12px; line-height: 1.6; color: var(--text2); }
 .wiz-body strong { color: var(--text); }
 .wiz-actions { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.wiz-btn-icon { font-size: 14px; line-height: 1; margin-right: 3px; }
 .wiz-progress {
   margin-top: 8px;
   height: 6px;
