@@ -472,6 +472,18 @@ const UI = (() => {
     };
   }
 
+  // Put a space in the middle of the board and flash it, so a reference panel
+  // can answer "where is that?" by showing you rather than telling you.
+  function centerOnHex(hexKey) {
+    const h = state && state.map.hexes[hexKey];
+    if (!h || !canvas) return false;
+    panX = (dom.map.clientWidth || 800) / 2 - HEX_SIZE * SQRT3 * (h.q + h.r / 2);
+    panY = (dom.map.clientHeight || 600) / 2 - HEX_SIZE * 1.5 * h.r;
+    flashHex(hexKey, "rgb(225,190,231)", 1400);
+    renderCanvas();
+    return true;
+  }
+
   function pixelToAxial(px, py) {
     const x = px - panX;
     const y = py - panY;
@@ -1258,11 +1270,28 @@ const UI = (() => {
         ctx.fillText("★", cx, cy - hh / 2 - 8 * s);
       }
       if (h.city.hasWonder) {
-        ctx.font = `bold ${Math.round(8 * s)}px sans-serif`;
-        ctx.fillStyle = "#e1bee7";
-        ctx.strokeStyle = "rgba(0,0,0,0.8)"; ctx.lineWidth = 1.6 * s;
-        ctx.strokeText("♦", cx + w / 2 + 3 * s, cy - 2 * s);
-        ctx.fillText("♦", cx + w / 2 + 3 * s, cy - 2 * s);
+        // On the table the wonder's own token goes on the city, which is what
+        // tells you at a glance that Petra is here and the Kremlin is over
+        // there. Every wonder used to get the same lozenge, so the board could
+        // say "a wonder" but never which one, and the only way to find out was
+        // to hover each city in turn. Four of the 36 have no printed token in
+        // the pack, so they keep the lozenge.
+        // Up in the corner, clear of the city model below it and of the
+        // resource pip along the top, on a dark disc so it reads over any
+        // terrain.
+        const tok = art && CivCardArt.wonderToken(h.city.wonder ? h.city.wonder.name : "");
+        const badgeX = cx + HEX_SIZE * 0.44, badgeY = cy - HEX_SIZE * 0.40;
+        const rad = HEX_SIZE * 0.27;
+        ctx.beginPath();
+        ctx.arc(badgeX, badgeY, rad, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(12,10,20,0.72)"; ctx.fill();
+        ctx.lineWidth = 1.4 * s; ctx.strokeStyle = "rgba(225,190,231,0.85)"; ctx.stroke();
+        if (!(tok && drawToken(tok, badgeX, badgeY, 0.24))) {
+          ctx.font = `bold ${Math.round(9 * s)}px sans-serif`;
+          ctx.fillStyle = "#e1bee7";
+          ctx.textAlign = "center"; ctx.textBaseline = "middle";
+          ctx.fillText("♦", badgeX, badgeY + 0.5 * s);
+        }
       }
     } else if (h.cityState) {
       if (art && drawToken(CivCardArt.cityStateToken(h.cityState.name), cx, cy, HEX_TOKEN, { shadow: true })) {
@@ -1574,7 +1603,14 @@ const UI = (() => {
       lines.push(`<strong>${Game.TERRAIN_LABELS[h.terrain]}</strong> (diff ${Game.TERRAIN[h.terrain]})`);
       if (h.city) {
         const owner = Game.getPlayer(state, h.city.ownerId);
-        lines.push(`${h.city.isCapital ? "Capital" : "City"}: ${owner ? owner.name : "?"} ${h.city.developed ? "(Dev)" : ""} ${h.city.hasWonder ? "(Wonder)" : ""}`);
+        lines.push(`${h.city.isCapital ? "Capital" : "City"}: ${owner ? owner.name : "?"} ${h.city.developed ? "(Dev)" : ""}`);
+        // Name it. "(Wonder)" told you one was here but never which.
+        if (h.city.wonder) {
+          lines.push(`<strong style="color:#e1bee7">Wonder: ${escapeHtml(h.city.wonder.name)}</strong>`
+            + (h.city.wonder.era ? ` <em style="color:#e1bee788">${escapeHtml(h.city.wonder.era)}</em>` : ""));
+        } else if (h.city.hasWonder) {
+          lines.push(`<strong style="color:#e1bee7">Wonder</strong>`);
+        }
       }
       if (h.control) {
         const owner = Game.getPlayer(state, h.control.ownerId);
@@ -3333,13 +3369,22 @@ const UI = (() => {
   const WONDER_ICONS = { military: "\u2694\ufe0f", culture: "\ud83c\udfad", economy: "\ud83d\udcb0", science: "\ud83d\udd2c" };
 
   function wonderState(name) {
-    let built = null;
-    Object.values(state.map.hexes).forEach((h) => {
-      if (h.city && h.city.wonder && h.city.wonder.name === name) built = h.city.ownerId;
+    // Where it stands, not just whose it is: "built by Red" still left you
+    // hovering every city on the board to find the thing.
+    let built = null, atKey = null, atHex = null;
+    Object.entries(state.map.hexes).forEach(([k, h]) => {
+      if (h.city && h.city.wonder && h.city.wonder.name === name) {
+        built = h.city.ownerId; atKey = k; atHex = h;
+      }
     });
     if (built) {
       const owner = Game.getPlayer(state, built);
-      return { label: owner ? `built by ${owner.name}` : "built", cls: "built" };
+      const where = atHex.city.isCapital ? "their capital"
+        : `a city on tile ${atHex.tileId || "?"}`;
+      return {
+        label: owner ? `built by ${owner.name} — ${where}` : `built — ${where}`,
+        cls: "built", hexKey: atKey, ownerColor: owner ? owner.color : null
+      };
     }
     const gone = Object.values(state.wonderDecks || {})
       .some((d) => (d.removed || []).indexOf(name) >= 0);
@@ -3396,7 +3441,11 @@ const UI = (() => {
             </div>
             ${token ? `<div class="wcard-token" title="Placed by the event dial">
               \ud83e\ude99 costs 1 less \u2014 leaves the game on the next wonder icon</div>` : ""}
-            <div class="wcard-foot st-${st8.cls}">${st8.label}</div>
+            <div class="wcard-foot st-${st8.cls}"${st8.ownerColor ? ` style="border-left:3px solid ${escapeHtml(st8.ownerColor)}"` : ""}>
+              ${st8.label}
+              ${st8.hexKey ? `<button class="wcard-goto" data-hex="${escapeHtml(st8.hexKey)}"
+                title="Centre the board on it">show me</button>` : ""}
+            </div>
           </div>`;
         });
       html += `</div>`;
@@ -3647,6 +3696,15 @@ const UI = (() => {
     }
     overlay.classList.remove("hidden");
     body.querySelector("#ref-close")?.addEventListener("click", () => overlay.classList.add("hidden"));
+    // "show me" on a built wonder closes the panel and puts its city in the
+    // middle of the board, flashing, rather than leaving you to go and find it.
+    body.querySelectorAll(".wcard-goto").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        overlay.classList.add("hidden");
+        centerOnHex(btn.dataset.hex);
+      });
+    });
   }
 
   function initReference() {

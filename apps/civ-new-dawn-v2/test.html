@@ -392,6 +392,14 @@
         const st = Game.createState(players(2));
         st.phase = "playing";
         st.setup.phase = "done";
+        // createState deals the turn order at random, and applyAction drops any
+        // PLAY_ action that does not come from the player to move. Every test
+        // below drives players[0], so with a shuffled order they were silently
+        // testing nothing about half the time — an assertion on "the token was
+        // placed" fails, and one on "the token was NOT placed" passes for the
+        // wrong reason. Seat players[0] first so the runs are comparable.
+        st.turn.order = st.players.map((p) => p.id);
+        st.turn.index = 0;
         return st;
       }
       function activate(st, k, props) {

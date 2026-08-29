@@ -1218,7 +1218,21 @@ input, select {
 }
 .wcard-foot.st-top { color: #ffd54f; }
 .wcard-foot.st-built { color: #81c784; }
-.wcard.st-built { opacity: 0.55; }
+/* A built wonder now says where it stands, so its footer carries a control to
+   go and look at it. */
+.wcard-foot { display: flex; align-items: center; gap: 8px; }
+.wcard-goto {
+  margin-left: auto; flex: none;
+  padding: 2px 8px; border-radius: 999px;
+  border: 1px solid rgba(129, 199, 132, 0.55);
+  background: rgba(129, 199, 132, 0.13); color: #a5d6a7;
+  font: inherit; font-size: 9px; letter-spacing: 0.07em; text-transform: uppercase;
+  cursor: pointer;
+}
+.wcard-goto:hover { background: rgba(129, 199, 132, 0.28); color: #e8f5e9; }
+/* A built wonder is the one you most often want to find, so it does not fade
+   into the background the way it used to. */
+.wcard.st-built { opacity: 0.9; }
 .wcard.st-top { box-shadow: 0 0 0 1px rgba(255, 213, 79, 0.5), 0 6px 18px rgba(0, 0, 0, 0.45); }
 
 .wcard.type-culture  .wcard-top { background: linear-gradient(120deg, #7b1fa2, #ab47bc); }
