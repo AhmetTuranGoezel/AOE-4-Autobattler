@@ -572,6 +572,12 @@ const UI = (() => {
       }
     }
 
+    if (state.phase === "playing" && isExploring(sub.phase)) {
+      // The few anchors that work at the angle the tile is currently held.
+      const fits = exploreFits();
+      if (fits) fits.byRot[sub.tileRotation].forEach((k) => setupValid.add(k));
+    }
+
     if (state.phase === "playing" &&
         isExploring(sub.phase) &&
         mouseHex && state.tileStack && state.tileStack.length > 0) {
@@ -1472,6 +1478,51 @@ const UI = (() => {
   function exploreOrigin() {
     if (sub.phase === "free_exploring") return sub.freeFrom || null;
     return sub.movementState ? sub.movementState.currentKey : null;
+  }
+
+  // Every anchor the explored tile can legally take, by the angle it needs.
+  //
+  // Setup deliberately does not light up legal tile spots: there the board is
+  // wide open, dozens of placements work, and picking one is the decision.
+  // Terra p12 is not that. The new land must cover ten unused spaces, touch
+  // four already on the board, AND touch the space you set out from, and those
+  // three together usually leave a handful of anchors out of some eleven
+  // hundred — each at one specific angle, and sometimes none at all. At a real
+  // table you hold the tile against the coast and see instantly; hunting for
+  // that by hovering is not a decision, it is a search. So it is shown.
+  //
+  // Only anchors near the explorer can qualify, since the tile has to reach it,
+  // and the answer is cached until the board or the tile changes.
+  let exploreFitCache = null;
+  function exploreFits() {
+    if (!state || !isExploring(sub.phase)) return null;
+    const tileId = exploringTileId();
+    const origin = exploreOrigin();
+    if (!tileId || !origin) return null;
+    let active = 0;
+    Object.values(state.map.hexes).forEach((h) => { if (h.active) active++; });
+    const sig = `${tileId}|${sub.tileSide}|${origin}|${state.tileStack.length}|${active}`;
+    if (exploreFitCache && exploreFitCache.sig === sig) return exploreFitCache;
+
+    const byRot = [0, 1, 2, 3, 4, 5].map(() => new Set());
+    const anyRot = new Set();
+    const oq = Game.parseQ(origin), or = Game.parseR(origin);
+    Object.values(state.map.hexes).forEach((h) => {
+      // A tile spans at most three spaces from its anchor, so nothing further
+      // out than this can touch the explorer.
+      if (Game.hexDist({ q: h.q, r: h.r }, { q: oq, r: or }) > 5) return;
+      const anchor = Game.key(h.q, h.r);
+      for (let rot = 0; rot < 6; rot++) {
+        if (!Game.validateExploration(state, tileId, anchor, rot).ok) continue;
+        const cells = Game.getTileHexKeys(anchor, rot, state.map.hexes);
+        if (!cells.some((ck) =>
+          Game.hexNeighborKeys(Game.parseQ(ck), Game.parseR(ck)).includes(origin))) continue;
+        byRot[rot].add(anchor);
+        anyRot.add(anchor);
+      }
+    });
+    exploreFitCache = { sig, byRot, anyRot };
+    return exploreFitCache;
   }
 
   function placingTile() {
@@ -3020,6 +3071,30 @@ const UI = (() => {
     });
   }
 
+  // Says how many homes the tile actually has, because "nowhere it fits" and
+  // "you have not found the one spot yet" look identical while you hover.
+  function exploreFitNote() {
+    const fits = exploreFits();
+    if (!fits) return "";
+    const here = fits.byRot[sub.tileRotation].size;
+    if (here) {
+      return here === 1
+        ? `<br><span style="color:#66bb6a">One lit space on the board takes it at this angle.</span>`
+        : `<br><span style="color:#66bb6a">${here} lit spaces on the board take it at this angle.</span>`;
+    }
+    if (fits.anyRot.size) {
+      // Which angles work at all, named the way the counter names them.
+      const angles = fits.byRot
+        .map((set, rot) => (set.size ? rot + 1 : 0)).filter(Boolean);
+      return `<br><span class="wiz-note">Nothing fits at <strong>${sub.tileRotation + 1}/6</strong>.
+        Turn it to <strong>${angles.join(" or ")}</strong>/6 and
+        ${fits.anyRot.size} space${fits.anyRot.size === 1 ? "" : "s"} open up.</span>`;
+    }
+    return `<br><span class="wiz-note" style="color:#ef5350">This tile has nowhere to go
+      from here, at any angle. Terra p12: it goes back on top of the stack and the
+      expedition ends — use <strong>Nowhere it fits</strong>.</span>`;
+  }
+
   function renderExploring() {
     const expTileId = exploringTileId();
     const expTile = expTileId ? state.tiles[expTileId] : null;
@@ -3037,6 +3112,7 @@ const UI = (() => {
         </div>
         <br>Place the tile touching ${sub.phase === "free_exploring" ? "the space you chose" : "your unit's hex"}.<br>
         <strong style="color:#66bb6a">Green</strong> = valid, <strong style="color:#ef5350">Red</strong> = invalid.
+        ${exploreFitNote()}
         <br>Tiles remaining in stack: <strong>${state.tileStack ? state.tileStack.length : 0}</strong>
       </div>
       <div class="wiz-actions">
