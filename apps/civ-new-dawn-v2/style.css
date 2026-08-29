@@ -19,6 +19,46 @@
   --header-height: 40px;
 }
 
+/* MULTIPLAYER DURABILITY --------------------------------------------------- */
+.net-status {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-width: max-content; padding: 4px 9px; border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.16); background: rgba(13,20,30,.72);
+  color: var(--text2); font-size: 10px; font-weight: 700; letter-spacing: .04em;
+}
+.net-status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #8b96a3; }
+.net-status.synced::before { background: #57c785; box-shadow: 0 0 8px rgba(87,199,133,.65); }
+.net-status.pending::before { background: #e4b34d; animation: net-pulse 1s ease-in-out infinite; }
+.net-status.reconnecting::before { background: #67a9e8; animation: net-pulse 1s ease-in-out infinite; }
+.net-status.offline::before, .net-status.backup_failed::before { background: #e05f5f; }
+.net-status.readonly::before { background: #cf80dc; }
+@keyframes net-pulse { 50% { opacity: .35; transform: scale(.72); } }
+
+#conn-banner {
+  align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px;
+}
+#conn-banner:not(.hidden) { display: flex; }
+
+.actions-paused #wizard button,
+.actions-paused #focus-row button,
+.actions-paused #board-chip button,
+.actions-paused #combat-stage button,
+.actions-paused #host-tools button {
+  pointer-events: none; opacity: .45; filter: saturate(.35);
+}
+.action-pending #wizard,
+.action-pending #focus-row,
+.action-pending #board-chip,
+.action-pending #combat-stage { cursor: progress; }
+
+.player-net-row { display: flex; align-items: center; gap: 5px; margin-top: 4px; font-size: 9px; color: var(--text2); }
+.player-net-dot { width: 6px; height: 6px; border-radius: 50%; background: #818996; }
+.player-net-dot.online { background: #57c785; }
+.player-net-dot.reconnecting { background: #67a9e8; }
+.player-net-dot.offline { background: #e05f5f; }
+.player-net-ready { margin-left: auto; text-transform: uppercase; letter-spacing: .08em; }
+.player-net-ready.ready { color: #77d89d; }
+
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
@@ -753,6 +793,20 @@ input, select {
 
 /* HELP TEXT */
 .wiz-help { font-size: 10px; color: var(--text2); font-style: italic; margin-top: 6px; }
+
+/* EVERY PLAYER'S TABLEAU, FACE UP IN THE SIDEBAR */
+.ptab {
+  margin-top: 5px; padding-top: 5px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex; flex-direction: column; gap: 2px;
+}
+.ptab-row { display: flex; gap: 6px; align-items: baseline; font-size: 10px; line-height: 1.35; }
+.ptab-row > span {
+  flex: 0 0 42px; color: var(--text2);
+  letter-spacing: 0.06em; text-transform: uppercase; font-size: 8.5px;
+}
+.ptab-row > b { flex: 1; color: var(--text); font-weight: 600; word-break: break-word; }
+.ptab-row i { color: var(--text2); opacity: 0.55; font-style: normal; }
 
 /* WHO IS DOING WHAT, RIGHT NOW */
 #presence-strip { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }

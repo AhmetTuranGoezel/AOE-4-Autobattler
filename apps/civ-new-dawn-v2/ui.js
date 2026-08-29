@@ -6,6 +6,19 @@ const UI = (() => {
   let roomCode = null;
   let lobbyPreviewLeaderId = null;
   let wizardCollapsed = false;
+  let dismissedCombatKey = null;
+  let sessionCredentials = null;
+  let networkRoster = [];
+  let networkStatus = { state: "local", revision: 0 };
+  let actionPending = false;
+  let backupFailure = null;
+  let heartbeatTimer = null;
+  let recoveryTimer = null;
+  let readOnlySession = false;
+  let processedActionIds = [];
+  const PROTOCOL_VERSION = 2;
+  const SAVE_SCHEMA_VERSION = 2;
+  const HEARTBEAT_MS = 20000;
   const lastTechByPlayer = new Map();
 
   // Canvas
@@ -191,11 +204,62 @@ const UI = (() => {
   const anims = {
     hexFlashes: [],  // { key, color, startTime, duration }
     validPulse: 0,
+    // Pieces caught mid-journey, keyed by the thing that moved:
+    //   moves:  id -> { fromKey, toKey, start, ms }   slides A to B
+    //   spawns: id -> { key, start, ms }              scales in where it appeared
+    // The engine never knows about these. Positions are diffed between renders
+    // (reactToChanges already did that to leave a trail of flashes), so nothing
+    // in game.js has to be touched and a networked client animates a rival's
+    // move from the state it receives, exactly as the mover does.
+    moves: new Map(),
+    spawns: new Map(),
     // Set by renderCanvas: true while the frame it just drew contains something
     // that changes over time. The loop keeps painting for exactly as long as
     // that is true and then stops, so an idle board costs nothing.
     living: false
   };
+
+  const MOVE_MS = 420, SPAWN_MS = 320;
+
+  function startMove(id, fromKey, toKey) {
+    if (reducedMotion() || !fromKey || !toKey || fromKey === toKey) return;
+    if (!state.map.hexes[fromKey] || !state.map.hexes[toKey]) return;
+    anims.moves.set(id, { fromKey, toKey, start: performance.now(), ms: MOVE_MS });
+  }
+
+  function startSpawn(id, key) {
+    if (reducedMotion() || !key || !state.map.hexes[key]) return;
+    anims.spawns.set(id, { key, start: performance.now(), ms: SPAWN_MS });
+  }
+
+  // Ease-out so a piece leaves briskly and settles, the way a hand puts it down.
+  const easeOut = (t) => 1 - Math.pow(1 - t, 3);
+
+  // Where a moving piece is right now, or null when it is not moving. Expired
+  // entries are dropped here so the maps cannot grow without bound.
+  function movePoint(id) {
+    const m = anims.moves.get(id);
+    if (!m) return null;
+    const t = (performance.now() - m.start) / m.ms;
+    if (t >= 1) { anims.moves.delete(id); return null; }
+    const a = state.map.hexes[m.fromKey], b = state.map.hexes[m.toKey];
+    if (!a || !b) { anims.moves.delete(id); return null; }
+    const pa = axialToPixel(a.q, a.r), pb = axialToPixel(b.q, b.r);
+    const e = easeOut(Math.max(0, t));
+    return { x: pa.x + (pb.x - pa.x) * e, y: pa.y + (pb.y - pa.y) * e, t: e };
+  }
+
+  function spawnScale(id) {
+    const s = anims.spawns.get(id);
+    if (!s) return 1;
+    const t = (performance.now() - s.start) / s.ms;
+    if (t >= 1) { anims.spawns.delete(id); return 1; }
+    // A touch of overshoot, so a piece lands rather than fades in.
+    const e = easeOut(Math.max(0, t));
+    return 0.35 + 0.75 * e - 0.1 * Math.sin(e * Math.PI);
+  }
+
+  function anythingAnimating() { return anims.moves.size > 0 || anims.spawns.size > 0; }
 
   function flashHex(hexKey, color, duration) {
     anims.hexFlashes.push({ key: hexKey, color, startTime: performance.now(), duration: duration || 600 });
@@ -203,20 +267,6 @@ const UI = (() => {
 
   function flashHexes(keys, color, duration) {
     keys.forEach((k) => flashHex(k, color, duration));
-  }
-
-  // A figure that changed hexes leaves a short trail behind it, so the eye can
-  // see where it came from instead of it simply appearing somewhere new.
-  function traceMove(fromKey, toKey) {
-    if (reducedMotion() || !fromKey || !toKey) return;
-    const q0 = Game.parseQ(fromKey), r0 = Game.parseR(fromKey);
-    const q1 = Game.parseQ(toKey), r1 = Game.parseR(toKey);
-    const steps = Math.max(Math.abs(q1 - q0), Math.abs(r1 - r0), Math.abs((q1 + r1) - (q0 + r0)));
-    for (let i = 0; i <= steps; i++) {
-      const k = Game.key(Math.round(q0 + ((q1 - q0) * i) / steps), Math.round(r0 + ((r1 - r0) * i) / steps));
-      if (!state.map.hexes[k]) continue;
-      setTimeout(() => flashHex(k, "rgba(129,212,250,0.9)", 420), i * 80);
-    }
   }
 
   let animFrameId = null;
@@ -232,7 +282,12 @@ const UI = (() => {
       // things that pulse. Setup's placement spaces and a pending choice's
       // highlighted spaces both animate too, and both left the loop idle — so
       // they only moved when a mousemove happened to force a repaint.
-      if (hadFlashes || anims.hexFlashes.length > 0 || anims.living) {
+      // anythingAnimating() is asked directly, not via anims.living. living is
+      // written by renderCanvas, and reactToChanges — which starts the tweens —
+      // runs AFTER renderCanvas in a render pass. So a move begun this pass set
+      // no flag the loop could see, the loop stayed idle, and the piece simply
+      // appeared at its destination: the tween was running but never painted.
+      if (hadFlashes || anims.hexFlashes.length > 0 || anims.living || anythingAnimating()) {
         renderCanvas();
       }
     })();
@@ -296,6 +351,331 @@ const UI = (() => {
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
 
+  function safeColor(value) {
+    const color = String(value || "");
+    return /^#[0-9a-f]{6}$/i.test(color) ? color : "#a0aec0";
+  }
+
+  function randomToken() {
+    if (window.CivSessionStore?.generateToken) return CivSessionStore.generateToken();
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  }
+
+  function newGameId() { return `civ-${randomToken().slice(0, 16)}`; }
+  function newSeatId() { return `seat-${randomToken().slice(0, 16)}`; }
+  function newActionId() { return `act-${randomToken()}`; }
+
+  function rosterSeatId(entry) {
+    return entry && (entry.seatId || entry.playerId || entry.id);
+  }
+
+  function rosterEntry(playerId) {
+    return (networkRoster || []).find((entry) => rosterSeatId(entry) === playerId) || null;
+  }
+
+  function rosterState(entry) {
+    if (!entry) return "offline";
+    if (entry.online === true || entry.connected === true) return "online";
+    const value = String(entry.status || entry.state || "").toLowerCase();
+    if (["online", "connected", "open", "host"].includes(value)) return "online";
+    if (["connecting", "reconnecting", "retrying"].includes(value)) return "reconnecting";
+    return "offline";
+  }
+
+  function isNetworkGame() {
+    return !!(sessionCredentials && sessionCredentials.gameId && !state?.solo);
+  }
+
+  function offlinePlayers() {
+    if (!state || !isNetworkGame()) return [];
+    return state.players.filter((player) => {
+      if (player.id === localPlayerId) {
+        const phase = String(networkStatus.phase || networkStatus.state || networkStatus.status || "").toLowerCase();
+        return ["offline", "disconnected", "reconnecting", "connecting"].includes(phase);
+      }
+      return rosterState(rosterEntry(player.id)) !== "online";
+    });
+  }
+
+  function interactionBlockReason(action) {
+    if (!state) return "";
+    if (readOnlySession) return "This recovered game is read-only.";
+    if (state.solo || !isNetworkGame()) return "";
+    if (backupFailure) return "Backup is unavailable. No game action can be confirmed.";
+    const phase = String(networkStatus.phase || networkStatus.state || networkStatus.status || "").toLowerCase();
+    if (["offline", "disconnected", "reconnecting", "connecting"].includes(phase)) {
+      return "Connection is being restored.";
+    }
+    if (state.phase !== "lobby") {
+      const missing = offlinePlayers();
+      if (missing.length) return `Game paused: waiting for ${missing.map((p) => p.name).join(", ")}.`;
+    }
+    if (action?.type === "START_GAME") {
+      const missing = offlinePlayers();
+      if (missing.length) return "Every seated player must be online before starting.";
+      if (!state.players.every((player) => player.ready)) return "Every player must be ready before starting.";
+    }
+    return "";
+  }
+
+  function rememberProcessed(ids) {
+    const seen = new Set();
+    processedActionIds = (ids || []).filter((id) => {
+      if (typeof id !== "string" || !id || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    }).slice(-512);
+    Net.restoreProcessedActionIds?.(processedActionIds);
+  }
+
+  async function saveSessionCredentials() {
+    if (!sessionCredentials?.gameId || !window.CivSessionStore) return;
+    await CivSessionStore.saveCredentials(sessionCredentials.gameId, sessionCredentials);
+    try { localStorage.setItem("civ-nd-last-session", sessionCredentials.gameId); } catch { /* optional hint only */ }
+  }
+
+  async function saveLocalCheckpoint(fullState, revision) {
+    if (!sessionCredentials?.gameId || !window.CivSessionStore) return;
+    await CivSessionStore.saveCheckpoint({
+      gameId: sessionCredentials.gameId,
+      revision,
+      hostEpoch: sessionCredentials.hostEpoch || 1,
+      protocolVersion: PROTOCOL_VERSION,
+      saveSchemaVersion: SAVE_SCHEMA_VERSION,
+      rulesVersion: fullState.rulesVersion || 0,
+      fullState,
+      processedActionIds
+    });
+  }
+
+  function remoteAuth(includeState) {
+    if (sessionCredentials?.role === "host") {
+      return { hostToken: sessionCredentials.hostToken, includeState: !!includeState };
+    }
+    return {
+      seatId: sessionCredentials?.seatId,
+      seatToken: sessionCredentials?.seatToken,
+      includeState: false
+    };
+  }
+
+  function normalizedNetState() {
+    if (backupFailure) return "backup_failed";
+    if (readOnlySession) return "readonly";
+    if (actionPending) return "pending";
+    const raw = String(networkStatus.phase || networkStatus.state || networkStatus.status || "local").toLowerCase();
+    if (["open", "connected", "hosting", "ready", "synced"].includes(raw)) return "synced";
+    if (["sending", "confirming", "pending"].includes(raw)) return "pending";
+    if (["connecting", "retrying", "reconnecting", "disconnected"].includes(raw)) return "reconnecting";
+    if (["offline", "closed", "destroyed"].includes(raw)) return "offline";
+    return raw === "local" ? "local" : "synced";
+  }
+
+  function updateNetworkChrome() {
+    const chip = document.getElementById("net-status");
+    if (!chip) return;
+    const kind = normalizedNetState();
+    const revision = Number.isInteger(networkStatus.revision)
+      ? networkStatus.revision
+      : Number.isInteger(state?.revision) ? state.revision : 0;
+    const labels = {
+      local: "Local",
+      synced: `Synchronisiert r${revision}`,
+      pending: "Wird bestätigt",
+      reconnecting: "Verbindung wird wiederhergestellt",
+      offline: "Offline",
+      backup_failed: "Backup nicht verfügbar",
+      readonly: "Nur Lesen"
+    };
+    chip.className = `net-status ${kind}`;
+    chip.textContent = labels[kind] || labels.synced;
+
+    const missing = state && state.phase !== "lobby" ? offlinePlayers() : [];
+    const paused = !!(readOnlySession || backupFailure || missing.length || ["reconnecting", "offline"].includes(kind));
+    dom.game?.classList.toggle("actions-paused", paused);
+    dom.game?.classList.toggle("action-pending", actionPending);
+
+    const banner = document.getElementById("conn-banner");
+    const message = document.getElementById("conn-message");
+    const retry = document.getElementById("btn-net-retry");
+    const takeover = document.getElementById("btn-host-takeover");
+    if (!banner || !message) return;
+    let text = "";
+    if (backupFailure) text = `Backup unavailable: ${backupFailure.message || backupFailure}`;
+    else if (readOnlySession) text = "This save cannot safely host an online game and is open read-only.";
+    else if (missing.length) text = `Game paused until ${missing.map((p) => p.name).join(", ")} reconnect${missing.length === 1 ? "s" : ""}.`;
+    else if (kind === "reconnecting") text = "Connection lost — reconnecting without giving up your seat.";
+    else if (kind === "offline") text = "Offline — the game remains paused and your seat is reserved.";
+    if (!text) {
+      banner.classList.add("hidden");
+      retry?.classList.add("hidden");
+      takeover?.classList.add("hidden");
+      return;
+    }
+    message.textContent = text;
+    banner.classList.remove("hidden");
+    retry?.classList.toggle("hidden", !["reconnecting", "offline", "backup_failed"].includes(kind));
+    takeover?.classList.toggle("hidden", !networkStatus.canTakeover || sessionCredentials?.role === "host");
+  }
+
+  function stopSessionTimers() {
+    clearTimeout(heartbeatTimer);
+    clearTimeout(recoveryTimer);
+    heartbeatTimer = null;
+    recoveryTimer = null;
+  }
+
+  async function recoverAuthoritativeState(actionId) {
+    if (!sessionCredentials?.gameId || sessionCredentials.role !== "host") return null;
+    const remote = await CivSessionApi.status(sessionCredentials.gameId, remoteAuth(true));
+    sessionCredentials.revision = remote.revision;
+    sessionCredentials.hostEpoch = remote.hostEpoch;
+    sessionCredentials.hostPeerId = remote.hostPeerId;
+    rememberProcessed(remote.processedActionIds || []);
+    if (remote.fullState) {
+      state = Game.migrateState ? Game.migrateState(remote.fullState) : remote.fullState;
+      state.revision = remote.revision;
+      await saveLocalCheckpoint(state, remote.revision);
+      Net.setRevision?.(remote.revision);
+      await saveSessionCredentials();
+      render();
+    }
+    return {
+      committed: !!actionId && processedActionIds.includes(actionId),
+      revision: remote.revision,
+      state: remote.fullState || null
+    };
+  }
+
+  async function checkpointCandidate(candidate, actionId, extraSeatTokens) {
+    const expectedRevision = Number.isInteger(sessionCredentials.revision)
+      ? sessionCredentials.revision
+      : Number.isInteger(state.revision) ? state.revision : 0;
+    const nextRevision = expectedRevision + 1;
+    candidate.revision = nextRevision;
+    candidate.saveSchemaVersion = SAVE_SCHEMA_VERSION;
+    const nextIds = processedActionIds.concat(actionId || []).slice(-512);
+    try {
+      const saved = await CivSessionApi.checkpoint(sessionCredentials.gameId, {
+        hostToken: sessionCredentials.hostToken,
+        hostEpoch: sessionCredentials.hostEpoch,
+        expectedRevision,
+        fullState: candidate,
+        processedActionIds: nextIds,
+        ...(extraSeatTokens && Object.keys(extraSeatTokens).length ? { seatTokens: extraSeatTokens } : {})
+      });
+      sessionCredentials.revision = saved.revision;
+      sessionCredentials.hostEpoch = saved.hostEpoch;
+      sessionCredentials.hostPeerId = saved.hostPeerId;
+      sessionCredentials.leaseUntil = saved.leaseUntil;
+      rememberProcessed(nextIds);
+      await saveLocalCheckpoint(candidate, saved.revision);
+      await saveSessionCredentials();
+      state = candidate;
+      Net.setRevision?.(saved.revision);
+      backupFailure = null;
+      networkStatus = { ...networkStatus, revision: saved.revision };
+      return { accepted: true, state: candidate, revision: saved.revision, code: "accepted", message: "Saved" };
+    } catch (error) {
+      // A response can be lost after the CAS already committed. Before calling
+      // the action failed, ask the authority whether this exact actionId is in
+      // its durable dedupe window.
+      try {
+        const recovered = await recoverAuthoritativeState(actionId);
+        if (recovered?.committed) {
+          backupFailure = null;
+          return { accepted: true, state, revision: recovered.revision, code: "accepted", message: "Recovered confirmed action" };
+        }
+      } catch { /* retain the original, more useful failure below */ }
+      if (["host_epoch_stale", "host_auth_failed", "session_active_elsewhere"].includes(error.code)) {
+        readOnlySession = true;
+      }
+      backupFailure = error;
+      updateNetworkChrome();
+      return {
+        accepted: false,
+        state,
+        revision: expectedRevision,
+        code: error.code || "backup_unavailable",
+        message: error.message || "The backup could not confirm this action"
+      };
+    }
+  }
+
+  async function applyAuthoritativeAction(action, context = {}) {
+    const blocked = interactionBlockReason(action);
+    if (blocked) return { accepted: false, state, revision: state?.revision || 0, code: "game_paused", message: blocked };
+    const actionId = context.actionId || newActionId();
+    const actorId = context.actorId || localPlayerId;
+    const role = context.role || (Net.getIsHost() ? "host" : "player");
+    const result = Game.tryApplyAction
+      ? Game.tryApplyAction(state, action, { actorId, role })
+      : { accepted: true, state: Game.applyAction(JSON.parse(JSON.stringify(state)), action), code: "accepted", message: "" };
+    if (!result.accepted) return { ...result, state, revision: state?.revision || 0 };
+
+    if (isNetworkGame() && sessionCredentials.role === "host") {
+      return checkpointCandidate(result.state, actionId, context.extraSeatTokens);
+    }
+    const revision = (Number.isInteger(state?.revision) ? state.revision : 0) + 1;
+    result.state.revision = revision;
+    state = result.state;
+    networkStatus = { ...networkStatus, revision };
+    return { ...result, state, revision };
+  }
+
+  async function heartbeatHost() {
+    clearTimeout(heartbeatTimer);
+    if (!sessionCredentials?.gameId || sessionCredentials.role !== "host") return;
+    try {
+      const result = await CivSessionApi.heartbeat(sessionCredentials.gameId, {
+        hostToken: sessionCredentials.hostToken,
+        hostEpoch: sessionCredentials.hostEpoch,
+        hostPeerId: sessionCredentials.hostPeerId
+      });
+      sessionCredentials.leaseUntil = result.leaseUntil;
+      backupFailure = null;
+      await saveSessionCredentials();
+    } catch (error) {
+      backupFailure = error;
+      if (["host_epoch_stale", "session_active_elsewhere", "host_peer_mismatch"].includes(error.code)) {
+        readOnlySession = true;
+      }
+    }
+    updateNetworkChrome();
+    heartbeatTimer = setTimeout(heartbeatHost, backupFailure ? 5000 : HEARTBEAT_MS);
+  }
+
+  async function pollRecoveryStatus() {
+    clearTimeout(recoveryTimer);
+    if (!sessionCredentials?.gameId || sessionCredentials.role === "host") return;
+    try {
+      const remote = await CivSessionApi.status(sessionCredentials.gameId, remoteAuth(false));
+      networkStatus = { ...networkStatus, canTakeover: !!remote.leaseExpired };
+      if (remote.hostPeerId && remote.hostPeerId !== sessionCredentials.hostPeerId) {
+        sessionCredentials.hostPeerId = remote.hostPeerId;
+        sessionCredentials.hostEpoch = remote.hostEpoch;
+        sessionCredentials.revision = Math.max(sessionCredentials.revision || 0, remote.revision || 0);
+        await saveSessionCredentials();
+        Net.resumeSession?.(sessionCredentials);
+      }
+    } catch (error) {
+      if (error.code === "session_closed") readOnlySession = true;
+    }
+    updateNetworkChrome();
+    recoveryTimer = setTimeout(pollRecoveryStatus, 5000);
+  }
+
+  async function retryNetworkAndBackup() {
+    Net.retryNow?.();
+    if (!sessionCredentials?.gameId) return;
+    try {
+      if (sessionCredentials.role === "host") await heartbeatHost();
+      else await pollRecoveryStatus();
+    } catch { /* the status badge already explains that another retry follows */ }
+  }
+
   function init() {
     dom.lobby = document.getElementById("lobby");
     dom.game = document.getElementById("game");
@@ -357,37 +737,56 @@ const UI = (() => {
     }
 
     Net.init({
-      onState: (payload) => {
-        if (Net.getIsHost()) dispatch(payload);
-        else {
-          state = Game.migrateState ? Game.migrateState(payload) : payload;
-          try { localStorage.setItem("civ-nd-save", JSON.stringify({ state, localPlayerId })); } catch(e) {}
-          render();
+      onAction: applyAuthoritativeAction,
+      onAuthenticate: authenticateSeatConnection,
+      getStateView: (seatId) => Game.projectState ? Game.projectState(state, seatId) : state,
+      projectState: (fullState, seatId) => Game.projectState ? Game.projectState(fullState, seatId) : fullState,
+      onState: receiveNetworkState,
+      onJoin: addJoinedSeat,
+      onDisconnect: (seatId) => {
+        const who = state && Game.getPlayer(state, seatId);
+        showToast(`${who ? who.name : "A player"} disconnected — game paused`);
+        if (!Net.getIsHost()) pollRecoveryStatus();
+        updateNetworkChrome();
+        renderPlayers();
+      },
+      onConnected: () => {
+        backupFailure = null;
+        if (Net.getIsHost() && state) Net.broadcast(state, state.revision || 0);
+        updateNetworkChrome();
+      },
+      onStatus: (status) => {
+        networkStatus = { ...networkStatus, ...status };
+        if (!Net.getIsHost() && ["reconnecting", "offline", "protocol_error"].includes(status.phase)) {
+          pollRecoveryStatus();
         }
+        updateNetworkChrome();
       },
-      onJoin: (peerId, name, color) => {
-        const player = Game.createPlayer(peerId, name, color);
-        state = Game.applyAction(state, { type: "ADD_PLAYER", payload: player });
-        Net.broadcast(state);
-        render();
+      onRoster: (roster) => {
+        networkRoster = Array.isArray(roster) ? roster : [];
+        updateNetworkChrome();
+        if (state) renderPlayers();
       },
-      onDisconnect: (peerId) => {
-        // The host is not the one who dropped — a player left them. Saying
-        // "attempting to reconnect" to the machine still running the game was
-        // both wrong and alarming, so each side is told what actually happened.
-        if (Net.getIsHost()) {
-          const who = Game.getPlayer(state, peerId);
-          showToast(`${who ? who.name : "A player"} disconnected`);
-          return;
-        }
-        const banner = document.getElementById("conn-banner");
-        banner.textContent = "Connection lost - attempting to reconnect...";
-        banner.classList.remove("hidden");
-        showToast("Connection lost");
+      onActionResult: (result) => {
+        if (result.status !== "accepted") showToast(result.message || result.code || "Action rejected");
       },
-      onConnected: () => { if (Net.getIsHost() && state) Net.broadcast(state); },
-      onChat: (msg) => { chatHistory.push(msg); renderLog(); },
-      onPresence: receivePresence
+      onChat: receiveChat,
+      onPresence: receivePresence,
+      onProtocolError: (error) => {
+        showToast(error.message || "Multiplayer protocol error");
+        updateNetworkChrome();
+      }
+    });
+
+    document.getElementById("btn-net-retry")?.addEventListener("click", retryNetworkAndBackup);
+    document.getElementById("btn-host-takeover")?.addEventListener("click", takeOverHost);
+    document.getElementById("btn-ready")?.addEventListener("click", () => {
+      const me = state && Game.getPlayer(state, localPlayerId);
+      if (me) dispatch({ type: "SET_READY", payload: { playerId: localPlayerId, ready: !me.ready } });
+    });
+    window.addEventListener("beforeunload", () => {
+      stopSessionTimers();
+      Net.leaveRoom?.();
     });
 
     document.getElementById("chat-send").addEventListener("click", () => {
@@ -399,83 +798,128 @@ const UI = (() => {
       if (e.key === "Enter") { sendChat(e.target.value); e.target.value = ""; }
     });
 
-    try {
-      const saved = localStorage.getItem("civ-nd-save");
-      if (saved) {
-        const data = JSON.parse(saved);
-        if (data.state && data.localPlayerId) {
-          const resumeBtn = document.createElement("button");
-          resumeBtn.textContent = "Resume Saved Game";
-          resumeBtn.style.marginTop = "8px";
-          const clearBtn = document.createElement("button");
-          clearBtn.textContent = "Delete Save";
-          clearBtn.className = "ghost";
-          clearBtn.style.marginTop = "4px";
-          dom.lobbyStatus.textContent = "Saved game found.";
-          dom.lobby.querySelector(".lobby-actions").appendChild(resumeBtn);
-          dom.lobby.querySelector(".lobby-actions").appendChild(clearBtn);
-          resumeBtn.addEventListener("click", () => {
-            state = Game.migrateState ? Game.migrateState(data.state) : data.state;
-            localPlayerId = data.localPlayerId;
-            Net.startLocal();
-            showGame();
-            render();
-          });
-          clearBtn.addEventListener("click", () => {
-            localStorage.removeItem("civ-nd-save");
-            resumeBtn.remove();
-            clearBtn.remove();
-            dom.lobbyStatus.textContent = "Save deleted.";
-          });
-        }
-      }
-    } catch(e) {}
+    offerResumeOptions();
   }
 
   function startLocal() {
-    try { localStorage.removeItem("civ-nd-save"); } catch(e) {}
-    Net.startLocal();
+    stopSessionTimers();
+    Net.leaveRoom?.();
+    sessionCredentials = null;
+    networkRoster = [];
+    backupFailure = null;
+    readOnlySession = false;
+    processedActionIds = [];
     localPlayerId = "local";
     const name = dom.inpName.value.trim() || "Player";
     const color = dom.inpColor.value;
+    Net.startLocal({ seatId: localPlayerId, profile: { name, color } });
     const player = Game.createPlayer(localPlayerId, name, color);
     state = Game.createLobbyState([player], { solo: true });
+    state.revision = 0;
+    networkStatus = Net.getStatus();
     showGame();
     render();
   }
 
   function startCreate() {
     if (typeof Peer === "undefined") { dom.lobbyStatus.textContent = "Multiplayer unavailable (PeerJS not loaded). Use Local Solo."; return; }
-    try { localStorage.removeItem("civ-nd-save"); } catch(e) {}
     const name = dom.inpName.value.trim() || "Host";
     const color = dom.inpColor.value;
+    const gameId = newGameId();
+    const seatId = newSeatId();
+    const seatToken = randomToken();
+    const hostToken = randomToken();
+    stopSessionTimers();
+    Net.leaveRoom?.();
+    localPlayerId = seatId;
+    roomCode = gameId;
+    processedActionIds = [];
+    readOnlySession = false;
+    backupFailure = null;
+    sessionCredentials = {
+      role: "host", gameId, seatId, seatToken, hostToken,
+      hostEpoch: 1, hostPeerId: gameId, peerId: gameId, revision: 0,
+      profile: { name, color }
+    };
     dom.lobbyStatus.textContent = "Creating room...";
-    Net.createRoom((id) => {
-      localPlayerId = id;
-      const player = Game.createPlayer(id, name, color);
-      // Open a waiting room rather than a live 1-player board. The real game
-      // is built (with everyone in it) when the host presses Start Game.
-      state = Game.createLobbyState([player]);
-      roomCode = id;
-      dom.hdrRoom.textContent = `Room: ${id}`;
-      showGame();
-      render();
+    Net.createRoom({
+      gameId, seatId, seatToken, hostPeerId: gameId, peerId: gameId,
+      revision: 0, profile: { name, color }, seatTokens: { [seatId]: seatToken }
+    }, async (hostPeerId) => {
+      try {
+        const player = Game.createPlayer(seatId, name, color);
+        state = Game.createLobbyState([player]);
+        state.revision = 0;
+        const created = await CivSessionApi.create(gameId, {
+          protocolVersion: PROTOCOL_VERSION,
+          saveSchemaVersion: SAVE_SCHEMA_VERSION,
+          rulesVersion: state.rulesVersion || 0,
+          hostPeerId,
+          fullState: state,
+          processedActionIds: [],
+          seatIds: [seatId],
+          hostToken,
+          seatTokens: { [seatId]: seatToken }
+        });
+        sessionCredentials = {
+          ...sessionCredentials,
+          hostPeerId,
+          peerId: hostPeerId,
+          hostEpoch: created.hostEpoch,
+          revision: created.revision,
+          leaseUntil: created.leaseUntil,
+          hostToken: created.credentials.hostToken,
+          seatToken: created.credentials.seatTokens[seatId]
+        };
+        await saveLocalCheckpoint(state, 0);
+        await saveSessionCredentials();
+        dom.hdrRoom.textContent = `Room: ${gameId}`;
+        dom.lobbyStatus.textContent = "";
+        heartbeatHost();
+        showGame();
+        render();
+      } catch (error) {
+        Net.leaveRoom();
+        state = null;
+        sessionCredentials = null;
+        dom.lobbyStatus.textContent = `Room could not be created: ${error.message || error}`;
+      }
     });
   }
 
   function startJoin() {
     if (typeof Peer === "undefined") { dom.lobbyStatus.textContent = "Multiplayer unavailable (PeerJS not loaded). Use Local Solo."; return; }
-    try { localStorage.removeItem("civ-nd-save"); } catch(e) {}
     const code = dom.inpJoin.value.trim();
     if (!code) { dom.lobbyStatus.textContent = "Enter a room code."; return; }
     const name = dom.inpName.value.trim() || "Player";
     const color = dom.inpColor.value;
+    const seatId = newSeatId();
+    const seatToken = randomToken();
+    stopSessionTimers();
+    Net.leaveRoom?.();
+    state = null;
+    localPlayerId = seatId;
+    roomCode = code;
+    readOnlySession = false;
+    backupFailure = null;
+    processedActionIds = [];
+    sessionCredentials = {
+      role: "client", gameId: code, seatId, seatToken,
+      hostPeerId: code, revision: 0, profile: { name, color }
+    };
     dom.lobbyStatus.textContent = "Connecting...";
-    Net.joinRoom(code, name, color, (id) => {
-      localPlayerId = id;
-      roomCode = code;
+    saveSessionCredentials().catch(() => {});
+    Net.joinRoom({
+      hostPeerId: code, gameId: code, seatId, seatToken,
+      lastRevision: 0, profile: { name, color }
+    }, async (connectedSeatId) => {
+      localPlayerId = connectedSeatId || seatId;
+      sessionCredentials = { ...sessionCredentials, seatId: localPlayerId, revision: Net.getStatus().revision || 0 };
+      await saveSessionCredentials().catch(() => {});
       dom.hdrRoom.textContent = `Room: ${code}`;
+      dom.lobbyStatus.textContent = "";
       showGame();
+      render();
     });
   }
 
@@ -486,15 +930,321 @@ const UI = (() => {
     startAnimLoop();
   }
 
-  function dispatch(action) {
-    if (!state) return;
-    if (Net.getIsHost()) {
-      state = Game.applyAction(state, action);
-      Net.broadcast(state);
-      try { localStorage.setItem("civ-nd-save", JSON.stringify({ state, localPlayerId })); } catch(e) {}
+  function copySubState() {
+    if (typeof structuredClone === "function") return structuredClone(sub);
+    const copy = JSON.parse(JSON.stringify(sub));
+    copy.validHexes = new Set(Array.from(sub.validHexes || []));
+    return copy;
+  }
+
+  function restoreSubState(saved) {
+    Object.keys(sub).forEach((key) => { if (!(key in saved)) delete sub[key]; });
+    Object.entries(saved).forEach(([key, value]) => { sub[key] = value; });
+  }
+
+  async function dispatch(action) {
+    if (!state) return { status: "rejected", code: "no_state", message: "No game is open." };
+    const blocked = interactionBlockReason(action);
+    if (blocked || actionPending) {
+      const message = blocked || "The previous action is still being confirmed.";
+      showToast(message);
+      return { status: "rejected", code: "game_paused", message };
+    }
+
+    const beforeSub = copySubState();
+    let afterSub = beforeSub;
+    actionPending = true;
+    updateNetworkChrome();
+    const capture = Promise.resolve().then(() => {
+      afterSub = copySubState();
+      restoreSubState(beforeSub);
       render();
-    } else {
-      Net.sendAction(action);
+    });
+    let result;
+    try {
+      result = await Net.submitAction(action);
+      await capture;
+      actionPending = false;
+      if (result.status === "accepted") {
+        restoreSubState(afterSub);
+        if (!isNetworkGame()) {
+          try { localStorage.setItem("civ-nd-save", JSON.stringify({ state, localPlayerId })); } catch(e) {}
+        }
+      } else {
+        restoreSubState(beforeSub);
+        showToast(result.message || result.code || "Action rejected");
+      }
+    } catch (error) {
+      await capture;
+      actionPending = false;
+      restoreSubState(beforeSub);
+      result = { status: "rejected", code: "action_failed", message: error.message || String(error) };
+      showToast(result.message);
+    }
+    updateNetworkChrome();
+    render();
+    return result;
+  }
+
+  async function receiveNetworkState(payload, meta = {}) {
+    if (!payload || typeof payload !== "object") return;
+    const incomingRevision = Number.isInteger(meta.revision) ? meta.revision : (payload.revision || 0);
+    if (state && Number.isInteger(state.revision) && incomingRevision < state.revision) return;
+    state = Game.migrateState ? Game.migrateState(payload) : payload;
+    state.revision = incomingRevision;
+    if (sessionCredentials) {
+      sessionCredentials.revision = incomingRevision;
+      await saveSessionCredentials().catch(() => {});
+      await saveLocalCheckpoint(state, incomingRevision).catch(() => {});
+    }
+    if (Array.isArray(state.chat)) {
+      chatHistory.splice(0, chatHistory.length, ...state.chat.slice(-100));
+    }
+    render();
+  }
+
+  async function authenticateSeatConnection(hello) {
+    if (!sessionCredentials?.gameId || !state) {
+      return { accepted: false, code: "session_initializing", message: "The host is still restoring the session." };
+    }
+    if (String(hello.gameId || "") !== sessionCredentials.gameId) {
+      return { accepted: false, code: "wrong_game", message: "That room code belongs to another game." };
+    }
+    const seatId = String(hello.seatId || "");
+    const existing = !!Game.getPlayer(state, seatId);
+    if (existing) {
+      try {
+        await CivSessionApi.status(sessionCredentials.gameId, {
+          seatId, seatToken: hello.seatToken, includeState: false
+        });
+        return { accepted: true, existing: true, seatId };
+      } catch (error) {
+        return { accepted: false, code: error.code || "seat_auth_failed", message: error.message || "Seat credentials are invalid." };
+      }
+    }
+    if (state.phase !== "lobby") {
+      return { accepted: false, code: "game_started", message: "New seats cannot join after setup begins." };
+    }
+    if (state.players.length >= Game.CFG.maxPlayers) {
+      return { accepted: false, code: "room_full", message: "This room is full." };
+    }
+    return { accepted: true, isNewSeat: true, seatId };
+  }
+
+  async function addJoinedSeat(seatId, name, color, context) {
+    const cleanName = String(name || "Player").trim().slice(0, 16) || "Player";
+    const player = Game.createPlayer(seatId, cleanName, color);
+    const result = await applyAuthoritativeAction(
+      { type: "ADD_PLAYER", payload: player },
+      {
+        actorId: localPlayerId,
+        role: "host",
+        actionId: `join-${seatId}`,
+        extraSeatTokens: { [seatId]: context.seatToken }
+      }
+    );
+    if (result.accepted) {
+      render();
+      return { accepted: true, revision: result.revision, state: result.state };
+    }
+    return result;
+  }
+
+  function receiveChat(message) {
+    if (!message || typeof message !== "object") return;
+    const clean = {
+      sender: String(message.seatId || message.sender || ""),
+      seatId: String(message.seatId || message.sender || ""),
+      name: String(message.name || "Player").slice(0, 100),
+      text: String(message.text || "").slice(0, 100),
+      ts: Number(message.at || message.ts || Date.now())
+    };
+    if (!clean.text.trim()) return;
+    const duplicate = chatHistory.some((entry) =>
+      (entry.seatId || entry.sender) === clean.seatId && entry.ts === clean.ts && entry.text === clean.text
+    );
+    if (duplicate) return;
+    chatHistory.push(clean);
+    if (chatHistory.length > 100) chatHistory.splice(0, chatHistory.length - 100);
+    if (state) state.chat = chatHistory.slice(-100);
+    renderLog();
+  }
+
+  function sessionRoster(fullState) {
+    return (fullState?.players || []).map((player) => ({
+      seatId: player.id,
+      name: player.name,
+      color: player.color,
+      status: player.id === localPlayerId ? "online" : "offline",
+      ready: !!player.ready,
+      role: player.id === localPlayerId ? "host" : "player"
+    }));
+  }
+
+  async function offerResumeOptions() {
+    const actions = dom.lobby.querySelector(".lobby-actions");
+    let gameId = "";
+    try { gameId = localStorage.getItem("civ-nd-last-session") || ""; } catch { /* no storage */ }
+    if (gameId && window.CivSessionStore) {
+      try {
+        const credentials = await CivSessionStore.loadCredentials(gameId);
+        const checkpoint = await CivSessionStore.loadLatest(gameId);
+        if (credentials && checkpoint) {
+          const button = document.createElement("button");
+          button.textContent = `Resume online game (${gameId})`;
+          button.className = "resume-session";
+          button.addEventListener("click", () => resumeSavedSession(gameId));
+          actions.appendChild(button);
+          dom.lobbyStatus.textContent = `Saved revision r${checkpoint.revision} found.`;
+        }
+      } catch { /* a corrupt latest record is already skipped by SessionStore */ }
+    }
+
+    // One-way compatibility for saves made before schema v2. Missing hidden
+    // orders are opened offline/read-only by Game.migrateState, never promoted
+    // into an authoritative multiplayer host.
+    try {
+      const legacy = JSON.parse(localStorage.getItem("civ-nd-save") || "null");
+      if (legacy?.state && legacy?.localPlayerId) {
+        const button = document.createElement("button");
+        button.textContent = "Open legacy save offline";
+        button.className = "ghost";
+        button.addEventListener("click", () => {
+          sessionCredentials = null;
+          localPlayerId = legacy.localPlayerId;
+          state = Game.migrateState ? Game.migrateState(legacy.state) : legacy.state;
+          readOnlySession = !!state.migrationStatus?.readOnly;
+          Net.startLocal({ seatId: localPlayerId });
+          showGame();
+          render();
+        });
+        actions.appendChild(button);
+      }
+    } catch { /* ignore malformed legacy data */ }
+  }
+
+  async function resumeSavedSession(gameId) {
+    dom.lobbyStatus.textContent = "Restoring the last confirmed revision...";
+    stopSessionTimers();
+    Net.leaveRoom?.();
+    try {
+      const savedCredentials = await CivSessionStore.loadCredentials(gameId);
+      const checkpoint = await CivSessionStore.loadLatest(gameId);
+      if (!savedCredentials || !checkpoint) throw new Error("No valid local checkpoint remains.");
+      sessionCredentials = savedCredentials;
+      localPlayerId = savedCredentials.seatId;
+      roomCode = gameId;
+      readOnlySession = false;
+      backupFailure = null;
+
+      if (savedCredentials.role === "host") {
+        const remote = await CivSessionApi.status(gameId, {
+          hostToken: savedCredentials.hostToken,
+          includeState: true
+        });
+        state = Game.migrateState ? Game.migrateState(remote.fullState) : remote.fullState;
+        state.revision = remote.revision;
+        rememberProcessed(remote.processedActionIds || checkpoint.processedActionIds || []);
+        sessionCredentials = {
+          ...savedCredentials,
+          role: "host",
+          hostEpoch: remote.hostEpoch,
+          hostPeerId: remote.hostPeerId,
+          peerId: remote.hostPeerId,
+          revision: remote.revision,
+          leaseUntil: remote.leaseUntil
+        };
+        Net.resumeSession({
+          ...sessionCredentials,
+          roster: sessionRoster(state),
+          profile: sessionCredentials.profile || {
+            name: Game.getPlayer(state, localPlayerId)?.name || "Host",
+            color: Game.getPlayer(state, localPlayerId)?.color || ""
+          }
+        }, () => {
+          heartbeatHost();
+          Net.broadcast(state, state.revision);
+        });
+      } else {
+        const remote = await CivSessionApi.status(gameId, {
+          seatId: savedCredentials.seatId,
+          seatToken: savedCredentials.seatToken,
+          includeState: false
+        });
+        state = Game.migrateState ? Game.migrateState(checkpoint.fullState) : checkpoint.fullState;
+        state.revision = checkpoint.revision;
+        sessionCredentials = {
+          ...savedCredentials,
+          role: "client",
+          hostPeerId: remote.hostPeerId,
+          revision: checkpoint.revision,
+          hostEpoch: remote.hostEpoch,
+          leaseUntil: remote.leaseUntil
+        };
+        Net.resumeSession({ ...sessionCredentials, lastRevision: checkpoint.revision }, () => {});
+        pollRecoveryStatus();
+      }
+      await saveSessionCredentials();
+      showGame();
+      render();
+    } catch (error) {
+      backupFailure = error;
+      dom.lobbyStatus.textContent = error.code === "session_active_elsewhere"
+        ? "Session is already open elsewhere."
+        : `Could not resume: ${error.message || error}`;
+      if (state) {
+        readOnlySession = true;
+        showGame();
+        render();
+      }
+    }
+  }
+
+  async function takeOverHost() {
+    if (!sessionCredentials?.gameId || sessionCredentials.role === "host") return;
+    if (!confirm("The host lease has expired. Take over hosting from the last confirmed revision?")) return;
+    const newHostPeerId = `${sessionCredentials.gameId}-h${(sessionCredentials.hostEpoch || 1) + 1}-${randomToken().slice(0, 8)}`;
+    try {
+      const recovered = await CivSessionApi.takeover(sessionCredentials.gameId, {
+        seatId: sessionCredentials.seatId,
+        seatToken: sessionCredentials.seatToken,
+        newHostPeerId
+      });
+      stopSessionTimers();
+      Net.leaveRoom();
+      state = Game.migrateState ? Game.migrateState(recovered.fullState) : recovered.fullState;
+      state.revision = recovered.revision;
+      rememberProcessed(recovered.processedActionIds || []);
+      sessionCredentials = {
+        ...sessionCredentials,
+        role: "host",
+        hostToken: recovered.hostToken,
+        hostEpoch: recovered.hostEpoch,
+        hostPeerId: newHostPeerId,
+        peerId: newHostPeerId,
+        revision: recovered.revision,
+        leaseUntil: recovered.leaseUntil
+      };
+      await saveLocalCheckpoint(state, recovered.revision);
+      await saveSessionCredentials();
+      networkStatus = { phase: "connecting", revision: recovered.revision, canTakeover: false };
+      Net.createRoom({
+        ...sessionCredentials,
+        roster: sessionRoster(state),
+        profile: sessionCredentials.profile || {
+          name: Game.getPlayer(state, localPlayerId)?.name || "Host",
+          color: Game.getPlayer(state, localPlayerId)?.color || ""
+        }
+      }, () => {
+        heartbeatHost();
+        Net.broadcast(state, state.revision);
+      });
+      render();
+    } catch (error) {
+      showToast(error.code === "takeover_lost"
+        ? "Another player completed the takeover first."
+        : error.message || "Host takeover failed.");
+      pollRecoveryStatus();
     }
   }
 
@@ -699,7 +1449,7 @@ const UI = (() => {
       ...(hexChoice ? hexChoice.hexKeys : [])]);
     // Everything on the board that moves by itself, in one place, so the loop
     // and the drawing can never disagree about whether a frame is worth having.
-    anims.living = combinedValid.size > 0;
+    anims.living = combinedValid.size > 0 || anythingAnimating();
 
     // Layer 1: Inactive hexes
     Object.values(hexes).forEach((h) => {
@@ -790,6 +1540,9 @@ const UI = (() => {
 
     // Layer 6: Ghost tile
     if (ghostKeys.size > 0) drawGhostTile(ghostKeys, ghostValid);
+
+    // Layer 6a: pieces in transit, over the board they are crossing.
+    drawMovingUnits();
 
     // Layer 6b: everyone else, mid-thought. Drawn under the local ghost so your
     // own tile is never hidden by a rival's cursor.
@@ -1546,12 +2299,19 @@ const UI = (() => {
     } else if (h.control) {
       const owner = Game.getPlayer(state, h.control.ownerId);
       const color = owner ? owner.color : "#fff";
+      // A marker that has just arrived slides in from where it came, or lands
+      // with a small scale if it was newly placed. The tween is keyed on the
+      // space, so it follows the token rather than the hex being redrawn.
+      const mkId = "mk:" + k;
+      const at = movePoint(mkId);
+      if (at) { cx = at.x; cy = at.y; }
+      const mkScale = at ? 1 : spawnScale(mkId);
       // A district replaces the plain token; a plain token has two printed
       // faces, and reinforcing it is a flip to the back with its ring of dots.
       const face = art && (h.control.district
         ? CivCardArt.district(color, h.control.district)
         : CivCardArt.control(color, h.control.fortified));
-      if (face && drawToken(face, cx, cy, h.control.district ? HEX_TOKEN : 0.44, { shadow: true })) {
+      if (face && drawToken(face, cx, cy, (h.control.district ? HEX_TOKEN : 0.44) * mkScale, { shadow: true })) {
         // Nothing else to draw: the face says whose it is and what it is.
       } else if (h.control.district) {
         const w = 15 * s, hh = 11 * s;
@@ -1618,6 +2378,22 @@ const UI = (() => {
 
   // The figures standing in a space, along the bottom edge so they never sit
   // on top of whatever holds the ground.
+  // One figure, wherever it happens to be on screen.
+  function paintUnit(u, ux, uy, s, scale) {
+    const kind = u.type === "army" ? "army" : "caravan";
+    const model = pieceArt && window.CivCardArt && CivCardArt.piece(kind, u.color);
+    if (model && drawPiece(model, ux, uy, 0.32 * (scale || 1))) return;
+    const r = 5.2 * s * (scale || 1);
+    ctx.beginPath(); ctx.arc(ux, uy, r, 0, Math.PI * 2);
+    ctx.fillStyle = u.color; ctx.fill();
+    ctx.lineWidth = 1.6 * s;
+    ctx.strokeStyle = u.type === "army" ? "#fff" : "rgba(20,20,30,0.9)";
+    ctx.stroke();
+    ctx.font = `bold ${Math.round(6.5 * s * (scale || 1))}px sans-serif`;
+    ctx.fillStyle = u.type === "army" ? "#fff" : "rgba(15,15,25,0.95)";
+    ctx.fillText(u.type === "army" ? "⚔" : "C", ux, uy + 0.4 * s);
+  }
+
   function drawUnits(cx, cy, k, s) {
     const units = Game.getUnitsAt(state, k);
     if (!units.length) return;
@@ -1625,19 +2401,37 @@ const UI = (() => {
     const spread = 13 * s;
     const x0 = cx - ((units.length - 1) * spread) / 2;
     units.forEach((u, i) => {
-      const ux = x0 + i * spread;
-      const kind = u.type === "army" ? "army" : "caravan";
-      const model = pieceArt && window.CivCardArt && CivCardArt.piece(kind, u.color);
-      if (model && drawPiece(model, ux, uy, 0.32)) return;
-      ctx.beginPath(); ctx.arc(ux, uy, 5.2 * s, 0, Math.PI * 2);
-      ctx.fillStyle = u.color; ctx.fill();
-      ctx.lineWidth = 1.6 * s;
-      ctx.strokeStyle = u.type === "army" ? "#fff" : "rgba(20,20,30,0.9)";
-      ctx.stroke();
-      ctx.font = `bold ${Math.round(6.5 * s)}px sans-serif`;
-      ctx.fillStyle = u.type === "army" ? "#fff" : "rgba(15,15,25,0.95)";
-      ctx.fillText(u.type === "army" ? "⚔" : "C", ux, uy + 0.4 * s);
+      // A figure part-way through a move is painted afterwards, at the point it
+      // has actually reached, so it is not also sitting at its destination.
+      if (u.animId && anims.moves.has(u.animId)) return;
+      paintUnit(u, x0 + i * spread, uy, s, spawnScale(u.animId));
     });
+  }
+
+  // Everything in transit, drawn after the board so a piece passes over the
+  // spaces it crosses rather than under them.
+  function drawMovingUnits() {
+    if (!anims.moves.size) return;
+    const s = HEX_SIZE / 30;
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    state.players.forEach((p) => {
+      [["army", p.armies], ["caravan", p.caravans]].forEach(([type, list]) => {
+        (list || []).forEach((u) => {
+          const id = `${type === "army" ? "a" : "c"}${p.id}:${u.id}`;
+          const at = movePoint(id);
+          if (!at) return;
+          ctx.globalAlpha = 1;
+          // A soft shadow under a travelling piece sells it as lifted.
+          ctx.beginPath();
+          ctx.ellipse(at.x, at.y + HEX_SIZE * 0.62, 6 * s, 2.6 * s, 0, 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.fill();
+          paintUnit({ type, color: p.color }, at.x, at.y + HEX_SIZE * 0.55, s, 1);
+        });
+      });
+    });
+    ctx.restore();
   }
 
   // ── Mouse / Keyboard ─────────────────────────────────────
@@ -1844,7 +2638,7 @@ const UI = (() => {
       lines.push(`<strong>${Game.TERRAIN_LABELS[h.terrain]}</strong> (diff ${Game.TERRAIN[h.terrain]})`);
       if (h.city) {
         const owner = Game.getPlayer(state, h.city.ownerId);
-        lines.push(`${h.city.isCapital ? "Capital" : "City"}: ${owner ? owner.name : "?"} ${h.city.developed ? "(Dev)" : ""}`);
+        lines.push(`${h.city.isCapital ? "Capital" : "City"}: ${escapeHtml(owner ? owner.name : "?")} ${h.city.developed ? "(Dev)" : ""}`);
         // Name it. "(Wonder)" told you one was here but never which.
         if (h.city.wonder) {
           lines.push(`<strong style="color:#e1bee7">Wonder: ${escapeHtml(h.city.wonder.name)}</strong>`
@@ -1855,18 +2649,18 @@ const UI = (() => {
       }
       if (h.control) {
         const owner = Game.getPlayer(state, h.control.ownerId);
-        lines.push(`${h.control.district ? `District: ${h.control.district}` : "Control"}: ${owner ? owner.name : "?"} ${h.control.fortified ? "(Fort)" : ""}`);
+        lines.push(`${h.control.district ? `District: ${escapeHtml(h.control.district)}` : "Control"}: ${escapeHtml(owner ? owner.name : "?")} ${h.control.fortified ? "(Fort)" : ""}`);
       }
       if (h.barbarian) lines.push(`Barbarian (power ${Game.TERRAIN[h.terrain]})`);
-      if (h.cityState) lines.push(`City-State: ${h.cityState.name} (${h.cityState.type})`);
+      if (h.cityState) lines.push(`City-State: ${escapeHtml(h.cityState.name)} (${escapeHtml(h.cityState.type)})`);
       if (h.resource) lines.push(`Resource: ${h.resource}`);
       if (h.fortress) {
         const owner = h.fortressOwnerId ? Game.getPlayer(state, h.fortressOwnerId) : null;
-        lines.push(`Fortress: ${owner ? owner.name : "Neutral"}`);
+        lines.push(`Fortress: ${escapeHtml(owner ? owner.name : "Neutral")}`);
       }
       Game.getUnitsAt(state, hexKey).forEach((u) => {
         const p = Game.getPlayer(state, u.playerId);
-        lines.push(`${u.type}: ${p ? p.name : "?"}`);
+        lines.push(`${escapeHtml(u.type)}: ${escapeHtml(p ? p.name : "?")}`);
       });
       if (h.tileId) lines.push(`<em style="color:#ffd54f88">Tile: ${h.tileId}</em>`);
     }
@@ -1887,19 +2681,35 @@ const UI = (() => {
 
   function snapshotSeen() {
     const wonders = {}, cities = {}, districts = {}, land = {};
+    // Markers and barbarians, keyed by owner+kind so a token that moves from one
+    // space to another is recognised as the same piece travelling rather than
+    // one vanishing and another appearing.
+    const markers = {}, barbarians = {};
     Object.entries(state.map.hexes).forEach(([k, h]) => {
       if (h.city && h.city.wonder) wonders[h.city.wonder.name] = k;
       if (h.city) cities[k] = h.city.ownerId;
       if (h.control && h.control.district) districts[k] = h.control.district;
+      if (h.control) {
+        markers[`m:${h.control.ownerId}:${h.control.district || "plain"}:${k}`] = k;
+      }
+      if (h.barbarian) barbarians[`b:${h.barbarianId || k}`] = k;
       if (h.active) land[k] = h.tileId || 1;
+    });
+    // Every player's figures, not just ours. Tracking only our own meant a
+    // rival's army crossed the board instantly on our screen while sliding on
+    // theirs — the opposite of the shared table this is meant to feel like.
+    const units = {};
+    state.players.forEach((p) => {
+      (p.armies || []).forEach((u) => { units[`a${p.id}:${u.id}`] = u.position; });
+      (p.caravans || []).forEach((u) => { units[`c${p.id}:${u.id}`] = u.position; });
     });
     const me = Game.getPlayer(state, localPlayerId);
     return {
-      wonders, cities, districts, land,
+      wonders, cities, districts, land, markers, barbarians,
       trade: me ? { ...me.trade } : null,
       government: me ? me.government : null,
       diplomacy: me && me.diplomacy ? me.diplomacy.length : 0,
-      units: me ? unitPositions(me) : {}
+      units
     };
   }
 
@@ -2005,11 +2815,45 @@ const UI = (() => {
         });
       }
 
-      // Units travel rather than teleport.
+      // Nothing on the board changes place without being seen to. The piece
+      // itself is tweened now; traceMove only ever flashed the hexes along the
+      // way while the figure jumped, which is what "teleporting" looked like.
       Object.entries(now.units).forEach(([id, pos]) => {
         const was = prevSeen.units[id];
-        if (!pos || !was || pos === was) return;
-        traceMove(was, pos);
+        // No hex-flash trail any more. That was the stand-in for an animation
+        // back when the figure jumped; now that the figure actually travels,
+        // the flash just paints over it — bright enough, at a full hex wide, to
+        // hide the very thing it was standing in for.
+        if (pos && was && pos !== was) startMove(id, was, pos);
+        else if (pos && !was) startSpawn(id, pos);      // marched out of its card
+      });
+
+      // A control marker that changes space is one marker sliding — the Culture
+      // card's move is the obvious case. Matching by owner and kind is what
+      // tells a slide apart from one token being removed and another placed.
+      const movedFrom = {}, movedTo = {};
+      Object.entries(prevSeen.markers || {}).forEach(([id, k]) => {
+        if (!(id in (now.markers || {}))) movedFrom[id.split(":").slice(0, 3).join(":")] = k;
+      });
+      Object.entries(now.markers || {}).forEach(([id, k]) => {
+        if (!(id in (prevSeen.markers || {}))) movedTo[id.split(":").slice(0, 3).join(":")] = k;
+      });
+      Object.entries(movedTo).forEach(([kind, to]) => {
+        const from = movedFrom[kind];
+        if (from && from !== to) startMove("mk:" + to, from, to);
+        else startSpawn("mk:" + to, to);
+      });
+
+      // Barbarians are steered a space at a time by the event dial.
+      Object.entries(now.barbarians || {}).forEach(([id, k]) => {
+        const was = (prevSeen.barbarians || {})[id];
+        if (was && was !== k) startMove(id, was, k);
+        else if (!was) startSpawn(id, k);
+      });
+
+      // A city or a wonder does not travel, but it should still arrive.
+      Object.keys(now.cities).forEach((k) => {
+        if (!(k in prevSeen.cities)) startSpawn("city:" + k, k);
       });
     }
     prevSeen = now;
@@ -2076,7 +2920,7 @@ const UI = (() => {
       document.body.appendChild(el);
     }
     const mine = activeP.id === localPlayerId;
-    el.innerHTML = `<div class="tb-inner" style="--pc:${activeP.color}">
+    el.innerHTML = `<div class="tb-inner" style="--pc:${safeColor(activeP.color)}">
       <span class="tb-round">${state.phase === "setup" ? "Setup" : `Round ${state.turn.round}`}</span>
       <span class="tb-name">${mine ? "YOUR TURN" : escapeHtml(activeP.name) + "'s turn"}</span>
     </div>`;
@@ -2146,9 +2990,44 @@ const UI = (() => {
         : `Cities: ${Game.countCities(state, p.id)} | Ctrl: ${Game.countControl(state, p.id)}${score}`;
       const lead = Game.getLeader ? Game.getLeader(p) : null;
       const civTag = lead ? `<span class="pcv" title="${escapeHtml(lead.ability.text)}">${escapeHtml(lead.civ)}</span>` : "";
+
+      // Everyone's tableau is face up on a real table, so it is face up here.
+      // This used to stop at cities/control/score, and a rival's resources and
+      // diplomacy hand lived only behind the Players panel — which meant the
+      // state of the game was something you had to go and ask for.
+      let tableau = "";
+      if (state.phase === "playing") {
+        const res = Object.entries(p.resources || {}).filter(([, v]) => v > 0);
+        const dip = p.diplomacy || [];
+        const wonders = [];
+        Object.values(state.map.hexes).forEach((h) => {
+          if (h.city && h.city.ownerId === p.id && h.city.wonder) wonders.push(h.city.wonder.name);
+        });
+        const trade = Object.entries(p.trade || {}).filter(([, v]) => v > 0);
+        const line = (label, body, title) =>
+          `<div class="ptab-row"${title ? ` title="${escapeHtml(title)}"` : ""}>
+            <span>${label}</span><b>${body}</b></div>`;
+        tableau = `<div class="ptab">
+          ${line("Res", res.length
+            ? res.map(([k, v]) => `${escapeHtml(k.slice(0, 3))}&nbsp;${v}`).join(" · ")
+            : "<i>none</i>")}
+          ${line("Trade", trade.length
+            ? trade.map(([k, v]) => `${escapeHtml((Game.FOCUS_LABELS[k] || k).slice(0, 3))}&nbsp;${v}`).join(" · ")
+            : "<i>none</i>")}
+          ${line("Diplo", dip.length
+            ? dip.map((d) => escapeHtml(d.name || d.cardId)).join(", ")
+            : "<i>none</i>",
+            dip.map((d) => `${d.name || d.cardId}: ${d.effect || ""}`).join("\n"))}
+          ${line("Wonders", wonders.length ? wonders.map(escapeHtml).join(", ") : "<i>none</i>")}
+          ${p.government ? line("Gov",
+            escapeHtml(((Game.GOVERNMENTS || {})[p.government] || {}).name || p.government)) : ""}
+        </div>`;
+      }
+
       return `<div class="player-card${active}">
-        <div class="pname"><span class="dot" style="background:${p.color}"></span>${escapeHtml(p.name)}${civTag}</div>
+        <div class="pname"><span class="dot" style="background:${safeColor(p.color)}"></span>${escapeHtml(p.name)}${civTag}</div>
         <div class="pstats">${stats}</div>
+        ${tableau}
       </div>`;
     }).join("");
   }
@@ -2253,7 +3132,7 @@ const UI = (() => {
   function renderHostTools() {
     if (!dom.hostTools) return;
     if (!state || !Net.getIsHost() || state.phase === "lobby") { dom.hostTools.innerHTML = ""; return; }
-    const playerOptions = state.players.map((p) => `<option value="${p.id}">${p.name}</option>`).join("");
+    const playerOptions = state.players.map((p) => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join("");
     const terrainOptions = Object.keys(Game.TERRAIN).map((t) => `<option value="${t}">${Game.TERRAIN_LABELS[t]}</option>`).join("");
     const focusOptions = Game.FOCUS_TYPES.map((f) => `<option value="${f}">${Game.FOCUS_LABELS[f]}</option>`).join("");
     const resourceOptions = ["", ...Game.RESOURCES, "wonder"].map((r) => `<option value="${r}">${r || "none"}</option>`).join("");
@@ -2409,7 +3288,7 @@ const UI = (() => {
       const lead = leaderById[p.leaderId];
       return `
       <div class="lobby-player">
-        <span class="dot" style="background:${p.color}"></span>
+        <span class="dot" style="background:${safeColor(p.color)}"></span>
         <span class="lp-name">${escapeHtml(p.name)}${lead ? ` <span class="lp-civ">${escapeHtml(lead.civ)}</span>` : ` <span class="lp-civ dim">Random civ</span>`}</span>
         ${i === 0 ? '<span class="lp-tag">Host</span>' : ""}
         ${p.id === localPlayerId ? '<span class="lp-tag you">You</span>' : ""}
@@ -2534,7 +3413,7 @@ const UI = (() => {
 
     if (state.setup.phase === "fortress") {
       if (!isMySetupTurn) {
-        dom.wizard.innerHTML = `<div class="wiz-title">Fortress Placement</div><div class="wiz-body">Waiting for <strong>${activeP ? activeP.name : "..."}</strong>.</div>`;
+        dom.wizard.innerHTML = `<div class="wiz-title">Fortress Placement</div><div class="wiz-body">Waiting for <strong>${escapeHtml(activeP ? activeP.name : "...")}</strong>.</div>`;
         return;
       }
       const fort = window.CivCardArt && CivCardArt.fort();
@@ -2555,7 +3434,7 @@ const UI = (() => {
       const phaseLabel = isCapitalPhase ? "Capital Tile Placement" : (isDraftPhase ? "Draft: Core Tile Placement" : "Tile Placement");
       const playerTiles = setupHand(state, activeId);
       if (!isMySetupTurn) {
-        dom.wizard.innerHTML = `<div class="wiz-title">${phaseLabel}</div><div class="wiz-body">Waiting for <strong>${activeP ? activeP.name : "..."}</strong>. (${playerTiles.length} remaining)</div>`;
+        dom.wizard.innerHTML = `<div class="wiz-title">${escapeHtml(phaseLabel)}</div><div class="wiz-body">Waiting for <strong>${escapeHtml(activeP ? activeP.name : "...")}</strong>. (${playerTiles.length} remaining)</div>`;
         return;
       }
       if (playerTiles.length === 0) {
@@ -2716,9 +3595,9 @@ const UI = (() => {
     return choices.find((c) => c.playerId === me.id) || null;
   }
 
-  // What somebody else is being asked, for the idle panel to mention. The host
-  // keeps the ability to answer it for them — a disconnected player must not
-  // wedge the game — but has to ask for that rather than being handed it.
+  // What somebody else is being asked, for the idle panel to mention. It is
+  // deliberately read-only: the host is the authority, not a substitute for
+  // another seat. If that seat disconnects, the whole table pauses.
   function otherPendingChoice(me) {
     const choices = state.pendingChoices || [];
     return choices.find((c) => !me || c.playerId !== me.id) || null;
@@ -2739,15 +3618,15 @@ const UI = (() => {
       remove_barbarian: "remove a barbarian"
     };
     const blurb = choice.source || CHOICE_BLURB[choice.kind] || choice.kind;
-    let body = `<div>${owner ? owner.name : "Player"}: ${blurb}</div>`;
+    let body = `<div>${escapeHtml(owner ? owner.name : "Player")}: ${escapeHtml(blurb)}</div>`;
     let controls = "";
 
     if (choice.options && choice.options.length) {
       // A civ's own unique card is worth pointing at when it turns up as an
       // option, so it does not read as just another line in the list.
       controls = `<div class="wiz-actions pending-options">${choice.options.map((o) =>
-        `<button class="sm pending-option${o.unique ? " unique-option" : ""}" data-option="${o.id}"${
-          o.text ? ` title="${escapeHtml(o.text)}"` : ""}>${o.label || o.id}</button>`
+        `<button class="sm pending-option${o.unique ? " unique-option" : ""}" data-option="${escapeHtml(o.id)}"${
+          o.text ? ` title="${escapeHtml(o.text)}"` : ""}>${escapeHtml(o.label || o.id)}</button>`
       ).join("")}</div>`;
     } else if (choice.hexKeys && choice.hexKeys.length) {
       // Picking a space is done by pointing at it. This used to be a dropdown
@@ -2761,32 +3640,27 @@ const UI = (() => {
     }
 
     const mine = choice.playerId === localPlayerId;
-    if (choice.optional && (mine || Net.getIsHost())) {
+    if (choice.optional && mine) {
       controls += `<div class="wiz-actions"><button class="ghost sm" id="pending-skip">Skip</button></div>`;
-    } else if (Net.getIsHost()) {
-      controls += `<div class="wiz-actions"><button class="ghost sm" id="pending-dismiss">Dismiss</button></div>`;
     }
 
     dom.wizard.innerHTML = `
-      <div class="wiz-title">${title}</div>
+      <div class="wiz-title">${escapeHtml(title)}</div>
       <div class="wiz-body">${body}</div>
       ${controls}`;
 
     document.querySelectorAll(".pending-option").forEach((btn) => {
       btn.addEventListener("click", () => {
-        dispatch({ type: "RESOLVE_PENDING_CHOICE", payload: { playerId: localPlayerId, choiceId: choice.id, optionId: btn.dataset.option, hostOverride: Net.getIsHost() } });
+        dispatch({ type: "RESOLVE_PENDING_CHOICE", payload: { playerId: localPlayerId, choiceId: choice.id, optionId: btn.dataset.option } });
       });
     });
     document.getElementById("pending-manual-ok")?.addEventListener("click", () => {
-      dispatch({ type: "RESOLVE_PENDING_CHOICE", payload: { playerId: localPlayerId, choiceId: choice.id, hostOverride: Net.getIsHost() } });
+      dispatch({ type: "RESOLVE_PENDING_CHOICE", payload: { playerId: localPlayerId, choiceId: choice.id } });
     });
     document.getElementById("pending-skip")?.addEventListener("click", () => {
       dispatch({ type: "RESOLVE_PENDING_CHOICE", payload: {
-        playerId: localPlayerId, choiceId: choice.id, dismiss: true, hostOverride: Net.getIsHost()
+        playerId: localPlayerId, choiceId: choice.id, dismiss: true
       } });
-    });
-    document.getElementById("pending-dismiss")?.addEventListener("click", () => {
-      dispatch({ type: "RESOLVE_PENDING_CHOICE", payload: { playerId: localPlayerId, choiceId: choice.id, dismiss: true, hostOverride: true } });
     });
   }
 
@@ -2883,7 +3757,7 @@ const UI = (() => {
       chip.classList.remove("hidden");
       document.getElementById("bc-skip")?.addEventListener("click", () => dispatch({
         type: "RESOLVE_PENDING_CHOICE",
-        payload: { playerId: localPlayerId, choiceId: hexChoice.id, dismiss: true, hostOverride: Net.getIsHost() } }));
+        payload: { playerId: localPlayerId, choiceId: hexChoice.id, dismiss: true } }));
       return;
     }
 
@@ -2954,7 +3828,13 @@ const UI = (() => {
     const stage = dom.combatStage;
     if (!stage) return;
     const live = state.combat && state.combat.turn !== "done" ? state.combat : null;
-    const done = !live && state.lastCombat ? state.lastCombat : null;
+    const candidateDone = !live && state.lastCombat ? state.lastCombat : null;
+    const doneKey = candidateDone
+      ? [candidateDone.attacker, candidateDone.defender, candidateDone.toKey,
+        candidateDone.atkRoll, candidateDone.defRoll, candidateDone.atkTotal,
+        candidateDone.defTotal].join("|")
+      : null;
+    const done = candidateDone && doneKey !== dismissedCombatKey ? candidateDone : null;
     if (!live && !done) {
       stage.classList.add("hidden");
       stage.innerHTML = "";
@@ -2972,7 +3852,6 @@ const UI = (() => {
 
     const actorId = live ? (live.turn === "attacker" ? live.attackerId : live.defenderOwnerId) : null;
     const mine = live && actorId === localPlayerId;
-    const asHost = live && !mine && Net.getIsHost();
     const actor = actorId ? Game.getPlayer(state, actorId) : null;
     const tokens = actor ? (actor.trade.military || 0) : 0;
     const barkal = live ? Game.combatResources(state, live, live.turn) : [];
@@ -3009,7 +3888,7 @@ const UI = (() => {
     let foot = "";
     if (live && !atkThrown) {
       const mineToThrow = live.attackerId === localPlayerId;
-      foot = mineToThrow || Net.getIsHost()
+      foot = mineToThrow
         ? `<div class="cs-turn">Your die first.</div>
            <div class="cs-actions">
              <button class="cs-btn primary" id="cs-roll" data-side="attacker">Throw</button>
@@ -3029,12 +3908,12 @@ const UI = (() => {
         : `a <b>${need}</b> or better`;
       const beat = `<div class="cs-turn cs-beat">${escapeHtml(atkName || "The attacker")} stands at
         <b>${totals.atk}</b>. ${escapeHtml(defName || "The defender")} needs ${ask}.</div>`;
-      foot = mineToThrow || Net.getIsHost()
+      foot = mineToThrow
         ? `${beat}<div class="cs-actions"><button class="cs-btn primary" id="cs-roll" data-side="defender">Throw to answer</button></div>`
         : `${beat}<div class="cs-turn">Waiting for ${escapeHtml(rp ? rp.name : "the defender")} to answer\u2026</div>`;
     } else if (live) {
       const who = live.turn === "attacker" ? "Attacker" : "Defender";
-      if (mine || asHost) {
+      if (mine) {
         // Jebel Barkal turns your resources into ammunition, so they belong on
         // the stage next to the trade tokens rather than in a panel somewhere.
         const burn = barkal.map((r) => `<button class="cs-btn cs-res" data-res="${r}">
@@ -3077,23 +3956,24 @@ const UI = (() => {
       </div>`;
 
     const bid = (mode) => dispatch({ type: "COMBAT_SPEND", payload: {
-      playerId: localPlayerId, side: live.turn, mode, hostOverride: !!asHost } });
+      playerId: localPlayerId, side: live.turn, mode } });
     const rollBtn = document.getElementById("cs-roll");
     rollBtn?.addEventListener("click", () => dispatch({
       type: "COMBAT_ROLL", payload: { playerId: localPlayerId,
-        side: rollBtn.dataset.side, hostOverride: Net.getIsHost() } }));
+        side: rollBtn.dataset.side } }));
     document.getElementById("cs-cancel-attack")?.addEventListener("click", () => dispatch({
-      type: "CANCEL_COMBAT", payload: { playerId: localPlayerId, hostOverride: Net.getIsHost() }
+      type: "CANCEL_COMBAT", payload: { playerId: localPlayerId }
     }));
     document.getElementById("cs-plus")?.addEventListener("click", () => bid("plus"));
     document.getElementById("cs-reroll")?.addEventListener("click", () => bid("reroll"));
     document.querySelectorAll(".cs-res").forEach((b) => b.addEventListener("click", () => dispatch({
       type: "COMBAT_SPEND", payload: { playerId: localPlayerId, side: live.turn,
-        mode: "resource", resource: b.dataset.res, hostOverride: !!asHost } })));
+        mode: "resource", resource: b.dataset.res } })));
     document.getElementById("cs-done")?.addEventListener("click", () => dispatch({
-      type: "COMBAT_PASS", payload: { playerId: localPlayerId, side: live.turn, hostOverride: !!asHost } }));
+      type: "COMBAT_PASS", payload: { playerId: localPlayerId, side: live.turn } }));
     document.getElementById("cs-ok")?.addEventListener("click", () => {
-      state.lastCombat = null; render();
+      dismissedCombatKey = doneKey;
+      render();
     });
 
     // Track each physical die separately. A panel-wide key made the attacker's
@@ -3165,7 +4045,7 @@ const UI = (() => {
       });
     };
     if (!isMyTurn) {
-      dom.wizard.innerHTML = `<div class="wiz-title">Waiting</div><div class="wiz-body">It's <strong>${cp ? cp.name : "..."}</strong>'s turn.</div>${waitingOn}`;
+      dom.wizard.innerHTML = `<div class="wiz-title">Waiting</div><div class="wiz-body">It's <strong>${escapeHtml(cp ? cp.name : "...")}</strong>'s turn.</div>${waitingOn}`;
       bindHostResolve();
       return;
     }
@@ -4361,7 +5241,7 @@ const UI = (() => {
       if (!hexChoice.hexKeys.includes(hexKey)) { showToast("Not one of the highlighted spaces"); return; }
       flashHex(hexKey, "rgb(255,213,79)", 700);
       dispatch({ type: "RESOLVE_PENDING_CHOICE", payload: {
-        playerId: localPlayerId, choiceId: hexChoice.id, hexKey, hostOverride: Net.getIsHost() } });
+        playerId: localPlayerId, choiceId: hexChoice.id, hexKey } });
       // Apadana's edge space is only the start of it — the tile still has to be
       // turned and placed, so hand straight over to the exploring flow.
       if (hexChoice.kind === "apadana_explore" &&
@@ -4737,9 +5617,11 @@ const UI = (() => {
 
   function renderLog() {
     if (!state) return;
-    const logEntries = state.log.slice(-15).map((msg) => ({ html: `<div class="log-entry${logClass(msg)}">${msg}</div>`, ts: 0 }));
+    const logEntries = (state.log || []).slice(-15).map((msg) => ({
+      html: `<div class="log-entry${logClass(msg)}">${escapeHtml(msg)}</div>`, ts: 0
+    }));
     const chatEntries = chatHistory.slice(-10).map((m) => ({
-      html: `<div class="chat-msg"><span class="chat-name" style="color:${getPlayerColor(m.sender)}">${m.name}:</span>${m.text}</div>`,
+      html: `<div class="chat-msg"><span class="chat-name" style="color:${getPlayerColor(m.sender)}">${escapeHtml(m.name)}:</span>${escapeHtml(m.text)}</div>`,
       ts: m.ts
     }));
     const all = [...logEntries, ...chatEntries];
@@ -4750,7 +5632,7 @@ const UI = (() => {
   function getPlayerColor(playerId) {
     if (!state) return "var(--text)";
     const p = state.players.find((pl) => pl.id === playerId);
-    return p ? p.color : "var(--text)";
+    return p ? safeColor(p.color) : "var(--text)";
   }
 
   let prevFocusOrder = [];
@@ -4935,7 +5817,7 @@ const UI = (() => {
       <div class="go-type">${state.winner.type}</div>
       <div style="margin-bottom:12px"><strong>${state.winner.playerName}</strong> wins!</div>
       <div class="gameover-scores">${state.players.map((p) =>
-        `<div><span class="dot" style="background:${p.color};display:inline-block;width:8px;height:8px;border-radius:50%"></span> ${p.name}: ${Game.computeScore(state, p.id)} pts</div>`
+        `<div><span class="dot" style="background:${safeColor(p.color)};display:inline-block;width:8px;height:8px;border-radius:50%"></span> ${escapeHtml(p.name)}: ${Game.computeScore(state, p.id)} pts</div>`
       ).join("")}</div>
       <div class="gameover-actions"><button class="primary" id="go-restart">Play Again</button></div>
     </div>`;

@@ -3,6 +3,11 @@
 const Game = (() => {
   const RULES = window.CivRulesData || {};
   const RULE_VERSION = RULES.rulesVersion || 0;
+  // Save format and rules data evolve independently. A rules correction must
+  // not make an otherwise readable save look like a different file format.
+  const SAVE_SCHEMA_VERSION = 2;
+  const MAX_LOG_ENTRIES = 500;
+  const MAX_CHAT_ENTRIES = 100;
   const RULE_TILES = Array.isArray(RULES.TILES) ? RULES.TILES : [];
   const RULE_TILE_BY_ID = Object.fromEntries(RULE_TILES.map((t) => [t.id, t]));
   const CITY_STATE_DATA = RULES.CITY_STATES || {};
@@ -616,6 +621,32 @@ const Game = (() => {
     return decks;
   }
 
+  // Migration must never invent a different hidden deck every time an old save
+  // is opened. These deterministic stand-ins keep such a save inspectable, but
+  // migrateState marks it read-only because the real hidden order is lost.
+  function makeDeterministicWonderDecks() {
+    const decks = {};
+    Object.entries(WONDER_DECKS).forEach(([type, wonders]) => {
+      const byEra = { ancient: [], medieval: [], modern: [] };
+      (wonders || []).forEach((wonder) => {
+        const era = wonder.era || "modern";
+        (byEra[era] || (byEra[era] = [])).push(wonder.name);
+      });
+      const deck = byEra.ancient.slice(0, 2)
+        .concat(byEra.medieval.slice(0, 2), byEra.modern);
+      decks[type] = { deck, revealed: deck[0] || null, built: [], removed: [], token: 0 };
+    });
+    return decks;
+  }
+
+  function makeDeterministicAgendaCards() {
+    const forts = VICTORY_CARDS.filter((c) => c.fortress).slice(0, 2);
+    const rest = VICTORY_CARDS.filter((c) => !c.fortress).slice(0, 3);
+    return forts.concat(rest).map((c) => ({
+      id: c.id, fortress: !!c.fortress, agendas: c.agendas.slice()
+    }));
+  }
+
   // Five victory cards: the two fort cards plus three drawn at random (Terra
   // p8). Each ordinary card carries two agendas and completing either one claims
   // the card (base p12) — so ten agendas are in play, and which half of each
@@ -643,6 +674,7 @@ const Game = (() => {
     const setup = createSetupState(playerIds, opts);
 
     const st = {
+      saveSchemaVersion: SAVE_SCHEMA_VERSION,
       rulesVersion: RULE_VERSION,
       phase: "setup",
       advancedDraft: !!opts.advancedDraft,
@@ -659,8 +691,11 @@ const Game = (() => {
       eventWheel: { position: 0, events: EVENTS.slice() },
       lastCombat: null,
       pendingBarbReward: null,
+      pendingExploration: null,
+      movementContinuation: null,
       winner: null,
-      log: []
+      log: [],
+      chat: []
     };
 
     if (opts.advancedDraft) {
@@ -684,6 +719,7 @@ const Game = (() => {
   function createLobbyState(players, opts) {
     const list = seatPlayers((players || []).slice(0, CFG.maxPlayers));
     return {
+      saveSchemaVersion: SAVE_SCHEMA_VERSION,
       rulesVersion: RULE_VERSION,
       phase: "lobby",
       solo: !!(opts && opts.solo),
@@ -694,7 +730,8 @@ const Game = (() => {
       manualLog: [],
       eventWheel: { position: 0, events: EVENTS.slice() },
       winner: null,
-      log: ["Waiting for players to join..."]
+      log: ["Waiting for players to join..."],
+      chat: []
     };
   }
 
@@ -770,6 +807,7 @@ const Game = (() => {
     const cardTiers = { culture: 1, growth: 1, science: 1, economy: 1, military: 1, industry: 1 };
     return {
       id, name, color,
+      ready: false,
       leaderId: "random",
       focusRow: FOCUS_TYPES.slice(),
       trade: { culture: 0, growth: 0, science: 0, economy: 0, military: 0, industry: 0 },
@@ -796,6 +834,7 @@ const Game = (() => {
 
   function migratePlayer(player) {
     if (!player) return player;
+    if (player.ready === undefined) player.ready = false;
     player.leaderId = player.leaderId || "random";
     player.trade = player.trade || { culture: 0, growth: 0, science: 0, economy: 0, military: 0, industry: 0 };
     player.resources = player.resources || { marble: 0, mercury: 0, oil: 0, diamonds: 0 };
@@ -826,11 +865,35 @@ const Game = (() => {
 
   function migrateState(st) {
     if (!st) return st;
+    const projectedView = st.stateView === true;
+    const sourceSchema = Number.isInteger(st.saveSchemaVersion) ? st.saveSchemaVersion : 1;
+    const previousMigrationFrom = st.migrationStatus && st.migrationStatus.migratedFrom;
+    const previousIssues = st.migrationStatus && Array.isArray(st.migrationStatus.issues)
+      ? st.migrationStatus.issues.slice() : [];
+    const issues = new Set(previousIssues);
+
     st.rulesVersion = st.rulesVersion || RULE_VERSION;
     st.players = (st.players || []).map(migratePlayer);
-    st.tileDeck = st.tileDeck || (st.tileStack ? st.tileStack.slice() : []);
-    st.wonderDecks = st.wonderDecks || makeWonderDecks();
-    st.agendaCards = st.agendaCards || makeAgendaCards();
+    if (!projectedView && !Array.isArray(st.tileStack)) {
+      if (Array.isArray(st.tileDeck)) st.tileStack = st.tileDeck.slice();
+      else if (st.setup && Array.isArray(st.setup.tileStack)) st.tileStack = st.setup.tileStack.slice();
+      else if (st.phase !== "lobby") {
+        st.tileStack = [];
+        issues.add("tile_stack_order_missing");
+      }
+    }
+    if (!projectedView) {
+      st.tileDeck = Array.isArray(st.tileDeck)
+        ? st.tileDeck : (Array.isArray(st.tileStack) ? st.tileStack.slice() : []);
+    }
+    if (!st.wonderDecks) {
+      st.wonderDecks = makeDeterministicWonderDecks();
+      if (st.phase !== "lobby") issues.add("wonder_deck_order_missing");
+    }
+    if (!st.agendaCards) {
+      st.agendaCards = makeDeterministicAgendaCards();
+      if (st.phase !== "lobby") issues.add("agenda_deal_missing");
+    }
     st.claimedAgendas = st.claimedAgendas || {};
     if (st.ibrahimHolder === undefined) st.ibrahimHolder = null;
     if (st.combat && st.combat.atkRolled === undefined) {
@@ -838,15 +901,296 @@ const Game = (() => {
       st.combat.defRolled = !!st.combat.rolled;
     }
     st.pendingChoices = st.pendingChoices || [];
+    if (st.pendingExploration === undefined) st.pendingExploration = null;
+    if (st.movementContinuation === undefined) st.movementContinuation = null;
     if (st.turnUndo === undefined) st.turnUndo = null;
     st.manualLog = st.manualLog || [];
-    st.log = st.log || [];
+    st.log = (st.log || []).slice(-MAX_LOG_ENTRIES);
+    st.chat = (st.chat || []).slice(-MAX_CHAT_ENTRIES);
     Object.values(st.map?.hexes || {}).forEach((h) => {
       if (h.city && h.city.wonder) h.city.hasWonder = true;
       if (h.city && h.city.hasWonder && !h.city.wonder) h.city.wonder = { name: "Unknown", era: "ancient", type: "military", effect: "" };
       if (h.cityState && h.cityState.diplomacyCards === undefined) h.cityState.diplomacyCards = 2;
     });
+    st.saveSchemaVersion = SAVE_SCHEMA_VERSION;
+    if (issues.size) {
+      st.migrationStatus = {
+        readOnly: true,
+        code: "hidden_state_unrecoverable",
+        migratedFrom: previousMigrationFrom || sourceSchema,
+        issues: Array.from(issues).sort()
+      };
+    } else if (sourceSchema < SAVE_SCHEMA_VERSION) {
+      st.migrationStatus = {
+        readOnly: false,
+        code: "migrated",
+        migratedFrom: sourceSchema,
+        issues: []
+      };
+    }
     return st;
+  }
+
+  function cloneSerializable(value) {
+    // Game state intentionally contains JSON data only. Using the same wire
+    // representation as multiplayer also proves that a transaction cannot
+    // retain a reference into the host's authoritative object.
+    return JSON.parse(JSON.stringify(value));
+  }
+
+  const HOST_ACTIONS = new Set([
+    "ADD_PLAYER", "START_GAME", "HOST_EDIT_HEX", "HOST_ADJUST_PLAYER",
+    "FORCE_EVENT", "CHECK_AGENDAS"
+  ]);
+  const SETUP_ACTIONS = new Set(["PLACE_FORTRESS", "PLACE_TILE"]);
+  const CURRENT_PLAYER_ACTIONS = new Set([
+    "UNDO_TURN", "PLAY_CULTURE", "PLAY_GROWTH_REINFORCE",
+    "PLAY_GROWTH_DISTRICT", "PLAY_SCIENCE", "PLAY_ECONOMY",
+    "PLAY_MILITARY_MOVE", "PLAY_MILITARY_ATTACK", "PLAY_INDUSTRY_CITY",
+    "PLAY_INDUSTRY_WONDER", "END_FOCUS_CARD", "END_TURN",
+    "BEGIN_EXPLORATION", "PLACE_EXPLORED_TILE", "ABANDON_EXPLORATION",
+    "END_UNIT_MOVE"
+  ]);
+  const COMBAT_ACTIONS = new Set([
+    "CANCEL_COMBAT", "COMBAT_ROLL", "COMBAT_SPEND", "COMBAT_PASS"
+  ]);
+  const KNOWN_ACTIONS = new Set([
+    ...HOST_ACTIONS, ...SETUP_ACTIONS, ...CURRENT_PLAYER_ACTIONS,
+    ...COMBAT_ACTIONS, "SET_LEADER", "SET_READY", "RESOLVE_PENDING_CHOICE", "ADD_TRADE",
+    "EXPLORE_TILE"
+  ]);
+
+  function denied(code, message) {
+    return { ok: false, code, message };
+  }
+
+  // This is the sole online permission table. The transport supplies actorId
+  // from its authenticated seat binding; nothing inside the action may grant a
+  // different identity or host privileges.
+  function authorizeAction(st, action, context) {
+    const type = action.type;
+    const payload = action.payload || {};
+    const actorId = context.actorId || null;
+    const role = context.role === "host" ? "host" : "player";
+    const actor = actorId ? getPlayer(st, actorId) : null;
+
+    if (!KNOWN_ACTIONS.has(type)) return denied("unknown_action", "Unknown action type.");
+    if (st.migrationStatus && st.migrationStatus.readOnly) {
+      return denied("read_only", "This save is read-only because hidden deck order could not be recovered.");
+    }
+    if (HOST_ACTIONS.has(type)) {
+      return role === "host" ? { ok: true } :
+        denied("host_only", "Only the host may perform this action.");
+    }
+    if (!actor) return denied("unknown_actor", "The authenticated seat is not part of this game.");
+
+    if (type === "SET_LEADER" || type === "SET_READY") {
+      return st.phase === "lobby" ? { ok: true } :
+        denied("wrong_phase", "Lobby choices can only be changed before setup.");
+    }
+
+    if (SETUP_ACTIONS.has(type)) {
+      if (st.phase !== "setup" || !st.setup) return denied("wrong_phase", "Setup is not active.");
+      const activeId = st.setup.order[st.setup.turnIndex];
+      return activeId === actorId ? { ok: true } :
+        denied("not_your_setup_turn", "Another player is placing the next setup piece.");
+    }
+
+    if (type === "RESOLVE_PENDING_CHOICE") {
+      const choice = (st.pendingChoices || []).find((entry) => entry.id === payload.choiceId);
+      if (!choice) return denied("choice_missing", "That choice is no longer pending.");
+      return choice.playerId === actorId ? { ok: true } :
+        denied("choice_owner_mismatch", "This decision belongs to another player.");
+    }
+
+    if (type === "ADD_TRADE") {
+      if (!st.pendingBarbReward) return denied("no_barbarian_reward", "There is no open barbarian reward.");
+      if (st.pendingBarbReward.playerId !== actorId) {
+        return denied("reward_owner_mismatch", "This barbarian reward belongs to another player.");
+      }
+      if (!FOCUS_TYPES.includes(payload.cardType)) {
+        return denied("invalid_reward", "Choose a focus card for the trade reward.");
+      }
+      return { ok: true };
+    }
+
+    if (COMBAT_ACTIONS.has(type)) {
+      const combat = st.combat;
+      if (!combat || combat.turn === "done") return denied("combat_missing", "There is no open combat.");
+      let expectedActor = null;
+      if (type === "CANCEL_COMBAT") {
+        if (combat.atkRolled || combat.defRolled || combat.rolled) {
+          return denied("combat_irreversible", "Combat cannot be cancelled after a die is rolled.");
+        }
+        expectedActor = combat.attackerId;
+      } else if (type === "COMBAT_ROLL") {
+        const side = combat.atkRolled ? "defender" : "attacker";
+        if (payload.side && payload.side !== side) {
+          return denied("combat_phase_mismatch", `The ${side} must roll next.`);
+        }
+        expectedActor = side === "attacker" ? combat.attackerId : combatDefenderRoller(st, combat);
+      } else {
+        if (!combat.rolled) return denied("combat_phase_mismatch", "Both dice must be rolled before bidding.");
+        const side = combat.turn;
+        if (payload.side && payload.side !== side) {
+          return denied("combat_phase_mismatch", `It is the ${side}'s decision.`);
+        }
+        expectedActor = side === "attacker"
+          ? combat.attackerId : (combat.defenderOwnerId || combatDefenderRoller(st, combat));
+      }
+      return expectedActor === actorId ? { ok: true } :
+        denied("combat_actor_mismatch", "This combat decision belongs to another player.");
+    }
+
+    // The one-step action exposed a hidden tile and placed it in the same
+    // unauditable packet. Offline callers retain it through applyAction, while
+    // online play must use the reveal/resolve protocol below.
+    if (type === "EXPLORE_TILE") {
+      return denied("exploration_protocol_required", "Begin exploration before placing the revealed tile.");
+    }
+
+    if (CURRENT_PLAYER_ACTIONS.has(type)) {
+      if (st.phase !== "playing") return denied("wrong_phase", "The game is not in the playing phase.");
+      const current = currentPlayer(st);
+      if (!current || current.id !== actorId) {
+        return denied("not_your_turn", "It is another player's turn.");
+      }
+      if (st.pendingExploration) {
+        const resolving = type === "PLACE_EXPLORED_TILE" || type === "ABANDON_EXPLORATION";
+        if (!resolving) return denied("exploration_pending", "Resolve the revealed exploration tile first.");
+        if (st.pendingExploration.playerId !== actorId) {
+          return denied("exploration_owner_mismatch", "This expedition belongs to another player.");
+        }
+      } else if (type === "PLACE_EXPLORED_TILE" || type === "ABANDON_EXPLORATION") {
+        return denied("exploration_missing", "No exploration tile is waiting to be resolved.");
+      }
+      if (st.movementContinuation) {
+        const continuation = st.movementContinuation;
+        const allowed = continuation.unitType === "caravan"
+          ? new Set(["PLAY_ECONOMY", "END_UNIT_MOVE"])
+          : new Set(["PLAY_MILITARY_MOVE", "PLAY_MILITARY_ATTACK", "END_UNIT_MOVE"]);
+        if (!allowed.has(type)) {
+          return denied("movement_continuation_pending", "Finish the explored unit's remaining movement first.");
+        }
+        if (payload.unitId !== continuation.unitId || continuation.playerId !== actorId) {
+          return denied("movement_continuation_mismatch", "This remaining movement belongs to another unit.");
+        }
+      }
+      return { ok: true };
+    }
+
+    return denied("unauthorized", "This action is not available to this seat.");
+  }
+
+  function bindActionActor(action, context) {
+    const bound = cloneSerializable(action || {});
+    bound.payload = bound.payload || {};
+    delete bound.payload.hostOverride;
+    // These host actions deliberately target a different object/player, and a
+    // joining player's id is the payload itself. Every other player action is
+    // stamped from the authenticated connection.
+    if (!HOST_ACTIONS.has(bound.type)) {
+      bound.payload.playerId = context.actorId || null;
+    } else if (bound.type !== "HOST_ADJUST_PLAYER") {
+      delete bound.payload.playerId;
+    }
+    return bound;
+  }
+
+  function tryApplyAction(state, action, context) {
+    const original = state;
+    if (!state || !action || typeof action.type !== "string") {
+      return { accepted: false, state: original, code: "invalid_action", message: "Malformed action." };
+    }
+    try {
+      const candidate = cloneSerializable(state);
+      migrateState(candidate);
+      const bound = bindActionActor(action, context || {});
+      const permission = authorizeAction(candidate, bound, context || {});
+      if (!permission.ok) {
+        return { accepted: false, state: original, code: permission.code, message: permission.message };
+      }
+      // applyAction lazily arms the turn checkpoint. Prepare that housekeeping
+      // before the transaction baseline so an otherwise illegal move is not
+      // mistaken for a successful action merely because the checkpoint exists.
+      if (candidate.phase === "playing" && TURN_ACTIONS.has(bound.type) && bound.type !== "UNDO_TURN") {
+        ensureTurnUndo(candidate);
+      }
+      const before = JSON.stringify(candidate);
+      const result = applyAction(candidate, bound);
+      if (JSON.stringify(result) === before) {
+        return {
+          accepted: false, state: original, code: "invalid_action",
+          message: "The action is not legal in the current state."
+        };
+      }
+      return { accepted: true, state: result, code: "ok", message: "Action accepted." };
+    } catch (err) {
+      return {
+        accepted: false, state: original, code: "action_error",
+        message: err && err.message ? err.message : "The action could not be applied."
+      };
+    }
+  }
+
+  function projectState(state, viewerSeatId) {
+    if (!state) return state;
+    const view = cloneSerializable(state);
+    view.stateView = true;
+
+    // The host keeps its undo checkpoint out of every network view. A client
+    // only needs the public can/cannot-undo result rendered by the host.
+    delete view.turnUndo;
+
+    if (Array.isArray(view.tileStack)) {
+      view.tileStackCount = view.tileStack.length;
+      delete view.tileStack;
+    }
+    if (Array.isArray(view.tileDeck)) {
+      view.tileDeckCount = view.tileDeck.length;
+      delete view.tileDeck;
+    }
+    Object.values(view.wonderDecks || {}).forEach((deck) => {
+      const count = Array.isArray(deck.deck) ? deck.deck.length : (deck.remainingCount || 0);
+      deck.remainingCount = count;
+      delete deck.deck;
+    });
+
+    if (view.setup) {
+      const visibleSetupTileIds = new Set();
+      ["playerTiles", "draftTiles"].forEach((field) => {
+        const hands = view.setup[field] || {};
+        const counts = {};
+        Object.keys(hands).forEach((seatId) => {
+          counts[seatId] = Array.isArray(hands[seatId]) ? hands[seatId].length : 0;
+          if (seatId !== viewerSeatId) delete hands[seatId];
+          else (hands[seatId] || []).forEach((tileId) => visibleSetupTileIds.add(tileId));
+        });
+        view.setup[`${field}Counts`] = counts;
+      });
+      if (view.pendingExploration && view.pendingExploration.tileId) {
+        visibleSetupTileIds.add(view.pendingExploration.tileId);
+      }
+      Object.values(view.setup.tiles || {}).forEach((tile) => {
+        if (tile.placed || visibleSetupTileIds.has(tile.id)) return;
+        // ownerId and isCore are enough to reconstruct somebody else's dealt
+        // capital/draft tile even after the hand arrays themselves are gone.
+        tile.ownerId = null;
+        tile.isCore = false;
+      });
+      if (Array.isArray(view.setup.tileStack)) {
+        view.setup.tileStackCount = view.setup.tileStack.length;
+        delete view.setup.tileStack;
+      }
+    }
+
+    view.pendingChoices = (view.pendingChoices || []).map((choice) => {
+      if (choice.playerId === viewerSeatId) return choice;
+      return { id: choice.id, playerId: choice.playerId, status: "pending" };
+    });
+    view.log = (view.log || []).slice(-MAX_LOG_ENTRIES);
+    view.chat = (view.chat || []).slice(-MAX_CHAT_ENTRIES);
+    return view;
   }
 
   // A turn can be put back exactly as it began until the table has learned
@@ -858,7 +1202,8 @@ const Game = (() => {
     "PLAY_CULTURE", "PLAY_GROWTH_REINFORCE", "PLAY_GROWTH_DISTRICT",
     "PLAY_SCIENCE", "PLAY_ECONOMY", "PLAY_MILITARY_MOVE",
     "PLAY_MILITARY_ATTACK", "PLAY_INDUSTRY_CITY", "PLAY_INDUSTRY_WONDER",
-    "EXPLORE_TILE", "ABANDON_EXPLORATION", "COMBAT_ROLL", "COMBAT_SPEND",
+    "EXPLORE_TILE", "BEGIN_EXPLORATION", "PLACE_EXPLORED_TILE",
+    "ABANDON_EXPLORATION", "END_UNIT_MOVE", "COMBAT_ROLL", "COMBAT_SPEND",
     "COMBAT_PASS", "CANCEL_COMBAT", "UNDO_TURN"
   ]);
 
@@ -909,7 +1254,8 @@ const Game = (() => {
     if (type === "COMBAT_ROLL" || (type === "COMBAT_SPEND" && payload.mode === "reroll")) {
       return "Undo is locked because a combat die has been rolled.";
     }
-    if (type === "EXPLORE_TILE" || type === "ABANDON_EXPLORATION") {
+    if (type === "EXPLORE_TILE" || type === "BEGIN_EXPLORATION" ||
+        type === "PLACE_EXPLORED_TILE" || type === "ABANDON_EXPLORATION") {
       return "Undo is locked because an exploration tile has been revealed and resolved.";
     }
     if (type === "PLAY_INDUSTRY_WONDER") {
@@ -970,6 +1316,7 @@ const Game = (() => {
 
   function applyAction(st, action) {
     migrateState(st);
+    if (st.migrationStatus && st.migrationStatus.readOnly) return st;
     const { type, payload = {} } = action;
     const logBefore = st.log ? st.log.length : 0;
     const tracksTurn = st.phase === "playing" && TURN_ACTIONS.has(type) && type !== "UNDO_TURN";
@@ -1016,23 +1363,35 @@ const Game = (() => {
         if (st.players.some((p) => p.id !== player.id && p.leaderId === wanted)) return st;
         player.leaderId = wanted;
         applyLeaderStart(player);
+        player.ready = false;
         log(st, `${player.name} will lead ${leader.civ} (${leader.name}).`);
       } else {
         player.leaderId = "random";
         player.focusRow = FOCUS_TYPES.slice();
+        player.ready = false;
         log(st, `${player.name} will draw a random leader.`);
       }
+      return st;
+    }
+
+    if (type === "SET_READY") {
+      if (st.phase !== "lobby") return st;
+      const player = getPlayer(st, payload.playerId);
+      if (!player) return st;
+      player.ready = !!payload.ready;
+      log(st, `${player.name} is ${player.ready ? "ready" : "not ready"}.`);
       return st;
     }
 
     if (type === "START_GAME") {
       if (st.phase !== "lobby") return st;
       if (!st.solo && st.players.length < CFG.minPlayers) return st;
+      if (!st.solo && !st.players.every((player) => player.ready)) return st;
       assignRandomLeaders(st);
       const newState = createState(st.players, { advancedDraft: !!payload.advancedDraft });
       newState.solo = !!st.solo;
       // Carry the lobby chatter into the game log for continuity.
-      newState.log = (st.log || []).concat(newState.log);
+      newState.log = (st.log || []).concat(newState.log).slice(-MAX_LOG_ENTRIES);
       return newState;
     }
 
@@ -1135,8 +1494,20 @@ const Game = (() => {
       return st;
     }
 
+    if (type === "BEGIN_EXPLORATION") {
+      return beginExploration(st, payload);
+    }
+
+    if (type === "PLACE_EXPLORED_TILE") {
+      return placePendingExploration(st, payload);
+    }
+
+    // Legacy offline compatibility. Network transactions reject this combined
+    // reveal-and-place action and require a separately acknowledged reveal.
     if (type === "EXPLORE_TILE") {
       if (st.phase !== "playing") return st;
+      const current = currentPlayer(st);
+      if (!current || current.id !== payload.playerId) return st;
       const player = getPlayer(st, payload.playerId);
       if (!player) return st;
       if (!st.tileStack || st.tileStack.length === 0) return st;
@@ -1184,6 +1555,12 @@ const Game = (() => {
     // Terra p12 step 2: a tile that cannot be placed anywhere goes back on top
     // of the stack and the expedition is over — the movement is still spent.
     if (type === "ABANDON_EXPLORATION") {
+      if (st.pendingExploration) return abandonPendingExploration(st, payload);
+      // Legacy offline saves can still finish the old one-packet flow. Online
+      // authorization never reaches this fallback without pendingExploration.
+      if (st.phase !== "playing") return st;
+      const current = currentPlayer(st);
+      if (!current || current.id !== payload.playerId) return st;
       const player = getPlayer(st, payload.playerId);
       if (!player || !st.tileStack || !st.tileStack.length) return st;
       const tileId = st.tileStack.pop();
@@ -1238,6 +1615,22 @@ const Game = (() => {
     }
 
     // --- Playing phase actions ---
+
+    if (st.movementContinuation) {
+      const continuation = st.movementContinuation;
+      const allowed = continuation.unitType === "caravan"
+        ? ["PLAY_ECONOMY", "END_UNIT_MOVE"]
+        : ["PLAY_MILITARY_MOVE", "PLAY_MILITARY_ATTACK", "END_UNIT_MOVE"];
+      if (!allowed.includes(type) || payload.playerId !== continuation.playerId ||
+          payload.unitId !== continuation.unitId) return st;
+    }
+
+    if (type === "END_UNIT_MOVE") {
+      if (st.phase !== "playing") return st;
+      const current = currentPlayer(st);
+      if (!current || current.id !== payload.playerId) return st;
+      return endUnitMovement(st, payload);
+    }
 
     if (type.startsWith("PLAY_") || type === "END_TURN" ||
         type === "END_FOCUS_CARD") {
@@ -1369,17 +1762,24 @@ const Game = (() => {
       if (!canResolveCard(player, "economy")) return st;
       const unit = player.caravans.find((u) => u.id === payload.unitId);
       if (!unit) return st;
+      const continuation = st.movementContinuation;
+      if (continuation && (continuation.playerId !== player.id ||
+          continuation.unitType !== "caravan" || continuation.unitId !== unit.id ||
+          unit.position !== continuation.fromKey)) return st;
       const ecoHex = st.map.hexes[payload.toKey];
       if (!ecoHex || !ecoHex.active) return st;
       // Rome: a caravan leaving the economy card may set out from any friendly city.
-      let startKey = unit.position || findCapital(st, payload.playerId);
-      if (payload.startKey && payload.startKey !== startKey && hasLeader(player, "rome")) {
+      let startKey = continuation ? continuation.fromKey : (unit.position || findCapital(st, payload.playerId));
+      if (!continuation && payload.startKey && payload.startKey !== startKey && hasLeader(player, "rome")) {
         const sh = st.map.hexes[payload.startKey];
         if (sh && sh.city && sh.city.ownerId === payload.playerId) startKey = payload.startKey;
       }
       if (!startKey) return st;
-      const reachable = getReachable(st, startKey, getEconomyMove(player, st) + (payload.tradeSpent || 0), "caravan", payload.playerId);
-      if (!reachable.has(payload.toKey)) return st;
+      const tradeSpent = continuation ? continuation.tradeSpent : (payload.tradeSpent || 0);
+      const moveLimit = continuation
+        ? continuation.remaining : getEconomyMove(player, st) + tradeSpent;
+      const reachable = getReachable(st, startKey, moveLimit, "caravan", payload.playerId);
+      if (payload.toKey !== startKey && !reachable.has(payload.toKey)) return st;
       unit.position = payload.toKey;
       const hex = st.map.hexes[payload.toKey];
       const tradeGain = 2;
@@ -1478,7 +1878,8 @@ const Game = (() => {
         log(st, `${player.name} moved caravan.`);
       }
       unit.movedThisCard = true;
-      st.activeCard = { playerId: player.id, cardType: "economy", tradeSpent: payload.tradeSpent || 0 };
+      if (continuation) st.movementContinuation = null;
+      st.activeCard = { playerId: player.id, cardType: "economy", tradeSpent };
       if (!unitsLeftToMove(player, "economy")) finishActiveCard(st);
       return st;
     }
@@ -1488,17 +1889,25 @@ const Game = (() => {
       if (!canResolveCard(player, "military")) return st;
       const unit = player.armies.find((u) => u.id === payload.unitId);
       if (!unit) return st;
+      const continuation = st.movementContinuation;
+      if (continuation && (continuation.playerId !== player.id ||
+          continuation.unitType !== "army" || continuation.unitId !== unit.id ||
+          unit.position !== continuation.fromKey)) return st;
       const moveHex = st.map.hexes[payload.toKey];
       if (!moveHex || !moveHex.active) return st;
       // An army still on its card sets off from a city it may launch from.
-      const from = unit.position || payload.startKey;
+      const from = continuation ? continuation.fromKey : (unit.position || payload.startKey);
       if (!from) return st;
-      if (!unit.position && !launchSpaces(st, player.id).has(from)) return st;
-      const reachable = getReachable(st, from, getMilitaryMove(player, st), "army", payload.playerId);
-      if (!reachable.has(payload.toKey)) return st;
+      if (!continuation && !unit.position && !launchSpaces(st, player.id).has(from)) return st;
+      const moveLimit = continuation ? continuation.remaining : getMilitaryMove(player, st);
+      const reachable = getReachable(st, from, moveLimit, "army", payload.playerId);
+      if (payload.toKey !== from && !reachable.has(payload.toKey)) return st;
+      if (findDefender(st, payload.toKey, payload.playerId)) return st;
       unit.position = payload.toKey; log(st, `${player.name} moved army.`);
       unit.movedThisCard = true;
-      st.activeCard = { playerId: player.id, cardType: "military", tradeSpent: payload.tradeSpent || 0 };
+      const tradeSpent = continuation ? continuation.tradeSpent : (payload.tradeSpent || 0);
+      if (continuation) st.movementContinuation = null;
+      st.activeCard = { playerId: player.id, cardType: "military", tradeSpent };
       if (!unitsLeftToMove(player, "military")) finishActiveCard(st);
       return st;
     }
@@ -1509,13 +1918,18 @@ const Game = (() => {
       if (st.combat && st.combat.turn !== "done") return st;   // one fight at a time
       const unit = player.armies.find((u) => u.id === payload.unitId);
       if (!unit) return st;
+      const continuation = st.movementContinuation;
+      if (continuation && (continuation.playerId !== player.id ||
+          continuation.unitType !== "army" || continuation.unitId !== unit.id ||
+          unit.position !== continuation.fromKey)) return st;
       const hex = st.map.hexes[payload.toKey];
       if (!hex) return st;
       // An army on its card can march straight out of a city and attack.
-      const from = unit.position || payload.fromKey;
+      const from = continuation ? continuation.fromKey : (unit.position || payload.fromKey);
       if (!from) return st;
-      if (!unit.position && !launchSpaces(st, player.id).has(from)) return st;
-      const reachable = getReachable(st, from, getMilitaryMove(player, st), "army", payload.playerId);
+      if (!continuation && !unit.position && !launchSpaces(st, player.id).has(from)) return st;
+      const moveLimit = continuation ? continuation.remaining : getMilitaryMove(player, st);
+      const reachable = getReachable(st, from, moveLimit, "army", payload.playerId);
       if (!reachable.has(payload.toKey) && from !== payload.toKey) return st;
       // A Non-Aggression Pact stops the attack before it starts: "You cannot
       // attack or destroy the pieces of the player who gave you this card."
@@ -1563,8 +1977,10 @@ const Game = (() => {
         atkTrade: 0,
         defTrade: 0,
         turn: "attacker",
-        history: []
+        history: [],
+        movementContinuation: continuation ? { ...continuation } : null
       };
+      if (continuation) st.movementContinuation = null;
       log(st, `${player.name} attacks ${defender.label}.`);
       return st;
     }
@@ -1782,10 +2198,11 @@ const Game = (() => {
 
     if (type === "ADD_TRADE") {
       const player = getPlayer(st, payload.playerId);
-      if (!player) return st;
-      player.trade[payload.cardType] = Math.min(CFG.maxTrade, player.trade[payload.cardType] + (payload.amount || 1));
+      if (!player || !st.pendingBarbReward || st.pendingBarbReward.playerId !== player.id ||
+          !FOCUS_TYPES.includes(payload.cardType)) return st;
+      player.trade[payload.cardType] = Math.min(CFG.maxTrade, player.trade[payload.cardType] + 1);
       st.pendingBarbReward = null;
-      log(st, `${player.name} gained +${payload.amount || 1} ${payload.cardType} trade.`);
+      log(st, `${player.name} gained +1 ${payload.cardType} trade.`);
       return st;
     }
 
@@ -2439,6 +2856,9 @@ const Game = (() => {
   function manualLog(st, msg) {
     st.manualLog = st.manualLog || [];
     st.manualLog.push({ round: st.turn ? st.turn.round : 0, msg });
+    if (st.manualLog.length > MAX_LOG_ENTRIES) {
+      st.manualLog.splice(0, st.manualLog.length - MAX_LOG_ENTRIES);
+    }
     log(st, `[Host] ${msg}`);
   }
 
@@ -3999,7 +4419,9 @@ const Game = (() => {
     return Object.entries(st.wonderDecks).map(([type, data]) => {
       const name = data.revealed || (data.deck && data.deck[0]);
       const wonder = getWonderByName(name);
-      return wonder ? { ...wonder, type, token: data.token || 0, left: data.deck.length } : null;
+      const left = Number.isInteger(data.remainingCount)
+        ? data.remainingCount : (Array.isArray(data.deck) ? data.deck.length : 0);
+      return wonder ? { ...wonder, type, token: data.token || 0, left } : null;
     }).filter(Boolean);
   }
 
@@ -4305,11 +4727,13 @@ const Game = (() => {
     return found;
   }
 
+  // `id` is the figure's own id and `animId` matches the key the UI tweens
+  // under, so a piece drawn here can be recognised as one already in motion.
   function getUnitsAt(st, hexKey) {
     const units = [];
     st.players.forEach((p) => {
-      p.armies.forEach((u) => { if (u.position === hexKey) units.push({ type: "army", playerId: p.id, color: p.color }); });
-      p.caravans.forEach((u) => { if (u.position === hexKey) units.push({ type: "caravan", playerId: p.id, color: p.color }); });
+      p.armies.forEach((u) => { if (u.position === hexKey) units.push({ type: "army", playerId: p.id, color: p.color, id: u.id, animId: `a${p.id}:${u.id}` }); });
+      p.caravans.forEach((u) => { if (u.position === hexKey) units.push({ type: "caravan", playerId: p.id, color: p.color, id: u.id, animId: `c${p.id}:${u.id}` }); });
     });
     return units;
   }
@@ -4424,15 +4848,277 @@ const Game = (() => {
     return arr;
   }
   function rollDie() { return Math.floor(Math.random() * 6) + 1; }
-  function log(st, msg) { st.log.push(msg); }
+  function log(st, msg) {
+    st.log = st.log || [];
+    st.log.push(msg);
+    if (st.log.length > MAX_LOG_ENTRIES) {
+      st.log.splice(0, st.log.length - MAX_LOG_ENTRIES);
+    }
+  }
 
   // --- Exploration (Terra Incognita) ---
+
+  function explorationTouchesOrigin(st, anchorKey, rotation, fromKey) {
+    if (!fromKey) return false;
+    return getTileHexKeys(anchorKey, rotation, st.map.hexes).some((cellKey) =>
+      hexNeighborKeys(parseQ(cellKey), parseR(cellKey)).includes(fromKey)
+    );
+  }
+
+  function explorationSideExists(tileId, side) {
+    const def = getTileDef(tileId);
+    return !def || !def.sides || !!def.sides[side];
+  }
+
+  function canPlaceExploration(st, tileId, anchorKey, rotation, side, fromKey) {
+    return explorationSideExists(tileId, side) &&
+      validateExploration(st, tileId, anchorKey, rotation).ok &&
+      explorationTouchesOrigin(st, anchorKey, rotation, fromKey);
+  }
+
+  // "Nowhere it fits" is a claim about the physical tile, not the currently
+  // selected face or angle. The host therefore checks both faces at all six
+  // rotations against every possible anchor before accepting an abandonment.
+  function hasLegalExplorationPlacement(st, pending) {
+    if (!st || !pending || !pending.tileId || !pending.fromKey) return false;
+    for (const side of ["A", "B"]) {
+      for (let rotation = 0; rotation < 6; rotation++) {
+        for (const anchorKey of Object.keys(st.map.hexes || {})) {
+          if (canPlaceExploration(st, pending.tileId, anchorKey, rotation, side, pending.fromKey)) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  function findExplorer(player, payload) {
+    if (!player || !payload.fromKey) return null;
+    const groups = payload.unitType === "army" ? [["army", player.armies || []]]
+      : payload.unitType === "caravan" ? [["caravan", player.caravans || []]]
+      : [["army", player.armies || []], ["caravan", player.caravans || []]];
+    for (const [unitType, figures] of groups) {
+      const unit = payload.unitId
+        ? figures.find((entry) => entry.id === payload.unitId)
+        : figures.find((entry) => entry.position === payload.fromKey);
+      if (unit) return { unit, unitType };
+    }
+    return null;
+  }
+
+  function movementOrigin(st, player, unit, unitType, payload) {
+    if (unit.position) {
+      // Trajan may start a deployed caravan's route from any Roman city.
+      if (unitType === "caravan" && hasLeader(player, "rome") && payload.startKey &&
+          payload.startKey !== unit.position) {
+        const startHex = st.map.hexes[payload.startKey];
+        if (startHex && startHex.city && startHex.city.ownerId === player.id) return payload.startKey;
+      }
+      return unit.position;
+    }
+    const launches = launchSpaces(st, player.id);
+    if (payload.startKey && launches.has(payload.startKey)) return payload.startKey;
+    if (unitType === "caravan") {
+      const capital = findCapital(st, player.id);
+      if (capital && launches.has(capital)) return capital;
+    }
+    return null;
+  }
+
+  function movementTradeSpent(st, player, cardType, payload) {
+    const requested = payload.tradeSpent === undefined ? 0 : Number(payload.tradeSpent);
+    if (!Number.isInteger(requested) || requested < 0) return null;
+    if (st.activeCard) {
+      if (st.activeCard.playerId !== player.id || st.activeCard.cardType !== cardType) return null;
+      const committed = Number(st.activeCard.tradeSpent || 0);
+      if (payload.tradeSpent !== undefined && requested !== committed) return null;
+      return committed;
+    }
+    if (!canResolveCard(player, cardType) || requested > (player.trade[cardType] || 0)) return null;
+    return requested;
+  }
+
+  // Route entries are the successive hexes selected by the player. Each leg is
+  // recomputed against the authoritative board; caller-supplied remaining or
+  // spent values never participate in the result.
+  function validateMovementRoute(st, startKey, fromKey, route, maxMove, unitType, playerId) {
+    let stops = Array.isArray(route) ? route.slice() : [];
+    if (stops.length > 32 || stops.some((hexKey) => typeof hexKey !== "string")) return null;
+    if (stops[0] === startKey) stops.shift();
+    if (!stops.length && fromKey !== startKey) stops = [fromKey];
+    if ((stops.length ? stops[stops.length - 1] : startKey) !== fromKey) return null;
+
+    let current = startKey;
+    let spent = 0;
+    for (let index = 0; index < stops.length; index++) {
+      const target = stops[index];
+      if (target === current) return null;
+      const left = maxMove - spent;
+      const distances = getReachableWithDist(st, current, left, unitType, playerId);
+      if (!distances.has(target)) return null;
+      spent += distances.get(target);
+      const hex = st.map.hexes[target];
+      if (index < stops.length - 1 && isForcedStopHex(st, hex, unitType, playerId)) return null;
+      current = target;
+    }
+    return { spent, remaining: maxMove - spent };
+  }
+
+  function prepareExplorationMovement(st, player, payload) {
+    const found = findExplorer(player, payload);
+    if (!found || found.unit.movedThisCard || found.unit.exploredThisCard) return null;
+    const { unit, unitType } = found;
+    const cardType = unitType === "caravan" ? "economy" : "military";
+    const tradeSpent = movementTradeSpent(st, player, cardType, payload);
+    if (tradeSpent === null) return null;
+    const startKey = movementOrigin(st, player, unit, unitType, payload);
+    if (!startKey) return null;
+    const maxMove = unitType === "caravan"
+      ? getEconomyMove(player, st) + tradeSpent : getMilitaryMove(player, st);
+    const route = validateMovementRoute(st, startKey, payload.fromKey, payload.route,
+      maxMove, unitType, player.id);
+    if (!route || route.remaining < 1) return null;
+    return {
+      kind: "post_exploration_movement",
+      playerId: player.id,
+      unitType,
+      unitId: unit.id,
+      cardType,
+      startKey,
+      fromKey: payload.fromKey,
+      maxMove,
+      spentBeforeExplore: route.spent,
+      remaining: route.remaining - 1,
+      tradeSpent,
+      status: "pending_tile"
+    };
+  }
+
+  function beginExploration(st, payload) {
+    if (st.phase !== "playing" || st.pendingExploration) return st;
+    const current = currentPlayer(st);
+    if (!current || current.id !== payload.playerId) return st;
+    const player = getPlayer(st, payload.playerId);
+    if (!player || !payload.fromKey || !st.tileStack || !st.tileStack.length) return st;
+
+    const freeRun = !!(st.freeExplore && st.freeExplore.playerId === player.id &&
+      st.freeExplore.fromKey === payload.fromKey);
+    if (!freeRun && !isExploreEligible(st, payload.fromKey)) return st;
+    const movement = freeRun ? null : prepareExplorationMovement(st, player, payload);
+    if (!freeRun && !movement) return st;
+
+    if (movement) {
+      const list = movement.unitType === "army" ? player.armies : player.caravans;
+      const explorer = list.find((unit) => unit.id === movement.unitId);
+      if (!explorer) return st;
+      explorer.position = payload.fromKey;
+      st.activeCard = {
+        playerId: player.id, cardType: movement.cardType, tradeSpent: movement.tradeSpent
+      };
+    }
+
+    // Draw from the bottom and remove it from the secret sequence immediately.
+    // pendingExploration is public, so every reconnected player sees exactly
+    // the same revealed tile until it is placed or returned.
+    const tileId = st.tileStack.pop();
+    st.tileDeck = st.tileStack.slice();
+    st.pendingExploration = {
+      playerId: player.id,
+      tileId,
+      fromKey: payload.fromKey,
+      unitId: movement ? movement.unitId : null,
+      freeRun,
+      kind: "map_tile",
+      status: "revealed",
+      movementContinuation: movement
+    };
+    log(st, `${player.name} revealed a map tile while exploring.`);
+    return st;
+  }
+
+  function finishExplorationFigure(st, pending) {
+    const player = getPlayer(st, pending.playerId);
+    if (!player) return;
+    if (pending.unitId) {
+      const unit = (player.armies || []).concat(player.caravans || [])
+        .find((entry) => entry.id === pending.unitId);
+      if (unit) unit.exploredThisCard = true;
+    }
+    if (pending.freeRun && st.freeExplore && st.freeExplore.playerId === player.id) {
+      st.freeExplore = null;
+    }
+    if (pending.movementContinuation) {
+      st.movementContinuation = {
+        ...pending.movementContinuation,
+        fromKey: pending.fromKey,
+        status: "ready"
+      };
+    }
+  }
+
+  function placePendingExploration(st, payload) {
+    const pending = st.pendingExploration;
+    if (!pending || pending.playerId !== payload.playerId) return st;
+    const current = st.phase === "playing" ? currentPlayer(st) : null;
+    if (!current || current.id !== pending.playerId) return st;
+    if (payload.side && payload.side !== "A" && payload.side !== "B") return st;
+    const side = payload.side === "B" ? "B" : "A";
+    const rotation = Number.isInteger(payload.rotation) ? payload.rotation : 0;
+    if (rotation < 0 || rotation > 5) return st;
+    if (!canPlaceExploration(st, pending.tileId, payload.anchorKey, rotation, side, pending.fromKey)) return st;
+
+    placeExploredTile(st, pending.tileId, payload.anchorKey, rotation, side);
+    finishExplorationFigure(st, pending);
+    const player = getPlayer(st, pending.playerId);
+    const tile = st.tiles[pending.tileId];
+    st.pendingExploration = null;
+    log(st, `${player ? player.name : "Player"} explored and placed a ${tile ? tile.type : "unknown"} tile.`);
+    return st;
+  }
+
+  function abandonPendingExploration(st, payload) {
+    const pending = st.pendingExploration;
+    if (!pending || pending.playerId !== payload.playerId) return st;
+    const current = st.phase === "playing" ? currentPlayer(st) : null;
+    if (!current || current.id !== pending.playerId) return st;
+    if (!canAbandonExploration(st, payload.playerId).ok) return st;
+
+    st.tileStack = st.tileStack || [];
+    // Terra p12: an unplaceable bottom tile returns to the top of the stack.
+    st.tileStack.unshift(pending.tileId);
+    st.tileDeck = st.tileStack.slice();
+    finishExplorationFigure(st, pending);
+    const player = getPlayer(st, pending.playerId);
+    st.pendingExploration = null;
+    log(st, `${player ? player.name : "Player"} found nowhere to put the new land; it goes back on the stack.`);
+    return st;
+  }
+
+  function canAbandonExploration(st, playerId) {
+    const pending = st && st.pendingExploration;
+    if (!pending) {
+      return { ok: false, code: "exploration_missing", message: "No exploration tile is waiting." };
+    }
+    if (playerId && pending.playerId !== playerId) {
+      return { ok: false, code: "exploration_owner_mismatch", message: "This expedition belongs to another player." };
+    }
+    if (hasLegalExplorationPlacement(st, pending)) {
+      return {
+        ok: false, code: "tile_still_fits",
+        message: "The tile fits on at least one side, rotation, and anchor."
+      };
+    }
+    return { ok: true, code: "ok", message: "Neither side fits at any rotation or anchor." };
+  }
 
   // Terra p12: you may only strike out from the edge of the known world, and
   // only from a tile that has a capital city on it. Standing on any old rim
   // space is not enough — the expedition sets out from somewhere settled.
   function isExploreEligible(st, hexKey) {
-    if (!st.tileStack || st.tileStack.length === 0) return false;
+    const tilesLeft = Array.isArray(st.tileStack)
+      ? st.tileStack.length : (st.tileStackCount ?? st.tileDeckCount ?? 0);
+    if (tilesLeft === 0) return false;
     const h = st.map.hexes[hexKey];
     if (!h || !h.active) return false;
     // On the edge of the map means the space next door is not board. A space on
@@ -4537,7 +5223,9 @@ const Game = (() => {
     CARD_DEFS, getCardEffectText, syncUnitCounts, advanceTech, TECH_LEVEL_SPACES, resolveEvent, GOVERNMENTS, CIV_STYLE,
     hasWonder, getWonderAttackBonus, getWonderDefenseBonus,
     TILE_OFFSETS, getCoreAnchors,
-    createState, createLobbyState, createPlayer, migrateState, finalizeSetup, applyAction, currentPlayer, getPlayer, getUndoStatus,
+    SAVE_SCHEMA_VERSION, MAX_LOG_ENTRIES, MAX_CHAT_ENTRIES,
+    createState, createLobbyState, createPlayer, migrateState, finalizeSetup,
+    applyAction, tryApplyAction, projectState, currentPlayer, getPlayer, getUndoStatus,
     SEAT_COLORS, seatColor,
     getDiplomacyAttackBonus, getDiplomacyDefenseBonus, nonAggressionWith, openBordersWith,
     isCityDeveloped,
@@ -4556,6 +5244,7 @@ const Game = (() => {
     tileHasCapital,
     getTileHexKeys, validateTilePlacement,
     hexNeighborKeys, parseQ, parseR, key, hexDist, rollDie, rotateAxial,
-    isExploreEligible, validateExploration, placeExploredTile, getReachableWithDist
+    isExploreEligible, validateExploration, placeExploredTile,
+    hasLegalExplorationPlacement, canAbandonExploration, getReachableWithDist
   };
 })();
