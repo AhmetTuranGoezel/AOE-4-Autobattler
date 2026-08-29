@@ -1038,36 +1038,17 @@ const Game = (() => {
 
     if (type === "ADD_PLAYER") {
       if (st.players.find((p) => p.id === payload.id)) return st;
-      // Players may only join before the board is built (lobby), or during the
-      // very first setup phase. Never mid-game.
-      if (st.phase !== "lobby" && st.phase !== "setup") return st;
+      // Lobby only. Joining during setup used to be allowed, and it threw the
+      // setup away and dealt it again from scratch — every fortress and capital
+      // tile already placed was wiped so the newcomer could have a seat. Once
+      // the board is being built, a latecomer waits for the next game.
+      if (st.phase !== "lobby") return st;
       if (st.players.length >= CFG.maxPlayers) return st;
       migratePlayer(payload);
       payload.color = seatColor(st.players.map((p) => p.color), payload.color);
       st.players.push(payload);
       st.turn.order.push(payload.id);
-      if (st.phase === "lobby") {
-        log(st, `${payload.name} joined the lobby. (${st.players.length}/${CFG.maxPlayers})`);
-        return st;
-      }
-      // Rebuild setup with new player
-      if (st.phase === "setup") {
-        const newSetup = createSetupState(st.players.map((p) => p.id), { advancedDraft: st.advancedDraft });
-        st.setup = newSetup;
-        st.turn.order = newSetup.order.slice();
-        st.map = buildEmptyMap(CFG.mapRadius);
-        if (!st.advancedDraft) {
-          // Re-place core tiles. The advanced draft has no automatic core to
-          // place — players draft it fresh, same as at game start.
-          const anchors = getCoreAnchors(st.players.length);
-          newSetup.coreTiles.forEach((tileId, i) => {
-            const anchor = anchors[i];
-            placeTileOnMap(st, tileId, key(anchor.q, anchor.r), anchor.rotation, newSetup.coreSide || "A");
-          });
-        }
-        st.tileDeck = newSetup.tileStack.slice();
-      }
-      log(st, `${payload.name} joined.`);
+      log(st, `${payload.name} joined the lobby. (${st.players.length}/${CFG.maxPlayers})`);
       return st;
     }
 
@@ -4479,7 +4460,23 @@ const Game = (() => {
       });
     });
 
-    if (boardNeighbors.size < 4) return { ok: false };
+    // Connectivity only: the new land must actually touch the map somewhere.
+    //
+    // This used to demand FOUR adjacent board spaces, which is base p14's rule
+    // for laying out the map during setup — validateTilePlacement still applies
+    // it there, which is where it belongs. Terra p12's exploration rule asks for
+    // no such thing: the tile has to reach the space you set out from, and
+    // EXPLORE_TILE checks that separately against fromKey. Importing the setup
+    // constraint into exploration made the frontier almost unusable, because a
+    // tile pushed out past the coast naturally touches two or three spaces, not
+    // four. Measured over real games it cut the legal placements to a fifth
+    // (41 from 214 at two players) and left 7 of 27 eligible spaces in a
+    // four-player game unable to explore at all — which is exactly the
+    // "I can't place the tile anywhere" this kept producing.
+    //
+    // One neighbour is still required so nothing can be dropped in open sea by
+    // a caller that does not do its own reach check.
+    if (boardNeighbors.size < 1) return { ok: false };
     return { ok: true };
   }
 

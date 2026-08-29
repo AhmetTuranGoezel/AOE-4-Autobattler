@@ -443,6 +443,42 @@
       }
 
       {
+        // Terra p12 asks an explored tile to reach the space you set out from.
+        // It does NOT ask for four adjacent board spaces — that is base p14's
+        // rule for laying the map out during setup, which validateTilePlacement
+        // still applies. Requiring it here made the frontier nearly unusable: a
+        // tile pushed past the coast touches two or three spaces, so most
+        // placements were refused and a quarter of eligible explorers had
+        // nowhere at all to put their tile.
+        const st = rulesState();
+        st.tiles = st.setup.tiles;
+        st.tileStack = st.setup.tileStack.slice();
+        // Strip the board back to a single space. Anything placed beside it now
+        // touches far fewer than four — the case the old rule rejected outright.
+        Object.values(st.map.hexes).forEach((h) => { h.active = false; h.tileId = null; });
+        activate(st, "0,0");
+        const tileId = st.tileStack[st.tileStack.length - 1];
+        let found = null;
+        Object.keys(st.map.hexes).forEach((anchor) => {
+          if (found) return;
+          for (let rot = 0; rot < 6; rot++) {
+            const cells = Game.getTileHexKeys(anchor, rot, st.map.hexes);
+            if (cells.length !== Game.TILE_OFFSETS.length) continue;
+            if (cells.some((k) => st.map.hexes[k].active)) continue;
+            if (!cells.some((ck) => Game.hexNeighborKeys(Game.parseQ(ck), Game.parseR(ck)).includes("0,0"))) continue;
+            found = { anchor, rot };
+            return;
+          }
+        });
+        assert("a frontier placement touching one space exists to test", !!found);
+        assert("exploring accepts a tile that only reaches the space explored from",
+          !!found && Game.validateExploration(st, tileId, found.anchor, found.rot).ok);
+        // Setup keeps its own, stricter rule.
+        assert("setup still demands four spaces for a non-core tile",
+          !Game.validateTilePlacement(st, tileId, found.anchor, found.rot).ok);
+      }
+
+      {
         // Early Empire's printed requirement is adjacency to a friendly CITY.
         // A friendly control token must never extend that placement range.
         const st = rulesState();

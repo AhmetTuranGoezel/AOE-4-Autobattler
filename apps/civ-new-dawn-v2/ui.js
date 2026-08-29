@@ -302,9 +302,18 @@ const UI = (() => {
         Net.broadcast(state);
         render();
       },
-      onDisconnect: () => {
-        document.getElementById("conn-banner").textContent = "Connection lost - attempting to reconnect...";
-        document.getElementById("conn-banner").classList.remove("hidden");
+      onDisconnect: (peerId) => {
+        // The host is not the one who dropped — a player left them. Saying
+        // "attempting to reconnect" to the machine still running the game was
+        // both wrong and alarming, so each side is told what actually happened.
+        if (Net.getIsHost()) {
+          const who = Game.getPlayer(state, peerId);
+          showToast(`${who ? who.name : "A player"} disconnected`);
+          return;
+        }
+        const banner = document.getElementById("conn-banner");
+        banner.textContent = "Connection lost - attempting to reconnect...";
+        banner.classList.remove("hidden");
         showToast("Connection lost");
       },
       onConnected: () => { if (Net.getIsHost() && state) Net.broadcast(state); },
@@ -598,8 +607,8 @@ const UI = (() => {
       const keys = Game.getTileHexKeys(anchorKey, sub.tileRotation, hexes);
       if (keys.length === Game.TILE_OFFSETS.length) {
         ghostKeys = new Set(keys);
-        // Terra p12: the new land has to touch four spaces already on the map,
-        // including the one you are exploring from — so the ghost is only
+        // Terra p12: the new land has to reach the space you set out from,
+        // so the ghost is only
         // green when this angle manages both.
         const originKey = exploreOrigin();
         ghostValid = Game.validateExploration(state, tileId, anchorKey, sub.tileRotation).ok &&
@@ -2207,12 +2216,6 @@ const UI = (() => {
     const leaderSection = me ? `
       <div class="leader-picker-head">
         <div><b>Choose your civilization</b><span>All 18 sheets are visible; click once to inspect, then confirm.</span></div>
-        <label>Jump to
-          <select id="leader-jump">
-            <option value="random"${lobbyPreviewLeaderId === "random" ? " selected" : ""}>Random</option>
-            ${(Game.LEADERS || []).map((l) => `<option value="${l.id}"${lobbyPreviewLeaderId === l.id ? " selected" : ""}>${escapeHtml(l.civ)}</option>`).join("")}
-          </select>
-        </label>
       </div>
       <div class="leader-picker">
         <div class="leader-preview">${previewPanel}</div>
@@ -2248,10 +2251,6 @@ const UI = (() => {
         lobbyPreviewLeaderId = btn.dataset.previewLeader;
         renderLobby();
       });
-    });
-    document.getElementById("leader-jump")?.addEventListener("change", (e) => {
-      lobbyPreviewLeaderId = e.target.value;
-      renderLobby();
     });
     document.getElementById("leader-confirm")?.addEventListener("click", () => {
       dispatch({ type: "SET_LEADER", payload: { playerId: localPlayerId, leaderId: preview ? preview.id : "random" } });
@@ -2456,14 +2455,25 @@ const UI = (() => {
     return choice;
   }
 
+  // Only ever your own. This used to fall back to choices[0] for the host, so
+  // a prompt belonging to somebody else — Poland's opening diplomacy raid is
+  // the one that always fires — took over the host's panel and, because the
+  // caller returns as soon as it renders one, left the host unable to play
+  // their own focus card until they had answered a question that was not
+  // theirs. It also made the ability look as though every player had it.
+  // Another player's outstanding prompt is now a waiting line, not a takeover.
   function getVisiblePendingChoice(me) {
     const choices = state.pendingChoices || [];
-    if (!choices.length) return null;
-    if (me) {
-      const mine = choices.find((c) => c.playerId === me.id);
-      if (mine) return mine;
-    }
-    return Net.getIsHost() ? choices[0] : null;
+    if (!choices.length || !me) return null;
+    return choices.find((c) => c.playerId === me.id) || null;
+  }
+
+  // What somebody else is being asked, for the idle panel to mention. The host
+  // keeps the ability to answer it for them — a disconnected player must not
+  // wedge the game — but has to ask for that rather than being handed it.
+  function otherPendingChoice(me) {
+    const choices = state.pendingChoices || [];
+    return choices.find((c) => !me || c.playerId !== me.id) || null;
   }
 
   function renderPendingChoice(choice) {
@@ -2892,8 +2902,23 @@ const UI = (() => {
   }
 
   function renderIdleWizard(isMyTurn, cp, me) {
+    // Somebody else has a prompt open. Say so, and let the host answer it for
+    // them if they have gone — but never take the panel over for it.
+    const other = otherPendingChoice(me);
+    const otherOwner = other ? Game.getPlayer(state, other.playerId) : null;
+    const waitingOn = other
+      ? `<div class="wiz-note">Waiting on <strong>${escapeHtml(otherOwner ? otherOwner.name : "a player")}</strong>:
+          ${escapeHtml(other.title || other.kind)}.
+          ${Net.getIsHost() ? `<button class="sm" id="wiz-host-resolve">Answer for them</button>` : ""}</div>`
+      : "";
+    const bindHostResolve = () => {
+      document.getElementById("wiz-host-resolve")?.addEventListener("click", () => {
+        renderPendingChoice(other);
+      });
+    };
     if (!isMyTurn) {
-      dom.wizard.innerHTML = `<div class="wiz-title">Waiting</div><div class="wiz-body">It's <strong>${cp ? cp.name : "..."}</strong>'s turn.</div>`;
+      dom.wizard.innerHTML = `<div class="wiz-title">Waiting</div><div class="wiz-body">It's <strong>${cp ? cp.name : "..."}</strong>'s turn.</div>${waitingOn}`;
+      bindHostResolve();
       return;
     }
     // Your turn IS resolving a focus card (base p6) — there is no passing. So
@@ -2906,7 +2931,8 @@ const UI = (() => {
     const actions = taken
       ? `<div class="wiz-actions"><button class="primary" id="wiz-end-turn">End Turn</button></div>`
       : "";
-    dom.wizard.innerHTML = `<div class="wiz-title">Your Turn</div><div class="wiz-body">${body}</div>${actions}`;
+    dom.wizard.innerHTML = `<div class="wiz-title">Your Turn</div><div class="wiz-body">${body}</div>${actions}${waitingOn}`;
+    bindHostResolve();
     document.getElementById("wiz-end-turn")?.addEventListener("click", () => dispatch({ type: "END_TURN", payload: { playerId: localPlayerId } }));
   }
 
@@ -4279,9 +4305,9 @@ const UI = (() => {
       const originKey = exploreOrigin();
       if (!state.tileStack || state.tileStack.length === 0 || !originKey) return;
       const tileId = exploringTileId();
-      // Terra p12: it has to touch four spaces already on the map, one of them
-      // the space you are exploring from. Both are checked at the angle you set
-      // — this used to hunt for an angle that managed it and lay that instead.
+      // Terra p12: it has to reach the space you are exploring from, and the
+      // land it covers must be empty. Checked at the angle you set — this used
+      // to hunt for an angle that managed it and lay that one instead.
       const fitsHere = (rot) => {
         if (!Game.validateExploration(state, tileId, hexKey, rot).ok) return false;
         const cells = Game.getTileHexKeys(hexKey, rot, state.map.hexes);

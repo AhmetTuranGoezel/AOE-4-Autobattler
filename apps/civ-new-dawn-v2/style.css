@@ -755,10 +755,15 @@ input, select {
 .wiz-help { font-size: 10px; color: var(--text2); font-style: italic; margin-top: 6px; }
 
 /* CONNECTION BANNER */
+/* Along the bottom, not pinned over the header. It used to sit at top:0 across
+   the full width, which put it straight on top of the turn indicator and the
+   reference buttons — the controls you most want while a connection is flaky. */
 #conn-banner {
-  position: fixed; top: 0; left: 0; right: 0;
+  position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%);
+  max-width: min(420px, calc(100% - 24px));
   background: var(--danger); color: #fff; text-align: center;
-  padding: 4px; font-size: 11px; z-index: 1000;
+  padding: 6px 14px; border-radius: 999px; font-size: 11px; z-index: 1000;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
 }
 #conn-banner.hidden { display: none; }
 
