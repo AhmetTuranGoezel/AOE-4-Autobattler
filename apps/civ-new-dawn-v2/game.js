@@ -1061,6 +1061,14 @@ const Game = (() => {
         if (st.pendingExploration.playerId !== actorId) {
           return denied("exploration_owner_mismatch", "This expedition belongs to another player.");
         }
+        // Terra p12 only returns a tile to the stack "if the tile cannot be
+        // placed". Refusing that here rather than in the handler is what lets
+        // the player be told why: the handler simply returned the state
+        // unchanged, which surfaced as a bare "invalid action".
+        if (type === "ABANDON_EXPLORATION") {
+          const escape = canAbandonExploration(st, actorId);
+          if (!escape.ok) return denied(escape.code, escape.message);
+        }
       } else if (type === "PLACE_EXPLORED_TILE" || type === "ABANDON_EXPLORATION") {
         return denied("exploration_missing", "No exploration tile is waiting to be resolved.");
       }
@@ -5154,23 +5162,16 @@ const Game = (() => {
       });
     });
 
-    // Connectivity only: the new land must actually touch the map somewhere.
+    // Terra p12: "Place that tile so that it touches FOUR SPACES already on the
+    // map, including the space from which the player is exploring." The count
+    // is checked here; the caller checks the reach to the exploring figure.
     //
-    // This used to demand FOUR adjacent board spaces, which is base p14's rule
-    // for laying out the map during setup — validateTilePlacement still applies
-    // it there, which is where it belongs. Terra p12's exploration rule asks for
-    // no such thing: the tile has to reach the space you set out from, and
-    // EXPLORE_TILE checks that separately against fromKey. Importing the setup
-    // constraint into exploration made the frontier almost unusable, because a
-    // tile pushed out past the coast naturally touches two or three spaces, not
-    // four. Measured over real games it cut the legal placements to a fifth
-    // (41 from 214 at two players) and left 7 of 27 eligible spaces in a
-    // four-player game unable to explore at all — which is exactly the
-    // "I can't place the tile anywhere" this kept producing.
-    //
-    // One neighbour is still required so nothing can be dropped in open sea by
-    // a caller that does not do its own reach check.
-    if (boardNeighbors.size < 1) return { ok: false };
+    // I once relaxed this to 1, on the theory that four was base p14's
+    // map-setup rule wrongly imported. It is not — p12 states it for
+    // exploration in as many words. Exploration being hard to place is the
+    // printed difficulty, and the real reason a tile could not be placed was
+    // an authorization gate, not this.
+    if (boardNeighbors.size < 4) return { ok: false };
     return { ok: true };
   }
 

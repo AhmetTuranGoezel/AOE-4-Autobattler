@@ -1392,17 +1392,10 @@ const UI = (() => {
           const playerTiles = setupHand(state, localPlayerId);
           if (playerTiles.length > 0) {
             const tileId = playerTiles[0];
-            // These used to be hidden on the argument that "a board covered in
-            // green answers it for you". Counted on real boards, that premise is
-            // simply false: a capital tile has 11-20 legal (anchor, angle) pairs
-            // out of 1626, and at the angle you happen to be holding it, TWO to
-            // FOUR anchors out of 271 spaces. That is not a board covered in
-            // green, it is a needle-hunt — and it is the first thing you do in
-            // every game, which is why it kept being reported as the tile simply
-            // not placing. Terra p5 still decides what is legal; the board just
-            // stops hiding the answer, exactly as it does when exploring.
-            const fits = tileFits();
-            if (fits) fits.byRot[sub.tileRotation].forEach((k) => setupValid.add(k));
+            // Nothing is highlighted. Working out where your land can go is the
+            // decision; lighting the legal anchors answers it for you. Point at
+            // a space and the tile itself says yes or no under the pointer —
+            // that is the only help there is, and you go looking for it.
             if (mouseHex) {
               const anchorKey = Game.key(mouseHex.q, mouseHex.r);
               // The angle you set is the angle you see. This used to ask
@@ -1418,12 +1411,6 @@ const UI = (() => {
           }
         }
       }
-    }
-
-    if (state.phase === "playing" && isExploring(sub.phase)) {
-      // The few anchors that work at the angle the tile is currently held.
-      const fits = tileFits();
-      if (fits) fits.byRot[sub.tileRotation].forEach((k) => setupValid.add(k));
     }
 
     if (state.phase === "playing" &&
@@ -2505,9 +2492,20 @@ const UI = (() => {
 
   // True while a tile is in hand and waiting for a home.
   // Terra p12: an expedition draws the BOTTOM tile of the stack.
+  // The revealed tile, once BEGIN_EXPLORATION has drawn it. It is popped off
+  // the stack at that moment, so peeking at the stack would preview the NEXT
+  // tile, not the one in hand. pendingExploration is also the only source a
+  // joined client has: tileStack is redacted out of its view entirely.
   function exploringTileId() {
-    const stack = state && state.tileStack;
-    return stack && stack.length ? stack[stack.length - 1] : null;
+    const pending = state && state.pendingExploration;
+    if (pending && pending.playerId === localPlayerId) return pending.tileId;
+    return null;
+  }
+
+  function tilesLeftInStack() {
+    if (!state) return 0;
+    if (Array.isArray(state.tileStack)) return state.tileStack.length;
+    return state.tileStackCount || state.tileDeckCount || 0;
   }
 
   // Exploring covers a unit's expedition and Apadana's one-off, which has no
@@ -2519,74 +2517,6 @@ const UI = (() => {
   function exploreOrigin() {
     if (sub.phase === "free_exploring") return sub.freeFrom || null;
     return sub.movementState ? sub.movementState.currentKey : null;
-  }
-
-  // Every anchor the explored tile can legally take, by the angle it needs.
-  //
-  // Setup deliberately does not light up legal tile spots: there the board is
-  // wide open, dozens of placements work, and picking one is the decision.
-  // Terra p12 is not that. The new land must cover ten unused spaces, touch
-  // four already on the board, AND touch the space you set out from, and those
-  // three together usually leave a handful of anchors out of some eleven
-  // hundred — each at one specific angle, and sometimes none at all. At a real
-  // table you hold the tile against the coast and see instantly; hunting for
-  // that by hovering is not a decision, it is a search. So it is shown.
-  //
-  // Only anchors near the explorer can qualify, since the tile has to reach it,
-  // and the answer is cached until the board or the tile changes.
-  // True while the local player is laying a tile down during setup: their own
-  // capital, a drafted core tile, or an ordinary one.
-  function setupTilePhase() {
-    if (!state || state.phase !== "setup") return null;
-    const p = state.setup.phase;
-    if (p !== "capital_tile" && p !== "tile" && p !== "draft_tile") return null;
-    if (state.setup.order[state.setup.turnIndex] !== localPlayerId) return null;
-    return p;
-  }
-
-  let tileFitCache = null;
-  function tileFits() {
-    if (!state) return null;
-    const exploring = isExploring(sub.phase);
-    const setupPhase = setupTilePhase();
-    if (!exploring && !setupPhase) return null;
-
-    const tileId = exploring ? exploringTileId() : (setupHand(state, localPlayerId) || [])[0];
-    if (!tileId) return null;
-    // Exploring has an extra condition setup does not: the new land must reach
-    // the space the figure set out from.
-    const origin = exploring ? exploreOrigin() : null;
-    if (exploring && !origin) return null;
-
-    let active = 0;
-    Object.values(state.map.hexes).forEach((h) => { if (h.active) active++; });
-    const sig = `${exploring ? "x" : setupPhase}|${tileId}|${sub.tileSide}|${origin}|${active}|${state.setup ? state.setup.turnIndex : ""}`;
-    if (tileFitCache && tileFitCache.sig === sig) return tileFitCache;
-
-    const byRot = [0, 1, 2, 3, 4, 5].map(() => new Set());
-    const anyRot = new Set();
-    const oq = origin ? Game.parseQ(origin) : 0, or = origin ? Game.parseR(origin) : 0;
-    Object.values(state.map.hexes).forEach((h) => {
-      // A tile spans at most three spaces from its anchor, so when there is an
-      // explorer to reach, nothing further out than this can manage it.
-      if (origin && Game.hexDist({ q: h.q, r: h.r }, { q: oq, r: or }) > 5) return;
-      const anchor = Game.key(h.q, h.r);
-      for (let rot = 0; rot < 6; rot++) {
-        const ok = exploring
-          ? Game.validateExploration(state, tileId, anchor, rot).ok
-          : Game.validateTilePlacement(state, tileId, anchor, rot).ok;
-        if (!ok) continue;
-        if (origin) {
-          const cells = Game.getTileHexKeys(anchor, rot, state.map.hexes);
-          if (!cells.some((ck) =>
-            Game.hexNeighborKeys(Game.parseQ(ck), Game.parseR(ck)).includes(origin))) continue;
-        }
-        byRot[rot].add(anchor);
-        anyRot.add(anchor);
-      }
-    });
-    tileFitCache = { sig, byRot, anyRot };
-    return tileFitCache;
   }
 
   function placingTile() {
@@ -3457,11 +3387,12 @@ const UI = (() => {
             <button id="rot-inc" class="sm">\u21bb</button>
             <button id="side-toggle" class="sm">Side ${sub.tileSide}</button>
           </div>
-          <br><strong>Find it a home.</strong> The <strong style="color:#66bb6a">lit spaces</strong>
-          take it at the angle you are holding it. Click one to lay it down.<br>
+          <br><strong>Find it a home.</strong> Hover the board — the tile shows
+          <strong style="color:#66bb6a">green</strong> where it fits and
+          <strong style="color:#ef5350">red</strong> where it does not. Click to lay it.<br>
           Scroll or <kbd>R</kbd> to turn it, <kbd>F</kbd> to flip it over.<br>
           Tiles remaining: <strong>${playerTiles.length}</strong>
-          ${tileFitNote()}
+          ${tileDeadEndNote(tileId)}
         </div>`;
 
       document.getElementById("rot-dec").addEventListener("click", () => turnTile(-1));
@@ -4261,39 +4192,27 @@ const UI = (() => {
     });
   }
 
-  // Says how many homes the tile actually has, because "nowhere it fits" and
-  // "you have not found the one spot yet" look identical while you hover. Used
-  // by both the exploring panel and setup — the counts are small in both, and
-  // during setup they are smallest of all.
-  function tileFitNote(deadEndHtml) {
-    const fits = tileFits();
-    if (!fits) return "";
-    const here = fits.byRot[sub.tileRotation].size;
-    if (here) {
-      return here === 1
-        ? `<br><span style="color:#66bb6a">One lit space on the board takes it at this angle.</span>`
-        : `<br><span style="color:#66bb6a">${here} lit spaces on the board take it at this angle.</span>`;
+  // The one thing the panel still says out loud: when a tile genuinely cannot
+  // go anywhere on the board. Hunting for a space that does not exist is not a
+  // puzzle, it is a hang. How many spaces DO take it is deliberately not said —
+  // finding them is the decision.
+  function tileDeadEndNote(tileId, validate) {
+    if (!state || !tileId) return "";
+    const check = validate || Game.validateTilePlacement;
+    for (const anchor of Object.keys(state.map.hexes)) {
+      for (let rot = 0; rot < 6; rot++) {
+        if (check(state, tileId, anchor, rot).ok) return "";
+      }
     }
-    if (fits.anyRot.size) {
-      // Which angles work at all, named the way the counter names them.
-      const angles = fits.byRot
-        .map((set, rot) => (set.size ? rot + 1 : 0)).filter(Boolean);
-      return `<br><span class="wiz-note">Nothing fits at <strong>${sub.tileRotation + 1}/6</strong>.
-        Turn it to <strong>${angles.join(" or ")}</strong>/6 and
-        ${fits.anyRot.size} space${fits.anyRot.size === 1 ? "" : "s"} open up.</span>`;
-    }
-    return deadEndHtml || `<br><span class="wiz-note" style="color:#ef5350">This tile fits
-      nowhere on the board, at any angle.</span>`;
-  }
-
-  function exploreFitNote() {
-    return tileFitNote(`<br><span class="wiz-note" style="color:#ef5350">This tile has nowhere to go
-      from here, at any angle. Terra p12: it goes back on top of the stack and the
-      expedition ends — use <strong>Nowhere it fits</strong>.</span>`);
+    return `<div class="wiz-note">There is nowhere on the board this tile can go.</div>`;
   }
 
   function renderExploring() {
     const expTileId = exploringTileId();
+    // The engine's own test, so the button is only offered when the rule
+    // actually allows it instead of being refused after the click.
+    const canPutBack = !!(state.pendingExploration && Game.canAbandonExploration &&
+      Game.canAbandonExploration(state, localPlayerId).ok);
     const expTile = expTileId ? state.tiles[expTileId] : null;
     const expType = expTile ? expTile.type.charAt(0).toUpperCase() + expTile.type.slice(1) : "?";
     dom.wizard.innerHTML = `
@@ -4309,32 +4228,29 @@ const UI = (() => {
         </div>
         <br>Place the tile touching ${sub.phase === "free_exploring" ? "the space you chose" : "your unit's hex"}.<br>
         <strong style="color:#66bb6a">Green</strong> = valid, <strong style="color:#ef5350">Red</strong> = invalid.
-        ${exploreFitNote()}
-        <br>Tiles remaining in stack: <strong>${state.tileStack ? state.tileStack.length : 0}</strong>
+        <br>Tiles remaining in stack: <strong>${tilesLeftInStack()}</strong>
       </div>
       <div class="wiz-actions">
-        <button class="ghost" id="wiz-cancel-explore">Back</button>
-        <button class="ghost" id="wiz-abandon-explore">Nowhere it fits</button>
+        ${canPutBack
+          ? `<button class="ghost" id="wiz-abandon-explore">Nowhere it fits — put it back</button>`
+          : `<span class="wiz-note">Terra p12: it only goes back if it fits nowhere. It fits somewhere — place it.</span>`}
       </div>`;
 
     document.getElementById("rot-dec").addEventListener("click", () => turnTile(-1));
     document.getElementById("rot-inc").addEventListener("click", () => turnTile(1));
     document.getElementById("side-toggle").addEventListener("click", flipTile);
-    document.getElementById("wiz-cancel-explore").addEventListener("click", () => {
-      if (sub.phase === "free_exploring") { resetSub(); render(); return; }
-      const ms = sub.movementState;
-      sub.phase = ms.unitType === "army" ? "move_army_post" : "move_caravan_post";
-      render();
-    });
     // Terra p12: a tile with nowhere to go returns to the top of the stack and
     // the expedition ends. The movement is spent either way.
-    document.getElementById("wiz-abandon-explore").addEventListener("click", () => {
+    document.getElementById("wiz-abandon-explore")?.addEventListener("click", () => {
       const ms = sub.movementState;
-      dispatch({ type: "ABANDON_EXPLORATION", payload: { playerId: localPlayerId, fromKey: exploreOrigin() } });
-      if (sub.phase === "free_exploring") { resetSub(); render(); return; }
-      ms.remaining -= 1;
-      ms.explored = true;
-      if (ms.remaining > 0) continueMovement(); else endMovement();
+      dispatch({ type: "ABANDON_EXPLORATION", payload: { playerId: localPlayerId, fromKey: exploreOrigin() } })
+        .then((result) => {
+          if (!result || result.status !== "accepted") return;  // toast already shown
+          if (sub.phase === "free_exploring" || !ms) { resetSub(); render(); return; }
+          ms.remaining -= 1;
+          ms.explored = true;
+          if (ms.remaining > 0) continueMovement(); else endMovement();
+        });
     });
   }
 
@@ -4347,9 +4263,29 @@ const UI = (() => {
     render();
   }
 
-  function startExploration() {
+  // Terra p12 step 1 is a real, public reveal: the tile comes off the bottom of
+  // the stack and everyone sees it before it is placed. So exploring is two
+  // actions, not one — this draws the tile, and the board click places it. The
+  // engine also moves the figure to fromKey here after validating the route,
+  // which is why the walked route is sent: the figure has not actually moved
+  // yet, only sub.movementState has.
+  async function startExploration() {
     const ms = sub.movementState;
     if (!ms) return;
+    // dispatch is async: it awaits the authoritative result. Reading state
+    // straight after calling it reads the state from BEFORE the action, which
+    // silently skipped the phase change and left the player in the move panel
+    // with a tile already revealed behind it.
+    const result = await dispatch({ type: "BEGIN_EXPLORATION", payload: {
+      playerId: localPlayerId,
+      fromKey: ms.currentKey,
+      unitId: ms.unitId,
+      unitType: ms.unitType,
+      startKey: ms.romeStart || ms.startKey,
+      route: (ms.route || []).slice(),
+      tradeSpent: sub.tradeSpent
+    }});
+    if (!result || result.status !== "accepted") return;   // toast already shown
     sub.phase = ms.unitType === "army" ? "move_army_exploring" : "move_caravan_exploring";
     sub.tileRotation = 0;
     render();
@@ -5375,7 +5311,7 @@ const UI = (() => {
         sub.selectedUnit = unit;
         const maxMove = Game.getEconomyMove(me, state) + sub.tradeSpent;
         const originKey = romeStart || unit.position;
-        sub.movementState = { unitType: "caravan", unitId: unit.id, maxMove, remaining: maxMove, currentKey: originKey, startKey: originKey, romeStart, explored: false };
+        sub.movementState = { unitType: "caravan", unitId: unit.id, maxMove, remaining: maxMove, currentKey: originKey, startKey: originKey, romeStart, explored: false, route: [] };
         sub.selectedUnit = { id: unit.id, position: originKey };
         sub.validHexes = Game.getReachable(state, originKey, maxMove, "caravan", localPlayerId);
         render();
@@ -5388,6 +5324,7 @@ const UI = (() => {
         flashHex(hexKey, "rgb(102,187,106)", 400);
         ms.remaining -= dist;
         ms.currentKey = hexKey;
+        (ms.route = ms.route || []).push(hexKey);
         // Don't stop to ask. Either the move is spent, or the next hex is
         // already clickable — the chip on the board carries the rest.
         if (ms.remaining > 0) continueMovement(); else endMovement();
@@ -5410,7 +5347,7 @@ const UI = (() => {
         if (!unit) return;
         sub.selectedUnit = unit;
         const maxMove = Game.getMilitaryMove(me, state);
-        sub.movementState = { unitType: "army", unitId: unit.id, maxMove, remaining: maxMove, currentKey: hexKey, startKey: hexKey, explored: false };
+        sub.movementState = { unitType: "army", unitId: unit.id, maxMove, remaining: maxMove, currentKey: hexKey, startKey: hexKey, explored: false, route: [] };
         sub.validHexes = Game.getReachable(state, hexKey, maxMove, "army", localPlayerId);
         render();
       } else {
@@ -5422,6 +5359,7 @@ const UI = (() => {
         flashHex(hexKey, "rgb(239,83,80)", 400);
         ms.remaining -= dist;
         ms.currentKey = hexKey;
+        (ms.route = ms.route || []).push(hexKey);
         // An army that walks into something has a real choice to make; anything
         // else just carries on.
         if (Game.findDefender(state, ms.currentKey, localPlayerId)) {
@@ -5438,8 +5376,17 @@ const UI = (() => {
     if (isExploring(sub.phase)) {
       const ms = sub.movementState;
       const originKey = exploreOrigin();
-      if (!state.tileStack || state.tileStack.length === 0 || !originKey) return;
       const tileId = exploringTileId();
+      // Never swallow a click. This used to return in silence whenever the
+      // tile could not be identified, which on a joined client is ALWAYS —
+      // tileStack is redacted out of its view, so every click on the board
+      // did nothing at all and said nothing about why.
+      if (!tileId || !originKey) {
+        showToast(state && state.pendingExploration
+          ? "That expedition belongs to another player"
+          : "No tile has been revealed yet");
+        return;
+      }
       // Terra p12: it has to reach the space you are exploring from, and the
       // land it covers must be empty. Checked at the angle you set — this used
       // to hunt for an angle that managed it and lay that one instead.
@@ -5460,14 +5407,20 @@ const UI = (() => {
           : "The new land will not reach there, at any angle");
         return;
       }
-      dispatch({ type: "EXPLORE_TILE", payload: { playerId: localPlayerId, anchorKey: hexKey, rotation: sub.tileRotation, side: sub.tileSide, fromKey: originKey } });
-      // Apadana's expedition costs no movement, because there is nothing moving.
-      if (sub.phase === "free_exploring") { resetSub(); render(); return; }
-      ms.remaining -= 1;
-      ms.explored = true;
-      // Terra p12: you may walk onto what you just found. Hand straight back to
-      // picking a hex, with the new ground already in the reachable set.
-      if (ms.remaining > 0) continueMovement(); else endMovement();
+      // The tile was already revealed by BEGIN_EXPLORATION; this only places it.
+      dispatch({ type: "PLACE_EXPLORED_TILE", payload: {
+        playerId: localPlayerId, anchorKey: hexKey,
+        rotation: sub.tileRotation, side: sub.tileSide }
+      }).then((result) => {
+        if (!result || result.status !== "accepted") return;  // toast already shown
+        // Apadana's expedition costs no movement, because there is nothing moving.
+        if (sub.phase === "free_exploring" || !ms) { resetSub(); render(); return; }
+        ms.remaining -= 1;
+        ms.explored = true;
+        // Terra p12: you may walk onto what you just found. Hand straight back
+        // to picking a hex, with the new ground already in the reachable set.
+        if (ms.remaining > 0) continueMovement(); else endMovement();
+      });
       return;
     }
     if (sub.phase === "placing_city") {

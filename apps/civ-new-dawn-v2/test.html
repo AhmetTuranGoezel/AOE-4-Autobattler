@@ -560,6 +560,78 @@
           return { st, player, origin };
         }
 
+        // The whole exploration flow, driven exactly as the UI drives it: the
+        // actions it sends, through the gate it sends them through. Exploration
+        // was completely dead in the app for a while - authorizeAction denied
+        // the one-step EXPLORE_TILE the UI was still sending, so the player
+        // could neither place the tile nor abandon it - while the tests below
+        // passed, because they drove the protocol directly and never asked
+        // whether the UI spoke it. This test is the one that would have caught
+        // that, so it uses only what ui.js actually dispatches.
+        {
+          const ui = explorationState();
+          const seat = { actorId: ui.player.id, role: "player" };
+
+          const begun = Game.tryApplyAction(ui.st, { type: "BEGIN_EXPLORATION", payload: {
+            playerId: ui.player.id, fromKey: ui.origin,
+            unitId: "network-explorer", unitType: "army",
+            startKey: ui.origin, route: [], tradeSpent: 0
+          }}, seat);
+          assert("the UI's BEGIN_EXPLORATION is accepted", begun.accepted);
+          const revealed = begun.accepted ? begun.state : ui.st;
+          assert("beginning an expedition reveals a tile to place",
+            !!(revealed.pendingExploration && revealed.pendingExploration.tileId));
+
+          // ui.js reads the tile in hand from pendingExploration, not the stack.
+          const inHand = revealed.pendingExploration && revealed.pendingExploration.tileId;
+          assert("the revealed tile is no longer on the stack",
+            !revealed.tileStack.includes(inHand));
+
+          let spot = null;
+          Object.keys(revealed.map.hexes).forEach((anchorKey) => {
+            if (spot) return;
+            for (let rot = 0; rot < 6; rot++) {
+              if (!Game.validateExploration(revealed, inHand, anchorKey, rot).ok) continue;
+              const cells = Game.getTileHexKeys(anchorKey, rot, revealed.map.hexes);
+              if (cells.some((ck) => Game.hexNeighborKeys(Game.parseQ(ck), Game.parseR(ck)).includes(ui.origin))) {
+                spot = { anchorKey, rot };
+                return;
+              }
+            }
+          });
+          assert("a legal home for the revealed tile exists", !!spot);
+
+          const placed = spot ? Game.tryApplyAction(revealed, { type: "PLACE_EXPLORED_TILE", payload: {
+            playerId: ui.player.id, anchorKey: spot.anchorKey, rotation: spot.rot, side: "A"
+          }}, seat) : { accepted: false };
+          assert("the UI's PLACE_EXPLORED_TILE actually places the tile",
+            placed.accepted && !placed.state.pendingExploration &&
+            placed.state.map.hexes[spot.anchorKey].active);
+        }
+
+        {
+          // Terra p12 only lets a tile go back "if the tile cannot be placed".
+          // So while a legal home exists the way out is correctly refused - the
+          // player has to place it - and the panel must not pretend otherwise.
+          const ui = explorationState();
+          const seat = { actorId: ui.player.id, role: "player" };
+          const begun = Game.tryApplyAction(ui.st, { type: "BEGIN_EXPLORATION", payload: {
+            playerId: ui.player.id, fromKey: ui.origin, unitId: "network-explorer",
+            unitType: "army", startKey: ui.origin, route: [], tradeSpent: 0
+          }}, seat);
+          assert("the expedition began", begun.accepted);
+          const revealed = begun.accepted ? begun.state : ui.st;
+          const fits = Game.hasLegalExplorationPlacement(revealed, revealed.pendingExploration);
+          const gone = Game.tryApplyAction(revealed, {
+            type: "ABANDON_EXPLORATION", payload: { playerId: ui.player.id, fromKey: ui.origin }
+          }, seat);
+          assert("putting the tile back is refused while it still fits somewhere",
+            !fits || (!gone.accepted && gone.code === "tile_still_fits"));
+          assert("and Game exposes that same test, so the panel can offer the button honestly",
+            typeof Game.canAbandonExploration === "function" &&
+            Game.canAbandonExploration(revealed, ui.player.id).ok === !fits);
+        }
+
         const first = explorationState();
         const legacy = Game.tryApplyAction(first.st, {
           type: "EXPLORE_TILE", payload: { fromKey: first.origin }
@@ -680,39 +752,56 @@
       }
 
       {
-        // Terra p12 asks an explored tile to reach the space you set out from.
-        // It does NOT ask for four adjacent board spaces — that is base p14's
-        // rule for laying the map out during setup, which validateTilePlacement
-        // still applies. Requiring it here made the frontier nearly unusable: a
-        // tile pushed past the coast touches two or three spaces, so most
-        // placements were refused and a quarter of eligible explorers had
-        // nowhere at all to put their tile.
+        // Terra p12: "Place that tile so that it touches FOUR SPACES already on
+        // the map, including the space from which the player is exploring."
+        // This asserted the opposite for a while - that one touching space was
+        // enough - after the four was mistaken for base p14's map-setup rule
+        // being wrongly imported. It is printed for exploration in as many
+        // words, so the count is four and a lone frontier space is not enough.
         const st = rulesState();
         st.tiles = st.setup.tiles;
         st.tileStack = st.setup.tileStack.slice();
-        // Strip the board back to a single space. Anything placed beside it now
-        // touches far fewer than four — the case the old rule rejected outright.
         Object.values(st.map.hexes).forEach((h) => { h.active = false; h.tileId = null; });
         activate(st, "0,0");
         const tileId = st.tileStack[st.tileStack.length - 1];
-        let found = null;
+        const touching = (anchor, rot) => {
+          const cells = Game.getTileHexKeys(anchor, rot, st.map.hexes);
+          if (cells.length !== Game.TILE_OFFSETS.length) return null;
+          if (cells.some((k) => st.map.hexes[k].active)) return null;
+          const set = new Set(cells);
+          const nb = new Set();
+          cells.forEach((k) => Game.hexNeighborKeys(Game.parseQ(k), Game.parseR(k)).forEach((nk) => {
+            if (set.has(nk)) return;
+            const h = st.map.hexes[nk];
+            if (h && h.active) nb.add(nk);
+          }));
+          return nb.size;
+        };
+        let lonely = null;
         Object.keys(st.map.hexes).forEach((anchor) => {
-          if (found) return;
+          if (lonely) return;
           for (let rot = 0; rot < 6; rot++) {
-            const cells = Game.getTileHexKeys(anchor, rot, st.map.hexes);
-            if (cells.length !== Game.TILE_OFFSETS.length) continue;
-            if (cells.some((k) => st.map.hexes[k].active)) continue;
-            if (!cells.some((ck) => Game.hexNeighborKeys(Game.parseQ(ck), Game.parseR(ck)).includes("0,0"))) continue;
-            found = { anchor, rot };
-            return;
+            const n = touching(anchor, rot);
+            if (n !== null && n > 0 && n < 4) { lonely = { anchor, rot, n }; return; }
           }
         });
-        assert("a frontier placement touching one space exists to test", !!found);
-        assert("exploring accepts a tile that only reaches the space explored from",
-          !!found && Game.validateExploration(st, tileId, found.anchor, found.rot).ok);
-        // Setup keeps its own, stricter rule.
-        assert("setup still demands four spaces for a non-core tile",
-          !Game.validateTilePlacement(st, tileId, found.anchor, found.rot).ok);
+        assert("a placement touching fewer than four spaces exists to test", !!lonely);
+        assert("exploring refuses a tile touching fewer than four board spaces",
+          !!lonely && !Game.validateExploration(st, tileId, lonely.anchor, lonely.rot).ok);
+
+        // And it accepts one that does touch four.
+        const big = rulesState();
+        big.tiles = big.setup.tiles;
+        big.tileStack = big.setup.tileStack.slice();
+        const bigTile = big.tileStack[big.tileStack.length - 1];
+        let roomy = null;
+        Object.keys(big.map.hexes).forEach((anchor) => {
+          if (roomy) return;
+          for (let rot = 0; rot < 6; rot++) {
+            if (Game.validateExploration(big, bigTile, anchor, rot).ok) { roomy = { anchor, rot }; return; }
+          }
+        });
+        assert("exploring accepts a tile that touches four", !!roomy);
       }
 
       {
