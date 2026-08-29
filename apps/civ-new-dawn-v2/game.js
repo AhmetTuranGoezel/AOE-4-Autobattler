@@ -1956,7 +1956,7 @@ const Game = (() => {
       if (!defender) return st;
       const slot = getSlotValue(player, "military", st);
       const leaderBonus = getLeaderAttackBonus(st, payload.playerId, payload.toKey);
-      const tierBonus = getMilitaryCombatBonus(player);
+      const tierBonus = getMilitaryCombatBonus(player, defender.type);
       const atkParts = [{ label: "military card", value: slot }];
       if (tierBonus) atkParts.push({ label: "card tier", value: tierBonus });
       if (leaderBonus) atkParts.push({ label: "leader", value: leaderBonus });
@@ -3905,9 +3905,19 @@ const Game = (() => {
     return base + tradeSpent;
   }
 
-  function getMilitaryCombatBonus(player) {
+  // The printed cards, not a flat table. Iron Working reads "your combat value
+  // equals this slot's number, PLUS 2 IF ATTACKING A BARBARIAN" — the +2 was
+  // being handed out against every defender, which is a permanent, invisible
+  // +2 in every fight for a whole tier. Mass Production and Flight are
+  // unconditional (+2 / +3). CARD_DEFS already carried `vsBarbarian`; nothing
+  // read it.
+  function getMilitaryCombatBonus(player, defenderType) {
     const tier = getCardTier(player, "military");
-    return CARD_TIERS.military.combatBonus[tier - 1];
+    const def = (CARD_DEFS.military || {})[tier] || {};
+    const flat = Number(def.combat || 0);
+    const vsBarb = Number(def.vsBarbarian || 0);
+    if (vsBarb && defenderType === "barbarian") return flat + vsBarb;
+    return flat;
   }
 
   // --- World wonder effects ---

@@ -333,7 +333,7 @@ const UI = (() => {
     const helps = {
       idle: "Click a focus card below to take your turn action. Cards in higher slots are more powerful.",
       card_selected: "Spend trade tokens for extra power. Click 'Start Action' when ready.",
-      placing_control: "Click green hexes adjacent to your cities/control to claim territory.",
+      placing_control: "Click green hexes adjacent to your cities to claim territory.",
       move_army: "Click your army, then click a green hex to move it.",
       move_army_post: "Something is in the way. The chip on the board decides it.",
       move_caravan: "Click your caravan, then a green hex. Visit city-states to gain trade tokens.",
@@ -4337,6 +4337,9 @@ const UI = (() => {
   function nextUnitOrFinish(unitType) {
     const me = Game.getPlayer(state, localPlayerId);
     const active = state.activeCard;
+    // A fight opens before activeCard is set, so bailing on "no active card"
+    // here dropped the player back to idle mid-attack.
+    if (state.combat) { sub.phase = "idle"; render(); return; }
     if (!me || !active || active.playerId !== localPlayerId) { resetSub(); return; }
     const list = unitType === "caravan" ? me.caravans : me.armies;
     const left = (list || []).filter((u) => !u.movedThisCard);
@@ -5231,19 +5234,21 @@ const UI = (() => {
     if (!me) return;
 
     if (sub.phase === "placing_control") {
-      if (!sub.validHexes.has(hexKey)) { showToast("Must be adjacent to your city or control"); return; }
+      if (!sub.validHexes.has(hexKey)) { showToast("Must be adjacent to one of your cities"); return; }
       flashHex(hexKey, "rgb(102,187,106)", 500);
       sub.placedKeys.push(hexKey);
       sub.remaining--;
       sub.validHexes.delete(hexKey);
-      const effectiveSlot = Game.getSlotValue(me, "culture", state) || 1;
-      Game.hexNeighborKeys(Game.parseQ(hexKey), Game.parseR(hexKey)).forEach((nk) => {
-        if (sub.placedKeys.includes(nk)) return;
-        const nh = state.map.hexes[nk];
-        if (!nh || !nh.active || nh.terrain === "water" || nh.city || nh.barbarian || nh.cityState || nh.control) return;
-        if (Game.terrainDifficulty(nh) > effectiveSlot) return;
-        sub.validHexes.add(nk);
-      });
+      // The offer used to grow outward from each token just placed, with no
+      // city-adjacency test — so the board invited a chain the engine refuses
+      // (base p8: "on a space adjacent to a friendly city"). The engine dropped
+      // those hexes silently but still spent the card and the trade tokens, so
+      // every chained click cost a marker that never landed. The legal set is
+      // now the engine's own, asked again after each placement so a space that
+      // has just been filled drops out.
+      sub.validHexes = Game.validControlHexes(state, localPlayerId,
+        Game.getSlotValue(me, "culture", state) || 1);
+      sub.placedKeys.forEach((k) => sub.validHexes.delete(k));
       if (sub.remaining <= 0) finishAction();
       else render();
       return;
@@ -5596,7 +5601,17 @@ const UI = (() => {
     if (!me) { dom.focusRow.innerHTML = ""; return; }
     const cp = Game.currentPlayer(state);
     const isMyTurn = cp && cp.id === localPlayerId;
-    const canPlay = isMyTurn && !me.cardPlayed && sub.phase === "idle";
+    // A card is also unplayable while one is still being resolved. After an
+    // attack the row used to light up again: PLAY_MILITARY_ATTACK opens combat
+    // without setting activeCard, so nextUnitOrFinish saw no active card, reset
+    // to idle, and cardPlayed was still false because armies waiting on the
+    // card kept unitsLeftToMove above zero. Picking a different card then
+    // vanished silently, because the engine drops any PLAY_ that does not match
+    // the card in progress.
+    const resolving = !!(state.combat || state.lastCombat ||
+      (state.activeCard && state.activeCard.playerId === localPlayerId) ||
+      state.pendingExploration || state.movementContinuation);
+    const canPlay = isMyTurn && !me.cardPlayed && sub.phase === "idle" && !resolving;
     const TIER_LABELS = ["I", "II", "III", "IV"];
     const focusBoard = window.CivCardArt ? CivCardArt.focusBar(me.color) : "";
     dom.focusRow.classList.toggle("has-board-art", !!focusBoard);

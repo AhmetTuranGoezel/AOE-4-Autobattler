@@ -805,6 +805,29 @@
       }
 
       {
+        // The UI used to grow the offered set outward from each token it placed,
+        // with no city-adjacency test, so it invited a chain the engine refuses.
+        // The engine dropped those hexes but still spent the card and the trade,
+        // costing a marker that never landed. The offered set must therefore be
+        // exactly the engine's own legal set, at every step.
+        const st = rulesState();
+        const me = st.players[0];
+        me.focusRow = ["culture", "growth", "science", "economy", "military", "industry"];
+        activate(st, "0,0", { city: { ownerId: me.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
+        activate(st, "1,0");
+        activate(st, "2,0");   // one further out: adjacent to 1,0 but to no city
+        const slot = Game.getSlotValue(me, "culture", st);
+        const legal = Game.validControlHexes(st, me.id, slot);
+        assert("a space beside your city is offered", legal.has("1,0"));
+        assert("a space beyond it, touching no city, is not",  !legal.has("2,0"));
+
+        // And placing on the near space must not make the far one legal.
+        st.map.hexes["1,0"].control = { ownerId: me.id, fortified: false, district: null };
+        assert("placing a marker does not extend the range to its neighbours",
+          !Game.validControlHexes(st, me.id, slot).has("2,0"));
+      }
+
+      {
         // Early Empire's printed requirement is adjacency to a friendly CITY.
         // A friendly control token must never extend that placement range.
         const st = rulesState();
