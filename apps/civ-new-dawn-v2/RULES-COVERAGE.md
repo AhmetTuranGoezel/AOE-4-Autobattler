@@ -256,6 +256,19 @@ face, clockwise from the starting space:
 - A fortress must touch at least 2 core spaces, and may not touch another
   fortress or a city-state space.
 - A capital tile must touch at least 4 spaces of core tiles and/or fortresses.
+- **A fort has no terrain of its own.** Its whole rules footprint is a defence
+  of 6. Setup used to stamp `forest` on the space as well, lifting it from
+  difficulty 1 to 3 — a number no rule asks for, and one this document never
+  disclosed as invented. It was not cosmetic: `getReachable` discards an
+  over-limit space *before* adding it to the reachable set, so a caravan on a
+  slot-1 or slot-2 Economy card could not enter a fort at all, and an army on a
+  slot-1 or slot-2 Military card could not attack one — while forts are legal
+  targets and **both fort victory cards must be held to win**. A captured fort
+  kept the forest for ever, and a city defends at *doubled* terrain difficulty,
+  so every captured fort quietly carried +6 defence instead of +2; the
+  Industrial district even collected trade for the forest that was not there.
+  Removed. Passing *through* a fort is a separate rule and is still refused, by
+  `isForcedStopHex`.
 
 ### Victory (base p12, Terra p8)
 

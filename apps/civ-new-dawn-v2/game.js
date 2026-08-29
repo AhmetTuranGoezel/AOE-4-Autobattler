@@ -1063,7 +1063,18 @@ const Game = (() => {
 
       hex.active = true;
       hex.revealed = true;
-      hex.terrain = "forest";
+      // No terrain change. This used to set "forest", raising the space from
+      // difficulty 1 to 3 — a value nothing in the rules asks for. A fort's
+      // whole rules footprint is its defence of 6, and passing THROUGH one is
+      // already blocked by isForcedStopHex, so the terrain bought nothing and
+      // cost a great deal: getReachable drops an over-limit space before it is
+      // ever added to the reachable set, so a caravan on a slot-1 or slot-2
+      // Economy card could not enter a fort at all, and an army on a slot-1 or
+      // slot-2 Military card could not attack one — though forts are legal
+      // targets and both fort victory cards must be HELD to win. A captured
+      // fort also kept the forest for ever, and a city defends at doubled
+      // terrain, so every captured fort quietly carried +6 defence instead of
+      // +2. The Industrial district even paid trade for the phantom forest.
       hex.fortress = true;
       hex.fortressOwnerId = null;
       hex.tileId = "fortress";

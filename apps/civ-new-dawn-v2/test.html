@@ -443,6 +443,36 @@
       }
 
       {
+        // A fort's whole rules footprint is its defence of 6. Setup used to
+        // also stamp "forest" on the space, lifting it from difficulty 1 to 3,
+        // and getReachable drops an over-limit space before it ever enters the
+        // reachable set — so a caravan on a slot-1 Economy card could not enter
+        // a fort at all, and an army on a slot-1 Military card could not attack
+        // one, though forts are legal targets and both fort victory cards must
+        // be held to win. Passing THROUGH a fort is a separate rule and is
+        // still refused, by isForcedStopHex.
+        const st = rulesState();
+        const me = st.players[0];
+        me.focusRow = ["economy", "growth", "science", "culture", "military", "industry"];
+        activate(st, "0,0");
+        activate(st, "1,0", { fortress: true });
+        activate(st, "2,0");
+        assert("a fort is difficulty 1, not an invented forest",
+          st.map.hexes["1,0"].terrain !== "forest");
+        const reach = Game.getReachable(st, "0,0", 3, "caravan", me.id);
+        assert("a slot-1 caravan can enter a fort", reach.has("1,0"));
+        assert("but still cannot pass through it", !reach.has("2,0"));
+
+        const st2 = rulesState();
+        const me2 = st2.players[0];
+        me2.focusRow = ["military", "growth", "science", "culture", "economy", "industry"];
+        activate(st2, "0,0");
+        activate(st2, "1,0", { fortress: true });
+        assert("a slot-1 army can reach a fort to attack it",
+          Game.getReachable(st2, "0,0", 3, "army", me2.id).has("1,0"));
+      }
+
+      {
         // Terra p12 asks an explored tile to reach the space you set out from.
         // It does NOT ask for four adjacent board spaces — that is base p14's
         // rule for laying the map out during setup, which validateTilePlacement

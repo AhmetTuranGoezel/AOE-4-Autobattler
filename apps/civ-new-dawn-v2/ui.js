@@ -642,10 +642,17 @@ const UI = (() => {
           const playerTiles = setupHand(state, localPlayerId);
           if (playerTiles.length > 0) {
             const tileId = playerTiles[0];
-            // Deliberately NOT lighting up every legal anchor. Working out where
-            // your land can go is the decision; a board covered in green answers
-            // it for you. Point at a space and the ghost says yes or no — that
-            // is the only help there is, and you have to go looking for it.
+            // These used to be hidden on the argument that "a board covered in
+            // green answers it for you". Counted on real boards, that premise is
+            // simply false: a capital tile has 11-20 legal (anchor, angle) pairs
+            // out of 1626, and at the angle you happen to be holding it, TWO to
+            // FOUR anchors out of 271 spaces. That is not a board covered in
+            // green, it is a needle-hunt — and it is the first thing you do in
+            // every game, which is why it kept being reported as the tile simply
+            // not placing. Terra p5 still decides what is legal; the board just
+            // stops hiding the answer, exactly as it does when exploring.
+            const fits = tileFits();
+            if (fits) fits.byRot[sub.tileRotation].forEach((k) => setupValid.add(k));
             if (mouseHex) {
               const anchorKey = Game.key(mouseHex.q, mouseHex.r);
               // The angle you set is the angle you see. This used to ask
@@ -665,7 +672,7 @@ const UI = (() => {
 
     if (state.phase === "playing" && isExploring(sub.phase)) {
       // The few anchors that work at the angle the tile is currently held.
-      const fits = exploreFits();
+      const fits = tileFits();
       if (fits) fits.byRot[sub.tileRotation].forEach((k) => setupValid.add(k));
     }
 
@@ -788,13 +795,17 @@ const UI = (() => {
     // own tile is never hidden by a rival's cursor.
     drawPresence(hexes);
 
-    // The fortress follows the pointer as one neutral cardboard preview. It
-    // deliberately has no green/red legality tint and reveals no other space.
+    // The fortress follows the pointer as one cardboard preview, and it still
+    // reveals no space but the one under the cursor. It does say whether THAT
+    // space is legal, though: it used to render identically over a spot that
+    // would be refused, so the two-neighbour rule was something you only ever
+    // learned from a toast after clicking.
     if (fortressGhostKey) {
       const h = hexes[fortressGhostKey];
       const p = axialToPixel(h.q, h.r);
+      const legal = Game.getValidFortressHexes(state).has(fortressGhostKey);
       const fort = window.CivCardArt && CivCardArt.fort();
-      if (!(fort && drawToken(fort, p.x, p.y, HEX_TOKEN, { alpha: 0.76, shadow: true }))) {
+      if (!(fort && drawToken(fort, p.x, p.y, HEX_TOKEN, { alpha: legal ? 0.8 : 0.4, shadow: true }))) {
         ctx.save();
         ctx.globalAlpha = 0.76;
         hexPath(p.x, p.y, HEX_SIZE * 0.78);
@@ -802,6 +813,13 @@ const UI = (() => {
         ctx.strokeStyle = "#e6e9ef"; ctx.lineWidth = 1.5; ctx.stroke();
         ctx.restore();
       }
+      ctx.save();
+      hexPath(p.x, p.y, HEX_SIZE - 1);
+      ctx.lineWidth = 2.5;
+      ctx.strokeStyle = legal ? "#66bb6a" : "#ef5350";
+      ctx.globalAlpha = 0.95;
+      ctx.stroke();
+      ctx.restore();
     }
 
     // Layer 7: Current unit position during movement
@@ -1200,7 +1218,12 @@ const UI = (() => {
     let tileId = null;
     let tile = null;
     if (state.phase === "setup") {
-      const playerTiles = state.setup.playerTiles[localPlayerId] || [];
+      // setupHand, not playerTiles: during the advanced draft the tile being
+      // placed comes from draftTiles, while playerTiles still holds the capital
+      // this player will lay down later. Reading the wrong one drew the wrong
+      // tile's terrain under the cursor — verified showing tile 03's face while
+      // tile 16 was the one actually in hand.
+      const playerTiles = setupHand(state, localPlayerId);
       tileId = playerTiles[0];
       tile = tileId ? state.setup.tiles[tileId] : null;
     } else if (isExploring(sub.phase)) {
@@ -1717,36 +1740,59 @@ const UI = (() => {
   //
   // Only anchors near the explorer can qualify, since the tile has to reach it,
   // and the answer is cached until the board or the tile changes.
-  let exploreFitCache = null;
-  function exploreFits() {
-    if (!state || !isExploring(sub.phase)) return null;
-    const tileId = exploringTileId();
-    const origin = exploreOrigin();
-    if (!tileId || !origin) return null;
+  // True while the local player is laying a tile down during setup: their own
+  // capital, a drafted core tile, or an ordinary one.
+  function setupTilePhase() {
+    if (!state || state.phase !== "setup") return null;
+    const p = state.setup.phase;
+    if (p !== "capital_tile" && p !== "tile" && p !== "draft_tile") return null;
+    if (state.setup.order[state.setup.turnIndex] !== localPlayerId) return null;
+    return p;
+  }
+
+  let tileFitCache = null;
+  function tileFits() {
+    if (!state) return null;
+    const exploring = isExploring(sub.phase);
+    const setupPhase = setupTilePhase();
+    if (!exploring && !setupPhase) return null;
+
+    const tileId = exploring ? exploringTileId() : (setupHand(state, localPlayerId) || [])[0];
+    if (!tileId) return null;
+    // Exploring has an extra condition setup does not: the new land must reach
+    // the space the figure set out from.
+    const origin = exploring ? exploreOrigin() : null;
+    if (exploring && !origin) return null;
+
     let active = 0;
     Object.values(state.map.hexes).forEach((h) => { if (h.active) active++; });
-    const sig = `${tileId}|${sub.tileSide}|${origin}|${state.tileStack.length}|${active}`;
-    if (exploreFitCache && exploreFitCache.sig === sig) return exploreFitCache;
+    const sig = `${exploring ? "x" : setupPhase}|${tileId}|${sub.tileSide}|${origin}|${active}|${state.setup ? state.setup.turnIndex : ""}`;
+    if (tileFitCache && tileFitCache.sig === sig) return tileFitCache;
 
     const byRot = [0, 1, 2, 3, 4, 5].map(() => new Set());
     const anyRot = new Set();
-    const oq = Game.parseQ(origin), or = Game.parseR(origin);
+    const oq = origin ? Game.parseQ(origin) : 0, or = origin ? Game.parseR(origin) : 0;
     Object.values(state.map.hexes).forEach((h) => {
-      // A tile spans at most three spaces from its anchor, so nothing further
-      // out than this can touch the explorer.
-      if (Game.hexDist({ q: h.q, r: h.r }, { q: oq, r: or }) > 5) return;
+      // A tile spans at most three spaces from its anchor, so when there is an
+      // explorer to reach, nothing further out than this can manage it.
+      if (origin && Game.hexDist({ q: h.q, r: h.r }, { q: oq, r: or }) > 5) return;
       const anchor = Game.key(h.q, h.r);
       for (let rot = 0; rot < 6; rot++) {
-        if (!Game.validateExploration(state, tileId, anchor, rot).ok) continue;
-        const cells = Game.getTileHexKeys(anchor, rot, state.map.hexes);
-        if (!cells.some((ck) =>
-          Game.hexNeighborKeys(Game.parseQ(ck), Game.parseR(ck)).includes(origin))) continue;
+        const ok = exploring
+          ? Game.validateExploration(state, tileId, anchor, rot).ok
+          : Game.validateTilePlacement(state, tileId, anchor, rot).ok;
+        if (!ok) continue;
+        if (origin) {
+          const cells = Game.getTileHexKeys(anchor, rot, state.map.hexes);
+          if (!cells.some((ck) =>
+            Game.hexNeighborKeys(Game.parseQ(ck), Game.parseR(ck)).includes(origin))) continue;
+        }
         byRot[rot].add(anchor);
         anyRot.add(anchor);
       }
     });
-    exploreFitCache = { sig, byRot, anyRot };
-    return exploreFitCache;
+    tileFitCache = { sig, byRot, anyRot };
+    return tileFitCache;
   }
 
   function placingTile() {
@@ -2532,13 +2578,11 @@ const UI = (() => {
             <button id="rot-inc" class="sm">\u21bb</button>
             <button id="side-toggle" class="sm">Side ${sub.tileSide}</button>
           </div>
-          <br><strong>Find it a home.</strong> Hover the board \u2014 the tile shows
-          <strong style="color:#66bb6a">green</strong> where it fits and
-          <strong style="color:#ef5350">red</strong> where it does not. Click to lay it.<br>
+          <br><strong>Find it a home.</strong> The <strong style="color:#66bb6a">lit spaces</strong>
+          take it at the angle you are holding it. Click one to lay it down.<br>
           Scroll or <kbd>R</kbd> to turn it, <kbd>F</kbd> to flip it over.<br>
           Tiles remaining: <strong>${playerTiles.length}</strong>
-          ${Game.getTileAnchorsAnyRotation(state, tileId).size === 0
-            ? `<div class="wiz-note">There is nowhere on the board this tile can go.</div>` : ""}
+          ${tileFitNote()}
         </div>`;
 
       document.getElementById("rot-dec").addEventListener("click", () => turnTile(-1));
@@ -3338,9 +3382,11 @@ const UI = (() => {
   }
 
   // Says how many homes the tile actually has, because "nowhere it fits" and
-  // "you have not found the one spot yet" look identical while you hover.
-  function exploreFitNote() {
-    const fits = exploreFits();
+  // "you have not found the one spot yet" look identical while you hover. Used
+  // by both the exploring panel and setup — the counts are small in both, and
+  // during setup they are smallest of all.
+  function tileFitNote(deadEndHtml) {
+    const fits = tileFits();
     if (!fits) return "";
     const here = fits.byRot[sub.tileRotation].size;
     if (here) {
@@ -3356,9 +3402,14 @@ const UI = (() => {
         Turn it to <strong>${angles.join(" or ")}</strong>/6 and
         ${fits.anyRot.size} space${fits.anyRot.size === 1 ? "" : "s"} open up.</span>`;
     }
-    return `<br><span class="wiz-note" style="color:#ef5350">This tile has nowhere to go
+    return deadEndHtml || `<br><span class="wiz-note" style="color:#ef5350">This tile fits
+      nowhere on the board, at any angle.</span>`;
+  }
+
+  function exploreFitNote() {
+    return tileFitNote(`<br><span class="wiz-note" style="color:#ef5350">This tile has nowhere to go
       from here, at any angle. Terra p12: it goes back on top of the stack and the
-      expedition ends — use <strong>Nowhere it fits</strong>.</span>`;
+      expedition ends — use <strong>Nowhere it fits</strong>.</span>`);
   }
 
   function renderExploring() {
