@@ -425,6 +425,24 @@
       }
 
       {
+        // A district is a control marker, so it picks up the resource token on
+        // its space like any other. It used to leave the token sitting on the
+        // map underneath itself, where nothing could ever collect it again.
+        const st = rulesState();
+        const me = st.players[0];
+        me.focusRow = ["growth", "culture", "science", "economy", "military", "industry"];
+        activate(st, "0,0", { city: { ownerId: me.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
+        activate(st, "1,0", { resource: "marble" });
+        const before = me.resources.marble;
+        Game.applyAction(st, { type: "PLAY_GROWTH_DISTRICT",
+          payload: { playerId: me.id, hexKey: "1,0", district: "campus", tradeSpent: 0 } });
+        assert("a district collects the resource token on its space",
+          me.resources.marble === before + 1);
+        assert("and the space stops carrying it",
+          st.map.hexes["1,0"].resource === null && !!st.map.hexes["1,0"].control);
+      }
+
+      {
         // Early Empire's printed requirement is adjacency to a friendly CITY.
         // A friendly control token must never extend that placement range.
         const st = rulesState();

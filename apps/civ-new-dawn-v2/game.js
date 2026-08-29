@@ -1325,6 +1325,16 @@ const Game = (() => {
       // growth card buy reinforcements (Terra p8), not rougher ground.
       const growthSlot = getSlotValue(player, "growth", st);
       if (placementDifficulty(st, hex, player, "district") > growthSlot) return st;
+      // A district is a control marker, so it collects the resource token on
+      // its space exactly as a plain one does (PLAY_CULTURE and the
+      // place_control choice both already do this). Without it the token was
+      // neither taken nor cleared: it stayed on the map under the district,
+      // uncollectable for the rest of the game, and the space could never pay
+      // out again.
+      if (hex.resource && hex.resource !== "wonder") {
+        if (player.resources[hex.resource] !== undefined) player.resources[hex.resource]++;
+        hex.resource = null;
+      }
       hex.control = { ownerId: payload.playerId, fortified: false, district: payload.district };
       // "...whether or not the card's effect was used to reinforce control
       // tokens" — so the tokens still buy reinforcements after a district.

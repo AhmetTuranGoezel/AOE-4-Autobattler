@@ -3491,6 +3491,127 @@ const UI = (() => {
     </div>`;
   }
 
+  // One city-state, in full. Opened by clicking it on the board, because the
+  // thing you want to know about a city-state — what trading there actually
+  // buys you — was only ever a line in the diplomacy panel's tail.
+  function renderCityStateRef(name) {
+    const data = (Game.CITY_STATE_DATA || {})[name] || {};
+    const me = Game.getPlayer(state, localPlayerId);
+    let atKey = null, left = null;
+    Object.entries(state.map.hexes).forEach(([k, h]) => {
+      if (h.cityState && h.cityState.name === name) {
+        atKey = k;
+        left = h.cityState.diplomacyCards;
+      }
+    });
+    const held = ((me && me.diplomacy) || []).filter((d) => d.fromCityState === name).length;
+    const face = window.CivCardArt ? CivCardArt.cityStateCard(name) : "";
+    const token = window.CivCardArt ? CivCardArt.cityStateToken(name) : "";
+    const type = data.type || "culture";
+    return `<div class="ref-card">
+      <button class="detail-close" id="ref-close" aria-label="Close">✕</button>
+      <h2 class="ref-title">${escapeHtml(name)}</h2>
+      <p class="ref-lede">A caravan that reaches a city-state goes back to its economy
+        card and brings home <strong>2 trade tokens on the matching card</strong> plus
+        <strong>one of the city-state's diplomacy cards</strong>. Two copies of each exist,
+        and no two caravans may arrive in the same turn.</p>
+      <div class="cs-detail">
+        ${face ? `<img class="cs-face" src="${escapeHtml(face)}" alt="${escapeHtml(name)} city-state card" draggable="false">` : ""}
+        <div class="cs-copy">
+          <div class="cs-row"><span>Type</span>
+            <b class="cs-type type-${escapeHtml(type)}">${token ? `<img class="cs-token" src="${escapeHtml(token)}" alt="" draggable="false">` : ""}${escapeHtml(Game.FOCUS_LABELS[type] || type)}</b></div>
+          <div class="cs-row"><span>Trading here pays</span><b>2 trade on your ${escapeHtml(Game.FOCUS_LABELS[type] || type)} card</b></div>
+          <div class="cs-row"><span>Its diplomacy card</span><b>${escapeHtml(data.diplomacy || "—")}</b></div>
+          <div class="cs-row"><span>Copies left</span><b>${left === null ? "—" : left}${held ? ` · you hold ${held}` : ""}</b></div>
+          <div class="cs-row"><span>On the board</span><b>${atKey ? escapeHtml(atKey) : "not in play"}</b></div>
+          ${atKey ? `<button class="wcard-goto" data-hex="${escapeHtml(atKey)}">show me</button>` : ""}
+        </div>
+      </div>
+    </div>`;
+  }
+
+  // Everyone's tableau side by side. The board shows whose pieces are whose,
+  // but what a rival's cards actually resolve at — and what is propping those
+  // numbers up — was private to each client, so you could not see a rival
+  // about to out-produce you until it happened.
+  function renderPlayersRef() {
+    const wondersOf = {};
+    Object.values(state.map.hexes).forEach((h) => {
+      if (h.city && h.city.wonder) {
+        (wondersOf[h.city.ownerId] = wondersOf[h.city.ownerId] || []).push(h.city.wonder);
+      }
+    });
+
+    let html = `<div class="ref-card">
+      <button class="detail-close" id="ref-close" aria-label="Close">✕</button>
+      <h2 class="ref-title">Players</h2>
+      <p class="ref-lede">Every focus row, at the number it actually resolves at.
+        A card's place in the row is its base; a government marker, and the wonders
+        and diplomacy cards listed under each player, move it further right.</p>`;
+
+    state.players.forEach((p) => {
+      const lead = Game.getLeader ? Game.getLeader(p) : null;
+      const isMe = p.id === localPlayerId;
+      const active = Game.currentPlayer(state) && Game.currentPlayer(state).id === p.id;
+      const res = Object.entries(p.resources || {}).filter(([, v]) => v > 0);
+      const dip = p.diplomacy || [];
+      const won = wondersOf[p.id] || [];
+
+      html += `<div class="pl-block${active ? " active" : ""}">
+        <div class="pl-head">
+          <span class="dot" style="background:${escapeHtml(p.color)}"></span>
+          <b>${escapeHtml(p.name)}${isMe ? " (you)" : ""}</b>
+          ${lead ? `<span class="pl-civ">${escapeHtml(lead.civ)} · ${escapeHtml(lead.name)}</span>` : ""}
+          ${active ? `<span class="pl-turn">to move</span>` : ""}
+          <span class="pl-score">Score ${Game.computeScore(state, p.id)}</span>
+        </div>
+        ${lead ? `<p class="pl-ability">${escapeHtml(lead.ability.text)}</p>` : ""}
+        <div class="pl-row">`;
+
+      // The row in play order, each card at its effective slot.
+      p.focusRow.forEach((type) => {
+        const slot = Game.getSlotValue(p, type, state);
+        const tier = Game.getCardTier(p, type);
+        const name = Game.getCardName ? Game.getCardName(p, type) : type;
+        const gov = p.government === type ? (Game.GOVERNMENTS || {})[type] : null;
+        const trade = (p.trade || {})[type] || 0;
+        return html += `<div class="pl-card type-${type}${gov ? " has-gov" : ""}" title="${escapeHtml(name)}">
+          <span class="pl-slot">${slot}</span>
+          <span class="pl-ico">${Game.CARD_ICONS[type] || ""}</span>
+          <span class="pl-type">${escapeHtml(Game.FOCUS_LABELS[type] || type)}</span>
+          <span class="pl-tier">${TIER_ROMAN[tier - 1] || tier}</span>
+          <span class="pl-trade">${trade ? "●".repeat(trade) : "·"}</span>
+          ${gov ? `<span class="pl-gov" title="${escapeHtml(gov.name)}: resolves ${gov.shift} places further right">${escapeHtml(gov.name)}</span>` : ""}
+        </div>`;
+      });
+
+      html += `</div><div class="pl-facts">
+        <div><span>Tech</span><b>${p.tech || 0}/24 · tier ${p.techTier || 1}</b></div>
+        <div><span>Armies / Caravans</span><b>${p.armies.length} / ${p.caravans.length}</b></div>
+        <div><span>Cities</span><b>${Game.countCities(state, p.id)}${Game.countDeveloped ? ` (${Game.countDeveloped(state, p.id)} mature)` : ""}</b></div>
+        <div><span>Control markers</span><b>${Game.countControl(state, p.id)}</b></div>
+        <div><span>Resources</span><b>${res.length ? res.map(([k, v]) => `${escapeHtml(k)} ×${v}`).join(", ") : "none"}</b></div>
+        <div><span>Government</span><b>${p.government ? escapeHtml(((Game.GOVERNMENTS || {})[p.government] || {}).name || p.government) : "none yet"}</b></div>
+      </div>`;
+
+      html += `<div class="pl-lists">
+        <div><span class="pl-sub">Wonders (${won.length})</span>${won.length
+          ? won.map((w) => `<div class="pl-item"><b>${escapeHtml(w.name)}</b><em>${escapeHtml(w.effect || "")}</em></div>`).join("")
+          : `<div class="pl-none">none</div>`}</div>
+        <div><span class="pl-sub">Diplomacy (${dip.length})</span>${dip.length
+          ? dip.map((d) => {
+              const from = d.fromCityState ? d.fromCityState
+                : (Game.getPlayer(state, d.fromId) || {}).name || "a rival";
+              return `<div class="pl-item"><b>${escapeHtml(d.name || d.cardId)}</b>
+                <em>from ${escapeHtml(from)} — ${escapeHtml(d.effect || "")}</em></div>`;
+            }).join("")
+          : `<div class="pl-none">none</div>`}</div>
+      </div></div>`;
+    });
+
+    return html + `</div>`;
+  }
+
   function renderDiplomacyRef() {
     const me = Game.getPlayer(state, localPlayerId);
     const cards = Game.DIPLOMACY_CARDS || {};
@@ -3688,6 +3809,8 @@ const UI = (() => {
       body.innerHTML = which === "wonders" ? renderWondersRef()
         : which === "civ" ? renderCivRef()
         : which === "victory" ? renderVictoryRef()
+        : which === "players" ? renderPlayersRef()
+        : which === "citystate" ? renderCityStateRef(arg)
         : renderDiplomacyRef();
     } catch (err) {
       body.innerHTML = `<div class="ref-card"><button class="detail-close" id="ref-close">\u2715</button>
@@ -3710,6 +3833,7 @@ const UI = (() => {
   function initReference() {
     const overlay = document.getElementById("reference");
     document.getElementById("btn-wonders")?.addEventListener("click", () => openReference("wonders"));
+    document.getElementById("btn-players")?.addEventListener("click", () => openReference("players"));
     document.getElementById("btn-diplomacy")?.addEventListener("click", () => openReference("diplomacy"));
     document.getElementById("btn-civ")?.addEventListener("click", () => openReference("civ"));
     overlay?.addEventListener("click", (e) => { if (e.target === overlay) overlay.classList.add("hidden"); });
@@ -4202,6 +4326,12 @@ const UI = (() => {
       }});
       resetSub(); return;
     }
+
+    // Nothing was waiting on the click. A city-state is the one space on the
+    // board whose whole point is an effect you cannot see, so clicking it opens
+    // the card rather than doing nothing.
+    const idleHex = state.map.hexes[hexKey];
+    if (idleHex && idleHex.cityState) openReference("citystate", idleHex.cityState.name);
   }
 
   // ── Gov Picker ────────────────────────────────────────────

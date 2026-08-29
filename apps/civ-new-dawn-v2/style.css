@@ -1235,6 +1235,82 @@ input, select {
 .wcard.st-built { opacity: 0.9; }
 .wcard.st-top { box-shadow: 0 0 0 1px rgba(255, 213, 79, 0.5), 0 6px 18px rgba(0, 0, 0, 0.45); }
 
+/* --- One city-state, opened by clicking it on the board ------------------ */
+.cs-detail { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+.cs-face {
+  flex: 0 1 300px; max-width: 300px; width: 100%; height: auto;
+  border-radius: 8px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+}
+.cs-copy { flex: 1 1 280px; min-width: 240px; display: flex; flex-direction: column; gap: 8px; }
+.cs-row {
+  display: flex; gap: 10px; align-items: baseline; justify-content: space-between;
+  padding-bottom: 7px; border-bottom: 1px solid var(--border);
+}
+.cs-row > span {
+  flex: none; font-size: 10px; letter-spacing: 0.07em; text-transform: uppercase;
+  color: var(--text2);
+}
+.cs-row > b { text-align: right; font-size: 12.5px; line-height: 1.45; color: var(--text); }
+.cs-type { display: inline-flex; align-items: center; gap: 6px; }
+.cs-token { width: 26px; height: 26px; object-fit: contain; }
+
+/* --- Every player's tableau, side by side -------------------------------- */
+.pl-block {
+  margin-bottom: 16px; padding: 12px 14px;
+  border: 1px solid var(--border); border-radius: 10px;
+  background: rgba(255, 255, 255, 0.025);
+}
+.pl-block.active { border-color: rgba(255, 213, 79, 0.55); background: rgba(255, 213, 79, 0.05); }
+.pl-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pl-head b { font-size: 15px; }
+.pl-civ { color: var(--accent2); font-size: 11px; }
+.pl-turn {
+  padding: 1px 7px; border-radius: 999px; font-size: 9px; text-transform: uppercase;
+  letter-spacing: 0.08em; background: rgba(255, 213, 79, 0.18); color: #ffd54f;
+}
+.pl-score { margin-left: auto; color: var(--text2); font-size: 11px; }
+.pl-ability { margin: 6px 0 0; color: var(--text2); font-size: 11px; line-height: 1.45; font-style: italic; }
+.pl-row { display: flex; gap: 6px; margin: 10px 0; flex-wrap: wrap; }
+.pl-card {
+  flex: 1 1 96px; min-width: 92px;
+  display: grid; grid-template-columns: auto 1fr auto; gap: 2px 5px; align-items: center;
+  padding: 6px 8px; border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.1); border-top-width: 3px;
+  background: rgba(0, 0, 0, 0.26);
+}
+.pl-card.has-gov { box-shadow: 0 0 0 1px rgba(255, 213, 79, 0.5); }
+.pl-slot { grid-row: span 2; font: 800 20px/1 Georgia, serif; color: #fff2c8; }
+.pl-ico { font-size: 12px; }
+.pl-type { font-size: 10px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text2); }
+.pl-tier { font-size: 10px; font-weight: 700; color: var(--accent2); }
+.pl-trade { grid-column: 2 / -1; font-size: 9px; color: #ffd54f; letter-spacing: 1px; }
+.pl-gov {
+  grid-column: 1 / -1; margin-top: 3px; padding: 1px 5px; border-radius: 4px;
+  background: rgba(255, 213, 79, 0.16); color: #ffd54f; font-size: 9px; text-align: center;
+}
+.pl-card.type-culture  { border-top-color: #ab47bc; }
+.pl-card.type-growth   { border-top-color: #388e3c; }
+.pl-card.type-science  { border-top-color: #0288d1; }
+.pl-card.type-economy  { border-top-color: #f57c00; }
+.pl-card.type-military { border-top-color: #d32f2f; }
+.pl-card.type-industry { border-top-color: #8d6e63; }
+.pl-facts {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px 14px;
+  padding: 9px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+}
+.pl-facts > div { display: flex; flex-direction: column; gap: 1px; }
+.pl-facts span { font-size: 9px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text2); }
+.pl-facts b { font-size: 12px; color: var(--text); }
+.pl-lists { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin-top: 9px; }
+.pl-sub {
+  display: block; margin-bottom: 4px;
+  font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text2);
+}
+.pl-item { margin-bottom: 5px; font-size: 11px; line-height: 1.4; }
+.pl-item b { color: #fff2c8; }
+.pl-item em { display: block; color: var(--text2); font-size: 10.5px; }
+.pl-none { color: var(--text2); font-size: 11px; font-style: italic; }
+
 .wcard.type-culture  .wcard-top { background: linear-gradient(120deg, #7b1fa2, #ab47bc); }
 .wcard.type-growth   .wcard-top { background: linear-gradient(120deg, #1b5e20, #388e3c); }
 .wcard.type-science  .wcard-top { background: linear-gradient(120deg, #01579b, #0288d1); }
