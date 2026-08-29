@@ -445,12 +445,25 @@ def cutout(rel_path, tol=26):
 def hexify(rel_path):
     """Store a token as a clean pointy-top hex with upright printed content.
 
-    The fortress and city-state scans are flat-top. The old converter rotated
-    their entire photograph by 90 degrees: the outline then fitted, but names,
-    type crests and buildings all pointed east or west. For those faces we
-    reshape the cardboard boundary into the canvas' pointy-top bounding box
-    before masking it. Districts already have the right orientation and only
-    need fitting and masking.
+    The fortress and city-state scans are flat-top hexagons — 434x375 is 2:sqrt3
+    to the pixel. The board draws pointy-top, so those have to be reconciled,
+    and the two obvious ways are both wrong:
+
+      * Rotating the photograph 90 degrees fits the outline but lays the castle,
+        the type crest and the printed name on their side.
+      * Stretching the flat-top photo to a pointy-top bounding box keeps the
+        print upright but does NOT change which way the hexagon points: a
+        flat-top hexagon stretched vertically is a taller flat-top hexagon. The
+        pointy-top mask then cut the corners off a shape it did not match, and
+        every one of these thirteen tokens came out an OCTAGON with notches at
+        left and right.
+
+    A hexagon cannot be reshaped into the other orientation by scaling at all,
+    so nothing is reshaped. The flat-top photo is centre-cropped to the
+    pointy-top hexagon that fits inside it, which is exactly the same height and
+    3/4 of the width — 12.5% comes off each side, where the artwork on these
+    tokens is background. The print stays upright, unstretched, and the outline
+    is a real hexagon that tiles with its neighbours.
     """
     try:
         from PIL import Image, ImageDraw
@@ -463,10 +476,13 @@ def hexify(rel_path):
     if box:
         im = im.crop(box)
 
-    # Flat-top is wider than tall. Keep the print upright and reshape only its
-    # bounding box; rotating the photo would put labels and buildings sideways.
+    # Flat-top is wider than tall. A flat-top hex of circumradius R stands
+    # sqrt3*R tall; the tallest pointy-top hex inside it has that same height,
+    # so only the width is trimmed.
     if im.width > im.height * 1.05:
-        im = im.resize((im.width, int(round(im.width * 2 / math.sqrt(3)))), Image.LANCZOS)
+        keep = min(im.width, int(round(im.height * math.sqrt(3) / 2)))
+        left = (im.width - keep) // 2
+        im = im.crop((left, 0, left + keep, im.height))
 
     # Fit the widest pointy-top hex inside what we have, then mask to it. A
     # pointy-top hex of height h is h*sqrt(3)/2 across.
