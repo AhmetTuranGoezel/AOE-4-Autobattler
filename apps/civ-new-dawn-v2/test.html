@@ -139,6 +139,11 @@
       dup = Game.applyAction(dup, { type: "ADD_PLAYER", payload: Game.createPlayer("d2", "D2", "#169eae") });
       assert("asking for a taken colour gets the next free one",
         dup.players[0].color === "#169eae" && dup.players[1].color !== "#169eae");
+      const notReady = Game.applyAction(lob, { type: "START_GAME", payload: { playerId: lob.players[0].id } });
+      assert("a multiplayer lobby waits until every seat is ready", notReady.phase === "lobby");
+      lob.players.forEach((player) => {
+        lob = Game.applyAction(lob, { type: "SET_READY", payload: { playerId: player.id, ready: true } });
+      });
       lob = Game.applyAction(lob, { type: "START_GAME", payload: { playerId: lob.players[0].id } });
       assert("START_GAME builds a four-player setup", lob.phase === "setup" && lob.setup.phase === "fortress" && lob.setup.order.length === 4);
       let midGame = Game.createState(players(2));
@@ -156,6 +161,9 @@
       assert("SET_LEADER applies civ and focus order", ldr.players[0].leaderId === "rome" && ldr.players[0].focusRow[5] === "industry");
       ldr = Game.applyAction(ldr, { type: "SET_LEADER", payload: { playerId: ldrB, leaderId: "rome" } });
       assert("duplicate civ pick rejected", ldr.players[1].leaderId !== "rome");
+      ldr.players.forEach((player) => {
+        ldr = Game.applyAction(ldr, { type: "SET_READY", payload: { playerId: player.id, ready: true } });
+      });
       ldr = Game.applyAction(ldr, { type: "START_GAME", payload: { playerId: ldrA } });
       assert("random civs dealt at start", ldr.players.every((p) => p.leaderId && p.leaderId !== "random"));
       const plain = Game.createPlayer("pp", "P", "#fff");
@@ -383,6 +391,17 @@
       Game.migrateState(oldSave);
       assert("save migration initializes Terra fields", oldSave.rulesVersion && oldSave.wonderDecks && oldSave.agendaCards && oldSave.players[0].caravans.length === 1);
       assert("save migration normalizes city wonder state", !!oldSave.map.hexes["0,0"].city.wonder);
+      assert("save schema is separate and migrates to v2", oldSave.saveSchemaVersion === 2);
+      assert("a save with unrecoverable hidden stacks opens read-only",
+        oldSave.migrationStatus && oldSave.migrationStatus.readOnly);
+      const migratedOnce = JSON.stringify(oldSave);
+      Game.migrateState(oldSave);
+      assert("save migrations are deterministic and idempotent", JSON.stringify(oldSave) === migratedOnce);
+      Game.applyAction(oldSave, { type: "HOST_EDIT_HEX", payload: {
+        hexKey: "0,0", changes: { terrain: "mountain" }
+      } });
+      assert("a save with lost hidden state stays read-only even offline",
+        oldSave.map.hexes["0,0"].terrain === "grass");
 
 
       // --- Rulebook conformance: trade tokens, combat, unit counts ----------
@@ -408,6 +427,194 @@
           barbarian: false, cityState: null, fortress: false, resource: null, naturalWonder: null
         }, props || {});
         return st.map.hexes[k];
+      }
+
+      // --- Transactional multiplayer boundary -----------------------------
+      {
+        const st = rulesState();
+        const [current, other] = st.players;
+        const untouched = JSON.stringify(st);
+        const forged = Game.tryApplyAction(st, {
+          type: "PLAY_SCIENCE",
+          payload: { playerId: current.id, hostOverride: true, amount: 1, tradeSpent: 0 }
+        }, { actorId: other.id, role: "player" });
+        assert("a forged player id and hostOverride cannot steal the active turn",
+          !forged.accepted && forged.code === "not_your_turn");
+        assert("a rejected transaction leaves its input byte-for-byte untouched",
+          forged.state === st && JSON.stringify(st) === untouched);
+
+        const own = Game.tryApplyAction(st, {
+          type: "PLAY_SCIENCE",
+          payload: { playerId: other.id, amount: 1, tradeSpent: 0 }
+        }, { actorId: current.id, role: "player" });
+        assert("the authenticated seat replaces a spoofed payload player id",
+          own.accepted && own.state.players[0].tech === 1 && st.players[0].tech === 0);
+
+        const fakeHost = Game.tryApplyAction(st, {
+          type: "HOST_EDIT_HEX", payload: { hexKey: "0,0", changes: { terrain: "forest" } }
+        }, { actorId: current.id, role: "player" });
+        assert("host correction tools reject an ordinary seat", !fakeHost.accepted && fakeHost.code === "host_only");
+      }
+
+      {
+        const st = rulesState();
+        const [owner, intruder] = st.players;
+        st.pendingChoices = [{
+          id: "private-choice", kind: "gain_resource", playerId: owner.id,
+          title: "Secret decision", options: [{ id: "oil", label: "oil" }]
+        }];
+        const stolen = Game.tryApplyAction(st, {
+          type: "RESOLVE_PENDING_CHOICE",
+          payload: { playerId: owner.id, hostOverride: true, choiceId: "private-choice", optionId: "oil" }
+        }, { actorId: intruder.id, role: "player" });
+        assert("only a pending choice's owner can resolve it",
+          !stolen.accepted && stolen.code === "choice_owner_mismatch");
+
+        const none = Game.tryApplyAction(st, {
+          type: "ADD_TRADE", payload: { cardType: "science", amount: 99 }
+        }, { actorId: owner.id, role: "player" });
+        assert("ADD_TRADE requires an open barbarian reward", !none.accepted && none.code === "no_barbarian_reward");
+        st.pendingBarbReward = { playerId: owner.id };
+        const reward = Game.tryApplyAction(st, {
+          type: "ADD_TRADE", payload: { cardType: "science", amount: 99 }
+        }, { actorId: owner.id, role: "player" });
+        const replay = Game.tryApplyAction(reward.state, {
+          type: "ADD_TRADE", payload: { cardType: "science", amount: 1 }
+        }, { actorId: owner.id, role: "player" });
+        assert("a barbarian reward grants exactly one token and is consumed once",
+          reward.accepted && reward.state.players[0].trade.science === 1 &&
+          !reward.state.pendingBarbReward && !replay.accepted);
+      }
+
+      {
+        const hidden = Game.createState(players(2), { advancedDraft: true });
+        const [viewer, rival] = hidden.players;
+        hidden.turnUndo = { playerId: viewer.id, snapshot: { future: "host-only" } };
+        hidden.pendingChoices = [
+          { id: "mine", playerId: viewer.id, kind: "gain_resource", options: [{ id: "oil" }] },
+          { id: "theirs", playerId: rival.id, kind: "gain_resource", options: [{ id: "diamonds" }] }
+        ];
+        const rivalDraftId = hidden.setup.draftTiles[rival.id][0];
+        const view = Game.projectState(hidden, viewer.id);
+        const deckView = Object.values(view.wonderDecks)[0];
+        assert("state projection removes the host undo snapshot", !("turnUndo" in view));
+        assert("state projection hides the future map tile order",
+          !("tileDeck" in view) && view.tileDeckCount === hidden.tileDeck.length);
+        assert("state projection keeps only the viewer's setup hand",
+          view.setup.draftTiles[viewer.id].some((id) => id) &&
+          !view.setup.draftTiles[rival.id] &&
+          view.setup.draftTilesCounts[rival.id] === hidden.setup.draftTiles[rival.id].length &&
+          view.setup.tiles[rivalDraftId].isCore === false);
+        assert("state projection exposes only a wonder deck's face-up card and count",
+          !("deck" in deckView) && deckView.remainingCount > 0 && !!deckView.revealed);
+        assert("foreign pending choices expose owner and neutral status only",
+          view.pendingChoices[0].options.length === 1 &&
+          !view.pendingChoices[1].options && view.pendingChoices[1].status === "pending");
+        Game.migrateState(view);
+        assert("a projected state remains a view instead of inventing hidden stacks",
+          view.stateView && !("tileDeck" in view) && !view.migrationStatus);
+
+        hidden.log = Array.from({ length: 520 }, (_, i) => `log-${i}`);
+        hidden.chat = Array.from({ length: 120 }, (_, i) => ({ text: `chat-${i}` }));
+        Game.migrateState(hidden);
+        assert("long games retain only the latest 500 log and 100 chat entries",
+          hidden.log.length === 500 && hidden.chat.length === 100 &&
+          hidden.log[0] === "log-20" && hidden.chat[0].text === "chat-20");
+      }
+
+      {
+        const st = rulesState();
+        const [attacker, defender] = st.players;
+        st.combat = {
+          attackerId: attacker.id, defenderOwnerId: defender.id,
+          attackerLabel: attacker.name, defenderLabel: defender.name,
+          atkBase: 1, defBase: 1, atkRoll: 0, defRoll: 0,
+          atkRolled: false, defRolled: false, rolled: false,
+          atkTrade: 0, defTrade: 0, turn: "attacker", history: []
+        };
+        const wrong = Game.tryApplyAction(st, {
+          type: "COMBAT_ROLL", payload: { side: "attacker", hostOverride: true }
+        }, { actorId: defender.id, role: "player" });
+        const right = Game.tryApplyAction(st, {
+          type: "COMBAT_ROLL", payload: { side: "attacker", playerId: defender.id }
+        }, { actorId: attacker.id, role: "player" });
+        assert("only the correct combat participant may roll",
+          !wrong.accepted && wrong.code === "combat_actor_mismatch" && right.accepted && right.state.combat.atkRolled);
+      }
+
+      {
+        function explorationState() {
+          const st = rulesState();
+          const player = st.players[0];
+          st.tiles = st.setup.tiles;
+          st.tileStack = st.setup.tileStack.slice();
+          st.tileDeck = st.tileStack.slice();
+          const origin = Object.keys(st.map.hexes).find((hexKey) => {
+            const hex = st.map.hexes[hexKey];
+            return hex.active && Game.hexNeighborKeys(hex.q, hex.r)
+              .some((neighbor) => !st.map.hexes[neighbor] || !st.map.hexes[neighbor].active);
+          });
+          const hex = st.map.hexes[origin];
+          hex.city = { ownerId: player.id, isCapital: true, developed: false, hasWonder: false, wonder: null };
+          player.armies = [{ id: "network-explorer", position: origin }];
+          return { st, player, origin };
+        }
+
+        const first = explorationState();
+        const legacy = Game.tryApplyAction(first.st, {
+          type: "EXPLORE_TILE", payload: { fromKey: first.origin }
+        }, { actorId: first.player.id, role: "player" });
+        assert("online exploration refuses the legacy reveal-and-place packet",
+          !legacy.accepted && legacy.code === "exploration_protocol_required");
+
+        const begun = Game.tryApplyAction(first.st, {
+          type: "BEGIN_EXPLORATION", payload: { fromKey: first.origin, unitId: "network-explorer" }
+        }, { actorId: first.player.id, role: "player" });
+        assert("begin exploration publishes one retained tile and locks undo",
+          begun.accepted && begun.state.pendingExploration &&
+          begun.state.pendingExploration.kind === "map_tile" &&
+          begun.state.tileStack.length === first.st.tileStack.length - 1 &&
+          !Game.getUndoStatus(begun.state, first.player.id).canUndo);
+
+        const premature = Game.tryApplyAction(begun.state, {
+          type: "ABANDON_EXPLORATION", payload: {}
+        }, { actorId: first.player.id, role: "player" });
+        assert("nowhere-it-fits is rejected while either face fits at any rotation",
+          !premature.accepted &&
+          Game.canAbandonExploration(begun.state, first.player.id).code === "tile_still_fits");
+
+        let placement = null;
+        const pending = begun.state.pendingExploration;
+        for (const side of ["A", "B"]) {
+          for (let rotation = 0; rotation < 6 && !placement; rotation++) {
+            for (const anchorKey of Object.keys(begun.state.map.hexes)) {
+              if (!Game.validateExploration(begun.state, pending.tileId, anchorKey, rotation).ok) continue;
+              const touches = Game.getTileHexKeys(anchorKey, rotation, begun.state.map.hexes)
+                .some((cell) => Game.hexNeighborKeys(Game.parseQ(cell), Game.parseR(cell)).includes(first.origin));
+              if (touches) { placement = { side, rotation, anchorKey }; break; }
+            }
+          }
+          if (placement) break;
+        }
+        const placed = Game.tryApplyAction(begun.state, {
+          type: "PLACE_EXPLORED_TILE", payload: placement
+        }, { actorId: first.player.id, role: "player" });
+        assert("a separately acknowledged explored tile can then be placed",
+          !!placement && placed.accepted && !placed.state.pendingExploration &&
+          placed.state.tiles[pending.tileId].placed);
+
+        const second = explorationState();
+        const secondBegun = Game.tryApplyAction(second.st, {
+          type: "BEGIN_EXPLORATION", payload: { fromKey: second.origin, unitId: "network-explorer" }
+        }, { actorId: second.player.id, role: "player" });
+        const noFitState = secondBegun.state;
+        Object.values(noFitState.map.hexes).forEach((hex) => { hex.active = true; });
+        const returnedId = noFitState.pendingExploration.tileId;
+        const abandoned = Game.tryApplyAction(noFitState, {
+          type: "ABANDON_EXPLORATION", payload: {}
+        }, { actorId: second.player.id, role: "player" });
+        assert("an actually unplaceable tile returns to the top after exhaustive checking",
+          abandoned.accepted && abandoned.state.tileStack[0] === returnedId && !abandoned.state.pendingExploration);
       }
 
       {

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Civ: New Dawn</title>
   <link rel="stylesheet" href="style.css">
-  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js" async></script>
+  <script src="vendor/peerjs-1.5.4.min.js"></script>
 </head>
 <body>
   <div id="app">
@@ -35,13 +35,19 @@
     </div>
 
     <!-- GAME -->
-    <div id="conn-banner" class="hidden">Connection lost...</div>
+    <div id="conn-banner" class="hidden" role="status" aria-live="polite">
+      <span id="conn-message">Connection lost...</span>
+      <button id="btn-net-retry" class="sm ghost hidden">Retry now</button>
+      <button id="btn-host-takeover" class="sm hidden">Take over host</button>
+    </div>
     <div id="game" class="panel-game hidden">
       <header id="header">
         <span id="hdr-title">Civ: New Dawn</span>
         <span id="hdr-room"></span>
+        <span id="net-status" class="net-status local" role="status" aria-live="polite">Local</span>
         <span id="hdr-round"></span>
         <span id="hdr-turn"></span>
+        <button id="btn-ready" class="sm ghost hidden">Ready</button>
         <button id="btn-undo" class="sm ghost" disabled title="Nothing to undo yet">↶ Undo Turn</button>
         <button id="btn-civ" class="sm">🛡 Civ</button>
         <button id="btn-wonders" class="sm">🏛 Wonders</button>
@@ -88,6 +94,7 @@
     </div>
   </div>
 
+  <script src="session-store.js"></script>
   <script src="net.js"></script>
   <script src="rules-data.js"></script>
   <script src="assets/art-data.js"></script>
