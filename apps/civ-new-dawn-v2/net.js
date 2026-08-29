@@ -10,6 +10,7 @@ const Net = (() => {
   let onDisconnect = null;
   let onConnected = null;
   let onChatReceived = null;
+  let onPresenceReceived = null;
 
   function init(callbacks) {
     onStateReceived = callbacks.onState || (() => {});
@@ -17,6 +18,7 @@ const Net = (() => {
     onDisconnect = callbacks.onDisconnect || (() => {});
     onConnected = callbacks.onConnected || (() => {});
     onChatReceived = callbacks.onChat || (() => {});
+    onPresenceReceived = callbacks.onPresence || (() => {});
   }
 
   function createRoom(callback) {
@@ -38,6 +40,13 @@ const Net = (() => {
         } else if (data.type === "chat") {
           onChatReceived(data.payload);
           connections.forEach((c) => { if (c.open && c !== conn) c.send({ type: "chat", payload: data.payload }); });
+        } else if (data.type === "presence") {
+          // What somebody is in the middle of doing — where their cursor is,
+          // the tile they are holding, the route they are tracing. It is not
+          // game state: the host shows it and passes it on, but never applies
+          // it, so a lost or stale presence packet can never affect the rules.
+          onPresenceReceived(data.payload);
+          connections.forEach((c) => { if (c.open && c !== conn) c.send({ type: "presence", payload: data.payload }); });
         }
       });
       conn.on("close", () => {
@@ -85,6 +94,8 @@ const Net = (() => {
         onStateReceived(data.payload);
       } else if (data.type === "chat") {
         onChatReceived(data.payload);
+      } else if (data.type === "presence") {
+        onPresenceReceived(data.payload);
       }
     });
     conn.on("close", () => {
@@ -126,8 +137,22 @@ const Net = (() => {
     }
   }
 
+  // Fire-and-forget: presence is a picture of right now, so a dropped packet
+  // costs nothing and there is no queue to drain. The host sends to everyone,
+  // a client sends to the host and the host relays.
+  function sendPresence(payload) {
+    if (!connections.length) return;
+    if (isHost) {
+      connections.forEach((c) => { if (c.open) c.send({ type: "presence", payload }); });
+    } else if (connections[0] && connections[0].open) {
+      connections[0].send({ type: "presence", payload });
+    }
+  }
+
   function getLocalId() { return localId; }
   function getIsHost() { return isHost; }
+  function getPeerCount() { return connections.length; }
 
-  return { init, createRoom, joinRoom, startLocal, broadcast, broadcastChat, sendAction, getLocalId, getIsHost };
+  return { init, createRoom, joinRoom, startLocal, broadcast, broadcastChat, sendAction,
+    sendPresence, getLocalId, getIsHost, getPeerCount };
 })();

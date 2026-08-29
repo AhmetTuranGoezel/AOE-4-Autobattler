@@ -118,6 +118,75 @@ const UI = (() => {
       : (state.setup.playerTiles[playerId] || []);
   }
 
+  // ── Live presence ─────────────────────────────────────────
+  //
+  // What everyone else is in the middle of doing, so the board reads like one
+  // table rather than several. Only committed actions go through dispatch();
+  // this carries the part before that — the hex under a cursor, the tile being
+  // turned over a spot, the route a figure is being walked along. It is never
+  // applied to the game, only drawn, so a late or lost packet cannot desync
+  // anything.
+  const presence = new Map();          // playerId -> last packet
+  const PRESENCE_STALE_MS = 8000;      // a player who stops sending fades out
+  let lastPresenceSent = "";
+  let lastPresenceAt = 0;
+
+  function presenceSnapshot() {
+    const me = Game.getPlayer(state, localPlayerId);
+    if (!me) return null;
+    const ms = sub.movementState;
+    const placing = placingTile();
+    const tileId = isExploring(sub.phase) ? exploringTileId()
+      : (state.phase === "setup" ? (setupHand(state, localPlayerId) || [])[0] : null);
+    return {
+      playerId: localPlayerId,
+      name: me.name,
+      color: me.color,
+      phase: sub.phase,
+      cardType: sub.cardType || null,
+      hover: mouseHex ? Game.key(mouseHex.q, mouseHex.r) : null,
+      // The tile in hand, at the angle they are holding it over the board.
+      ghost: (placing && mouseHex && tileId)
+        ? { tileId, anchor: Game.key(mouseHex.q, mouseHex.r), rotation: sub.tileRotation, side: sub.tileSide }
+        : null,
+      // A figure mid-walk: where it started, where it has got to, what is left.
+      route: ms ? { unitType: ms.unitType, startKey: ms.startKey, currentKey: ms.currentKey, remaining: ms.remaining } : null
+    };
+  }
+
+  function publishPresence(force) {
+    if (!state || !localPlayerId || !Net.getPeerCount()) return;
+    const snap = presenceSnapshot();
+    if (!snap) return;
+    const now = performance.now();
+    const encoded = JSON.stringify(snap);
+    // Throttled, and silent when nothing has changed — a cursor crossing the
+    // board would otherwise flood the channel at screen refresh rate.
+    if (!force && encoded === lastPresenceSent) return;
+    if (!force && now - lastPresenceAt < 90) return;
+    lastPresenceSent = encoded;
+    lastPresenceAt = now;
+    snap.at = Date.now();
+    Net.sendPresence(snap);
+  }
+
+  function receivePresence(packet) {
+    if (!packet || !packet.playerId || packet.playerId === localPlayerId) return;
+    packet.seen = performance.now();
+    presence.set(packet.playerId, packet);
+    renderCanvas();
+    renderPresenceStrip();
+  }
+
+  function livePresence() {
+    const out = [];
+    presence.forEach((p, id) => {
+      if (performance.now() - p.seen > PRESENCE_STALE_MS) { presence.delete(id); return; }
+      out.push(p);
+    });
+    return out;
+  }
+
   // Animation system
   const anims = {
     hexFlashes: [],  // { key, color, startTime, duration }
@@ -317,7 +386,8 @@ const UI = (() => {
         showToast("Connection lost");
       },
       onConnected: () => { if (Net.getIsHost() && state) Net.broadcast(state); },
-      onChat: (msg) => { chatHistory.push(msg); renderLog(); }
+      onChat: (msg) => { chatHistory.push(msg); renderLog(); },
+      onPresence: receivePresence
     });
 
     document.getElementById("chat-send").addEventListener("click", () => {
@@ -714,6 +784,10 @@ const UI = (() => {
     // Layer 6: Ghost tile
     if (ghostKeys.size > 0) drawGhostTile(ghostKeys, ghostValid);
 
+    // Layer 6b: everyone else, mid-thought. Drawn under the local ghost so your
+    // own tile is never hidden by a rival's cursor.
+    drawPresence(hexes);
+
     // The fortress follows the pointer as one neutral cardboard preview. It
     // deliberately has no green/red legality tint and reveals no other space.
     if (fortressGhostKey) {
@@ -1008,6 +1082,114 @@ const UI = (() => {
       ctx.fillStyle = "#ffe082";
       ctx.fillText("\u25c6", cx, cy);
     }
+  }
+
+  // Plain-language for what somebody is doing, from the sub-phase they sent.
+  const PRESENCE_VERB = {
+    card_selected: "choosing how to spend a card",
+    placing_control: "placing control markers",
+    growth_choice: "deciding on growth",
+    pick_district: "choosing a district",
+    placing_district: "placing a district",
+    reinforcing: "reinforcing markers",
+    reinforcing_after_district: "reinforcing markers",
+    move_caravan: "moving a caravan",
+    move_army: "moving an army",
+    move_army_post: "deciding after a march",
+    move_caravan_post: "deciding after a move",
+    move_army_exploring: "exploring",
+    move_caravan_exploring: "exploring",
+    free_exploring: "exploring",
+    placing_city: "founding a city",
+    picking_wonder: "choosing a wonder",
+    placing_wonder: "building a wonder",
+    choosing_target: "picking a target"
+  };
+
+  function presenceVerb(p) {
+    if (p.phase && PRESENCE_VERB[p.phase]) return PRESENCE_VERB[p.phase];
+    if (p.ghost) return "placing a tile";
+    if (p.cardType) return `resolving ${Game.FOCUS_LABELS[p.cardType] || p.cardType}`;
+    return "thinking";
+  }
+
+  // Another player's cursor, tile-in-hand and half-walked route, in their own
+  // colour. Everything here is a hint, never a target: none of it takes clicks.
+  function drawPresence(hexes) {
+    const others = livePresence();
+    if (!others.length) return;
+    others.forEach((p) => {
+      const color = p.color || "#fff";
+      ctx.save();
+
+      // The tile they are holding over a spot, as a dashed outline.
+      if (p.ghost && p.ghost.anchor) {
+        const keys = Game.getTileHexKeys(p.ghost.anchor, p.ghost.rotation || 0, hexes);
+        if (keys.length === Game.TILE_OFFSETS.length) {
+          ctx.globalAlpha = 0.5;
+          ctx.setLineDash([5, 4]);
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = color;
+          keys.forEach((k) => {
+            const h = hexes[k]; if (!h) return;
+            const q = axialToPixel(h.q, h.r);
+            hexPath(q.x, q.y, HEX_SIZE - 1.5);
+            ctx.stroke();
+          });
+          ctx.setLineDash([]);
+        }
+      }
+
+      // Where their figure has walked to, and the space it set out from.
+      if (p.route && p.route.currentKey) {
+        const cur = hexes[p.route.currentKey];
+        if (cur) {
+          const q = axialToPixel(cur.q, cur.r);
+          ctx.globalAlpha = 0.85;
+          ctx.lineWidth = 2.5;
+          ctx.strokeStyle = color;
+          hexPath(q.x, q.y, HEX_SIZE * 0.72);
+          ctx.stroke();
+        }
+        const from = p.route.startKey && hexes[p.route.startKey];
+        if (from && p.route.startKey !== p.route.currentKey && cur) {
+          const a = axialToPixel(from.q, from.r), b = axialToPixel(cur.q, cur.r);
+          ctx.globalAlpha = 0.45;
+          ctx.setLineDash([4, 4]);
+          ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+          ctx.setLineDash([]);
+        }
+      }
+
+      // The cursor itself, with a name tag so two rivals are never confused.
+      if (p.hover && hexes[p.hover]) {
+        const h = hexes[p.hover];
+        const q = axialToPixel(h.q, h.r);
+        ctx.globalAlpha = 0.9;
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = color;
+        hexPath(q.x, q.y, HEX_SIZE - 2);
+        ctx.stroke();
+        ctx.globalAlpha = 0.14;
+        ctx.fillStyle = color;
+        ctx.fill();
+
+        ctx.globalAlpha = 1;
+        const label = p.name || "player";
+        ctx.font = `600 ${Math.max(9, Math.round(HEX_SIZE * 0.34))}px system-ui, sans-serif`;
+        const w = ctx.measureText(label).width + 10;
+        const bx = q.x - w / 2, by = q.y - HEX_SIZE - 15;
+        roundRect(bx, by, w, 15, 7);
+        ctx.fillStyle = "rgba(10,12,22,0.85)"; ctx.fill();
+        ctx.lineWidth = 1.2; ctx.strokeStyle = color; ctx.stroke();
+        ctx.fillStyle = color;
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText(label, q.x, by + 8);
+      }
+      ctx.restore();
+    });
+    anims.living = true;   // keep repainting while anyone is moving about
   }
 
   function drawGhostTile(ghostKeys, valid) {
@@ -1463,6 +1645,7 @@ const UI = (() => {
       if (mouseHex) showTooltip(e.clientX, e.clientY, newKey);
       else hideTooltip();
       renderCanvas();
+      publishPresence();
     } else if (mouseHex) {
       dom.mapTooltip.style.left = (e.clientX + 14) + "px";
       dom.mapTooltip.style.top = (e.clientY + 14) + "px";
@@ -1484,6 +1667,9 @@ const UI = (() => {
   }
 
   function onCanvasMouseLeave() {
+    // Drop the cursor from everyone else's board when it leaves ours.
+    if (mouseHex) { mouseHex = null; publishPresence(true); }
+
     isPanning = false;
     panStart = null;
     mouseHex = null;
@@ -1789,6 +1975,7 @@ const UI = (() => {
     dom.game.classList.toggle("preplay", state.phase === "lobby" || state.phase === "setup");
     renderHeader();
     renderPlayers();
+    renderPresenceStrip();
     renderCanvas();
     renderWizard();
     decorateWizard();
@@ -1796,6 +1983,7 @@ const UI = (() => {
     renderEventWheel();
     renderCombatStage();
     renderBoardChip();
+    publishPresence();
     renderTableStrip();
     renderLog();
 
@@ -1883,6 +2071,22 @@ const UI = (() => {
       dom.hdrTurn.style.color = cp ? cp.color : "";
       if (state.tileStack) dom.hdrRoom.textContent = `Tiles: ${state.tileStack.length}`;
     }
+  }
+
+  // A line per player who is doing something right now, under the seat list.
+  function renderPresenceStrip() {
+    const strip = document.getElementById("presence-strip");
+    if (!strip) return;
+    const others = livePresence();
+    if (!others.length) { strip.innerHTML = ""; strip.classList.add("hidden"); return; }
+    strip.classList.remove("hidden");
+    strip.innerHTML = others.map((p) => `
+      <div class="pres-row">
+        <span class="dot" style="background:${escapeHtml(p.color || "#fff")}"></span>
+        <b>${escapeHtml(p.name || "player")}</b>
+        <span>${escapeHtml(presenceVerb(p))}</span>
+        ${p.hover ? `<em>${escapeHtml(p.hover)}</em>` : ""}
+      </div>`).join("");
   }
 
   function renderPlayers() {
