@@ -1028,6 +1028,202 @@
       }
 
       {
+        // Terra p9: "Each player resolves the abilities on their districts in
+        // the order of their choice." The five effects used to run in a fixed
+        // array order, so an encampment could never clear a barbarian off a
+        // space a theater square was about to want.
+        let st = rulesState();
+        const me = st.players[0];
+        activate(st, "0,0", { city: { ownerId: me.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
+        activate(st, "1,0", { terrain: "forest", control: { ownerId: me.id, fortified: false, district: "industrial" } });
+        activate(st, "2,0", { terrain: "grass", control: { ownerId: me.id, fortified: false, district: "theater" } });
+        activate(st, "3,0", { terrain: "grass" });
+
+        Game.resolveEvent(st, "district_event");
+        const order = (st.pendingChoices || []).find((c) => c.kind === "district_order");
+        assert("more than one kind of district is a choice of order", !!order);
+        if (order) {
+          assert("and it offers exactly the kinds you hold",
+            order.options.map((o) => o.id).sort().join(",") === "industrial,theater",
+            order.options.map((o) => o.id).join(","));
+          assert("with both still to resolve", order.remaining === 2);
+
+          // Take the theater square first - the opposite of the old fixed order.
+          const after = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: order.id, optionId: "theater" } });
+          assert("choosing one resolves it",
+            (after.pendingChoices || []).some((c) => c.kind === "place_control" && c.source === "theater"));
+          const next = (after.pendingChoices || []).find((c) => c.kind === "district_order");
+          assert("and the rest are asked again", !!next);
+          if (next) {
+            assert("without offering the one already done",
+              next.options.map((o) => o.id).join(",") === "industrial", next.options.map((o) => o.id).join(","));
+            const done = Game.applyAction(after, { type: "RESOLVE_PENDING_CHOICE", payload: {
+              playerId: me.id, choiceId: next.id, optionId: "industrial" } });
+            assert("and the last one ends the run",
+              !(done.pendingChoices || []).some((c) => c.kind === "district_order"));
+          }
+        }
+      }
+
+      {
+        // A district can be destroyed between the question and the answer - an
+        // encampment strike earlier in the same run can take the space.
+        // Answering must still spend the prompt, or the turn strands behind a
+        // question with no answer left. applyAction mutates in place, so this
+        // builds its own state rather than reusing one already driven above.
+        const st = rulesState();
+        const me = st.players[0];
+        activate(st, "0,0", { city: { ownerId: me.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
+        activate(st, "1,0", { terrain: "forest", control: { ownerId: me.id, fortified: false, district: "industrial" } });
+        activate(st, "2,0", { terrain: "grass", control: { ownerId: me.id, fortified: false, district: "theater" } });
+        Game.resolveEvent(st, "district_event");
+        const first = (st.pendingChoices || []).find((c) => c.kind === "district_order");
+        assert("the run started", !!first);
+        if (first) {
+          const mid = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: first.id, optionId: "theater" } });
+          const stale = (mid.pendingChoices || []).find((c) => c.kind === "district_order");
+          assert("a second district is still queued", !!stale);
+          if (stale) {
+            mid.map.hexes["1,0"].control = null;      // the industrial zone goes
+            const out = Game.applyAction(mid, { type: "RESOLVE_PENDING_CHOICE", payload: {
+              playerId: me.id, choiceId: stale.id, optionId: "industrial" } });
+            assert("answering for a district that has gone still clears the prompt",
+              !(out.pendingChoices || []).some((c) => c.id === stale.id));
+          }
+        }
+      }
+
+      {
+        // A single kind needs no decision - asking would be a prompt with one
+        // button on it.
+        const st = rulesState();
+        const me = st.players[0];
+        activate(st, "0,0", { city: { ownerId: me.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
+        activate(st, "1,0", { terrain: "forest", control: { ownerId: me.id, fortified: false, district: "industrial" } });
+        activate(st, "1,-1", { terrain: "forest" });
+        activate(st, "2,-1", { terrain: "forest" });
+        const before = st.players[0].trade.industry;
+        Game.resolveEvent(st, "district_event");
+        assert("one kind of district resolves without a prompt",
+          !(st.pendingChoices || []).some((c) => c.kind === "district_order"));
+        assert("and it actually paid out", st.players[0].trade.industry > before);
+      }
+
+      {
+        // Nubia: "After you reset your growth focus card, resolve the effect of
+        // any 1 of your districts." It used to hand over +1 trade of your
+        // choice, which is a different and usually much weaker thing.
+        let st = rulesState();
+        const me = st.players[0], foe = st.players[1];
+        me.leaderId = "nubia";
+        st.turn.index = st.turn.order.indexOf(me.id);
+        me.cardPlayed = false;
+        activate(st, "0,0", { city: { ownerId: me.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
+        // One of hers, and one of the rival's, to check she cannot reach theirs.
+        activate(st, "1,0", { terrain: "forest", control: { ownerId: me.id, fortified: false, district: "industrial" } });
+        activate(st, "2,0", { terrain: "grass", control: { ownerId: me.id, fortified: false, district: "theater" } });
+        activate(st, "3,0", { terrain: "grass", control: { ownerId: foe.id, fortified: false, district: "campus" } });
+        activate(st, "4,0", { terrain: "mountain", control: { ownerId: foe.id, fortified: false, district: null } });
+
+        // Growth resolves through reinforce or district placement; either one
+        // ends with the card reset, which is what Nubia's ability waits for.
+        st = Game.applyAction(st, { type: "PLAY_GROWTH_REINFORCE", payload: {
+          playerId: me.id, hexKeys: ["1,0"], tradeSpent: 0 } });
+        const pick = (st.pendingChoices || []).find((c) => c.kind === "district_order" && c.source === "Nubia");
+        assert("Nubia is asked which of her districts to resolve", !!pick, JSON.stringify((st.pendingChoices || []).map((c) => c.kind)));
+        if (pick) {
+          assert("and it is one district, not all of them", pick.remaining === 1);
+          assert("only her own are offered",
+            pick.options.map((o) => o.id).sort().join(",") === "industrial,theater",
+            pick.options.map((o) => o.id).join(","));
+          assert("the rival's campus is not on the list",
+            !pick.options.some((o) => o.id === "campus"));
+
+          // Taking one runs the REAL effect, and only one.
+          const took = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: pick.id, optionId: "theater" } });
+          assert("the district's own effect fires",
+            (took.pendingChoices || []).some((c) => c.kind === "place_control" && c.source === "theater"));
+          assert("and she is not asked for a second one",
+            !(took.pendingChoices || []).some((c) => c.kind === "district_order"));
+        }
+
+        // With no districts at all there is nothing to resolve and no prompt.
+        let bare = rulesState();
+        const n2 = bare.players[0];
+        n2.leaderId = "nubia";
+        bare.turn.index = bare.turn.order.indexOf(n2.id);
+        n2.cardPlayed = false;
+        activate(bare, "0,0", { city: { ownerId: n2.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
+        bare = Game.applyAction(bare, { type: "PLAY_GROWTH_REINFORCE", payload: {
+          playerId: n2.id, hexKeys: [], tradeSpent: 0 } });
+        assert("no districts means no Nubia prompt",
+          !(bare.pendingChoices || []).some((c) => c.source === "Nubia"));
+      }
+
+      {
+        // Flight IV prints: "They can move through spaces with unreinforced
+        // control tokens, caravans, barbarians, and city-states." CARD_DEFS
+        // carried passThrough: true and nothing read it, so tier IV was stopped
+        // by everything tier I was.
+        const mk = (tier) => {
+          const st = rulesState();
+          const me = st.players[0], foe = st.players[1];
+          me.cardTiers.military = tier;
+          // A straight lane east of the capital, six clear spaces.
+          for (let q = 0; q <= 6; q++) activate(st, q + ",0", { terrain: "grass" });
+          activate(st, "0,0", { city: { ownerId: me.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
+          me.armies = [{ id: "a1", position: "0,0" }];
+          return { st, me, foe };
+        };
+        const canPass = (setUp, tier) => {
+          const { st, me, foe } = mk(tier);
+          setUp(st, me, foe);
+          // Move 5 or 6 either way, so reaching 3,0 is never about the allowance.
+          return Game.getReachable(st, "0,0", 5, "army", me.id).has("3,0");
+        };
+        const barb = (st) => { st.map.hexes["2,0"].barbarian = true; };
+        const cs = (st) => { st.map.hexes["2,0"].cityState = { name: "Test State", type: "culture" }; };
+        const loose = (st, me, foe) => { st.map.hexes["2,0"].control = { ownerId: foe.id, fortified: false, district: null }; };
+        const firm = (st, me, foe) => { st.map.hexes["2,0"].control = { ownerId: foe.id, fortified: true, district: null }; };
+        const wagon = (st, me, foe) => { foe.caravans = [{ id: "c1", position: "2,0" }]; };
+        const fort = (st) => { st.map.hexes["2,0"].fortress = true; };
+        const rivalCity = (st, me, foe) => { st.map.hexes["2,0"].city = { ownerId: foe.id, isCapital: false, developed: false, hasWonder: false, wonder: null }; };
+        const rivalArmy = (st, me, foe) => { foe.armies = [{ id: "e1", position: "2,0" }]; };
+
+        // Masonry I stops for all of them.
+        assert("a barbarian stops tier I", !canPass(barb, 1));
+        assert("a city-state stops tier I", !canPass(cs, 1));
+        assert("an unreinforced token stops tier I", !canPass(loose, 1));
+        assert("a rival caravan stops tier I", !canPass(wagon, 1));
+
+        // Flight IV moves through exactly the four it names.
+        assert("Flight passes a barbarian", canPass(barb, 4));
+        assert("Flight passes a city-state", canPass(cs, 4));
+        assert("Flight passes an unreinforced token", canPass(loose, 4));
+        assert("Flight passes a caravan", canPass(wagon, 4));
+
+        // And is stopped by everything it does not name.
+        assert("Flight is still stopped by a REINFORCED token", !canPass(firm, 4));
+        assert("Flight is still stopped by an uncontrolled fort", !canPass(fort, 4));
+        assert("Flight is still stopped by a rival city", !canPass(rivalCity, 4));
+        assert("Flight is still stopped by a rival army", !canPass(rivalArmy, 4));
+
+        // Passing through is not attacking through: a space with a defender in
+        // it is still refused as a DESTINATION, whatever the card.
+        const { st, me, foe } = mk(4);
+        st.map.hexes["2,0"].barbarian = true;
+        st.turn.index = st.turn.order.indexOf(me.id);
+        me.cardPlayed = false;
+        const tried = Game.applyAction(st, { type: "PLAY_MILITARY_MOVE", payload: {
+          playerId: me.id, unitId: "a1", toKey: "2,0", tradeSpent: 0 } });
+        assert("Flight may not simply walk onto a barbarian",
+          tried.players[0].armies[0].position === "0,0");
+      }
+
+      {
         // The printed direction token numbers 1-6 clockwise around the hex, so
         // consecutive faces are neighbouring directions and face n is the exact
         // opposite of face n+3. HEX_DIRS is only an enumeration (E, W, SE, NW,
