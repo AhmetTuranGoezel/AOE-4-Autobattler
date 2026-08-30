@@ -3385,7 +3385,12 @@ const Game = (() => {
       // Terra p11's worked example makes the consequence plain — beating the
       // army standing in a rival city leaves the city exactly where it was.
       const target = c.defenderType || (hex.city ? "city" : hex.control ? "control" : null);
-      if (target === "fortress" && hex.fortress && !hex.city) {
+      // A fort still holding a barbarian is not captured. findDefender makes
+      // the barbarian the mandatory target (Terra p10), so this can only be
+      // reached by a stale or forged targetType — and letting it through put a
+      // city on the fort with a barbarian standing in it, which then counted
+      // toward the fort victory agenda and was razed by the next barbarian move.
+      if (target === "fortress" && hex.fortress && !hex.city && !hex.barbarian) {
         hex.city = { ownerId: c.attackerId, isCapital: false, developed: false, hasWonder: false, wonder: null };
         log(st, `${player.name} captured the fortress!`);
       }
@@ -3525,127 +3530,44 @@ const Game = (() => {
     log(st, `Barbarians march ${dir.label} (rolled ${roll}).`);
 
     // A barbarian may not stop on water: it keeps going the same way until it
-    // reaches land. Walking off the edge sends it the opposite way instead.
-    function destination(fromKey) {
+    // reaches land. Walking off the edge sends it the opposite way instead
+    // (base p12), and base p16 adds that if the reversal itself lands on water
+    // it keeps going that way until it reaches land - which is what the second
+    // pass of this loop does.
+    function destinationFrom(fromKey, heading) {
       const from = st.map.hexes[fromKey];
-      for (const d of [dir, { dq: -dir.dq, dr: -dir.dr }]) {
+      if (!from) return null;
+      for (const d of [heading, { dq: -heading.dq, dr: -heading.dr }]) {
         let q = from.q, r = from.r;
         for (let step = 0; step < CFG.mapRadius * 2 + 2; step++) {
           q += d.dq; r += d.dr;
           const h = st.map.hexes[key(q, r)];
-          if (!h || !h.active) break;            // off the map — try the other way
+          if (!h || !h.active) break;            // off the map - try the other way
           if (h.terrain === "water") continue;   // can't stop here, keep walking
           return key(q, r);
         }
       }
       return null;
     }
+    const destination = (fromKey) => destinationFrom(fromKey, dir);
 
-    // Every barbarian steps at once, so what each one does is worked out from
-    // the board as it stands before any of them has moved. Resolving them one
-    // at a time instead meant a barbarian directly behind another saw an
-    // occupied space and forfeited its move - a whole column stayed put unless
-    // the hash order happened to deal the leader first, which is also why two
-    // clients could disagree about where the raid ended up.
-    //
-    // A barbarian that batters a marker, raids a capital or runs into an army
-    // does not leave its space, so it still blocks the one behind it. Which
-    // spaces come free therefore depends on which moves succeed, and that
-    // depends back on which spaces come free - so it is settled by repetition
-    // until the answer stops changing, which it must: each pass can only ever
-    // cancel moves, never restore one.
-    const plan = barbs.map(([fromKey]) => {
-      const toKey = destination(fromKey);
+    // What a barbarian arriving at a space does to it. Barbarians already
+    // standing there are NOT a reason to stop: base p16 lets them share a space
+    // and then breaks the pile up with a die, which is what disperse() below
+    // does. Everything else here is base p12 plus Terra p11.
+    function outcomeAt(toKey) {
       const target = toKey ? st.map.hexes[toKey] : null;
-      let outcome = "none";
-      if (target) {
-        if (armiesAt(st, toKey).length) outcome = "army";
-        else if (target.control && target.control.fortified) outcome = "reinforced";
-        else if (target.city && target.city.isCapital) outcome = "capital";
-        else outcome = "move";
-      }
-      return { fromKey, toKey, outcome };
-    });
-
-    for (let pass = 0; pass < plan.length + 1; pass++) {
-      const leaving = new Set(plan.filter((p) => p.outcome === "move").map((p) => p.fromKey));
-      const claimed = new Set();
-      let changed = false;
-      for (const p of plan) {
-        if (p.outcome !== "move") continue;
-        const blocked = (st.map.hexes[p.toKey].barbarian && !leaving.has(p.toKey)) ||
-          claimed.has(p.toKey);
-        if (blocked) { p.outcome = "blocked"; changed = true; continue; }
-        claimed.add(p.toKey);
-      }
-      if (!changed) break;
+      if (!target) return "none";
+      if (armiesAt(st, toKey).length) return "army";
+      if (target.control && target.control.fortified) return "reinforced";
+      if (target.city && target.city.isCapital) return "capital";
+      return "move";
     }
 
-    // They step together, so the board is lifted before any of it is put back:
-    // every identity is read off the map, every space being left is cleared,
-    // and only then does anyone land. Writing each move as it was decided let a
-    // barbarian stepping into the space ahead overwrite the neighbour that had
-    // not stepped yet - three in a row arrived as one.
-    plan.forEach((p) => { p.id = st.map.hexes[p.fromKey].barbarianId || null; });
-    plan.filter((p) => p.outcome === "move").forEach((p) => {
-      const from = st.map.hexes[p.fromKey];
-      from.barbarian = false;
-      from.barbarianId = null;
-    });
-
-    let moved = 0;
-    plan.forEach(({ fromKey, toKey, outcome, id }) => {
-      if (outcome === "none") return;
-      if (outcome === "blocked") {
-        log(st, `Barbarians at ${fromKey} had nowhere to go.`);
-        return;
-      }
+    // The effects of actually landing on a space. Called once per barbarian
+    // that relocates there, including one pushed on by a dispersal roll.
+    function overrun(toKey) {
       const target = st.map.hexes[toKey];
-
-      const owner = hexOwnerAt(st, toKey);
-      const ownerPlayer = owner ? getPlayer(st, owner) : null;
-
-      // What happens is the outcome settled above, not a fresh reading of the
-      // board: two barbarians arriving at one space would otherwise see
-      // different boards, the second finding the army the first had already
-      // defeated and walking in on top of it.
-
-      // Terra p11: an army in the way is defeated, but it shields its space.
-      // The barbarian falls back to the land it came from and nothing else in
-      // the army's space is destroyed or flipped.
-      if (outcome === "army") {
-        armiesAt(st, toKey).forEach(({ player, unit }) => {
-          unit.position = null;
-          log(st, `Barbarians overran ${player.name}'s army at ${toKey}.`);
-        });
-        return;
-      }
-
-      // A reinforced marker or a capital turns the raid back: the barbarian
-      // stays where it started.
-      if (outcome === "reinforced") {
-        if (target.control) target.control.fortified = false;
-        log(st, `Barbarians battered a reinforced control marker at ${toKey}.`);
-        return;
-      }
-      if (outcome === "capital") {
-        if (ownerPlayer) {
-          let taken = 0;
-          for (const f of FOCUS_TYPES) {
-            while (taken < 2 && ownerPlayer.trade[f] > 0) { ownerPlayer.trade[f]--; taken++; }
-            if (taken >= 2) break;
-          }
-          log(st, `Barbarians raided ${ownerPlayer.name}'s capital (-${taken} trade).`);
-        }
-        return;
-      }
-
-      // Everything else is overrun.
-      st.barbarianMove.steps.push({ from: fromKey, to: toKey, id });
-      target.barbarian = true;
-      target.barbarianId = id;
-      moved++;
-
       st.players.forEach((p) => {
         p.caravans.forEach((u) => {
           if (u.position !== toKey) return;
@@ -3662,6 +3584,124 @@ const Game = (() => {
         target.city = null;
         target.developed = false;
         log(st, `Barbarians razed a city at ${toKey}.`);
+      }
+    }
+
+    // Terra p11: an army in the way is defeated, but it shields its space. The
+    // barbarian stays on the last non-water space it occupied, and anything
+    // else in the army's space is protected.
+    function bounceOffArmy(toKey) {
+      armiesAt(st, toKey).forEach(({ player, unit }) => {
+        unit.position = null;
+        log(st, `Barbarians overran ${player.name}'s army at ${toKey}.`);
+      });
+    }
+
+    // Where every barbarian ends up. A space may hold more than one for now;
+    // the pile is broken up below before anything is written back to the map.
+    const landing = new Map();
+    const place = (k, id) => {
+      if (!landing.has(k)) landing.set(k, []);
+      landing.get(k).push(id);
+    };
+
+    let moved = 0;
+    barbs.forEach(([fromKey]) => {
+      const id = st.map.hexes[fromKey].barbarianId || null;
+      const toKey = destination(fromKey);
+      const outcome = outcomeAt(toKey);
+      if (outcome === "none") { place(fromKey, id); return; }
+      const ownerPlayer = (() => {
+        const owner = hexOwnerAt(st, toKey);
+        return owner ? getPlayer(st, owner) : null;
+      })();
+
+      if (outcome === "army") { bounceOffArmy(toKey); place(fromKey, id); return; }
+      if (outcome === "reinforced") {
+        const target = st.map.hexes[toKey];
+        if (target.control) target.control.fortified = false;
+        log(st, `Barbarians battered a reinforced control marker at ${toKey}.`);
+        place(fromKey, id);
+        return;
+      }
+      if (outcome === "capital") {
+        if (ownerPlayer) {
+          let taken = 0;
+          for (const f of FOCUS_TYPES) {
+            while (taken < 2 && ownerPlayer.trade[f] > 0) { ownerPlayer.trade[f]--; taken++; }
+            if (taken >= 2) break;
+          }
+          log(st, `Barbarians raided ${ownerPlayer.name}'s capital (-${taken} trade).`);
+        }
+        place(fromKey, id);
+        return;
+      }
+
+      st.barbarianMove.steps.push({ from: fromKey, to: toKey, id });
+      overrun(toKey);
+      place(toKey, id);
+      moved++;
+    });
+
+    // Base p16: "After barbarians move, if a space contains more than one
+    // barbarian, roll a die and move one of those barbarians in the rolled
+    // direction. Repeat until no space contains more than one barbarian."
+    //
+    // The board itself cannot hold a pile - hex.barbarian is a flag, not a
+    // count - so the pile only ever exists here, and is broken up before
+    // anything is written back. Refusing the move instead, which is what this
+    // used to do, left a barbarian standing still that the rules say should
+    // have been pushed on.
+    const crowded = () => {
+      for (const [k, ids] of landing) if (ids.length > 1) return k;
+      return null;
+    };
+    // Bounded: each roll either relocates a barbarian or gives up on it, and a
+    // pathological board (every neighbour an army) must not spin forever.
+    for (let guard = 0; guard < barbs.length * 12; guard++) {
+      const k = crowded();
+      if (!k) break;
+      const ids = landing.get(k);
+      const pushRoll = rollDie();
+      const pushDir = BARBARIAN_DIRS[pushRoll - 1];
+      const id = ids[ids.length - 1];            // deterministic on every client
+      const toKey = destinationFrom(k, pushDir);
+      const outcome = outcomeAt(toKey);
+      log(st, `Two barbarians met at ${k}: one is pushed ${pushDir.label} (rolled ${pushRoll}).`);
+      if (outcome === "move") {
+        ids.pop();
+        overrun(toKey);
+        place(toKey, id);
+        st.barbarianMove.steps.push({ from: k, to: toKey, id });
+      } else if (outcome === "army") {
+        bounceOffArmy(toKey);
+        break;                                   // the pile stands; nothing more to push into
+      } else {
+        // A reinforced marker or capital turns this one back too. Rolling again
+        // is the rule, and the guard above stops it running away.
+        if (outcome === "reinforced" && st.map.hexes[toKey].control) {
+          st.map.hexes[toKey].control.fortified = false;
+          log(st, `Barbarians battered a reinforced control marker at ${toKey}.`);
+        }
+      }
+    }
+
+    // Lift the whole board and put it back, so a barbarian stepping into the
+    // space ahead cannot overwrite the neighbour that has not stepped yet.
+    barbs.forEach(([fromKey]) => {
+      const h = st.map.hexes[fromKey];
+      h.barbarian = false;
+      h.barbarianId = null;
+    });
+    landing.forEach((ids, k) => {
+      const h = st.map.hexes[k];
+      if (!h || !ids.length) return;
+      h.barbarian = true;
+      h.barbarianId = ids[0];
+      if (ids.length > 1) {
+        // Should be unreachable: the dispersal loop above only exits with a
+        // pile when the board leaves nowhere to push to.
+        log(st, `${ids.length} barbarians are stuck together at ${k}.`);
       }
     });
     if (moved) log(st, `${moved} barbarian(s) moved.`);
@@ -5175,14 +5215,25 @@ const Game = (() => {
     // Every defender hands back where its number came from, so the fight can
     // show you what you are up against instead of one unexplained total.
     const only = (label, value) => [{ label, value }];
-    if (h.fortress && !h.city) {
-      return { type: "fortress", label: "Fortress", power: CFG.fortressDefense,
-        parts: only("uncontrolled fort", CFG.fortressDefense) };
-    }
+    // The barbarian comes first, ahead of the fort and the city-state it may be
+    // standing on. Terra p10: "If an army attacks a space with a barbarian, the
+    // barbarian must be the target." Base p15 says the same for the other
+    // static defender: "While a barbarian is in a city-state's space ... the
+    // city-state cannot be attacked."
+    //
+    // It defends with the SPACE's terrain difficulty and never borrows what it
+    // is standing on — a barbarian on a fort is a 3, because Terra p11 treats
+    // fort spaces as forests of difficulty 3, not the fort's 6. Checking the
+    // fort first made the barbarian unattackable and let a player capture a
+    // fort out from under one.
     if (h.barbarian) {
       const terrainDiff = h.resource === "wonder" ? 5 : TERRAIN[h.terrain];
       return { type: "barbarian", label: "Barbarian", power: CFG.barbarianBase + terrainDiff,
         parts: only(`${TERRAIN_LABELS[h.terrain] || h.terrain} terrain`, CFG.barbarianBase + terrainDiff) };
+    }
+    if (h.fortress && !h.city) {
+      return { type: "fortress", label: "Fortress", power: CFG.fortressDefense,
+        parts: only("uncontrolled fort", CFG.fortressDefense) };
     }
     if (h.cityState) return { type: "citystate", label: h.cityState.name, power: CFG.cityStateDefense,
       parts: only("city-state", CFG.cityStateDefense) };
@@ -5253,11 +5304,16 @@ const Game = (() => {
   function findDefenders(st, hexKey, attackerId) {
     const h = st.map.hexes[hexKey];
     if (!h) return [];
-    // A barbarian, city-state or uncontrolled fort is the only thing in its
-    // space by construction, so there is never a choice to make.
-    // A barbarian, city-state or uncontrolled fort is the only thing that can be
-    // attacked in its space — and Terra p10 is explicit that a barbarian MUST be
-    // the target, so there is no choice to offer either way.
+    // No choice is offered for these three, but for two different reasons, and
+    // the comment here used to state both and contradict itself.
+    //
+    // A barbarian is not a choice because Terra p10 forbids one: "If an army
+    // attacks a space with a barbarian, the barbarian must be the target." It
+    // can genuinely share a space with a fort or a city-state.
+    //
+    // An uncontrolled fort and a city-state are not choices because nothing
+    // else in their space is attackable — a fort takes no control token or
+    // district (Terra p11), and a city-state's space holds only itself.
     const solo = findDefender(st, hexKey, attackerId);
     if (solo && ["fortress", "barbarian", "citystate"].includes(solo.type)) return [solo];
 

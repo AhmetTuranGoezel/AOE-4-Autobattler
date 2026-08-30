@@ -4368,19 +4368,24 @@ const UI = (() => {
     const t = sub.attackTargets;
     if (!t) { resetSub(); return; }
     const me = Game.getPlayer(state, localPlayerId);
-    const mine = me ? Game.getSlotValue(me, "military", state) +
-      Game.getMilitaryCombatBonus(me) +
+    // Your attack is not one number across the options. Iron Working reads
+    // "plus 2 if attacking a barbarian", so the bonus depends on which piece
+    // you pick — and this was calling getMilitaryCombatBonus with no defender
+    // type at all, which silently dropped that +2 from the preview of the one
+    // target it applies to.
+    const attackAgainst = (d) => me ? Game.getSlotValue(me, "military", state) +
+      Game.getMilitaryCombatBonus(me, d && d.type) +
       Game.getLeaderAttackBonus(state, localPlayerId, t.hexKey) : 0;
     dom.wizard.innerHTML = `
       <div class="wiz-title">Which piece are you attacking?</div>
       <div class="wiz-body">
-        <div class="tgt-mine">Your attack: <b>${mine}</b> before the die.</div>
         ${t.list.map((d, i) => `
           <button class="tgt-card" data-i="${i}">
             <span class="tgt-name">${escapeHtml(d.label)}</span>
             <span class="tgt-power">${d.power}</span>
             <span class="tgt-parts">${(d.parts || []).filter((x) => x.value)
               .map((x) => `${escapeHtml(x.label)} +${x.value}`).join(", ") || "no bonuses"}</span>
+            <span class="tgt-mine">you attack at <b>${attackAgainst(d)}</b> before the die</span>
           </button>`).join("")}
       </div>
       <div class="wiz-actions"><button class="ghost" id="tgt-back">Back</button></div>`;

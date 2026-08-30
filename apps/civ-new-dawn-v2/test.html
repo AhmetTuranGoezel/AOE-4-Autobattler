@@ -913,6 +913,98 @@
       }
 
       {
+        // Base p16: "After barbarians move, if a space contains more than one
+        // barbarian, roll a die and move one of those barbarians in the rolled
+        // direction. Repeat until no space contains more than one barbarian."
+        //
+        // The old code refused the move instead, so a barbarian whose target
+        // space was held by one that could not move just stood still. Set up
+        // exactly that: a reinforced marker stops the leader, and the follower
+        // must NOT simply stay put.
+        const base = rulesState();
+        const me = base.players[0];
+        for (let q = 0; q <= 8; q++) activate(base, q + ",0", { terrain: "grass" });
+        // Ring the lane with land so a pushed barbarian has somewhere to go.
+        for (let q = 0; q <= 8; q++) {
+          activate(base, q + ",-1", { terrain: "grass" });
+          activate(base, q + ",1", { terrain: "grass" });
+        }
+        activate(base, "4,0", { terrain: "grass", control: { ownerId: me.id, fortified: true, district: null } });
+        // Only these two on the board. rulesState() populates the map from the
+        // tiles, and a stray setup barbarian marching into the same lane made
+        // the outcome depend on where the shuffle had put it.
+        Object.values(base.map.hexes).forEach((h) => { h.barbarian = false; h.barbarianId = null; });
+        base.map.hexes["2,0"].barbarian = true; base.map.hexes["2,0"].barbarianId = "L";
+        base.map.hexes["1,0"].barbarian = true; base.map.hexes["1,0"].barbarianId = "F";
+
+        // Roll until the march goes east (face 2), so the leader at 2,0 is
+        // stopped by the reinforced marker at 3,0... and the follower wants 2,0.
+        activate(base, "3,0", { terrain: "grass", control: { ownerId: me.id, fortified: true, district: null } });
+        let out = null;
+        for (let i = 0; i < 500; i++) {
+          const attempt = JSON.parse(JSON.stringify(base));
+          Game.resolveEvent(attempt, "barbarian_move");
+          if (attempt.barbarianMove && attempt.barbarianMove.roll === 2) { out = attempt; break; }
+        }
+        assert("the march rolled east at least once", !!out);
+        if (out) {
+          // rulesState() populates the map with setup barbarians too, so this
+          // counts by id rather than by "how many are on the board".
+          const at = (id) => Object.entries(out.map.hexes)
+            .filter(([, h]) => h.barbarian && h.barbarianId === id).map(([k]) => k);
+          assert("the leader is still on the board", at("L").length === 1, at("L").join(" "));
+          assert("the follower is still on the board", at("F").length === 1, at("F").join(" "));
+          assert("and they are not sharing a space", at("L")[0] !== at("F")[0],
+            at("L")[0] + " vs " + at("F")[0]);
+          // The rule says "move ONE of those barbarians" without saying which,
+          // and the push direction is a fresh die - so where either one lands
+          // is genuinely random and asserting a space would only pin the roll.
+          // What must hold is the rule itself: a pile formed, a roll broke it
+          // up, and no space is left holding two.
+          assert("the pile was dispersed by a die roll",
+            out.log.some((line) => /pushed/.test(line)),
+            JSON.stringify(out.log.slice(-4)));
+          assert("no space is left holding two barbarians",
+            !out.log.some((line) => /stuck together/.test(line)),
+            JSON.stringify(out.log.slice(-4)));
+          assert("the reinforced marker stopped the advance",
+            out.log.some((line) => /battered a reinforced control marker at 3,0/.test(line)),
+            JSON.stringify(out.log.slice(-5)));
+        }
+      }
+
+      {
+        // Terra p10: "If an army attacks a space with a barbarian, the barbarian
+        // must be the target." The fort was checked first, so a barbarian
+        // standing on one was unattackable, the fort's 6 was used instead of the
+        // space's difficulty, and the attacker could capture the fort out from
+        // under a barbarian that was still standing there.
+        const st = rulesState();
+        const me = st.players[0];
+        activate(st, "0,0", { city: { ownerId: me.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
+        // Terra p11: "Fort spaces are treated as forests with a terrain
+        // difficulty value of 3."
+        activate(st, "1,0", { terrain: "forest", fortress: true, barbarian: true });
+        const d = Game.findDefender(st, "1,0", me.id);
+        assert("a barbarian on a fort is the target, not the fort", d && d.type === "barbarian", d && d.type);
+        assert("and it defends with the space's difficulty, not the fort's 6",
+          d && d.power === 3, d && d.power);
+        assert("no choice of target is offered", Game.findDefenders(st, "1,0", me.id).length === 1);
+
+        // The bare fort is still a 6 once the barbarian is gone.
+        st.map.hexes["1,0"].barbarian = false;
+        const bare = Game.findDefender(st, "1,0", me.id);
+        assert("an empty fort still defends at 6", bare && bare.type === "fortress" && bare.power === 6);
+
+        // Base p15 says the same for the other static defender.
+        const cs = rulesState();
+        activate(cs, "1,0", { terrain: "grass", cityState: { name: "Test State", type: "culture" }, barbarian: true });
+        const csd = Game.findDefender(cs, "1,0", cs.players[0].id);
+        assert("a barbarian on a city-state is the target too",
+          csd && csd.type === "barbarian" && csd.power === 1, csd && (csd.type + "/" + csd.power));
+      }
+
+      {
         // The growth card's district play carries a SECOND batch: Terra p8 lets
         // the same card spend trade tokens to reinforce one control token each.
         // reinforceWithTokens skipped illegal keys with `continue` while the
