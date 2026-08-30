@@ -1164,6 +1164,39 @@
       }
 
       {
+        // "a unit that acted shouldn't act again". unitsLeftToMove counts armies
+        // still on the card, so a card was never finished while any army sat on
+        // it - and nothing stopped an army that had already marched from
+        // marching a second time on the same card.
+        let st = rulesState();
+        const me = st.players[0];
+        st.turn.index = st.turn.order.indexOf(me.id);
+        me.cardPlayed = false;
+        me.cardTiers.military = 2;                 // two armies
+        for (let q = 0; q <= 4; q++) activate(st, q + ",0", { terrain: "grass" });
+        activate(st, "0,0", { city: { ownerId: me.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
+        me.armies = [{ id: "a1", position: "0,0" }, { id: "a2", position: "0,0" }];
+
+        st = Game.applyAction(st, { type: "PLAY_MILITARY_MOVE", payload: {
+          playerId: me.id, unitId: "a1", toKey: "1,0", tradeSpent: 0 } });
+        assert("the first army marched", st.players[0].armies[0].position === "1,0");
+        assert("and is marked as having gone", st.players[0].armies[0].movedThisCard === true);
+
+        const again = Game.applyAction(st, { type: "PLAY_MILITARY_MOVE", payload: {
+          playerId: me.id, unitId: "a1", toKey: "2,0", tradeSpent: 0 } });
+        assert("it cannot march a second time on the same card",
+          again.players[0].armies.find((u) => u.id === "a1").position === "1,0");
+
+        // The other army has not gone yet, so it still may.
+        const second = Game.applyAction(again, { type: "PLAY_MILITARY_MOVE", payload: {
+          playerId: me.id, unitId: "a2", toKey: "1,0", tradeSpent: 0 } });
+        assert("but an army that has not gone still may",
+          second.players[0].armies.find((u) => u.id === "a2").position === "1,0");
+        assert("and with both spent the card is finished",
+          second.players[0].cardPlayed === true);
+      }
+
+      {
         // Flight IV prints: "They can move through spaces with unreinforced
         // control tokens, caravans, barbarians, and city-states." CARD_DEFS
         // carried passThrough: true and nothing read it, so tier IV was stopped
