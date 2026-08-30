@@ -944,6 +944,23 @@ const UI = (() => {
 
   async function dispatch(action) {
     if (!state) return { status: "rejected", code: "no_state", message: "No game is open." };
+    // Mirror the host's permission table before putting an action on the wire.
+    // This is only instant feedback; the host runs the same check again against
+    // the authoritative revision. In particular, the host UI is not allowed to
+    // masquerade as a different seat to answer that player's decision.
+    if (Game.getActionPermission) {
+      const permission = Game.getActionPermission(state, action, {
+        actorId: localPlayerId,
+        role: Net.getIsHost() ? "host" : "player"
+      });
+      if (!permission.ok) {
+        showToast(permission.message || permission.code || "That decision belongs to another player.");
+        return {
+          status: "rejected", code: permission.code || "unauthorized",
+          message: permission.message || "That action is not available to this seat."
+        };
+      }
+    }
     const blocked = interactionBlockReason(action);
     if (blocked || actionPending) {
       const message = blocked || "The previous action is still being confirmed.";
@@ -1428,7 +1445,7 @@ const UI = (() => {
 
     if (state.phase === "playing" &&
         isExploring(sub.phase) &&
-        mouseHex && state.tileStack && state.tileStack.length > 0) {
+        mouseHex && exploringTileId()) {
       const tileId = exploringTileId();
       const anchorKey = Game.key(mouseHex.q, mouseHex.r);
       const keys = Game.getTileHexKeys(anchorKey, sub.tileRotation, hexes);
@@ -2582,6 +2599,78 @@ const UI = (() => {
     return sub.movementState ? sub.movementState.currentKey : null;
   }
 
+  function setSubFromMovementContinuation(continuation) {
+    if (!continuation || continuation.playerId !== localPlayerId) return false;
+    const me = Game.getPlayer(state, localPlayerId);
+    if (!me) return false;
+    const units = continuation.unitType === "army" ? me.armies : me.caravans;
+    const unit = (units || []).find((entry) => entry.id === continuation.unitId);
+    if (!unit) return false;
+    clearSub();
+    sub.cardType = continuation.cardType;
+    sub.tradeSpent = Number(continuation.tradeSpent || 0);
+    sub.movementState = {
+      unitType: continuation.unitType,
+      unitId: continuation.unitId,
+      maxMove: Number(continuation.maxMove || 0),
+      remaining: Math.max(0, Number(continuation.remaining || 0)),
+      currentKey: continuation.fromKey,
+      startKey: continuation.startKey || continuation.fromKey,
+      explored: true,
+      route: []
+    };
+    sub.selectedUnit = { id: unit.id, position: continuation.fromKey };
+    sub.phase = continuation.unitType === "army" ? "move_army" : "move_caravan";
+    sub.validHexes = Game.getReachable(state, continuation.fromKey,
+      sub.movementState.remaining, continuation.unitType, localPlayerId);
+    return true;
+  }
+
+  function setSubFromPendingExploration(pending) {
+    if (!pending || pending.playerId !== localPlayerId) return false;
+    if (pending.freeRun) {
+      clearSub();
+      sub.phase = "free_exploring";
+      sub.freeFrom = pending.fromKey;
+      sub.tileRotation = 0;
+      return true;
+    }
+    const movement = pending.movementContinuation;
+    if (!movement || !setSubFromMovementContinuation(movement)) return false;
+    sub.phase = movement.unitType === "army"
+      ? "move_army_exploring" : "move_caravan_exploring";
+    sub.tileRotation = 0;
+    return true;
+  }
+
+  // Snapshots are the source of truth for a multi-step action. This also makes
+  // a reload in the middle of exploration resume the exact tile and remaining
+  // movement instead of dropping back to the focus row with an unresolved
+  // engine state behind it.
+  function reconcileAuthoritativeResolution() {
+    if (!state || state.phase !== "playing") return;
+    const pending = state.pendingExploration;
+    if (pending && pending.playerId === localPlayerId) {
+      if (!isExploring(sub.phase)) setSubFromPendingExploration(pending);
+      return;
+    }
+    const continuation = state.movementContinuation;
+    if (continuation && continuation.playerId === localPlayerId && sub.phase === "idle") {
+      setSubFromMovementContinuation(continuation);
+    }
+  }
+
+  function continueFromAuthoritativeExploration() {
+    const continuation = state && state.movementContinuation;
+    if (!setSubFromMovementContinuation(continuation)) {
+      showToast("The confirmed movement state could not be restored. Reconnecting…");
+      Net.retryNow?.();
+      return false;
+    }
+    render();
+    return true;
+  }
+
   function placingTile() {
     if (isExploring(sub.phase)) return true;
     if (!state || state.phase !== "setup") return false;
@@ -2854,6 +2943,7 @@ const UI = (() => {
 
   function render() {
     if (!state) return;
+    reconcileAuthoritativeResolution();
     dom.game.classList.toggle("lobby-active", state.phase === "lobby");
     dom.game.classList.toggle("preplay", state.phase === "lobby" || state.phase === "setup");
     renderHeader();
@@ -3200,11 +3290,37 @@ const UI = (() => {
     const isMyTurn = cp && cp.id === localPlayerId;
     const me = Game.getPlayer(state, localPlayerId);
 
-    // The fight itself happens on the board, not under a second prompt panel.
-    if (state.combat || state.lastCombat) { dom.wizard.innerHTML = ""; return; }
+    // A live fight owns the screen: it happens on the board, not under a second
+    // prompt panel.
+    if (state.combat) { dom.wizard.innerHTML = ""; return; }
+
+    // Your own decisions come BEFORE the finished-combat blanking below, and
+    // that order is load-bearing. resolveCombat queues the barbarian reward and
+    // Sumeria's resource on any barbarian kill, and lastCombat is cleared only
+    // by END_TURN — so blanking first left the reward unanswerable while the
+    // engine's decision_pending gate refused END_TURN, and the game could not
+    // be continued or undone at all.
     if (state.pendingBarbReward && state.pendingBarbReward.playerId === localPlayerId) { renderBarbReward(me); return; }
     const pending = getVisiblePendingChoice(me);
-    if (pending && sub.phase === "idle") { renderPendingChoice(pending); return; }
+    if (pending) {
+      if (sub.phase !== "idle") clearSub();
+      renderPendingChoice(pending);
+      return;
+    }
+    // A decision for any other authenticated seat pauses the shared game. Do
+    // not leave stale card or map controls visible while the engine rejects
+    // those same actions with decision_pending.
+    const foreignDecision = otherPendingChoice(me) ||
+      (state.pendingBarbReward && state.pendingBarbReward.playerId !== localPlayerId
+        ? state.pendingBarbReward : null);
+    if (foreignDecision) {
+      if (sub.phase !== "idle") clearSub();
+      renderIdleWizard(isMyTurn, cp, me);
+      return;
+    }
+    // Nothing left to decide, so the finished fight's result panel can have the
+    // screen to itself until the turn ends.
+    if (state.lastCombat) { dom.wizard.innerHTML = ""; return; }
     if (sub.phase === "idle") { renderIdleWizard(isMyTurn, cp, me); }
     else if (sub.phase === "card_selected") { renderCardSelected(me); }
     else if (sub.phase === "placing_control") { renderPlacingControl(); }
@@ -3612,6 +3728,15 @@ const UI = (() => {
   }
 
   function renderPendingChoice(choice) {
+    // Foreign choices are read-only waiting records. The host has the complete
+    // state, but is still never a substitute for the authenticated owner.
+    if (!choice || choice.playerId !== localPlayerId) {
+      const waitingFor = choice && Game.getPlayer(state, choice.playerId);
+      dom.wizard.innerHTML = `<div class="wiz-title">Waiting</div>
+        <div class="wiz-body"><strong>${escapeHtml(waitingFor ? waitingFor.name : "Another player")}</strong>
+        must finish their decision.</div>`;
+      return;
+    }
     const owner = Game.getPlayer(state, choice.playerId);
     const title = choice.title || "Pending Choice";
     // Never show a raw action name — "science_upgrade" means nothing at the table.
@@ -4047,23 +4172,21 @@ const UI = (() => {
   }
 
   function renderIdleWizard(isMyTurn, cp, me) {
-    // Somebody else has a prompt open. Say so, and let the host answer it for
-    // them if they have gone — but never take the panel over for it.
-    const other = otherPendingChoice(me);
+    // A disconnected or slower seat is never represented by the host. Major
+    // decisions pause the table until their authenticated owner answers.
+    const otherChoice = otherPendingChoice(me);
+    const otherReward = state.pendingBarbReward && state.pendingBarbReward.playerId !== localPlayerId
+      ? state.pendingBarbReward : null;
+    const other = otherChoice || otherReward;
     const otherOwner = other ? Game.getPlayer(state, other.playerId) : null;
-    const waitingOn = other
-      ? `<div class="wiz-note">Waiting on <strong>${escapeHtml(otherOwner ? otherOwner.name : "a player")}</strong>:
-          ${escapeHtml(other.title || other.kind)}.
-          ${Net.getIsHost() ? `<button class="sm" id="wiz-host-resolve">Answer for them</button>` : ""}</div>`
-      : "";
-    const bindHostResolve = () => {
-      document.getElementById("wiz-host-resolve")?.addEventListener("click", () => {
-        renderPendingChoice(other);
-      });
-    };
+    if (other) {
+      dom.wizard.innerHTML = `<div class="wiz-title">Waiting for a Decision</div>
+        <div class="wiz-body"><strong>${escapeHtml(otherOwner ? otherOwner.name : "Another player")}</strong>
+        must finish their game decision. Only that player can choose.</div>`;
+      return;
+    }
     if (!isMyTurn) {
-      dom.wizard.innerHTML = `<div class="wiz-title">Waiting</div><div class="wiz-body">It's <strong>${escapeHtml(cp ? cp.name : "...")}</strong>'s turn.</div>${waitingOn}`;
-      bindHostResolve();
+      dom.wizard.innerHTML = `<div class="wiz-title">Waiting</div><div class="wiz-body">It's <strong>${escapeHtml(cp ? cp.name : "...")}</strong>'s turn.</div>`;
       return;
     }
     // Your turn IS resolving a focus card (base p6) — there is no passing. So
@@ -4076,8 +4199,7 @@ const UI = (() => {
     const actions = taken
       ? `<div class="wiz-actions"><button class="primary" id="wiz-end-turn">End Turn</button></div>`
       : "";
-    dom.wizard.innerHTML = `<div class="wiz-title">Your Turn</div><div class="wiz-body">${body}</div>${actions}${waitingOn}`;
-    bindHostResolve();
+    dom.wizard.innerHTML = `<div class="wiz-title">Your Turn</div><div class="wiz-body">${body}</div>${actions}`;
     document.getElementById("wiz-end-turn")?.addEventListener("click", () => dispatch({ type: "END_TURN", payload: { playerId: localPlayerId } }));
   }
 
@@ -4205,9 +4327,11 @@ const UI = (() => {
       <div class="wiz-title">Move ${unitType === "caravan" ? "Caravan" : "Army"}${remaining}</div>
       <div class="wiz-body">${hint}${left > 1 ? `<br><span class="wiz-note">${left} still to move on this card.</span>` : ""}</div>
       <div class="wiz-actions">
+        ${ms && ms.remaining <= 0 ? `<button id="wiz-finish-move">Finish movement</button>` : ""}
         ${cardOpen && selectingUnit ? `<button id="wiz-done-card">Done with card</button>` : ""}
         <button class="ghost" id="wiz-cancel6">${cardOpen ? "Back to unit choice" : "Cancel"}</button>
       </div>`;
+    document.getElementById("wiz-finish-move")?.addEventListener("click", endMovement);
     document.getElementById("wiz-done-card")?.addEventListener("click", () => {
       dispatch({ type: "END_FOCUS_CARD", payload: { playerId: localPlayerId } });
       resetSub();
@@ -4262,12 +4386,13 @@ const UI = (() => {
       <div class="wiz-actions"><button class="ghost" id="tgt-back">Back</button></div>`;
 
     document.querySelectorAll(".tgt-card").forEach((btn) => {
-      btn.addEventListener("click", () => {
+      btn.addEventListener("click", async () => {
         const d = t.list[Number(btn.dataset.i)];
         flashHex(t.hexKey, "rgb(239,83,80)", 800);
-        dispatch({ type: "PLAY_MILITARY_ATTACK", payload: {
+        const result = await dispatch({ type: "PLAY_MILITARY_ATTACK", payload: {
           playerId: localPlayerId, unitId: t.unitId, toKey: t.hexKey,
           fromKey: t.fromKey, targetType: d.type } });
+        if (!result || result.status !== "accepted") return;
         sub.attackTargets = null;
         nextUnitOrFinish("army");
       });
@@ -4327,16 +4452,14 @@ const UI = (() => {
     document.getElementById("side-toggle").addEventListener("click", flipTile);
     // Terra p12: a tile with nowhere to go returns to the top of the stack and
     // the expedition ends. The movement is spent either way.
-    document.getElementById("wiz-abandon-explore")?.addEventListener("click", () => {
-      const ms = sub.movementState;
-      dispatch({ type: "ABANDON_EXPLORATION", payload: { playerId: localPlayerId, fromKey: exploreOrigin() } })
-        .then((result) => {
-          if (!result || result.status !== "accepted") return;  // toast already shown
-          if (sub.phase === "free_exploring" || !ms) { resetSub(); render(); return; }
-          ms.remaining -= 1;
-          ms.explored = true;
-          if (ms.remaining > 0) continueMovement(); else endMovement();
-        });
+    document.getElementById("wiz-abandon-explore")?.addEventListener("click", async () => {
+      const freeRun = sub.phase === "free_exploring";
+      const result = await dispatch({ type: "ABANDON_EXPLORATION", payload: {
+        playerId: localPlayerId, fromKey: exploreOrigin()
+      }});
+      if (!result || result.status !== "accepted") return;  // toast already shown
+      if (freeRun) { resetSub(); return; }
+      continueFromAuthoritativeExploration();
     });
   }
 
@@ -4372,16 +4495,29 @@ const UI = (() => {
       tradeSpent: sub.tradeSpent
     }});
     if (!result || result.status !== "accepted") return;   // toast already shown
-    sub.phase = ms.unitType === "army" ? "move_army_exploring" : "move_caravan_exploring";
-    sub.tileRotation = 0;
+    if (!setSubFromPendingExploration(state.pendingExploration)) {
+      showToast("The revealed tile could not be restored. Reconnecting…");
+      Net.retryNow?.();
+    }
     render();
   }
 
-  function endMovement() {
+  async function endMovement() {
     const ms = sub.movementState;
     if (!ms) { resetSub(); return; }
     const me = Game.getPlayer(state, localPlayerId);
     if (!me) { resetSub(); return; }
+
+    const continuation = state.movementContinuation;
+    if (continuation && continuation.playerId === localPlayerId &&
+        continuation.unitId === ms.unitId && continuation.fromKey === ms.currentKey) {
+      const result = await dispatch({ type: "END_UNIT_MOVE", payload: {
+        playerId: localPlayerId, unitId: ms.unitId
+      }});
+      if (!result || result.status !== "accepted") return;
+      nextUnitOrFinish(ms.unitType);
+      return;
+    }
 
     if (ms.unitType === "army") {
       // Base p11: you attack ONE piece in the space. Where a city and an army
@@ -4398,22 +4534,25 @@ const UI = (() => {
       const defender = targets[0] || null;
       if (defender) {
         flashHex(ms.currentKey, "rgb(239,83,80)", 800);
-        dispatch({ type: "PLAY_MILITARY_ATTACK", payload: {
+        const result = await dispatch({ type: "PLAY_MILITARY_ATTACK", payload: {
           playerId: localPlayerId, unitId: ms.unitId, toKey: ms.currentKey,
           fromKey: ms.startKey, targetType: defender.type
         }});
+        if (!result || result.status !== "accepted") return;
       } else {
-        dispatch({ type: "PLAY_MILITARY_MOVE", payload: {
+        const result = await dispatch({ type: "PLAY_MILITARY_MOVE", payload: {
           playerId: localPlayerId, unitId: ms.unitId, toKey: ms.currentKey,
           // An army that started on its card needs to say which city it left.
           startKey: ms.startKey, tradeSpent: sub.tradeSpent
         }});
+        if (!result || result.status !== "accepted") return;
       }
     } else {
-      dispatch({ type: "PLAY_ECONOMY", payload: {
+      const result = await dispatch({ type: "PLAY_ECONOMY", payload: {
         playerId: localPlayerId, unitId: ms.unitId, toKey: ms.currentKey, tradeSpent: sub.tradeSpent,
         startKey: ms.romeStart || undefined
       }});
+      if (!result || result.status !== "accepted") return;
     }
     nextUnitOrFinish(ms.unitType);
   }
@@ -5193,21 +5332,26 @@ const UI = (() => {
     refreshWizard();
   }
 
-  function finishAction() {
+  async function finishAction() {
     const placedNothing = !sub.placedKeys.length;
+    let result = null;
     if (sub.phase === "placing_control" && !placedNothing) {
-      dispatch({ type: "PLAY_CULTURE", payload: { playerId: localPlayerId, hexKeys: sub.placedKeys, tradeSpent: sub.tradeSpent } });
+      result = await dispatch({ type: "PLAY_CULTURE", payload: {
+        playerId: localPlayerId, hexKeys: sub.placedKeys.slice(), tradeSpent: sub.tradeSpent
+      }});
     }
     if (sub.phase === "reinforcing" && !placedNothing) {
-      dispatch({ type: "PLAY_GROWTH_REINFORCE", payload: { playerId: localPlayerId, hexKeys: sub.placedKeys, tradeSpent: sub.tradeSpent } });
+      result = await dispatch({ type: "PLAY_GROWTH_REINFORCE", payload: {
+        playerId: localPlayerId, hexKeys: sub.placedKeys.slice(), tradeSpent: sub.tradeSpent
+      }});
     }
     // Finishing having placed nothing still spends the card — otherwise a card
     // with nowhere legal to go leaves you owing a turn you cannot take.
     if (placedNothing && sub.cardType) {
-      dispatch({ type: "END_FOCUS_CARD", payload: {
+      result = await dispatch({ type: "END_FOCUS_CARD", payload: {
         playerId: localPlayerId, cardType: sub.cardType, tradeSpent: 0 } });
     }
-    resetSub();
+    if (result && result.status === "accepted") resetSub();
   }
 
   function cancelAction() {
@@ -5259,7 +5403,7 @@ const UI = (() => {
 
   // ── Hex Click Handler ─────────────────────────────────────
 
-  function handleHexClick(hexKey) {
+  async function handleHexClick(hexKey) {
     if (!state) return;
 
     // A choice waiting on a space takes the click before anything else.
@@ -5267,15 +5411,17 @@ const UI = (() => {
     if (hexChoice) {
       if (!hexChoice.hexKeys.includes(hexKey)) { showToast("Not one of the highlighted spaces"); return; }
       flashHex(hexKey, "rgb(255,213,79)", 700);
-      dispatch({ type: "RESOLVE_PENDING_CHOICE", payload: {
+      const resolved = await dispatch({ type: "RESOLVE_PENDING_CHOICE", payload: {
         playerId: localPlayerId, choiceId: hexChoice.id, hexKey } });
+      if (!resolved || resolved.status !== "accepted") return;
       // Apadana's edge space is only the start of it — the tile still has to be
       // turned and placed, so hand straight over to the exploring flow.
-      if (hexChoice.kind === "apadana_explore" &&
-          state.freeExplore && state.freeExplore.fromKey === hexKey) {
-        sub.phase = "free_exploring";
-        sub.freeFrom = hexKey;
-        sub.tileRotation = 0;
+      if (hexChoice.kind === "apadana_explore") {
+        const begun = await dispatch({ type: "BEGIN_EXPLORATION", payload: {
+          playerId: localPlayerId, fromKey: hexKey
+        }});
+        if (!begun || begun.status !== "accepted") return;
+        setSubFromPendingExploration(state.pendingExploration);
         render();
       }
       return;
@@ -5501,18 +5647,19 @@ const UI = (() => {
         return;
       }
       // The tile was already revealed by BEGIN_EXPLORATION; this only places it.
+      const freeRun = sub.phase === "free_exploring";
       dispatch({ type: "PLACE_EXPLORED_TILE", payload: {
         playerId: localPlayerId, anchorKey: hexKey,
         rotation: sub.tileRotation, side: sub.tileSide }
       }).then((result) => {
         if (!result || result.status !== "accepted") return;  // toast already shown
         // Apadana's expedition costs no movement, because there is nothing moving.
-        if (sub.phase === "free_exploring" || !ms) { resetSub(); render(); return; }
-        ms.remaining -= 1;
-        ms.explored = true;
-        // Terra p12: you may walk onto what you just found. Hand straight back
-        // to picking a hex, with the new ground already in the reachable set.
-        if (ms.remaining > 0) continueMovement(); else endMovement();
+        if (freeRun || !ms) { resetSub(); return; }
+        // BEGIN_EXPLORATION already charged the movement point in the engine.
+        // Rebuild from the confirmed continuation instead of mutating `ms`:
+        // dispatch clones/restores sub while waiting, so that reference is no
+        // longer the object the interface renders after the ACK.
+        continueFromAuthoritativeExploration();
       });
       return;
     }
@@ -5734,7 +5881,8 @@ const UI = (() => {
     // the card in progress.
     const resolving = !!(state.combat || state.lastCombat ||
       (state.activeCard && state.activeCard.playerId === localPlayerId) ||
-      state.pendingExploration || state.movementContinuation);
+      state.pendingExploration || state.movementContinuation ||
+      (state.pendingChoices && state.pendingChoices.length) || state.pendingBarbReward);
     const canPlay = isMyTurn && !me.cardPlayed && sub.phase === "idle" && !resolving;
     const TIER_LABELS = ["I", "II", "III", "IV"];
     const focusBoard = window.CivCardArt ? CivCardArt.focusBar(me.color) : "";

@@ -972,6 +972,12 @@ const Game = (() => {
   const COMBAT_ACTIONS = new Set([
     "CANCEL_COMBAT", "COMBAT_ROLL", "COMBAT_SPEND", "COMBAT_PASS"
   ]);
+  const EXPLORATION_RESOLUTION_ACTIONS = new Set([
+    "PLACE_EXPLORED_TILE", "ABANDON_EXPLORATION"
+  ]);
+  const PLAYER_DECISION_ACTIONS = new Set([
+    "RESOLVE_PENDING_CHOICE", "ADD_TRADE", "UNDO_TURN"
+  ]);
   const KNOWN_ACTIONS = new Set([
     ...HOST_ACTIONS, ...SETUP_ACTIONS, ...CURRENT_PLAYER_ACTIONS,
     ...COMBAT_ACTIONS, "SET_LEADER", "SET_READY", "RESOLVE_PENDING_CHOICE", "ADD_TRADE",
@@ -997,8 +1003,12 @@ const Game = (() => {
       return denied("read_only", "This save is read-only because hidden deck order could not be recovered.");
     }
     if (HOST_ACTIONS.has(type)) {
-      return role === "host" ? { ok: true } :
-        denied("host_only", "Only the host may perform this action.");
+      if (role !== "host") return denied("host_only", "Only the host may perform this action.");
+      // A role bit is supplied by the trusted transport, but it is not itself
+      // a seat. Requiring the authenticated host to own a seat closes the last
+      // path by which a caller outside the game could invoke correction tools.
+      return actor ? { ok: true } :
+        denied("unknown_actor", "The authenticated host seat is not part of this game.");
     }
     if (!actor) return denied("unknown_actor", "The authenticated seat is not part of this game.");
 
@@ -1012,6 +1022,38 @@ const Game = (() => {
       const activeId = st.setup.order[st.setup.turnIndex];
       return activeId === actorId ? { ok: true } :
         denied("not_your_setup_turn", "Another player is placing the next setup piece.");
+    }
+
+    // Decisions are exclusive phases, not suggestions in the interface. The
+    // UI used to hide most of these conflicts, but a forged packet could still
+    // end a turn during combat, play a card while another seat was choosing an
+    // event result, or resolve an unrelated prompt during exploration. Keeping
+    // the lock here makes the host authoritative even when a client is stale or
+    // malicious.
+    if (st.phase === "playing" && st.combat && st.combat.turn !== "done" &&
+        !COMBAT_ACTIONS.has(type)) {
+      return denied("combat_pending", "Finish the current combat before taking another action.");
+    }
+    if (st.phase === "playing" && st.pendingExploration &&
+        !EXPLORATION_RESOLUTION_ACTIONS.has(type)) {
+      return denied("exploration_pending", "Resolve the revealed exploration tile first.");
+    }
+    if (st.phase === "playing" && st.movementContinuation) {
+      const continuation = st.movementContinuation;
+      const allowed = continuation.unitType === "caravan"
+        ? new Set(["PLAY_ECONOMY", "END_UNIT_MOVE"])
+        : new Set(["PLAY_MILITARY_MOVE", "PLAY_MILITARY_ATTACK", "END_UNIT_MOVE"]);
+      if (!allowed.has(type)) {
+        return denied("movement_continuation_pending", "Finish the explored unit's remaining movement first.");
+      }
+      if (continuation.playerId !== actorId || payload.unitId !== continuation.unitId) {
+        return denied("movement_continuation_mismatch", "This remaining movement belongs to another unit.");
+      }
+    }
+    if (st.phase === "playing" &&
+        ((st.pendingChoices || []).length || st.pendingBarbReward) &&
+        !PLAYER_DECISION_ACTIONS.has(type)) {
+      return denied("decision_pending", "A required player decision must be resolved first.");
     }
 
     if (type === "RESOLVE_PENDING_CHOICE") {
@@ -1074,7 +1116,7 @@ const Game = (() => {
         return denied("not_your_turn", "It is another player's turn.");
       }
       if (st.pendingExploration) {
-        const resolving = type === "PLACE_EXPLORED_TILE" || type === "ABANDON_EXPLORATION";
+        const resolving = EXPLORATION_RESOLUTION_ACTIONS.has(type);
         if (!resolving) return denied("exploration_pending", "Resolve the revealed exploration tile first.");
         if (st.pendingExploration.playerId !== actorId) {
           return denied("exploration_owner_mismatch", "This expedition belongs to another player.");
@@ -1102,6 +1144,20 @@ const Game = (() => {
           return denied("movement_continuation_mismatch", "This remaining movement belongs to another unit.");
         }
       }
+      if (type === "PLAY_CULTURE") {
+        const placement = validateCulturePlacement(st, actorId, payload.hexKeys, payload.tradeSpent);
+        if (!placement.ok) return denied(placement.code, placement.message);
+      }
+      if (type === "PLAY_GROWTH_REINFORCE") {
+        const placement = validateReinforcePlacement(st, actorId, payload.hexKeys,
+          payload.tradeSpent, getSlotValue(getPlayer(st, actorId), "growth", st));
+        if (!placement.ok) return denied(placement.code, placement.message);
+      }
+      if (type === "PLAY_GROWTH_DISTRICT") {
+        const extra = validateGrowthDistrictReinforcements(st, actorId,
+          payload.reinforceKeys, payload.tradeSpent, payload.hexKey);
+        if (!extra.ok) return denied(extra.code, extra.message);
+      }
       return { ok: true };
     }
 
@@ -1121,6 +1177,17 @@ const Game = (() => {
       delete bound.payload.playerId;
     }
     return bound;
+  }
+
+  // Read-only preflight for the interface. This is deliberately the exact same
+  // binding and permission table used by tryApplyAction; it cannot grant an
+  // action and it never replaces the authoritative host-side check.
+  function getActionPermission(state, action, context) {
+    if (!state || !action || typeof action.type !== "string") {
+      return denied("invalid_action", "Malformed action.");
+    }
+    const trusted = context || {};
+    return authorizeAction(state, bindActionActor(action, trusted), trusted);
   }
 
   function tryApplyAction(state, action, context) {
@@ -1677,38 +1744,25 @@ const Game = (() => {
 
     if (type === "PLAY_CULTURE") {
       const player = getPlayer(st, payload.playerId);
-      if (!canResolveCard(player, "culture")) return st;
-      const effectiveSlot = getSlotValue(player, "culture", st);
-      // France: the latest-era wonder you own grants extra tokens (1/2/3).
-      let maxMarkers = getCultureMarkers(player, payload.tradeSpent || 0, st);
-      const franceBonus = hasLeader(player, "france") ? franceWonderBonus(st, player.id) : 0;
-      maxMarkers += franceBonus;
-      const hexKeys = (payload.hexKeys || []).slice(0, maxMarkers);
-      let placed = 0;
+      const placement = validateCulturePlacement(st, payload.playerId,
+        payload.hexKeys, payload.tradeSpent);
+      if (!placement.ok) return st;
+      const hexKeys = placement.hexKeys;
+      const franceBonus = placement.franceBonus;
       const placedMountains = [];
       const placedHills = [];
       for (const k of hexKeys) {
         const hx = st.map.hexes[k];
-        if (!hx || !hx.active || hx.terrain === "water" || hx.city || hx.barbarian || hx.cityState) continue;
-        if (hx.control) continue;
-        if (placementDifficulty(st, hx, player, "control") > effectiveSlot) continue;
-        // Early Empire and its upgrades require adjacency to a friendly city.
-        // Enforce that here as well as in validControlHexes so a forged action
-        // cannot chain control tokens outward from another friendly token.
-        if (!adjacentToFriendlyCity(st, hx, payload.playerId)
-          && !chichenAllows(st, payload.playerId, hx)) continue;
         if (hx.resource && hx.resource !== "wonder") {
           if (player.resources[hx.resource] !== undefined) player.resources[hx.resource]++;
           hx.resource = null;
         }
         hx.control = { ownerId: payload.playerId, fortified: false, district: null };
-        placed++;
         if (hx.terrain === "mountain") placedMountains.push(k);
         if (hx.terrain === "hill") placedHills.push(k);
       }
-      if (placed === 0) return st;
       resolveCard(st, player, "culture", payload.tradeSpent);
-      log(st, `${player.name} placed ${placed} control marker(s).${franceBonus ? ` (+${franceBonus} from wonders)` : ""}`);
+      log(st, `${player.name} placed ${hexKeys.length} control marker(s).${franceBonus ? ` (+${franceBonus} from wonders)` : ""}`);
       // Inca: each token placed on a mountain may spill onto an adjacent space.
       if (hasLeader(player, "inca")) {
         placedMountains.forEach((k) => queueIncaChain(st, player, k));
@@ -1743,10 +1797,16 @@ const Game = (() => {
         if (player.resources[hex.resource] !== undefined) player.resources[hex.resource]++;
         hex.resource = null;
       }
+      const extra = validateGrowthDistrictReinforcements(st, payload.playerId,
+        payload.reinforceKeys, payload.tradeSpent, payload.hexKey);
+      if (!extra.ok) return st;
+      // Terra p9: the district goes down on its UNREINFORCED side even when it
+      // replaces a reinforced control token of yours. That is printed, not a
+      // bug — do not "fix" the discarded `fortified` flag here.
       hex.control = { ownerId: payload.playerId, fortified: false, district: payload.district };
       // "...whether or not the card's effect was used to reinforce control
       // tokens" — so the tokens still buy reinforcements after a district.
-      reinforceWithTokens(st, player, payload.reinforceKeys, payload.tradeSpent || 0);
+      reinforceWithTokens(st, player, extra.hexKeys, extra.hexKeys.length);
       resolveCard(st, player, "growth", payload.tradeSpent);
       log(st, `${player.name} placed a ${payload.district} district.`);
       checkDevelopment(st, payload.playerId);
@@ -1755,11 +1815,12 @@ const Game = (() => {
 
     if (type === "PLAY_GROWTH_REINFORCE") {
       const player = getPlayer(st, payload.playerId);
-      if (!canResolveCard(player, "growth")) return st;
       // "Reinforce a number of your control tokens up to this slot's number",
       // plus one more for each trade token spent from the card.
-      const allowed = getSlotValue(player, "growth", st) + (payload.tradeSpent || 0);
-      const done = reinforceWithTokens(st, player, payload.hexKeys, allowed);
+      const placement = validateReinforcePlacement(st, payload.playerId,
+        payload.hexKeys, payload.tradeSpent, getSlotValue(player, "growth", st));
+      if (!placement.ok) return st;
+      const done = reinforceWithTokens(st, player, placement.hexKeys, placement.limit);
       resolveCard(st, player, "growth", payload.tradeSpent);
       log(st, `${player.name} reinforced ${done} marker(s).`);
       return st;
@@ -2434,6 +2495,32 @@ const Game = (() => {
     (player.caravans || []).forEach((u) => { u.movedThisCard = false; u.exploredThisCard = false; });
     (player.armies || []).forEach((u) => { u.movedThisCard = false; u.exploredThisCard = false; });
     resolveCard(st, player, active.cardType, active.tradeSpent);
+  }
+
+  function endUnitMovement(st, payload) {
+    const continuation = st.movementContinuation;
+    if (!continuation || continuation.playerId !== payload.playerId ||
+        continuation.unitId !== payload.unitId) return st;
+    const player = getPlayer(st, continuation.playerId);
+    if (!player) return st;
+    const list = continuation.unitType === "army" ? player.armies : player.caravans;
+    const unit = (list || []).find((entry) => entry.id === continuation.unitId);
+    if (!unit || unit.position !== continuation.fromKey) return st;
+    // Stopping is not a way to coexist with an enemy. If exploration somehow
+    // ended on a contested space, that space must be resolved by the matching
+    // military attack action.
+    if (continuation.unitType === "army" &&
+        findDefender(st, continuation.fromKey, player.id)) return st;
+
+    const redeploying = continuation.unitType === "army" &&
+      isMassProductionRedeploy(st, player, unit);
+    unit.movedThisCard = true;
+    st.movementContinuation = null;
+    activeMovementCard(st, player, continuation.cardType, continuation.tradeSpent);
+    if (redeploying) consumeMassProductionRedeploy(st, player, unit);
+    log(st, `${player.name} ended ${continuation.unitType} movement after exploring.`);
+    if (!unitsLeftToMove(player, continuation.cardType)) finishActiveCard(st);
+    return st;
   }
 
   // Whether this player may resolve a card of this type right now. Normally
@@ -4181,7 +4268,9 @@ const Game = (() => {
   function getCultureMarkers(player, tradeSpent, st) {
     const tier = getCardTier(player, "culture");
     const base = CARD_TIERS.culture.markers[tier - 1];
-    return base + tradeSpent;
+    const franceBonus = st && player && hasLeader(player, "france")
+      ? franceWonderBonus(st, player.id) : 0;
+    return base + tradeSpent + franceBonus;
   }
 
   // The printed cards, not a flat table. Iron Working reads "your combat value
@@ -4813,6 +4902,59 @@ const Game = (() => {
     return new Set(valid);
   }
 
+  function validateFocusTradeSpend(player, cardType, tradeSpent) {
+    const spent = tradeSpent === undefined ? 0 : Number(tradeSpent);
+    if (!Number.isInteger(spent) || spent < 0 || spent > (player && player.trade[cardType] || 0)) {
+      return {
+        ok: false, code: "invalid_trade_spend",
+        message: `Choose between 0 and ${player && player.trade[cardType] || 0} ${cardType} trade tokens.`
+      };
+    }
+    return { ok: true, spent };
+  }
+
+  // A focus-card placement is one transaction. In particular, two requested
+  // markers may never turn into one marker plus a spent card merely because
+  // one key became stale or was forged. The UI uses validControlHexes to offer
+  // spaces; this preflight uses that exact set again immediately before any
+  // resource, marker, trade, or focus-row state is changed.
+  function validateCulturePlacement(st, playerId, hexKeys, tradeSpent) {
+    const player = getPlayer(st, playerId);
+    if (!player || !canResolveCard(player, "culture")) {
+      return { ok: false, code: "culture_unavailable", message: "The culture card cannot be resolved now." };
+    }
+    const trade = validateFocusTradeSpend(player, "culture", tradeSpent);
+    if (!trade.ok) return trade;
+    if (!Array.isArray(hexKeys) || hexKeys.length === 0) {
+      return { ok: false, code: "control_selection_empty", message: "Choose at least one control-marker space." };
+    }
+    if (hexKeys.some((hexKey) => typeof hexKey !== "string")) {
+      return { ok: false, code: "control_space_invalid", message: "A selected control-marker space is invalid." };
+    }
+    const unique = new Set(hexKeys);
+    if (unique.size !== hexKeys.length) {
+      return { ok: false, code: "duplicate_control_space", message: "The same space cannot receive two control markers." };
+    }
+    const maxMarkers = getCultureMarkers(player, trade.spent, st);
+    if (hexKeys.length > maxMarkers) {
+      return {
+        ok: false, code: "too_many_control_markers",
+        message: `This culture card can place at most ${maxMarkers} control marker${maxMarkers === 1 ? "" : "s"}.`
+      };
+    }
+    const slot = getSlotValue(player, "culture", st);
+    const legal = validControlHexes(st, playerId, slot);
+    const invalid = hexKeys.find((hexKey) => !legal.has(hexKey));
+    if (invalid) {
+      return {
+        ok: false, code: "control_space_invalid",
+        message: `${invalid} is no longer a legal control-marker space. Nothing was placed or spent.`
+      };
+    }
+    const franceBonus = hasLeader(player, "france") ? franceWonderBonus(st, player.id) : 0;
+    return { ok: true, hexKeys: hexKeys.slice(), maxMarkers, franceBonus, tradeSpent: trade.spent };
+  }
+
   function validDistrictHexes(st, playerId, maxTerrain) {
     const player = getPlayer(st, playerId);
     const valid = [];
@@ -4848,6 +4990,80 @@ const Game = (() => {
       if (h.active && h.control && h.control.ownerId === playerId && !h.control.fortified) valid.push(k);
     });
     return new Set(valid);
+  }
+
+  function validateReinforcePlacement(st, playerId, hexKeys, tradeSpent, baseLimit) {
+    const player = getPlayer(st, playerId);
+    if (!player || !canResolveCard(player, "growth")) {
+      return { ok: false, code: "growth_unavailable", message: "The growth card cannot be resolved now." };
+    }
+    const trade = validateFocusTradeSpend(player, "growth", tradeSpent);
+    if (!trade.ok) return trade;
+    if (!Array.isArray(hexKeys) || hexKeys.length === 0) {
+      return { ok: false, code: "reinforce_selection_empty", message: "Choose at least one control marker to reinforce." };
+    }
+    if (hexKeys.some((hexKey) => typeof hexKey !== "string") || new Set(hexKeys).size !== hexKeys.length) {
+      return { ok: false, code: "reinforce_space_invalid", message: "Each control marker may be reinforced only once." };
+    }
+    const limit = Math.max(0, Number(baseLimit || 0)) + trade.spent;
+    if (hexKeys.length > limit) {
+      return {
+        ok: false, code: "too_many_reinforcements",
+        message: `This growth card can reinforce at most ${limit} control marker${limit === 1 ? "" : "s"}.`
+      };
+    }
+    const legal = validReinforceHexes(st, playerId);
+    const invalid = hexKeys.find((hexKey) => !legal.has(hexKey));
+    if (invalid) {
+      return {
+        ok: false, code: "reinforce_space_invalid",
+        message: `${invalid} is no longer one of your unreinforced control markers. Nothing was changed or spent.`
+      };
+    }
+    return { ok: true, hexKeys: hexKeys.slice(), limit, tradeSpent: trade.spent };
+  }
+
+  // A district play carries a second, independent batch: Terra p8 lets the same
+  // growth card spend trade tokens to reinforce one control token each, "whether
+  // or not the card's effect was used to reinforce control tokens".
+  //
+  // reinforceWithTokens skipped illegal keys with `continue` while the caller
+  // charged the card and the trade anyway, so a stale selection cost tokens and
+  // reinforced nothing — the same "place 2, get 1" the culture card had. This
+  // makes the batch all-or-nothing, and it is the only place that also has to
+  // validate tradeSpent: this branch never did, so a forged or stale payload
+  // reinforced markers for free.
+  function validateGrowthDistrictReinforcements(st, playerId, hexKeys, tradeSpent, districtKey) {
+    const player = getPlayer(st, playerId);
+    if (!player) return { ok: false, code: "unknown_actor", message: "No such player." };
+    const trade = validateFocusTradeSpend(player, "growth", tradeSpent);
+    if (!trade.ok) return trade;
+    const keys = Array.isArray(hexKeys) ? hexKeys : [];
+    if (!keys.length) return { ok: true, hexKeys: [], tradeSpent: trade.spent };
+    if (keys.some((k) => typeof k !== "string") || new Set(keys).size !== keys.length) {
+      return { ok: false, code: "reinforce_space_invalid", message: "Each control marker may be reinforced only once." };
+    }
+    // One reinforcement per trade token spent, and no more.
+    if (keys.length > trade.spent) {
+      return {
+        ok: false, code: "too_many_reinforcements",
+        message: `Reinforcing ${keys.length} marker${keys.length === 1 ? "" : "s"} costs ${keys.length} growth trade token${keys.length === 1 ? "" : "s"}, and ${trade.spent} were spent.`
+      };
+    }
+    const legal = validReinforceHexes(st, playerId);
+    // The space the district is going on is not a reinforcement target. Terra p9:
+    // a district "is placed on its unreinforced side, even if it replaced a
+    // reinforced control token" — so a marker there cannot be bought back up in
+    // the same breath that replaces it.
+    legal.delete(districtKey);
+    const invalid = keys.find((k) => !legal.has(k));
+    if (invalid) {
+      return {
+        ok: false, code: "reinforce_space_invalid",
+        message: `${invalid} is not one of your unreinforced control markers. Nothing was placed or spent.`
+      };
+    }
+    return { ok: true, hexKeys: keys.slice(), tradeSpent: trade.spent };
   }
 
   function validCityHexes(st, playerId, production, cityRange) {
@@ -5585,7 +5801,7 @@ const Game = (() => {
     TILE_OFFSETS, getCoreAnchors, BARBARIAN_DIRS,
     SAVE_SCHEMA_VERSION, MAX_LOG_ENTRIES, MAX_CHAT_ENTRIES,
     createState, createLobbyState, createPlayer, migrateState, finalizeSetup,
-    applyAction, tryApplyAction, projectState, currentPlayer, getPlayer, getUndoStatus,
+    applyAction, tryApplyAction, getActionPermission, projectState, currentPlayer, getPlayer, getUndoStatus,
     SEAT_COLORS, seatColor,
     getDiplomacyAttackBonus, getDiplomacyDefenseBonus, nonAggressionWith, openBordersWith,
     isCityDeveloped,
@@ -5598,6 +5814,7 @@ const Game = (() => {
     findDefenders, validControlHexes, validDistrictHexes, validReinforceHexes,
     validCityHexes, validWonderHexes, getReachable, findDefender, getUnitsAt,
     adjacentToCityState, adjacentToFriendlyControl, terrainDifficulty, movementTerrainLimit, isForcedStopHex,
+    validateCulturePlacement, validateReinforcePlacement,
     countControl, countWonders, countDeveloped, countCities, findCapital,
     getClaimedAgendaCount,
     getValidFortressHexes, getValidTileAnchors, getTileAnchorsAnyRotation, tilePlacementFor, getTileDef,

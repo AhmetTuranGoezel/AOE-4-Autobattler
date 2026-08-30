@@ -32,10 +32,14 @@
       assert(name, condition);
     }
 
-    function assert(name, condition) {
+    // The optional third argument is shown only on failure. Several assertions
+    // already passed one and it was silently dropped, so a red line said what
+    // was expected but never what actually happened.
+    function assert(name, condition, detail) {
       const li = document.createElement("li");
       li.className = condition ? "pass" : "fail";
-      li.textContent = `${condition ? "PASS" : "FAIL"}: ${name}`;
+      li.textContent = `${condition ? "PASS" : "FAIL"}: ${name}` +
+        (!condition && detail !== undefined ? `  [${detail}]` : "");
       results.appendChild(li);
       if (condition) passed++; else failed++;
     }
@@ -549,9 +553,17 @@
           st.tiles = st.setup.tiles;
           st.tileStack = st.setup.tileStack.slice();
           st.tileDeck = st.tileStack.slice();
+          // An edge space with nothing already standing on it. The map is built
+          // from a shuffled stack, so taking the first edge space put the
+          // capital on top of whatever the tile had populated there — about one
+          // run in five it was a barbarian, and endUnitMovement then correctly
+          // refused to let the army stop in a contested space. That read as a
+          // flaky failure of the exploration flow rather than a dirty fixture.
           const origin = Object.keys(st.map.hexes).find((hexKey) => {
             const hex = st.map.hexes[hexKey];
-            return hex.active && Game.hexNeighborKeys(hex.q, hex.r)
+            if (!hex.active || hex.barbarian || hex.cityState || hex.fortress ||
+                hex.control || hex.city || hex.terrain === "water") return false;
+            return Game.hexNeighborKeys(hex.q, hex.r)
               .some((neighbor) => !st.map.hexes[neighbor] || !st.map.hexes[neighbor].active);
           });
           const hex = st.map.hexes[origin];
@@ -607,6 +619,24 @@
           assert("the UI's PLACE_EXPLORED_TILE actually places the tile",
             placed.accepted && !placed.state.pendingExploration &&
             placed.state.map.hexes[spot.anchorKey].active);
+          const continuation = placed.accepted && placed.state.movementContinuation;
+          // Masonry I moves 3 (CARD_TIERS.military.move[0]), so exploring from a
+          // standing start leaves 2. The point of the assertion is that exactly
+          // one point is charged - so it is written against the card's real
+          // allowance rather than a hard-coded number that can drift.
+          const allowance = Game.getMilitaryMove(ui.player, ui.st);
+          assert("exploration charges its movement point exactly once",
+            allowance >= 1 && continuation && continuation.remaining === allowance - 1 &&
+            continuation.fromKey === ui.origin,
+            "allowance " + allowance + ", remaining " + (continuation && continuation.remaining));
+          const stopped = continuation ? Game.tryApplyAction(placed.state, {
+            type: "END_UNIT_MOVE", payload: { unitId: "network-explorer" }
+          }, seat) : { accepted: false };
+          assert("the confirmed exploration continuation can be ended explicitly",
+            stopped.accepted && !stopped.state.movementContinuation &&
+            stopped.state.players[0].cardPlayed,
+            "placed=" + (placed && placed.accepted) + " cont=" + JSON.stringify(continuation) +
+            " stopped=" + (stopped && stopped.accepted) + "/" + (stopped && stopped.code));
         }
 
         {
@@ -850,6 +880,122 @@
         Game.applyAction(cityAdjacent, { type: "PLAY_CULTURE", payload: { playerId: owner.id, hexKeys: ["1,0"], tradeSpent: 0 } });
         assert("Early Empire accepts adjacency to a friendly city",
           cityAdjacent.map.hexes["1,0"].control?.ownerId === owner.id);
+      }
+
+      {
+        // PLAY_CULTURE used to accept a mixed list, silently skip the illegal
+        // key, and still reset the card. That made two markers selected in the
+        // interface resolve as one marker on the board. A multi-marker action
+        // is now all-or-nothing, including its trade payment.
+        const st = rulesState();
+        const me = st.players[0];
+        me.focusRow = ["culture", "growth", "science", "economy", "military", "industry"];
+        me.trade.culture = 1;
+        activate(st, "0,0", { city: { ownerId: me.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
+        activate(st, "1,0");
+        activate(st, "0,1");
+        activate(st, "2,0"); // active, but not adjacent to the friendly city
+        const beforeTrade = me.trade.culture;
+        const rejected = Game.tryApplyAction(st, { type: "PLAY_CULTURE", payload: {
+          hexKeys: ["1,0", "2,0"], tradeSpent: 1
+        }}, { actorId: me.id, role: "player" });
+        assert("a partially illegal control-marker batch is rejected atomically",
+          !rejected.accepted && rejected.code === "control_space_invalid" &&
+          !st.map.hexes["1,0"].control && !st.map.hexes["2,0"].control &&
+          !me.cardPlayed && me.trade.culture === beforeTrade);
+
+        const accepted = Game.tryApplyAction(st, { type: "PLAY_CULTURE", payload: {
+          hexKeys: ["1,0", "0,1"], tradeSpent: 0
+        }}, { actorId: me.id, role: "player" });
+        assert("two legal control markers are both placed by one transaction",
+          accepted.accepted && accepted.state.map.hexes["1,0"].control?.ownerId === me.id &&
+          accepted.state.map.hexes["0,1"].control?.ownerId === me.id);
+      }
+
+      {
+        // The growth card's district play carries a SECOND batch: Terra p8 lets
+        // the same card spend trade tokens to reinforce one control token each.
+        // reinforceWithTokens skipped illegal keys with `continue` while the
+        // caller charged the card anyway - the user's "place 2, get 1", still
+        // live on this branch after culture and reinforce were fixed.
+        const st = rulesState();
+        const me = st.players[0];
+        me.focusRow = ["culture", "science", "growth", "economy", "military", "industry"];
+        me.trade.growth = 2;
+        activate(st, "0,0", { city: { ownerId: me.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
+        activate(st, "1,0", { terrain: "grass" });                                        // the district's space
+        activate(st, "0,1", { terrain: "grass", control: { ownerId: me.id, fortified: false, district: null } });
+        activate(st, "1,-1", { terrain: "grass" });                                       // no token: illegal
+        const play = (keys, spent) => Game.tryApplyAction(st, { type: "PLAY_GROWTH_DISTRICT", payload: {
+          hexKey: "1,0", district: "campus", reinforceKeys: keys, tradeSpent: spent
+        }}, { actorId: me.id, role: "player" });
+
+        const bad = play(["0,1", "1,-1"], 2);
+        assert("a district batch with one illegal reinforcement changes nothing",
+          !bad.accepted && bad.code === "reinforce_space_invalid", bad.code);
+        assert("and nothing was placed or spent",
+          !st.map.hexes["1,0"].control && !st.map.hexes["0,1"].control.fortified &&
+          me.trade.growth === 2 && !me.cardPlayed);
+
+        // Trade was never validated on this branch either: a forged spend
+        // reinforced markers for free.
+        const forged = play(["0,1"], 99);
+        assert("a district cannot spend trade it does not have",
+          !forged.accepted && forged.code === "invalid_trade_spend", forged.code);
+        const overReach = play(["0,1"], 0);
+        assert("nor reinforce more markers than trade tokens spent",
+          !overReach.accepted && overReach.code === "too_many_reinforcements", overReach.code);
+
+        // Terra p9: a district replaces one of your control tokens and is placed
+        // UNREINFORCED even if that token was reinforced. So the space the
+        // district lands on is not a reinforcement target.
+        activate(st, "1,0", { terrain: "grass", control: { ownerId: me.id, fortified: false, district: null } });
+        const selfBuy = play(["1,0"], 1);
+        assert("the district's own space cannot be reinforced in the same play",
+          !selfBuy.accepted && selfBuy.code === "reinforce_space_invalid", selfBuy.code);
+
+        // And the legal case still works, so the guard cannot pass by refusing all.
+        const good = play(["0,1"], 1);
+        assert("a legal district batch is applied in full",
+          good.accepted && good.state.map.hexes["1,0"].control.district === "campus" &&
+          good.state.map.hexes["0,1"].control.fortified === true, good.code);
+        assert("and the district itself goes down unreinforced (Terra p9)",
+          good.accepted && good.state.map.hexes["1,0"].control.fortified === false);
+      }
+
+      {
+        // Reinforcement is another multi-key focus action and must have the
+        // same no-partial-success guarantee.
+        const st = rulesState();
+        const me = st.players[0];
+        // Growth on slot 2, so the card allows two reinforcements and it is the
+        // SPACE that is illegal. On slot 1 the limit is 1, and the length check
+        // fires first with too_many_reinforcements - which passes for the wrong
+        // reason and proves nothing about partial application.
+        // Terra p8's extended row has TWO slots numbered "1" (FOCUS_SLOTS is
+        // [1,1,2,3,4,5]), so index 1 is still slot 1 - growth has to sit at
+        // index 2 to be worth two reinforcements.
+        me.focusRow = ["culture", "science", "growth", "economy", "military", "industry"];
+        assert("the fixture allows two reinforcements",
+          Game.getSlotValue(me, "growth", st) >= 2, "slot " + Game.getSlotValue(me, "growth", st));
+        activate(st, "1,0", { control: { ownerId: me.id, fortified: false, district: null } });
+        activate(st, "0,1");                       // no control token: illegal
+        const rejected = Game.tryApplyAction(st, { type: "PLAY_GROWTH_REINFORCE", payload: {
+          hexKeys: ["1,0", "0,1"], tradeSpent: 0
+        }}, { actorId: me.id, role: "player" });
+        assert("a partially illegal reinforcement batch changes nothing",
+          !rejected.accepted && rejected.code === "reinforce_space_invalid" &&
+          !st.map.hexes["1,0"].control.fortified && !me.cardPlayed,
+          rejected.code);
+        // And an all-legal batch of the same size still goes through, so the
+        // guard cannot pass by refusing everything.
+        activate(st, "0,1", { control: { ownerId: me.id, fortified: false, district: null } });
+        const ok = Game.tryApplyAction(st, { type: "PLAY_GROWTH_REINFORCE", payload: {
+          hexKeys: ["1,0", "0,1"], tradeSpent: 0
+        }}, { actorId: me.id, role: "player" });
+        assert("two legal reinforcements are both applied",
+          ok.accepted && ok.state.map.hexes["1,0"].control.fortified &&
+          ok.state.map.hexes["0,1"].control.fortified, ok.code);
       }
 
       {
