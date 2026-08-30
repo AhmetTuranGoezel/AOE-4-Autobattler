@@ -6,7 +6,7 @@ import {
   SessionError,
   createSessionService,
   internals
-} from "./civ-session-core.mjs";
+} from "../functions/civ-session-core.mjs";
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
