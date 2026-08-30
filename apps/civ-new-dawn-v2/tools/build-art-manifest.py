@@ -639,6 +639,12 @@ def main():
         # the photo's own 11 o'clock; the ring draws space 1 at 12, so the
         # renderer turns this image 30 degrees to match — see style.css .ew-photo.
         "eventDial": (listing("other-images", r"^asset__image-face__ugc-1658972912263484170") or [None])[0],
+        # The single-hex water token (Terra p3), used to fill a hole that
+        # exploration has enclosed. It is a real printed component, but the
+        # extraction filed it under the "trash" role with no name of its own,
+        # so - like the event dial - it is pinned by its one fixed UGC id
+        # rather than by a pattern over a misleading filename.
+        "waterToken": hexify((listing("other-images", r"^trash__image-face__ugc-1994562021176698930") or [None])[0]),
         "boards": listing("boards"),
     }
 

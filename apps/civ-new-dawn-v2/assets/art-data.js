@@ -744,6 +744,7 @@ window.CivArtData = {
  "fort": "tokens/derived/hex-fort__image-face__ugc-1685995054105782372__02e783edfb48e3f4.webp",
  "eventTracker": "tokens/event-tracker__image-face__ugc-1994562021176696876__f63e2bbadcc73eaf.webp",
  "eventDial": "other-images/asset__image-face__ugc-1658972912263484170__4b9c20f311dea034.webp",
+ "waterToken": "tokens/derived/hex-trash__image-face__ugc-1994562021176698930__8c2442ddaf9d70ed.webp",
  "boards": [
   "boards/asset__image-face__ugc-1695028978276055426__a5d9309776ab5359.webp",
   "boards/asset__image-face__ugc-1886473194563555991__9b290061d92460ba.webp"

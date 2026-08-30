@@ -157,6 +157,9 @@ const CivCardArt = (() => {
     techDial: dialUrl,
     focusBar: focusBarUrl,
     fort: () => at(DATA && DATA.fort),
+    // The printed single-hex water token (Terra p3), laid in a hole that
+    // exploration has closed around.
+    waterToken: () => at(DATA && DATA.waterToken),
     eventTracker: () => at(DATA && DATA.eventTracker),
     eventDial: () => at(DATA && DATA.eventDial),
     barbDirection: () => at(DATA && DATA.barbDirection),

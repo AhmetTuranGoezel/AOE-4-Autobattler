@@ -973,6 +973,58 @@
         const seen = Game.projectState(out, foe.id);
         assert("the breakdown reaches the other player",
           !!seen.combat && (seen.combat.atkParts || []).length === parts.length);
+
+        // The numbers must outlive the fight. lastCombat is what the result
+        // panel reads once combat is cleared, and it used to drop the parts -
+        // so the breakdown was visible right up until you wanted to check it.
+        let fin = Game.applyAction(out, { type: "COMBAT_ROLL", payload: { playerId: me.id, side: "attacker" } });
+        fin = Game.applyAction(fin, { type: "COMBAT_ROLL", payload: { playerId: me.id, side: "defender", hostOverride: true } });
+        fin = Game.applyAction(fin, { type: "COMBAT_PASS", payload: { playerId: me.id, side: "attacker" } });
+        fin = Game.applyAction(fin, { type: "COMBAT_PASS", payload: { playerId: foe.id, side: "defender", hostOverride: true } });
+        assert("the fight finished", !fin.combat && !!fin.lastCombat);
+        assert("and the breakdown survived it",
+          (fin.lastCombat.atkParts || []).length === parts.length &&
+          fin.lastCombat.atkParts.some((p) => p.label === "military card"));
+      }
+
+      {
+        // Jebel Barkal burns a resource for +2. That was added straight onto
+        // atkTrade, so the breakdown reported trade tokens the player had never
+        // spent and no sign of the resource they had. It is counted separately
+        // now - and the total has to come out exactly the same as before.
+        const st = rulesState();
+        const me = st.players[0], foe = st.players[1];
+        st.turn.index = st.turn.order.indexOf(me.id);
+        me.cardPlayed = false;
+        activate(st, "0,0", { city: { ownerId: me.id, isCapital: true, developed: false,
+          hasWonder: true, wonder: { name: "Jebel Barkal" } } });
+        activate(st, "1,0", { terrain: "grass", control: { ownerId: foe.id, fortified: false, district: null } });
+        me.armies = [{ id: "a1", position: "0,0" }, { id: "a2", position: null }];
+        Game.RESOURCES.forEach((r) => { me.resources[r] = 2; });
+        let st2 = Game.applyAction(st, { type: "PLAY_MILITARY_ATTACK", payload: {
+          playerId: me.id, unitId: "a1", fromKey: "0,0", toKey: "1,0", targetType: "control"
+        } });
+        if (st2.combat) {
+          st2 = Game.applyAction(st2, { type: "COMBAT_ROLL", payload: { playerId: me.id, side: "attacker" } });
+          st2 = Game.applyAction(st2, { type: "COMBAT_ROLL", payload: { playerId: me.id, side: "defender", hostOverride: true } });
+          const burnable = Game.combatResources(st2, st2.combat, "attacker");
+          if (burnable.length) {
+            // applyAction mutates in place, so every "before" reading has to be
+            // taken now - reading st2 back afterwards reads the new value.
+            const tradeBefore = st2.combat.atkTrade;
+            const resBefore = st2.combat.atkResource || 0;
+            const totalBefore = st2.combat.atkRoll + st2.combat.atkBase + tradeBefore + resBefore;
+            const burned = Game.applyAction(st2, { type: "COMBAT_SPEND", payload: {
+              playerId: me.id, side: "attacker", mode: "resource", resource: burnable[0] } });
+            assert("burning a resource does not touch the trade line",
+              burned.combat.atkTrade === tradeBefore);
+            assert("it is counted as a resource instead",
+              burned.combat.atkResource === resBefore + 2);
+            assert("and the attack is worth exactly 2 more than before",
+              burned.combat.atkRoll + burned.combat.atkBase + burned.combat.atkTrade +
+              burned.combat.atkResource === totalBefore + 2);
+          }
+        }
       }
 
       {

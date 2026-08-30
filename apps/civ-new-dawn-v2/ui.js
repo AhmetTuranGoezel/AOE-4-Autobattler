@@ -1265,6 +1265,19 @@ const UI = (() => {
     canvas.addEventListener("mouseleave", onCanvasMouseLeave);
     canvas.addEventListener("click", onCanvasClick);
     canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+    // Middle-click turns the tile over, beside F. The wheel already turns it,
+    // so the hand that is turning it is already on the mouse. mousedown is
+    // where the browser starts autoscroll, so the default has to go there;
+    // auxclick is what actually fires the flip, so a drag off the canvas does
+    // not count as one.
+    canvas.addEventListener("mousedown", (e) => {
+      if (e.button === 1 && placingTile()) e.preventDefault();
+    });
+    canvas.addEventListener("auxclick", (e) => {
+      if (e.button !== 1 || !placingTile()) return;
+      e.preventDefault();
+      flipTile();
+    });
     canvas.addEventListener("wheel", (e) => {
       e.preventDefault();
       // With a tile in hand the wheel turns it, which is what your hand wants to
@@ -1468,6 +1481,19 @@ const UI = (() => {
         }
         return;
       }
+      // A hole that exploration closed around is filled with the printed
+      // single-hex water token (Terra p3) - a real component, not a gap in the
+      // map. It belongs to no tile, so drawTileArt skips it and it used to come
+      // out as flat terrain colour, visibly not the same material as the
+      // photographed tiles around it.
+      if (h.tileId === "water-fill" && window.CivCardArt &&
+          drawToken(CivCardArt.waterToken(), p.x, p.y, HEX_TOKEN)) {
+        hexPath(p.x, p.y, HEX_SIZE);
+        ctx.strokeStyle = "rgba(0,0,0,0.35)";
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        return;
+      }
       hexPath(p.x, p.y, HEX_SIZE);
       ctx.fillStyle = TERRAIN_COLORS[h.terrain] || "#444";
       ctx.fill();
@@ -1484,24 +1510,6 @@ const UI = (() => {
 
     // Layer 3: Tile boundaries
     drawTileBoundaries(cw, ch);
-
-    // Layer 3b: Targeting focus — while picking a hex, everything that is NOT a
-    // legal target sinks into shadow so the choices pop out unmistakably.
-    if (combinedValid.size > 0) {
-      const keep = new Set(combinedValid);
-      if (sub.movementState && sub.movementState.currentKey) keep.add(sub.movementState.currentKey);
-      if (sub.selectedUnit && sub.selectedUnit.position) keep.add(sub.selectedUnit.position);
-      Object.values(hexes).forEach((h) => {
-        if (!h.active) return;
-        const k = Game.key(h.q, h.r);
-        if (keep.has(k)) return;
-        const p = axialToPixel(h.q, h.r);
-        if (p.x < -50 || p.x > cw + 50 || p.y < -50 || p.y > ch + 50) return;
-        hexPath(p.x, p.y, HEX_SIZE);
-        ctx.fillStyle = "rgba(10,12,24,0.55)";
-        ctx.fill();
-      });
-    }
 
     // Layer 4: Valid hex highlights (pulsing)
     const pulseAlpha = 0.18 + 0.18 * Math.sin(anims.validPulse * Math.PI * 2);
@@ -1524,6 +1532,31 @@ const UI = (() => {
       if (p.x < -50 || p.x > cw + 50 || p.y < -50 || p.y > ch + 50) return;
       drawHexContent(p.x, p.y, h, k);
     });
+
+    // Layer 5b: Targeting focus — while picking a hex, everything that is NOT a
+    // legal target sinks into shadow so the choices pop out unmistakably.
+    //
+    // This has to come after the pieces, not before them. Dimming the bare
+    // terrain first and then painting the tokens on top left every fortress,
+    // city-state, city and marker at full brightness on a darkened board — the
+    // pieces you most need to read as "not this one" were the only things still
+    // lit. The ghost tile, pieces in transit and other players' cursors are
+    // drawn after this deliberately: they are what you are doing now.
+    if (combinedValid.size > 0) {
+      const keep = new Set(combinedValid);
+      if (sub.movementState && sub.movementState.currentKey) keep.add(sub.movementState.currentKey);
+      if (sub.selectedUnit && sub.selectedUnit.position) keep.add(sub.selectedUnit.position);
+      Object.values(hexes).forEach((h) => {
+        if (!h.active) return;
+        const k = Game.key(h.q, h.r);
+        if (keep.has(k)) return;
+        const p = axialToPixel(h.q, h.r);
+        if (p.x < -50 || p.x > cw + 50 || p.y < -50 || p.y > ch + 50) return;
+        hexPath(p.x, p.y, HEX_SIZE);
+        ctx.fillStyle = "rgba(10,12,24,0.55)";
+        ctx.fill();
+      });
+    }
 
     // Layer 6: Ghost tile
     if (ghostKeys.size > 0) drawGhostTile(ghostKeys, ghostValid);
@@ -3849,18 +3882,25 @@ const UI = (() => {
 
     // Every point, named. A single total tells you nothing about whether to
     // spend, which is the only decision you have.
-    const lines = (parts, roll, trade, thrown) => {
+    const lines = (parts, roll, trade, thrown, burned) => {
       const rows = [];
       if (thrown) rows.push({ label: "die", value: roll });
       (parts || []).forEach((x) => { if (x.value) rows.push(x); });
       if (trade) rows.push({ label: "trade tokens", value: trade });
+      // Jebel Barkal burns resources for +2 apiece, already totalled in points
+      // by the engine. Named, or the total jumps for no reason a player can
+      // point at - it used to be added to the trade line, so the breakdown
+      // showed trade that had never been spent.
+      if (burned) rows.push({ label: "resources burned", value: burned });
       return rows.map((r) => `<div class="cs-line"><span>${escapeHtml(r.label)}</span><b>+${r.value}</b></div>`).join("")
         || `<div class="cs-line"><span>nothing</span><b>0</b></div>`;
     };
+    // Once the fight is over the parts come off lastCombat, which already
+    // carries the burn as a part of its own - so it is not counted twice.
     const atkNote = lines(live ? live.atkParts : done.atkParts, atkRoll,
-      live ? live.atkTrade : done.atkTrade, atkThrown);
+      live ? live.atkTrade : done.atkTrade, atkThrown, live ? live.atkResource : 0);
     const defNote = lines(live ? live.defParts : done.defParts, defRoll,
-      live ? live.defTrade : done.defTrade, defThrown);
+      live ? live.defTrade : done.defTrade, defThrown, live ? live.defResource : 0);
 
     let foot = "";
     if (live && !atkThrown) {

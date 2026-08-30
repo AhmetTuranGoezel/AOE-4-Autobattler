@@ -2080,7 +2080,11 @@ const Game = (() => {
         const r = payload.resource;
         if (!combatResources(st, c, side).includes(r)) return st;
         actor.resources[r]--;
-        if (side === "attacker") c.atkTrade += 2; else c.defTrade += 2;
+        // Counted apart from the trade tokens. Adding it to atkTrade made the
+        // burn show up on the "trade tokens" line, so a player reading the
+        // breakdown saw trade they had never spent and no sign of the resource
+        // they had. The total is the same either way; combatTotals adds both.
+        if (side === "attacker") c.atkResource += 2; else c.defResource += 2;
         c.history.push({ side, mode: "resource", resource: r });
         log(st, `${actor.name} burned ${r} at Jebel Barkal for +2.`);
         advanceCombat(st);
@@ -3162,8 +3166,8 @@ const Game = (() => {
 
   function combatTotals(c) {
     return {
-      atk: c.atkRoll + c.atkBase + c.atkTrade,
-      def: c.defRoll + c.defBase + c.defTrade
+      atk: c.atkRoll + c.atkBase + c.atkTrade + (c.atkResource || 0),
+      def: c.defRoll + c.defBase + c.defTrade + (c.defResource || 0)
     };
   }
 
@@ -3230,9 +3234,21 @@ const Game = (() => {
     // before the capture logic rewrites the hex.
     const targetWasCityOrCS = !!(hex.cityState || (hex.city && hex.city.ownerId !== c.attackerId));
 
+    // The breakdown has to outlive the fight. The result panel reads lastCombat
+    // once combat is cleared, and without the parts it fell back to a bare
+    // total - the numbers were visible right up until the moment you wanted to
+    // check them. Resource burns (Jebel Barkal) are named too, so a player can
+    // see what was spent rather than an unexplained jump in the total.
+    const withBurn = (parts, burn) => {
+      const rows = (parts || []).slice();
+      if (burn) rows.push({ label: "resources burned", value: burn, category: "resource" });
+      return rows;
+    };
     st.lastCombat = { attacker: player.name, defender: c.defenderLabel, toKey: c.toKey,
       atkRoll: c.atkRoll, defRoll: c.defRoll, atkTotal, defTotal, win,
       leaderBonus: c.leaderBonus, atkTrade: c.atkTrade, defTrade: c.defTrade,
+      atkParts: withBurn(c.atkParts, c.atkResource),
+      defParts: withBurn(c.defParts, c.defResource),
       history: c.history.slice() };
 
     if (win) {
