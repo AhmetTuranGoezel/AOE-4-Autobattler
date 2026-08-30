@@ -976,6 +976,75 @@
       }
 
       {
+        // The printed direction token numbers 1-6 clockwise around the hex, so
+        // consecutive faces are neighbouring directions and face n is the exact
+        // opposite of face n+3. HEX_DIRS is only an enumeration (E, W, SE, NW,
+        // NE, SW) - reading the die off it sent faces 1 and 2 to opposite edges
+        // of the board, and made the map edge's "go back the other way" a
+        // relationship the table could not even express.
+        const dirs = Game.BARBARIAN_DIRS;
+        assert("the direction token has six faces", dirs.length === 6);
+        assert("numbered 1 to 6 in order", dirs.every((d, i) => d.face === i + 1));
+        assert("three faces round the ring is always the reverse",
+          dirs.every((d, i) => {
+            const opp = dirs[(i + 3) % 6];
+            return d.dq === -opp.dq && d.dr === -opp.dr;
+          }));
+        assert("and every face is a real neighbouring space",
+          dirs.every((d) => Math.abs(d.dq) + Math.abs(d.dr) + Math.abs(d.dq + d.dr) === 2));
+        assert("no two faces point the same way",
+          new Set(dirs.map((d) => d.dq + ":" + d.dr)).size === 6);
+      }
+
+      {
+        // A column of barbarians all march the same way, so the one behind
+        // steps into the space the one in front is leaving. Resolving them one
+        // at a time made that depend on hash order: deal the rear one first and
+        // it saw an occupied space and silently forfeited its move, so a column
+        // stayed put and two clients could disagree about the board.
+        const st = rulesState();
+        // A clear west-to-east lane, and nothing on it but barbarians.
+        for (let q = 0; q <= 6; q++) {
+          activate(st, q + ",0", { terrain: "grass" });
+        }
+        ["1,0", "2,0", "3,0"].forEach((k, i) => {
+          st.map.hexes[k].barbarian = true;
+          st.map.hexes[k].barbarianId = "barb-" + i;
+        });
+        // Face 2 is east: (dq 1, dr 0).
+        const east = Game.BARBARIAN_DIRS[1];
+        assert("face 2 is the eastward step", east.dq === 1 && east.dr === 0);
+
+        // Drive the real event rather than a private helper, and keep rolling
+        // until the die actually comes up east, so the assertion is about the
+        // march and not about the roll.
+        let out = null;
+        for (let i = 0; i < 400; i++) {
+          const attempt = JSON.parse(JSON.stringify(st));
+          Game.resolveEvent(attempt, "barbarian_move");   // mutates in place
+          if (attempt.barbarianMove && attempt.barbarianMove.roll === 2) { out = attempt; break; }
+        }
+        assert("the march rolled east at least once in 400 tries", !!out);
+        if (out) {
+          assert("the roll is recorded so every seat can see the cause",
+            out.barbarianMove.dir === "E" && out.barbarianMove.label === "east");
+          const now = ["1,0", "2,0", "3,0", "4,0"].map((k) => !!out.map.hexes[k].barbarian);
+          assert("the whole column advanced, not just its leader",
+            now.join() === [false, true, true, true].join(), now.join());
+          assert("and each one is still itself",
+            out.map.hexes["4,0"].barbarianId === "barb-2" &&
+            out.map.hexes["2,0"].barbarianId === "barb-0");
+          // Setup deals barbarians of its own, so this looks for the lane's
+          // three steps rather than counting every step on the map.
+          const lane = out.barbarianMove.steps
+            .filter((s) => /^barb-/.test(String(s.id)))
+            .map((s) => s.id + " " + s.from + ">" + s.to).sort().join(" | ");
+          assert("every step is recorded for the board to animate",
+            lane === "barb-0 1,0>2,0 | barb-1 2,0>3,0 | barb-2 3,0>4,0", lane);
+        }
+      }
+
+      {
         // Mass Production III: "You may move (and attack with) 1 of your armies
         // that was defeated this turn a second time after returning it to this
         // card." The card def carried redeployDefeated: 1 and nothing read it.

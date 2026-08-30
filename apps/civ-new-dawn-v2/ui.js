@@ -2342,19 +2342,27 @@ const UI = (() => {
     }
 
     if (h.barbarian) {
+      // The dial marches them a space at a time, and reactToChanges already
+      // starts a tween keyed on the barbarian rather than on the space. It was
+      // never read here, so the tween ran to completion while the token stayed
+      // pinned to its hex centre and the whole raid teleported.
+      const bId = `b:${h.barbarianId || k}`;
+      const bAt = movePoint(bId);
+      const bx = bAt ? bAt.x : cx, by = bAt ? bAt.y : cy;
+      const bScale = bAt ? 1 : spawnScale(bId);
       // Terra p6 step 4a: the token whose letter matches the space. A space
       // with no letter still has to look the same on every client, so the
       // token is picked from the space, never from a roll.
-      if (art && drawToken(CivCardArt.barbarianForSpace(h.barbarianId, k), cx, cy, 0.38, { shadow: true })) {
+      if (art && drawToken(CivCardArt.barbarianForSpace(h.barbarianId, k), bx, by, 0.38 * bScale, { shadow: true })) {
         // The printed helm and its letter are the whole marker.
       } else {
-      const r = 7 * s;
-      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      const r = 7 * s * bScale;
+      ctx.beginPath(); ctx.arc(bx, by, r, 0, Math.PI * 2);
       ctx.fillStyle = "#b3261e"; ctx.fill();
       ctx.lineWidth = 1.6 * s; ctx.strokeStyle = "#ffb4a9"; ctx.stroke();
       ctx.font = `bold ${Math.round(9 * s)}px sans-serif`;
       ctx.fillStyle = "#fff";
-      ctx.fillText("☠", cx, cy + 0.5 * s);
+      ctx.fillText("☠", bx, by + 0.5 * s);
       }
     }
 
@@ -5574,7 +5582,8 @@ const UI = (() => {
           <div class="ew-hub"></div>
         </div>
         <div class="ew-now"></div>
-        <div class="ew-next"></div>`;
+        <div class="ew-next"></div>
+        <div class="ew-roll"></div>`;
       dom.eventWheel.dataset.shape = shape;
       wheelAngle = null;
     }
@@ -5605,6 +5614,22 @@ const UI = (() => {
     hub.innerHTML = photo ? "" : glyphs(now);
     dom.eventWheel.querySelector(".ew-now").textContent = name(now) || "Nothing this round";
     dom.eventWheel.querySelector(".ew-next").textContent = `Next: ${name(next) || "nothing"}`;
+    // Only the host throws the barbarian die, so without this the other seats
+    // see the raid but never the roll that caused it. The arrow points the way
+    // they actually went: face 1 is the 1-o'clock edge and the rest follow
+    // clockwise, so the bearing is (face - 1) * 60 from north-east.
+    const march = state.barbarianMove;
+    const rollEl = dom.eventWheel.querySelector(".ew-roll");
+    if (march && march.roll) {
+      const bearing = (march.roll - 1) * 60 + 30;   // 0deg = north on the arrow
+      rollEl.innerHTML = `<span class="ew-die">${march.roll}</span>` +
+        `<span class="ew-arrow" style="--a:${bearing}deg">↑</span>` +
+        `<span>barbarians marched ${escapeHtml(march.label || "")}</span>`;
+      rollEl.hidden = false;
+    } else {
+      rollEl.hidden = true;
+      rollEl.textContent = "";
+    }
 
     if (turned) {
       const seg = dom.eventWheel.querySelector(".ew-seg.active");
