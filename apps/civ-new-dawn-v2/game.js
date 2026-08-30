@@ -200,6 +200,20 @@ const Game = (() => {
     { dq: 1, dr: -1 }, { dq: -1, dr: 1 }
   ];
 
+  // The printed barbarian direction token is numbered clockwise. The physical
+  // token is flat-top; the browser map is pointy-top, so its face 1 sits on the
+  // north-east edge after the same 30 degree turn used for the board art.
+  // Keeping this separate from HEX_DIRS matters: HEX_DIRS is only an
+  // enumeration (E, W, SE, NW, NE, SW), not a clockwise ring.
+  const BARBARIAN_DIRS = Object.freeze([
+    { face: 1, dq:  1, dr: -1, name: "NE", label: "north-east" },
+    { face: 2, dq:  1, dr:  0, name: "E",  label: "east" },
+    { face: 3, dq:  0, dr:  1, name: "SE", label: "south-east" },
+    { face: 4, dq: -1, dr:  1, name: "SW", label: "south-west" },
+    { face: 5, dq: -1, dr:  0, name: "W",  label: "west" },
+    { face: 6, dq:  0, dr: -1, name: "NW", label: "north-west" }
+  ].map(Object.freeze));
+
   // 10-hex tile shape (irregular parallelogram)
   // Row 0: 4 hexes, Row 1: 4 hexes, Row 2: 2 hexes (right side)
   // Pivot/anchor at row 1, col 1 → axial (0,0)
@@ -899,6 +913,10 @@ const Game = (() => {
     if (st.combat && st.combat.atkRolled === undefined) {
       st.combat.atkRolled = !!st.combat.rolled;
       st.combat.defRolled = !!st.combat.rolled;
+    }
+    if (st.combat) {
+      if (st.combat.atkResource === undefined) st.combat.atkResource = 0;
+      if (st.combat.defResource === undefined) st.combat.defResource = 0;
     }
     st.pendingChoices = st.pendingChoices || [];
     if (st.pendingExploration === undefined) st.pendingExploration = null;
@@ -1654,7 +1672,7 @@ const Game = (() => {
       if (wanted !== st.activeCard.cardType) return st;
       const list = wanted === "economy" ? player0(st, payload).caravans : player0(st, payload).armies;
       const u = (list || []).find((x) => x.id === payload.unitId);
-      if (!u || u.movedThisCard) return st;
+      if (!u || !canMoveUnitOnActiveCard(st, player0(st, payload), u, wanted)) return st;
     }
 
     if (type === "PLAY_CULTURE") {
@@ -1893,7 +1911,8 @@ const Game = (() => {
       const player = getPlayer(st, payload.playerId);
       if (!canResolveCard(player, "military")) return st;
       const unit = player.armies.find((u) => u.id === payload.unitId);
-      if (!unit) return st;
+      if (!unit || !canMoveUnitOnActiveCard(st, player, unit, "military")) return st;
+      const redeploying = isMassProductionRedeploy(st, player, unit);
       const continuation = st.movementContinuation;
       if (continuation && (continuation.playerId !== player.id ||
           continuation.unitType !== "army" || continuation.unitId !== unit.id ||
@@ -1912,7 +1931,11 @@ const Game = (() => {
       unit.movedThisCard = true;
       const tradeSpent = continuation ? continuation.tradeSpent : (payload.tradeSpent || 0);
       if (continuation) st.movementContinuation = null;
-      st.activeCard = { playerId: player.id, cardType: "military", tradeSpent };
+      activeMovementCard(st, player, "military", tradeSpent);
+      if (redeploying) {
+        consumeMassProductionRedeploy(st, player, unit);
+        log(st, `${player.name} redeployed a defeated army with Mass Production.`);
+      }
       if (!unitsLeftToMove(player, "military")) finishActiveCard(st);
       return st;
     }
@@ -1922,7 +1945,8 @@ const Game = (() => {
       if (!canResolveCard(player, "military")) return st;
       if (st.combat && st.combat.turn !== "done") return st;   // one fight at a time
       const unit = player.armies.find((u) => u.id === payload.unitId);
-      if (!unit) return st;
+      if (!unit || !canMoveUnitOnActiveCard(st, player, unit, "military")) return st;
+      const redeploying = isMassProductionRedeploy(st, player, unit);
       const continuation = st.movementContinuation;
       if (continuation && (continuation.playerId !== player.id ||
           continuation.unitType !== "army" || continuation.unitId !== unit.id ||
@@ -1955,11 +1979,10 @@ const Game = (() => {
         targets.find((d) => d.type === payload.targetType)) || targets[0];
       if (!defender) return st;
       const slot = getSlotValue(player, "military", st);
-      const leaderBonus = getLeaderAttackBonus(st, payload.playerId, payload.toKey);
-      const tierBonus = getMilitaryCombatBonus(player, defender.type);
-      const atkParts = [{ label: "military card", value: slot }];
-      if (tierBonus) atkParts.push({ label: "card tier", value: tierBonus });
-      if (leaderBonus) atkParts.push({ label: "leader", value: leaderBonus });
+      const atkParts = getAttackCombatParts(st, player, payload.toKey, defender, slot);
+      const leaderBonus = atkParts
+        .filter((part) => part.category === "leader")
+        .reduce((sum, part) => sum + part.value, 0);
       st.combat = {
         attackerId: payload.playerId,
         unitId: payload.unitId,
@@ -1969,7 +1992,7 @@ const Game = (() => {
         defenderOwnerId: defender.ownerId || null,
         defenderType: defender.type,
         defenderUnitId: defender.unitId || null,
-        atkBase: slot + tierBonus + leaderBonus,
+        atkBase: atkParts.reduce((sum, part) => sum + part.value, 0),
         defBase: defender.power,
         atkParts,
         defParts: defender.parts || [{ label: "defence", value: defender.power }],
@@ -1981,8 +2004,11 @@ const Game = (() => {
         rolled: false,
         atkTrade: 0,
         defTrade: 0,
+        atkResource: 0,
+        defResource: 0,
         turn: "attacker",
         history: [],
+        massProductionRedeploy: redeploying,
         movementContinuation: continuation ? { ...continuation } : null
       };
       if (continuation) st.movementContinuation = null;
@@ -2322,6 +2348,73 @@ const Game = (() => {
   // An economy or military card moves every figure of its kind, so the card is
   // only spent once all of them have had their move (or the player says stop).
   const player0 = (st, payload) => getPlayer(st, payload.playerId) || { caravans: [], armies: [] };
+
+  // Mass Production III is the one printed military card that can use an army
+  // twice: after that army loses an attack and returns to the card, exactly one
+  // defeated army may be chosen for a second move/attack. Keeping the choice on
+  // activeCard lets either defeated army be selected if both lost before the
+  // player takes the optional redeployment; no unit-local flag can accidentally
+  // survive the card reset into a later turn.
+  function hasMassProductionRedeploy(player) {
+    const tier = getCardTier(player, "military");
+    const def = (CARD_DEFS.military || {})[tier] || {};
+    return getCardName(player, "military") === "Mass Production" &&
+      Number(def.redeployDefeated || 0) === 1;
+  }
+
+  function activeMovementCard(st, player, cardType, tradeSpent) {
+    const same = st.activeCard && st.activeCard.playerId === player.id &&
+      st.activeCard.cardType === cardType ? st.activeCard : {};
+    st.activeCard = {
+      ...same,
+      playerId: player.id,
+      cardType,
+      tradeSpent: Number(tradeSpent || 0)
+    };
+    return st.activeCard;
+  }
+
+  function isMassProductionRedeploy(st, player, unit) {
+    const active = st && st.activeCard;
+    return !!(active && player && unit && hasMassProductionRedeploy(player) &&
+      active.playerId === player.id && active.cardType === "military" &&
+      !active.redeployDefeatedUsed &&
+      (active.defeatedArmyIds || []).includes(unit.id));
+  }
+
+  function canMoveUnitOnActiveCard(st, player, unit, cardType) {
+    if (!unit) return false;
+    if (!unit.movedThisCard) return true;
+    return cardType === "military" && isMassProductionRedeploy(st, player, unit);
+  }
+
+  function consumeMassProductionRedeploy(st, player, unit) {
+    if (!isMassProductionRedeploy(st, player, unit)) return false;
+    const active = st.activeCard;
+    active.redeployDefeatedUsed = true;
+    active.redeployedArmyId = unit.id;
+    // Every defeated army was temporarily offered in the picker. Choosing one
+    // closes the shared, one-army allowance while leaving genuinely un-moved
+    // armies available for their ordinary move.
+    const defeated = new Set(active.defeatedArmyIds || []);
+    (player.armies || []).forEach((army) => {
+      if (defeated.has(army.id)) army.movedThisCard = true;
+    });
+    return true;
+  }
+
+  function offerMassProductionRedeploy(st, player, unit) {
+    if (!hasMassProductionRedeploy(player)) return false;
+    const active = st.activeCard;
+    if (!active || active.redeployDefeatedUsed) return false;
+    active.defeatedArmyIds = active.defeatedArmyIds || [];
+    if (!active.defeatedArmyIds.includes(unit.id)) active.defeatedArmyIds.push(unit.id);
+    // The existing movement picker treats false as "still available". All
+    // defeated candidates remain selectable until one of them consumes the
+    // single printed allowance.
+    unit.movedThisCard = false;
+    return true;
+  }
 
   function unitsLeftToMove(player, cardType) {
     const list = cardType === "economy" ? player.caravans : player.armies;
@@ -3240,10 +3333,16 @@ const Game = (() => {
       log(st, `${player.name}'s army was defeated by ${c.defenderLabel} and returns to the military card. (${atkTotal} vs ${defTotal})`);
     }
     unit.movedThisCard = true;
-    st.activeCard = {
-      playerId: player.id, cardType: "military",
-      tradeSpent: (st.activeCard && st.activeCard.cardType === "military" ? st.activeCard.tradeSpent : 0) + c.atkTrade
-    };
+    // Rebuilding activeCard from scratch here would drop the Mass Production
+    // bookkeeping that lives on it, so the card is updated rather than replaced.
+    activeMovementCard(st, player, "military",
+      (st.activeCard && st.activeCard.cardType === "military" ? st.activeCard.tradeSpent : 0) + c.atkTrade);
+    // Mass Production III: "You may move (and attack with) 1 of your armies that
+    // was defeated this turn a second time after returning it to this card."
+    // This is the moment the army returns to the card, so this is where the
+    // offer is made; it keeps the card open by leaving that army un-moved, and
+    // taking it up closes the allowance for every other defeated army.
+    if (!win) offerMassProductionRedeploy(st, player, unit);
     checkDevelopment(st, c.attackerId);
     if (!unitsLeftToMove(player, "military")) finishActiveCard(st);
       st.combat = null;
@@ -4400,6 +4499,45 @@ const Game = (() => {
     // Joint War pacts held against anyone but the defender.
     bonus += getDiplomacyAttackBonus(st, playerId, toKey);
     return bonus;
+  }
+
+  // Every number that goes into the attacker's strength, itemised, because a
+  // total is not a reason. The parts travel with the combat so both players can
+  // read the same sum: "military card 3, +2 vs barbarian, Scythia +3" rather
+  // than a bare 8 that neither side can check.
+  //
+  // getLeaderAttackBonus returns one number covering the civ ability, the
+  // wonders and the pacts. Those are three different reasons that appear and
+  // disappear independently, so they are re-derived here as separate lines. All
+  // of them keep category "leader" so that st.combat.leaderBonus stays the sum
+  // getLeaderAttackBonus would have given.
+  function getAttackCombatParts(st, player, toKey, defender, slot) {
+    const parts = [{ label: "military card", value: slot, category: "card" }];
+    const h = st.map.hexes[toKey];
+
+    const tierBonus = getMilitaryCombatBonus(player, defender && defender.type);
+    if (tierBonus) {
+      // Iron Working's +2 is conditional, so it has to say what earned it.
+      const vsBarb = defender && defender.type === "barbarian" &&
+        Number(((CARD_DEFS.military || {})[getCardTier(player, "military")] || {}).vsBarbarian || 0);
+      parts.push({
+        label: vsBarb ? `${getCardName(player, "military")} vs barbarian` : getCardName(player, "military"),
+        value: tierBonus, category: "card"
+      });
+    }
+
+    if (hasLeader(player, "scythia") && h && (h.terrain === "grass" || h.terrain === "hill")) {
+      parts.push({ label: "Scythia (grass/hill)", value: 3, category: "leader" });
+    }
+    if (hasLeader(player, "ottoman") && st.ibrahimHolder && hexOwnerAt(st, toKey) === st.ibrahimHolder) {
+      parts.push({ label: "Ottoman (vs Ibrahim)", value: 2, category: "leader" });
+    }
+    const wonderBonus = getWonderAttackBonus(st, player.id, toKey);
+    if (wonderBonus) parts.push({ label: "world wonders", value: wonderBonus, category: "leader" });
+    const pactBonus = getDiplomacyAttackBonus(st, player.id, toKey);
+    if (pactBonus) parts.push({ label: "joint war pacts", value: pactBonus, category: "leader" });
+
+    return parts;
   }
 
   function getCityRange(player) {

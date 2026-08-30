@@ -933,6 +933,122 @@
       }
 
       {
+        // "combat dice results don't show all the contributing numbers." Every
+        // number staked on a fight has to be readable by both players, so the
+        // attack total arrives itemised rather than as a bare sum - and the
+        // three reasons getLeaderAttackBonus used to add together (the civ
+        // ability, the wonders, the pacts) appear as separate lines, because
+        // they come and go independently.
+        const st = rulesState();
+        const me = st.players[0], foe = st.players[1];
+        st.turn.index = st.turn.order.indexOf(me.id);
+        me.cardPlayed = false;
+        me.leaderId = "scythia";                       // +3 on grass or hills
+        me.cardTiers.military = 2;                     // Iron Working: +2 vs barbarians
+        activate(st, "0,0", { city: { ownerId: me.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
+        activate(st, "1,0", { terrain: "grass", barbarian: { letter: "A" } });
+        me.armies = [{ id: "a1", position: "0,0" }];
+        const out = Game.applyAction(st, { type: "PLAY_MILITARY_ATTACK", payload: {
+          playerId: me.id, unitId: "a1", fromKey: "0,0", toKey: "1,0", targetType: "barbarian"
+        } });
+        const parts = (out.combat && out.combat.atkParts) || [];
+        const labels = parts.map((p) => p.label).join(" | ");
+        assert("the attack arrives itemised, not as one number", parts.length >= 3);
+        assert("the parts add up to the attack total",
+          parts.reduce((n, p) => n + p.value, 0) === out.combat.atkBase);
+        assert("the military card is one of the numbers",
+          parts.some((p) => p.label === "military card" && p.value === Game.getSlotValue(me, "military", out)));
+        assert("Iron Working's +2 says what earned it",
+          parts.some((p) => /vs barbarian/.test(p.label) && p.value === 2), labels);
+        assert("the civ ability is its own line",
+          parts.some((p) => /Scythia/.test(p.label) && p.value === 3), labels);
+        // leaderBonus must still be exactly what getLeaderAttackBonus gave, or
+        // every existing reader of it silently changes meaning.
+        assert("leaderBonus still totals the leader-category parts",
+          out.combat.leaderBonus === parts.filter((p) => p.category === "leader")
+            .reduce((n, p) => n + p.value, 0) &&
+          out.combat.leaderBonus === Game.getLeaderAttackBonus(out, me.id, "1,0"));
+        // And the breakdown has to reach the other seat, or only one player can
+        // check the sum.
+        const seen = Game.projectState(out, foe.id);
+        assert("the breakdown reaches the other player",
+          !!seen.combat && (seen.combat.atkParts || []).length === parts.length);
+      }
+
+      {
+        // Mass Production III: "You may move (and attack with) 1 of your armies
+        // that was defeated this turn a second time after returning it to this
+        // card." The card def carried redeployDefeated: 1 and nothing read it.
+        let st = rulesState();
+        const me = st.players[0], foe = st.players[1];
+        st.turn.index = st.turn.order.indexOf(me.id);
+        me.cardPlayed = false;
+        me.cardTiers.military = 3;
+        // Military on slot 1. Mass Production attacks at slot + 2, so the
+        // attacker stakes 3 and cannot pass 9 on one die, while a city-state
+        // defends at 8 and cannot fall below 9 - and the defender takes ties.
+        // The loss has to be arithmetically certain or the test flakes: at the
+        // default slot the attacker stakes 6 and wins this roughly one run in
+        // eight, which is exactly often enough to look like a real bug later.
+        me.focusRow = ["military", "growth", "science", "economy", "culture", "industry"];
+        assert("tier III is the card that grants it", Game.getCardName(me, "military") === "Mass Production");
+        activate(st, "0,0", { city: { ownerId: me.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
+        activate(st, "1,0", { terrain: "grass", cityState: { name: "Test State", type: "culture" } });
+        me.armies = [{ id: "a1", position: "0,0" }, { id: "a2", position: null }];
+        st = Game.applyAction(st, { type: "PLAY_MILITARY_ATTACK", payload: {
+          playerId: me.id, unitId: "a1", fromKey: "0,0", toKey: "1,0", targetType: "citystate"
+        } });
+        assert("the attack opened", !!st.combat);
+        st = Game.applyAction(st, { type: "COMBAT_ROLL", payload: { playerId: me.id, side: "attacker" } });
+        st = Game.applyAction(st, { type: "COMBAT_ROLL", payload: { playerId: me.id, side: "defender", hostOverride: true } });
+        st = Game.applyAction(st, { type: "COMBAT_PASS", payload: { playerId: me.id, side: "attacker" } });
+        st = Game.applyAction(st, { type: "COMBAT_PASS", payload: { playerId: foe.id, side: "defender", hostOverride: true } });
+        const beaten = st.players[0].armies.find((u) => u.id === "a1");
+        assert("the losing army went back to its card", !st.combat && beaten.position === null);
+        assert("and it may go again, which is the whole point of the card",
+          beaten.movedThisCard === false);
+        assert("the card is still open for it", !st.players[0].cardPlayed);
+
+        // Taking the offer spends it: one army, once. The army is on the card,
+        // so it re-enters from a city it may launch from, like any army leaving
+        // the card - "after returning it to this card" is not a free teleport.
+        const again = Game.applyAction(st, { type: "PLAY_MILITARY_MOVE", payload: {
+          playerId: me.id, unitId: "a1", startKey: "0,0", toKey: "0,0", tradeSpent: 0
+        } });
+        const back = again.players[0].armies.find((u) => u.id === "a1");
+        assert("redeploying puts it back on the board", back.position === "0,0");
+        assert("and the allowance is spent", again.activeCard && again.activeCard.redeployDefeatedUsed === true);
+        assert("a second defeated army cannot also go again",
+          again.players[0].armies.every((u) => u.movedThisCard !== false || u.id === "a2"));
+
+        // A tier that does not print the clause gets no second chance.
+        let plain = rulesState();
+        const p2 = plain.players[0];
+        plain.turn.index = plain.turn.order.indexOf(p2.id);
+        p2.cardPlayed = false;
+        p2.cardTiers.military = 2;
+        p2.focusRow = ["military", "growth", "science", "economy", "culture", "industry"];
+        activate(plain, "0,0", { city: { ownerId: p2.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
+        activate(plain, "1,0", { terrain: "grass", cityState: { name: "Test State", type: "culture" } });
+        // Two armies, so that losing one does not end the card by itself -
+        // finishActiveCard clears movedThisCard, which would hide the very flag
+        // under test.
+        p2.armies = [{ id: "b1", position: "0,0" }, { id: "b2", position: null }];
+        plain = Game.applyAction(plain, { type: "PLAY_MILITARY_ATTACK", payload: {
+          playerId: p2.id, unitId: "b1", fromKey: "0,0", toKey: "1,0", targetType: "citystate"
+        } });
+        plain = Game.applyAction(plain, { type: "COMBAT_ROLL", payload: { playerId: p2.id, side: "attacker" } });
+        plain = Game.applyAction(plain, { type: "COMBAT_ROLL", payload: { playerId: p2.id, side: "defender", hostOverride: true } });
+        plain = Game.applyAction(plain, { type: "COMBAT_PASS", payload: { playerId: p2.id, side: "attacker" } });
+        plain = Game.applyAction(plain, { type: "COMBAT_PASS", payload: { playerId: plain.players[1].id, side: "defender", hostOverride: true } });
+        const lost = plain.players[0].armies.find((u) => u.id === "b1");
+        assert("Iron Working's defeated army stays on the card",
+          lost.position === null && lost.movedThisCard === true);
+        assert("and no redeploy was ever offered",
+          !(plain.activeCard || {}).defeatedArmyIds);
+      }
+
+      {
         // Terra p10: both sides roll, then the attacker bids everything they
         // mean to bid before the defender may answer. A token is +1 or a fresh
         // die, decided after seeing the roll.

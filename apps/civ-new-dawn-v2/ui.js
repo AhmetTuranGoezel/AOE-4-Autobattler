@@ -2143,7 +2143,12 @@ const UI = (() => {
     const hgt = w * (img.naturalHeight / img.naturalWidth);
     ctx.save();
     ctx.beginPath();
-    hexSubPath(cx, cy, HEX_SIZE);
+    // opts.disc crops a hex-shaped token down to a round one of that radius, so
+    // a district reads as a marker sitting on the space rather than as a second
+    // tile covering it. Everything else is clipped to its space, because a few
+    // of the extracted tokens are hexes photographed on a black rectangle.
+    if (o.disc) ctx.arc(cx, cy, o.disc, 0, Math.PI * 2);
+    else hexSubPath(cx, cy, HEX_SIZE);
     ctx.clip();
     if (o.alpha !== undefined) ctx.globalAlpha = o.alpha;
     if (o.shadow) {
@@ -2298,8 +2303,25 @@ const UI = (() => {
       const face = art && (h.control.district
         ? CivCardArt.district(color, h.control.district)
         : CivCardArt.control(color, h.control.fortified));
-      if (face && drawToken(face, cx, cy, (h.control.district ? HEX_TOKEN : 0.44) * mkScale, { shadow: true })) {
-        // Nothing else to draw: the face says whose it is and what it is.
+      // A district is a marker on the space, not a second tile covering it, so
+      // it is cropped to the same disc a control token occupies. The printed
+      // hex art is drawn at full size and clipped, which keeps the glyph at its
+      // designed size inside the disc instead of shrinking the whole hex.
+      const discR = 0.44 * HEX_SIZE * mkScale;
+      const drawn = face && (h.control.district
+        ? drawToken(face, cx, cy, HEX_TOKEN * mkScale, { shadow: true, disc: discR })
+        : drawToken(face, cx, cy, 0.44 * mkScale, { shadow: true }));
+      if (drawn) {
+        // The face says whose it is and what it is. Reinforcing is a flip on a
+        // plain token, but a district has only one printed face, so the ring
+        // carries it — the same white ring the fallback marker uses.
+        if (h.control.district && h.control.fortified) {
+          ctx.beginPath();
+          ctx.arc(cx, cy, discR + 1.4 * s, 0, Math.PI * 2);
+          ctx.lineWidth = 2 * s;
+          ctx.strokeStyle = "#fff";
+          ctx.stroke();
+        }
       } else if (h.control.district) {
         const w = 15 * s, hh = 11 * s;
         roundRect(cx - w / 2, cy - hh / 2, w, hh, 2 * s);
@@ -3010,20 +3032,6 @@ const UI = (() => {
       }
     });
     const myWonderStr = myWonders.length ? myWonders.join(", ") : "none";
-    const visibleWonders = Game.getVisibleWonders ? Game.getVisibleWonders(state).filter((w) => !builtWonders.has(w.name)) : [];
-    const wonderList = visibleWonders.length
-      ? visibleWonders.map((w) => {
-          const face = window.CivCardArt ? CivCardArt.wonderCard(w.name) : "";
-          return `<div class="wface era-${w.era}${face ? " has-art" : ""}">
-            ${face ? `<img class="wface-art" src="${escapeHtml(face)}" alt="${escapeHtml(w.name)} world wonder card" loading="lazy" draggable="false">` : ""}
-            <div class="wface-copy">
-              <div class="wface-head"><span class="wface-name">${escapeHtml(w.name)}</span><span class="wface-cost">${w.cost}</span></div>
-              <div class="wface-meta">${escapeHtml(w.era)} · ${escapeHtml(w.type)}</div>
-              <div class="wface-text">${escapeHtml(w.effect || "")}</div>
-            </div>
-          </div>`;
-        }).join("")
-      : `<div style="color:var(--text2)">none</div>`;
     const myLeader = Game.getLeader ? Game.getLeader(me) : null;
     let leaderRow = "";
     if (myLeader) {
@@ -3051,10 +3059,7 @@ const UI = (() => {
       <span>CS Tokens:</span><span class="sv">${csTokens}</span>
       <span>Gov:</span><span class="sv">${gov}</span>
       <span>My Wonders:</span><span class="sv">${myWonderStr}</span>
-    </div>
-    <details style="margin-top:6px;font-size:11px"><summary style="cursor:pointer;color:var(--accent)">Visible Wonders (${visibleWonders.length})</summary>
-      ${wonderList}
-    </details>`;
+    </div>`;
   }
 
   // ── Wizard ────────────────────────────────────────────────
@@ -3534,6 +3539,37 @@ const UI = (() => {
     return choices.find((c) => !me || c.playerId !== me.id) || null;
   }
 
+  // Show the focus card a science upgrade will actually grant. The engine's
+  // option payload intentionally stays small; every client can derive this
+  // public printed information from the rules and art manifests.
+  function upgradeCardPreview(owner, choice, option) {
+    const takeUnique = String(option.id).indexOf("unique_") === 0;
+    const cardType = takeUnique ? String(option.id).slice("unique_".length) : String(option.id);
+    const cur = (owner && owner.cardTiers && owner.cardTiers[cardType]) || 1;
+    const tier = choice.techLevel
+      ? Math.max(cur, Math.min(4, choice.techLevel))
+      : Math.min(4, cur + 1);
+    const leader = owner && Game.getLeader ? Game.getLeader(owner) : null;
+    const unique = takeUnique && leader ? leader.unique : null;
+    const name = unique ? unique.name : (Game.CARD_NAMES[cardType] || [])[tier - 1] || cardType;
+    const rules = unique ? (unique.text || "")
+      : (((Game.CARD_DEFS[cardType] || {})[tier] || {}).effectText || "");
+    const replaces = (Game.CARD_NAMES[cardType] || [])[cur - 1] || "";
+    const art = window.CivCardArt
+      ? (unique ? CivCardArt.uniqueUrl(owner && owner.leaderId)
+        : CivCardArt.focusUrl(cardType, tier, owner ? owner.color : ""))
+      : "";
+    return `${art ? `<img class="opt-face" src="${escapeHtml(art)}" alt="" loading="lazy" draggable="false">` : ""}
+      <span class="opt-copy">
+        <span class="opt-head">
+          <span class="opt-name">${unique ? "★ " : ""}${escapeHtml(name)}</span>
+          <span class="opt-tier">${escapeHtml(Game.FOCUS_LABELS[cardType] || cardType)} ${TIER_ROMAN[tier - 1] || tier}</span>
+        </span>
+        <span class="opt-text">${escapeHtml(rules)}</span>
+        ${replaces && replaces !== name ? `<span class="opt-from">replaces ${escapeHtml(replaces)}</span>` : ""}
+      </span>`;
+  }
+
   function renderPendingChoice(choice) {
     const owner = Game.getPlayer(state, choice.playerId);
     const title = choice.title || "Pending Choice";
@@ -3555,9 +3591,11 @@ const UI = (() => {
     if (choice.options && choice.options.length) {
       // A civ's own unique card is worth pointing at when it turns up as an
       // option, so it does not read as just another line in the list.
-      controls = `<div class="wiz-actions pending-options">${choice.options.map((o) =>
-        `<button class="sm pending-option${o.unique ? " unique-option" : ""}" data-option="${escapeHtml(o.id)}"${
-          o.text ? ` title="${escapeHtml(o.text)}"` : ""}>${escapeHtml(o.label || o.id)}</button>`
+      const asCards = choice.kind === "science_upgrade";
+      controls = `<div class="wiz-actions pending-options${asCards ? " with-preview" : ""}">${choice.options.map((o) =>
+        `<button class="sm pending-option${o.unique ? " unique-option" : ""}${asCards ? " option-card" : ""}" data-option="${escapeHtml(o.id)}"${
+          o.text ? ` title="${escapeHtml(o.text)}"` : ""}>${
+          asCards ? upgradeCardPreview(owner, choice, o) : escapeHtml(o.label || o.id)}</button>`
       ).join("")}</div>`;
     } else if (choice.hexKeys && choice.hexKeys.length) {
       // Picking a space is done by pointing at it. This used to be a dropdown
@@ -4431,7 +4469,7 @@ const UI = (() => {
 
     const visible = Game.getVisibleWonders(state).filter((w) => !builtWonders.has(w.name));
 
-    let html = `<div class="wiz-title">Choose Visible Wonder (Production: ${prod})</div><div class="wiz-body" style="max-height:260px;overflow-y:auto">`;
+    let html = `<div class="wiz-title">Choose Visible Wonder (Production: ${prod})</div><div class="wiz-body wonder-pick-grid">`;
     visible.forEach((w) => {
       const affordable = prod >= w.cost;
       const disabled = affordable ? "" : " disabled";
@@ -4529,6 +4567,7 @@ const UI = (() => {
           const wArt = window.CivCardArt ? CivCardArt.wonderCard(w.name) : "";
           html += `<div class="wcard type-${type} era-${w.era} st-${st8.cls}${wArt ? " has-face" : ""}">
             ${wArt ? `<img class="wcard-face" src="${escapeHtml(wArt)}" alt="${escapeHtml(w.name)} world wonder card" loading="lazy" draggable="false">` : ""}
+            <div class="wcard-copy">
             <div class="wcard-top">
               <span class="wcard-icon">${WONDER_ICONS[type] || "\u2b50"}</span>
               <span class="wcard-era">${escapeHtml(w.era)}</span>
@@ -4545,6 +4584,7 @@ const UI = (() => {
               ${st8.label}
               ${st8.hexKey ? `<button class="wcard-goto" data-hex="${escapeHtml(st8.hexKey)}"
                 title="Centre the board on it">show me</button>` : ""}
+            </div>
             </div>
           </div>`;
         });
@@ -5459,13 +5499,27 @@ const UI = (() => {
 
   // ── Event Wheel / Log / Focus Row / Game Over ─────────────
 
-  // Chosen to read like the printed dial: a skyline for districts, a columned
-  // hall for government, a pyramid for the wonder icon.
+  // The printed dial photograph already includes every wedge icon. These
+  // vectors are only the fallback for a checkout without the extracted art;
+  // emoji gave the dial unrelated skull, sword and triangle symbols.
+  const EVENT_HELM =
+    `<path d="M12 4.2c-3.4 0-5.8 2.5-5.8 5.9v3.4h11.6V10c0-3.4-2.4-5.8-5.8-5.8z"/>` +
+    `<path d="M6.2 10.2C4 9.3 2.5 7.4 2.1 5c2.1.2 3.8 1.5 4.8 3.4zM17.8 10.2c2.2-.9 3.7-2.8 4.1-5.2-2.1.2-3.8 1.5-4.8 3.4z"/>`;
+  const svgIcon = (body) => `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">${body}</svg>`;
   const EVENT_ICONS = {
-    barbarian_move: "\ud83d\udde1\ufe0f", barbarian_return: "\ud83d\udc80",
-    district_event: "\ud83c\udfd9\ufe0f", gov_change: "\ud83c\udfdb\ufe0f",
-    wonder_tokens: "\ud83d\udd3a"
+    barbarian_move: svgIcon(EVENT_HELM + `<path d="M9.4 15.2h5.2L12 19.8z"/>`),
+    barbarian_return: svgIcon(EVENT_HELM +
+      `<path d="M12 14.6l1 2.1 2.3.3-1.7 1.6.4 2.3-2-1.1-2 1.1.4-2.3-1.7-1.6 2.3-.3z"/>`),
+    district_event: svgIcon(
+      `<path d="M12 1.6l9 5.2v10.4l-9 5.2-9-5.2V6.8z" opacity=".3"/>` +
+      `<path d="M6.4 17.4V11h2.2v6.4zm3.5 0V8.2h2.2v9.2zm3.5 0V5.4l1.6 2.2 1.6-2.2v12z"/>`),
+    gov_change: svgIcon(
+      `<path d="M12 2.4l9.4 4.7v1.7H2.6V7.1z"/>` +
+      `<path d="M4.9 10.4h2.2v7.9H4.9zm4 0h2.2v7.9H8.9zm4 0h2.2v7.9h-2.2zm4 0h2.2v7.9h-2.2z"/>` +
+      `<path d="M2.6 19.9h18.8v1.7H2.6z"/>`),
+    wonder_tokens: svgIcon(`<path d="M12 2.6L22 20.4H2z"/><path d="M12 7.6l3.6 6.4H8.4z" opacity=".4"/>`)
   };
+  const EVENT_ICON_FALLBACK = svgIcon(`<circle cx="12" cy="12" r="4"/>`);
 
   let prevWheelPos = null;
 
@@ -5490,7 +5544,7 @@ const UI = (() => {
     // its space with barbarian spawning and with government.
     const name = (section) => (section || []).map((e) => Game.EVENT_LABELS[e]).join(" + ");
     const glyphs = (section) => (section || [])
-      .map((e) => `<i class="ew-ico">${EVENT_ICONS[e] || "\u25cf"}</i>`).join("");
+      .map((e) => `<i class="ew-ico k-${e}">${EVENT_ICONS[e] || EVENT_ICON_FALLBACK}</i>`).join("");
 
     const segs = wheel.events.map((section, i) => {
       const angle = (i / n) * 360;
@@ -5509,9 +5563,9 @@ const UI = (() => {
     // already sitting at its destination, so the dial jumped instead of turning
     // — and any segment mid-animation was thrown away by an unrelated repaint.
     // Build the dial once and move its parts thereafter.
+    const photo = window.CivCardArt ? CivCardArt.eventDial() : "";
     const shape = JSON.stringify(wheel.events);
     if (dom.eventWheel.dataset.shape !== shape) {
-      const photo = window.CivCardArt ? CivCardArt.eventDial() : "";
       dom.eventWheel.innerHTML = `<h3>Event Dial</h3>
         <div class="ew-dial">
           ${photo ? `<div class="ew-photo" style="background-image:url('${photo}')"></div>` : ""}
@@ -5543,7 +5597,12 @@ const UI = (() => {
       el.classList.toggle("next", i === (pos + 1) % n);
     });
     dial.classList.toggle("turning", turned);
-    dom.eventWheel.querySelector(".ew-hub").innerHTML = glyphs(now) || "\u2014";
+    // The photograph has its own bronze axle. Do not cover it with a second
+    // symbol; the lit wedge and the text beneath it identify the active event.
+    const hub = dom.eventWheel.querySelector(".ew-hub");
+    hub.classList.toggle("has-photo", !!photo);
+    hub.classList.toggle("no-photo", !photo);
+    hub.innerHTML = photo ? "" : glyphs(now);
     dom.eventWheel.querySelector(".ew-now").textContent = name(now) || "Nothing this round";
     dom.eventWheel.querySelector(".ew-next").textContent = `Next: ${name(next) || "nothing"}`;
 
