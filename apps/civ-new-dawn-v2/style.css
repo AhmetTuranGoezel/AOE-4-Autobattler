@@ -436,7 +436,9 @@ input, select {
 
 /* Choosing which piece in a space to attack: each option shows what it defends
    at and where that number comes from. */
-.tgt-mine { font-size: 12px; opacity: 0.85; margin-bottom: 8px; }
+/* Now a line inside each target card rather than one figure above the list:
+   the attack value differs per target (Iron Working is +2 only vs barbarians). */
+.tgt-mine { grid-column: 1 / -1; font-size: 11px; opacity: 0.8; margin-top: 2px; }
 .tgt-card {
   display: grid;
   grid-template-columns: 1fr auto;

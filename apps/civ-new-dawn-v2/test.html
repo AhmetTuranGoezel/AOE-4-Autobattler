@@ -32,10 +32,14 @@
       assert(name, condition);
     }
 
-    function assert(name, condition) {
+    // The optional third argument is shown only on failure. Several assertions
+    // already passed one and it was silently dropped, so a red line said what
+    // was expected but never what actually happened.
+    function assert(name, condition, detail) {
       const li = document.createElement("li");
       li.className = condition ? "pass" : "fail";
-      li.textContent = `${condition ? "PASS" : "FAIL"}: ${name}`;
+      li.textContent = `${condition ? "PASS" : "FAIL"}: ${name}` +
+        (!condition && detail !== undefined ? `  [${detail}]` : "");
       results.appendChild(li);
       if (condition) passed++; else failed++;
     }
@@ -378,7 +382,20 @@
       districtState.map.hexes["2,0"].active = true;
       districtState.map.hexes["2,0"].terrain = "desert";
       const afterEvent = Game.applyAction(districtState, { type: "FORCE_EVENT", payload: { event: "district_event" } });
-      assert("district event queues player choice", afterEvent.pendingChoices.some((c) => c.kind === "trade_any" && c.playerId === dp));
+      // Terra p9 prints the commercial hub as a CHOICE of one of two options,
+      // so the dial asks before it pays.
+      const hubChoice = afterEvent.pendingChoices.find((c) => c.kind === "district_mode" && c.playerId === dp);
+      assert("district event asks which effect to use", !!hubChoice,
+        JSON.stringify(afterEvent.pendingChoices.map((c) => c.kind)));
+      assert("and offers exactly the two printed options",
+        !!hubChoice && hubChoice.options.map((o) => o.id).sort().join(",") === "cities,desert",
+        hubChoice && hubChoice.options.map((o) => o.id).join(","));
+      // Taking the mature-cities option pays onto any focus card, so it asks.
+      const tookCities = Game.applyAction(afterEvent, { type: "RESOLVE_PENDING_CHOICE", payload: {
+        playerId: dp, choiceId: hubChoice.id, optionId: "cities" } });
+      assert("the mature-cities option asks where the trade goes",
+        tookCities.pendingChoices.some((c) => c.kind === "trade_any" && c.playerId === dp) ||
+        tookCities.log.some((l) => /no mature cities/.test(l)));
 
       const oldSave = {
         phase: "playing",
@@ -549,9 +566,17 @@
           st.tiles = st.setup.tiles;
           st.tileStack = st.setup.tileStack.slice();
           st.tileDeck = st.tileStack.slice();
+          // An edge space with nothing already standing on it. The map is built
+          // from a shuffled stack, so taking the first edge space put the
+          // capital on top of whatever the tile had populated there — about one
+          // run in five it was a barbarian, and endUnitMovement then correctly
+          // refused to let the army stop in a contested space. That read as a
+          // flaky failure of the exploration flow rather than a dirty fixture.
           const origin = Object.keys(st.map.hexes).find((hexKey) => {
             const hex = st.map.hexes[hexKey];
-            return hex.active && Game.hexNeighborKeys(hex.q, hex.r)
+            if (!hex.active || hex.barbarian || hex.cityState || hex.fortress ||
+                hex.control || hex.city || hex.terrain === "water") return false;
+            return Game.hexNeighborKeys(hex.q, hex.r)
               .some((neighbor) => !st.map.hexes[neighbor] || !st.map.hexes[neighbor].active);
           });
           const hex = st.map.hexes[origin];
@@ -607,6 +632,24 @@
           assert("the UI's PLACE_EXPLORED_TILE actually places the tile",
             placed.accepted && !placed.state.pendingExploration &&
             placed.state.map.hexes[spot.anchorKey].active);
+          const continuation = placed.accepted && placed.state.movementContinuation;
+          // Masonry I moves 3 (CARD_TIERS.military.move[0]), so exploring from a
+          // standing start leaves 2. The point of the assertion is that exactly
+          // one point is charged - so it is written against the card's real
+          // allowance rather than a hard-coded number that can drift.
+          const allowance = Game.getMilitaryMove(ui.player, ui.st);
+          assert("exploration charges its movement point exactly once",
+            allowance >= 1 && continuation && continuation.remaining === allowance - 1 &&
+            continuation.fromKey === ui.origin,
+            "allowance " + allowance + ", remaining " + (continuation && continuation.remaining));
+          const stopped = continuation ? Game.tryApplyAction(placed.state, {
+            type: "END_UNIT_MOVE", payload: { unitId: "network-explorer" }
+          }, seat) : { accepted: false };
+          assert("the confirmed exploration continuation can be ended explicitly",
+            stopped.accepted && !stopped.state.movementContinuation &&
+            stopped.state.players[0].cardPlayed,
+            "placed=" + (placed && placed.accepted) + " cont=" + JSON.stringify(continuation) +
+            " stopped=" + (stopped && stopped.accepted) + "/" + (stopped && stopped.code));
         }
 
         {
@@ -853,6 +896,339 @@
       }
 
       {
+        // PLAY_CULTURE used to accept a mixed list, silently skip the illegal
+        // key, and still reset the card. That made two markers selected in the
+        // interface resolve as one marker on the board. A multi-marker action
+        // is now all-or-nothing, including its trade payment.
+        const st = rulesState();
+        const me = st.players[0];
+        me.focusRow = ["culture", "growth", "science", "economy", "military", "industry"];
+        me.trade.culture = 1;
+        activate(st, "0,0", { city: { ownerId: me.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
+        activate(st, "1,0");
+        activate(st, "0,1");
+        activate(st, "2,0"); // active, but not adjacent to the friendly city
+        const beforeTrade = me.trade.culture;
+        const rejected = Game.tryApplyAction(st, { type: "PLAY_CULTURE", payload: {
+          hexKeys: ["1,0", "2,0"], tradeSpent: 1
+        }}, { actorId: me.id, role: "player" });
+        assert("a partially illegal control-marker batch is rejected atomically",
+          !rejected.accepted && rejected.code === "control_space_invalid" &&
+          !st.map.hexes["1,0"].control && !st.map.hexes["2,0"].control &&
+          !me.cardPlayed && me.trade.culture === beforeTrade);
+
+        const accepted = Game.tryApplyAction(st, { type: "PLAY_CULTURE", payload: {
+          hexKeys: ["1,0", "0,1"], tradeSpent: 0
+        }}, { actorId: me.id, role: "player" });
+        assert("two legal control markers are both placed by one transaction",
+          accepted.accepted && accepted.state.map.hexes["1,0"].control?.ownerId === me.id &&
+          accepted.state.map.hexes["0,1"].control?.ownerId === me.id);
+      }
+
+      {
+        // Base p9: "The player cannot move more than one caravan to the same
+        // city or city-state during the same turn." That was checked AFTER the
+        // caravan had already been moved, so the second one teleported onto the
+        // city, gained nothing, and the action still reported success.
+        const st = rulesState();
+        const me = st.players[0], foe = st.players[1];
+        st.turn.index = st.turn.order.indexOf(me.id);
+        me.cardPlayed = false;
+        me.focusRow = ["culture", "science", "growth", "economy", "military", "industry"];
+        activate(st, "0,0", { city: { ownerId: me.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
+        activate(st, "1,0", { terrain: "grass", cityState: { name: "Test State", type: "culture" } });
+        me.caravans = [{ id: "c1", position: null }, { id: "c2", position: null }];
+
+        const first = Game.tryApplyAction(st, { type: "PLAY_ECONOMY", payload: {
+          unitId: "c1", toKey: "1,0", tradeSpent: 0 } }, { actorId: me.id, role: "player" });
+        assert("the first caravan trades with the city-state", first.accepted, first.code);
+
+        const second = Game.tryApplyAction(first.state, { type: "PLAY_ECONOMY", payload: {
+          unitId: "c2", toKey: "1,0", tradeSpent: 0 } }, { actorId: me.id, role: "player" });
+        assert("a second caravan to the same city-state is refused",
+          !second.accepted && second.code === "city_already_traded", second.code);
+        const stranded = second.state.players[0].caravans.find((u) => u.id === "c2");
+        assert("and it did not move there anyway", stranded.position !== "1,0",
+          String(stranded.position));
+      }
+
+      {
+        // Terra p9, the printed district effects. Four of the five were wrong:
+        // three are a CHOICE of one of two options and were fused into a single
+        // always-on effect, the "friendly space" test was missing, the counts
+        // left out the district's own space, and the industrial zone carried an
+        // invented cap of 3.
+        // `setUp` runs with the state already built, so fixtures can name the
+        // owning player without referring to a binding that does not exist yet.
+        const mk = (kind, setUp) => {
+          const st = rulesState();
+          const me = st.players[0];
+          activate(st, "0,0", { city: { ownerId: me.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
+          activate(st, "1,0", { terrain: "grass", control: { ownerId: me.id, fortified: false, district: kind } });
+          if (setUp) setUp(st, me);
+          return { st, me };
+        };
+        const mine = (id) => ({ ownerId: id, fortified: false, district: null });
+        const mode = (st) => (st.pendingChoices || []).find((c) => c.kind === "district_mode");
+
+        {
+          // "...for each FRIENDLY space with a forest that is IN OR ADJACENT to
+          // your industrial zone's space." Four friendly forests, one of them
+          // the district's own space, and one unowned forest that must not pay.
+          const { st, me } = mk("industrial", (s2, p2) => {
+            activate(s2, "1,-1", { terrain: "forest", control: mine(p2.id) });
+            activate(s2, "2,0",  { terrain: "forest", control: mine(p2.id) });
+            activate(s2, "2,-1", { terrain: "forest", control: mine(p2.id) });
+            activate(s2, "1,1",  { terrain: "forest" });          // nobody's: worth nothing
+            s2.map.hexes["1,0"].terrain = "forest";               // its own space counts
+          });
+          Game.resolveEvent(st, "district_event");
+          const m = mode(st);
+          assert("the industrial zone asks which effect", !!m);
+          const out = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: m.id, optionId: "forest" } });
+          // Three friendly neighbours plus the district's own space is 4. The
+          // count is read off the log rather than the card, because base p13
+          // caps a focus card at three trade tokens - that cap is real and
+          // would hide the difference between the printed count and the old
+          // hard-coded Math.min(3, ...), which is the thing under test.
+          assert("it counts friendly forests in AND adjacent, with no cap of 3",
+            out.log.some((line) => /\+4 industry trade \(industrial zone forests\)/.test(line)),
+            JSON.stringify(out.log.slice(-3)));
+          assert("and the card itself still stops at three tokens (base p13)",
+            out.players[0].trade.industry === 3, String(out.players[0].trade.industry));
+        }
+
+        {
+          // The unowned desert must not pay either.
+          const { st, me } = mk("trade", (s2) => activate(s2, "2,0", { terrain: "desert" }));
+          const before = me.trade.economy;
+          Game.resolveEvent(st, "district_event");
+          const m = mode(st);
+          const out = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: m.id, optionId: "desert" } });
+          assert("a desert nobody owns pays the commercial hub nothing",
+            out.players[0].trade.economy === before,
+            "gained " + (out.players[0].trade.economy - before));
+        }
+
+        {
+          // Terra p9: "Defeat a barbarian OR RIVAL ARMY within two spaces."
+          const { st, me } = mk("encampment");
+          const foe = st.players[1];
+          activate(st, "2,0", { terrain: "grass" });
+          foe.armies = [{ id: "e1", position: "2,0" }];
+          Game.resolveEvent(st, "district_event");
+          const strike = (st.pendingChoices || []).find((c) => c.kind === "encampment_strike");
+          assert("an encampment can strike a rival army", !!strike && strike.hexKeys.includes("2,0"),
+            JSON.stringify((st.pendingChoices || []).map((c) => c.kind)));
+          const hit = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: strike.id, hexKey: "2,0" } });
+          assert("and the army is defeated back onto its card",
+            hit.players[1].armies[0].position === null);
+          assert("a defeated ARMY pays no barbarian trade token", !hit.pendingBarbReward);
+        }
+
+        {
+          // "Place one control token in a space within two spaces of a friendly
+          // city that has a wonder" - the second theater option, missing entirely.
+          const { st, me } = mk("theater");
+          activate(st, "4,0", { terrain: "grass", city: {
+            ownerId: me.id, isCapital: false, developed: false, hasWonder: true, wonder: { name: "Stonehenge" } } });
+          activate(st, "5,0", { terrain: "grass" });
+          Game.resolveEvent(st, "district_event");
+          const m = mode(st);
+          assert("the theater square offers both printed options",
+            !!m && m.options.map((o) => o.id).sort().join(",") === "near,wonder",
+            m && m.options.map((o) => o.id).join(","));
+          const out = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: m.id, optionId: "wonder" } });
+          const spots = (out.pendingChoices || []).find((c) => c.kind === "place_control");
+          assert("and the wonder option reaches spaces near the wonder city",
+            !!spots && spots.hexKeys.includes("5,0"),
+            spots ? spots.hexKeys.join(" ") : "none");
+        }
+      }
+
+      {
+        // Base p16: "After barbarians move, if a space contains more than one
+        // barbarian, roll a die and move one of those barbarians in the rolled
+        // direction. Repeat until no space contains more than one barbarian."
+        //
+        // The old code refused the move instead, so a barbarian whose target
+        // space was held by one that could not move just stood still. Set up
+        // exactly that: a reinforced marker stops the leader, and the follower
+        // must NOT simply stay put.
+        const base = rulesState();
+        const me = base.players[0];
+        for (let q = 0; q <= 8; q++) activate(base, q + ",0", { terrain: "grass" });
+        // Ring the lane with land so a pushed barbarian has somewhere to go.
+        for (let q = 0; q <= 8; q++) {
+          activate(base, q + ",-1", { terrain: "grass" });
+          activate(base, q + ",1", { terrain: "grass" });
+        }
+        activate(base, "4,0", { terrain: "grass", control: { ownerId: me.id, fortified: true, district: null } });
+        // Only these two on the board. rulesState() populates the map from the
+        // tiles, and a stray setup barbarian marching into the same lane made
+        // the outcome depend on where the shuffle had put it.
+        Object.values(base.map.hexes).forEach((h) => { h.barbarian = false; h.barbarianId = null; });
+        base.map.hexes["2,0"].barbarian = true; base.map.hexes["2,0"].barbarianId = "L";
+        base.map.hexes["1,0"].barbarian = true; base.map.hexes["1,0"].barbarianId = "F";
+
+        // Roll until the march goes east (face 2), so the leader at 2,0 is
+        // stopped by the reinforced marker at 3,0... and the follower wants 2,0.
+        activate(base, "3,0", { terrain: "grass", control: { ownerId: me.id, fortified: true, district: null } });
+        let out = null;
+        for (let i = 0; i < 500; i++) {
+          const attempt = JSON.parse(JSON.stringify(base));
+          Game.resolveEvent(attempt, "barbarian_move");
+          if (attempt.barbarianMove && attempt.barbarianMove.roll === 2) { out = attempt; break; }
+        }
+        assert("the march rolled east at least once", !!out);
+        if (out) {
+          // rulesState() populates the map with setup barbarians too, so this
+          // counts by id rather than by "how many are on the board".
+          const at = (id) => Object.entries(out.map.hexes)
+            .filter(([, h]) => h.barbarian && h.barbarianId === id).map(([k]) => k);
+          assert("the leader is still on the board", at("L").length === 1, at("L").join(" "));
+          assert("the follower is still on the board", at("F").length === 1, at("F").join(" "));
+          assert("and they are not sharing a space", at("L")[0] !== at("F")[0],
+            at("L")[0] + " vs " + at("F")[0]);
+          // The rule says "move ONE of those barbarians" without saying which,
+          // and the push direction is a fresh die - so where either one lands
+          // is genuinely random and asserting a space would only pin the roll.
+          // What must hold is the rule itself: a pile formed, a roll broke it
+          // up, and no space is left holding two.
+          assert("the pile was dispersed by a die roll",
+            out.log.some((line) => /pushed/.test(line)),
+            JSON.stringify(out.log.slice(-4)));
+          assert("no space is left holding two barbarians",
+            !out.log.some((line) => /stuck together/.test(line)),
+            JSON.stringify(out.log.slice(-4)));
+          assert("the reinforced marker stopped the advance",
+            out.log.some((line) => /battered a reinforced control marker at 3,0/.test(line)),
+            JSON.stringify(out.log.slice(-5)));
+        }
+      }
+
+      {
+        // Terra p10: "If an army attacks a space with a barbarian, the barbarian
+        // must be the target." The fort was checked first, so a barbarian
+        // standing on one was unattackable, the fort's 6 was used instead of the
+        // space's difficulty, and the attacker could capture the fort out from
+        // under a barbarian that was still standing there.
+        const st = rulesState();
+        const me = st.players[0];
+        activate(st, "0,0", { city: { ownerId: me.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
+        // Terra p11: "Fort spaces are treated as forests with a terrain
+        // difficulty value of 3."
+        activate(st, "1,0", { terrain: "forest", fortress: true, barbarian: true });
+        const d = Game.findDefender(st, "1,0", me.id);
+        assert("a barbarian on a fort is the target, not the fort", d && d.type === "barbarian", d && d.type);
+        assert("and it defends with the space's difficulty, not the fort's 6",
+          d && d.power === 3, d && d.power);
+        assert("no choice of target is offered", Game.findDefenders(st, "1,0", me.id).length === 1);
+
+        // The bare fort is still a 6 once the barbarian is gone.
+        st.map.hexes["1,0"].barbarian = false;
+        const bare = Game.findDefender(st, "1,0", me.id);
+        assert("an empty fort still defends at 6", bare && bare.type === "fortress" && bare.power === 6);
+
+        // Base p15 says the same for the other static defender.
+        const cs = rulesState();
+        activate(cs, "1,0", { terrain: "grass", cityState: { name: "Test State", type: "culture" }, barbarian: true });
+        const csd = Game.findDefender(cs, "1,0", cs.players[0].id);
+        assert("a barbarian on a city-state is the target too",
+          csd && csd.type === "barbarian" && csd.power === 1, csd && (csd.type + "/" + csd.power));
+      }
+
+      {
+        // The growth card's district play carries a SECOND batch: Terra p8 lets
+        // the same card spend trade tokens to reinforce one control token each.
+        // reinforceWithTokens skipped illegal keys with `continue` while the
+        // caller charged the card anyway - the user's "place 2, get 1", still
+        // live on this branch after culture and reinforce were fixed.
+        const st = rulesState();
+        const me = st.players[0];
+        me.focusRow = ["culture", "science", "growth", "economy", "military", "industry"];
+        me.trade.growth = 2;
+        activate(st, "0,0", { city: { ownerId: me.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
+        activate(st, "1,0", { terrain: "grass" });                                        // the district's space
+        activate(st, "0,1", { terrain: "grass", control: { ownerId: me.id, fortified: false, district: null } });
+        activate(st, "1,-1", { terrain: "grass" });                                       // no token: illegal
+        const play = (keys, spent) => Game.tryApplyAction(st, { type: "PLAY_GROWTH_DISTRICT", payload: {
+          hexKey: "1,0", district: "campus", reinforceKeys: keys, tradeSpent: spent
+        }}, { actorId: me.id, role: "player" });
+
+        const bad = play(["0,1", "1,-1"], 2);
+        assert("a district batch with one illegal reinforcement changes nothing",
+          !bad.accepted && bad.code === "reinforce_space_invalid", bad.code);
+        assert("and nothing was placed or spent",
+          !st.map.hexes["1,0"].control && !st.map.hexes["0,1"].control.fortified &&
+          me.trade.growth === 2 && !me.cardPlayed);
+
+        // Trade was never validated on this branch either: a forged spend
+        // reinforced markers for free.
+        const forged = play(["0,1"], 99);
+        assert("a district cannot spend trade it does not have",
+          !forged.accepted && forged.code === "invalid_trade_spend", forged.code);
+        const overReach = play(["0,1"], 0);
+        assert("nor reinforce more markers than trade tokens spent",
+          !overReach.accepted && overReach.code === "too_many_reinforcements", overReach.code);
+
+        // Terra p9: a district replaces one of your control tokens and is placed
+        // UNREINFORCED even if that token was reinforced. So the space the
+        // district lands on is not a reinforcement target.
+        activate(st, "1,0", { terrain: "grass", control: { ownerId: me.id, fortified: false, district: null } });
+        const selfBuy = play(["1,0"], 1);
+        assert("the district's own space cannot be reinforced in the same play",
+          !selfBuy.accepted && selfBuy.code === "reinforce_space_invalid", selfBuy.code);
+
+        // And the legal case still works, so the guard cannot pass by refusing all.
+        const good = play(["0,1"], 1);
+        assert("a legal district batch is applied in full",
+          good.accepted && good.state.map.hexes["1,0"].control.district === "campus" &&
+          good.state.map.hexes["0,1"].control.fortified === true, good.code);
+        assert("and the district itself goes down unreinforced (Terra p9)",
+          good.accepted && good.state.map.hexes["1,0"].control.fortified === false);
+      }
+
+      {
+        // Reinforcement is another multi-key focus action and must have the
+        // same no-partial-success guarantee.
+        const st = rulesState();
+        const me = st.players[0];
+        // Growth on slot 2, so the card allows two reinforcements and it is the
+        // SPACE that is illegal. On slot 1 the limit is 1, and the length check
+        // fires first with too_many_reinforcements - which passes for the wrong
+        // reason and proves nothing about partial application.
+        // Terra p8's extended row has TWO slots numbered "1" (FOCUS_SLOTS is
+        // [1,1,2,3,4,5]), so index 1 is still slot 1 - growth has to sit at
+        // index 2 to be worth two reinforcements.
+        me.focusRow = ["culture", "science", "growth", "economy", "military", "industry"];
+        assert("the fixture allows two reinforcements",
+          Game.getSlotValue(me, "growth", st) >= 2, "slot " + Game.getSlotValue(me, "growth", st));
+        activate(st, "1,0", { control: { ownerId: me.id, fortified: false, district: null } });
+        activate(st, "0,1");                       // no control token: illegal
+        const rejected = Game.tryApplyAction(st, { type: "PLAY_GROWTH_REINFORCE", payload: {
+          hexKeys: ["1,0", "0,1"], tradeSpent: 0
+        }}, { actorId: me.id, role: "player" });
+        assert("a partially illegal reinforcement batch changes nothing",
+          !rejected.accepted && rejected.code === "reinforce_space_invalid" &&
+          !st.map.hexes["1,0"].control.fortified && !me.cardPlayed,
+          rejected.code);
+        // And an all-legal batch of the same size still goes through, so the
+        // guard cannot pass by refusing everything.
+        activate(st, "0,1", { control: { ownerId: me.id, fortified: false, district: null } });
+        const ok = Game.tryApplyAction(st, { type: "PLAY_GROWTH_REINFORCE", payload: {
+          hexKeys: ["1,0", "0,1"], tradeSpent: 0
+        }}, { actorId: me.id, role: "player" });
+        assert("two legal reinforcements are both applied",
+          ok.accepted && ok.state.map.hexes["1,0"].control.fortified &&
+          ok.state.map.hexes["0,1"].control.fortified, ok.code);
+      }
+
+      {
         // The printed bust is Marble; the three silver drops are Mercury.
         const tile = (id) => CivRulesData.TILES.find((entry) => entry.id === id);
         assert("tile resources keep Marble and Mercury identities",
@@ -1051,8 +1427,11 @@
           // Take the theater square first - the opposite of the old fixed order.
           const after = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {
             playerId: me.id, choiceId: order.id, optionId: "theater" } });
+          // Terra p9: a theater square is itself a choice of one of two
+          // options, so resolving it in the order asks the next question.
           assert("choosing one resolves it",
-            (after.pendingChoices || []).some((c) => c.kind === "place_control" && c.source === "theater"));
+            (after.pendingChoices || []).some((c) => c.kind === "district_mode" && c.districtKind === "theater"),
+            JSON.stringify((after.pendingChoices || []).map((c) => c.kind)));
           const next = (after.pendingChoices || []).find((c) => c.kind === "district_order");
           assert("and the rest are asked again", !!next);
           if (next) {
@@ -1106,9 +1485,18 @@
         activate(st, "2,-1", { terrain: "forest" });
         const before = st.players[0].trade.industry;
         Game.resolveEvent(st, "district_event");
-        assert("one kind of district resolves without a prompt",
+        assert("one kind of district needs no ORDER prompt",
           !(st.pendingChoices || []).some((c) => c.kind === "district_order"));
-        assert("and it actually paid out", st.players[0].trade.industry > before);
+        // It still asks which of its own two printed effects to use, and the
+        // forest count only pays for FRIENDLY forest spaces (Terra p9).
+        const mode = (st.pendingChoices || []).find((c) => c.kind === "district_mode");
+        assert("but it does ask which effect", !!mode && mode.districtKind === "industrial",
+          JSON.stringify((st.pendingChoices || []).map((c) => c.kind)));
+        const paid = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {
+          playerId: me.id, choiceId: mode.id, optionId: "forest" } });
+        assert("and taking the forest option pays out",
+          paid.players[0].trade.industry > before,
+          "before " + before + " after " + paid.players[0].trade.industry);
       }
 
       {
@@ -1144,8 +1532,15 @@
           // Taking one runs the REAL effect, and only one.
           const took = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {
             playerId: me.id, choiceId: pick.id, optionId: "theater" } });
+          const theaterMode = (took.pendingChoices || []).find((c) => c.kind === "district_mode");
           assert("the district's own effect fires",
-            (took.pendingChoices || []).some((c) => c.kind === "place_control" && c.source === "theater"));
+            !!theaterMode && theaterMode.districtKind === "theater",
+            JSON.stringify((took.pendingChoices || []).map((c) => c.kind)));
+          const placed = Game.applyAction(took, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: theaterMode.id, optionId: "near" } });
+          assert("and it reaches the real control-token placement",
+            (placed.pendingChoices || []).some((c) => c.kind === "place_control" && c.source === "theater"),
+            JSON.stringify((placed.pendingChoices || []).map((c) => c.kind)));
           assert("and she is not asked for a second one",
             !(took.pendingChoices || []).some((c) => c.kind === "district_order"));
         }

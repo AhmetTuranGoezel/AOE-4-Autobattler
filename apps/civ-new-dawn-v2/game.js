@@ -972,6 +972,12 @@ const Game = (() => {
   const COMBAT_ACTIONS = new Set([
     "CANCEL_COMBAT", "COMBAT_ROLL", "COMBAT_SPEND", "COMBAT_PASS"
   ]);
+  const EXPLORATION_RESOLUTION_ACTIONS = new Set([
+    "PLACE_EXPLORED_TILE", "ABANDON_EXPLORATION"
+  ]);
+  const PLAYER_DECISION_ACTIONS = new Set([
+    "RESOLVE_PENDING_CHOICE", "ADD_TRADE", "UNDO_TURN"
+  ]);
   const KNOWN_ACTIONS = new Set([
     ...HOST_ACTIONS, ...SETUP_ACTIONS, ...CURRENT_PLAYER_ACTIONS,
     ...COMBAT_ACTIONS, "SET_LEADER", "SET_READY", "RESOLVE_PENDING_CHOICE", "ADD_TRADE",
@@ -997,8 +1003,12 @@ const Game = (() => {
       return denied("read_only", "This save is read-only because hidden deck order could not be recovered.");
     }
     if (HOST_ACTIONS.has(type)) {
-      return role === "host" ? { ok: true } :
-        denied("host_only", "Only the host may perform this action.");
+      if (role !== "host") return denied("host_only", "Only the host may perform this action.");
+      // A role bit is supplied by the trusted transport, but it is not itself
+      // a seat. Requiring the authenticated host to own a seat closes the last
+      // path by which a caller outside the game could invoke correction tools.
+      return actor ? { ok: true } :
+        denied("unknown_actor", "The authenticated host seat is not part of this game.");
     }
     if (!actor) return denied("unknown_actor", "The authenticated seat is not part of this game.");
 
@@ -1012,6 +1022,38 @@ const Game = (() => {
       const activeId = st.setup.order[st.setup.turnIndex];
       return activeId === actorId ? { ok: true } :
         denied("not_your_setup_turn", "Another player is placing the next setup piece.");
+    }
+
+    // Decisions are exclusive phases, not suggestions in the interface. The
+    // UI used to hide most of these conflicts, but a forged packet could still
+    // end a turn during combat, play a card while another seat was choosing an
+    // event result, or resolve an unrelated prompt during exploration. Keeping
+    // the lock here makes the host authoritative even when a client is stale or
+    // malicious.
+    if (st.phase === "playing" && st.combat && st.combat.turn !== "done" &&
+        !COMBAT_ACTIONS.has(type)) {
+      return denied("combat_pending", "Finish the current combat before taking another action.");
+    }
+    if (st.phase === "playing" && st.pendingExploration &&
+        !EXPLORATION_RESOLUTION_ACTIONS.has(type)) {
+      return denied("exploration_pending", "Resolve the revealed exploration tile first.");
+    }
+    if (st.phase === "playing" && st.movementContinuation) {
+      const continuation = st.movementContinuation;
+      const allowed = continuation.unitType === "caravan"
+        ? new Set(["PLAY_ECONOMY", "END_UNIT_MOVE"])
+        : new Set(["PLAY_MILITARY_MOVE", "PLAY_MILITARY_ATTACK", "END_UNIT_MOVE"]);
+      if (!allowed.has(type)) {
+        return denied("movement_continuation_pending", "Finish the explored unit's remaining movement first.");
+      }
+      if (continuation.playerId !== actorId || payload.unitId !== continuation.unitId) {
+        return denied("movement_continuation_mismatch", "This remaining movement belongs to another unit.");
+      }
+    }
+    if (st.phase === "playing" &&
+        ((st.pendingChoices || []).length || st.pendingBarbReward) &&
+        !PLAYER_DECISION_ACTIONS.has(type)) {
+      return denied("decision_pending", "A required player decision must be resolved first.");
     }
 
     if (type === "RESOLVE_PENDING_CHOICE") {
@@ -1074,7 +1116,7 @@ const Game = (() => {
         return denied("not_your_turn", "It is another player's turn.");
       }
       if (st.pendingExploration) {
-        const resolving = type === "PLACE_EXPLORED_TILE" || type === "ABANDON_EXPLORATION";
+        const resolving = EXPLORATION_RESOLUTION_ACTIONS.has(type);
         if (!resolving) return denied("exploration_pending", "Resolve the revealed exploration tile first.");
         if (st.pendingExploration.playerId !== actorId) {
           return denied("exploration_owner_mismatch", "This expedition belongs to another player.");
@@ -1102,6 +1144,33 @@ const Game = (() => {
           return denied("movement_continuation_mismatch", "This remaining movement belongs to another unit.");
         }
       }
+      if (type === "PLAY_CULTURE") {
+        const placement = validateCulturePlacement(st, actorId, payload.hexKeys, payload.tradeSpent);
+        if (!placement.ok) return denied(placement.code, placement.message);
+      }
+      if (type === "PLAY_GROWTH_REINFORCE") {
+        const placement = validateReinforcePlacement(st, actorId, payload.hexKeys,
+          payload.tradeSpent, getSlotValue(getPlayer(st, actorId), "growth", st));
+        if (!placement.ok) return denied(placement.code, placement.message);
+      }
+      if (type === "PLAY_GROWTH_DISTRICT") {
+        const extra = validateGrowthDistrictReinforcements(st, actorId,
+          payload.reinforceKeys, payload.tradeSpent, payload.hexKey);
+        if (!extra.ok) return denied(extra.code, extra.message);
+      }
+      if (type === "PLAY_ECONOMY") {
+        // Base p9, said out loud rather than as a silent no-op: the board has
+        // no way to know which cities a caravan has already visited this turn,
+        // so it offers the destination and the player needs to be told why it
+        // was refused.
+        const dest = st.map.hexes[payload.toKey];
+        const actor = getPlayer(st, actorId);
+        const traded = dest && (dest.cityState || (dest.city && dest.city.ownerId !== actorId));
+        if (traded && actor && (actor.citiesTradedThisTurn || []).includes(payload.toKey)) {
+          return denied("city_already_traded",
+            "One of your caravans has already traded there this turn.");
+        }
+      }
       return { ok: true };
     }
 
@@ -1121,6 +1190,17 @@ const Game = (() => {
       delete bound.payload.playerId;
     }
     return bound;
+  }
+
+  // Read-only preflight for the interface. This is deliberately the exact same
+  // binding and permission table used by tryApplyAction; it cannot grant an
+  // action and it never replaces the authoritative host-side check.
+  function getActionPermission(state, action, context) {
+    if (!state || !action || typeof action.type !== "string") {
+      return denied("invalid_action", "Malformed action.");
+    }
+    const trusted = context || {};
+    return authorizeAction(state, bindActionActor(action, trusted), trusted);
   }
 
   function tryApplyAction(state, action, context) {
@@ -1677,38 +1757,25 @@ const Game = (() => {
 
     if (type === "PLAY_CULTURE") {
       const player = getPlayer(st, payload.playerId);
-      if (!canResolveCard(player, "culture")) return st;
-      const effectiveSlot = getSlotValue(player, "culture", st);
-      // France: the latest-era wonder you own grants extra tokens (1/2/3).
-      let maxMarkers = getCultureMarkers(player, payload.tradeSpent || 0, st);
-      const franceBonus = hasLeader(player, "france") ? franceWonderBonus(st, player.id) : 0;
-      maxMarkers += franceBonus;
-      const hexKeys = (payload.hexKeys || []).slice(0, maxMarkers);
-      let placed = 0;
+      const placement = validateCulturePlacement(st, payload.playerId,
+        payload.hexKeys, payload.tradeSpent);
+      if (!placement.ok) return st;
+      const hexKeys = placement.hexKeys;
+      const franceBonus = placement.franceBonus;
       const placedMountains = [];
       const placedHills = [];
       for (const k of hexKeys) {
         const hx = st.map.hexes[k];
-        if (!hx || !hx.active || hx.terrain === "water" || hx.city || hx.barbarian || hx.cityState) continue;
-        if (hx.control) continue;
-        if (placementDifficulty(st, hx, player, "control") > effectiveSlot) continue;
-        // Early Empire and its upgrades require adjacency to a friendly city.
-        // Enforce that here as well as in validControlHexes so a forged action
-        // cannot chain control tokens outward from another friendly token.
-        if (!adjacentToFriendlyCity(st, hx, payload.playerId)
-          && !chichenAllows(st, payload.playerId, hx)) continue;
         if (hx.resource && hx.resource !== "wonder") {
           if (player.resources[hx.resource] !== undefined) player.resources[hx.resource]++;
           hx.resource = null;
         }
         hx.control = { ownerId: payload.playerId, fortified: false, district: null };
-        placed++;
         if (hx.terrain === "mountain") placedMountains.push(k);
         if (hx.terrain === "hill") placedHills.push(k);
       }
-      if (placed === 0) return st;
       resolveCard(st, player, "culture", payload.tradeSpent);
-      log(st, `${player.name} placed ${placed} control marker(s).${franceBonus ? ` (+${franceBonus} from wonders)` : ""}`);
+      log(st, `${player.name} placed ${hexKeys.length} control marker(s).${franceBonus ? ` (+${franceBonus} from wonders)` : ""}`);
       // Inca: each token placed on a mountain may spill onto an adjacent space.
       if (hasLeader(player, "inca")) {
         placedMountains.forEach((k) => queueIncaChain(st, player, k));
@@ -1743,10 +1810,16 @@ const Game = (() => {
         if (player.resources[hex.resource] !== undefined) player.resources[hex.resource]++;
         hex.resource = null;
       }
+      const extra = validateGrowthDistrictReinforcements(st, payload.playerId,
+        payload.reinforceKeys, payload.tradeSpent, payload.hexKey);
+      if (!extra.ok) return st;
+      // Terra p9: the district goes down on its UNREINFORCED side even when it
+      // replaces a reinforced control token of yours. That is printed, not a
+      // bug — do not "fix" the discarded `fortified` flag here.
       hex.control = { ownerId: payload.playerId, fortified: false, district: payload.district };
       // "...whether or not the card's effect was used to reinforce control
       // tokens" — so the tokens still buy reinforcements after a district.
-      reinforceWithTokens(st, player, payload.reinforceKeys, payload.tradeSpent || 0);
+      reinforceWithTokens(st, player, extra.hexKeys, extra.hexKeys.length);
       resolveCard(st, player, "growth", payload.tradeSpent);
       log(st, `${player.name} placed a ${payload.district} district.`);
       checkDevelopment(st, payload.playerId);
@@ -1755,11 +1828,12 @@ const Game = (() => {
 
     if (type === "PLAY_GROWTH_REINFORCE") {
       const player = getPlayer(st, payload.playerId);
-      if (!canResolveCard(player, "growth")) return st;
       // "Reinforce a number of your control tokens up to this slot's number",
       // plus one more for each trade token spent from the card.
-      const allowed = getSlotValue(player, "growth", st) + (payload.tradeSpent || 0);
-      const done = reinforceWithTokens(st, player, payload.hexKeys, allowed);
+      const placement = validateReinforcePlacement(st, payload.playerId,
+        payload.hexKeys, payload.tradeSpent, getSlotValue(player, "growth", st));
+      if (!placement.ok) return st;
+      const done = reinforceWithTokens(st, player, placement.hexKeys, placement.limit);
       resolveCard(st, player, "growth", payload.tradeSpent);
       log(st, `${player.name} reinforced ${done} marker(s).`);
       return st;
@@ -1803,8 +1877,23 @@ const Game = (() => {
         ? continuation.remaining : getEconomyMove(player, st) + tradeSpent;
       const reachable = getReachable(st, startKey, moveLimit, "caravan", payload.playerId);
       if (payload.toKey !== startKey && !reachable.has(payload.toKey)) return st;
-      unit.position = payload.toKey;
       const hex = st.map.hexes[payload.toKey];
+      // Base p9: "The player cannot move more than one caravan to the same city
+      // or city-state during the same turn."
+      //
+      // This used to be tested AFTER the caravan had already been moved, and
+      // the early return then skipped movedThisCard, the activeCard update and
+      // finishActiveCard - so the caravan teleported onto the city, gained
+      // nothing, and tryApplyAction reported "accepted" because the position
+      // had changed. Worse, on a post-exploration continuation it left
+      // movementContinuation standing, and the continuation gate allows only
+      // PLAY_ECONOMY and END_UNIT_MOVE for that unit, both of which then
+      // require a position it no longer had. That was a second hard freeze,
+      // and UNDO_TURN is not in the allowed set either.
+      const arrival = hex && (hex.cityState || (hex.city && hex.city.ownerId !== payload.playerId))
+        ? payload.toKey : null;
+      if (arrival && (player.citiesTradedThisTurn || []).includes(arrival)) return st;
+      unit.position = payload.toKey;
       const tradeGain = 2;
       // Egypt's Wheel (unique Economy I): trade runs also yield a resource.
       const wheelResource = uniqueInPlay(player, "egypt");
@@ -1816,11 +1905,8 @@ const Game = (() => {
           options: RESOURCES.map((r) => ({ id: r, label: r }))
         });
       };
-      const arrival = hex && (hex.cityState || (hex.city && hex.city.ownerId !== payload.playerId))
-        ? payload.toKey : null;
       if (arrival) {
         player.citiesTradedThisTurn = player.citiesTradedThisTurn || [];
-        if (player.citiesTradedThisTurn.includes(arrival)) return st;   // p9
         player.citiesTradedThisTurn.push(arrival);
       }
       if (hex && hex.cityState) {
@@ -2436,6 +2522,32 @@ const Game = (() => {
     resolveCard(st, player, active.cardType, active.tradeSpent);
   }
 
+  function endUnitMovement(st, payload) {
+    const continuation = st.movementContinuation;
+    if (!continuation || continuation.playerId !== payload.playerId ||
+        continuation.unitId !== payload.unitId) return st;
+    const player = getPlayer(st, continuation.playerId);
+    if (!player) return st;
+    const list = continuation.unitType === "army" ? player.armies : player.caravans;
+    const unit = (list || []).find((entry) => entry.id === continuation.unitId);
+    if (!unit || unit.position !== continuation.fromKey) return st;
+    // Stopping is not a way to coexist with an enemy. If exploration somehow
+    // ended on a contested space, that space must be resolved by the matching
+    // military attack action.
+    if (continuation.unitType === "army" &&
+        findDefender(st, continuation.fromKey, player.id)) return st;
+
+    const redeploying = continuation.unitType === "army" &&
+      isMassProductionRedeploy(st, player, unit);
+    unit.movedThisCard = true;
+    st.movementContinuation = null;
+    activeMovementCard(st, player, continuation.cardType, continuation.tradeSpent);
+    if (redeploying) consumeMassProductionRedeploy(st, player, unit);
+    log(st, `${player.name} ended ${continuation.unitType} movement after exploring.`);
+    if (!unitsLeftToMove(player, continuation.cardType)) finishActiveCard(st);
+    return st;
+  }
+
   // Whether this player may resolve a card of this type right now. Normally
   // that is "you have not played one yet"; the Venetian Arsenal's replay is a
   // second go at one specific card and nothing else.
@@ -2981,6 +3093,49 @@ const Game = (() => {
         st.pendingBarbReward = { playerId: player.id };
         resolved = true;
       }
+    } else if (choice.kind === "encampment_strike") {
+      // Terra p9: "Defeat a barbarian OR RIVAL ARMY within two spaces of your
+      // encampment. If a barbarian is defeated, place one trade token on any
+      // card in your focus row as normal." The rival-army half was missing, and
+      // only a barbarian pays the token.
+      const hexKey = payload.hexKey;
+      const hex = st.map.hexes[hexKey];
+      if ((choice.hexKeys || []).includes(hexKey) && hex) {
+        if (hex.barbarian) {
+          hex.barbarian = false;
+          hex.barbarianId = null;
+          log(st, `${player.name}'s encampment defeated a barbarian at ${hexKey}.`);
+          st.pendingBarbReward = { playerId: player.id };
+          resolved = true;
+        } else {
+          const beaten = st.players.find((p) => p.id !== player.id &&
+            (p.armies || []).some((u) => u.position === hexKey));
+          if (beaten) {
+            beaten.armies.filter((u) => u.position === hexKey).forEach((u) => { u.position = null; });
+            log(st, `${player.name}'s encampment defeated ${beaten.name}'s army at ${hexKey}.`);
+            resolved = true;
+          }
+        }
+      }
+    } else if (choice.kind === "build_city") {
+      const hexKey = payload.hexKey;
+      const hex = st.map.hexes[hexKey];
+      if ((choice.hexKeys || []).includes(hexKey) && isLegalCitySpace(st, hex, hexKey, player.id)) {
+        if (hex.control && hex.control.ownerId === player.id) hex.control = null;
+        hex.city = { ownerId: player.id, isCapital: false, developed: false, hasWonder: false, wonder: null };
+        log(st, `${player.name} built a city at ${hexKey} (${choice.source || "a district"}).`);
+        checkDevelopment(st, player.id);
+        resolved = true;
+      }
+    } else if (choice.kind === "district_mode") {
+      // Terra p9 prints three of the five districts as a choice of one of two
+      // options. Resolving the chosen one is what makes them the printed cards
+      // rather than the fused always-on effects they used to be.
+      const mode = (choice.options || []).find((o) => o.id === payload.optionId);
+      if (mode) {
+        applyDistrictMode(st, player, choice.districtKind, choice.districtKey, mode.id);
+        resolved = true;
+      }
     } else if (choice.kind === "manual") {
       manualLog(st, `${player.name} resolved manual choice: ${choice.title || "choice"}.`);
       resolved = true;
@@ -3298,7 +3453,12 @@ const Game = (() => {
       // Terra p11's worked example makes the consequence plain — beating the
       // army standing in a rival city leaves the city exactly where it was.
       const target = c.defenderType || (hex.city ? "city" : hex.control ? "control" : null);
-      if (target === "fortress" && hex.fortress && !hex.city) {
+      // A fort still holding a barbarian is not captured. findDefender makes
+      // the barbarian the mandatory target (Terra p10), so this can only be
+      // reached by a stale or forged targetType — and letting it through put a
+      // city on the fort with a barbarian standing in it, which then counted
+      // toward the fort victory agenda and was razed by the next barbarian move.
+      if (target === "fortress" && hex.fortress && !hex.city && !hex.barbarian) {
         hex.city = { ownerId: c.attackerId, isCapital: false, developed: false, hasWonder: false, wonder: null };
         log(st, `${player.name} captured the fortress!`);
       }
@@ -3438,127 +3598,44 @@ const Game = (() => {
     log(st, `Barbarians march ${dir.label} (rolled ${roll}).`);
 
     // A barbarian may not stop on water: it keeps going the same way until it
-    // reaches land. Walking off the edge sends it the opposite way instead.
-    function destination(fromKey) {
+    // reaches land. Walking off the edge sends it the opposite way instead
+    // (base p12), and base p16 adds that if the reversal itself lands on water
+    // it keeps going that way until it reaches land - which is what the second
+    // pass of this loop does.
+    function destinationFrom(fromKey, heading) {
       const from = st.map.hexes[fromKey];
-      for (const d of [dir, { dq: -dir.dq, dr: -dir.dr }]) {
+      if (!from) return null;
+      for (const d of [heading, { dq: -heading.dq, dr: -heading.dr }]) {
         let q = from.q, r = from.r;
         for (let step = 0; step < CFG.mapRadius * 2 + 2; step++) {
           q += d.dq; r += d.dr;
           const h = st.map.hexes[key(q, r)];
-          if (!h || !h.active) break;            // off the map — try the other way
+          if (!h || !h.active) break;            // off the map - try the other way
           if (h.terrain === "water") continue;   // can't stop here, keep walking
           return key(q, r);
         }
       }
       return null;
     }
+    const destination = (fromKey) => destinationFrom(fromKey, dir);
 
-    // Every barbarian steps at once, so what each one does is worked out from
-    // the board as it stands before any of them has moved. Resolving them one
-    // at a time instead meant a barbarian directly behind another saw an
-    // occupied space and forfeited its move - a whole column stayed put unless
-    // the hash order happened to deal the leader first, which is also why two
-    // clients could disagree about where the raid ended up.
-    //
-    // A barbarian that batters a marker, raids a capital or runs into an army
-    // does not leave its space, so it still blocks the one behind it. Which
-    // spaces come free therefore depends on which moves succeed, and that
-    // depends back on which spaces come free - so it is settled by repetition
-    // until the answer stops changing, which it must: each pass can only ever
-    // cancel moves, never restore one.
-    const plan = barbs.map(([fromKey]) => {
-      const toKey = destination(fromKey);
+    // What a barbarian arriving at a space does to it. Barbarians already
+    // standing there are NOT a reason to stop: base p16 lets them share a space
+    // and then breaks the pile up with a die, which is what disperse() below
+    // does. Everything else here is base p12 plus Terra p11.
+    function outcomeAt(toKey) {
       const target = toKey ? st.map.hexes[toKey] : null;
-      let outcome = "none";
-      if (target) {
-        if (armiesAt(st, toKey).length) outcome = "army";
-        else if (target.control && target.control.fortified) outcome = "reinforced";
-        else if (target.city && target.city.isCapital) outcome = "capital";
-        else outcome = "move";
-      }
-      return { fromKey, toKey, outcome };
-    });
-
-    for (let pass = 0; pass < plan.length + 1; pass++) {
-      const leaving = new Set(plan.filter((p) => p.outcome === "move").map((p) => p.fromKey));
-      const claimed = new Set();
-      let changed = false;
-      for (const p of plan) {
-        if (p.outcome !== "move") continue;
-        const blocked = (st.map.hexes[p.toKey].barbarian && !leaving.has(p.toKey)) ||
-          claimed.has(p.toKey);
-        if (blocked) { p.outcome = "blocked"; changed = true; continue; }
-        claimed.add(p.toKey);
-      }
-      if (!changed) break;
+      if (!target) return "none";
+      if (armiesAt(st, toKey).length) return "army";
+      if (target.control && target.control.fortified) return "reinforced";
+      if (target.city && target.city.isCapital) return "capital";
+      return "move";
     }
 
-    // They step together, so the board is lifted before any of it is put back:
-    // every identity is read off the map, every space being left is cleared,
-    // and only then does anyone land. Writing each move as it was decided let a
-    // barbarian stepping into the space ahead overwrite the neighbour that had
-    // not stepped yet - three in a row arrived as one.
-    plan.forEach((p) => { p.id = st.map.hexes[p.fromKey].barbarianId || null; });
-    plan.filter((p) => p.outcome === "move").forEach((p) => {
-      const from = st.map.hexes[p.fromKey];
-      from.barbarian = false;
-      from.barbarianId = null;
-    });
-
-    let moved = 0;
-    plan.forEach(({ fromKey, toKey, outcome, id }) => {
-      if (outcome === "none") return;
-      if (outcome === "blocked") {
-        log(st, `Barbarians at ${fromKey} had nowhere to go.`);
-        return;
-      }
+    // The effects of actually landing on a space. Called once per barbarian
+    // that relocates there, including one pushed on by a dispersal roll.
+    function overrun(toKey) {
       const target = st.map.hexes[toKey];
-
-      const owner = hexOwnerAt(st, toKey);
-      const ownerPlayer = owner ? getPlayer(st, owner) : null;
-
-      // What happens is the outcome settled above, not a fresh reading of the
-      // board: two barbarians arriving at one space would otherwise see
-      // different boards, the second finding the army the first had already
-      // defeated and walking in on top of it.
-
-      // Terra p11: an army in the way is defeated, but it shields its space.
-      // The barbarian falls back to the land it came from and nothing else in
-      // the army's space is destroyed or flipped.
-      if (outcome === "army") {
-        armiesAt(st, toKey).forEach(({ player, unit }) => {
-          unit.position = null;
-          log(st, `Barbarians overran ${player.name}'s army at ${toKey}.`);
-        });
-        return;
-      }
-
-      // A reinforced marker or a capital turns the raid back: the barbarian
-      // stays where it started.
-      if (outcome === "reinforced") {
-        if (target.control) target.control.fortified = false;
-        log(st, `Barbarians battered a reinforced control marker at ${toKey}.`);
-        return;
-      }
-      if (outcome === "capital") {
-        if (ownerPlayer) {
-          let taken = 0;
-          for (const f of FOCUS_TYPES) {
-            while (taken < 2 && ownerPlayer.trade[f] > 0) { ownerPlayer.trade[f]--; taken++; }
-            if (taken >= 2) break;
-          }
-          log(st, `Barbarians raided ${ownerPlayer.name}'s capital (-${taken} trade).`);
-        }
-        return;
-      }
-
-      // Everything else is overrun.
-      st.barbarianMove.steps.push({ from: fromKey, to: toKey, id });
-      target.barbarian = true;
-      target.barbarianId = id;
-      moved++;
-
       st.players.forEach((p) => {
         p.caravans.forEach((u) => {
           if (u.position !== toKey) return;
@@ -3575,6 +3652,124 @@ const Game = (() => {
         target.city = null;
         target.developed = false;
         log(st, `Barbarians razed a city at ${toKey}.`);
+      }
+    }
+
+    // Terra p11: an army in the way is defeated, but it shields its space. The
+    // barbarian stays on the last non-water space it occupied, and anything
+    // else in the army's space is protected.
+    function bounceOffArmy(toKey) {
+      armiesAt(st, toKey).forEach(({ player, unit }) => {
+        unit.position = null;
+        log(st, `Barbarians overran ${player.name}'s army at ${toKey}.`);
+      });
+    }
+
+    // Where every barbarian ends up. A space may hold more than one for now;
+    // the pile is broken up below before anything is written back to the map.
+    const landing = new Map();
+    const place = (k, id) => {
+      if (!landing.has(k)) landing.set(k, []);
+      landing.get(k).push(id);
+    };
+
+    let moved = 0;
+    barbs.forEach(([fromKey]) => {
+      const id = st.map.hexes[fromKey].barbarianId || null;
+      const toKey = destination(fromKey);
+      const outcome = outcomeAt(toKey);
+      if (outcome === "none") { place(fromKey, id); return; }
+      const ownerPlayer = (() => {
+        const owner = hexOwnerAt(st, toKey);
+        return owner ? getPlayer(st, owner) : null;
+      })();
+
+      if (outcome === "army") { bounceOffArmy(toKey); place(fromKey, id); return; }
+      if (outcome === "reinforced") {
+        const target = st.map.hexes[toKey];
+        if (target.control) target.control.fortified = false;
+        log(st, `Barbarians battered a reinforced control marker at ${toKey}.`);
+        place(fromKey, id);
+        return;
+      }
+      if (outcome === "capital") {
+        if (ownerPlayer) {
+          let taken = 0;
+          for (const f of FOCUS_TYPES) {
+            while (taken < 2 && ownerPlayer.trade[f] > 0) { ownerPlayer.trade[f]--; taken++; }
+            if (taken >= 2) break;
+          }
+          log(st, `Barbarians raided ${ownerPlayer.name}'s capital (-${taken} trade).`);
+        }
+        place(fromKey, id);
+        return;
+      }
+
+      st.barbarianMove.steps.push({ from: fromKey, to: toKey, id });
+      overrun(toKey);
+      place(toKey, id);
+      moved++;
+    });
+
+    // Base p16: "After barbarians move, if a space contains more than one
+    // barbarian, roll a die and move one of those barbarians in the rolled
+    // direction. Repeat until no space contains more than one barbarian."
+    //
+    // The board itself cannot hold a pile - hex.barbarian is a flag, not a
+    // count - so the pile only ever exists here, and is broken up before
+    // anything is written back. Refusing the move instead, which is what this
+    // used to do, left a barbarian standing still that the rules say should
+    // have been pushed on.
+    const crowded = () => {
+      for (const [k, ids] of landing) if (ids.length > 1) return k;
+      return null;
+    };
+    // Bounded: each roll either relocates a barbarian or gives up on it, and a
+    // pathological board (every neighbour an army) must not spin forever.
+    for (let guard = 0; guard < barbs.length * 12; guard++) {
+      const k = crowded();
+      if (!k) break;
+      const ids = landing.get(k);
+      const pushRoll = rollDie();
+      const pushDir = BARBARIAN_DIRS[pushRoll - 1];
+      const id = ids[ids.length - 1];            // deterministic on every client
+      const toKey = destinationFrom(k, pushDir);
+      const outcome = outcomeAt(toKey);
+      log(st, `Two barbarians met at ${k}: one is pushed ${pushDir.label} (rolled ${pushRoll}).`);
+      if (outcome === "move") {
+        ids.pop();
+        overrun(toKey);
+        place(toKey, id);
+        st.barbarianMove.steps.push({ from: k, to: toKey, id });
+      } else if (outcome === "army") {
+        bounceOffArmy(toKey);
+        break;                                   // the pile stands; nothing more to push into
+      } else {
+        // A reinforced marker or capital turns this one back too. Rolling again
+        // is the rule, and the guard above stops it running away.
+        if (outcome === "reinforced" && st.map.hexes[toKey].control) {
+          st.map.hexes[toKey].control.fortified = false;
+          log(st, `Barbarians battered a reinforced control marker at ${toKey}.`);
+        }
+      }
+    }
+
+    // Lift the whole board and put it back, so a barbarian stepping into the
+    // space ahead cannot overwrite the neighbour that has not stepped yet.
+    barbs.forEach(([fromKey]) => {
+      const h = st.map.hexes[fromKey];
+      h.barbarian = false;
+      h.barbarianId = null;
+    });
+    landing.forEach((ids, k) => {
+      const h = st.map.hexes[k];
+      if (!h || !ids.length) return;
+      h.barbarian = true;
+      h.barbarianId = ids[0];
+      if (ids.length > 1) {
+        // Should be unreachable: the dispersal loop above only exits with a
+        // pile when the board leaves nowhere to push to.
+        log(st, `${ids.length} barbarians are stuck together at ${k}.`);
       }
     });
     if (moved) log(st, `${moved} barbarian(s) moved.`);
@@ -3635,6 +3830,82 @@ const Game = (() => {
     return true;
   }
 
+  // A district's ability is resolved per district token, and three of the five
+  // are a printed CHOICE of one of two options (Terra p9). The engine used to
+  // fuse each pair into a single always-on effect, which is a different and
+  // usually stronger card than the one printed.
+  const DISTRICT_MODES = {
+    trade: [
+      { id: "cities", label: "1 trade per mature city, on any focus card" },
+      { id: "desert", label: "1 economy trade per friendly desert in or beside it" }
+    ],
+    industrial: [
+      { id: "forest", label: "1 industry trade per friendly forest in or beside it" },
+      { id: "city", label: "Spend 3 industry trade to build a city" }
+    ],
+    theater: [
+      { id: "near", label: "Control token within 2 of the district" },
+      { id: "wonder", label: "Control token within 2 of a friendly city with a wonder" }
+    ]
+  };
+
+  // Base p7: "the spaces that contain a player's cities or control tokens are
+  // friendly to that player". Caravans do not make a space friendly.
+  function isFriendlySpace(h, playerId) {
+    return !!h && ((h.control && h.control.ownerId === playerId) ||
+      (h.city && h.city.ownerId === playerId));
+  }
+
+  // "in or adjacent to" includes the district's own space, which the desert and
+  // forest counts were both leaving out.
+  function inOrAdjacent(st, hexKey) {
+    return [hexKey].concat(hexNeighborKeys(parseQ(hexKey), parseR(hexKey)))
+      .map((k) => ({ key: k, hex: st.map.hexes[k] }))
+      .filter((entry) => !!entry.hex);
+  }
+
+  function countFriendlyTerrainNear(st, hexKey, playerId, terrain) {
+    return inOrAdjacent(st, hexKey)
+      .filter(({ hex }) => hex.active && hex.terrain === terrain && isFriendlySpace(hex, playerId))
+      .length;
+  }
+
+  // Spaces a theater square may claim under its second option: within two of a
+  // friendly city that holds a world wonder.
+  function wonderCityControlChoices(st, playerId) {
+    const out = new Set();
+    Object.entries(st.map.hexes).forEach(([k, h]) => {
+      if (!h.city || h.city.ownerId !== playerId) return;
+      if (!h.city.hasWonder && !h.city.wonder) return;
+      hexesWithinRange(st.map, k, 2).forEach((nk) => {
+        const nh = st.map.hexes[nk];
+        if (nh && nh.active && nh.terrain !== "water" && !nh.city && !nh.control &&
+            !nh.barbarian && !nh.cityState && !(nh.fortress && !nh.city)) out.add(nk);
+      });
+    });
+    return [...out];
+  }
+
+  function theaterControlChoices(st, districtKey) {
+    return hexesWithinRange(st.map, districtKey, 2).filter((nk) => {
+      const nh = st.map.hexes[nk];
+      return nh && nh.active && nh.terrain !== "water" && !nh.city && !nh.control &&
+        !nh.barbarian && !nh.cityState && !(nh.fortress && !nh.city);
+    });
+  }
+
+  // Terra p9: "Defeat a barbarian or rival army within two spaces of your
+  // encampment." The rival army half was missing entirely.
+  function encampmentStrikeTargets(st, districtKey, playerId) {
+    return hexesWithinRange(st.map, districtKey, 2).filter((nk) => {
+      const h = st.map.hexes[nk];
+      if (!h) return false;
+      if (h.barbarian) return true;
+      return st.players.some((p) => p.id !== playerId &&
+        (p.armies || []).some((u) => u.position === nk));
+    });
+  }
+
   function resolveDistrictKind(st, player, kind, districtKeys) {
     const keys = (districtKeys && districtKeys.length)
       ? districtKeys : (districtHexesFor(st, player.id)[kind] || []);
@@ -3644,18 +3915,15 @@ const Game = (() => {
     // Campus (Terra p9): one science trade for every FRIENDLY space with a
     // mountain or natural wonder in or adjacent to the campus. "Friendly"
     // means a space holding your own city or control token (base p7) - a
-    // mountain nobody owns is worth nothing, however close it sits.
+    // mountain nobody owns is worth nothing, however close it sits. This one
+    // has no second option, so it simply resolves.
     if (kind === "campus") {
-      const friendly = (h) => !!h && ((h.control && h.control.ownerId === player.id) ||
-        (h.city && h.city.ownerId === player.id));
       const featured = (h) => !!h && (h.terrain === "mountain" || h.resource === "wonder" || !!h.naturalWonder);
-      const scores = (h) => friendly(h) && featured(h);
       const paid = [];
       const nearMisses = [];
       keys.forEach((dk) => {
-        [dk].concat(hexNeighborKeys(parseQ(dk), parseR(dk))).forEach((nk) => {
-          const h = st.map.hexes[nk];
-          if (scores(h)) paid.push(nk);
+        inOrAdjacent(st, dk).forEach(({ key: nk, hex: h }) => {
+          if (isFriendlySpace(h, player.id) && featured(h)) paid.push(nk);
           else if (featured(h) && h.active) nearMisses.push(nk);
         });
       });
@@ -3672,45 +3940,20 @@ const Game = (() => {
       return;
     }
 
-    // Commercial Hub (trade): +1 trade per mature city OR +1 per adjacent desert
-    if (kind === "trade") {
-      let total = 0;
-      const matureCities = countDeveloped(st, player.id);
-      keys.forEach((dk) => {
-        let adjDesert = 0;
-        hexNeighborKeys(parseQ(dk), parseR(dk)).forEach((nk) => {
-          const nh = st.map.hexes[nk];
-          if (nh && nh.terrain === "desert") adjDesert++;
-        });
-        total += Math.max(matureCities, adjDesert);
-      });
-      if (total > 0) {
-        queuePendingChoice(st, {
-          kind: "trade_any",
-          playerId: player.id,
-          title: "Commercial Hub Trade",
-          source: "commercial hub",
-          amount: total,
-          options: tradeTargets(st, player)
-        });
-      }
-      return;
-    }
-
-    // Encampment: defeat a chosen barbarian within 2, then choose a reinforcement.
+    // Encampment (Terra p9): "resolve EITHER OR BOTH" - so both are offered and
+    // neither depends on the other.
     if (kind === "encampment") {
-      // Terra p9: "either or both" - the reinforcement does not depend on
-      // there being anything to kill.
       keys.forEach((dk) => {
-        const barbHexes = hexesWithinRange(st.map, dk, 2).filter((nk) => st.map.hexes[nk] && st.map.hexes[nk].barbarian);
-        if (barbHexes.length) {
+        const strikeHexes = encampmentStrikeTargets(st, dk, player.id);
+        if (strikeHexes.length) {
           queuePendingChoice(st, {
-            kind: "remove_barbarian",
+            kind: "encampment_strike",
             playerId: player.id,
             title: "Encampment Strike",
             source: "encampment",
+            optional: true,
             districtKey: dk,
-            hexKeys: barbHexes
+            hexKeys: strikeHexes
           });
         }
         const reinforceHexes = getReinforceChoicesNear(st, dk, player.id, 2);
@@ -3720,6 +3963,7 @@ const Game = (() => {
             playerId: player.id,
             title: "Encampment Reinforcement",
             source: "encampment",
+            optional: true,
             hexKeys: reinforceHexes
           });
         }
@@ -3727,45 +3971,92 @@ const Game = (() => {
       return;
     }
 
-    // Industrial Zone: +1 trade per adjacent forest, max 3 per district
-    if (kind === "industrial") {
-      let total = 0;
-      keys.forEach((dk) => {
-        let adjForest = 0;
-        hexNeighborKeys(parseQ(dk), parseR(dk)).forEach((nk) => {
-          const nh = st.map.hexes[nk];
-          if (nh && nh.terrain === "forest") adjForest++;
-        });
-        total += Math.min(3, adjForest);
+    // The remaining three are a choice of one option, per district token.
+    const modes = DISTRICT_MODES[kind];
+    if (!modes) return;
+    keys.forEach((dk) => {
+      queuePendingChoice(st, {
+        kind: "district_mode",
+        playerId: player.id,
+        title: `${DISTRICT_NAMES[kind]}: Choose an Effect`,
+        source: DISTRICT_NAMES[kind].toLowerCase(),
+        districtKind: kind,
+        districtKey: dk,
+        options: modes.map((m) => ({ ...m }))
       });
-      if (total > 0) {
-        player.trade.industry = Math.min(CFG.maxTrade, player.trade.industry + total);
-        log(st, `${player.name}: +${total} industry trade (industrial zone).`);
+    });
+  }
+
+  // One district token, one chosen option.
+  function applyDistrictMode(st, player, kind, districtKey, modeId) {
+    st.districtReport = st.districtReport || [];
+
+    if (kind === "trade") {
+      // "Place a trade token from the supply on a card in your focus row for
+      // each of your mature cities" - any card, so the player picks.
+      if (modeId === "cities") {
+        const total = countDeveloped(st, player.id);
+        if (total > 0) {
+          queuePendingChoice(st, {
+            kind: "trade_any", playerId: player.id,
+            title: "Commercial Hub Trade", source: "commercial hub",
+            amount: total, options: tradeTargets(st, player)
+          });
+        } else log(st, `${player.name}'s commercial hub scored nothing: no mature cities.`);
+        return;
       }
+      // "...on your ECONOMY focus card for each friendly space with a desert
+      // that is in or adjacent to" - a fixed card, so no prompt.
+      const deserts = countFriendlyTerrainNear(st, districtKey, player.id, "desert");
+      if (deserts > 0) {
+        player.trade.economy = Math.min(CFG.maxTrade, player.trade.economy + deserts);
+        log(st, `${player.name}: +${deserts} economy trade (commercial hub deserts).`);
+      } else log(st, `${player.name}'s commercial hub scored nothing: no friendly desert in or beside it.`);
       return;
     }
 
-    // Theater Square: choose a control marker space within 2 of the district.
-    if (kind === "theater") {
-      keys.forEach((dk) => {
-        const candidates = [];
-        hexesWithinRange(st.map, dk, 2).forEach((nk) => {
-          const nh = st.map.hexes[nk];
-          if (nh && nh.active && nh.terrain !== "water" && !nh.city && !nh.control && !nh.barbarian && !nh.cityState && !(nh.fortress && !nh.city)) {
-            candidates.push(nk);
-          }
-        });
-        if (candidates.length) {
-          queuePendingChoice(st, {
-            kind: "place_control",
-            playerId: player.id,
-            title: "Theater Control Marker",
-            source: "theater",
-            hexKeys: candidates
-          });
-        }
+    if (kind === "industrial") {
+      if (modeId === "forest") {
+        const forests = countFriendlyTerrainNear(st, districtKey, player.id, "forest");
+        if (forests > 0) {
+          player.trade.industry = Math.min(CFG.maxTrade, player.trade.industry + forests);
+          log(st, `${player.name}: +${forests} industry trade (industrial zone forests).`);
+        } else log(st, `${player.name}'s industrial zone scored nothing: no friendly forest in or beside it.`);
+        return;
+      }
+      // "Discard three trade tokens from your industry focus card to build a
+      // city on a legal space within two spaces of a friendly space."
+      if ((player.trade.industry || 0) < 3) {
+        log(st, `${player.name}'s industrial zone cannot build: 3 industry trade tokens are needed.`);
+        return;
+      }
+      const spots = [...validCityHexes(st, player.id, Infinity, 2)];
+      if (!spots.length) {
+        log(st, `${player.name}'s industrial zone has no legal space to build on.`);
+        return;
+      }
+      player.trade.industry -= 3;
+      queuePendingChoice(st, {
+        kind: "build_city", playerId: player.id,
+        title: "Industrial Zone: Build a City", source: "industrial zone",
+        hexKeys: spots
       });
       return;
+    }
+
+    if (kind === "theater") {
+      const spots = modeId === "wonder"
+        ? wonderCityControlChoices(st, player.id)
+        : theaterControlChoices(st, districtKey);
+      if (!spots.length) {
+        log(st, `${player.name}'s theater square has nowhere to place a control token.`);
+        return;
+      }
+      queuePendingChoice(st, {
+        kind: "place_control", playerId: player.id,
+        title: "Theater Control Marker", source: "theater",
+        hexKeys: spots
+      });
     }
   }
 
@@ -4181,7 +4472,9 @@ const Game = (() => {
   function getCultureMarkers(player, tradeSpent, st) {
     const tier = getCardTier(player, "culture");
     const base = CARD_TIERS.culture.markers[tier - 1];
-    return base + tradeSpent;
+    const franceBonus = st && player && hasLeader(player, "france")
+      ? franceWonderBonus(st, player.id) : 0;
+    return base + tradeSpent + franceBonus;
   }
 
   // The printed cards, not a flat table. Iron Working reads "your combat value
@@ -4813,6 +5106,59 @@ const Game = (() => {
     return new Set(valid);
   }
 
+  function validateFocusTradeSpend(player, cardType, tradeSpent) {
+    const spent = tradeSpent === undefined ? 0 : Number(tradeSpent);
+    if (!Number.isInteger(spent) || spent < 0 || spent > (player && player.trade[cardType] || 0)) {
+      return {
+        ok: false, code: "invalid_trade_spend",
+        message: `Choose between 0 and ${player && player.trade[cardType] || 0} ${cardType} trade tokens.`
+      };
+    }
+    return { ok: true, spent };
+  }
+
+  // A focus-card placement is one transaction. In particular, two requested
+  // markers may never turn into one marker plus a spent card merely because
+  // one key became stale or was forged. The UI uses validControlHexes to offer
+  // spaces; this preflight uses that exact set again immediately before any
+  // resource, marker, trade, or focus-row state is changed.
+  function validateCulturePlacement(st, playerId, hexKeys, tradeSpent) {
+    const player = getPlayer(st, playerId);
+    if (!player || !canResolveCard(player, "culture")) {
+      return { ok: false, code: "culture_unavailable", message: "The culture card cannot be resolved now." };
+    }
+    const trade = validateFocusTradeSpend(player, "culture", tradeSpent);
+    if (!trade.ok) return trade;
+    if (!Array.isArray(hexKeys) || hexKeys.length === 0) {
+      return { ok: false, code: "control_selection_empty", message: "Choose at least one control-marker space." };
+    }
+    if (hexKeys.some((hexKey) => typeof hexKey !== "string")) {
+      return { ok: false, code: "control_space_invalid", message: "A selected control-marker space is invalid." };
+    }
+    const unique = new Set(hexKeys);
+    if (unique.size !== hexKeys.length) {
+      return { ok: false, code: "duplicate_control_space", message: "The same space cannot receive two control markers." };
+    }
+    const maxMarkers = getCultureMarkers(player, trade.spent, st);
+    if (hexKeys.length > maxMarkers) {
+      return {
+        ok: false, code: "too_many_control_markers",
+        message: `This culture card can place at most ${maxMarkers} control marker${maxMarkers === 1 ? "" : "s"}.`
+      };
+    }
+    const slot = getSlotValue(player, "culture", st);
+    const legal = validControlHexes(st, playerId, slot);
+    const invalid = hexKeys.find((hexKey) => !legal.has(hexKey));
+    if (invalid) {
+      return {
+        ok: false, code: "control_space_invalid",
+        message: `${invalid} is no longer a legal control-marker space. Nothing was placed or spent.`
+      };
+    }
+    const franceBonus = hasLeader(player, "france") ? franceWonderBonus(st, player.id) : 0;
+    return { ok: true, hexKeys: hexKeys.slice(), maxMarkers, franceBonus, tradeSpent: trade.spent };
+  }
+
   function validDistrictHexes(st, playerId, maxTerrain) {
     const player = getPlayer(st, playerId);
     const valid = [];
@@ -4848,6 +5194,80 @@ const Game = (() => {
       if (h.active && h.control && h.control.ownerId === playerId && !h.control.fortified) valid.push(k);
     });
     return new Set(valid);
+  }
+
+  function validateReinforcePlacement(st, playerId, hexKeys, tradeSpent, baseLimit) {
+    const player = getPlayer(st, playerId);
+    if (!player || !canResolveCard(player, "growth")) {
+      return { ok: false, code: "growth_unavailable", message: "The growth card cannot be resolved now." };
+    }
+    const trade = validateFocusTradeSpend(player, "growth", tradeSpent);
+    if (!trade.ok) return trade;
+    if (!Array.isArray(hexKeys) || hexKeys.length === 0) {
+      return { ok: false, code: "reinforce_selection_empty", message: "Choose at least one control marker to reinforce." };
+    }
+    if (hexKeys.some((hexKey) => typeof hexKey !== "string") || new Set(hexKeys).size !== hexKeys.length) {
+      return { ok: false, code: "reinforce_space_invalid", message: "Each control marker may be reinforced only once." };
+    }
+    const limit = Math.max(0, Number(baseLimit || 0)) + trade.spent;
+    if (hexKeys.length > limit) {
+      return {
+        ok: false, code: "too_many_reinforcements",
+        message: `This growth card can reinforce at most ${limit} control marker${limit === 1 ? "" : "s"}.`
+      };
+    }
+    const legal = validReinforceHexes(st, playerId);
+    const invalid = hexKeys.find((hexKey) => !legal.has(hexKey));
+    if (invalid) {
+      return {
+        ok: false, code: "reinforce_space_invalid",
+        message: `${invalid} is no longer one of your unreinforced control markers. Nothing was changed or spent.`
+      };
+    }
+    return { ok: true, hexKeys: hexKeys.slice(), limit, tradeSpent: trade.spent };
+  }
+
+  // A district play carries a second, independent batch: Terra p8 lets the same
+  // growth card spend trade tokens to reinforce one control token each, "whether
+  // or not the card's effect was used to reinforce control tokens".
+  //
+  // reinforceWithTokens skipped illegal keys with `continue` while the caller
+  // charged the card and the trade anyway, so a stale selection cost tokens and
+  // reinforced nothing — the same "place 2, get 1" the culture card had. This
+  // makes the batch all-or-nothing, and it is the only place that also has to
+  // validate tradeSpent: this branch never did, so a forged or stale payload
+  // reinforced markers for free.
+  function validateGrowthDistrictReinforcements(st, playerId, hexKeys, tradeSpent, districtKey) {
+    const player = getPlayer(st, playerId);
+    if (!player) return { ok: false, code: "unknown_actor", message: "No such player." };
+    const trade = validateFocusTradeSpend(player, "growth", tradeSpent);
+    if (!trade.ok) return trade;
+    const keys = Array.isArray(hexKeys) ? hexKeys : [];
+    if (!keys.length) return { ok: true, hexKeys: [], tradeSpent: trade.spent };
+    if (keys.some((k) => typeof k !== "string") || new Set(keys).size !== keys.length) {
+      return { ok: false, code: "reinforce_space_invalid", message: "Each control marker may be reinforced only once." };
+    }
+    // One reinforcement per trade token spent, and no more.
+    if (keys.length > trade.spent) {
+      return {
+        ok: false, code: "too_many_reinforcements",
+        message: `Reinforcing ${keys.length} marker${keys.length === 1 ? "" : "s"} costs ${keys.length} growth trade token${keys.length === 1 ? "" : "s"}, and ${trade.spent} were spent.`
+      };
+    }
+    const legal = validReinforceHexes(st, playerId);
+    // The space the district is going on is not a reinforcement target. Terra p9:
+    // a district "is placed on its unreinforced side, even if it replaced a
+    // reinforced control token" — so a marker there cannot be bought back up in
+    // the same breath that replaces it.
+    legal.delete(districtKey);
+    const invalid = keys.find((k) => !legal.has(k));
+    if (invalid) {
+      return {
+        ok: false, code: "reinforce_space_invalid",
+        message: `${invalid} is not one of your unreinforced control markers. Nothing was placed or spent.`
+      };
+    }
+    return { ok: true, hexKeys: keys.slice(), tradeSpent: trade.spent };
   }
 
   function validCityHexes(st, playerId, production, cityRange) {
@@ -4959,14 +5379,25 @@ const Game = (() => {
     // Every defender hands back where its number came from, so the fight can
     // show you what you are up against instead of one unexplained total.
     const only = (label, value) => [{ label, value }];
-    if (h.fortress && !h.city) {
-      return { type: "fortress", label: "Fortress", power: CFG.fortressDefense,
-        parts: only("uncontrolled fort", CFG.fortressDefense) };
-    }
+    // The barbarian comes first, ahead of the fort and the city-state it may be
+    // standing on. Terra p10: "If an army attacks a space with a barbarian, the
+    // barbarian must be the target." Base p15 says the same for the other
+    // static defender: "While a barbarian is in a city-state's space ... the
+    // city-state cannot be attacked."
+    //
+    // It defends with the SPACE's terrain difficulty and never borrows what it
+    // is standing on — a barbarian on a fort is a 3, because Terra p11 treats
+    // fort spaces as forests of difficulty 3, not the fort's 6. Checking the
+    // fort first made the barbarian unattackable and let a player capture a
+    // fort out from under one.
     if (h.barbarian) {
       const terrainDiff = h.resource === "wonder" ? 5 : TERRAIN[h.terrain];
       return { type: "barbarian", label: "Barbarian", power: CFG.barbarianBase + terrainDiff,
         parts: only(`${TERRAIN_LABELS[h.terrain] || h.terrain} terrain`, CFG.barbarianBase + terrainDiff) };
+    }
+    if (h.fortress && !h.city) {
+      return { type: "fortress", label: "Fortress", power: CFG.fortressDefense,
+        parts: only("uncontrolled fort", CFG.fortressDefense) };
     }
     if (h.cityState) return { type: "citystate", label: h.cityState.name, power: CFG.cityStateDefense,
       parts: only("city-state", CFG.cityStateDefense) };
@@ -5037,11 +5468,16 @@ const Game = (() => {
   function findDefenders(st, hexKey, attackerId) {
     const h = st.map.hexes[hexKey];
     if (!h) return [];
-    // A barbarian, city-state or uncontrolled fort is the only thing in its
-    // space by construction, so there is never a choice to make.
-    // A barbarian, city-state or uncontrolled fort is the only thing that can be
-    // attacked in its space — and Terra p10 is explicit that a barbarian MUST be
-    // the target, so there is no choice to offer either way.
+    // No choice is offered for these three, but for two different reasons, and
+    // the comment here used to state both and contradict itself.
+    //
+    // A barbarian is not a choice because Terra p10 forbids one: "If an army
+    // attacks a space with a barbarian, the barbarian must be the target." It
+    // can genuinely share a space with a fort or a city-state.
+    //
+    // An uncontrolled fort and a city-state are not choices because nothing
+    // else in their space is attackable — a fort takes no control token or
+    // district (Terra p11), and a city-state's space holds only itself.
     const solo = findDefender(st, hexKey, attackerId);
     if (solo && ["fortress", "barbarian", "citystate"].includes(solo.type)) return [solo];
 
@@ -5585,7 +6021,7 @@ const Game = (() => {
     TILE_OFFSETS, getCoreAnchors, BARBARIAN_DIRS,
     SAVE_SCHEMA_VERSION, MAX_LOG_ENTRIES, MAX_CHAT_ENTRIES,
     createState, createLobbyState, createPlayer, migrateState, finalizeSetup,
-    applyAction, tryApplyAction, projectState, currentPlayer, getPlayer, getUndoStatus,
+    applyAction, tryApplyAction, getActionPermission, projectState, currentPlayer, getPlayer, getUndoStatus,
     SEAT_COLORS, seatColor,
     getDiplomacyAttackBonus, getDiplomacyDefenseBonus, nonAggressionWith, openBordersWith,
     isCityDeveloped,
@@ -5598,6 +6034,7 @@ const Game = (() => {
     findDefenders, validControlHexes, validDistrictHexes, validReinforceHexes,
     validCityHexes, validWonderHexes, getReachable, findDefender, getUnitsAt,
     adjacentToCityState, adjacentToFriendlyControl, terrainDifficulty, movementTerrainLimit, isForcedStopHex,
+    validateCulturePlacement, validateReinforcePlacement,
     countControl, countWonders, countDeveloped, countCities, findCapital,
     getClaimedAgendaCount,
     getValidFortressHexes, getValidTileAnchors, getTileAnchorsAnyRotation, tilePlacementFor, getTileDef,
