@@ -382,7 +382,20 @@
       districtState.map.hexes["2,0"].active = true;
       districtState.map.hexes["2,0"].terrain = "desert";
       const afterEvent = Game.applyAction(districtState, { type: "FORCE_EVENT", payload: { event: "district_event" } });
-      assert("district event queues player choice", afterEvent.pendingChoices.some((c) => c.kind === "trade_any" && c.playerId === dp));
+      // Terra p9 prints the commercial hub as a CHOICE of one of two options,
+      // so the dial asks before it pays.
+      const hubChoice = afterEvent.pendingChoices.find((c) => c.kind === "district_mode" && c.playerId === dp);
+      assert("district event asks which effect to use", !!hubChoice,
+        JSON.stringify(afterEvent.pendingChoices.map((c) => c.kind)));
+      assert("and offers exactly the two printed options",
+        !!hubChoice && hubChoice.options.map((o) => o.id).sort().join(",") === "cities,desert",
+        hubChoice && hubChoice.options.map((o) => o.id).join(","));
+      // Taking the mature-cities option pays onto any focus card, so it asks.
+      const tookCities = Game.applyAction(afterEvent, { type: "RESOLVE_PENDING_CHOICE", payload: {
+        playerId: dp, choiceId: hubChoice.id, optionId: "cities" } });
+      assert("the mature-cities option asks where the trade goes",
+        tookCities.pendingChoices.some((c) => c.kind === "trade_any" && c.playerId === dp) ||
+        tookCities.log.some((l) => /no mature cities/.test(l)));
 
       const oldSave = {
         phase: "playing",
@@ -913,6 +926,104 @@
       }
 
       {
+        // Terra p9, the printed district effects. Four of the five were wrong:
+        // three are a CHOICE of one of two options and were fused into a single
+        // always-on effect, the "friendly space" test was missing, the counts
+        // left out the district's own space, and the industrial zone carried an
+        // invented cap of 3.
+        // `setUp` runs with the state already built, so fixtures can name the
+        // owning player without referring to a binding that does not exist yet.
+        const mk = (kind, setUp) => {
+          const st = rulesState();
+          const me = st.players[0];
+          activate(st, "0,0", { city: { ownerId: me.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
+          activate(st, "1,0", { terrain: "grass", control: { ownerId: me.id, fortified: false, district: kind } });
+          if (setUp) setUp(st, me);
+          return { st, me };
+        };
+        const mine = (id) => ({ ownerId: id, fortified: false, district: null });
+        const mode = (st) => (st.pendingChoices || []).find((c) => c.kind === "district_mode");
+
+        {
+          // "...for each FRIENDLY space with a forest that is IN OR ADJACENT to
+          // your industrial zone's space." Four friendly forests, one of them
+          // the district's own space, and one unowned forest that must not pay.
+          const { st, me } = mk("industrial", (s2, p2) => {
+            activate(s2, "1,-1", { terrain: "forest", control: mine(p2.id) });
+            activate(s2, "2,0",  { terrain: "forest", control: mine(p2.id) });
+            activate(s2, "2,-1", { terrain: "forest", control: mine(p2.id) });
+            activate(s2, "1,1",  { terrain: "forest" });          // nobody's: worth nothing
+            s2.map.hexes["1,0"].terrain = "forest";               // its own space counts
+          });
+          Game.resolveEvent(st, "district_event");
+          const m = mode(st);
+          assert("the industrial zone asks which effect", !!m);
+          const out = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: m.id, optionId: "forest" } });
+          // Three friendly neighbours plus the district's own space is 4. The
+          // count is read off the log rather than the card, because base p13
+          // caps a focus card at three trade tokens - that cap is real and
+          // would hide the difference between the printed count and the old
+          // hard-coded Math.min(3, ...), which is the thing under test.
+          assert("it counts friendly forests in AND adjacent, with no cap of 3",
+            out.log.some((line) => /\+4 industry trade \(industrial zone forests\)/.test(line)),
+            JSON.stringify(out.log.slice(-3)));
+          assert("and the card itself still stops at three tokens (base p13)",
+            out.players[0].trade.industry === 3, String(out.players[0].trade.industry));
+        }
+
+        {
+          // The unowned desert must not pay either.
+          const { st, me } = mk("trade", (s2) => activate(s2, "2,0", { terrain: "desert" }));
+          const before = me.trade.economy;
+          Game.resolveEvent(st, "district_event");
+          const m = mode(st);
+          const out = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: m.id, optionId: "desert" } });
+          assert("a desert nobody owns pays the commercial hub nothing",
+            out.players[0].trade.economy === before,
+            "gained " + (out.players[0].trade.economy - before));
+        }
+
+        {
+          // Terra p9: "Defeat a barbarian OR RIVAL ARMY within two spaces."
+          const { st, me } = mk("encampment");
+          const foe = st.players[1];
+          activate(st, "2,0", { terrain: "grass" });
+          foe.armies = [{ id: "e1", position: "2,0" }];
+          Game.resolveEvent(st, "district_event");
+          const strike = (st.pendingChoices || []).find((c) => c.kind === "encampment_strike");
+          assert("an encampment can strike a rival army", !!strike && strike.hexKeys.includes("2,0"),
+            JSON.stringify((st.pendingChoices || []).map((c) => c.kind)));
+          const hit = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: strike.id, hexKey: "2,0" } });
+          assert("and the army is defeated back onto its card",
+            hit.players[1].armies[0].position === null);
+          assert("a defeated ARMY pays no barbarian trade token", !hit.pendingBarbReward);
+        }
+
+        {
+          // "Place one control token in a space within two spaces of a friendly
+          // city that has a wonder" - the second theater option, missing entirely.
+          const { st, me } = mk("theater");
+          activate(st, "4,0", { terrain: "grass", city: {
+            ownerId: me.id, isCapital: false, developed: false, hasWonder: true, wonder: { name: "Stonehenge" } } });
+          activate(st, "5,0", { terrain: "grass" });
+          Game.resolveEvent(st, "district_event");
+          const m = mode(st);
+          assert("the theater square offers both printed options",
+            !!m && m.options.map((o) => o.id).sort().join(",") === "near,wonder",
+            m && m.options.map((o) => o.id).join(","));
+          const out = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: m.id, optionId: "wonder" } });
+          const spots = (out.pendingChoices || []).find((c) => c.kind === "place_control");
+          assert("and the wonder option reaches spaces near the wonder city",
+            !!spots && spots.hexKeys.includes("5,0"),
+            spots ? spots.hexKeys.join(" ") : "none");
+        }
+      }
+
+      {
         // Base p16: "After barbarians move, if a space contains more than one
         // barbarian, roll a die and move one of those barbarians in the rolled
         // direction. Repeat until no space contains more than one barbarian."
@@ -1289,8 +1400,11 @@
           // Take the theater square first - the opposite of the old fixed order.
           const after = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {
             playerId: me.id, choiceId: order.id, optionId: "theater" } });
+          // Terra p9: a theater square is itself a choice of one of two
+          // options, so resolving it in the order asks the next question.
           assert("choosing one resolves it",
-            (after.pendingChoices || []).some((c) => c.kind === "place_control" && c.source === "theater"));
+            (after.pendingChoices || []).some((c) => c.kind === "district_mode" && c.districtKind === "theater"),
+            JSON.stringify((after.pendingChoices || []).map((c) => c.kind)));
           const next = (after.pendingChoices || []).find((c) => c.kind === "district_order");
           assert("and the rest are asked again", !!next);
           if (next) {
@@ -1344,9 +1458,18 @@
         activate(st, "2,-1", { terrain: "forest" });
         const before = st.players[0].trade.industry;
         Game.resolveEvent(st, "district_event");
-        assert("one kind of district resolves without a prompt",
+        assert("one kind of district needs no ORDER prompt",
           !(st.pendingChoices || []).some((c) => c.kind === "district_order"));
-        assert("and it actually paid out", st.players[0].trade.industry > before);
+        // It still asks which of its own two printed effects to use, and the
+        // forest count only pays for FRIENDLY forest spaces (Terra p9).
+        const mode = (st.pendingChoices || []).find((c) => c.kind === "district_mode");
+        assert("but it does ask which effect", !!mode && mode.districtKind === "industrial",
+          JSON.stringify((st.pendingChoices || []).map((c) => c.kind)));
+        const paid = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {
+          playerId: me.id, choiceId: mode.id, optionId: "forest" } });
+        assert("and taking the forest option pays out",
+          paid.players[0].trade.industry > before,
+          "before " + before + " after " + paid.players[0].trade.industry);
       }
 
       {
@@ -1382,8 +1505,15 @@
           // Taking one runs the REAL effect, and only one.
           const took = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {
             playerId: me.id, choiceId: pick.id, optionId: "theater" } });
+          const theaterMode = (took.pendingChoices || []).find((c) => c.kind === "district_mode");
           assert("the district's own effect fires",
-            (took.pendingChoices || []).some((c) => c.kind === "place_control" && c.source === "theater"));
+            !!theaterMode && theaterMode.districtKind === "theater",
+            JSON.stringify((took.pendingChoices || []).map((c) => c.kind)));
+          const placed = Game.applyAction(took, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: theaterMode.id, optionId: "near" } });
+          assert("and it reaches the real control-token placement",
+            (placed.pendingChoices || []).some((c) => c.kind === "place_control" && c.source === "theater"),
+            JSON.stringify((placed.pendingChoices || []).map((c) => c.kind)));
           assert("and she is not asked for a second one",
             !(took.pendingChoices || []).some((c) => c.kind === "district_order"));
         }

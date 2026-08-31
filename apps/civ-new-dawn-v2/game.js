@@ -3068,6 +3068,49 @@ const Game = (() => {
         st.pendingBarbReward = { playerId: player.id };
         resolved = true;
       }
+    } else if (choice.kind === "encampment_strike") {
+      // Terra p9: "Defeat a barbarian OR RIVAL ARMY within two spaces of your
+      // encampment. If a barbarian is defeated, place one trade token on any
+      // card in your focus row as normal." The rival-army half was missing, and
+      // only a barbarian pays the token.
+      const hexKey = payload.hexKey;
+      const hex = st.map.hexes[hexKey];
+      if ((choice.hexKeys || []).includes(hexKey) && hex) {
+        if (hex.barbarian) {
+          hex.barbarian = false;
+          hex.barbarianId = null;
+          log(st, `${player.name}'s encampment defeated a barbarian at ${hexKey}.`);
+          st.pendingBarbReward = { playerId: player.id };
+          resolved = true;
+        } else {
+          const beaten = st.players.find((p) => p.id !== player.id &&
+            (p.armies || []).some((u) => u.position === hexKey));
+          if (beaten) {
+            beaten.armies.filter((u) => u.position === hexKey).forEach((u) => { u.position = null; });
+            log(st, `${player.name}'s encampment defeated ${beaten.name}'s army at ${hexKey}.`);
+            resolved = true;
+          }
+        }
+      }
+    } else if (choice.kind === "build_city") {
+      const hexKey = payload.hexKey;
+      const hex = st.map.hexes[hexKey];
+      if ((choice.hexKeys || []).includes(hexKey) && isLegalCitySpace(st, hex, hexKey, player.id)) {
+        if (hex.control && hex.control.ownerId === player.id) hex.control = null;
+        hex.city = { ownerId: player.id, isCapital: false, developed: false, hasWonder: false, wonder: null };
+        log(st, `${player.name} built a city at ${hexKey} (${choice.source || "a district"}).`);
+        checkDevelopment(st, player.id);
+        resolved = true;
+      }
+    } else if (choice.kind === "district_mode") {
+      // Terra p9 prints three of the five districts as a choice of one of two
+      // options. Resolving the chosen one is what makes them the printed cards
+      // rather than the fused always-on effects they used to be.
+      const mode = (choice.options || []).find((o) => o.id === payload.optionId);
+      if (mode) {
+        applyDistrictMode(st, player, choice.districtKind, choice.districtKey, mode.id);
+        resolved = true;
+      }
     } else if (choice.kind === "manual") {
       manualLog(st, `${player.name} resolved manual choice: ${choice.title || "choice"}.`);
       resolved = true;
@@ -3762,6 +3805,82 @@ const Game = (() => {
     return true;
   }
 
+  // A district's ability is resolved per district token, and three of the five
+  // are a printed CHOICE of one of two options (Terra p9). The engine used to
+  // fuse each pair into a single always-on effect, which is a different and
+  // usually stronger card than the one printed.
+  const DISTRICT_MODES = {
+    trade: [
+      { id: "cities", label: "1 trade per mature city, on any focus card" },
+      { id: "desert", label: "1 economy trade per friendly desert in or beside it" }
+    ],
+    industrial: [
+      { id: "forest", label: "1 industry trade per friendly forest in or beside it" },
+      { id: "city", label: "Spend 3 industry trade to build a city" }
+    ],
+    theater: [
+      { id: "near", label: "Control token within 2 of the district" },
+      { id: "wonder", label: "Control token within 2 of a friendly city with a wonder" }
+    ]
+  };
+
+  // Base p7: "the spaces that contain a player's cities or control tokens are
+  // friendly to that player". Caravans do not make a space friendly.
+  function isFriendlySpace(h, playerId) {
+    return !!h && ((h.control && h.control.ownerId === playerId) ||
+      (h.city && h.city.ownerId === playerId));
+  }
+
+  // "in or adjacent to" includes the district's own space, which the desert and
+  // forest counts were both leaving out.
+  function inOrAdjacent(st, hexKey) {
+    return [hexKey].concat(hexNeighborKeys(parseQ(hexKey), parseR(hexKey)))
+      .map((k) => ({ key: k, hex: st.map.hexes[k] }))
+      .filter((entry) => !!entry.hex);
+  }
+
+  function countFriendlyTerrainNear(st, hexKey, playerId, terrain) {
+    return inOrAdjacent(st, hexKey)
+      .filter(({ hex }) => hex.active && hex.terrain === terrain && isFriendlySpace(hex, playerId))
+      .length;
+  }
+
+  // Spaces a theater square may claim under its second option: within two of a
+  // friendly city that holds a world wonder.
+  function wonderCityControlChoices(st, playerId) {
+    const out = new Set();
+    Object.entries(st.map.hexes).forEach(([k, h]) => {
+      if (!h.city || h.city.ownerId !== playerId) return;
+      if (!h.city.hasWonder && !h.city.wonder) return;
+      hexesWithinRange(st.map, k, 2).forEach((nk) => {
+        const nh = st.map.hexes[nk];
+        if (nh && nh.active && nh.terrain !== "water" && !nh.city && !nh.control &&
+            !nh.barbarian && !nh.cityState && !(nh.fortress && !nh.city)) out.add(nk);
+      });
+    });
+    return [...out];
+  }
+
+  function theaterControlChoices(st, districtKey) {
+    return hexesWithinRange(st.map, districtKey, 2).filter((nk) => {
+      const nh = st.map.hexes[nk];
+      return nh && nh.active && nh.terrain !== "water" && !nh.city && !nh.control &&
+        !nh.barbarian && !nh.cityState && !(nh.fortress && !nh.city);
+    });
+  }
+
+  // Terra p9: "Defeat a barbarian or rival army within two spaces of your
+  // encampment." The rival army half was missing entirely.
+  function encampmentStrikeTargets(st, districtKey, playerId) {
+    return hexesWithinRange(st.map, districtKey, 2).filter((nk) => {
+      const h = st.map.hexes[nk];
+      if (!h) return false;
+      if (h.barbarian) return true;
+      return st.players.some((p) => p.id !== playerId &&
+        (p.armies || []).some((u) => u.position === nk));
+    });
+  }
+
   function resolveDistrictKind(st, player, kind, districtKeys) {
     const keys = (districtKeys && districtKeys.length)
       ? districtKeys : (districtHexesFor(st, player.id)[kind] || []);
@@ -3771,18 +3890,15 @@ const Game = (() => {
     // Campus (Terra p9): one science trade for every FRIENDLY space with a
     // mountain or natural wonder in or adjacent to the campus. "Friendly"
     // means a space holding your own city or control token (base p7) - a
-    // mountain nobody owns is worth nothing, however close it sits.
+    // mountain nobody owns is worth nothing, however close it sits. This one
+    // has no second option, so it simply resolves.
     if (kind === "campus") {
-      const friendly = (h) => !!h && ((h.control && h.control.ownerId === player.id) ||
-        (h.city && h.city.ownerId === player.id));
       const featured = (h) => !!h && (h.terrain === "mountain" || h.resource === "wonder" || !!h.naturalWonder);
-      const scores = (h) => friendly(h) && featured(h);
       const paid = [];
       const nearMisses = [];
       keys.forEach((dk) => {
-        [dk].concat(hexNeighborKeys(parseQ(dk), parseR(dk))).forEach((nk) => {
-          const h = st.map.hexes[nk];
-          if (scores(h)) paid.push(nk);
+        inOrAdjacent(st, dk).forEach(({ key: nk, hex: h }) => {
+          if (isFriendlySpace(h, player.id) && featured(h)) paid.push(nk);
           else if (featured(h) && h.active) nearMisses.push(nk);
         });
       });
@@ -3799,45 +3915,20 @@ const Game = (() => {
       return;
     }
 
-    // Commercial Hub (trade): +1 trade per mature city OR +1 per adjacent desert
-    if (kind === "trade") {
-      let total = 0;
-      const matureCities = countDeveloped(st, player.id);
-      keys.forEach((dk) => {
-        let adjDesert = 0;
-        hexNeighborKeys(parseQ(dk), parseR(dk)).forEach((nk) => {
-          const nh = st.map.hexes[nk];
-          if (nh && nh.terrain === "desert") adjDesert++;
-        });
-        total += Math.max(matureCities, adjDesert);
-      });
-      if (total > 0) {
-        queuePendingChoice(st, {
-          kind: "trade_any",
-          playerId: player.id,
-          title: "Commercial Hub Trade",
-          source: "commercial hub",
-          amount: total,
-          options: tradeTargets(st, player)
-        });
-      }
-      return;
-    }
-
-    // Encampment: defeat a chosen barbarian within 2, then choose a reinforcement.
+    // Encampment (Terra p9): "resolve EITHER OR BOTH" - so both are offered and
+    // neither depends on the other.
     if (kind === "encampment") {
-      // Terra p9: "either or both" - the reinforcement does not depend on
-      // there being anything to kill.
       keys.forEach((dk) => {
-        const barbHexes = hexesWithinRange(st.map, dk, 2).filter((nk) => st.map.hexes[nk] && st.map.hexes[nk].barbarian);
-        if (barbHexes.length) {
+        const strikeHexes = encampmentStrikeTargets(st, dk, player.id);
+        if (strikeHexes.length) {
           queuePendingChoice(st, {
-            kind: "remove_barbarian",
+            kind: "encampment_strike",
             playerId: player.id,
             title: "Encampment Strike",
             source: "encampment",
+            optional: true,
             districtKey: dk,
-            hexKeys: barbHexes
+            hexKeys: strikeHexes
           });
         }
         const reinforceHexes = getReinforceChoicesNear(st, dk, player.id, 2);
@@ -3847,6 +3938,7 @@ const Game = (() => {
             playerId: player.id,
             title: "Encampment Reinforcement",
             source: "encampment",
+            optional: true,
             hexKeys: reinforceHexes
           });
         }
@@ -3854,45 +3946,92 @@ const Game = (() => {
       return;
     }
 
-    // Industrial Zone: +1 trade per adjacent forest, max 3 per district
-    if (kind === "industrial") {
-      let total = 0;
-      keys.forEach((dk) => {
-        let adjForest = 0;
-        hexNeighborKeys(parseQ(dk), parseR(dk)).forEach((nk) => {
-          const nh = st.map.hexes[nk];
-          if (nh && nh.terrain === "forest") adjForest++;
-        });
-        total += Math.min(3, adjForest);
+    // The remaining three are a choice of one option, per district token.
+    const modes = DISTRICT_MODES[kind];
+    if (!modes) return;
+    keys.forEach((dk) => {
+      queuePendingChoice(st, {
+        kind: "district_mode",
+        playerId: player.id,
+        title: `${DISTRICT_NAMES[kind]}: Choose an Effect`,
+        source: DISTRICT_NAMES[kind].toLowerCase(),
+        districtKind: kind,
+        districtKey: dk,
+        options: modes.map((m) => ({ ...m }))
       });
-      if (total > 0) {
-        player.trade.industry = Math.min(CFG.maxTrade, player.trade.industry + total);
-        log(st, `${player.name}: +${total} industry trade (industrial zone).`);
+    });
+  }
+
+  // One district token, one chosen option.
+  function applyDistrictMode(st, player, kind, districtKey, modeId) {
+    st.districtReport = st.districtReport || [];
+
+    if (kind === "trade") {
+      // "Place a trade token from the supply on a card in your focus row for
+      // each of your mature cities" - any card, so the player picks.
+      if (modeId === "cities") {
+        const total = countDeveloped(st, player.id);
+        if (total > 0) {
+          queuePendingChoice(st, {
+            kind: "trade_any", playerId: player.id,
+            title: "Commercial Hub Trade", source: "commercial hub",
+            amount: total, options: tradeTargets(st, player)
+          });
+        } else log(st, `${player.name}'s commercial hub scored nothing: no mature cities.`);
+        return;
       }
+      // "...on your ECONOMY focus card for each friendly space with a desert
+      // that is in or adjacent to" - a fixed card, so no prompt.
+      const deserts = countFriendlyTerrainNear(st, districtKey, player.id, "desert");
+      if (deserts > 0) {
+        player.trade.economy = Math.min(CFG.maxTrade, player.trade.economy + deserts);
+        log(st, `${player.name}: +${deserts} economy trade (commercial hub deserts).`);
+      } else log(st, `${player.name}'s commercial hub scored nothing: no friendly desert in or beside it.`);
       return;
     }
 
-    // Theater Square: choose a control marker space within 2 of the district.
-    if (kind === "theater") {
-      keys.forEach((dk) => {
-        const candidates = [];
-        hexesWithinRange(st.map, dk, 2).forEach((nk) => {
-          const nh = st.map.hexes[nk];
-          if (nh && nh.active && nh.terrain !== "water" && !nh.city && !nh.control && !nh.barbarian && !nh.cityState && !(nh.fortress && !nh.city)) {
-            candidates.push(nk);
-          }
-        });
-        if (candidates.length) {
-          queuePendingChoice(st, {
-            kind: "place_control",
-            playerId: player.id,
-            title: "Theater Control Marker",
-            source: "theater",
-            hexKeys: candidates
-          });
-        }
+    if (kind === "industrial") {
+      if (modeId === "forest") {
+        const forests = countFriendlyTerrainNear(st, districtKey, player.id, "forest");
+        if (forests > 0) {
+          player.trade.industry = Math.min(CFG.maxTrade, player.trade.industry + forests);
+          log(st, `${player.name}: +${forests} industry trade (industrial zone forests).`);
+        } else log(st, `${player.name}'s industrial zone scored nothing: no friendly forest in or beside it.`);
+        return;
+      }
+      // "Discard three trade tokens from your industry focus card to build a
+      // city on a legal space within two spaces of a friendly space."
+      if ((player.trade.industry || 0) < 3) {
+        log(st, `${player.name}'s industrial zone cannot build: 3 industry trade tokens are needed.`);
+        return;
+      }
+      const spots = [...validCityHexes(st, player.id, Infinity, 2)];
+      if (!spots.length) {
+        log(st, `${player.name}'s industrial zone has no legal space to build on.`);
+        return;
+      }
+      player.trade.industry -= 3;
+      queuePendingChoice(st, {
+        kind: "build_city", playerId: player.id,
+        title: "Industrial Zone: Build a City", source: "industrial zone",
+        hexKeys: spots
       });
       return;
+    }
+
+    if (kind === "theater") {
+      const spots = modeId === "wonder"
+        ? wonderCityControlChoices(st, player.id)
+        : theaterControlChoices(st, districtKey);
+      if (!spots.length) {
+        log(st, `${player.name}'s theater square has nowhere to place a control token.`);
+        return;
+      }
+      queuePendingChoice(st, {
+        kind: "place_control", playerId: player.id,
+        title: "Theater Control Marker", source: "theater",
+        hexKeys: spots
+      });
     }
   }
 
