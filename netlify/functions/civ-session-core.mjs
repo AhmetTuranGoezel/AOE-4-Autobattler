@@ -232,8 +232,32 @@ async function readEntry(store, key) {
   return { data, etag: entry.etag };
 }
 
+// Every guarded write in this file is a compare-and-set: `onlyIfNew` protects a
+// create from overwriting an existing session, `onlyIfMatch` stops a checkpoint
+// or a host takeover from clobbering a concurrent one. Both are features of the
+// storage client, and both need it to report back whether the write happened.
+//
+// @netlify/blobs only grew them in v11. In v8 the options are accepted and
+// SILENTLY IGNORED, and setJSON returns void - so the write went through
+// unguarded and `result?.modified` was undefined, which read as "somebody else
+// already has this key". Every single room creation answered 409
+// session_exists on a freshly generated id, and the same undefined would have
+// reported every checkpoint as a lost CAS race.
+//
+// A missing `modified` therefore means the client cannot honour the guard, not
+// that the guard failed. Saying so loudly is the only safe answer: treating it
+// as "already exists" invents a conflict, and treating it as success would
+// claim an atomicity that is not there.
 async function setJSON(store, key, value, options) {
   const result = await store.setJSON(key, value, options);
+  const guarded = !!options && (options.onlyIfNew !== undefined || options.onlyIfMatch !== undefined);
+  if (guarded && (!result || typeof result.modified !== "boolean")) {
+    fail(
+      "store_unsupported",
+      "The storage client does not support conditional writes; @netlify/blobs v11 or newer is required",
+      500
+    );
+  }
   return !!result?.modified;
 }
 

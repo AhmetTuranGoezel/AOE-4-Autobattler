@@ -1,8 +1,11 @@
 {
   "name": "owl-tools",
   "private": true,
-  "description": "Static tools site. The single dependency is the storage client for the Netlify function behind the Pokemon Champions sync.",
+  "description": "Static tools site. The single dependency is the storage client behind the Netlify functions: Pokemon Champions sync and Civ: A New Dawn multiplayer sessions.",
   "dependencies": {
-    "@netlify/blobs": "^8.1.0"
+    "@netlify/blobs": "^11.0.2"
+  },
+  "comments": {
+    "@netlify/blobs": "Must be >=11: the Civ session store depends on conditional writes (onlyIfNew / onlyIfMatch) and on set/setJSON returning { modified }. In v8 those options are silently ignored and setJSON returns void, which made every room creation report session_exists."
   }
 }
