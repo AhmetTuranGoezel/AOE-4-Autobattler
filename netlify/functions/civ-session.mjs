@@ -1,12 +1,17 @@
 // Durable recovery endpoint for Civilization: A New Dawn multiplayer.
 // Live actions remain peer-to-peer; this function is the revision/lease authority.
 
+// The shared service lives in netlify/lib, NOT beside this file. Netlify treats
+// every top-level file in the functions directory as its own function, and a
+// module with no handler breaks function detection for the whole directory -
+// which is why /api/civ-session stopped answering and no room could be created.
+// The same mistake was already fixed once for the test file; this was its twin.
 import { getStore } from "@netlify/blobs";
 import {
   MAX_RECORD_BYTES,
   SessionError,
   createSessionService
-} from "./civ-session-core.mjs";
+} from "../lib/civ-session-core.mjs";
 
 const STORE_NAME = "civ-new-dawn-sessions-v2";
 const GAME_ID_RE = /^[A-Za-z0-9_-]{8,96}$/;
