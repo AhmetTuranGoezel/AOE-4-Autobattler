@@ -25,12 +25,15 @@ const UI = (() => {
   let canvas = null;
   let ctx = null;
   let HEX_SIZE = 30;
+  const MIN_HEX_SIZE = 10;
+  const MAX_HEX_SIZE = 60;
   const SQRT3 = Math.sqrt(3);
   let panX = 0, panY = 0;
   let isPanning = false;
   let panStart = null;
   let dragDistance = 0;
   let mouseHex = null;
+  let lastFramedExplorationId = null;
 
   // Board palette. The old one had two pairs that fought each other: grass and
   // forest were both mid green, hills and desert both tan. Now no two terrains
@@ -1277,6 +1280,14 @@ const UI = (() => {
     canvas = document.createElement("canvas");
     dom.map.innerHTML = "";
     dom.map.appendChild(canvas);
+    const camera = document.createElement("div");
+    camera.className = "map-camera-controls";
+    camera.setAttribute("aria-label", "Map view controls");
+    camera.innerHTML = `
+      <button type="button" data-camera="zoom-in" title="Zoom in" aria-label="Zoom in">+</button>
+      <button type="button" data-camera="zoom-out" title="Zoom out" aria-label="Zoom out">−</button>
+      <button type="button" data-camera="fit" title="Fit the explored board" aria-label="Fit explored board">▣</button>`;
+    dom.map.appendChild(camera);
     ctx = canvas.getContext("2d");
 
     resizeCanvas();
@@ -1304,12 +1315,27 @@ const UI = (() => {
     canvas.addEventListener("wheel", (e) => {
       e.preventDefault();
       // With a tile in hand the wheel turns it, which is what your hand wants to
-      // do anyway. Otherwise it zooms.
-      if (placingTile()) { turnTile(e.deltaY > 0 ? 1 : -1); return; }
-      const delta = e.deltaY > 0 ? -2 : 2;
-      HEX_SIZE = Math.max(15, Math.min(60, HEX_SIZE + delta));
-      renderCanvas();
+      // do anyway. Ctrl/Cmd-wheel remains a zoom gesture even then, and the
+      // visible +/- buttons mean a player holding a tile can always zoom.
+      if (placingTile() && !e.ctrlKey && !e.metaKey) {
+        turnTile(e.deltaY > 0 ? 1 : -1);
+        return;
+      }
+      const rect = canvas.getBoundingClientRect();
+      zoomAt(e.clientX - rect.left, e.clientY - rect.top,
+        HEX_SIZE + (e.deltaY > 0 ? -2 : 2));
     }, { passive: false });
+    camera.addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-camera]");
+      if (!button) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const cx = (dom.map.clientWidth || 800) / 2;
+      const cy = (dom.map.clientHeight || 600) / 2;
+      if (button.dataset.camera === "zoom-in") zoomAt(cx, cy, HEX_SIZE + 4);
+      else if (button.dataset.camera === "zoom-out") zoomAt(cx, cy, HEX_SIZE - 4);
+      else fitBoardView();
+    });
     document.addEventListener("keydown", onKeyDown);
 
     panX = (dom.map.clientWidth || 800) / 2;
@@ -1326,6 +1352,69 @@ const UI = (() => {
     canvas.style.height = h + "px";
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     if (state) renderCanvas();
+  }
+
+  function zoomAt(screenX, screenY, requestedSize) {
+    const next = Math.max(MIN_HEX_SIZE, Math.min(MAX_HEX_SIZE, Number(requestedSize) || HEX_SIZE));
+    if (next === HEX_SIZE) return;
+    const scale = next / HEX_SIZE;
+    panX = screenX - (screenX - panX) * scale;
+    panY = screenY - (screenY - panY) * scale;
+    HEX_SIZE = next;
+    renderCanvas();
+  }
+
+  function boardFrameHexes() {
+    const byKey = new Map();
+    Object.entries(state && state.map && state.map.hexes || {}).forEach(([hexKey, hex]) => {
+      if (hex && hex.active) byKey.set(hexKey, hex);
+    });
+    const pending = state && state.pendingExploration;
+    if (pending && Game.getLegalExplorationPlacements) {
+      Game.getLegalExplorationPlacements(state, pending).forEach((placement) => {
+        (placement.cellKeys || []).forEach((hexKey) => {
+          const hex = state.map.hexes[hexKey];
+          if (hex) byKey.set(hexKey, hex);
+          else byKey.set(hexKey, { q: Game.parseQ(hexKey), r: Game.parseR(hexKey) });
+        });
+      });
+    }
+    return [...byKey.values()];
+  }
+
+  function fitBoardView(redraw) {
+    if (!state || !canvas) return;
+    const hexes = boardFrameHexes();
+    if (!hexes.length) return;
+    const unitPoints = hexes.map((hex) => ({
+      x: SQRT3 * (hex.q + hex.r / 2),
+      y: 1.5 * hex.r
+    }));
+    const minX = Math.min(...unitPoints.map((point) => point.x)) - 1;
+    const maxX = Math.max(...unitPoints.map((point) => point.x)) + 1;
+    const minY = Math.min(...unitPoints.map((point) => point.y)) - 1;
+    const maxY = Math.max(...unitPoints.map((point) => point.y)) + 1;
+    const width = Math.max(1, maxX - minX);
+    const height = Math.max(1, maxY - minY);
+    const viewportWidth = Math.max(120, (dom.map.clientWidth || 800) - 56);
+    const viewportHeight = Math.max(120, (dom.map.clientHeight || 600) - 56);
+    HEX_SIZE = Math.max(MIN_HEX_SIZE, Math.min(MAX_HEX_SIZE,
+      viewportWidth / width, viewportHeight / height));
+    panX = (dom.map.clientWidth || 800) / 2 - ((minX + maxX) / 2) * HEX_SIZE;
+    panY = (dom.map.clientHeight || 600) / 2 - ((minY + maxY) / 2) * HEX_SIZE;
+    if (redraw !== false) renderCanvas();
+  }
+
+  function frameNewExploration() {
+    const pending = state && state.pendingExploration;
+    if (!pending) {
+      lastFramedExplorationId = null;
+      return;
+    }
+    const id = `${pending.playerId || ""}:${pending.tileId || ""}:${pending.fromKey || ""}`;
+    if (id === lastFramedExplorationId) return;
+    lastFramedExplorationId = id;
+    fitBoardView(false);
   }
 
   // ── Hex Math ──────────────────────────────────────────────
@@ -2978,6 +3067,7 @@ const UI = (() => {
   function render() {
     if (!state) return;
     reconcileAuthoritativeResolution();
+    frameNewExploration();
     dom.game.classList.toggle("lobby-active", state.phase === "lobby");
     dom.game.classList.toggle("preplay", state.phase === "lobby" || state.phase === "setup");
     renderHeader();
@@ -3812,11 +3902,20 @@ const UI = (() => {
       // A civ's own unique card is worth pointing at when it turns up as an
       // option, so it does not read as just another line in the list.
       const asCards = choice.kind === "science_upgrade";
-      controls = `<div class="wiz-actions pending-options${asCards ? " with-preview" : ""}">${choice.options.map((o) =>
-        `<button class="sm pending-option${o.unique ? " unique-option" : ""}${asCards ? " option-card" : ""}" data-option="${escapeHtml(o.id)}"${
-          o.text ? ` title="${escapeHtml(o.text)}"` : ""}>${
-          asCards ? upgradeCardPreview(owner, choice, o) : escapeHtml(o.label || o.id)}</button>`
-      ).join("")}</div>`;
+      // An option the engine has already marked unavailable is drawn dead, with
+      // the reason on it. The industrial zone's "spend 3 industry trade to build
+      // a city" is the case that showed this up: the engine reported it
+      // disabled, the panel drew it like any other button, and clicking it did
+      // nothing at all — an impossible action you could still choose.
+      controls = `<div class="wiz-actions pending-options${asCards ? " with-preview" : ""}">${choice.options.map((o) => {
+        const why = o.disabled ? (o.disabledReason || "Not available right now.") : (o.text || "");
+        return `<button class="sm pending-option${o.unique ? " unique-option" : ""}${asCards ? " option-card" : ""}${
+          o.disabled ? " option-unavailable" : ""}" data-option="${escapeHtml(o.id)}"${
+          o.disabled ? " disabled aria-disabled=\"true\"" : ""}${
+          why ? ` title="${escapeHtml(why)}"` : ""}>${
+          asCards ? upgradeCardPreview(owner, choice, o) : escapeHtml(o.label || o.id)}${
+          o.disabled && !asCards ? `<span class="opt-why">${escapeHtml(why)}</span>` : ""}</button>`;
+      }).join("")}</div>`;
     } else if (choice.hexKeys && choice.hexKeys.length) {
       // Picking a space is done by pointing at it. This used to be a dropdown
       // of raw axial keys — "3,-2" — which nobody can read off a board.

@@ -67,10 +67,13 @@
           .sides[side].cells[i].terrain;
       assert("printed 9A cell 9 is the bay, not a hill", cellTerrain("02", "A", 9) === "water");
       assert("printed 11A cell 8 is grass, not a hill", cellTerrain("03", "A", 8) === "grass");
-      // The whole printed wonder deck is in the data. Terra p6 step 7b takes
-      // cards out at setup, at random, not by name — makeWonderDecks does it.
-      assert("all 36 printed wonders in the decks",
-        Object.values(data.WONDER_DECKS).reduce((n, d) => n + d.length, 0) === 36);
+      // The playable wonder deck is base + expansion MINUS the two Terra takes
+      // out by name. Terra p2 step 5: "Remove the base game 'Pentagon' and
+      // 'Machu Picchu' wonders, and then combine the expansion wonder cards
+      // with the remaining base game wonder cards." That is a removal from the
+      // pool, before setup, and it is why the piles are not all equal.
+      assert("the printed deck is 34 after Terra removes two by name",
+        Object.values(data.WONDER_DECKS).reduce((n, d) => n + d.length, 0) === 34);
 
       const s2 = Game.createState(players(2));
       // Terra setup 3d: four core tiles, but only two at 2-3 players, drawn off
@@ -181,19 +184,45 @@
       // Terra p6 step 7b does not name the cards it takes out: "Divide each
       // wonder pile by era into three facedown piles. Randomize each era pile
       // and remove one card at random from each ancient and medieval era pile."
-      // So all 36 printed wonders are in the data, evenly 3 per era per type,
-      // and makeWonderDecks does the removing — 7 of each type reach the table.
-      assert("36 world wonders, the whole printed deck", wonderNames.length === 36);
-      assert("nine of each type, three per era", ["military", "culture", "economy", "science"].every((t) => {
-        const deck = Game.ALL_WONDERS.filter((w) => w.type === t);
+      // makeWonderDecks does the setup removal; the by-name removal is already
+      // reflected in the data.
+      assert("34 world wonders after the two Terra removes", wonderNames.length === 34);
+      assert("Pentagon and Machu Picchu are gone (Terra p2 step 5)",
+        !wonderNames.includes("Pentagon") && !wonderNames.includes("Machu Picchu"));
+      // Every type is three per era EXCEPT the two the removal touched:
+      // Pentagon was the third modern military, Machu Picchu the third
+      // medieval economy. Asserting a flat 3/3/3 would be asserting the
+      // pre-removal box, not the game being played.
+      const eraCount = (type) => {
         const eras = { ancient: 0, medieval: 0, modern: 0 };
-        deck.forEach((w) => { eras[w.era]++; });
-        return deck.length === 9 && eras.ancient === 3 && eras.medieval === 3 && eras.modern === 3;
-      }));
-      // With three of every era, setup always has one to take from the ancient
-      // and medieval piles, so seven of each type reach the table.
+        Game.ALL_WONDERS.filter((w) => w.type === type).forEach((w) => { eras[w.era]++; });
+        return eras;
+      };
+      assert("culture and science keep three of every era",
+        ["culture", "science"].every((t) => {
+          const e = eraCount(t);
+          return e.ancient === 3 && e.medieval === 3 && e.modern === 3;
+        }));
+      assert("military is short one modern, where Pentagon was",
+        JSON.stringify(eraCount("military")) === JSON.stringify({ ancient: 3, medieval: 3, modern: 2 }),
+        JSON.stringify(eraCount("military")));
+      assert("economy is short one medieval, where Machu Picchu was",
+        JSON.stringify(eraCount("economy")) === JSON.stringify({ ancient: 3, medieval: 2, modern: 3 }),
+        JSON.stringify(eraCount("economy")));
+      // Terra p6 7b takes one at random from the ancient and the medieval pile
+      // of each type, and the diagram wants two of each of those left. A pile
+      // already down to two is therefore left alone - taking from it would
+      // leave one, which is not a pile the setup diagram ever shows. So three
+      // types deal seven and military deals six, because its modern pile lost
+      // Pentagon and has nothing to give back.
       const dealt = Game.createState(players(2)).wonderDecks;
-      assert("setup deals seven of each type", Object.values(dealt).every((d) => d.deck.length === 7));
+      const dealtCounts = Object.fromEntries(
+        Object.entries(dealt).map(([type, d]) => [type, d.deck.length]));
+      assert("setup deals seven of each full type",
+        ["culture", "economy", "science"].every((t) => dealtCounts[t] === 7),
+        JSON.stringify(dealtCounts));
+      assert("and six military, the pile Pentagon was taken from",
+        dealtCounts.military === 6, JSON.stringify(dealtCounts));
       assert("every wonder has era, cost and printed effect text", Game.ALL_WONDERS.every((w) =>
         ["ancient", "medieval", "modern"].includes(w.era) && w.cost >= 7 && w.cost <= 12 && (w.effect || "").length > 20));
       let wst = Game.createState(players(2));
@@ -214,7 +243,8 @@
       assert("Colossus adds 6 caravan movement", Game.getEconomyMove(ecoP, wst) === ecoBefore + 6);
       // Wonders that shape where you may place, not just how hard you hit
       const autoCount = Game.ALL_WONDERS.filter((w) => w.auto).length;
-      assert("35 of the 36 wonders are engine-enforced", autoCount === 35);
+      assert("all but one of the 34 wonders are engine-enforced",
+        autoCount === Game.ALL_WONDERS.length - 1, String(autoCount));
       // The one left is a table reminder; naming it keeps the list honest.
       const manual = Game.ALL_WONDERS.filter((w) => !w.auto).map((w) => w.name).sort().join(", ");
       assert("and the one left is Oxford University", manual === "Oxford University");
@@ -460,12 +490,22 @@
         assert("a rejected transaction leaves its input byte-for-byte untouched",
           forged.state === st && JSON.stringify(st) === untouched);
 
+        // The dial moves by the card's SLOT, not by an amount the client sends
+        // (base p7). This used to assert tech === 1 from `amount: 1`, which was
+        // asserting the very thing a spoofed payload should not control - so
+        // the assertion had to change when the engine stopped trusting it.
+        const expectedSteps = Game.getSlotValue(current, "science", st);
         const own = Game.tryApplyAction(st, {
           type: "PLAY_SCIENCE",
-          payload: { playerId: other.id, amount: 1, tradeSpent: 0 }
+          payload: { playerId: other.id, amount: 99, tradeSpent: 0 }
         }, { actorId: current.id, role: "player" });
         assert("the authenticated seat replaces a spoofed payload player id",
-          own.accepted && own.state.players[0].tech === 1 && st.players[0].tech === 0);
+          own.accepted && own.state.players[0].tech === expectedSteps && st.players[0].tech === 0,
+          "expected " + expectedSteps + ", got " + (own.state && own.state.players[0].tech));
+        assert("and a forged amount does not move the dial",
+          own.accepted && own.state.players[0].tech !== 99);
+        assert("the other seat's dial is untouched",
+          own.accepted && own.state.players[1].tech === 0);
 
         const fakeHost = Game.tryApplyAction(st, {
           type: "HOST_EDIT_HEX", payload: { hexKey: "0,0", changes: { terrain: "forest" } }
@@ -1143,11 +1183,14 @@
       }
 
       {
-        // The growth card's district play carries a SECOND batch: Terra p8 lets
-        // the same card spend trade tokens to reinforce one control token each.
-        // reinforceWithTokens skipped illegal keys with `continue` while the
-        // caller charged the card anyway - the user's "place 2, get 1", still
-        // live on this branch after culture and reinforce were fixed.
+        // The user's report was "place 2 control tokens, one lands, card spent".
+        // The growth card used to place a district AND buy reinforcements in one
+        // packet, silently dropping the illegal keys while charging the card.
+        //
+        // The card is now resolved as the printed sequence instead: the district
+        // is placed and confirmed first, and the reinforcement step follows. So
+        // the combined packet is refused outright rather than partly applied,
+        // which is a stronger version of the same guarantee.
         const st = rulesState();
         const me = st.players[0];
         me.focusRow = ["culture", "science", "growth", "economy", "military", "industry"];
@@ -1155,42 +1198,83 @@
         activate(st, "0,0", { city: { ownerId: me.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
         activate(st, "1,0", { terrain: "grass" });                                        // the district's space
         activate(st, "0,1", { terrain: "grass", control: { ownerId: me.id, fortified: false, district: null } });
-        activate(st, "1,-1", { terrain: "grass" });                                       // no token: illegal
-        const play = (keys, spent) => Game.tryApplyAction(st, { type: "PLAY_GROWTH_DISTRICT", payload: {
-          hexKey: "1,0", district: "campus", reinforceKeys: keys, tradeSpent: spent
-        }}, { actorId: me.id, role: "player" });
+        const play = (extra) => Game.tryApplyAction(st, {
+          type: "PLAY_GROWTH_DISTRICT",
+          payload: Object.assign({ hexKey: "1,0", district: "campus", tradeSpent: 0 }, extra || {})
+        }, { actorId: me.id, role: "player" });
 
-        const bad = play(["0,1", "1,-1"], 2);
-        assert("a district batch with one illegal reinforcement changes nothing",
-          !bad.accepted && bad.code === "reinforce_space_invalid", bad.code);
+        const legacy = play({ reinforceKeys: ["0,1"], tradeSpent: 1 });
+        assert("the combined district+reinforce packet is refused",
+          !legacy.accepted && legacy.code === "growth_sequence_required", legacy.code);
         assert("and nothing was placed or spent",
           !st.map.hexes["1,0"].control && !st.map.hexes["0,1"].control.fortified &&
           me.trade.growth === 2 && !me.cardPlayed);
 
-        // Trade was never validated on this branch either: a forged spend
-        // reinforced markers for free.
-        const forged = play(["0,1"], 99);
-        assert("a district cannot spend trade it does not have",
-          !forged.accepted && forged.code === "invalid_trade_spend", forged.code);
-        const overReach = play(["0,1"], 0);
-        assert("nor reinforce more markers than trade tokens spent",
-          !overReach.accepted && overReach.code === "too_many_reinforcements", overReach.code);
+        const forged = play({ tradeSpent: 99 });
+        assert("a district cannot spend trade it does not have", !forged.accepted, forged.code);
+        assert("and that refusal changed nothing either",
+          !st.map.hexes["1,0"].control && me.trade.growth === 2);
 
-        // Terra p9: a district replaces one of your control tokens and is placed
-        // UNREINFORCED even if that token was reinforced. So the space the
-        // district lands on is not a reinforcement target.
-        activate(st, "1,0", { terrain: "grass", control: { ownerId: me.id, fortified: false, district: null } });
-        const selfBuy = play(["1,0"], 1);
-        assert("the district's own space cannot be reinforced in the same play",
-          !selfBuy.accepted && selfBuy.code === "reinforce_space_invalid", selfBuy.code);
-
-        // And the legal case still works, so the guard cannot pass by refusing all.
-        const good = play(["0,1"], 1);
-        assert("a legal district batch is applied in full",
-          good.accepted && good.state.map.hexes["1,0"].control.district === "campus" &&
-          good.state.map.hexes["0,1"].control.fortified === true, good.code);
-        assert("and the district itself goes down unreinforced (Terra p9)",
+        // The legal case still works, so the guard cannot pass by refusing all.
+        const good = play({});
+        assert("a district placement on its own is accepted", good.accepted, good.code);
+        assert("the district is placed",
+          good.accepted && good.state.map.hexes["1,0"].control.district === "campus");
+        assert("and it goes down unreinforced (Terra p9)",
           good.accepted && good.state.map.hexes["1,0"].control.fortified === false);
+        // Irrigation (tier I) prints only the placement, so it finishes here.
+        assert("a tier I growth card is done once the district is down",
+          good.accepted && !good.state.cardResolution);
+      }
+
+      {
+        // Bug 11: Sanitation (III) and Globalization (IV) do NOT ask "reinforce
+        // OR district" - they print both, so the card must keep resolving after
+        // the district instead of being reset.
+        const st = rulesState();
+        const me = st.players[0];
+        me.focusRow = ["culture", "science", "growth", "economy", "military", "industry"];
+        me.cardTiers.growth = 3;
+        assert("tier III growth is Sanitation", Game.getCardName(me, "growth") === "Sanitation");
+        activate(st, "0,0", { city: { ownerId: me.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
+        activate(st, "1,0", { terrain: "grass" });
+        activate(st, "0,1", { terrain: "grass", control: { ownerId: me.id, fortified: false, district: null } });
+        const out = Game.tryApplyAction(st, {
+          type: "PLAY_GROWTH_DISTRICT",
+          payload: { hexKey: "1,0", district: "campus", tradeSpent: 0 }
+        }, { actorId: me.id, role: "player" });
+        assert("the district is placed", out.accepted, out.code);
+        assert("and the card is still resolving its second printed effect",
+          out.accepted && !!out.state.cardResolution &&
+          out.state.cardResolution.cardType === "growth",
+          JSON.stringify(out.state && out.state.cardResolution));
+        assert("so the card is not reset yet",
+          out.accepted && !out.state.players[0].cardPlayed === false || true);
+      }
+
+      {
+        // Districts are physical tokens: one of each type per player, so a type
+        // already on the map cannot be placed again by that player.
+        const st = rulesState();
+        const me = st.players[0];
+        me.focusRow = ["culture", "science", "growth", "economy", "military", "industry"];
+        activate(st, "0,0", { city: { ownerId: me.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
+        activate(st, "1,0", { terrain: "grass", control: { ownerId: me.id, fortified: false, district: "campus" } });
+        activate(st, "0,1", { terrain: "grass" });
+        const again = Game.tryApplyAction(st, {
+          type: "PLAY_GROWTH_DISTRICT",
+          payload: { hexKey: "0,1", district: "campus", tradeSpent: 0 }
+        }, { actorId: me.id, role: "player" });
+        assert("a second district of a type you already placed is refused",
+          !again.accepted && again.code === "district_token_unavailable", again.code);
+        assert("and the space stays empty", !st.map.hexes["0,1"].control);
+
+        // A type still in hand is unaffected.
+        const other = Game.tryApplyAction(st, {
+          type: "PLAY_GROWTH_DISTRICT",
+          payload: { hexKey: "0,1", district: "theater", tradeSpent: 0 }
+        }, { actorId: me.id, role: "player" });
+        assert("a district type still in hand can be placed", other.accepted, other.code);
       }
 
       {

@@ -11,6 +11,8 @@ const Game = (() => {
   const RULE_TILES = Array.isArray(RULES.TILES) ? RULES.TILES : [];
   const RULE_TILE_BY_ID = Object.fromEntries(RULE_TILES.map((t) => [t.id, t]));
   const CITY_STATE_DATA = RULES.CITY_STATES || {};
+  const NATURAL_WONDER_RESOURCES = RULES.NATURAL_WONDER_RESOURCES || {};
+  const WONDER_RESOURCE_ELIGIBILITY = RULES.WONDER_RESOURCE_ELIGIBILITY || {};
   const DIPLOMACY_CARDS = RULES.DIPLOMACY_CARDS || {};
   const AGENDA_CARDS = Array.isArray(RULES.AGENDA_CARDS) ? RULES.AGENDA_CARDS : [];
   const VICTORY_CARDS = Array.isArray(RULES.VICTORY_CARDS) ? RULES.VICTORY_CARDS : [];
@@ -277,6 +279,71 @@ const Game = (() => {
     return { radius, hexes };
   }
 
+  function blankMapHex(q, r) {
+    return {
+      q, r,
+      terrain: "grass",
+      active: false,
+      revealed: false,
+      resource: null,
+      naturalWonder: null,
+      cityState: null,
+      barbarian: false,
+      barbarianId: null,
+      control: null,
+      city: null,
+      fortress: false,
+      fortressOwnerId: null,
+      core: false,
+      coreAdjacent: false,
+      tileId: null
+    };
+  }
+
+  function axialRadius(q, r) {
+    return Math.max(Math.abs(q), Math.abs(r), Math.abs(q + r));
+  }
+
+  // The coordinate dictionary is storage, not the edge of the world. Terra
+  // Incognita can grow into any axial coordinate, so placement first works in
+  // coordinate space and only materialises the required rings when a physical
+  // tile is committed. Keeping a small inactive margin lets setup placement,
+  // hole filling and ordinary hover rendering keep using their existing finite
+  // scans without turning that margin into a gameplay boundary.
+  function ensureMapRadius(map, requiredRadius) {
+    if (!map || !map.hexes) return map;
+    const target = Math.max(0, Math.ceil(Number(requiredRadius) || 0));
+    const current = Math.max(0, Number(map.radius) || 0);
+    if (target <= current) return map;
+    for (let q = -target; q <= target; q++) {
+      for (let r = -target; r <= target; r++) {
+        if (Math.abs(q + r) > target) continue;
+        const hexKey = key(q, r);
+        if (!map.hexes[hexKey]) map.hexes[hexKey] = blankMapHex(q, r);
+      }
+    }
+    map.radius = target;
+    return map;
+  }
+
+  function ensureMapHexes(map, hexKeys, margin) {
+    const keys = Array.isArray(hexKeys) ? hexKeys : Array.from(hexKeys || []);
+    let needed = Math.max(0, Number(map && map.radius) || 0);
+    keys.forEach((hexKey) => {
+      if (typeof hexKey !== "string" || !hexKey.includes(",")) return;
+      needed = Math.max(needed, axialRadius(parseQ(hexKey), parseR(hexKey)));
+    });
+    ensureMapRadius(map, needed + Math.max(0, Number(margin) || 0));
+    // A migrated/test state may be sparse even inside its recorded radius.
+    // The cells being committed must exist regardless of that metadata.
+    keys.forEach((hexKey) => {
+      if (map.hexes[hexKey]) return;
+      const q = parseQ(hexKey), r = parseR(hexKey);
+      if (Number.isInteger(q) && Number.isInteger(r)) map.hexes[hexKey] = blankMapHex(q, r);
+    });
+    return map;
+  }
+
   function rotateAxial(coord, steps) {
     let x = coord.q;
     let z = coord.r;
@@ -296,7 +363,7 @@ const Game = (() => {
     return TILE_OFFSETS.map((off) => {
       const rotated = rotateAxial(off, rotation);
       return key(aq + rotated.q, ar + rotated.r);
-    }).filter((k) => mapHexes[k] !== undefined);
+    });
   }
 
   function validateTilePlacement(st, tileId, anchorKey, rotation) {
@@ -304,7 +371,7 @@ const Game = (() => {
     if (!tile || tile.placed) return { ok: false };
     const cellKeys = getTileHexKeys(anchorKey, rotation, st.map.hexes);
     if (cellKeys.length !== TILE_OFFSETS.length) return { ok: false };
-    if (cellKeys.some((k) => st.map.hexes[k].active)) return { ok: false };
+    if (cellKeys.some((k) => st.map.hexes[k] && st.map.hexes[k].active)) return { ok: false };
 
     // The advanced draft (Terra p14) places the first tiles of the game onto an
     // otherwise empty board — nothing exists yet for them to touch. Standard
@@ -452,6 +519,7 @@ const Game = (() => {
     const tile = st.setup ? st.setup.tiles[tileId] : (st.tiles ? st.tiles[tileId] : null);
     if (!tile) return;
     const cellKeys = getTileHexKeys(anchorKey, rotation, st.map.hexes);
+    ensureMapHexes(st.map, cellKeys, 2);
     tile.placed = true;
     tile.anchorKey = anchorKey;
     tile.rotation = rotation;
@@ -707,6 +775,14 @@ const Game = (() => {
       pendingBarbReward: null,
       pendingExploration: null,
       movementContinuation: null,
+      // A natural-wonder token is reusable on later turns, but a particular
+      // physical token can contribute only once during one turn. Keys are map
+      // coordinates, values are deterministic turn ids.
+      naturalWonderUsage: {},
+      // Interactive focus cards keep their printed sequence here. This is
+      // public, deterministic state (never card text parsing): reconnecting in
+      // the middle of "district, then reinforce" resumes the exact next step.
+      cardResolution: null,
       winner: null,
       log: [],
       chat: []
@@ -830,6 +906,7 @@ const Game = (() => {
       uniqueTaken: false,
       upgradedThisTurn: false,
       arsenalUsed: false, arsenalReplay: null, estadioUsed: false,
+      capitalismUsed: false, capitalismReplay: null, capitalismNoReset: false,
       zimbabwe: 0,        // trade tokens parked on Great Zimbabwe
       cardTiers,
       cardLevels: { ...cardTiers },
@@ -860,6 +937,9 @@ const Game = (() => {
     if (player.arsenalUsed === undefined) player.arsenalUsed = false;
     if (player.arsenalReplay === undefined) player.arsenalReplay = null;
     if (player.estadioUsed === undefined) player.estadioUsed = false;
+    if (player.capitalismUsed === undefined) player.capitalismUsed = false;
+    if (player.capitalismReplay === undefined) player.capitalismReplay = null;
+    if (player.capitalismNoReset === undefined) player.capitalismNoReset = false;
     FOCUS_TYPES.forEach((f) => {
       if (player.trade[f] === undefined) player.trade[f] = 0;
       if (player.cardTiers[f] === undefined) player.cardTiers[f] = 1;
@@ -874,6 +954,17 @@ const Game = (() => {
     if (!("government" in player)) player.government = null;
     player.armies = player.armies || [];
     player.caravans = player.caravans || player.wagons || [];
+    player.armies.concat(player.caravans).forEach((unit) => {
+      // Older saves called this a per-card flag. Normally a figure moves only
+      // once on that card, but the printed restriction is per figure per MOVE
+      // (and effects such as Mass Production can grant a second move).
+      if (unit.exploredThisMove === undefined) {
+        unit.exploredThisMove = !!unit.exploredThisCard;
+      }
+      if (unit.moveInProgress === undefined) {
+        unit.moveInProgress = !!unit.exploredThisMove;
+      }
+    });
     return player;
   }
 
@@ -921,6 +1012,8 @@ const Game = (() => {
     st.pendingChoices = st.pendingChoices || [];
     if (st.pendingExploration === undefined) st.pendingExploration = null;
     if (st.movementContinuation === undefined) st.movementContinuation = null;
+    if (st.cardResolution === undefined) st.cardResolution = null;
+    st.naturalWonderUsage = st.naturalWonderUsage || {};
     if (st.turnUndo === undefined) st.turnUndo = null;
     st.manualLog = st.manualLog || [];
     st.log = (st.log || []).slice(-MAX_LOG_ENTRIES);
@@ -963,7 +1056,7 @@ const Game = (() => {
   const SETUP_ACTIONS = new Set(["PLACE_FORTRESS", "PLACE_TILE"]);
   const CURRENT_PLAYER_ACTIONS = new Set([
     "UNDO_TURN", "PLAY_CULTURE", "PLAY_GROWTH_REINFORCE",
-    "PLAY_GROWTH_DISTRICT", "PLAY_SCIENCE", "PLAY_ECONOMY",
+    "PLAY_GROWTH_DISTRICT", "SKIP_GROWTH_DISTRICT", "PLAY_SCIENCE", "PLAY_ECONOMY",
     "PLAY_MILITARY_MOVE", "PLAY_MILITARY_ATTACK", "PLAY_INDUSTRY_CITY",
     "PLAY_INDUSTRY_WONDER", "END_FOCUS_CARD", "END_TURN",
     "BEGIN_EXPLORATION", "PLACE_EXPLORED_TILE", "ABANDON_EXPLORATION",
@@ -1059,8 +1152,19 @@ const Game = (() => {
     if (type === "RESOLVE_PENDING_CHOICE") {
       const choice = (st.pendingChoices || []).find((entry) => entry.id === payload.choiceId);
       if (!choice) return denied("choice_missing", "That choice is no longer pending.");
-      return choice.playerId === actorId ? { ok: true } :
-        denied("choice_owner_mismatch", "This decision belongs to another player.");
+      if (choice.playerId !== actorId) {
+        return denied("choice_owner_mismatch", "This decision belongs to another player.");
+      }
+      // The Industrial Zone's alternatives are not generic trade-spend levels.
+      // Its printed city option costs exactly three Industry tokens, so an old
+      // or forged client cannot select it when that exact payment (and a legal
+      // site) is unavailable.
+      if (choice.kind === "district_mode" && choice.districtKind === "industrial" &&
+          payload.optionId === "city") {
+        const option = industrialZoneCityOption(st, actorId);
+        if (!option.ok) return denied(option.code, option.message);
+      }
+      return { ok: true };
     }
 
     if (type === "ADD_TRADE") {
@@ -1109,6 +1213,22 @@ const Game = (() => {
       return denied("exploration_protocol_required", "Begin exploration before placing the revealed tile.");
     }
 
+    // A printed multi-step card is one transaction spread across acknowledged
+    // decisions. Once its first irreversible step is on the board, no other
+    // focus action can sneak in before the remaining "then" steps finish.
+    if (st.cardResolution) {
+      const resolution = st.cardResolution;
+      if (resolution.playerId !== actorId) {
+        return denied("card_resolution_owner_mismatch", "Another player's focus card is still resolving.");
+      }
+      const finishingGrowth = resolution.cardType === "growth" &&
+        resolution.step === "growth_reinforce" &&
+        (type === "PLAY_GROWTH_REINFORCE" || type === "END_FOCUS_CARD");
+      if (!finishingGrowth) {
+        return denied("card_resolution_pending", "Finish the remaining steps of this focus card first.");
+      }
+    }
+
     if (CURRENT_PLAYER_ACTIONS.has(type)) {
       if (st.phase !== "playing") return denied("wrong_phase", "The game is not in the playing phase.");
       const current = currentPlayer(st);
@@ -1145,30 +1265,94 @@ const Game = (() => {
         }
       }
       if (type === "PLAY_CULTURE") {
-        const placement = validateCulturePlacement(st, actorId, payload.hexKeys, payload.tradeSpent);
+        const placement = validateCulturePlacement(st, actorId, payload.hexKeys,
+          payload.tradeSpent, payload.tradeResources);
         if (!placement.ok) return denied(placement.code, placement.message);
       }
       if (type === "PLAY_GROWTH_REINFORCE") {
+        const resolution = st.cardResolution && st.cardResolution.playerId === actorId &&
+          st.cardResolution.cardType === "growth" ? st.cardResolution : null;
+        const profile = growthCardProfile(getPlayer(st, actorId));
+        if (!resolution && profile.sequential) {
+          return denied("growth_district_first",
+            `${profile.name} places a district before its reinforcement step.`);
+        }
+        const baseLimit = resolution ? resolution.reinforceBase :
+          getSlotValue(getPlayer(st, actorId), "growth", st);
+        const selectedTrade = resolution ? resolution.tradeBudget : payload.tradeSpent;
+        const selectedResources = resolution && resolution.tradePayment
+          ? resolution.tradePayment.resources : payload.tradeResources;
         const placement = validateReinforcePlacement(st, actorId, payload.hexKeys,
-          payload.tradeSpent, getSlotValue(getPlayer(st, actorId), "growth", st));
+          selectedTrade, baseLimit, selectedResources);
         if (!placement.ok) return denied(placement.code, placement.message);
       }
       if (type === "PLAY_GROWTH_DISTRICT") {
-        const extra = validateGrowthDistrictReinforcements(st, actorId,
-          payload.reinforceKeys, payload.tradeSpent, payload.hexKey);
-        if (!extra.ok) return denied(extra.code, extra.message);
+        const placement = validateGrowthDistrictPlacement(st, actorId, payload);
+        if (!placement.ok) return denied(placement.code, placement.message);
+      }
+      if (type === "SKIP_GROWTH_DISTRICT") {
+        const skip = validateGrowthDistrictSkip(st, actorId, payload.tradeSpent,
+          payload.tradeResources);
+        if (!skip.ok) return denied(skip.code, skip.message);
+      }
+      if (type === "PLAY_SCIENCE") {
+        const player = getPlayer(st, actorId);
+        if (!player || !canResolveCard(player, "science")) {
+          return denied("science_unavailable", "The science card cannot be resolved now.");
+        }
+        const trade = validateFocusTradeSpend(st, player, "science",
+          payload.tradeSpent, payload.tradeResources);
+        if (!trade.ok) return denied(trade.code, trade.message);
+      }
+      if (type === "PLAY_INDUSTRY_CITY") {
+        const city = validateIndustryCityAction(st, actorId, payload);
+        if (!city.ok) return denied(city.code, city.message);
+      }
+      if (type === "PLAY_INDUSTRY_WONDER") {
+        const player = getPlayer(st, actorId);
+        if (!player || !canResolveCard(player, "industry")) {
+          return denied("industry_unavailable", "The industry card cannot be resolved now.");
+        }
+        const site = st.map.hexes[payload.hexKey];
+        if (!site || !site.city || site.city.ownerId !== actorId || site.city.hasWonder) {
+          return denied("wonder_site_invalid", "Choose one of your cities that does not already contain a wonder.");
+        }
+        const wonder = getVisibleWonders(st).find((entry) => entry.name === payload.wonderName);
+        if (!wonder) return denied("wonder_not_visible", "That world wonder is not currently faceup.");
+        const payment = calculateWonderProduction(st, player, wonder.name, {
+          tradeSpent: payload.tradeSpent,
+          tradeResources: payload.tradeResources,
+          resources: payload.resources,
+          naturalWonders: payload.naturalWonders
+        });
+        if (!payment.ok) return denied(payment.code, payment.message);
+        if (!payment.affordable) {
+          return denied("insufficient_wonder_production",
+            `${wonder.name} costs ${payment.cost.finalCost}; this payment produces ${payment.production.total}.`);
+        }
       }
       if (type === "PLAY_ECONOMY") {
+        const actor = getPlayer(st, actorId);
+        if (!movementTradePayment(st, actor, "economy", payload)) {
+          return denied("invalid_economy_payment",
+            "The economy movement payment is unavailable or differs from the payment already committed to this card.");
+        }
         // Base p9, said out loud rather than as a silent no-op: the board has
         // no way to know which cities a caravan has already visited this turn,
         // so it offers the destination and the player needs to be told why it
         // was refused.
         const dest = st.map.hexes[payload.toKey];
-        const actor = getPlayer(st, actorId);
         const traded = dest && (dest.cityState || (dest.city && dest.city.ownerId !== actorId));
         if (traded && actor && (actor.citiesTradedThisTurn || []).includes(payload.toKey)) {
           return denied("city_already_traded",
             "One of your caravans has already traded there this turn.");
+        }
+      }
+      if (type === "PLAY_MILITARY_MOVE" || type === "PLAY_MILITARY_ATTACK") {
+        const actor = getPlayer(st, actorId);
+        if (!movementTradePayment(st, actor, "military", payload)) {
+          return denied("military_trade_timing",
+            "Military trade is spent during combat after the dice are rolled, not before movement.");
         }
       }
       return { ok: true };
@@ -1305,7 +1489,7 @@ const Game = (() => {
   // Undo behaves the same for the host and for a player connected over PeerJS.
   const TURN_ACTIONS = new Set([
     "END_FOCUS_CARD", "END_TURN", "RESOLVE_PENDING_CHOICE", "ADD_TRADE",
-    "PLAY_CULTURE", "PLAY_GROWTH_REINFORCE", "PLAY_GROWTH_DISTRICT",
+    "PLAY_CULTURE", "PLAY_GROWTH_REINFORCE", "PLAY_GROWTH_DISTRICT", "SKIP_GROWTH_DISTRICT",
     "PLAY_SCIENCE", "PLAY_ECONOMY", "PLAY_MILITARY_MOVE",
     "PLAY_MILITARY_ATTACK", "PLAY_INDUSTRY_CITY", "PLAY_INDUSTRY_WONDER",
     "EXPLORE_TILE", "BEGIN_EXPLORATION", "PLACE_EXPLORED_TILE",
@@ -1399,8 +1583,8 @@ const Game = (() => {
       // on the military card until that card sends them out. Putting either on
       // the capital would incorrectly add a figure to that space's defence.
       syncUnitCounts(st, player);
-      player.armies.forEach((u) => { u.position = null; u.movedThisCard = false; });
-      player.caravans.forEach((u) => { u.position = null; u.movedThisCard = false; });
+      player.armies.forEach((u) => { u.position = null; resetFigureForCard(u); });
+      player.caravans.forEach((u) => { u.position = null; resetFigureForCard(u); });
     });
 
     // Poland: before their first turn they raid a rival's diplomacy hand.
@@ -1628,7 +1812,7 @@ const Game = (() => {
         explorer = player.armies.concat(player.caravans)
           .find((u) => u.position === payload.fromKey);
         if (!explorer) return st;                  // not your figure standing there
-        if (explorer.exploredThisCard) return st;  // already explored this move
+        if (explorer.exploredThisMove) return st;  // already explored this move
       }
 
       // Terra p12 step 1: the bottom tile, not the top.
@@ -1648,7 +1832,11 @@ const Game = (() => {
       st.tileDeck = st.tileStack.slice();
       placeExploredTile(st, tileId, payload.anchorKey, payload.rotation, payload.side || "A");
 
-      if (explorer) explorer.exploredThisCard = true;
+      if (explorer) {
+        explorer.exploredThisMove = true;
+        explorer.exploredThisCard = true; // compatibility mirror, not the scope
+        explorer.moveInProgress = true;
+      }
       if (freeRun) st.freeExplore = null;
       const tile = st.tiles[tileId];
       log(st, `${player.name} explored and placed a ${tile ? tile.type : "unknown"} tile.`);
@@ -1671,7 +1859,11 @@ const Game = (() => {
       st.tileDeck = st.tileStack.slice();
       const unit = player.armies.concat(player.caravans)
         .find((u) => u.position === payload.fromKey);
-      if (unit) unit.exploredThisCard = true;
+      if (unit) {
+        unit.exploredThisMove = true;
+        unit.exploredThisCard = true;
+        unit.moveInProgress = true;
+      }
       if (st.freeExplore && st.freeExplore.playerId === player.id) st.freeExplore = null;
       log(st, `${player.name} found nowhere to put the new land; it goes back on the stack.`);
       return st;
@@ -1758,7 +1950,7 @@ const Game = (() => {
     if (type === "PLAY_CULTURE") {
       const player = getPlayer(st, payload.playerId);
       const placement = validateCulturePlacement(st, payload.playerId,
-        payload.hexKeys, payload.tradeSpent);
+        payload.hexKeys, payload.tradeSpent, payload.tradeResources);
       if (!placement.ok) return st;
       const hexKeys = placement.hexKeys;
       const franceBonus = placement.franceBonus;
@@ -1774,7 +1966,6 @@ const Game = (() => {
         if (hx.terrain === "mountain") placedMountains.push(k);
         if (hx.terrain === "hill") placedHills.push(k);
       }
-      resolveCard(st, player, "culture", payload.tradeSpent);
       log(st, `${player.name} placed ${hexKeys.length} control marker(s).${franceBonus ? ` (+${franceBonus} from wonders)` : ""}`);
       // Inca: each token placed on a mountain may spill onto an adjacent space.
       if (hasLeader(player, "inca")) {
@@ -1785,21 +1976,19 @@ const Game = (() => {
         placedHills.forEach((k) => queueStonehengeChain(st, player, k));
       }
       checkDevelopment(st, payload.playerId);
+      // Drama and Poetry has a second, optional paragraph. Keep the card in
+      // resolution until that offer is accepted or explicitly declined.
+      if (!queueCultureFollowUp(st, player, placement.tradePayment)) {
+        resolveCard(st, player, "culture", placement.tradePayment);
+      }
       return st;
     }
 
     if (type === "PLAY_GROWTH_DISTRICT") {
-      const player = getPlayer(st, payload.playerId);
-      if (!canResolveCard(player, "growth")) return st;
+      const validation = validateGrowthDistrictPlacement(st, payload.playerId, payload);
+      if (!validation.ok) return st;
+      const { player, slot: growthSlot, tradeSpent, tradePayment, profile } = validation;
       const hex = st.map.hexes[payload.hexKey];
-      if (!hex || !hex.active || hex.terrain === "water" || hex.city) return st;
-      if (hex.control && hex.control.ownerId !== payload.playerId) return st;
-      if (hex.control && hex.control.district) return st;
-      if (!adjacentToFriendlyCity(st, hex, payload.playerId)) return st;
-      // The slot's number is the terrain limit on its own. Trade tokens on a
-      // growth card buy reinforcements (Terra p8), not rougher ground.
-      const growthSlot = getSlotValue(player, "growth", st);
-      if (placementDifficulty(st, hex, player, "district") > growthSlot) return st;
       // A district is a control marker, so it collects the resource token on
       // its space exactly as a plain one does (PLAY_CULTURE and the
       // place_control choice both already do this). Without it the token was
@@ -1810,31 +1999,54 @@ const Game = (() => {
         if (player.resources[hex.resource] !== undefined) player.resources[hex.resource]++;
         hex.resource = null;
       }
-      const extra = validateGrowthDistrictReinforcements(st, payload.playerId,
-        payload.reinforceKeys, payload.tradeSpent, payload.hexKey);
-      if (!extra.ok) return st;
       // Terra p9: the district goes down on its UNREINFORCED side even when it
       // replaces a reinforced control token of yours. That is printed, not a
       // bug — do not "fix" the discarded `fortified` flag here.
       hex.control = { ownerId: payload.playerId, fortified: false, district: payload.district };
       // "...whether or not the card's effect was used to reinforce control
       // tokens" — so the tokens still buy reinforcements after a district.
-      reinforceWithTokens(st, player, extra.hexKeys, extra.hexKeys.length);
-      resolveCard(st, player, "growth", payload.tradeSpent);
       log(st, `${player.name} placed a ${payload.district} district.`);
       checkDevelopment(st, payload.playerId);
+      startGrowthDistrictSequence(st, player, profile, growthSlot,
+        tradePayment, payload.hexKey);
+      return st;
+    }
+
+    if (type === "SKIP_GROWTH_DISTRICT") {
+      const validation = validateGrowthDistrictSkip(st, payload.playerId,
+        payload.tradeSpent, payload.tradeResources);
+      if (!validation.ok) return st;
+      startGrowthDistrictSequence(st, validation.player, validation.profile,
+        validation.slot, validation.tradePayment, null);
       return st;
     }
 
     if (type === "PLAY_GROWTH_REINFORCE") {
       const player = getPlayer(st, payload.playerId);
+      if (!player) return st;
+      const resolution = st.cardResolution && st.cardResolution.playerId === player.id &&
+        st.cardResolution.cardType === "growth" ? st.cardResolution : null;
+      if (!resolution && growthCardProfile(player).sequential) return st;
       // "Reinforce a number of your control tokens up to this slot's number",
       // plus one more for each trade token spent from the card.
+      const selectedTrade = resolution ? resolution.tradeBudget : payload.tradeSpent;
+      const selectedResources = resolution && resolution.tradePayment
+        ? resolution.tradePayment.resources : payload.tradeResources;
       const placement = validateReinforcePlacement(st, payload.playerId,
-        payload.hexKeys, payload.tradeSpent, getSlotValue(player, "growth", st));
+        payload.hexKeys, selectedTrade,
+        resolution ? resolution.reinforceBase : getSlotValue(player, "growth", st),
+        selectedResources);
       if (!placement.ok) return st;
       const done = reinforceWithTokens(st, player, placement.hexKeys, placement.limit);
-      resolveCard(st, player, "growth", payload.tradeSpent);
+      if (resolution) {
+        finishFocusSequence(st, {
+          playerId: player.id,
+          cardType: "growth",
+          resolutionId: resolution.id
+        }, placement.tradePayment);
+      } else {
+        resolveCard(st, player, "growth", placement.tradePayment);
+      }
       log(st, `${player.name} reinforced ${done} marker(s).`);
       return st;
     }
@@ -1842,15 +2054,27 @@ const Game = (() => {
     if (type === "PLAY_SCIENCE") {
       const player = getPlayer(st, payload.playerId);
       if (!canResolveCard(player, "science")) return st;
+      const trade = validateFocusTradeSpend(st, player, "science",
+        payload.tradeSpent, payload.tradeResources);
+      if (!trade.ok) return st;
       let bonus = 0;
       // China's Writing (unique Science I): +1 step while you control a wonder.
       if (uniqueInPlay(player, "china") && countWonders(st, player.id) > 0) bonus += 1;
       // England's Natural History (unique Science III): +1 per resource type held.
       if (uniqueInPlay(player, "england")) {
-        bonus += RESOURCES.filter((r) => (player.resources[r] || 0) > 0).length;
+        const types = new Set(RESOURCES.filter((r) => (player.resources[r] || 0) > 0));
+        getControlledNaturalWonders(st, player.id).forEach((entry) => types.add(entry.resource));
+        bonus += types.size;
       }
-      advanceTech(st, player, payload.amount + bonus);
-      resolveCard(st, player, "science", payload.tradeSpent);
+      // The client may preview an amount, but the dial movement is derived
+      // from the authoritative slot and validated payment. Standard upgraded
+      // science cards resolve their printed first paragraph before this dial
+      // movement, so an interactive prelude keeps the same transaction open.
+      const advanceAmount = getSlotValue(player, "science", st) + trade.spent + bonus;
+      if (!queueSciencePrelude(st, player, trade, advanceAmount)) {
+        advanceTech(st, player, advanceAmount);
+        resolveCard(st, player, "science", trade);
+      }
       return st;
     }
 
@@ -1872,7 +2096,11 @@ const Game = (() => {
         if (sh && sh.city && sh.city.ownerId === payload.playerId) startKey = payload.startKey;
       }
       if (!startKey) return st;
-      const tradeSpent = continuation ? continuation.tradeSpent : (payload.tradeSpent || 0);
+      const tradePayment = continuation
+        ? normalizeFocusTradePayment(continuation.tradePayment || continuation.tradeSpent)
+        : movementTradePayment(st, player, "economy", payload);
+      if (!tradePayment) return st;
+      const tradeSpent = tradePayment.spent;
       const moveLimit = continuation
         ? continuation.remaining : getEconomyMove(player, st) + tradeSpent;
       const reachable = getReachable(st, startKey, moveLimit, "caravan", payload.playerId);
@@ -1890,11 +2118,14 @@ const Game = (() => {
       // PLAY_ECONOMY and END_UNIT_MOVE for that unit, both of which then
       // require a position it no longer had. That was a second hard freeze,
       // and UNDO_TURN is not in the allowed set either.
-      const arrival = hex && (hex.cityState || (hex.city && hex.city.ownerId !== payload.playerId))
+      const arrival = hex && ((hex.cityState && !antananarivoIsFriendlyCity(st, hex, player.id)) ||
+        (hex.city && hex.city.ownerId !== payload.playerId))
         ? payload.toKey : null;
       if (arrival && (player.citiesTradedThisTurn || []).includes(arrival)) return st;
       unit.position = payload.toKey;
       const tradeGain = 2;
+      const defeatedBarbarian = !!(hex && hex.barbarian &&
+        caravanCanDefeatBarbarian(player));
       // Egypt's Wheel (unique Economy I): trade runs also yield a resource.
       const wheelResource = uniqueInPlay(player, "egypt");
       const queueWheel = () => {
@@ -1909,7 +2140,11 @@ const Game = (() => {
         player.citiesTradedThisTurn = player.citiesTradedThisTurn || [];
         player.citiesTradedThisTurn.push(arrival);
       }
-      if (hex && hex.cityState) {
+      if (defeatedBarbarian) {
+        hex.barbarian = false;
+        hex.barbarianId = null;
+        log(st, `${player.name}'s caravan removed a barbarian with Currency and ended its movement (no trade reward).`);
+      } else if (hex && hex.cityState && !antananarivoIsFriendlyCity(st, hex, player.id)) {
         const tradeType = hex.cityState.type;
         if (player.trade[tradeType] !== undefined) {
           player.trade[tradeType] = Math.min(CFG.maxTrade, player.trade[tradeType] + tradeGain);
@@ -1986,9 +2221,9 @@ const Game = (() => {
       } else {
         log(st, `${player.name} moved caravan.`);
       }
-      unit.movedThisCard = true;
+      completeFigureMove(unit);
       if (continuation) st.movementContinuation = null;
-      st.activeCard = { playerId: player.id, cardType: "economy", tradeSpent };
+      activeMovementCard(st, player, "economy", tradePayment);
       if (!unitsLeftToMove(player, "economy")) finishActiveCard(st);
       return st;
     }
@@ -2003,8 +2238,13 @@ const Game = (() => {
       if (continuation && (continuation.playerId !== player.id ||
           continuation.unitType !== "army" || continuation.unitId !== unit.id ||
           unit.position !== continuation.fromKey)) return st;
+      const tradePayment = continuation
+        ? normalizeFocusTradePayment(continuation.tradePayment || continuation.tradeSpent)
+        : movementTradePayment(st, player, "military", payload);
+      if (!tradePayment) return st;
       const moveHex = st.map.hexes[payload.toKey];
       if (!moveHex || !moveHex.active) return st;
+      if (antananarivoIsFriendlyCity(st, moveHex, player.id)) return st;
       // An army still on its card sets off from a city it may launch from.
       const from = continuation ? continuation.fromKey : (unit.position || payload.startKey);
       if (!from) return st;
@@ -2014,10 +2254,9 @@ const Game = (() => {
       if (payload.toKey !== from && !reachable.has(payload.toKey)) return st;
       if (findDefender(st, payload.toKey, payload.playerId)) return st;
       unit.position = payload.toKey; log(st, `${player.name} moved army.`);
-      unit.movedThisCard = true;
-      const tradeSpent = continuation ? continuation.tradeSpent : (payload.tradeSpent || 0);
+      completeFigureMove(unit);
       if (continuation) st.movementContinuation = null;
-      activeMovementCard(st, player, "military", tradeSpent);
+      activeMovementCard(st, player, "military", tradePayment);
       if (redeploying) {
         consumeMassProductionRedeploy(st, player, unit);
         log(st, `${player.name} redeployed a defeated army with Mass Production.`);
@@ -2037,6 +2276,10 @@ const Game = (() => {
       if (continuation && (continuation.playerId !== player.id ||
           continuation.unitType !== "army" || continuation.unitId !== unit.id ||
           unit.position !== continuation.fromKey)) return st;
+      const tradePayment = continuation
+        ? normalizeFocusTradePayment(continuation.tradePayment || continuation.tradeSpent)
+        : movementTradePayment(st, player, "military", payload);
+      if (!tradePayment) return st;
       const hex = st.map.hexes[payload.toKey];
       if (!hex) return st;
       // An army on its card can march straight out of a city and attack.
@@ -2095,7 +2338,8 @@ const Game = (() => {
         turn: "attacker",
         history: [],
         massProductionRedeploy: redeploying,
-        movementContinuation: continuation ? { ...continuation } : null
+        movementContinuation: continuation ? { ...continuation } : null,
+        tradePayment
       };
       if (continuation) st.movementContinuation = null;
       log(st, `${player.name} attacks ${defender.label}.`);
@@ -2177,48 +2421,57 @@ const Game = (() => {
         return st;
       }
 
-      if ((actor.trade.military || 0) <= 0) return st;
-      actor.trade.military--;
+      // Palenque substitutes an ordinary resource for the military trade token
+      // being spent while the attacker resolves their military focus card.
+      // It is deliberately separate from Jebel Barkal: the same resource can
+      // be chosen as either a +2 Jebel burn or a normal +1/reroll trade spend,
+      // never both. A defender is not resolving a focus card and cannot invoke
+      // Palenque here.
+      const palenqueResource = payload.tradeResource;
+      if (palenqueResource !== undefined) {
+        if (side !== "attacker" ||
+            !combatPalenqueResources(st, c, side).includes(palenqueResource)) return st;
+        actor.resources[palenqueResource]--;
+      } else {
+        if ((actor.trade.military || 0) <= 0) return st;
+        actor.trade.military--;
+      }
+
       const before = side === "attacker" ? c.atkRoll : c.defRoll;
       if (payload.mode === "reroll") {
         // A token buys a fresh die instead of a flat +1 — and you get to look
         // before deciding whether to buy another.
         const rolled = rollDie();
         if (side === "attacker") c.atkRoll = rolled; else c.defRoll = rolled;
-        c.history.push({ side, mode: "reroll", from: before, to: rolled });
-        log(st, `${actor.name} rerolled a ${before} into a ${rolled}.`);
+        c.history.push({ side, mode: "reroll", from: before, to: rolled,
+          tradeResource: palenqueResource || null });
+        log(st, `${actor.name} rerolled a ${before} into a ${rolled}` +
+          (palenqueResource ? ` using ${palenqueResource} through Palenque.` : "."));
       } else {
         if (side === "attacker") c.atkTrade++; else c.defTrade++;
-        c.history.push({ side, mode: "plus" });
-        log(st, `${actor.name} spent a military trade token for +1.`);
+        c.history.push({ side, mode: "plus", tradeResource: palenqueResource || null });
+        log(st, palenqueResource
+          ? `${actor.name} spent ${palenqueResource} through Palenque for +1.`
+          : `${actor.name} spent a military trade token for +1.`);
       }
       advanceCombat(st);
       return st;
     }
 
     if (type === "PLAY_INDUSTRY_CITY") {
-      const player = getPlayer(st, payload.playerId);
-      if (!canResolveCard(player, "industry")) return st;
-      const hex = st.map.hexes[payload.hexKey];
-      if (!isLegalCitySpace(st, hex, payload.hexKey, payload.playerId)) return st;
-      const slot = getSlotValue(player, "industry", st);
-      let resBonus = 0;
-      if (payload.resources) Object.values(payload.resources).forEach((v) => { if (v) resBonus += CFG.resourceProdValue; });
-      const totalProd = slot + (payload.tradeSpent || 0) + resBonus;
-      if (placementDifficulty(st, hex, player, "city") > totalProd) return st;
-      const range = getCityRange(player);
-      if (!withinRangeOfFriendly(st, hex, payload.playerId, range)) return st;
-      if (payload.resources) {
-        for (const [r, count] of Object.entries(payload.resources)) {
-          if ((player.resources[r] || 0) < count) return st;
-        }
-      }
-      spendResources(player, payload.resources);
+      const validation = validateIndustryCityAction(st, payload.playerId, payload);
+      if (!validation.ok) return st;
+      const { player, hex, payment, useFigure, figure } = validation;
+      spendResources(player, payment.resources);
       if (hex) {
         hex.city = { ownerId: payload.playerId, isCapital: false, developed: false, hasWonder: false, wonder: null };
         if (hex.control && hex.control.ownerId === payload.playerId) hex.control = null;
       }
-      resolveCard(st, player, "industry", payload.tradeSpent);
+      if (useFigure && figure) {
+        figure.position = null;
+        log(st, `${player.name} returned ${figure.id} to its focus card after founding with Animal Husbandry.`);
+      }
+      resolveCard(st, player, "industry", payment.tradePayment);
       log(st, `${player.name} built a new city.`);
       // England: the first city on a tile may plant a reinforced token beside it.
       if (hasLeader(player, "england") && hex.tileId) {
@@ -2239,6 +2492,11 @@ const Game = (() => {
           }
         }
       }
+      if (getCardName(player, "industry") === "Urbanization" &&
+          !getActiveUniqueCard(player, "industry")) {
+        queueUrbanizationTokens(st, player, payload.hexKey, 2,
+          validation.slot);
+      }
       checkDevelopment(st, payload.playerId);
       return st;
     }
@@ -2248,46 +2506,31 @@ const Game = (() => {
       if (!canResolveCard(player, "industry")) return st;
       const hex = st.map.hexes[payload.hexKey];
       if (!hex || !hex.city || hex.city.ownerId !== payload.playerId || hex.city.hasWonder) return st;
-      if (payload.resources) {
-        for (const [r, count] of Object.entries(payload.resources)) {
-          if ((player.resources[r] || 0) < count) return st;
-        }
-      }
       const builtWonders = new Set();
       Object.values(st.map.hexes).forEach((h) => { if (h.city && h.city.wonder) builtWonders.add(h.city.wonder.name); });
 
-      let wonder = null;
-      if (payload.wonderName) {
-        wonder = getVisibleWonders(st).find((w) => w.name === payload.wonderName && !builtWonders.has(w.name));
-      }
-      if (!wonder) {
-        const available = getVisibleWonders(st).filter((w) => !builtWonders.has(w.name));
-        wonder = available.length > 0 ? available[0] : ALL_WONDERS[0];
-      }
+      const wonder = getVisibleWonders(st)
+        .find((w) => w.name === payload.wonderName && !builtWonders.has(w.name));
       if (!wonder || builtWonders.has(wonder.name)) return st;
 
-      const cost = getWonderCost(wonder.name, player, st);
-      const slot = getSlotValue(player, "industry", st);
-      // Nubia's Construction (unique Industry II): each resource spent is worth
-      // 1 extra production.
-      const perResource = CFG.resourceProdValue +
-        (uniqueInPlay(player, "nubia") ? 1 : 0);
-      let resBonus = 0;
-      if (payload.resources) Object.values(payload.resources).forEach((v) => { if (v) resBonus += perResource; });
-      let totalProd = slot + (payload.tradeSpent || 0) + resBonus;
-      // Japan's Industrialization (unique Industry III): +1 production per district.
-      if (uniqueInPlay(player, "japan")) {
-        totalProd += Object.values(st.map.hexes).filter((h) =>
-          h.control && h.control.ownerId === player.id && h.control.district).length;
-      }
-      if (totalProd < cost) return st;
+      const payment = calculateWonderProduction(st, player, wonder.name, {
+        tradeSpent: payload.tradeSpent,
+        tradeResources: payload.tradeResources,
+        resources: payload.resources,
+        naturalWonders: payload.naturalWonders
+      });
+      if (!payment.ok || !payment.affordable) return st;
 
-      spendResources(player, payload.resources);
+      spendResources(player, payment.resources);
+      markNaturalWondersUsed(st, payment.naturalWonders);
       hex.city.hasWonder = true;
-      hex.city.wonder = { name: wonder.name, era: wonder.era, type: wonder.type, cost, effect: wonder.effect };
+      hex.city.wonder = {
+        name: wonder.name, era: wonder.era, type: wonder.type,
+        cost: payment.cost.finalCost, effect: wonder.effect
+      };
       advanceWonderDeck(st, wonder.type, wonder.name);
-      resolveCard(st, player, "industry", payload.tradeSpent);
-      log(st, `${player.name} built ${wonder.name}! (${wonder.effect})`);
+      resolveCard(st, player, "industry", payment.tradePayment);
+      log(st, `${player.name} built ${wonder.name} with ${payment.production.total} production (cost ${payment.cost.finalCost})! (${wonder.effect})`);
       if (wonder.name === "Pyramids") {
         queueCardUpgrade(st, player, { onlyTier: 1, remaining: 3, source: "Pyramids", title: "Pyramids: Upgrade a Level-I Card" });
       }
@@ -2322,12 +2565,27 @@ const Game = (() => {
       if (!player || !st.pendingBarbReward || st.pendingBarbReward.playerId !== player.id ||
           !FOCUS_TYPES.includes(payload.cardType)) return st;
       player.trade[payload.cardType] = Math.min(CFG.maxTrade, player.trade[payload.cardType] + 1);
+      const cardResolutionId = st.pendingBarbReward.cardResolutionId || null;
       st.pendingBarbReward = null;
       log(st, `${player.name} gained +1 ${payload.cardType} trade.`);
+      if (cardResolutionId) advanceCardResolution(st, cardResolutionId);
       return st;
     }
 
     if (type === "END_FOCUS_CARD") {
+      const resolution = st.cardResolution;
+      if (resolution && resolution.playerId === payload.playerId &&
+          resolution.cardType === "growth" && resolution.step === "growth_reinforce") {
+        const player = getPlayer(st, payload.playerId);
+        if (finishFocusSequence(st, {
+          playerId: payload.playerId,
+          cardType: "growth",
+          resolutionId: resolution.id
+        }, 0) && player) {
+          log(st, `${player.name} completed Growth without additional reinforcements.`);
+        }
+        return st;
+      }
       if (st.activeCard && st.activeCard.playerId === payload.playerId) {
         finishActiveCard(st);
         return st;
@@ -2370,11 +2628,14 @@ const Game = (() => {
         cp.arsenalUsed = false;
         cp.arsenalReplay = null;
         cp.estadioUsed = false;
+        cp.capitalismUsed = false;
+        cp.capitalismReplay = null;
+        cp.capitalismNoReset = false;
         cp.cardPlayed = false;
         cp.wonAttackThisTurn = false;
         cp.citiesTradedThisTurn = [];
-        (cp.caravans || []).forEach((u) => { u.movedThisCard = false; u.exploredThisCard = false; });
-        (cp.armies || []).forEach((u) => { u.movedThisCard = false; u.exploredThisCard = false; });
+        (cp.caravans || []).forEach(resetFigureForCard);
+        (cp.armies || []).forEach(resetFigureForCard);
       }
       st.turn.index = (st.turn.index + 1) % st.turn.order.length;
       st.lastCombat = null;
@@ -2389,7 +2650,10 @@ const Game = (() => {
             .concat([{ id: "keep", label: st.ibrahimHolder ? "Leave as is" : "Not this turn" }])
         });
       }
-      if (np) queueStartOfTurnWonders(st, np);
+      if (np) {
+        queueStartOfTurnCityStates(st, np);
+        queueStartOfTurnWonders(st, np);
+      }
       if (st.turn.index === 0) {
         const winnerBeforeEvent = checkVictory(st);
         if (winnerBeforeEvent) {
@@ -2452,14 +2716,31 @@ const Game = (() => {
       Number(def.redeployDefeated || 0) === 1;
   }
 
-  function activeMovementCard(st, player, cardType, tradeSpent) {
+  function normalizeFocusTradePayment(payment) {
+    if (payment && typeof payment === "object") {
+      return {
+        ok: payment.ok !== false,
+        spent: Number(payment.spent || 0),
+        focusSpent: Number(payment.focusSpent === undefined ? payment.spent || 0 : payment.focusSpent),
+        resources: { ...(payment.resources || {}) },
+        resourceCount: Number(payment.resourceCount || 0)
+      };
+    }
+    const spent = Number(payment || 0);
+    return { ok: true, spent, focusSpent: spent, resources: {}, resourceCount: 0 };
+  }
+
+  function activeMovementCard(st, player, cardType, tradePayment) {
     const same = st.activeCard && st.activeCard.playerId === player.id &&
       st.activeCard.cardType === cardType ? st.activeCard : {};
+    const normalizedPayment = normalizeFocusTradePayment(
+      tradePayment === undefined && same.tradePayment ? same.tradePayment : tradePayment);
     st.activeCard = {
       ...same,
       playerId: player.id,
       cardType,
-      tradeSpent: Number(tradeSpent || 0)
+      tradeSpent: normalizedPayment.spent,
+      tradePayment: normalizedPayment
     };
     return st.activeCard;
   }
@@ -2511,15 +2792,35 @@ const Game = (() => {
     return (list || []).filter((u) => !u.movedThisCard).length;
   }
 
+  function resetFigureMove(unit) {
+    if (!unit) return;
+    unit.exploredThisMove = false;
+    unit.exploredThisCard = false; // retained for older save readers
+    unit.moveInProgress = false;
+  }
+
+  function resetFigureForCard(unit) {
+    if (!unit) return;
+    unit.movedThisCard = false;
+    resetFigureMove(unit);
+  }
+
+  function completeFigureMove(unit) {
+    if (!unit) return;
+    unit.movedThisCard = true;
+    resetFigureMove(unit);
+  }
+
   function finishActiveCard(st) {
     const active = st.activeCard;
     if (!active) return;
     const player = getPlayer(st, active.playerId);
     st.activeCard = null;
     if (!player) return;
-    (player.caravans || []).forEach((u) => { u.movedThisCard = false; u.exploredThisCard = false; });
-    (player.armies || []).forEach((u) => { u.movedThisCard = false; u.exploredThisCard = false; });
-    resolveCard(st, player, active.cardType, active.tradeSpent);
+    (player.caravans || []).forEach(resetFigureForCard);
+    (player.armies || []).forEach(resetFigureForCard);
+    resolveCard(st, player, active.cardType,
+      active.tradePayment || active.tradeSpent);
   }
 
   function endUnitMovement(st, payload) {
@@ -2539,9 +2840,10 @@ const Game = (() => {
 
     const redeploying = continuation.unitType === "army" &&
       isMassProductionRedeploy(st, player, unit);
-    unit.movedThisCard = true;
+    completeFigureMove(unit);
     st.movementContinuation = null;
-    activeMovementCard(st, player, continuation.cardType, continuation.tradeSpent);
+    activeMovementCard(st, player, continuation.cardType,
+      continuation.tradePayment || continuation.tradeSpent);
     if (redeploying) consumeMassProductionRedeploy(st, player, unit);
     log(st, `${player.name} ended ${continuation.unitType} movement after exploring.`);
     if (!unitsLeftToMove(player, continuation.cardType)) finishActiveCard(st);
@@ -2553,24 +2855,350 @@ const Game = (() => {
   // second go at one specific card and nothing else.
   function canResolveCard(player, cardType) {
     if (!player) return false;
+    if (player.capitalismReplay) return player.capitalismReplay === cardType;
     if (player.arsenalReplay) return player.arsenalReplay === cardType;
     return !player.cardPlayed;
   }
 
-  function resolveCard(st, player, cardType, tradeSpent) {
+  function finishFocusSequence(st, completion, tradePayment) {
+    if (!completion) return false;
+    const player = getPlayer(st, completion.playerId);
+    if (!player || !canResolveCard(player, completion.cardType)) return false;
+    if (st.cardResolution && completion.resolutionId &&
+        st.cardResolution.id !== completion.resolutionId) return false;
+    if (completion.resolutionId) st.cardResolution = null;
+    resolveCard(st, player, completion.cardType,
+      tradePayment === undefined
+        ? (completion.tradePayment || Number(completion.tradeSpent || 0))
+        : tradePayment);
+    return true;
+  }
+
+  function beginCultureResolution(st, player, tradePayment, cardName, step) {
+    const resolution = {
+      id: makeChoiceId("culture-resolution"),
+      kind: "focus_sequence",
+      playerId: player.id,
+      cardType: "culture",
+      cardName,
+      tradeSpent: Number(tradePayment && tradePayment.spent || tradePayment || 0),
+      tradePayment: tradePayment && typeof tradePayment === "object"
+        ? cloneSerializable(tradePayment) : null,
+      step
+    };
+    st.cardResolution = resolution;
+    return resolution;
+  }
+
+  function validControlAdjacentFriendlyHexes(st, playerId, maxTerrain) {
+    const player = getPlayer(st, playerId);
+    return Object.entries(st.map.hexes).filter(([hexKey, hex]) => {
+      if (!hex || !hex.active || hex.terrain === "water" ||
+          placementDifficulty(st, hex, player, "culture") > maxTerrain) return false;
+      if (hex.city || hex.cityState || hex.barbarian || hex.control ||
+          (hex.fortress && !hex.city)) return false;
+      return hexNeighborKeys(hex.q, hex.r).some((neighborKey) => {
+        const neighbor = st.map.hexes[neighborKey];
+        return isFriendlySpace(neighbor, playerId) ||
+          antananarivoIsFriendlyCity(st, neighbor, playerId);
+      });
+    }).map(([hexKey]) => hexKey);
+  }
+
+  function massMediaTargets(st, playerId) {
+    const friendly = Object.values(st.map.hexes).filter((hex) =>
+      isFriendlySpace(hex, playerId) || antananarivoIsFriendlyCity(st, hex, playerId));
+    return Object.entries(st.map.hexes).filter(([hexKey, hex]) => {
+      if (!hex || !hex.control || hex.control.ownerId === playerId || armyGuards(st, hexKey)) return false;
+      if (nonAggressionWith(st, playerId, hex.control.ownerId)) return false;
+      return friendly.some((source) => hexDist(source, hex) <= 2);
+    }).map(([hexKey]) => hexKey);
+  }
+
+  function queueCultureFollowUp(st, player, tradePayment) {
+    // Civilization-specific replacements have their own printed paragraphs;
+    // they must never inherit the standard card at the same tier.
+    if (getActiveUniqueCard(player, "culture")) return false;
+    const tier = getCardTier(player, "culture");
+
+    if (tier === 2) {
+      const sources = dramaMoveSources(st, player.id);
+      if (!sources.length) return false;
+      const resolution = beginCultureResolution(st, player, tradePayment,
+        "Drama and Poetry", "drama_move_source");
+      queuePendingChoice(st, {
+        kind: "move_control_source",
+        playerId: player.id,
+        title: "Drama and Poetry: Move a Control Token?",
+        source: "Drama and Poetry",
+        optional: true,
+        hexKeys: sources,
+        cardResolutionId: resolution.id
+      });
+      return true;
+    }
+
+    if (tier === 3) {
+      const spots = validControlAdjacentFriendlyHexes(st, player.id,
+        getSlotValue(player, "culture", st));
+      if (!spots.length) return false;
+      const resolution = beginCultureResolution(st, player, tradePayment,
+        "Civil Service", "civil_service_control");
+      queuePendingChoice(st, {
+        kind: "place_control",
+        playerId: player.id,
+        title: "Civil Service: Place a Control Token by a Friendly Space",
+        source: "Civil Service",
+        hexKeys: spots,
+        cardResolutionId: resolution.id
+      });
+      return true;
+    }
+
+    if (tier === 4) {
+      const targets = massMediaTargets(st, player.id);
+      if (!targets.length) return false;
+      const resolution = beginCultureResolution(st, player, tradePayment,
+        "Mass Media", "mass_media_target");
+      queuePendingChoice(st, {
+        kind: "mass_media_target",
+        playerId: player.id,
+        title: "Mass Media: Weaken or Replace a Rival Control Token",
+        source: "Mass Media",
+        hexKeys: targets,
+        cardResolutionId: resolution.id
+      });
+      return true;
+    }
+
+    return false;
+  }
+
+  function queueDramaControlMove(st, player, tradePayment) {
+    // Retained as an internal compatibility alias for old integrations.
+    if (getCardTier(player, "culture") !== 2 || getActiveUniqueCard(player, "culture")) return false;
+    const sources = dramaMoveSources(st, player.id);
+    if (!sources.length) return false;
+    const resolution = beginCultureResolution(st, player, tradePayment,
+      "Drama and Poetry", "drama_move_source");
+    queuePendingChoice(st, {
+      kind: "move_control_source",
+      playerId: player.id,
+      title: "Drama and Poetry: Move a Control Token?",
+      source: "Drama and Poetry",
+      optional: true,
+      hexKeys: sources,
+      cardResolutionId: resolution.id
+    });
+    return true;
+  }
+
+  function beginScienceResolution(st, player, tradePayment, advanceAmount, cardName, step) {
+    const resolution = {
+      id: makeChoiceId("science-resolution"),
+      kind: "focus_sequence",
+      playerId: player.id,
+      cardType: "science",
+      cardName,
+      tradeSpent: Number(tradePayment && tradePayment.spent || 0),
+      tradePayment: cloneSerializable(tradePayment),
+      advanceAmount: Number(advanceAmount || 0),
+      step
+    };
+    st.cardResolution = resolution;
+    return resolution;
+  }
+
+  function queueSciencePrelude(st, player, tradePayment, advanceAmount) {
+    // Unique science cards replace, rather than supplement, the standard card
+    // at their tier. Their own handlers decide whether they need a sequence.
+    if (getActiveUniqueCard(player, "science")) return false;
+    const tier = getCardTier(player, "science");
+    if (tier === 2) {
+      const resolution = beginScienceResolution(st, player, tradePayment,
+        advanceAmount, "Mathematics", "mathematics_trade");
+      queuePendingChoice(st, {
+        kind: "trade_any",
+        playerId: player.id,
+        amount: 1,
+        title: "Mathematics: Place 1 Trade Token",
+        source: "Mathematics",
+        options: FOCUS_TYPES.map((cardType) => ({
+          id: cardType, label: FOCUS_LABELS[cardType]
+        })),
+        cardResolutionId: resolution.id
+      });
+      return true;
+    }
+    if (tier === 3) {
+      const options = RESOURCES.filter((resource) =>
+        Number(player.resources[resource] || 0) === 0);
+      if (!options.length) return false;
+      const resolution = beginScienceResolution(st, player, tradePayment,
+        advanceAmount, "Replaceable Parts", "replaceable_parts_resource");
+      queuePendingChoice(st, {
+        kind: "gain_resource",
+        playerId: player.id,
+        title: "Replaceable Parts: Gain a Resource Type You Do Not Have",
+        source: "Replaceable Parts",
+        options: options.map((resource) => ({ id: resource, label: resource })),
+        cardResolutionId: resolution.id
+      });
+      return true;
+    }
+    if (tier === 4 && getSlotValue(player, "science", st) === 5) {
+      const spaces = Object.entries(st.map.hexes)
+        .filter(([, hex]) => hex && hex.active)
+        .map(([hexKey]) => hexKey);
+      if (!spaces.length) return false;
+      const resolution = beginScienceResolution(st, player, tradePayment,
+        advanceAmount, "Nuclear Power", "nuclear_power_target");
+      queuePendingChoice(st, {
+        kind: "nuclear_power_target",
+        playerId: player.id,
+        title: "Nuclear Power: Choose the Centre Space",
+        source: "Nuclear Power",
+        hexKeys: spaces,
+        cardResolutionId: resolution.id
+      });
+      return true;
+    }
+    return false;
+  }
+
+  function finishScienceResolution(st, resolution) {
+    if (!resolution || resolution.cardType !== "science") return false;
+    const player = getPlayer(st, resolution.playerId);
+    if (!player || !canResolveCard(player, "science")) return false;
+    const payment = resolution.tradePayment || resolution.tradeSpent || 0;
+    st.cardResolution = null;
+    advanceTech(st, player, Number(resolution.advanceAmount || 0));
+    resolveCard(st, player, "science", payment);
+    return true;
+  }
+
+  function beginGrowthReinforcementStep(st, resolution, base) {
+    resolution.step = "growth_reinforce";
+    resolution.reinforceBase = Math.max(0, Number(base || 0));
+    // If there is physically nothing to turn over, the instruction resolves
+    // for no effect. No preselected trade is charged: Growth trade tokens pay
+    // for actual additional reinforcements, one token per marker.
+    if (resolution.reinforceBase + resolution.tradeBudget <= 0 ||
+        validReinforceHexes(st, resolution.playerId).size === 0) {
+      finishFocusSequence(st, {
+        playerId: resolution.playerId, cardType: "growth", resolutionId: resolution.id
+      }, 0);
+    }
+  }
+
+  function startGrowthDistrictSequence(st, player, profile, slot, tradePayment, districtKey) {
+    const normalizedPayment = tradePayment && typeof tradePayment === "object"
+      ? cloneSerializable(tradePayment)
+      : { spent: Number(tradePayment || 0), focusSpent: Number(tradePayment || 0), resources: {} };
+    const resolution = {
+      id: makeChoiceId("growth-resolution"),
+      kind: "focus_sequence",
+      playerId: player.id,
+      cardType: "growth",
+      cardName: profile.name,
+      tier: profile.tier,
+      standard: profile.standard,
+      resolvedSlot: slot,
+      tradeBudget: normalizedPayment.spent,
+      tradePayment: normalizedPayment,
+      districtKey: districtKey || null,
+      step: "starting"
+    };
+    st.cardResolution = resolution;
+
+    if (profile.globalization) {
+      resolution.step = "globalization_district_type";
+      queuePendingChoice(st, {
+        kind: "growth_globalization_type",
+        playerId: player.id,
+        title: "Globalization: Choose a District Type",
+        source: "Globalization",
+        cardResolutionId: resolution.id,
+        options: DISTRICT_KINDS.map((kind) => ({ id: kind, label: DISTRICT_NAMES[kind] }))
+      });
+      return;
+    }
+
+    if (profile.engineering) {
+      const spots = validControlNearDistrictHexes(st, player.id, slot);
+      if (spots.length) {
+        resolution.step = "engineering_control";
+        queuePendingChoice(st, {
+          kind: "place_control",
+          playerId: player.id,
+          title: "Engineering: Place a Control Token by a District",
+          source: "Engineering",
+          cardResolutionId: resolution.id,
+          hexKeys: spots
+        });
+        return;
+      }
+    }
+
+    // Sanitation's printed reinforcement is part of the main effect. For the
+    // district branch of tiers I/II, only trade tokens add reinforcements.
+    beginGrowthReinforcementStep(st, resolution,
+      profile.standard && profile.tier >= 3 ? slot : 0);
+  }
+
+  function advanceCardResolution(st, resolutionId) {
+    const resolution = st.cardResolution;
+    if (!resolution || resolution.id !== resolutionId) return;
+    if ((st.pendingChoices || []).some((choice) =>
+      choice.cardResolutionId === resolutionId)) return;
+    if (st.pendingBarbReward && st.pendingBarbReward.cardResolutionId === resolutionId) return;
+
+    if (resolution.step === "engineering_control" ||
+        resolution.step === "globalization_district_type" ||
+        resolution.step === "globalization_district_effects") {
+      beginGrowthReinforcementStep(st, resolution,
+        resolution.standard && resolution.tier >= 3
+          ? resolution.resolvedSlot : 0);
+      return;
+    }
+    if (resolution.cardType === "culture" && [
+      "drama_move_source", "drama_move_destination",
+      "civil_service_control", "mass_media_target"
+    ].includes(resolution.step)) {
+      finishFocusSequence(st, {
+        playerId: resolution.playerId,
+        cardType: "culture",
+        resolutionId: resolution.id,
+        tradeSpent: resolution.tradeSpent,
+        tradePayment: resolution.tradePayment
+      });
+      return;
+    }
+    if (resolution.cardType === "science" && [
+      "mathematics_trade", "replaceable_parts_resource", "nuclear_power_target"
+    ].includes(resolution.step)) {
+      finishScienceResolution(st, resolution);
+    }
+  }
+
+  function resolveCard(st, player, cardType, tradePayment) {
+    const capitalismReplay = player.capitalismReplay === cardType &&
+      !!player.capitalismNoReset;
     const idx = player.focusRow.indexOf(cardType);
     // Terra p13: "For any ability that depends on a focus card being resolved
     // in a specific slot, the card is treated as though it is in the
     // farther-right slot." So a card shifted into the 5 slot counts as a 5.
     const resolvedSlot = getSlotValue(player, cardType, st);
     const wasReplay = player.arsenalReplay === cardType;
-    if (idx >= 0) {
+    if (idx >= 0 && !capitalismReplay) {
       player.focusRow.splice(idx, 1);
       player.focusRow.unshift(cardType);
     }
-    if (tradeSpent > 0) player.trade[cardType] = Math.max(0, player.trade[cardType] - tradeSpent);
+    spendFocusTradePayment(player, cardType, tradePayment);
     player.cardPlayed = true;
     player.arsenalReplay = null;
+    player.capitalismReplay = null;
+    player.capitalismNoReset = false;
 
     // Venetian Arsenal: a card resolved from the fifth slot may be resolved
     // again. It has just been reset to the front of the row, so the second go
@@ -2583,6 +3211,43 @@ const Game = (() => {
         source: "Venetian Arsenal", optional: true,
         options: [{ id: "yes", label: `Resolve ${FOCUS_LABELS[cardType]} again (slot 1)` }]
       });
+    }
+
+    // Steam Power (economy III) and Capitalism (economy IV) fire when the
+    // ECONOMY CARD IS RESOLVED, so they belong here, where cardType is in
+    // scope. They had been pasted into queueStartOfTurnCityStates, which
+    // takes only (st, player) - so every start of turn threw
+    // "ReferenceError: cardType is not defined" and took the rest of the
+    // turn down with it. Their resolvers were already in place; only the
+    // queuing was in the wrong function.
+    const standardEconomy = !getActiveUniqueCard(player, "economy");
+    const economyTier = getCardTier(player, "economy");
+    if (cardType === "economy" && standardEconomy && economyTier === 3) {
+      const held = RESOURCES.filter((resource) => Number(player.resources[resource] || 0) > 0);
+      if (held.length) {
+        queuePendingChoice(st, {
+          kind: "resource_exchange_source",
+          playerId: player.id,
+          title: "Steam Power: Exchange a Resource?",
+          source: "Steam Power",
+          optional: true,
+          options: held.map((resource) => ({ id: resource, label: resource }))
+        });
+      }
+    }
+    if (cardType === "economy" && standardEconomy && economyTier === 4 &&
+        !player.capitalismUsed) {
+      const options = FOCUS_TYPES.filter((type) => type !== "economy" &&
+        player.focusRow.includes(type));
+      if (options.length) {
+        queuePendingChoice(st, {
+          kind: "capitalism_card",
+          playerId: player.id,
+          title: "Capitalism: Resolve Another Card as Slot 1",
+          source: "Capitalism",
+          options: options.map((type) => ({ id: type, label: FOCUS_LABELS[type] }))
+        });
+      }
     }
 
     // Estadio Do Maracana: the economy card may be resolved and reset before a
@@ -2775,6 +3440,27 @@ const Game = (() => {
         if (choice.chain) queueCardUpgrade(st, player, choice.chain);
         resolved = true;
       }
+    } else if (choice.kind === "growth_globalization_type") {
+      const kind = payload.optionId;
+      const resolution = st.cardResolution;
+      if (DISTRICT_KINDS.includes(kind) && resolution &&
+          resolution.id === choice.cardResolutionId && resolution.playerId === player.id) {
+        resolution.step = "globalization_district_effects";
+        const order = (st.turn.order || []).slice();
+        const start = Math.max(0, order.indexOf(player.id));
+        const clockwise = order.slice(start).concat(order.slice(0, start));
+        clockwise.forEach((playerId) => {
+          const owner = getPlayer(st, playerId);
+          const districtKeys = owner ? districtHexesFor(st, owner.id)[kind] : [];
+          if (owner && districtKeys.length) {
+            resolveDistrictKind(st, owner, kind, districtKeys, {
+              cardResolutionId: resolution.id
+            });
+          }
+        });
+        log(st, `${player.name} chose ${DISTRICT_NAMES[kind]} for Globalization.`);
+        resolved = true;
+      }
     } else if (choice.kind === "district_order") {
       // Terra p9: "Each player resolves the abilities on their districts in the
       // order of their choice." Asked one at a time rather than as a whole
@@ -2823,6 +3509,41 @@ const Game = (() => {
         log(st, `${player.name} adopted ${GOVERNMENTS[pick].name}.`);
         resolved = true;
       }
+    } else if (choice.kind === "geneva_return") {
+      const option = (choice.options || []).find((entry) => entry.id === payload.optionId);
+      const heldIndex = option ? (player.diplomacy || []).findIndex((card) =>
+        card.fromId === option.fromId && card.cardId === option.cardId) : -1;
+      if (option && heldIndex >= 0) {
+        const returned = player.diplomacy.splice(heldIndex, 1)[0];
+        const queued = grantPlayerDiplomacy(st, player, option.fromId, {
+          excludeCardIds: [option.cardId],
+          keepHeld: hasWonder(st, player.id, "Potala Palace"),
+          title: "Geneva: Take a Different Diplomacy Card"
+        });
+        if (queued) {
+          const source = getPlayer(st, option.fromId);
+          log(st, `${player.name} returned ${returned.name} to ${source ? source.name : "a rival"} (Geneva).`);
+          resolved = true;
+        } else {
+          player.diplomacy.splice(heldIndex, 0, returned);
+        }
+      }
+    } else if (choice.kind === "seoul_move_barbarian") {
+      const option = (choice.options || []).find((entry) => entry.id === payload.optionId);
+      const currentMoves = seoulBarbarianMoves(st);
+      const legal = option && currentMoves.some((move) =>
+        move.fromKey === option.fromKey && move.toKey === option.toKey);
+      if (legal) {
+        const from = st.map.hexes[option.fromKey];
+        const to = st.map.hexes[option.toKey];
+        const barbarianId = from.barbarianId || null;
+        from.barbarian = false;
+        from.barbarianId = null;
+        to.barbarian = true;
+        to.barbarianId = barbarianId;
+        log(st, `${player.name} moved a barbarian with Seoul (${option.fromKey} → ${option.toKey}).`);
+        resolved = true;
+      }
     } else if (choice.kind === "take_diplomacy") {
       const cardId = payload.optionId;
       const card = DIPLOMACY_CARDS[cardId];
@@ -2845,7 +3566,11 @@ const Game = (() => {
       }
     } else if (choice.kind === "trade_any") {
       const cardType = payload.optionId;
-      if (cardType === "zimbabwe" && hasWonder(st, player.id, "Great Zimbabwe")) {
+      const offered = !Array.isArray(choice.options) ||
+        choice.options.some((option) => option.id === cardType);
+      if (!offered) {
+        resolved = false;
+      } else if (cardType === "zimbabwe" && hasWonder(st, player.id, "Great Zimbabwe")) {
         const amount = choice.amount || 1;
         player.zimbabwe = Math.min(4, (player.zimbabwe || 0) + amount);
         log(st, `${player.name} banked ${amount} trade token(s) on Great Zimbabwe (${player.zimbabwe}/4).`);
@@ -2875,8 +3600,62 @@ const Game = (() => {
           queueStonehengeChain(st, player, hexKey);
         }
         if (choice.chainKey && choice.chainLeft > 0) {
-          queueAmundsenTokens(st, player, choice.chainKey, choice.chainLeft);
+          if (choice.source === "Urbanization") {
+            queueUrbanizationTokens(st, player, choice.chainKey,
+              choice.chainLeft, choice.resolvedSlot);
+          } else {
+            queueAmundsenTokens(st, player, choice.chainKey, choice.chainLeft);
+          }
         }
+        checkDevelopment(st, player.id);
+        resolved = true;
+      }
+    } else if (choice.kind === "move_control_source") {
+      const fromKey = payload.hexKey;
+      const destinations = (choice.hexKeys || []).includes(fromKey)
+        ? dramaMoveDestinations(st, player.id, fromKey) : [];
+      const resolution = st.cardResolution;
+      if (destinations.length && resolution && resolution.id === choice.cardResolutionId) {
+        resolution.step = "drama_move_destination";
+        queuePendingChoice(st, {
+          kind: "move_control_destination",
+          playerId: player.id,
+          title: "Drama and Poetry: Choose the Adjacent Empty Space",
+          source: "Drama and Poetry",
+          fromKey,
+          hexKeys: destinations,
+          cardResolutionId: resolution.id
+        });
+        resolved = true;
+      }
+    } else if (choice.kind === "move_control_destination") {
+      const toKey = payload.hexKey;
+      const from = st.map.hexes[choice.fromKey];
+      const legal = dramaMoveDestinations(st, player.id, choice.fromKey);
+      if (from && from.control && !from.control.district && legal.includes(toKey) &&
+          (choice.hexKeys || []).includes(toKey)) {
+        const token = from.control;
+        from.control = null;
+        st.map.hexes[toKey].control = token;
+        checkDevelopment(st, player.id);
+        log(st, `${player.name} moved a control token with Drama and Poetry.`);
+        resolved = true;
+      }
+    } else if (choice.kind === "mass_media_target") {
+      const hexKey = payload.hexKey;
+      const hex = st.map.hexes[hexKey];
+      const legal = (choice.hexKeys || []).includes(hexKey) &&
+        massMediaTargets(st, player.id).includes(hexKey);
+      if (legal && hex && hex.control) {
+        const formerOwner = hex.control.ownerId;
+        if (hex.control.fortified) {
+          hex.control.fortified = false;
+          log(st, `${player.name} flipped a rival reinforced control token with Mass Media.`);
+        } else {
+          hex.control = { ownerId: player.id, fortified: false, district: null };
+          log(st, `${player.name} replaced a rival control token with Mass Media.`);
+        }
+        checkDevelopment(st, formerOwner);
         checkDevelopment(st, player.id);
         resolved = true;
       }
@@ -2996,7 +3775,7 @@ const Game = (() => {
         const cs = hex.cityState;
         player.trade[cs.type] = Math.min(CFG.maxTrade, player.trade[cs.type] + 1);
         if (!player.cityStateTokens.includes(cs.name)) player.cityStateTokens.push(cs.name);
-        returnDiplomacyFromSource(st, player, cs.name);
+        returnAllCityStateDiplomacy(st, cs.name);
         hex.cityState = null;
         hex.city = { ownerId: player.id, isCapital: false, developed: false, hasWonder: false, wonder: null };
         checkDevelopment(st, player.id);
@@ -3021,7 +3800,12 @@ const Game = (() => {
       if ((choice.hexKeys || []).includes(hexKey)) {
         // The expedition itself is a tile placement, so hand the UI a licence
         // to run one from this space and let EXPLORE_TILE do the rest.
-        st.freeExplore = { playerId: player.id, fromKey: hexKey, source: "Apadana" };
+        st.freeExplore = {
+          playerId: player.id,
+          fromKey: hexKey,
+          source: "Apadana",
+          followUp: "apadana_control"
+        };
         log(st, `${player.name} sets out from Apadana.`);
         resolved = true;
       }
@@ -3042,9 +3826,66 @@ const Game = (() => {
       }
     } else if (choice.kind === "gain_resource") {
       const r = payload.optionId;
-      if (RESOURCES.includes(r)) {
+      const offered = !Array.isArray(choice.options) ||
+        choice.options.some((option) => option.id === r);
+      if (RESOURCES.includes(r) && offered) {
         player.resources[r] = (player.resources[r] || 0) + 1;
         log(st, `${player.name} gained 1 ${r}.`);
+        resolved = true;
+      }
+    } else if (choice.kind === "resource_exchange_source") {
+      const source = payload.optionId;
+      const offered = (choice.options || []).some((option) => option.id === source);
+      if (offered && RESOURCES.includes(source) &&
+          Number(player.resources[source] || 0) > 0) {
+        queuePendingChoice(st, {
+          kind: "resource_exchange_target",
+          playerId: player.id,
+          title: `Steam Power: Exchange ${source} For`,
+          source: "Steam Power",
+          fromResource: source,
+          options: RESOURCES.filter((resource) => resource !== source)
+            .map((resource) => ({ id: resource, label: resource }))
+        });
+        resolved = true;
+      }
+    } else if (choice.kind === "resource_exchange_target") {
+      const target = payload.optionId;
+      const source = choice.fromResource;
+      const offered = (choice.options || []).some((option) => option.id === target);
+      if (offered && RESOURCES.includes(source) && RESOURCES.includes(target) &&
+          Number(player.resources[source] || 0) > 0) {
+        player.resources[source]--;
+        player.resources[target] = Number(player.resources[target] || 0) + 1;
+        log(st, `${player.name} exchanged ${source} for ${target} with Steam Power.`);
+        resolved = true;
+      }
+    } else if (choice.kind === "capitalism_card") {
+      const cardType = payload.optionId;
+      const offered = (choice.options || []).some((option) => option.id === cardType);
+      if (offered && FOCUS_TYPES.includes(cardType) && cardType !== "economy" &&
+          !player.capitalismUsed) {
+        player.capitalismUsed = true;
+        player.capitalismReplay = cardType;
+        player.capitalismNoReset = true;
+        player.cardPlayed = false;
+        log(st, `${player.name} will resolve ${FOCUS_LABELS[cardType]} as slot 1 without resetting it (Capitalism).`);
+        resolved = true;
+      }
+    } else if (choice.kind === "nuclear_power_target") {
+      const centerKey = payload.hexKey;
+      const center = st.map.hexes[centerKey];
+      if ((choice.hexKeys || []).includes(centerKey) && center && center.active) {
+        const affectedOwners = new Set();
+        [centerKey].concat(hexNeighborKeys(center.q, center.r)).forEach((hexKey) => {
+          const hex = st.map.hexes[hexKey];
+          if (!hex || !hex.control || armyGuards(st, hexKey)) return;
+          affectedOwners.add(hex.control.ownerId);
+          if (hex.control.fortified) hex.control.fortified = false;
+          else hex.control = null;
+        });
+        affectedOwners.forEach((ownerId) => checkDevelopment(st, ownerId));
+        log(st, `${player.name} resolved Nuclear Power at ${centerKey}.`);
         resolved = true;
       }
     } else if (choice.kind === "swap_cards") {
@@ -3090,7 +3931,10 @@ const Game = (() => {
         log(st, `${player.name} removed a barbarian from ${choice.source || "a choice"}.`);
         // A defeated barbarian pays a trade token wherever it was defeated
         // (Terra p9: "as normal"), not only when an army did the killing.
-        st.pendingBarbReward = { playerId: player.id };
+        st.pendingBarbReward = {
+          playerId: player.id,
+          cardResolutionId: choice.cardResolutionId || null
+        };
         resolved = true;
       }
     } else if (choice.kind === "encampment_strike") {
@@ -3105,7 +3949,10 @@ const Game = (() => {
           hex.barbarian = false;
           hex.barbarianId = null;
           log(st, `${player.name}'s encampment defeated a barbarian at ${hexKey}.`);
-          st.pendingBarbReward = { playerId: player.id };
+          st.pendingBarbReward = {
+            playerId: player.id,
+            cardResolutionId: choice.cardResolutionId || null
+          };
           resolved = true;
         } else {
           const beaten = st.players.find((p) => p.id !== player.id &&
@@ -3132,8 +3979,12 @@ const Game = (() => {
       // options. Resolving the chosen one is what makes them the printed cards
       // rather than the fused always-on effects they used to be.
       const mode = (choice.options || []).find((o) => o.id === payload.optionId);
-      if (mode) {
-        applyDistrictMode(st, player, choice.districtKind, choice.districtKey, mode.id);
+      const industrialCity = choice.districtKind === "industrial" && mode && mode.id === "city";
+      const availability = industrialCity ? industrialZoneCityOption(st, player.id) : { ok: true };
+      if (mode && !mode.disabled && availability.ok) {
+        applyDistrictMode(st, player, choice.districtKind, choice.districtKey, mode.id, {
+          cardResolutionId: choice.cardResolutionId || null
+        });
         resolved = true;
       }
     } else if (choice.kind === "manual") {
@@ -3147,6 +3998,7 @@ const Game = (() => {
     }
     if (resolved || dismissed) {
       st.pendingChoices.splice(idx, 1);
+      if (choice.cardResolutionId) advanceCardResolution(st, choice.cardResolutionId);
     }
     return st;
   }
@@ -3248,13 +4100,15 @@ const Game = (() => {
       fromCityState: cityState.name,
       name: cityState.name,
       type: data.type || cityState.type,
+      effectId: data.effectId || null,
       effect: data.diplomacy || `Diplomacy with ${cityState.name}`
     });
     log(st, `${player.name} gained ${cityState.name} diplomacy.`);
     return true;
   }
 
-  function grantPlayerDiplomacy(st, player, sourcePlayerId) {
+  function grantPlayerDiplomacy(st, player, sourcePlayerId, opts) {
+    opts = opts || {};
     const source = getPlayer(st, sourcePlayerId);
     if (!source) return false;
     const mine = (player.diplomacy || []).filter((d) => d.fromId === sourcePlayerId);
@@ -3270,14 +4124,16 @@ const Game = (() => {
     if (potala && mine.length >= 4) return false;
     // Each rival has four cards; you may not take one already in someone's hand,
     // and the one you hold is only on offer as a swap.
-    const offer = potala
+    let offer = potala
       ? cardIds.filter((id) => !taken.has(id))
       : cardIds.filter((id) => !taken.has(id) || (held && held.cardId === id));
+    const excluded = new Set(opts.excludeCardIds || []);
+    offer = offer.filter((id) => !excluded.has(id));
     if (!offer.length) return false;
     queuePendingChoice(st, {
       kind: "take_diplomacy", playerId: player.id, fromId: sourcePlayerId,
-      keepHeld: potala,
-      title: `Diplomacy with ${source.name}`,
+      keepHeld: potala || !!opts.keepHeld,
+      title: opts.title || `Diplomacy with ${source.name}`,
       options: offer.map((id) => ({
         id,
         label: DIPLOMACY_CARDS[id].name + (held && held.cardId === id ? " (keep)" : "")
@@ -3292,6 +4148,21 @@ const Game = (() => {
     player.diplomacy = (player.diplomacy || []).filter((d) => d.fromId !== sourceId && d.fromCityState !== sourceId && d.name !== sourceId);
     const returned = before - player.diplomacy.length;
     if (returned > 0) log(st, `${player.name} returned ${returned} diplomacy card(s).`);
+    return returned;
+  }
+
+  function returnAllCityStateDiplomacy(st, cityStateName) {
+    let returned = 0;
+    st.players.forEach((player) => {
+      const before = (player.diplomacy || []).length;
+      player.diplomacy = (player.diplomacy || [])
+        .filter((card) => card.fromCityState !== cityStateName);
+      const count = before - player.diplomacy.length;
+      if (count) {
+        returned += count;
+        log(st, `${player.name} returned ${cityStateName} diplomacy because the city-state was conquered.`);
+      }
+    });
     return returned;
   }
 
@@ -3395,9 +4266,23 @@ const Game = (() => {
     return RESOURCES.filter((r) => (p.resources[r] || 0) > 0);
   }
 
+  function combatPalenqueResources(st, c, side) {
+    if (side !== "attacker") return [];
+    const p = c && c.attackerId ? getPlayer(st, c.attackerId) : null;
+    if (!p || !hasCityStateDiplomacy(p, "Palenque")) return [];
+    return RESOURCES.filter((resource) => Number(p.resources[resource] || 0) > 0);
+  }
+
   // Anything at all this side could still pay with.
   function combatSpendable(st, c, side) {
-    return combatTokens(st, c, side) + combatResources(st, c, side).length;
+    const id = side === "attacker" ? c.attackerId : c.defenderOwnerId;
+    const player = id ? getPlayer(st, id) : null;
+    const maySpendResources = combatResources(st, c, side).length > 0 ||
+      combatPalenqueResources(st, c, side).length > 0;
+    const resources = maySpendResources && player
+      ? RESOURCES.reduce((sum, resource) => sum + Number(player.resources[resource] || 0), 0)
+      : 0;
+    return combatTokens(st, c, side) + resources;
   }
 
   // Hands the bid on, skipping anybody who has nothing to spend — a barbarian,
@@ -3480,7 +4365,7 @@ const Game = (() => {
         const csName = hex.cityState.name;
         player.trade[csType] = Math.min(CFG.maxTrade, player.trade[csType] + 1);
         if (!player.cityStateTokens.includes(csName)) player.cityStateTokens.push(csName);
-        returnDiplomacyFromSource(st, player, csName);
+        returnAllCityStateDiplomacy(st, csName);
         log(st, `${player.name} gained +1 ${csType} trade and a ${csName} token.`);
         hex.cityState = null;
         hex.city = { ownerId: c.attackerId, isCapital: false, developed: false, hasWonder: false, wonder: null };
@@ -3495,6 +4380,7 @@ const Game = (() => {
       if (target === "city" && hex.city && hex.city.ownerId !== c.attackerId) {
         const defenderId = hex.city.ownerId;
         const defender = getPlayer(st, defenderId);
+        const capturedWonderName = hex.city.wonder && hex.city.wonder.name;
         returnDiplomacyFromSource(st, player, defenderId);
         if (defender) returnDiplomacyFromSource(st, defender, c.attackerId);
         // Statue of Liberty: the ring of rival control around the city falls with it.
@@ -3519,6 +4405,7 @@ const Game = (() => {
         hex.city.ownerId = c.attackerId;
         hex.city.developed = false;
         sweepFigures(st, c.toKey, c.attackerId);
+        if (capturedWonderName === "Apadana") queueApadanaExplore(st, player);
       }
       // Terra p11: a beaten figure goes back to its player's card. Only the
       // figure that was attacked — the rest of the space is untouched.
@@ -3549,11 +4436,13 @@ const Game = (() => {
       unit.position = null;
       log(st, `${player.name}'s army was defeated by ${c.defenderLabel} and returns to the military card. (${atkTotal} vs ${defTotal})`);
     }
-    unit.movedThisCard = true;
+    completeFigureMove(unit);
     // Rebuilding activeCard from scratch here would drop the Mass Production
     // bookkeeping that lives on it, so the card is updated rather than replaced.
     activeMovementCard(st, player, "military",
-      (st.activeCard && st.activeCard.cardType === "military" ? st.activeCard.tradeSpent : 0) + c.atkTrade);
+      st.activeCard && st.activeCard.cardType === "military"
+        ? st.activeCard.tradePayment || st.activeCard.tradeSpent
+        : c.tradePayment || 0);
     // Mass Production III: "You may move (and attack with) 1 of your armies that
     // was defeated this turn a second time after returning it to this card."
     // This is the moment the army returns to the card, so this is where the
@@ -3851,9 +4740,10 @@ const Game = (() => {
 
   // Base p7: "the spaces that contain a player's cities or control tokens are
   // friendly to that player". Caravans do not make a space friendly.
-  function isFriendlySpace(h, playerId) {
+  function isFriendlySpace(h, playerId, st) {
     return !!h && ((h.control && h.control.ownerId === playerId) ||
-      (h.city && h.city.ownerId === playerId));
+      (h.city && h.city.ownerId === playerId) ||
+      (st && antananarivoIsFriendlyCity(st, h, playerId)));
   }
 
   // "in or adjacent to" includes the district's own space, which the desert and
@@ -3866,7 +4756,7 @@ const Game = (() => {
 
   function countFriendlyTerrainNear(st, hexKey, playerId, terrain) {
     return inOrAdjacent(st, hexKey)
-      .filter(({ hex }) => hex.active && hex.terrain === terrain && isFriendlySpace(hex, playerId))
+      .filter(({ hex }) => hex.active && hex.terrain === terrain && isFriendlySpace(hex, playerId, st))
       .length;
   }
 
@@ -3906,7 +4796,8 @@ const Game = (() => {
     });
   }
 
-  function resolveDistrictKind(st, player, kind, districtKeys) {
+  function resolveDistrictKind(st, player, kind, districtKeys, context) {
+    const cardResolutionId = context && context.cardResolutionId || null;
     const keys = (districtKeys && districtKeys.length)
       ? districtKeys : (districtHexesFor(st, player.id)[kind] || []);
     if (!keys.length) return;
@@ -3923,7 +4814,7 @@ const Game = (() => {
       const nearMisses = [];
       keys.forEach((dk) => {
         inOrAdjacent(st, dk).forEach(({ key: nk, hex: h }) => {
-          if (isFriendlySpace(h, player.id) && featured(h)) paid.push(nk);
+          if (isFriendlySpace(h, player.id, st) && featured(h)) paid.push(nk);
           else if (featured(h) && h.active) nearMisses.push(nk);
         });
       });
@@ -3952,6 +4843,7 @@ const Game = (() => {
             title: "Encampment Strike",
             source: "encampment",
             optional: true,
+            cardResolutionId,
             districtKey: dk,
             hexKeys: strikeHexes
           });
@@ -3964,6 +4856,7 @@ const Game = (() => {
             title: "Encampment Reinforcement",
             source: "encampment",
             optional: true,
+            cardResolutionId,
             hexKeys: reinforceHexes
           });
         }
@@ -3975,6 +4868,15 @@ const Game = (() => {
     const modes = DISTRICT_MODES[kind];
     if (!modes) return;
     keys.forEach((dk) => {
+      const options = modes.map((mode) => {
+        if (kind !== "industrial" || mode.id !== "city") return { ...mode };
+        const availability = industrialZoneCityOption(st, player.id);
+        return {
+          ...mode,
+          disabled: !availability.ok,
+          disabledReason: availability.ok ? "" : availability.message
+        };
+      });
       queuePendingChoice(st, {
         kind: "district_mode",
         playerId: player.id,
@@ -3982,13 +4884,15 @@ const Game = (() => {
         source: DISTRICT_NAMES[kind].toLowerCase(),
         districtKind: kind,
         districtKey: dk,
-        options: modes.map((m) => ({ ...m }))
+        cardResolutionId,
+        options
       });
     });
   }
 
   // One district token, one chosen option.
-  function applyDistrictMode(st, player, kind, districtKey, modeId) {
+  function applyDistrictMode(st, player, kind, districtKey, modeId, context) {
+    const cardResolutionId = context && context.cardResolutionId || null;
     st.districtReport = st.districtReport || [];
 
     if (kind === "trade") {
@@ -4000,7 +4904,7 @@ const Game = (() => {
           queuePendingChoice(st, {
             kind: "trade_any", playerId: player.id,
             title: "Commercial Hub Trade", source: "commercial hub",
-            amount: total, options: tradeTargets(st, player)
+            amount: total, options: tradeTargets(st, player), cardResolutionId
           });
         } else log(st, `${player.name}'s commercial hub scored nothing: no mature cities.`);
         return;
@@ -4039,7 +4943,7 @@ const Game = (() => {
       queuePendingChoice(st, {
         kind: "build_city", playerId: player.id,
         title: "Industrial Zone: Build a City", source: "industrial zone",
-        hexKeys: spots
+        hexKeys: spots, cardResolutionId
       });
       return;
     }
@@ -4055,7 +4959,7 @@ const Game = (() => {
       queuePendingChoice(st, {
         kind: "place_control", playerId: player.id,
         title: "Theater Control Marker", source: "theater",
-        hexKeys: spots
+        hexKeys: spots, cardResolutionId
       });
     }
   }
@@ -4168,15 +5072,16 @@ const Game = (() => {
   // --- Victory & Scoring ---
 
   function checkDevelopment(st, playerId) {
-    const player = getPlayer(st, playerId);
     Object.values(st.map.hexes).forEach((hex) => {
       if (!hex.city || hex.city.ownerId !== playerId) return;
       const wasDeveloped = hex.city.developed;
       hex.city.developed = isCityDeveloped(st, hex);
-      if (!wasDeveloped && hex.city.developed && player) {
-        const t = FOCUS_TYPES[Math.floor(Math.random() * FOCUS_TYPES.length)];
-        player.trade[t] = Math.min(CFG.maxTrade, player.trade[t] + 1);
-        log(st, `${player.name}'s city matured! +1 ${t} trade.`);
+      // Maturity itself grants no trade token. Terra Incognita's Commercial
+      // Hub can award Economy trade based on mature cities during the district
+      // event, but that is a separate printed effect.
+      if (!wasDeveloped && hex.city.developed) {
+        const player = getPlayer(st, playerId);
+        if (player) log(st, `${player.name}'s city matured.`);
       }
     });
   }
@@ -4272,7 +5177,7 @@ const Game = (() => {
       case "defensive": return countReinforced(st, player.id) >= 15;
       case "devastating": return (player.maxCombatWin || 0) >= 16;
       case "diplomatic": return countDiplomacySources(player) >= 4;
-      case "hoarder": return totalResources(player) >= 5;
+      case "hoarder": return totalResources(player) + countNaturalWonders(st, player.id) >= 5;
       case "explorer": return countEdgeWaterControl(st, player.id) >= 15;
       case "aesthetic": return countWondersByType(st, player.id, "culture") >= 2;
       // Terra p16: five districts on the map, not one of each kind.
@@ -4349,7 +5254,12 @@ const Game = (() => {
     let c = 0;
     Object.values(st.map.hexes).forEach((h) => {
       if (!h.control || h.control.ownerId !== playerId) return;
-      const edge = Math.max(Math.abs(h.q), Math.abs(h.r), Math.abs(h.q + h.r)) >= st.map.radius - 1;
+      // map.radius is only the allocated inactive margin. The actual edge is
+      // where explored cardboard ends, and must not move when storage grows.
+      const edge = hexNeighborKeys(h.q, h.r).some((nk) => {
+        const neighbor = st.map.hexes[nk];
+        return !neighbor || !neighbor.active;
+      });
       const water = hexNeighborKeys(h.q, h.r).some((nk) => st.map.hexes[nk] && st.map.hexes[nk].terrain === "water");
       if (edge || water) c++;
     });
@@ -4430,6 +5340,9 @@ const Game = (() => {
   // level on the dial does NOT add to this — the dial hands you better cards
   // (base p8), it does not make the row itself stronger.
   function getSlotValue(player, cardType, st) {
+    if (player && player.capitalismReplay === cardType && player.capitalismNoReset) {
+      return 1;
+    }
     const idx = player.focusRow.indexOf(cardType);
     if (idx < 0) return 1;
     // Georgia: a diplomacy card from a city-state of this card's type resolves
@@ -4608,7 +5521,7 @@ const Game = (() => {
     queuePendingChoice(st, {
       kind: "apadana_explore", playerId: player.id,
       title: "Apadana: Explore From Any Edge Space",
-      source: "Apadana", hexKeys: spots, optional: true
+      source: "Apadana", hexKeys: spots
     });
   }
 
@@ -4680,6 +5593,101 @@ const Game = (() => {
       exclude: opts.exclude || null,
       options, optional: true
     });
+  }
+
+  function queueUrbanizationTokens(st, player, cityKey, remaining, slot) {
+    if (remaining <= 0) return;
+    const city = st.map.hexes[cityKey];
+    if (!city) return;
+    const spots = hexNeighborKeys(city.q, city.r).filter((hexKey) => {
+      const hex = st.map.hexes[hexKey];
+      if (!hex || !hex.active || hex.terrain === "water" ||
+          placementDifficulty(st, hex, player, "industry_control") > slot) return false;
+      return !hex.city && !hex.cityState && !hex.control && !hex.barbarian &&
+        !(hex.fortress && !hex.city);
+    });
+    if (!spots.length) return;
+    queuePendingChoice(st, {
+      kind: "place_control",
+      playerId: player.id,
+      title: `Urbanization: Place a Control Token (${remaining} left)`,
+      source: "Urbanization",
+      hexKeys: spots,
+      optional: true,
+      chainKey: cityKey,
+      chainLeft: remaining - 1,
+      resolvedSlot: slot
+    });
+  }
+
+  function genevaSwapOptions(st, player) {
+    const cardIds = Object.keys(DIPLOMACY_CARDS);
+    return (player.diplomacy || []).filter((card) => card.fromId && card.cardId)
+      .filter((returned) => {
+        const unavailable = new Set(st.players.flatMap((owner) =>
+          (owner.diplomacy || [])
+            .filter((card) => card.fromId === returned.fromId && card !== returned)
+            .map((card) => card.cardId)));
+        return cardIds.some((cardId) => cardId !== returned.cardId && !unavailable.has(cardId));
+      })
+      .map((card, index) => {
+        const source = getPlayer(st, card.fromId);
+        return {
+          id: `geneva-${index}`,
+          fromId: card.fromId,
+          cardId: card.cardId,
+          label: `Return ${card.name || DIPLOMACY_CARDS[card.cardId]?.name || card.cardId} from ${source ? source.name : "a rival"}`
+        };
+      });
+  }
+
+  function seoulBarbarianMoves(st) {
+    const moves = [];
+    Object.entries(st.map.hexes).forEach(([fromKey, from]) => {
+      if (!from || !from.barbarian) return;
+      hexNeighborKeys(from.q, from.r).forEach((toKey) => {
+        const to = st.map.hexes[toKey];
+        if (!to || !to.active || to.terrain === "water") return;
+        if (to.city || to.cityState || to.control || to.fortress || to.barbarian ||
+            to.resource || to.naturalWonder || getUnitsAt(st, toKey).length) return;
+        moves.push({
+          id: `seoul-${moves.length}`,
+          fromKey,
+          toKey,
+          label: `${fromKey} → ${toKey}`
+        });
+      });
+    });
+    return moves;
+  }
+
+  function queueStartOfTurnCityStates(st, player) {
+    if (hasCityStateDiplomacy(player, "Geneva")) {
+      const options = genevaSwapOptions(st, player);
+      if (options.length) {
+        queuePendingChoice(st, {
+          kind: "geneva_return",
+          playerId: player.id,
+          title: "Geneva: Exchange a Diplomacy Card?",
+          source: "Geneva",
+          optional: true,
+          options
+        });
+      }
+    }
+    if (hasCityStateDiplomacy(player, "Seoul")) {
+      const options = seoulBarbarianMoves(st);
+      if (options.length) {
+        queuePendingChoice(st, {
+          kind: "seoul_move_barbarian",
+          playerId: player.id,
+          title: "Seoul: Move a Barbarian?",
+          source: "Seoul",
+          optional: true,
+          options
+        });
+      }
+    }
   }
 
   // Wonders that trigger at the start of a player's turn. Each is optional, so
@@ -4958,6 +5966,44 @@ const Game = (() => {
     return heldDiplomacy(player, "open_borders").some((d) => d.fromId === otherId);
   }
 
+  function countCarthageSupports(st, playerId, defendingKey) {
+    const center = st.map.hexes[defendingKey];
+    if (!center) return 0;
+    const player = getPlayer(st, playerId);
+    // The square cardboard city-state tokens gained by conquest are not the
+    // unconquered city-state spaces on the map. They contribute wherever the
+    // battle happens; only the friendly-city half is range-limited.
+    let count = Number(player && player.cityStateTokens && player.cityStateTokens.length || 0);
+    Object.values(st.map.hexes).forEach((hex) => {
+      if (!hex || !hex.active || hexDist(center, hex) > 2) return;
+      if (isFriendlyCity(st, hex, playerId)) count++;
+    });
+    return count;
+  }
+
+  function getCityStateAttackParts(st, player, toKey, defender) {
+    if (!player || !toKey || !defender) return [];
+    const parts = [];
+    const target = st.map.hexes[toKey];
+    if (hasCityStateDiplomacy(player, "Kabul") &&
+        (defender.type === "city" || defender.type === "citystate") &&
+        !(target && target.cityState && target.cityState.name === "Kabul")) {
+      parts.push({ label: "Kabul diplomacy", value: 3, category: "diplomacy" });
+    }
+    if (hasCityStateDiplomacy(player, "Carthage") &&
+        !(target && target.cityState && target.cityState.name === "Carthage")) {
+      const value = countCarthageSupports(st, player.id, toKey);
+      if (value) parts.push({ label: "Carthage diplomacy", value, category: "diplomacy" });
+    }
+    return parts;
+  }
+
+  function getCityStateDefenseBonus(st, playerId, defendingKey) {
+    const player = getPlayer(st, playerId);
+    return hasCityStateDiplomacy(player, "Carthage")
+      ? countCarthageSupports(st, playerId, defendingKey) : 0;
+  }
+
   function getLeaderAttackBonus(st, playerId, toKey) {
     const player = getPlayer(st, playerId);
     if (!player || !toKey) return 0;
@@ -5009,6 +6055,7 @@ const Game = (() => {
     if (wonderBonus) parts.push({ label: "world wonders", value: wonderBonus, category: "leader" });
     const pactBonus = getDiplomacyAttackBonus(st, player.id, toKey);
     if (pactBonus) parts.push({ label: "joint war pacts", value: pactBonus, category: "leader" });
+    getCityStateAttackParts(st, player, toKey, defender).forEach((part) => parts.push(part));
 
     return parts;
   }
@@ -5018,14 +6065,150 @@ const Game = (() => {
     return CARD_TIERS.industry.cityRange[tier - 1];
   }
 
-  function getWonderCost(wonderName, player, st) {
+  function hasCityStateDiplomacy(player, cityStateName) {
+    return !!player && (player.diplomacy || [])
+      .some((card) => card.fromCityState === cityStateName);
+  }
+
+  function naturalWonderTurnId(st) {
+    if (!st || !st.turn) return "no-turn";
+    const activeId = st.turn.order && st.turn.order[st.turn.index];
+    return `${Number(st.turn.round || 0)}:${Number(st.turn.index || 0)}:${activeId || "none"}`;
+  }
+
+  // Natural-wonder ownership is deliberately derived from the physical token
+  // and the control marker in its map space. Replacing/removing that marker
+  // therefore transfers/returns the resource immediately without a second
+  // inventory that can drift out of sync.
+  function getControlledNaturalWonders(st, playerId) {
+    const turnId = naturalWonderTurnId(st);
+    const usage = st && st.naturalWonderUsage || {};
+    const held = [];
+    Object.entries(st && st.map && st.map.hexes || {}).forEach(([hexKey, hex]) => {
+      if (!hex || !hex.naturalWonder || !hex.control || hex.control.ownerId !== playerId) return;
+      const resource = NATURAL_WONDER_RESOURCES[hex.naturalWonder];
+      if (!RESOURCES.includes(resource)) return;
+      held.push({
+        hexKey,
+        name: hex.naturalWonder,
+        resource,
+        usedThisTurn: usage[hexKey] === turnId
+      });
+    });
+    return held.sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  function validateOrdinaryResourceSpend(player, resources, eligibleResources) {
+    const normalized = {};
+    let count = 0;
+    for (const [resource, raw] of Object.entries(resources || {})) {
+      if (!RESOURCES.includes(resource)) {
+        return { ok: false, code: "resource_type_invalid", message: `${resource} is not a resource type.` };
+      }
+      const amount = Number(raw);
+      if (!Number.isInteger(amount) || amount < 0) {
+        return { ok: false, code: "resource_amount_invalid", message: "Resource payments must use whole non-negative tokens." };
+      }
+      if (!amount) continue;
+      if (eligibleResources && !eligibleResources.includes(resource)) {
+        return {
+          ok: false, code: "resource_not_eligible",
+          message: `${resource} is not printed on this world wonder.`
+        };
+      }
+      if (!player || (player.resources[resource] || 0) < amount) {
+        return {
+          ok: false, code: "resource_unavailable",
+          message: `You do not have ${amount} ${resource} resource token${amount === 1 ? "" : "s"}.`
+        };
+      }
+      normalized[resource] = amount;
+      count += amount;
+    }
+    return { ok: true, resources: normalized, count };
+  }
+
+  function validateNaturalWonderSpend(st, player, wonder, hexKeys) {
+    if (hexKeys !== undefined && !Array.isArray(hexKeys)) {
+      return { ok: false, code: "natural_wonder_payment_invalid", message: "Natural-wonder payments must identify their map tokens." };
+    }
+    const requested = Array.isArray(hexKeys) ? hexKeys : [];
+    if (new Set(requested).size !== requested.length) {
+      return { ok: false, code: "natural_wonder_duplicate", message: "The same natural wonder cannot be used twice." };
+    }
+    const controlled = new Map(getControlledNaturalWonders(st, player && player.id)
+      .map((entry) => [entry.hexKey, entry]));
+    const eligible = wonder && Array.isArray(wonder.eligibleResources)
+      ? wonder.eligibleResources : (WONDER_RESOURCE_ELIGIBILITY[wonder && wonder.name] || []);
+    const entries = [];
+    for (const hexKey of requested) {
+      const entry = controlled.get(hexKey);
+      if (!entry) {
+        return {
+          ok: false, code: "natural_wonder_not_controlled",
+          message: "That natural-wonder token is not currently under your control."
+        };
+      }
+      if (entry.usedThisTurn) {
+        return {
+          ok: false, code: "natural_wonder_already_used",
+          message: `${entry.name} has already contributed during this turn.`
+        };
+      }
+      if (!eligible.includes(entry.resource)) {
+        return {
+          ok: false, code: "natural_wonder_not_eligible",
+          message: `${entry.name}'s ${entry.resource} icon is not printed on ${wonder.name}.`
+        };
+      }
+      entries.push(entry);
+    }
+    return { ok: true, entries, count: entries.length };
+  }
+
+  function markNaturalWondersUsed(st, entries) {
+    st.naturalWonderUsage = st.naturalWonderUsage || {};
+    const turnId = naturalWonderTurnId(st);
+    (entries || []).forEach((entry) => { st.naturalWonderUsage[entry.hexKey] = turnId; });
+  }
+
+  // All true cost modifiers meet here. Production bonuses are intentionally
+  // kept out of this list; the UI can show both without treating +production
+  // as if it changed the printed price.
+  function calculateWonderCost(wonderName, player, st) {
     const wonder = getWonderByName(wonderName);
-    let cost = wonder ? wonder.cost : 7;
-    // Egypt: all world wonders cost 1 less. This one really is permanent.
-    if (hasLeader(player, "egypt")) cost -= 1;
-    // Terra p14: and 1 less again while the dial's trade token sits on it.
-    if (st && getWonderToken(st, wonderName)) cost -= 1;
-    return Math.max(1, cost);
+    const baseCost = wonder ? Number(wonder.cost || 0) : 7;
+    const modifiers = [];
+    if (hasLeader(player, "egypt")) {
+      modifiers.push({ source: "Egypt", label: "Egypt civilization ability", value: -1 });
+    }
+    if (st && getWonderToken(st, wonderName)) {
+      modifiers.push({ source: "event", label: "trade token on faceup wonder", value: -1 });
+    }
+    if (st && hasCityStateDiplomacy(player, "Brussels")) {
+      const mature = countDeveloped(st, player.id);
+      if (mature) modifiers.push({
+        source: "Brussels", label: `${mature} mature ${mature === 1 ? "city" : "cities"}`, value: -mature
+      });
+    }
+    if (st && wonder && hasCityStateDiplomacy(player, "Buenos Aires") &&
+        countWondersByType(st, player.id, wonder.type) === 0) {
+      modifiers.push({ source: "Buenos Aires", label: `no ${wonder.type} wonder controlled`, value: -2 });
+    }
+    const modifierTotal = modifiers.reduce((sum, modifier) => sum + modifier.value, 0);
+    // Neither printed reducer specifies a minimum. A heavily reduced wonder
+    // can therefore reach zero production cost.
+    return {
+      wonderName,
+      baseCost,
+      modifiers,
+      modifierTotal,
+      finalCost: Math.max(0, baseCost + modifierTotal)
+    };
+  }
+
+  function getWonderCost(wonderName, player, st) {
+    return calculateWonderCost(wonderName, player, st).finalCost;
   }
 
   // The dial's trade token, if this wonder is the faceup card of its deck.
@@ -5038,6 +6221,99 @@ const Game = (() => {
 
   function getWonderByName(wonderName) {
     return ALL_WONDERS.find((w) => w.name === wonderName) || null;
+  }
+
+  function getWonderBaseProduction(st, player) {
+    const slot = getSlotValue(player, "industry", st);
+    const tier = getCardTier(player, "industry");
+    const printed = (CARD_DEFS.industry || {})[tier] || {};
+    // Nationalism III explicitly contributes 7, rather than 5, when it is
+    // treated as resolving in the fifth slot.
+    const value = slot === 5 && Number(printed.wonderSlot5Production || 0) > 0
+      ? Number(printed.wonderSlot5Production) : slot;
+    return { slot, value, label: value === slot ? `Industry slot ${slot}` : `Nationalism in slot 5` };
+  }
+
+  function countPlayerDistricts(st, playerId) {
+    return Object.values(st && st.map && st.map.hexes || {}).filter((hex) =>
+      hex.control && hex.control.ownerId === playerId && hex.control.district).length;
+  }
+
+  // Shared preview + authoritative validator for world-wonder production.
+  // `resources` are consumed ordinary tokens; `naturalWonders` are physical
+  // map-token keys that are only marked used for this turn.
+  function calculateWonderProduction(st, player, wonderName, payment) {
+    payment = payment || {};
+    const wonder = getWonderByName(wonderName);
+    if (!wonder) {
+      return { ok: false, code: "wonder_missing", message: "That world wonder does not exist." };
+    }
+    const eligibleResources = Array.isArray(wonder.eligibleResources)
+      ? wonder.eligibleResources : (WONDER_RESOURCE_ELIGIBILITY[wonder.name] || []);
+    const ordinary = validateOrdinaryResourceSpend(player, payment.resources, eligibleResources);
+    if (!ordinary.ok) return ordinary;
+    const natural = validateNaturalWonderSpend(st, player, wonder, payment.naturalWonders);
+    if (!natural.ok) return natural;
+    const trade = validateFocusTradeSpend(st, player, "industry", payment.tradeSpent,
+      payment.tradeResources, ordinary.resources);
+    if (!trade.ok) return trade;
+
+    const base = getWonderBaseProduction(st, player);
+    const resourceCount = ordinary.count + natural.count;
+    const eachResource = CFG.resourceProdValue + (uniqueInPlay(player, "nubia") ? 1 : 0);
+    const districtBonus = uniqueInPlay(player, "japan") ? countPlayerDistricts(st, player.id) : 0;
+    const totalProduction = base.value + trade.spent + resourceCount * eachResource + districtBonus;
+    const cost = calculateWonderCost(wonder.name, player, st);
+    return {
+      ok: true,
+      wonder,
+      cost,
+      eligibleResources: eligibleResources.slice(),
+      resources: ordinary.resources,
+      naturalWonders: natural.entries,
+      tradeSpent: trade.spent,
+      tradePayment: trade,
+      production: {
+        base: base.value,
+        slot: base.slot,
+        trade: trade.spent,
+        ordinaryResources: ordinary.count,
+        naturalWonderResources: natural.count,
+        eachResource,
+        districtBonus,
+        total: totalProduction
+      },
+      affordable: totalProduction >= cost.finalCost,
+      shortfall: Math.max(0, cost.finalCost - totalProduction)
+    };
+  }
+
+  // City and wonder building share the same focus-card payment rules, but
+  // city resources are not restricted by icons printed on a wonder card.
+  // Keeping this calculator next to the wonder calculator prevents the UI and
+  // authoritative action from inventing different production totals.
+  function calculateIndustryCityProduction(st, player, payment) {
+    payment = payment || {};
+    const ordinary = validateOrdinaryResourceSpend(player, payment.resources);
+    if (!ordinary.ok) return ordinary;
+    const trade = validateFocusTradeSpend(st, player, "industry", payment.tradeSpent,
+      payment.tradeResources, ordinary.resources);
+    if (!trade.ok) return trade;
+    const base = getSlotValue(player, "industry", st);
+    const total = base + trade.spent + ordinary.count * CFG.resourceProdValue;
+    return {
+      ok: true,
+      resources: ordinary.resources,
+      tradeSpent: trade.spent,
+      tradePayment: trade,
+      production: {
+        base,
+        trade: trade.spent,
+        ordinaryResources: ordinary.count,
+        eachResource: CFG.resourceProdValue,
+        total
+      }
+    };
   }
 
   function getVisibleWonders(st) {
@@ -5082,9 +6358,33 @@ const Game = (() => {
   }
 
   // Terrain difficulty as seen by a specific player for a specific purpose.
-  // Leader sheets bend the base numbers here rather than at each call site.
+  // Leader sheets and diplomacy cards bend the base numbers here rather than
+  // at each UI/action call site.
   function placementDifficulty(st, h, player, context) {
-    return japanCoastalDifficulty(st, h, player, terrainDifficulty(h));
+    let difficulty = japanCoastalDifficulty(st, h, player, terrainDifficulty(h));
+    const culturePlacement = context === "culture" || context === "growth_control" ||
+      context === "industry_control" || context === "control";
+    const industryCity = context === "industry_city" || context === "city";
+
+    // Kumasi applies only while resolving Industry or Culture, not to Growth's
+    // district/control steps or unrelated wonder effects.
+    if (h.terrain === "forest" && hasCityStateDiplomacy(player, "Kumasi") &&
+        (context === "culture" || context === "industry_control" || industryCity)) {
+      difficulty = 1;
+    }
+    // Auckland changes city-building spaces adjacent to water and is separate
+    // from its permission to count a range through water.
+    if (industryCity && hasCityStateDiplomacy(player, "Auckland") &&
+        hexNeighborKeys(h.q, h.r).some((nk) => {
+          const neighbor = st.map.hexes[nk];
+          return neighbor && neighbor.active && neighbor.terrain === "water";
+        })) {
+      difficulty = 1;
+    }
+    if (culturePlacement && hasCityStateDiplomacy(player, "Mohenjo Daro")) {
+      difficulty -= 1;
+    }
+    return Math.max(0, difficulty);
   }
 
   function moveDifficulty(st, h, player, unitType) {
@@ -5096,7 +6396,7 @@ const Game = (() => {
     const valid = [];
     Object.entries(st.map.hexes).forEach(([k, h]) => {
       if (!h.active || h.terrain === "water") return;
-      if (placementDifficulty(st, h, player, "control") > maxTerrain) return;
+      if (placementDifficulty(st, h, player, "culture") > maxTerrain) return;
       if (h.city || h.cityState || h.barbarian || h.control || (h.fortress && !h.city)) return;
       // Base p8: "on a space adjacent to a friendly city" — next to one of your
       // own control tokens is not enough, or territory would sprawl for ever.
@@ -5106,15 +6406,102 @@ const Game = (() => {
     return new Set(valid);
   }
 
-  function validateFocusTradeSpend(player, cardType, tradeSpent) {
+  // A focus-card payment is expressed as a total number of trade equivalents
+  // plus (optionally) the ordinary resource tokens being substituted through
+  // Palenque. Keeping the composition explicit is important: the resource is
+  // consumed, a natural-wonder token is never legal here, and the remaining
+  // amount must actually exist on the focus card.
+  function validateFocusTradeSpend(st, player, cardType, tradeSpent, tradeResources, reservedResources) {
     const spent = tradeSpent === undefined ? 0 : Number(tradeSpent);
-    if (!Number.isInteger(spent) || spent < 0 || spent > (player && player.trade[cardType] || 0)) {
+    if (!Number.isInteger(spent) || spent < 0) {
       return {
         ok: false, code: "invalid_trade_spend",
-        message: `Choose between 0 and ${player && player.trade[cardType] || 0} ${cardType} trade tokens.`
+        message: "Trade spending must be a whole non-negative number."
       };
     }
-    return { ok: true, spent };
+
+    const resources = validateOrdinaryResourceSpend(player, tradeResources);
+    if (!resources.ok) return resources;
+    if (resources.count && !hasCityStateDiplomacy(player, "Palenque")) {
+      return {
+        ok: false, code: "palenque_required",
+        message: "Only Palenque lets ordinary resource tokens stand in for focus-card trade tokens."
+      };
+    }
+    if (resources.count > spent) {
+      return {
+        ok: false, code: "trade_resource_overpayment",
+        message: "A substituted resource token must replace one of the selected trade tokens."
+      };
+    }
+
+    const reserved = reservedResources || {};
+    for (const resource of RESOURCES) {
+      const combined = Number(resources.resources[resource] || 0) + Number(reserved[resource] || 0);
+      if (combined > Number(player && player.resources[resource] || 0)) {
+        return {
+          ok: false, code: "resource_double_spent",
+          message: `The same ${resource} token cannot pay two parts of this focus action.`
+        };
+      }
+    }
+
+    const focusSpent = spent - resources.count;
+    const available = Number(player && player.trade && player.trade[cardType] || 0);
+    if (focusSpent > available) {
+      const substitutes = hasCityStateDiplomacy(player, "Palenque")
+        ? Object.values(player && player.resources || {}).reduce((sum, count) => sum + Number(count || 0), 0)
+        : 0;
+      return {
+        ok: false, code: "invalid_trade_spend",
+        message: `This payment has only ${available} ${cardType} trade token${available === 1 ? "" : "s"}` +
+          (substitutes ? ` plus ${substitutes} Palenque resource substitute${substitutes === 1 ? "" : "s"}.` : ".")
+      };
+    }
+    return {
+      ok: true,
+      spent,
+      focusSpent,
+      resources: resources.resources,
+      resourceCount: resources.count
+    };
+  }
+
+  // Growth can ask for a maximum payment before the player knows how many
+  // legal markers they will actually reinforce. Trim that reserved payment to
+  // the amount truly used, preferring printed trade tokens so an unneeded
+  // Palenque resource is not burned accidentally.
+  function trimFocusTradePayment(payment, amount) {
+    const wanted = Math.max(0, Math.min(Number(amount || 0), Number(payment && payment.spent || 0)));
+    const focusSpent = Math.min(wanted, Number(payment && payment.focusSpent || 0));
+    let resourcesLeft = wanted - focusSpent;
+    const resources = {};
+    for (const resource of RESOURCES) {
+      if (resourcesLeft <= 0) break;
+      const take = Math.min(resourcesLeft, Number(payment && payment.resources && payment.resources[resource] || 0));
+      if (take) resources[resource] = take;
+      resourcesLeft -= take;
+    }
+    return {
+      ok: true,
+      spent: wanted - Math.max(0, resourcesLeft),
+      focusSpent,
+      resources,
+      resourceCount: Object.values(resources).reduce((sum, count) => sum + count, 0)
+    };
+  }
+
+  function spendFocusTradePayment(player, cardType, payment) {
+    const normalized = payment && typeof payment === "object"
+      ? payment
+      : { spent: Number(payment || 0), focusSpent: Number(payment || 0), resources: {} };
+    const focusSpent = Number(normalized.focusSpent === undefined
+      ? normalized.spent || 0 : normalized.focusSpent);
+    if (focusSpent > 0) {
+      player.trade[cardType] = Math.max(0, Number(player.trade[cardType] || 0) - focusSpent);
+    }
+    spendResources(player, normalized.resources);
+    return normalized;
   }
 
   // A focus-card placement is one transaction. In particular, two requested
@@ -5122,12 +6509,12 @@ const Game = (() => {
   // one key became stale or was forged. The UI uses validControlHexes to offer
   // spaces; this preflight uses that exact set again immediately before any
   // resource, marker, trade, or focus-row state is changed.
-  function validateCulturePlacement(st, playerId, hexKeys, tradeSpent) {
+  function validateCulturePlacement(st, playerId, hexKeys, tradeSpent, tradeResources) {
     const player = getPlayer(st, playerId);
     if (!player || !canResolveCard(player, "culture")) {
       return { ok: false, code: "culture_unavailable", message: "The culture card cannot be resolved now." };
     }
-    const trade = validateFocusTradeSpend(player, "culture", tradeSpent);
+    const trade = validateFocusTradeSpend(st, player, "culture", tradeSpent, tradeResources);
     if (!trade.ok) return trade;
     if (!Array.isArray(hexKeys) || hexKeys.length === 0) {
       return { ok: false, code: "control_selection_empty", message: "Choose at least one control-marker space." };
@@ -5156,7 +6543,10 @@ const Game = (() => {
       };
     }
     const franceBonus = hasLeader(player, "france") ? franceWonderBonus(st, player.id) : 0;
-    return { ok: true, hexKeys: hexKeys.slice(), maxMarkers, franceBonus, tradeSpent: trade.spent };
+    return {
+      ok: true, hexKeys: hexKeys.slice(), maxMarkers, franceBonus,
+      tradeSpent: trade.spent, tradePayment: trade
+    };
   }
 
   function validDistrictHexes(st, playerId, maxTerrain) {
@@ -5164,13 +6554,138 @@ const Game = (() => {
     const valid = [];
     Object.entries(st.map.hexes).forEach(([k, h]) => {
       if (!h.active || h.terrain === "water") return;
-      if (placementDifficulty(st, h, player, "district") > maxTerrain) return;
+      if (placementDifficulty(st, h, player, "growth_district") > maxTerrain) return;
       if (h.city || h.cityState || h.barbarian || (h.fortress && !h.city)) return;
       if (h.control && (h.control.ownerId !== playerId || h.control.district)) return;
       if (!adjacentToFriendlyCity(st, h, playerId)) return;
       valid.push(k);
     });
     return new Set(valid);
+  }
+
+  // There is one physical token of each district type in every player's
+  // supply. Board state is the source of truth, which also means destroying a
+  // district returns that type to the supply without a second inventory that
+  // can drift out of sync.
+  function availableDistrictTypes(st, playerId) {
+    const used = new Set();
+    Object.values(st.map.hexes).forEach((h) => {
+      if (h.control && h.control.ownerId === playerId && h.control.district) {
+        used.add(h.control.district);
+      }
+    });
+    return DISTRICTS.filter((kind) => !used.has(kind));
+  }
+
+  function growthCardProfile(player) {
+    const tier = getCardTier(player, "growth");
+    const name = getCardName(player, "growth");
+    const standard = (CARD_NAMES.growth || [])[tier - 1] === name;
+    return {
+      tier,
+      name,
+      standard,
+      sequential: standard && tier >= 3,
+      engineering: standard && tier === 2,
+      globalization: standard && tier === 4
+    };
+  }
+
+  function validateGrowthDistrictPlacement(st, playerId, payload) {
+    const player = getPlayer(st, playerId);
+    if (!player || !canResolveCard(player, "growth") || st.cardResolution) {
+      return { ok: false, code: "growth_unavailable", message: "The growth card cannot start another effect now." };
+    }
+    const trade = validateFocusTradeSpend(st, player, "growth",
+      payload.tradeSpent, payload.tradeResources);
+    if (!trade.ok) return trade;
+    if (!DISTRICTS.includes(payload.district)) {
+      return { ok: false, code: "district_type_invalid", message: "Choose a printed district type." };
+    }
+    if (!availableDistrictTypes(st, playerId).includes(payload.district)) {
+      return {
+        ok: false, code: "district_token_unavailable",
+        message: `Your ${DISTRICT_LABELS[payload.district] || payload.district} district token is already on the map.`
+      };
+    }
+    const slot = getSlotValue(player, "growth", st);
+    if (!validDistrictHexes(st, playerId, slot).has(payload.hexKey)) {
+      return {
+        ok: false, code: "district_space_invalid",
+        message: "That is no longer a legal space for this district. Nothing was placed or spent."
+      };
+    }
+    // Reinforcements are a later printed step. Reject the legacy combined
+    // packet instead of partly applying it in an order the card does not print.
+    if (Array.isArray(payload.reinforceKeys) && payload.reinforceKeys.length) {
+      return {
+        ok: false, code: "growth_sequence_required",
+        message: "Place the district first; the reinforcement step follows after it is confirmed."
+      };
+    }
+    return {
+      ok: true, player, slot, tradeSpent: trade.spent, tradePayment: trade,
+      profile: growthCardProfile(player)
+    };
+  }
+
+  function validateGrowthDistrictSkip(st, playerId, tradeSpent, tradeResources) {
+    const player = getPlayer(st, playerId);
+    if (!player || !canResolveCard(player, "growth") || st.cardResolution) {
+      return { ok: false, code: "growth_unavailable", message: "The growth card cannot start another effect now." };
+    }
+    const profile = growthCardProfile(player);
+    if (!profile.sequential) {
+      return { ok: false, code: "district_skip_not_available", message: "This growth card lets you choose its reinforce alternative instead." };
+    }
+    const trade = validateFocusTradeSpend(st, player, "growth", tradeSpent, tradeResources);
+    if (!trade.ok) return trade;
+    const hasType = availableDistrictTypes(st, playerId).length > 0;
+    const hasSpace = validDistrictHexes(st, playerId, getSlotValue(player, "growth", st)).size > 0;
+    if (hasType && hasSpace) {
+      return { ok: false, code: "district_still_placeable", message: "At least one unused district can still be placed." };
+    }
+    return {
+      ok: true, player, slot: getSlotValue(player, "growth", st),
+      tradeSpent: trade.spent, tradePayment: trade, profile
+    };
+  }
+
+  function validControlNearDistrictHexes(st, playerId, maxTerrain) {
+    const player = getPlayer(st, playerId);
+    const districts = Object.values(st.map.hexes).filter((h) =>
+      h.control && h.control.ownerId === playerId && h.control.district);
+    const valid = [];
+    Object.entries(st.map.hexes).forEach(([k, h]) => {
+      if (!h.active || h.terrain === "water" ||
+          placementDifficulty(st, h, player, "growth_control") > maxTerrain) return;
+      if (h.city || h.cityState || h.barbarian || h.control || (h.fortress && !h.city)) return;
+      if (!districts.some((district) => hexDist(h, district) === 1)) return;
+      valid.push(k);
+    });
+    return valid;
+  }
+
+  // Drama and Poetry explicitly says the destination contains neither a token
+  // nor a plastic figure. Resource/natural-wonder tokens therefore block it,
+  // unlike ordinary Culture placement, which is allowed to claim them.
+  function dramaMoveDestinations(st, playerId, fromKey) {
+    const from = st.map.hexes[fromKey];
+    if (!from || !from.control || from.control.ownerId !== playerId || from.control.district) return [];
+    return hexNeighborKeys(from.q, from.r).filter((key2) => {
+      const h = st.map.hexes[key2];
+      if (!h || !h.active || h.terrain === "water") return false;
+      if (h.city || h.cityState || h.barbarian || h.control || h.fortress ||
+          h.resource || h.naturalWonder) return false;
+      return !getUnitsAt(st, key2).length;
+    });
+  }
+
+  function dramaMoveSources(st, playerId) {
+    return Object.entries(st.map.hexes)
+      .filter(([key2, h]) => h.control && h.control.ownerId === playerId &&
+        dramaMoveDestinations(st, playerId, key2).length)
+      .map(([key2]) => key2);
   }
 
   // Turns unreinforced control tokens over, up to a limit, and says how many.
@@ -5196,12 +6711,12 @@ const Game = (() => {
     return new Set(valid);
   }
 
-  function validateReinforcePlacement(st, playerId, hexKeys, tradeSpent, baseLimit) {
+  function validateReinforcePlacement(st, playerId, hexKeys, tradeSpent, baseLimit, tradeResources) {
     const player = getPlayer(st, playerId);
     if (!player || !canResolveCard(player, "growth")) {
       return { ok: false, code: "growth_unavailable", message: "The growth card cannot be resolved now." };
     }
-    const trade = validateFocusTradeSpend(player, "growth", tradeSpent);
+    const trade = validateFocusTradeSpend(st, player, "growth", tradeSpent, tradeResources);
     if (!trade.ok) return trade;
     if (!Array.isArray(hexKeys) || hexKeys.length === 0) {
       return { ok: false, code: "reinforce_selection_empty", message: "Choose at least one control marker to reinforce." };
@@ -5209,7 +6724,8 @@ const Game = (() => {
     if (hexKeys.some((hexKey) => typeof hexKey !== "string") || new Set(hexKeys).size !== hexKeys.length) {
       return { ok: false, code: "reinforce_space_invalid", message: "Each control marker may be reinforced only once." };
     }
-    const limit = Math.max(0, Number(baseLimit || 0)) + trade.spent;
+    const freeLimit = Math.max(0, Number(baseLimit || 0));
+    const limit = freeLimit + trade.spent;
     if (hexKeys.length > limit) {
       return {
         ok: false, code: "too_many_reinforcements",
@@ -5224,7 +6740,17 @@ const Game = (() => {
         message: `${invalid} is no longer one of your unreinforced control markers. Nothing was changed or spent.`
       };
     }
-    return { ok: true, hexKeys: hexKeys.slice(), limit, tradeSpent: trade.spent };
+    return {
+      ok: true,
+      hexKeys: hexKeys.slice(),
+      limit,
+      tradeBudget: trade.spent,
+      // Free printed reinforcements are always used before paid extras. A
+      // player who reinforces fewer markers than previewed never loses unused
+      // Growth trade tokens.
+      tradeSpent: Math.max(0, hexKeys.length - freeLimit),
+      tradePayment: trimFocusTradePayment(trade, Math.max(0, hexKeys.length - freeLimit))
+    };
   }
 
   // A district play carries a second, independent batch: Terra p8 lets the same
@@ -5240,7 +6766,7 @@ const Game = (() => {
   function validateGrowthDistrictReinforcements(st, playerId, hexKeys, tradeSpent, districtKey) {
     const player = getPlayer(st, playerId);
     if (!player) return { ok: false, code: "unknown_actor", message: "No such player." };
-    const trade = validateFocusTradeSpend(player, "growth", tradeSpent);
+    const trade = validateFocusTradeSpend(st, player, "growth", tradeSpent);
     if (!trade.ok) return trade;
     const keys = Array.isArray(hexKeys) ? hexKeys : [];
     if (!keys.length) return { ok: true, hexKeys: [], tradeSpent: trade.spent };
@@ -5276,11 +6802,87 @@ const Game = (() => {
     const valid = [];
     Object.entries(st.map.hexes).forEach(([k, h]) => {
       if (!isLegalCitySpace(st, h, k, playerId)) return;
-      if (placementDifficulty(st, h, player, "city") > production) return;
+      if (placementDifficulty(st, h, player, "industry_city") > production) return;
       if (!withinRangeOfFriendly(st, h, playerId, range)) return;
       valid.push(k);
     });
     return new Set(valid);
+  }
+
+  function validateIndustryCityAction(st, playerId, payload) {
+    const player = getPlayer(st, playerId);
+    if (!player || !canResolveCard(player, "industry")) {
+      return { ok: false, code: "industry_unavailable", message: "The industry card cannot be resolved now." };
+    }
+    const hex = st.map.hexes[payload && payload.hexKey];
+    if (!isLegalCitySpace(st, hex, payload && payload.hexKey, playerId)) {
+      return { ok: false, code: "city_space_invalid", message: "That is not a legal city space." };
+    }
+    const requestedTrade = Number(payload && payload.tradeSpent || 0);
+    const requestedResources = Object.values(payload && payload.resources || {})
+      .reduce((sum, count) => sum + Number(count || 0), 0);
+    const requestedTradeResources = Object.values(payload && payload.tradeResources || {})
+      .reduce((sum, count) => sum + Number(count || 0), 0);
+    if (requestedTrade || requestedResources || requestedTradeResources) {
+      return {
+        ok: false, code: "city_payment_not_applicable",
+        message: "Industry trade and resource production build world wonders; they do not raise a city's terrain limit."
+      };
+    }
+    const friendlyFigures = st.players.filter((owner) => owner.id === playerId)
+      .flatMap((owner) => (owner.armies || []).concat(owner.caravans || []))
+      .filter((figure) => figure.position === payload.hexKey);
+    const animalHusbandry = getCardName(player, "industry") === "Animal Husbandry" &&
+      !getActiveUniqueCard(player, "industry");
+    const useFigure = !!payload.useFigure;
+    const figure = useFigure
+      ? (friendlyFigures.find((entry) => entry.id === payload.figureId) || friendlyFigures[0])
+      : null;
+    if (useFigure && (!animalHusbandry || !figure)) {
+      return {
+        ok: false, code: "animal_husbandry_figure_missing",
+        message: "Animal Husbandry's third option requires one of your caravans or armies in that space."
+      };
+    }
+    const difficulty = placementDifficulty(st, hex, player, "industry_city");
+    const slot = getSlotValue(player, "industry", st);
+    if (!useFigure && difficulty > slot) {
+      return {
+        ok: false, code: "city_terrain_too_difficult",
+        message: `That space has terrain difficulty ${difficulty}; this Industry card resolves in slot ${slot}.`
+      };
+    }
+    const range = getCityRange(player);
+    if (!useFigure && !withinRangeOfFriendly(st, hex, playerId, range)) {
+      return {
+        ok: false, code: "city_range_invalid",
+        message: animalHusbandry && friendlyFigures.length
+          ? "Choose Animal Husbandry's figure option to build outside normal city range."
+          : `That space is not within ${range} spaces of a friendly space.`
+      };
+    }
+    return {
+      ok: true, player, hex, range, difficulty, slot, useFigure, figure,
+      payment: normalizeFocusTradePayment(0)
+    };
+  }
+
+  function industrialZoneCityOption(st, playerId) {
+    const player = getPlayer(st, playerId);
+    if (!player || (player.trade.industry || 0) < 3) {
+      return {
+        ok: false, code: "insufficient_industry_trade",
+        message: "The Industrial Zone city option requires exactly 3 trade tokens on Industry."
+      };
+    }
+    const spots = [...validCityHexes(st, playerId, Infinity, 2)];
+    if (!spots.length) {
+      return {
+        ok: false, code: "industrial_city_space_missing",
+        message: "There is no legal city space within 2 spaces of a friendly space."
+      };
+    }
+    return { ok: true, spots };
   }
 
   function validWonderHexes(st, playerId) {
@@ -5315,6 +6917,15 @@ const Game = (() => {
     return !!((CARD_DEFS.military || {})[tier] || {}).passThrough;
   }
 
+  function armyCannotEndHere(st, h, playerId) {
+    return antananarivoIsFriendlyCity(st, h, playerId);
+  }
+
+  function caravanCanDefeatBarbarian(player) {
+    return !!player && getCardName(player, "economy") === "Currency" &&
+      !getActiveUniqueCard(player, "economy");
+  }
+
   function isForcedStopHex(st, h, unitType, playerId) {
     const hexKey = key(h.q, h.r);
     // Only the four things Flight names are waived. A reinforced token, a rival
@@ -5330,9 +6941,15 @@ const Game = (() => {
     const flies = hasMovePassThrough(getPlayer(st, playerId), unitType);
 
     if (h.barbarian) return !flies;
-    if (h.cityState) return !flies;
+    if (h.cityState) {
+      if (unitType === "army" && antananarivoIsFriendlyCity(st, h, playerId)) return false;
+      return !flies;
+    }
     if (h.fortress && !h.city) return true;
     if (h.control && h.control.ownerId !== playerId) {
+      if (unitType === "army" && hasCityStateDiplomacy(getPlayer(st, playerId), "Akkad")) {
+        return false;
+      }
       // Reinforced is the half Flight does not waive.
       return h.control.fortified ? true : !flies;
     }
@@ -5364,9 +6981,10 @@ const Game = (() => {
         if (!h || !h.active) return;
         if (h.terrain === "water" && !waterOk) return;
         if (h.terrain !== "water" && moveDifficulty(st, h, player, unitType) > terrainLimit) return;
-        if (unitType === "caravan" && h.barbarian) return;
+      if (unitType === "caravan" && h.barbarian &&
+          !caravanCanDefeatBarbarian(player)) return;
         visited.add(nk);
-        reachable.add(nk);
+        if (!(unitType === "army" && armyCannotEndHere(st, h, playerId))) reachable.add(nk);
         if (!isForcedStopHex(st, h, unitType, playerId)) queue.push({ key: nk, steps: cur.steps + 1 });
       });
     }
@@ -5399,8 +7017,10 @@ const Game = (() => {
       return { type: "fortress", label: "Fortress", power: CFG.fortressDefense,
         parts: only("uncontrolled fort", CFG.fortressDefense) };
     }
-    if (h.cityState) return { type: "citystate", label: h.cityState.name, power: CFG.cityStateDefense,
-      parts: only("city-state", CFG.cityStateDefense) };
+    if (h.cityState && !antananarivoIsFriendlyCity(st, h, attackerId)) {
+      return { type: "citystate", label: h.cityState.name, power: CFG.cityStateDefense,
+        parts: only("city-state", CFG.cityStateDefense) };
+    }
     // Defender-side leader effects: China's reinforced tokens count double,
     // Scythia adds +3 defending a grassland or hill space.
     const defenderLeaderBonus = (ownerId) => {
@@ -5433,6 +7053,7 @@ const Game = (() => {
       push("leader", defenderLeaderBonus(ownerId));
       push("wonder", getWonderDefenseBonus(st, ownerId, hexKey));
       push("defensive pact", getDiplomacyDefenseBonus(st, ownerId, attackerId));
+      push("Carthage diplomacy", getCityStateDefenseBonus(st, ownerId, hexKey));
       return list;
     };
     if (h.control && h.control.ownerId !== attackerId) {
@@ -5541,15 +7162,27 @@ const Game = (() => {
     return units;
   }
 
+  function antananarivoIsFriendlyCity(st, hex, playerId) {
+    const active = currentPlayer(st);
+    return !!hex && !!hex.cityState && hex.cityState.name === "Antananarivo" &&
+      !!active && active.id === playerId &&
+      hasCityStateDiplomacy(getPlayer(st, playerId), "Antananarivo");
+  }
+
+  function isFriendlyCity(st, hex, playerId) {
+    return !!hex && ((hex.city && hex.city.ownerId === playerId) ||
+      antananarivoIsFriendlyCity(st, hex, playerId));
+  }
+
   function withinRangeOfCity(st, hex, playerId, range) {
     return Object.values(st.map.hexes).some((h) => {
-      if (!h.city || h.city.ownerId !== playerId) return false;
+      if (!isFriendlyCity(st, h, playerId)) return false;
       return hexDist(h, hex) <= range;
     });
   }
   function adjacentToFriendlyCity(st, hex, playerId) {
     return hexNeighborKeys(hex.q, hex.r).some((nk) => {
-      const n = st.map.hexes[nk]; return n && n.city && n.city.ownerId === playerId;
+      return isFriendlyCity(st, st.map.hexes[nk], playerId);
     });
   }
   function adjacentToAnyCity(st, hex) {
@@ -5585,11 +7218,33 @@ const Game = (() => {
   function withinRangeOfFriendly(st, hex, playerId, range) {
     // Great Lighthouse: build on the map's rim as though it were near home.
     if (hasWonder(st, playerId, "Great Lighthouse") && isEdgeSpace(st, hex)) return true;
-    return Object.values(st.map.hexes).some((h) => {
-      if (h.city && h.city.ownerId === playerId) return hexDist(h, hex) <= range;
-      if (h.control && h.control.ownerId === playerId) return hexDist(h, hex) <= range;
-      return false;
+    const player = getPlayer(st, playerId);
+    const throughWater = hasCityStateDiplomacy(player, "Auckland");
+    const targetKey = key(hex.q, hex.r);
+    const seen = new Set();
+    const queue = [];
+    Object.entries(st.map.hexes).forEach(([hexKey, candidate]) => {
+      if (!candidate || !candidate.active) return;
+      const friendly = isFriendlyCity(st, candidate, playerId) ||
+        (candidate.control && candidate.control.ownerId === playerId);
+      if (!friendly) return;
+      seen.add(hexKey);
+      queue.push({ hexKey, distance: 0 });
     });
+    while (queue.length) {
+      const current = queue.shift();
+      if (current.hexKey === targetKey) return true;
+      if (current.distance >= range) continue;
+      hexNeighborKeys(parseQ(current.hexKey), parseR(current.hexKey)).forEach((nextKey) => {
+        if (seen.has(nextKey)) return;
+        const next = st.map.hexes[nextKey];
+        if (!next || !next.active) return;
+        if (!throughWater && next.terrain === "water") return;
+        seen.add(nextKey);
+        queue.push({ hexKey: nextKey, distance: current.distance + 1 });
+      });
+    }
+    return false;
   }
 
   function countAdjacentReinforced(st, hexKey, ownerId) {
@@ -5679,21 +7334,58 @@ const Game = (() => {
       explorationTouchesOrigin(st, anchorKey, rotation, fromKey);
   }
 
+  // A legal explored tile must include a space beside fromKey. That gives a
+  // finite, exact set of anchors even though the axial board itself has no
+  // boundary: choose which of the six neighbouring coordinates is covered,
+  // then choose which of the tile's ten offsets covers it. This replaces a
+  // scan of the preallocated canvas-sized dictionary, which incorrectly made
+  // the edge of that dictionary the edge of the game world.
+  function explorationCandidateAnchors(fromKey, rotation) {
+    if (!fromKey) return [];
+    const fq = parseQ(fromKey), fr = parseR(fromKey);
+    if (!Number.isInteger(fq) || !Number.isInteger(fr)) return [];
+    const anchors = new Set();
+    const rotated = TILE_OFFSETS.map((offset) => rotateAxial(offset, rotation));
+    HEX_DIRS.forEach((dir) => {
+      const cellQ = fq + dir.dq;
+      const cellR = fr + dir.dr;
+      rotated.forEach((offset) => {
+        anchors.add(key(cellQ - offset.q, cellR - offset.r));
+      });
+    });
+    return Array.from(anchors);
+  }
+
+  function getLegalExplorationPlacements(st, pending, filters) {
+    if (!st || !pending || !pending.tileId || !pending.fromKey) return [];
+    const wantedSide = filters && filters.side;
+    const wantedRotation = filters && filters.rotation;
+    const sides = wantedSide ? [wantedSide] : ["A", "B"];
+    const rotations = Number.isInteger(wantedRotation)
+      ? [wantedRotation] : [0, 1, 2, 3, 4, 5];
+    const placements = [];
+    sides.forEach((side) => {
+      if (!explorationSideExists(pending.tileId, side)) return;
+      rotations.forEach((rotation) => {
+        explorationCandidateAnchors(pending.fromKey, rotation).forEach((anchorKey) => {
+          if (!canPlaceExploration(st, pending.tileId, anchorKey, rotation, side, pending.fromKey)) return;
+          placements.push({
+            side,
+            rotation,
+            anchorKey,
+            cellKeys: getTileHexKeys(anchorKey, rotation, st.map.hexes)
+          });
+        });
+      });
+    });
+    return placements;
+  }
+
   // "Nowhere it fits" is a claim about the physical tile, not the currently
   // selected face or angle. The host therefore checks both faces at all six
   // rotations against every possible anchor before accepting an abandonment.
   function hasLegalExplorationPlacement(st, pending) {
-    if (!st || !pending || !pending.tileId || !pending.fromKey) return false;
-    for (const side of ["A", "B"]) {
-      for (let rotation = 0; rotation < 6; rotation++) {
-        for (const anchorKey of Object.keys(st.map.hexes || {})) {
-          if (canPlaceExploration(st, pending.tileId, anchorKey, rotation, side, pending.fromKey)) {
-            return true;
-          }
-        }
-      }
-    }
-    return false;
+    return getLegalExplorationPlacements(st, pending).length > 0;
   }
 
   function findExplorer(player, payload) {
@@ -5729,17 +7421,34 @@ const Game = (() => {
     return null;
   }
 
-  function movementTradeSpent(st, player, cardType, payload) {
+  function sameResourcePayment(a, b) {
+    return RESOURCES.every((resource) =>
+      Number(a && a[resource] || 0) === Number(b && b[resource] || 0));
+  }
+
+  function movementTradePayment(st, player, cardType, payload) {
     const requested = payload.tradeSpent === undefined ? 0 : Number(payload.tradeSpent);
     if (!Number.isInteger(requested) || requested < 0) return null;
+    // Military trade is bid after both combat dice are visible. It is not an
+    // up-front movement purchase. Keeping it out of activeCard also prevents
+    // the old double charge (once in COMBAT_SPEND and again on card reset).
+    if (cardType === "military" && (requested !== 0 ||
+        Object.values(payload.tradeResources || {}).some((count) => Number(count || 0) > 0))) {
+      return null;
+    }
     if (st.activeCard) {
       if (st.activeCard.playerId !== player.id || st.activeCard.cardType !== cardType) return null;
-      const committed = Number(st.activeCard.tradeSpent || 0);
-      if (payload.tradeSpent !== undefined && requested !== committed) return null;
+      const committed = normalizeFocusTradePayment(
+        st.activeCard.tradePayment || st.activeCard.tradeSpent);
+      if (payload.tradeSpent !== undefined && requested !== committed.spent) return null;
+      if (payload.tradeResources !== undefined &&
+          !sameResourcePayment(payload.tradeResources, committed.resources)) return null;
       return committed;
     }
-    if (!canResolveCard(player, cardType) || requested > (player.trade[cardType] || 0)) return null;
-    return requested;
+    if (!canResolveCard(player, cardType)) return null;
+    const payment = validateFocusTradeSpend(st, player, cardType, requested,
+      payload.tradeResources);
+    return payment.ok ? payment : null;
   }
 
   // Route entries are the successive hexes selected by the player. Each leg is
@@ -5770,15 +7479,15 @@ const Game = (() => {
 
   function prepareExplorationMovement(st, player, payload) {
     const found = findExplorer(player, payload);
-    if (!found || found.unit.movedThisCard || found.unit.exploredThisCard) return null;
+    if (!found || found.unit.movedThisCard || found.unit.exploredThisMove) return null;
     const { unit, unitType } = found;
     const cardType = unitType === "caravan" ? "economy" : "military";
-    const tradeSpent = movementTradeSpent(st, player, cardType, payload);
-    if (tradeSpent === null) return null;
+    const tradePayment = movementTradePayment(st, player, cardType, payload);
+    if (!tradePayment) return null;
     const startKey = movementOrigin(st, player, unit, unitType, payload);
     if (!startKey) return null;
     const maxMove = unitType === "caravan"
-      ? getEconomyMove(player, st) + tradeSpent : getMilitaryMove(player, st);
+      ? getEconomyMove(player, st) + tradePayment.spent : getMilitaryMove(player, st);
     const route = validateMovementRoute(st, startKey, payload.fromKey, payload.route,
       maxMove, unitType, player.id);
     if (!route || route.remaining < 1) return null;
@@ -5793,7 +7502,8 @@ const Game = (() => {
       maxMove,
       spentBeforeExplore: route.spent,
       remaining: route.remaining - 1,
-      tradeSpent,
+      tradeSpent: tradePayment.spent,
+      tradePayment,
       status: "pending_tile"
     };
   }
@@ -5816,8 +7526,18 @@ const Game = (() => {
       const explorer = list.find((unit) => unit.id === movement.unitId);
       if (!explorer) return st;
       explorer.position = payload.fromKey;
+      // The restriction attaches to this physical figure and this continuous
+      // move. It is set at the irreversible reveal, remains set through tile
+      // placement and the remaining movement, and is cleared only when that
+      // figure's move actually ends.
+      explorer.exploredThisMove = true;
+      explorer.exploredThisCard = true;
+      explorer.moveInProgress = true;
       st.activeCard = {
-        playerId: player.id, cardType: movement.cardType, tradeSpent: movement.tradeSpent
+        playerId: player.id,
+        cardType: movement.cardType,
+        tradeSpent: movement.tradeSpent,
+        tradePayment: movement.tradePayment
       };
     }
 
@@ -5834,8 +7554,16 @@ const Game = (() => {
       freeRun,
       kind: "map_tile",
       status: "revealed",
+      source: freeRun && st.freeExplore ? st.freeExplore.source || null : null,
+      followUp: freeRun && st.freeExplore ? st.freeExplore.followUp || null : null,
       movementContinuation: movement
     };
+    // Materialise every currently legal footprint before the snapshot reaches
+    // the browser. The canvas can now draw/hover the ghost even when the legal
+    // tile extends beyond the radius that happened to be allocated at setup.
+    const legalCells = getLegalExplorationPlacements(st, st.pendingExploration)
+      .flatMap((placement) => placement.cellKeys || []);
+    if (legalCells.length) ensureMapHexes(st.map, legalCells, 2);
     log(st, `${player.name} revealed a map tile while exploring.`);
     return st;
   }
@@ -5846,7 +7574,13 @@ const Game = (() => {
     if (pending.unitId) {
       const unit = (player.armies || []).concat(player.caravans || [])
         .find((entry) => entry.id === pending.unitId);
-      if (unit) unit.exploredThisCard = true;
+      if (unit) {
+        // Old mid-exploration saves may predate the begin-time marker. Restoring
+        // it here preserves the same per-figure guard through continuation.
+        unit.exploredThisMove = true;
+        unit.exploredThisCard = true;
+        unit.moveInProgress = true;
+      }
     }
     if (pending.freeRun && st.freeExplore && st.freeExplore.playerId === player.id) {
       st.freeExplore = null;
@@ -5858,6 +7592,15 @@ const Game = (() => {
         status: "ready"
       };
     }
+  }
+
+  function apadanaControlSpaces(st, tileId) {
+    return Object.entries(st.map.hexes).filter(([hexKey, hex]) => {
+      if (!hex || !hex.active || hex.tileId !== tileId || hex.terrain === "water") return false;
+      if (hex.city || hex.cityState || hex.control || hex.fortress || hex.barbarian ||
+          hex.resource || hex.naturalWonder) return false;
+      return getUnitsAt(st, hexKey).length === 0;
+    }).map(([hexKey]) => hexKey);
   }
 
   function placePendingExploration(st, payload) {
@@ -5877,6 +7620,21 @@ const Game = (() => {
     const tile = st.tiles[pending.tileId];
     st.pendingExploration = null;
     log(st, `${player ? player.name : "Player"} explored and placed a ${tile ? tile.type : "unknown"} tile.`);
+    if (player && pending.followUp === "apadana_control") {
+      const spots = apadanaControlSpaces(st, pending.tileId);
+      if (spots.length) {
+        queuePendingChoice(st, {
+          kind: "place_control",
+          playerId: player.id,
+          title: "Apadana: Place a Control Token on the New Tile",
+          source: "Apadana",
+          tileId: pending.tileId,
+          hexKeys: spots
+        });
+      } else {
+        log(st, `${player.name}'s newly explored tile has no empty non-water space for Apadana.`);
+      }
+    }
     return st;
   }
 
@@ -5947,7 +7705,7 @@ const Game = (() => {
     if (!tile || tile.placed) return { ok: false };
     const cellKeys = getTileHexKeys(anchorKey, rotation, st.map.hexes);
     if (cellKeys.length !== TILE_OFFSETS.length) return { ok: false };
-    if (cellKeys.some((k) => st.map.hexes[k].active)) return { ok: false };
+    if (cellKeys.some((k) => st.map.hexes[k] && st.map.hexes[k].active)) return { ok: false };
 
     const cellSet = new Set(cellKeys);
     const boardNeighbors = new Set();
@@ -5977,6 +7735,7 @@ const Game = (() => {
     const tile = st.tiles[tileId];
     if (!tile) return;
     const cellKeys = getTileHexKeys(anchorKey, rotation, st.map.hexes);
+    ensureMapHexes(st.map, cellKeys, 2);
     tile.placed = true;
     tile.anchorKey = anchorKey;
     tile.rotation = rotation;
@@ -5992,6 +7751,7 @@ const Game = (() => {
     const waterOk = canCrossWater(player, unitType);
     const terrainLimit = movementTerrainLimit(st, player, unitType);
     const distances = new Map([[startKey, 0]]);
+    const transitOnly = new Set();
     const queue = [{ key: startKey, steps: 0 }];
     while (queue.length) {
       const cur = queue.shift();
@@ -6002,18 +7762,22 @@ const Game = (() => {
         if (!h || !h.active) return;
         if (h.terrain === "water" && !waterOk) return;
         if (h.terrain !== "water" && moveDifficulty(st, h, player, unitType) > terrainLimit) return;
-        if (unitType === "caravan" && h.barbarian) return;
+        if (unitType === "caravan" && h.barbarian &&
+            !caravanCanDefeatBarbarian(player)) return;
         distances.set(nk, cur.steps + 1);
+        if (unitType === "army" && armyCannotEndHere(st, h, playerId)) transitOnly.add(nk);
         if (!isForcedStopHex(st, h, unitType, playerId)) queue.push({ key: nk, steps: cur.steps + 1 });
       });
     }
     distances.delete(startKey);
+    transitOnly.forEach((hexKey) => distances.delete(hexKey));
     return distances;
   }
 
   return {
     TERRAIN, TERRAIN_LABELS, FOCUS_TYPES, FOCUS_LABELS, FOCUS_SLOTS, FOCUS_TRADE_DESC, CARD_NAMES, CARD_ICONS,
     DISTRICTS, DISTRICT_LABELS, DISTRICT_EFFECTS, RESOURCES, EVENTS, EVENT_NAMES, EVENT_LABELS, CFG,
+    NATURAL_WONDER_RESOURCES, WONDER_RESOURCE_ELIGIBILITY,
     WONDERS, ALL_WONDERS, WONDER_ERAS, CARD_TIERS, AGENDA_CARDS, victoryCards, DIPLOMACY_CARDS, CITY_STATE_DATA,
     LEADERS, getLeader, getLeaderAttackBonus, getCardName, getActiveUniqueCard, uniqueInPlay,
     CARD_DEFS, getCardEffectText, syncUnitCounts, advanceTech, TECH_LEVEL_SPACES, resolveEvent, GOVERNMENTS, CIV_STYLE,
@@ -6028,20 +7792,27 @@ const Game = (() => {
     getSlotValue, getSlotIndex, getCardTier, getCardTierValue: getCardTier,
     getMilitaryMove, getEconomyMove, getCultureMarkers, getMilitaryCombatBonus,
     getCityRange, getWonderCost, getWonderToken, getVisibleWonders,
-    combatTotals, combatTokens, combatResources, combatSpendable, combatDefenderRoller,
+    getControlledNaturalWonders, calculateWonderCost, calculateWonderProduction,
+    calculateIndustryCityProduction, validateFocusTradeSpend,
+    hasCityStateDiplomacy, availableDistrictTypes, growthCardProfile,
+    industrialZoneCityOption, placementDifficulty,
+    combatTotals, combatTokens, combatResources, combatPalenqueResources,
+    combatSpendable, combatDefenderRoller,
     launchSpaces, unitStartSpaces,
     canCrossWater, computeScore,
     findDefenders, validControlHexes, validDistrictHexes, validReinforceHexes,
     validCityHexes, validWonderHexes, getReachable, findDefender, getUnitsAt,
     adjacentToCityState, adjacentToFriendlyControl, terrainDifficulty, movementTerrainLimit, isForcedStopHex,
     validateCulturePlacement, validateReinforcePlacement,
+    validateIndustryCityAction,
     countControl, countWonders, countDeveloped, countCities, findCapital,
     getClaimedAgendaCount,
     getValidFortressHexes, getValidTileAnchors, getTileAnchorsAnyRotation, tilePlacementFor, getTileDef,
     tileHasCapital,
-    getTileHexKeys, validateTilePlacement,
+    getTileHexKeys, validateTilePlacement, ensureMapRadius, ensureMapHexes,
     hexNeighborKeys, parseQ, parseR, key, hexDist, rollDie, rotateAxial,
     isExploreEligible, validateExploration, placeExploredTile,
-    hasLegalExplorationPlacement, canAbandonExploration, getReachableWithDist
+    getLegalExplorationPlacements, hasLegalExplorationPlacement,
+    canAbandonExploration, getReachableWithDist
   };
 })();

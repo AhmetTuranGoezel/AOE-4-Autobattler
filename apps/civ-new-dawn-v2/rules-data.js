@@ -183,27 +183,38 @@
   const CARD_DEFS = {
     culture: {
       1: { name: "Early Empire", effectText: "Place 2 control tokens on empty spaces matching this slot's terrain or lower that are adjacent to a friendly city. Taking a space with a resource or natural wonder claims that token.", markers: 2 },
-      2: { name: "Drama and Poetry", effectText: "Place 2 control tokens on empty spaces matching this slot's terrain or lower that are adjacent to a friendly city. Taking a space with a resource or natural wonder claims that token.", markers: 2, effect: "move_control" },
-      3: { name: "Civil Service", effectText: "Place 2 control tokens on empty spaces matching this slot's terrain or lower that are adjacent to a friendly city. Taking a space with a resource or natural wonder claims that token.", markers: 2, effect: "extra_control" },
-      4: { name: "Mass Media", effectText: "Place 3 control tokens on empty spaces matching this slot's terrain or lower that are adjacent to a friendly city. Taking a space with a resource or natural wonder claims that token.", markers: 3, effect: "replace_rival" }
+      2: { name: "Drama and Poetry", effectText: "Place 2 control tokens on spaces matching this slot's terrain or lower that are adjacent to friendly cities. Then, you may move 1 of your control tokens to an adjacent, non-water space that is empty (does not contain a token or plastic figure).", markers: 2,
+        resolution: [
+          { kind: "place_control", count: 2 },
+          { kind: "move_control", distance: 1, optional: true }
+        ] },
+      3: { name: "Civil Service", effectText: "Place 2 control tokens on spaces matching this slot's terrain or lower that are adjacent to friendly cities. Then, place 1 control token on a space matching this slot's terrain or lower that is adjacent to a friendly space.", markers: 2, effect: "extra_control" },
+      4: { name: "Mass Media", effectText: "Place 3 control tokens on spaces matching this slot's terrain or lower that are adjacent to friendly cities. Then, choose a rival control token within 2 spaces of a friendly space. If it is unreinforced, replace it with 1 of your unreinforced control tokens. If it is reinforced, flip it to its unreinforced side.", markers: 3, effect: "replace_rival" }
     },
     growth: {
-      1: { name: "Irrigation", effectText: "Place a district on a space matching this slot's terrain or lower that is adjacent to a friendly city. Or reinforce control tokens up to this slot's number." },
-      2: { name: "Engineering", effectText: "Place a district on a space matching this slot's terrain or lower that is adjacent to a friendly city. Or reinforce control tokens up to this slot's number. You may place a control token near one of your districts.", effect: "control_near_district" },
-      3: { name: "Sanitation", effectText: "Place a district on a space matching this slot's terrain or lower that is adjacent to a friendly city. Or reinforce control tokens up to this slot's number. Reinforce one additional control token.", effect: "extra_reinforce" },
-      4: { name: "Globalization", effectText: "Place a district on a space matching this slot's terrain or lower that is adjacent to a friendly city. Or reinforce control tokens up to this slot's number. Your district abilities reach anywhere on the map.", effect: "global_district" }
+      1: { name: "Irrigation", effectText: "Place a district on a space matching this slot's terrain or lower that is adjacent to a friendly city. Or, reinforce a number of your control tokens up to this slot's number.",
+        resolution: { mode: "choice", options: ["place_district", "reinforce"] } },
+      2: { name: "Engineering", effectText: "Place a district on a space matching this slot's terrain or lower that is adjacent to a friendly city. Then, place 1 control token on a space matching this slot's terrain or lower that is adjacent to a friendly district. Or, reinforce a number of your control tokens up to this slot's number.",
+        resolution: { mode: "choice", options: [
+          { kind: "sequence", steps: ["place_district", "control_near_district"] },
+          "reinforce"
+        ] } },
+      3: { name: "Sanitation", effectText: "Place a district on a space matching this slot's terrain or lower that is adjacent to a friendly city. Then, reinforce a number of your control tokens up to this slot's number.",
+        resolution: { mode: "sequence", steps: ["place_district", "reinforce"] } },
+      4: { name: "Globalization", effectText: "Place a district on a space matching this slot's terrain or lower that is adjacent to a friendly city. Then, choose a type of district. Each player that has a district of that type on the map resolves its effect. Then, reinforce a number of your control tokens up to this slot's number.",
+        resolution: { mode: "sequence", steps: ["place_district", "resolve_chosen_district_type", "reinforce"] } }
     },
     science: {
       1: { name: "Astrology", effectText: "Advance the arrow on your tech dial a number of spaces equal to this slot's number. Reaching a tech level lets you swap in a focus card of that level." },
-      2: { name: "Mathematics", effectText: "Advance the arrow on your tech dial a number of spaces equal to this slot's number. Reaching a tech level lets you swap in a focus card of that level. Gain one extra trade token.", effect: "bonus_trade" },
-      3: { name: "Replaceable Parts", effectText: "Advance the arrow on your tech dial a number of spaces equal to this slot's number. Reaching a tech level lets you swap in a focus card of that level. Gain one resource of your choice.", effect: "bonus_resource" },
-      4: { name: "Nuclear Power", effectText: "Advance the arrow on your tech dial a number of spaces equal to this slot's number. Reaching a tech level lets you swap in a focus card of that level. You may remove a rival city and the control tokens around it.", effect: "nuke" }
+      2: { name: "Mathematics", effectText: "Place 1 trade token from the supply on 1 of your focus cards. Then, advance your tech dial a number of spaces equal to this slot's number.", effect: "bonus_trade" },
+      3: { name: "Replaceable Parts", effectText: "Gain 1 resource of your choice from the supply. You cannot gain a resource of a type that you already have. Then, advance your tech dial a number of spaces equal to this slot's number.", effect: "bonus_resource" },
+      4: { name: "Nuclear Power", effectText: "If you resolved this card in the fifth slot, choose 1 space. In that space and all adjacent spaces, destroy all unreinforced control tokens and flip all reinforced control tokens to their unreinforced side. Then, advance your tech dial a number of spaces equal to this slot's number.", effect: "nuke" }
     },
     economy: {
       1: { name: "Foreign Trade", effectText: "Move each of your caravans up to 3 spaces, onto terrain matching this slot or lower. Reaching a city-state or rival city returns the caravan to this card and earns 2 trade tokens and a diplomacy card.", figures: "1 caravan", move: 3, caravans: 1 },
-      2: { name: "Currency", effectText: "Move each of your caravans up to 4 spaces, onto terrain matching this slot or lower. Reaching a city-state or rival city returns the caravan to this card and earns 2 trade tokens and a diplomacy card.", figures: "2 caravans", move: 4, caravans: 2, effect: "remove_barbarian" },
-      3: { name: "Steam Power", effectText: "Move each of your caravans up to 6 spaces, onto terrain matching this slot or lower, and across water. Reaching a city-state or rival city returns the caravan to this card and earns 2 trade tokens and a diplomacy card.", figures: "2 caravans", move: 6, caravans: 2, water: true, effect: "exchange_resource" },
-      4: { name: "Capitalism", effectText: "Move each of your caravans up to 6 spaces, onto terrain matching this slot or lower, and across water. Reaching a city-state or rival city returns the caravan to this card and earns 2 trade tokens and a diplomacy card.", figures: "3 caravans", move: 6, caravans: 3, water: true, effect: "resolve_extra" }
+      2: { name: "Currency", effectText: "Move each of your caravans up to 4 spaces. They can move into spaces matching this slot's terrain or lower. Your caravans can move into a barbarian's space; remove that barbarian without gaining a trade token and end that caravan's movement.", figures: "2 caravans", move: 4, caravans: 2, effect: "remove_barbarian" },
+      3: { name: "Steam Power", effectText: "Move each of your caravans up to 6 spaces. They can move into spaces matching this slot's terrain or lower, as well as water. Then, you may exchange 1 of your resource tokens with another resource token of any type from the supply.", figures: "2 caravans", move: 6, caravans: 2, water: true, effect: "exchange_resource" },
+      4: { name: "Capitalism", effectText: "Move each of your caravans up to 6 spaces. They can move into spaces matching this slot's terrain or lower, as well as water. Once per turn, after you reset this card, choose another card in your focus row. Resolve that card as though it is in the first slot, but do not reset it.", figures: "3 caravans", move: 6, caravans: 3, water: true, effect: "resolve_extra" }
     },
     // Read off the printed Terra cards in assets/tts-web/cards/focus/. Terra p2
     // removes ALL base military cards and replaces them, and these carried the
@@ -218,11 +229,71 @@
     },
     industry: {
       1: { name: "Pottery", effectText: "Build 1 world wonder, contributing production equal to this slot's number. Or build 1 city on a legal space matching this slot's terrain or lower, within 2 spaces of a friendly space. A city must be founded on a space holding your own caravan or control token.", cityRange: 2 },
-      2: { name: "Animal Husbandry", effectText: "Build 1 world wonder, contributing production equal to this slot's number. Or build 1 city on a legal space matching this slot's terrain or lower, within 3 spaces of a friendly space. A city must be founded on a space holding your own caravan or control token.", cityRange: 3, effect: "build_on_unit" },
+      2: { name: "Animal Husbandry", effectText: "Build 1 world wonder; production equals this slot's number. Or, build 1 city on a legal space of this slot's terrain or lower within 3 spaces of a friendly space. Or, build 1 city on a legal space containing a friendly caravan or army, then return that figure to its focus card.", cityRange: 3, effect: "build_on_unit" },
       3: { name: "Nationalism", effectText: "Build 1 world wonder, contributing production equal to this slot's number. Or build 1 city on a legal space matching this slot's terrain or lower, within 4 spaces of a friendly space. A city must be founded on a space holding your own caravan or control token.", cityRange: 4, water: true, wonderSlot5Production: 7 },
-      4: { name: "Urbanization", effectText: "Build 1 world wonder, contributing production equal to this slot's number. Or build 1 city on a legal space matching this slot's terrain or lower, within 5 spaces of a friendly space. A city must be founded on a space holding your own caravan or control token.", cityRange: 5, water: true, effect: "control_after_city" }
+      4: { name: "Urbanization", effectText: "Build 1 world wonder; production equals this slot's number. Or, build 1 city on a legal space of this slot's terrain or lower within 5 spaces of a friendly space; you can count through water. Then, if you built a city, place up to 2 control tokens adjacent to that city on spaces matching this slot's terrain or lower.", cityRange: 5, water: true, effect: "control_after_city" }
     }
   };
+
+  // Natural-wonder filenames in the TTS mod are not a reliable resource tag:
+  // several sit in a folder named for a different resource. These values were
+  // read from the icon printed on each physical token face. There are exactly
+  // three of every resource type in the combined game.
+  const NATURAL_WONDER_RESOURCES = Object.freeze({
+    "Mt Kilimanjaro": "oil",
+    "Mount Everest": "oil",
+    Gobustan: "oil",
+    "Ha Long Bay": "diamonds",
+    "Grand Mesa": "diamonds",
+    "Torres del Paine": "diamonds",
+    "Galapagos Islands": "mercury",
+    "Mato Tipila": "mercury",
+    "Crater Lake": "mercury",
+    "Cliffs of Dover": "marble",
+    "Dead Sea": "marble",
+    Pantanal: "marble"
+  });
+
+  // The two resource icons printed at the lower-right of every wonder card.
+  // A resource may contribute production only when its type appears here.
+  const WONDER_RESOURCE_ELIGIBILITY = Object.freeze({
+    "Jebel Barkal": ["oil", "mercury"],
+    Petra: ["oil", "diamonds"],
+    "Terracotta Army": ["oil", "marble"],
+    "Huey Teocalli": ["oil", "mercury"],
+    "Venetian Arsenal": ["oil", "diamonds"],
+    Alhambra: ["oil", "marble"],
+    "Ruhr Valley": ["oil", "mercury"],
+    "Statue of Liberty": ["oil", "marble"],
+    Pentagon: ["oil", "diamonds"],
+    Stonehenge: ["marble", "mercury"],
+    "Hanging Gardens": ["marble", "diamonds"],
+    Colosseum: ["marble", "oil"],
+    "Taj Mahal": ["marble", "diamonds"],
+    "Forbidden City": ["marble", "oil"],
+    "Chichen Itza": ["marble", "mercury"],
+    "Sydney Opera House": ["marble", "diamonds"],
+    "Cristo Redentor": ["marble", "mercury"],
+    "Eiffel Tower": ["marble", "oil"],
+    Colossus: ["diamonds", "oil"],
+    "Great Lighthouse": ["diamonds", "mercury"],
+    Apadana: ["diamonds", "marble"],
+    "Kilwa Kisiwani": ["diamonds", "marble"],
+    "Great Zimbabwe": ["diamonds", "oil"],
+    "Machu Picchu": ["diamonds", "mercury"],
+    "Big Ben": ["diamonds", "mercury"],
+    "Estadio Do Maracana": ["diamonds", "marble"],
+    Orszaghaz: ["diamonds", "oil"],
+    Oracle: ["mercury", "marble"],
+    "Great Library": ["mercury", "diamonds"],
+    Pyramids: ["mercury", "oil"],
+    "University of Sankore": ["mercury", "oil"],
+    "Porcelain Tower": ["mercury", "diamonds"],
+    "Potala Palace": ["mercury", "marble"],
+    "Oxford University": ["mercury", "marble"],
+    "Amundsen-Scott Research Station": ["mercury", "diamonds"],
+    Kremlin: ["mercury", "oil"]
+  });
 
   // World wonders. `effect` is the printed card text (from the Terra Incognita
   // player reference). `auto: true` marks the ones the engine enforces on its
@@ -246,9 +317,7 @@
       { name: "Ruhr Valley", era: "modern", cost: 11, auto: true,
         effect: "When defending, increase your combat value by 5." },
       { name: "Statue of Liberty", era: "modern", cost: 12, auto: true,
-        effect: "Before you replace a rival city with 1 of your cities, replace all rival control tokens that are adjacent to that rival city with your unused, unreinforced control tokens." },
-      { name: "Pentagon", era: "modern", cost: 12, auto: true,
-        effect: "When attacking, increase your combat value by 2. Your armies can move any number of spaces. (They must still obey all other movement rules.)" }
+        effect: "Before you replace a rival city with 1 of your cities, replace all rival control tokens that are adjacent to that rival city with your unused, unreinforced control tokens." }
     ],
     culture: [
       { name: "Stonehenge", era: "ancient", cost: 7, auto: true,
@@ -276,13 +345,15 @@
       { name: "Great Lighthouse", era: "ancient", cost: 8, auto: true,
         effect: "When building cities, you can build in empty spaces on the edge of the map as if they were within 2 spaces of a friendly space." },
       { name: "Apadana", era: "ancient", cost: 8, auto: true,
-        effect: "When you build or capture this wonder, choose an edge space on any tile. Explore from that space." },
+        effect: "When you build or capture this wonder, choose an edge space on any tile. Explore from that space. Then, if you placed a tile, place 1 control token on an empty space on that tile.",
+        resolution: [
+          { kind: "explore_from_any_tile_edge" },
+          { kind: "place_control_on_explored_tile", condition: "tile_placed" }
+        ] },
       { name: "Kilwa Kisiwani", era: "medieval", cost: 9, auto: true,
         effect: "When you move a caravan to a city-state, place 1 additional trade token from the supply on any 1 of your focus cards." },
       { name: "Great Zimbabwe", era: "medieval", cost: 9, auto: true,
         effect: "You can place trade tokens on this card instead of on your focus cards, up to a limit of 4. At the start of your turn, you may move trade tokens from this card to cards in your focus row." },
-      { name: "Machu Picchu", era: "medieval", cost: 10, auto: true,
-        effect: "When you resolve the card in the first or second slot of your focus row, resolve it as though it is 2 slots farther to the right." },
       { name: "Big Ben", era: "modern", cost: 10, auto: true,
         effect: "When attacking or defending, increase your combat value by +2 for each of your caravans adjacent to the defending space." },
       { name: "Estadio Do Maracana", era: "modern", cost: 10, auto: true,
@@ -312,19 +383,64 @@
     ]
   };
 
+  // Attach the printed resource eligibility to the executable wonder objects,
+  // so references, affordability previews and the authoritative action all use
+  // the same data instead of maintaining parallel name checks.
+  Object.values(WONDER_DECKS).forEach((deck) => {
+    deck.forEach((wonder) => {
+      wonder.eligibleResources = (WONDER_RESOURCE_ELIGIBILITY[wonder.name] || []).slice();
+    });
+  });
+
   const CITY_STATES = {
-    Carthage: { type: "military", diplomacy: "Combat bonus near city-states and friendly cities." },
-    Kumasi: { type: "culture", diplomacy: "Forests count as difficulty 1 for industry/culture." },
-    Brussels: { type: "industry", diplomacy: "Wonder cost reduced by mature cities." },
-    Seoul: { type: "science", diplomacy: "Start of turn: move a barbarian." },
-    "Buenos Aires": { type: "industry", diplomacy: "Wonder cost -2 if no same-type wonder." },
-    Kabul: { type: "military", diplomacy: "+3 attack vs cities and city-states." },
-    Geneva: { type: "science", diplomacy: "Start of turn: swap a diplomacy card." },
-    "Mohenjo Daro": { type: "culture", diplomacy: "Control placement terrain difficulty reduced by 1." },
-    Auckland: { type: "industry", diplomacy: "City building treats adjacent-water terrain as 1." },
-    Akkad: { type: "military", diplomacy: "Armies can move through rival control." },
-    Antananarivo: { type: "culture", diplomacy: "Treat Antananarivo as your city during your turn." },
-    Palenque: { type: "science", diplomacy: "Spend resources as trade tokens." }
+    Carthage: {
+      type: "military", effectId: "carthage_combat",
+      diplomacy: "When defending or when attacking a target other than Carthage, increase your combat value by 1 for each city-state token and friendly city within 2 spaces of the defending space."
+    },
+    Kumasi: {
+      type: "culture", effectId: "kumasi_forest",
+      diplomacy: "When resolving your industry or culture focus card, the terrain difficulty of forest spaces is 1."
+    },
+    Brussels: {
+      type: "industry", effectId: "brussels_wonder_cost",
+      diplomacy: "When you are building a wonder, reduce its cost by 1 for each of your mature cities."
+    },
+    Seoul: {
+      type: "science", effectId: "seoul_barbarian",
+      diplomacy: "At the start of your turn, you may move 1 barbarian to an adjacent non-water empty space."
+    },
+    "Buenos Aires": {
+      type: "industry", effectId: "buenos_aires_wonder_cost",
+      diplomacy: "When you are building a wonder, reduce its cost by 2 if you do not already have a wonder of that type."
+    },
+    Kabul: {
+      type: "military", effectId: "kabul_attack",
+      diplomacy: "When attacking a city or city-state other than Kabul, increase your combat value by 3."
+    },
+    Geneva: {
+      type: "science", effectId: "geneva_swap_diplomacy",
+      diplomacy: "At the start of your turn, you may return 1 diplomacy card you have taken from another player. If you do, choose and take a different diplomacy card from that player."
+    },
+    "Mohenjo Daro": {
+      type: "culture", effectId: "mohenjo_control_difficulty",
+      diplomacy: "When placing control tokens, reduce the terrain difficulty of all spaces by 1."
+    },
+    Auckland: {
+      type: "industry", effectId: "auckland_city_building",
+      diplomacy: "When building a city, you can count through water spaces, and the terrain difficulty of all spaces adjacent to water is 1."
+    },
+    Akkad: {
+      type: "military", effectId: "akkad_movement",
+      diplomacy: "Your armies can move through spaces containing rival control tokens."
+    },
+    Antananarivo: {
+      type: "culture", effectId: "antananarivo_city",
+      diplomacy: "During your turn, Antananarivo is treated as one of your cities and not as a city-state. Your armies cannot end their movement in Antananarivo's space."
+    },
+    Palenque: {
+      type: "science", effectId: "palenque_resource_trade",
+      diplomacy: "When resolving a focus card, you may spend resource tokens (not natural wonder tokens) as trade tokens on that card."
+    }
   };
 
   // The four player diplomacy cards. Each player holds one set; a caravan
@@ -562,6 +678,8 @@
     TILE_OFFSETS,
     CARD_DEFS,
     WONDER_DECKS,
+    WONDER_RESOURCE_ELIGIBILITY,
+    NATURAL_WONDER_RESOURCES,
     CITY_STATES,
     DIPLOMACY_CARDS,
     AGENDA_CARDS,

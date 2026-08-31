@@ -478,6 +478,21 @@ input, select {
 .pending-options {
   flex-wrap: wrap;
 }
+/* An option the rules currently forbid: shown, so the player can see the choice
+   exists and why it is closed, but not clickable. */
+.pending-option.option-unavailable {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: saturate(0.4);
+}
+.pending-option .opt-why {
+  display: block;
+  margin-top: 2px;
+  font-size: 9px;
+  font-style: italic;
+  opacity: 0.85;
+  white-space: normal;
+}
 /* A technology level grants one of the printed focus cards. Make that choice
    visual instead of presenting six indistinguishable type labels. */
 .pending-options.with-preview {
