@@ -2663,7 +2663,29 @@ const UI = (() => {
     const continuation = state.movementContinuation;
     if (continuation && continuation.playerId === localPlayerId && sub.phase === "idle") {
       setSubFromMovementContinuation(continuation);
+      return;
     }
+
+    // A fight ends with the card still open: unitsLeftToMove keeps activeCard
+    // set while the player's other figures are still waiting on it.
+    // nextUnitOrFinish bails out while state.combat is set, and nothing calls
+    // it again once the fight resolves - so sub stayed "idle", and an idle
+    // panel reading "resolve a focus card below" is a dead end when the focus
+    // row is disabled by that very card. Rebuild the picker from the card the
+    // engine says is still open.
+    const card = state.activeCard;
+    const mine = card && card.playerId === localPlayerId;
+    const movementCard = mine && (card.cardType === "economy" || card.cardType === "military");
+    if (!movementCard || sub.phase !== "idle" || state.combat || state.pendingBarbReward) return;
+    if ((state.pendingChoices || []).some((choice) => choice.playerId === localPlayerId)) return;
+    const me = Game.getPlayer(state, localPlayerId);
+    const list = card.cardType === "economy" ? (me && me.caravans) : (me && me.armies);
+    if (!Array.isArray(list) || !list.some((unit) => !unit.movedThisCard)) return;
+    sub.phase = card.cardType === "economy" ? "move_caravan" : "move_army";
+    sub.cardType = card.cardType;
+    sub.selectedUnit = null;
+    sub.movementState = null;
+    sub.validHexes = new Set();
   }
 
   function continueFromAuthoritativeExploration() {
@@ -3347,8 +3369,12 @@ const UI = (() => {
       return;
     }
     // Nothing left to decide, so the finished fight's result panel can have the
-    // screen to itself until the turn ends.
-    if (state.lastCombat) { dom.wizard.innerHTML = ""; return; }
+    // screen to itself — but only while it is actually up. It used to test
+    // state.lastCombat, which END_TURN alone clears, so the wizard went blank
+    // for the whole rest of the turn after any attack. With the focus row also
+    // disabled by the still-open card, that left no control anywhere on screen:
+    // no way to move your other army, and no End Turn button either.
+    if (combatResultOnScreen()) { dom.wizard.innerHTML = ""; return; }
     if (sub.phase === "idle") { renderIdleWizard(isMyTurn, cp, me); }
     else if (sub.phase === "card_selected") { renderCardSelected(me); }
     else if (sub.phase === "placing_control") { renderPlacingControl(); }
@@ -3987,16 +4013,26 @@ const UI = (() => {
     return `<span class="die-pips" aria-hidden="true">${pips}</span>`;
   }
 
+  // st.lastCombat is cleared only by END_TURN, so it stays set for the whole
+  // rest of the turn after a fight. "Continue" on the result panel dismisses it
+  // locally instead. Anything that wants to know whether the fight is still
+  // ON SCREEN has to ask that, not the raw flag - using the flag meant the
+  // wizard stayed blank and the focus row stayed disabled until the turn ended.
+  function combatResultKey(c) {
+    return c ? [c.attacker, c.defender, c.toKey, c.atkRoll, c.defRoll, c.atkTotal, c.defTotal].join("|") : null;
+  }
+  function combatResultOnScreen() {
+    if (!state || state.combat) return false;
+    const c = state.lastCombat;
+    return !!c && combatResultKey(c) !== dismissedCombatKey;
+  }
+
   function renderCombatStage() {
     const stage = dom.combatStage;
     if (!stage) return;
     const live = state.combat && state.combat.turn !== "done" ? state.combat : null;
     const candidateDone = !live && state.lastCombat ? state.lastCombat : null;
-    const doneKey = candidateDone
-      ? [candidateDone.attacker, candidateDone.defender, candidateDone.toKey,
-        candidateDone.atkRoll, candidateDone.defRoll, candidateDone.atkTotal,
-        candidateDone.defTotal].join("|")
-      : null;
+    const doneKey = combatResultKey(candidateDone);
     const done = candidateDone && doneKey !== dismissedCombatKey ? candidateDone : null;
     if (!live && !done) {
       stage.classList.add("hidden");
@@ -4362,9 +4398,33 @@ const UI = (() => {
       <div class="wiz-title">Move ${unitType === "caravan" ? "Caravan" : "Army"}${remaining}</div>
       <div class="wiz-body">${hint}${left > 1 ? `<br><span class="wiz-note">${left} still to move on this card.</span>` : ""}</div>
       <div class="wiz-actions">
+        ${canFinishCard(selectingUnit) ? `<button class="primary" id="wiz-finish-card">Done with card</button>` : ""}
         ${canCancelMovement() ? `<button class="ghost" id="wiz-cancel6">${cardOpen ? "Back to unit choice" : "Cancel"}</button>` : ""}
       </div>`;
     document.getElementById("wiz-cancel6")?.addEventListener("click", cancelAction);
+    document.getElementById("wiz-finish-card")?.addEventListener("click", async () => {
+      const result = await dispatch({ type: "END_FOCUS_CARD", payload: { playerId: localPlayerId } });
+      if (result && result.status !== "accepted") return;   // toast already shown
+      resetSub();
+    });
+  }
+
+  // Base p6 is choose, resolve, reset - it does not require you to move every
+  // figure the card allows, so a card with figures still waiting on it has to
+  // be finishable. END_FOCUS_CARD does exactly that when a card is open.
+  //
+  // The old "Done with card" was removed because its condition made it appear
+  // in the one state where the engine refuses it: mid-exploration, where the
+  // continuation gate permits only the move/attack/end-move actions. So this
+  // asks for the opposite - a card that is open, with no committed movement and
+  // no continuation outstanding, which is precisely the unit-picker state.
+  function canFinishCard(selectingUnit) {
+    if (!state || !selectingUnit) return false;
+    if (state.movementContinuation || state.combat) return false;
+    const card = state.activeCard;
+    if (!card || card.playerId !== localPlayerId) return false;
+    const ms = sub.movementState;
+    return !(ms && ms.route && ms.route.length);
   }
 
   // Cancel only means something while nothing has been committed. Once a step
@@ -5943,7 +6003,7 @@ const UI = (() => {
     // card kept unitsLeftToMove above zero. Picking a different card then
     // vanished silently, because the engine drops any PLAY_ that does not match
     // the card in progress.
-    const resolving = !!(state.combat || state.lastCombat ||
+    const resolving = !!(state.combat || combatResultOnScreen() ||
       (state.activeCard && state.activeCard.playerId === localPlayerId) ||
       state.pendingExploration || state.movementContinuation ||
       (state.pendingChoices && state.pendingChoices.length) || state.pendingBarbReward);
