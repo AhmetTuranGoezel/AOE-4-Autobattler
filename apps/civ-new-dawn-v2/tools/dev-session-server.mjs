@@ -16,7 +16,7 @@ import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createSessionService, SessionError } from "../../../netlify/lib/civ-session-core.mjs";
+import { createSessionService, SessionError } from "../../../netlify/functions/civ-session-core.mjs";
 
 const PORT = Number(process.argv[2] || 8971);
 // fileURLToPath, not url.pathname: this repo lives under "VSCode Stuff", and a
