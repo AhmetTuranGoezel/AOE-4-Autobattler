@@ -3037,6 +3037,22 @@ const UI = (() => {
       undoBtn.classList.toggle("undo-ready", !!undo.canUndo);
       undoBtn.title = undo.reason || "Undo current turn";
     }
+    // START_GAME refuses until every player is ready, and SET_READY has exactly
+    // one caller: this button. It ships with `hidden` on it in index.html and
+    // nothing ever took that off, so nobody could ever mark ready and no
+    // multiplayer game could be started at all. It belongs to the lobby, so it
+    // appears there and says which way it will flip.
+    const readyBtn = document.getElementById("btn-ready");
+    if (readyBtn) {
+      const me = Game.getPlayer(state, localPlayerId);
+      const show = state.phase === "lobby" && !!me && isNetworkGame();
+      readyBtn.classList.toggle("hidden", !show);
+      if (show) {
+        readyBtn.textContent = me.ready ? "✓ Ready" : "Ready";
+        readyBtn.classList.toggle("primary", !me.ready);
+        readyBtn.title = me.ready ? "Click to withdraw your ready mark" : "Mark yourself ready to start";
+      }
+    }
     if (state.phase === "lobby") {
       dom.hdrRound.textContent = "Lobby";
       dom.hdrTurn.textContent = `${state.players.length}/${Game.CFG.maxPlayers} players`;

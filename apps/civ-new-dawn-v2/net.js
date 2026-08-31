@@ -375,7 +375,21 @@ function createCivNet(dependencies) {
     }
     if ((clientConnection && clientConnection.open) || connectingConnection) return;
     let connection;
-    try { connection = peer.connect(credentials.hostPeerId, { reliable: true, serialization: "json" }); }
+    // PeerJS's default "binary" serialization, deliberately, because it is the
+    // only one that CHUNKS. The connection carries whole game states: the map
+    // alone is ~64KB in a fresh lobby, and the welcome that follows a join is
+    // ~68KB. Under serialization: "json" PeerJS hands that to the data channel
+    // as a single message, and anything much over 16KB is dropped in silence -
+    // the channel stays open, send() reports success, and nothing arrives.
+    //
+    // That is why joining never worked. The host authenticated the seat, ran
+    // ADD_PLAYER, reached revision 1 and sent the welcome; the joiner sat in
+    // "handshaking" forever because the one message it needed was the one too
+    // big to survive. Small messages - hello, ping, chat - crossed fine, which
+    // is what made it look like a stalled handshake rather than a size limit.
+    // The serialization is negotiated from here, so this one option fixes both
+    // directions and every message type.
+    try { connection = peer.connect(credentials.hostPeerId, { reliable: true }); }
     catch (error) { scheduleReconnect(error && error.message || "connect_failed"); return; }
     connectingConnection = connection;
     attachClientConnection(connection, lifecycleGeneration);

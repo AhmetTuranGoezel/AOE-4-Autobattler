@@ -83,6 +83,7 @@ class FakeHub {
     this.counter = 0;
     this.links = [];
     this.messages = [];
+    this.connectOptions = [];
     const hub = this;
     this.Peer = class FakePeer extends Emitter {
       constructor(idOrOptions) {
@@ -93,7 +94,8 @@ class FakeHub {
         hub.peers.set(this.id, this);
         queueMicrotask(() => this.emit("open", this.id));
       }
-      connect(targetId) {
+      connect(targetId, options) {
+        hub.connectOptions.push(options || null);
         const target = hub.peers.get(targetId);
         const client = new FakeConnection(hub, this.id, targetId);
         if (!target || target.destroyed) {
@@ -354,12 +356,89 @@ async function reconnectScheduleSuite() {
   client.leaveRoom();
 }
 
+// A joining client never got into the game: the host authenticated the seat,
+// ran ADD_PLAYER and sent its welcome, and the joiner sat in "handshaking"
+// forever. The welcome carries the whole state view - the map alone is ~64KB in
+// a fresh lobby - and the connection was opened with serialization: "json",
+// which hands that to the WebRTC data channel as ONE message. Anything much
+// over 16KB is dropped in silence: the channel stays open, send() reports
+// success, and nothing arrives. Small messages (hello, ping, chat) crossed
+// fine, which is exactly why it looked like a stalled handshake.
+//
+// PeerJS only chunks under its default "binary" serialization. The size limit
+// itself cannot be reproduced against a fake data channel, so what is pinned
+// here is the option that caused it.
+async function largePayloadSerializationSuite() {
+  const hub = new FakeHub();
+  const clock = new FakeClock();
+  const deps = { Peer: hub.Peer, clock, random: () => 0.5 };
+  const host = createCivNet(deps);
+  const client = createCivNet(deps);
+  host.init({});
+  client.init({});
+
+  host.createRoom({
+    gameId: "game-size-0001", seatId: "seat-host", seatToken: "tok-host-000000000000",
+    hostPeerId: "game-size-0001", peerId: "game-size-0001", revision: 0,
+    profile: { name: "Host", color: "#111111" }, seatTokens: { "seat-host": "tok-host-000000000000" }
+  }, () => {});
+  await flush();
+  client.joinRoom({
+    hostPeerId: "game-size-0001", gameId: "game-size-0001",
+    seatId: "seat-guest", seatToken: "tok-guest-00000000000",
+    lastRevision: 0, profile: { name: "Guest", color: "#222222" }
+  }, () => {});
+  await flush();
+
+  assert.ok(hub.connectOptions.length > 0, "the client should have dialled the host");
+  const forced = hub.connectOptions.filter(Boolean)
+    .map((options) => options.serialization)
+    .filter((value) => value !== undefined);
+  assert.deepEqual(forced, [],
+    "the client must not pin a serialization: PeerJS only chunks large messages " +
+    "under its default 'binary' mode, and a welcome carrying the map is far over " +
+    "the single-message limit. Found: " + JSON.stringify(forced));
+  host.leaveRoom();
+  client.leaveRoom();
+}
+
+// This runner used to exit 0 while printing nothing at all: protocolSuite hangs
+// on `await slowPromise`, so the final log was never reached and node simply
+// ran out of work. An exit code of 0 therefore meant "nothing crashed", not
+// "the assertions passed" - and it was being read as the latter. The watchdog
+// makes an unfinished run a loud failure.
+const WATCHDOG_MS = 20_000;
+let finished = false;
+let running = "(none)";
+const watchdog = setTimeout(() => {
+  if (finished) return;
+  console.error(`net-protocol-test: TIMED OUT in ${running}.`);
+  console.error("  protocolSuite hangs on `await slowPromise` (line ~264): an action");
+  console.error("  submitted immediately before a disconnect never settles for the client");
+  console.error("  after it reconnects and the host dedupes the resend. That is a real");
+  console.error("  defect in the pending-action path, not a defect in this harness.");
+  process.exit(1);
+}, WATCHDOG_MS);
+
+async function run(name, suite) {
+  running = name;
+  await suite();
+  console.log(`net-protocol-test: ${name} OK`);
+}
+
 (async () => {
-  await protocolSuite();
-  await takeoverAuthenticationSuite();
-  await reconnectScheduleSuite();
+  // Runs first, so a hang later in the file cannot quietly skip it.
+  await run("large-payload serialization", largePayloadSerializationSuite);
+  await run("protocol", protocolSuite);
+  await run("takeover authentication", takeoverAuthenticationSuite);
+  await run("reconnect schedule", reconnectScheduleSuite);
+  finished = true;
+  clearTimeout(watchdog);
   console.log("net-protocol-test: all assertions passed");
 })().catch((error) => {
+  finished = true;
+  clearTimeout(watchdog);
+  console.error(`net-protocol-test: FAILED in ${running}`);
   console.error(error);
   process.exitCode = 1;
 });
