@@ -926,6 +926,33 @@
       }
 
       {
+        // Base p9: "The player cannot move more than one caravan to the same
+        // city or city-state during the same turn." That was checked AFTER the
+        // caravan had already been moved, so the second one teleported onto the
+        // city, gained nothing, and the action still reported success.
+        const st = rulesState();
+        const me = st.players[0], foe = st.players[1];
+        st.turn.index = st.turn.order.indexOf(me.id);
+        me.cardPlayed = false;
+        me.focusRow = ["culture", "science", "growth", "economy", "military", "industry"];
+        activate(st, "0,0", { city: { ownerId: me.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
+        activate(st, "1,0", { terrain: "grass", cityState: { name: "Test State", type: "culture" } });
+        me.caravans = [{ id: "c1", position: null }, { id: "c2", position: null }];
+
+        const first = Game.tryApplyAction(st, { type: "PLAY_ECONOMY", payload: {
+          unitId: "c1", toKey: "1,0", tradeSpent: 0 } }, { actorId: me.id, role: "player" });
+        assert("the first caravan trades with the city-state", first.accepted, first.code);
+
+        const second = Game.tryApplyAction(first.state, { type: "PLAY_ECONOMY", payload: {
+          unitId: "c2", toKey: "1,0", tradeSpent: 0 } }, { actorId: me.id, role: "player" });
+        assert("a second caravan to the same city-state is refused",
+          !second.accepted && second.code === "city_already_traded", second.code);
+        const stranded = second.state.players[0].caravans.find((u) => u.id === "c2");
+        assert("and it did not move there anyway", stranded.position !== "1,0",
+          String(stranded.position));
+      }
+
+      {
         // Terra p9, the printed district effects. Four of the five were wrong:
         // three are a CHOICE of one of two options and were fused into a single
         // always-on effect, the "friendly space" test was missing, the counts

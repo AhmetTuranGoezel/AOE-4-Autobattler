@@ -339,7 +339,13 @@ const UI = (() => {
       move_caravan: "Click your caravan, then a green hex. Visit city-states to gain trade tokens.",
       choosing_district: "Select a district type to build on your controlled hex.",
       industry_choice: "Choose to build a city or a wonder with your production.",
-      exploring: "Use R to rotate, F to flip. Click a valid hex to place the tile.",
+      // The phases are move_army_exploring / move_caravan_exploring /
+      // free_exploring, so a bare "exploring" key never matched and this help
+      // never appeared. Q and E/R turn the tile, F or the middle mouse button
+      // turns it over.
+      move_army_exploring: "Q/E turn the tile, F or middle-click flips it. Click a green hex to place it.",
+      move_caravan_exploring: "Q/E turn the tile, F or middle-click flips it. Click a green hex to place it.",
+      free_exploring: "Q/E turn the tile, F or middle-click flips it. Click a green hex to place it.",
       growth_choice: "Choose a hex near your city to build a district or fortify.",
       waiting: "Waiting for other player's turn..."
     };
@@ -2682,6 +2688,9 @@ const UI = (() => {
   // spin it round or turn it over. The card redraws at the new angle and side,
   // and so does the ghost on the board — they read the same two variables.
   let pendingCardMove = null;
+  // Which revealed tile has already been sent back for having nowhere to go, so
+  // a repaint mid-round-trip cannot send it twice.
+  let autoDiscardedTile = null;
 
   function turnTile(step) {
     sub.tileRotation = (sub.tileRotation + step + 6) % 6;
@@ -2697,8 +2706,11 @@ const UI = (() => {
 
   function onKeyDown(e) {
     if (e.key === "Escape") {
-      // Always a way back out, from any half-finished action.
-      if (sub.phase !== "idle") { e.preventDefault(); cancelAction(); }
+      // A way back out of any half-finished action - but not out of one that is
+      // no longer local. Once a step has been walked or the engine holds a
+      // continuation, cancelling only desyncs the board from the engine, so Esc
+      // is held to the same rule as the Cancel button.
+      if (sub.phase !== "idle" && canCancelMovement()) { e.preventDefault(); cancelAction(); }
       return;
     }
     if (!placingTile()) return;
@@ -4229,17 +4241,24 @@ const UI = (() => {
         <button class="primary" id="wiz-start">Start Action</button>
         <button class="ghost" id="wiz-cancel">Cancel</button>
       </div>
-      <div class="wiz-actions"><button class="ghost sm" id="wiz-nothing"
-        title="Resolve and reset this card without doing anything. It still counts as your turn's card.">Resolve for nothing</button></div>`;
+      <div class="wiz-actions"><button class="ghost sm${sub.confirmNothing ? " danger" : ""}" id="wiz-nothing"
+        title="Resolve and reset this card without doing anything. It still counts as your turn's card.">${
+          sub.confirmNothing ? "Yes — burn the card" : "Resolve for nothing"}</button></div>`;
     if (spendsUpFront) {
       document.getElementById("tc-dec").addEventListener("click", () => { sub.tradeSpent = Math.max(0, sub.tradeSpent - 1); refreshWizard(); });
       document.getElementById("tc-inc").addEventListener("click", () => { sub.tradeSpent = Math.min(tradeAvail, sub.tradeSpent + 1); refreshWizard(); });
     }
     document.getElementById("wiz-start").addEventListener("click", startAction);
     document.getElementById("wiz-cancel").addEventListener("click", cancelAction);
-    document.getElementById("wiz-nothing").addEventListener("click", () => {
-      dispatch({ type: "END_FOCUS_CARD", payload: {
+    // Base p16 does allow resolving a card for no effect, so this stays - but
+    // it spends the turn's card and sat one misclick from "Start Action", so it
+    // asks first. It also awaits the result now: it used to reset the panel
+    // whether or not the engine had accepted anything.
+    document.getElementById("wiz-nothing").addEventListener("click", async () => {
+      if (!sub.confirmNothing) { sub.confirmNothing = true; refreshWizard(); return; }
+      const result = await dispatch({ type: "END_FOCUS_CARD", payload: {
         playerId: localPlayerId, cardType: sub.cardType, tradeSpent: 0 } });
+      if (result && result.status !== "accepted") { sub.confirmNothing = false; refreshWizard(); return; }
       resetSub();
     });
   }
@@ -4327,16 +4346,30 @@ const UI = (() => {
       <div class="wiz-title">Move ${unitType === "caravan" ? "Caravan" : "Army"}${remaining}</div>
       <div class="wiz-body">${hint}${left > 1 ? `<br><span class="wiz-note">${left} still to move on this card.</span>` : ""}</div>
       <div class="wiz-actions">
-        ${ms && ms.remaining <= 0 ? `<button id="wiz-finish-move">Finish movement</button>` : ""}
-        ${cardOpen && selectingUnit ? `<button id="wiz-done-card">Done with card</button>` : ""}
-        <button class="ghost" id="wiz-cancel6">${cardOpen ? "Back to unit choice" : "Cancel"}</button>
+        ${canCancelMovement() ? `<button class="ghost" id="wiz-cancel6">${cardOpen ? "Back to unit choice" : "Cancel"}</button>` : ""}
       </div>`;
-    document.getElementById("wiz-finish-move")?.addEventListener("click", endMovement);
-    document.getElementById("wiz-done-card")?.addEventListener("click", () => {
-      dispatch({ type: "END_FOCUS_CARD", payload: { playerId: localPlayerId } });
-      resetSub();
-    });
-    document.getElementById("wiz-cancel6").addEventListener("click", cancelAction);
+    document.getElementById("wiz-cancel6")?.addEventListener("click", cancelAction);
+  }
+
+  // Cancel only means something while nothing has been committed. Once a step
+  // has actually been walked, or the engine is holding a continuation from an
+  // exploration, cancelAction just clears the local sub-state — and the next
+  // click then rebuilds movementState from the FULL allowance with explored
+  // false, so the board lights hexes the engine will refuse and the movement
+  // readout appears to reset. That is the "it resets the movement token"
+  // report. There is nothing local left to cancel at that point, so the button
+  // is not offered.
+  //
+  // Two other controls used to live beside it and both are gone. "Finish
+  // movement" duplicated the board chip's Done, and "Done with card" ended the
+  // focus card outright from inside a movement — rendered, by its own
+  // condition, exactly in the state where the engine denies it, and against
+  // this file's own note that a turn IS resolving a card and there is no
+  // passing.
+  function canCancelMovement() {
+    if (state && state.movementContinuation) return false;
+    const ms = sub.movementState;
+    return !(ms && ms.route && ms.route.length);
   }
 
   // The rail says what is happening; the board says what to do about it.
@@ -4358,7 +4391,7 @@ const UI = (() => {
       <div class="wiz-title">${ms.unitType === "army" ? "Army" : "Caravan"} on the move</div>
       <div class="wiz-body">${defender
         ? `<strong style="color:#ef5350">${escapeHtml(defender.label)}</strong> is in the way \u2014 attack or pull back from the chip on the board.`
-        : `Click another space to keep going, or the unit itself to stop. <kbd>Esc</kbd> cancels.`}</div>`;
+        : `Click another space to keep going, or the unit itself to stop.`}</div>`;
   }
 
   // Two pieces in one space is a real fork: the city is worth more and defends
@@ -4425,10 +4458,21 @@ const UI = (() => {
 
   function renderExploring() {
     const expTileId = exploringTileId();
-    // The engine's own test, so the button is only offered when the rule
-    // actually allows it instead of being refused after the click.
-    const canPutBack = !!(state.pendingExploration && Game.canAbandonExploration &&
+    // Terra p12: "If the tile cannot be placed because it cannot fulfill the
+    // placement requirements, IT IS DISCARDED to the top of the map tile stack
+    // and the exploration ends." That is a consequence, not a decision - so
+    // when the engine's own test says nothing fits, it is discarded rather than
+    // offered as a button. Offering it invited the belief that putting back a
+    // placeable tile was allowed, which is the one thing the rule forbids.
+    //
+    // Guarded on the tile id: renderExploring runs on every repaint, and
+    // without it a slow round-trip would send the action several times.
+    const stuck = !!(state.pendingExploration && Game.canAbandonExploration &&
       Game.canAbandonExploration(state, localPlayerId).ok);
+    if (stuck && autoDiscardedTile !== expTileId) {
+      autoDiscardedTile = expTileId;
+      discardUnplaceableTile();
+    }
     const expTile = expTileId ? state.tiles[expTileId] : null;
     const expType = expTile ? expTile.type.charAt(0).toUpperCase() + expTile.type.slice(1) : "?";
     dom.wizard.innerHTML = `
@@ -4447,25 +4491,24 @@ const UI = (() => {
         <br>Tiles remaining in stack: <strong>${tilesLeftInStack()}</strong>
       </div>
       <div class="wiz-actions">
-        ${canPutBack
-          ? `<button class="ghost" id="wiz-abandon-explore">Nowhere it fits — put it back</button>`
-          : `<span class="wiz-note">Terra p12: it only goes back if it fits nowhere. It fits somewhere — place it.</span>`}
+        ${stuck ? `<span class="wiz-note">Nothing on the board fits this tile. It goes back on top of the stack and the expedition ends.</span>` : ""}
       </div>`;
 
     document.getElementById("rot-dec").addEventListener("click", () => turnTile(-1));
     document.getElementById("rot-inc").addEventListener("click", () => turnTile(1));
     document.getElementById("side-toggle").addEventListener("click", flipTile);
-    // Terra p12: a tile with nowhere to go returns to the top of the stack and
-    // the expedition ends. The movement is spent either way.
-    document.getElementById("wiz-abandon-explore")?.addEventListener("click", async () => {
-      const freeRun = sub.phase === "free_exploring";
-      const result = await dispatch({ type: "ABANDON_EXPLORATION", payload: {
-        playerId: localPlayerId, fromKey: exploreOrigin()
-      }});
-      if (!result || result.status !== "accepted") return;  // toast already shown
-      if (freeRun) { resetSub(); return; }
-      continueFromAuthoritativeExploration();
-    });
+  }
+
+  // Terra p12: a tile with nowhere to go returns to the top of the stack and
+  // the expedition ends. The movement point is spent either way.
+  async function discardUnplaceableTile() {
+    const freeRun = sub.phase === "free_exploring";
+    const result = await dispatch({ type: "ABANDON_EXPLORATION", payload: {
+      playerId: localPlayerId, fromKey: exploreOrigin()
+    }});
+    if (!result || result.status !== "accepted") return;   // toast already shown
+    if (freeRun) { resetSub(); return; }
+    continueFromAuthoritativeExploration();
   }
 
   function continueMovement() {

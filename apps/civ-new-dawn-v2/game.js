@@ -1158,6 +1158,19 @@ const Game = (() => {
           payload.reinforceKeys, payload.tradeSpent, payload.hexKey);
         if (!extra.ok) return denied(extra.code, extra.message);
       }
+      if (type === "PLAY_ECONOMY") {
+        // Base p9, said out loud rather than as a silent no-op: the board has
+        // no way to know which cities a caravan has already visited this turn,
+        // so it offers the destination and the player needs to be told why it
+        // was refused.
+        const dest = st.map.hexes[payload.toKey];
+        const actor = getPlayer(st, actorId);
+        const traded = dest && (dest.cityState || (dest.city && dest.city.ownerId !== actorId));
+        if (traded && actor && (actor.citiesTradedThisTurn || []).includes(payload.toKey)) {
+          return denied("city_already_traded",
+            "One of your caravans has already traded there this turn.");
+        }
+      }
       return { ok: true };
     }
 
@@ -1864,8 +1877,23 @@ const Game = (() => {
         ? continuation.remaining : getEconomyMove(player, st) + tradeSpent;
       const reachable = getReachable(st, startKey, moveLimit, "caravan", payload.playerId);
       if (payload.toKey !== startKey && !reachable.has(payload.toKey)) return st;
-      unit.position = payload.toKey;
       const hex = st.map.hexes[payload.toKey];
+      // Base p9: "The player cannot move more than one caravan to the same city
+      // or city-state during the same turn."
+      //
+      // This used to be tested AFTER the caravan had already been moved, and
+      // the early return then skipped movedThisCard, the activeCard update and
+      // finishActiveCard - so the caravan teleported onto the city, gained
+      // nothing, and tryApplyAction reported "accepted" because the position
+      // had changed. Worse, on a post-exploration continuation it left
+      // movementContinuation standing, and the continuation gate allows only
+      // PLAY_ECONOMY and END_UNIT_MOVE for that unit, both of which then
+      // require a position it no longer had. That was a second hard freeze,
+      // and UNDO_TURN is not in the allowed set either.
+      const arrival = hex && (hex.cityState || (hex.city && hex.city.ownerId !== payload.playerId))
+        ? payload.toKey : null;
+      if (arrival && (player.citiesTradedThisTurn || []).includes(arrival)) return st;
+      unit.position = payload.toKey;
       const tradeGain = 2;
       // Egypt's Wheel (unique Economy I): trade runs also yield a resource.
       const wheelResource = uniqueInPlay(player, "egypt");
@@ -1877,11 +1905,8 @@ const Game = (() => {
           options: RESOURCES.map((r) => ({ id: r, label: r }))
         });
       };
-      const arrival = hex && (hex.cityState || (hex.city && hex.city.ownerId !== payload.playerId))
-        ? payload.toKey : null;
       if (arrival) {
         player.citiesTradedThisTurn = player.citiesTradedThisTurn || [];
-        if (player.citiesTradedThisTurn.includes(arrival)) return st;   // p9
         player.citiesTradedThisTurn.push(arrival);
       }
       if (hex && hex.cityState) {
