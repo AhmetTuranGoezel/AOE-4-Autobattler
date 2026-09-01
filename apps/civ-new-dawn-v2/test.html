@@ -209,20 +209,18 @@
       assert("economy is short one medieval, where Machu Picchu was",
         JSON.stringify(eraCount("economy")) === JSON.stringify({ ancient: 3, medieval: 2, modern: 3 }),
         JSON.stringify(eraCount("economy")));
-      // Terra p6 7b takes one at random from the ancient and the medieval pile
-      // of each type, and the diagram wants two of each of those left. A pile
-      // already down to two is therefore left alone - taking from it would
-      // leave one, which is not a pile the setup diagram ever shows. So three
-      // types deal seven and military deals six, because its modern pile lost
-      // Pentagon and has nothing to give back.
+      // Terra p6 7b is unconditional: remove one random card from EACH ancient
+      // and medieval pile. Economy therefore loses one of its two remaining
+      // medieval cards even though Machu Picchu was already removed by name.
       const dealt = Game.createState(players(2)).wonderDecks;
       const dealtCounts = Object.fromEntries(
         Object.entries(dealt).map(([type, d]) => [type, d.deck.length]));
-      assert("setup deals seven of each full type",
-        ["culture", "economy", "science"].every((t) => dealtCounts[t] === 7),
+      assert("setup deals seven culture and science wonders",
+        ["culture", "science"].every((t) => dealtCounts[t] === 7),
         JSON.stringify(dealtCounts));
-      assert("and six military, the pile Pentagon was taken from",
-        dealtCounts.military === 6, JSON.stringify(dealtCounts));
+      assert("setup deals six military and economy wonders after all removals",
+        ["military", "economy"].every((t) => dealtCounts[t] === 6),
+        JSON.stringify(dealtCounts));
       assert("every wonder has era, cost and printed effect text", Game.ALL_WONDERS.every((w) =>
         ["ancient", "medieval", "modern"].includes(w.era) && w.cost >= 7 && w.cost <= 12 && (w.effect || "").length > 20));
       let wst = Game.createState(players(2));
@@ -474,6 +472,118 @@
           barbarian: false, cityState: null, fortress: false, resource: null, naturalWonder: null
         }, props || {});
         return st.map.hexes[k];
+      }
+
+      {
+        // Bug 8: a cost reduction has to change the price actually paid, not
+        // just appear somewhere. calculateWonderCost is the one pipeline -
+        // base cost, collected modifiers, final cost - and getWonderCost is
+        // its final number, so every consumer sees the same figure.
+        const st = rulesState();
+        const me = st.players[0];
+        const wonder = Game.ALL_WONDERS.find((w) => w.type === "culture");
+        const printed = wonder.cost;
+
+        assert("with no modifiers the price is the printed one",
+          Game.getWonderCost(wonder.name, me, st) === printed);
+
+        // Buenos Aires: -2 while you control no wonder of that type. This was
+        // the reported dead diplomacy card.
+        me.diplomacy = [{ fromCityState: "Buenos Aires", type: "culture" }];
+        const reduced = Game.calculateWonderCost(wonder.name, me, st);
+        assert("Buenos Aires takes 2 off a type you do not yet control",
+          reduced.finalCost === printed - 2 &&
+          reduced.modifiers.some((m) => m.source === "Buenos Aires" && m.value === -2),
+          JSON.stringify(reduced));
+        assert("and the final cost is what getWonderCost reports",
+          Game.getWonderCost(wonder.name, me, st) === reduced.finalCost);
+
+        // Losing the card removes the modifier - the reduction is derived from
+        // what the player holds now, never cached onto the wonder.
+        me.diplomacy = [];
+        assert("losing the diplomacy card restores the printed price",
+          Game.getWonderCost(wonder.name, me, st) === printed);
+
+        // Modifiers stack, and the base is only counted once.
+        me.leaderId = "egypt";
+        me.diplomacy = [{ fromCityState: "Buenos Aires", type: "culture" }];
+        const both = Game.calculateWonderCost(wonder.name, me, st);
+        assert("Egypt and Buenos Aires stack",
+          both.finalCost === printed - 3 && both.modifiers.length === 2,
+          JSON.stringify(both));
+        assert("and the parts add up to the final cost",
+          both.baseCost + both.modifierTotal === both.finalCost);
+
+        // No printed reducer names a minimum, but the cost may not go negative.
+        const cheap = Game.ALL_WONDERS.slice().sort((a, b) => a.cost - b.cost)[0];
+        me.diplomacy = [{ fromCityState: "Brussels", type: "culture" }];
+        Object.values(st.map.hexes).slice(0, 12).forEach((hex, i) => {
+          if (i > 9) return;
+          hex.active = true; hex.terrain = "grass";
+          hex.city = { ownerId: me.id, isCapital: false, developed: true, hasWonder: false, wonder: null };
+        });
+        assert("a heavily reduced wonder floors at zero, never below",
+          Game.getWonderCost(cheap.name, me, st) >= 0);
+      }
+
+      {
+        // Bug 4: the map must grow with exploration. The coordinate dictionary
+        // is storage, not the edge of the world - a placement that the RULES
+        // allow must never be refused because the board was allocated at a
+        // fixed radius during setup.
+        const st = rulesState();
+        const me = st.players[0];
+        st.tileStack = st.setup.tileStack.slice();
+        const startRadius = st.map.radius;
+
+        // Explore from the outermost active space, repeatedly, always taking
+        // the placement that reaches furthest out.
+        const outermost = () => Object.entries(st.map.hexes)
+          .filter(([, h]) => h.active)
+          .sort((a, b) => (Math.abs(b[1].q) + Math.abs(b[1].r) + Math.abs(b[1].q + b[1].r)) -
+                          (Math.abs(a[1].q) + Math.abs(a[1].r) + Math.abs(a[1].q + a[1].r)))[0];
+        const reach = (k) => {
+          const q = Game.parseQ(k), r = Game.parseR(k);
+          return Math.max(Math.abs(q), Math.abs(r), Math.abs(q + r));
+        };
+
+        let placedTiles = 0;
+        let grewPastAllocation = false;
+        for (let round = 0; round < 6 && st.tileStack.length; round++) {
+          const from = outermost();
+          if (!from) break;
+          st.freeExplore = { playerId: me.id, fromKey: from[0], source: "test", followUp: null };
+          const begun = Game.applyAction(st, { type: "BEGIN_EXPLORATION",
+            payload: { playerId: me.id, fromKey: from[0] } });
+          const pending = begun.pendingExploration;
+          if (!pending) break;
+          const spots = Game.getLegalExplorationPlacements(begun, pending) || [];
+          if (!spots.length) { Game.applyAction(begun, { type: "ABANDON_EXPLORATION",
+            payload: { playerId: me.id, fromKey: from[0] } }); break; }
+          const best = spots.slice().sort((a, b) => reach(b.anchorKey) - reach(a.anchorKey))[0];
+          const cells = Game.getTileHexKeys(best.anchorKey, best.rotation, begun.map.hexes);
+          // The interesting case: a legal placement whose cells the board has
+          // never allocated. If that is refused, the boundary is the bug.
+          const unallocated = cells.filter((k) => reach(k) > begun.map.radius);
+          const after = Game.applyAction(begun, { type: "PLACE_EXPLORED_TILE", payload: {
+            playerId: me.id, anchorKey: best.anchorKey, rotation: best.rotation, side: best.side } });
+          if (after.pendingExploration) break;          // refused
+          if (unallocated.length) {
+            grewPastAllocation = true;
+            assert("a tile placed past the allocated radius materialises its spaces",
+              unallocated.every((k) => after.map.hexes[k] && after.map.hexes[k].active),
+              unallocated.join(" "));
+          }
+          placedTiles++;
+        }
+
+        assert("exploration keeps placing tiles outward", placedTiles >= 3, String(placedTiles));
+        assert("and the board grew past the radius it was built with",
+          st.map.radius >= startRadius, st.map.radius + " vs " + startRadius);
+        // Every active space still has a real hex behind it - growth must not
+        // leave the map sparse where pieces can stand.
+        assert("every active space exists in the dictionary",
+          Object.entries(st.map.hexes).every(([k, h]) => !h.active || !!st.map.hexes[k]));
       }
 
       // --- Transactional multiplayer boundary -----------------------------
@@ -1249,7 +1359,16 @@
           out.state.cardResolution.cardType === "growth",
           JSON.stringify(out.state && out.state.cardResolution));
         assert("so the card is not reset yet",
-          out.accepted && !out.state.players[0].cardPlayed === false || true);
+          out.accepted && out.state.players[0].cardPlayed === false);
+        const completed = out.accepted ? Game.tryApplyAction(out.state, {
+          type: "PLAY_GROWTH_REINFORCE",
+          payload: { hexKeys: ["0,1"], tradeSpent: 0 }
+        }, { actorId: me.id, role: "player" }) : { accepted: false };
+        assert("Sanitation finishes only after its reinforcement step",
+          completed.accepted && !completed.state.cardResolution &&
+          completed.state.players[0].cardPlayed &&
+          completed.state.map.hexes["0,1"].control.fortified,
+          completed.code);
       }
 
       {
@@ -1275,6 +1394,258 @@
           payload: { hexKey: "0,1", district: "theater", tradeSpent: 0 }
         }, { actorId: me.id, role: "player" });
         assert("a district type still in hand can be placed", other.accepted, other.code);
+      }
+
+      {
+        // Natural wonders are reusable physical resources controlled by their
+        // map space. They are exhausted for this turn, never consumed.
+        const st = rulesState();
+        const me = st.players[0];
+        me.focusRow = ["growth", "culture", "science", "economy", "military", "industry"];
+        activate(st, "0,0", { city: {
+          ownerId: me.id, isCapital: true, developed: false,
+          hasWonder: false, wonder: null
+        } });
+        activate(st, "1,0", {
+          naturalWonder: "Mt Kilimanjaro",
+          control: { ownerId: me.id, fortified: false, district: null }
+        });
+        const deck = st.wonderDecks.military;
+        deck.deck = ["Jebel Barkal"].concat(deck.deck.filter((name) => name !== "Jebel Barkal"));
+        deck.revealed = "Jebel Barkal";
+
+        const held = Game.getControlledNaturalWonders(st, me.id);
+        assert("a controlled Natural Wonder exposes its printed resource",
+          held.length === 1 && held[0].hexKey === "1,0" && held[0].resource === "oil" && !held[0].usedThisTurn,
+          JSON.stringify(held));
+        const preview = Game.calculateWonderProduction(st, me, "Jebel Barkal", {
+          tradeSpent: 0, resources: {}, naturalWonders: ["1,0"]
+        });
+        assert("a matching Natural Wonder contributes production",
+          preview.ok && preview.production.naturalWonderResources === 1 &&
+          preview.production.total === 7 && preview.affordable,
+          JSON.stringify(preview));
+
+        const built = Game.tryApplyAction(st, { type: "PLAY_INDUSTRY_WONDER", payload: {
+          hexKey: "0,0", wonderName: "Jebel Barkal", tradeSpent: 0,
+          resources: {}, naturalWonders: ["1,0"]
+        }}, { actorId: me.id, role: "player" });
+        assert("Natural Wonder production builds the eligible world wonder",
+          built.accepted && built.state.map.hexes["0,0"].city.wonder.name === "Jebel Barkal",
+          built.code);
+        const afterUse = built.accepted
+          ? Game.getControlledNaturalWonders(built.state, me.id) : [];
+        assert("using a Natural Wonder keeps it on the map but exhausts it this turn",
+          afterUse.length === 1 && afterUse[0].usedThisTurn &&
+          built.state.map.hexes["1,0"].naturalWonder === "Mt Kilimanjaro");
+        const duplicate = built.accepted ? Game.calculateWonderProduction(
+          built.state, built.state.players[0], "Jebel Barkal",
+          { naturalWonders: ["1,0"] }) : { ok: true };
+        assert("the same Natural Wonder cannot be used twice in one turn",
+          !duplicate.ok && duplicate.code === "natural_wonder_already_used", duplicate.code);
+
+        if (built.accepted) {
+          built.state.turn.round++;
+          assert("a Natural Wonder refreshes on a later turn",
+            !Game.getControlledNaturalWonders(built.state, me.id)[0].usedThisTurn);
+          built.state.map.hexes["1,0"].control.ownerId = built.state.players[1].id;
+          assert("Natural Wonder availability follows control immediately",
+            Game.getControlledNaturalWonders(built.state, me.id).length === 0 &&
+            Game.getControlledNaturalWonders(built.state, built.state.players[1].id).length === 1);
+        }
+      }
+
+      {
+        // All wonder reducers meet in one calculator, and removing the source
+        // immediately restores the price.
+        const st = rulesState();
+        const me = st.players[0];
+        activate(st, "0,0", { city: {
+          ownerId: me.id, isCapital: true, developed: true,
+          hasWonder: false, wonder: null
+        } });
+        activate(st, "2,0", { city: {
+          ownerId: me.id, isCapital: false, developed: true,
+          hasWonder: false, wonder: null
+        } });
+        me.diplomacy.push(
+          { fromCityState: "Brussels", cardId: "brussels" },
+          { fromCityState: "Buenos Aires", cardId: "buenos-aires" }
+        );
+        const reduced = Game.calculateWonderCost("Jebel Barkal", me, st);
+        assert("Brussels and Buenos Aires combine in the final wonder cost",
+          reduced.baseCost === 7 && reduced.finalCost === 3 &&
+          reduced.modifiers.some((m) => m.source === "Brussels") &&
+          reduced.modifiers.some((m) => m.source === "Buenos Aires"),
+          JSON.stringify(reduced));
+        me.diplomacy = me.diplomacy.filter((card) => card.fromCityState !== "Buenos Aires");
+        assert("losing Buenos Aires removes its reduction",
+          Game.getWonderCost("Jebel Barkal", me, st) === 5);
+        me.diplomacy = [];
+        assert("losing all reducer cards restores printed cost",
+          Game.getWonderCost("Jebel Barkal", me, st) === 7);
+      }
+
+      {
+        // Palenque substitutes an ordinary resource for selected focus-card
+        // trade. It consumes the token; Natural Wonders are explicitly excluded.
+        const st = rulesState();
+        const me = st.players[0];
+        me.focusRow = ["science", "growth", "culture", "economy", "military", "industry"];
+        me.trade.science = 0;
+        me.resources.marble = 1;
+        me.diplomacy.push({ fromCityState: "Palenque", cardId: "palenque" });
+        const paid = Game.tryApplyAction(st, { type: "PLAY_SCIENCE", payload: {
+          tradeSpent: 1, tradeResources: { marble: 1 }
+        }}, { actorId: me.id, role: "player" });
+        assert("Palenque lets an ordinary resource replace focus trade",
+          paid.accepted && paid.state.players[0].tech === 2 &&
+          paid.state.players[0].resources.marble === 0,
+          paid.code);
+
+        const without = rulesState();
+        without.players[0].focusRow = ["science", "growth", "culture", "economy", "military", "industry"];
+        without.players[0].resources.marble = 1;
+        const refused = Game.tryApplyAction(without, { type: "PLAY_SCIENCE", payload: {
+          tradeSpent: 1, tradeResources: { marble: 1 }
+        }}, { actorId: without.players[0].id, role: "player" });
+        assert("resource-as-trade is rejected without Palenque",
+          !refused.accepted && refused.code === "palenque_required" &&
+          without.players[0].resources.marble === 1,
+          refused.code);
+      }
+
+      {
+        // Drama and Poetry's lower paragraph is part of the same card
+        // resolution and remains optional.
+        const st = rulesState();
+        const me = st.players[0];
+        me.focusRow = ["culture", "growth", "science", "economy", "military", "industry"];
+        me.cardTiers.culture = 2;
+        activate(st, "0,0", { city: {
+          ownerId: me.id, isCapital: true, developed: false,
+          hasWonder: false, wonder: null
+        } });
+        activate(st, "1,0");
+        activate(st, "2,0");
+        const main = Game.tryApplyAction(st, { type: "PLAY_CULTURE", payload: {
+          hexKeys: ["1,0"], tradeSpent: 0
+        }}, { actorId: me.id, role: "player" });
+        const sourceChoice = main.accepted && main.state.pendingChoices.find(
+          (choice) => choice.kind === "move_control_source");
+        assert("Drama and Poetry continues after its normal Culture placement",
+          main.accepted && !!main.state.cardResolution && !!sourceChoice &&
+          sourceChoice.optional && sourceChoice.hexKeys.includes("1,0"),
+          JSON.stringify(main.state && main.state.pendingChoices));
+        const pickedSource = sourceChoice ? Game.tryApplyAction(main.state, {
+          type: "RESOLVE_PENDING_CHOICE",
+          payload: { choiceId: sourceChoice.id, hexKey: "1,0" }
+        }, { actorId: me.id, role: "player" }) : { accepted: false };
+        const destinationChoice = pickedSource.accepted && pickedSource.state.pendingChoices.find(
+          (choice) => choice.kind === "move_control_destination");
+        assert("Drama and Poetry offers only an adjacent empty non-water destination",
+          pickedSource.accepted && destinationChoice &&
+          destinationChoice.hexKeys.includes("2,0") &&
+          destinationChoice.hexKeys.every((key) => {
+            const hex = pickedSource.state.map.hexes[key];
+            return hex && hex.terrain !== "water" && !hex.city && !hex.control &&
+              !hex.barbarian && !hex.cityState && !hex.resource && !hex.naturalWonder &&
+              Game.getUnitsAt(pickedSource.state, key).length === 0;
+          }), JSON.stringify(destinationChoice));
+        const moved = destinationChoice ? Game.tryApplyAction(pickedSource.state, {
+          type: "RESOLVE_PENDING_CHOICE",
+          payload: { choiceId: destinationChoice.id, hexKey: "2,0" }
+        }, { actorId: me.id, role: "player" }) : { accepted: false };
+        assert("Drama and Poetry moves the token and then finishes the card",
+          moved.accepted && !moved.state.map.hexes["1,0"].control &&
+          moved.state.map.hexes["2,0"].control.ownerId === me.id &&
+          !moved.state.cardResolution && moved.state.players[0].cardPlayed,
+          moved.code);
+
+        const skipState = rulesState();
+        const skipper = skipState.players[0];
+        skipper.focusRow = ["culture", "growth", "science", "economy", "military", "industry"];
+        skipper.cardTiers.culture = 2;
+        activate(skipState, "0,0", { city: {
+          ownerId: skipper.id, isCapital: true, developed: false,
+          hasWonder: false, wonder: null
+        } });
+        activate(skipState, "1,0");
+        activate(skipState, "2,0");
+        const skipMain = Game.tryApplyAction(skipState, { type: "PLAY_CULTURE", payload: {
+          hexKeys: ["1,0"], tradeSpent: 0
+        }}, { actorId: skipper.id, role: "player" });
+        const skipChoice = skipMain.accepted && skipMain.state.pendingChoices.find(
+          (choice) => choice.kind === "move_control_source");
+        const skipped = skipChoice ? Game.tryApplyAction(skipMain.state, {
+          type: "RESOLVE_PENDING_CHOICE",
+          payload: { choiceId: skipChoice.id, dismiss: true }
+        }, { actorId: skipper.id, role: "player" }) : { accepted: false };
+        assert("the optional Drama and Poetry movement can be declined cleanly",
+          skipped.accepted && !skipped.state.cardResolution && skipped.state.players[0].cardPlayed,
+          skipped.code);
+      }
+
+      {
+        // Apadana must retain the identity of the newly explored tile until its
+        // mandatory control-token follow-up has been resolved.
+        const st = rulesState();
+        const me = st.players[0];
+        me.focusRow = ["growth", "culture", "science", "economy", "military", "industry"];
+        me.resources.diamonds = 2;
+        activate(st, "0,0", { city: {
+          ownerId: me.id, isCapital: true, developed: false,
+          hasWonder: false, wonder: null
+        } });
+        const deck = st.wonderDecks.economy;
+        deck.deck = ["Apadana"].concat(deck.deck.filter((name) => name !== "Apadana"));
+        deck.revealed = "Apadana";
+        const built = Game.tryApplyAction(st, { type: "PLAY_INDUSTRY_WONDER", payload: {
+          hexKey: "0,0", wonderName: "Apadana", tradeSpent: 0,
+          resources: { diamonds: 2 }, naturalWonders: []
+        }}, { actorId: me.id, role: "player" });
+        const chooseOrigin = built.accepted && built.state.pendingChoices.find(
+          (choice) => choice.kind === "apadana_explore");
+        assert("building Apadana queues exploration from any tile edge",
+          built.accepted && chooseOrigin && chooseOrigin.hexKeys.length > 0,
+          JSON.stringify(built.state && built.state.pendingChoices));
+        const originKey = chooseOrigin && chooseOrigin.hexKeys[0];
+        const selected = chooseOrigin ? Game.tryApplyAction(built.state, {
+          type: "RESOLVE_PENDING_CHOICE",
+          payload: { choiceId: chooseOrigin.id, hexKey: originKey }
+        }, { actorId: me.id, role: "player" }) : { accepted: false };
+        const begun = selected.accepted ? Game.tryApplyAction(selected.state, {
+          type: "BEGIN_EXPLORATION", payload: { fromKey: originKey }
+        }, { actorId: me.id, role: "player" }) : { accepted: false };
+        const pending = begun.accepted && begun.state.pendingExploration;
+        assert("Apadana reveals one retained tile without requiring a figure",
+          begun.accepted && pending && pending.freeRun &&
+          pending.followUp === "apadana_control", JSON.stringify(pending));
+        const placement = pending && Game.getLegalExplorationPlacements(begun.state, pending)[0];
+        const placed = placement ? Game.tryApplyAction(begun.state, {
+          type: "PLACE_EXPLORED_TILE", payload: {
+            anchorKey: placement.anchorKey,
+            rotation: placement.rotation,
+            side: placement.side
+          }
+        }, { actorId: me.id, role: "player" }) : { accepted: false };
+        const follow = placed.accepted && placed.state.pendingChoices.find(
+          (choice) => choice.kind === "place_control" && choice.source === "Apadana");
+        assert("Apadana preserves the newly placed tile for its second effect",
+          placed.accepted && follow && follow.tileId === pending.tileId &&
+          follow.hexKeys.length > 0 && follow.hexKeys.every(
+            (key) => placed.state.map.hexes[key].tileId === pending.tileId),
+          JSON.stringify(follow));
+        const controlKey = follow && follow.hexKeys[0];
+        const controlled = follow ? Game.tryApplyAction(placed.state, {
+          type: "RESOLVE_PENDING_CHOICE",
+          payload: { choiceId: follow.id, hexKey: controlKey }
+        }, { actorId: me.id, role: "player" }) : { accepted: false };
+        assert("Apadana places the control token on that new tile",
+          controlled.accepted &&
+          controlled.state.map.hexes[controlKey].tileId === pending.tileId &&
+          controlled.state.map.hexes[controlKey].control.ownerId === me.id,
+          controlled.code);
       }
 
       {

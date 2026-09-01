@@ -119,11 +119,51 @@ const UI = (() => {
   const sub = {
     phase: "idle", cardType: null, tradeSpent: 0, remaining: 0,
     totalMarkers: 0, validHexes: new Set(), selectedUnit: null,
-    districtType: null, spentResources: {}, placedKeys: [],
+    districtType: null, spentResources: {}, tradeResources: {},
+    focusTradeSpent: 0, naturalWonders: [], placedKeys: [],
+    cityUseFigure: false, cityFigureByHex: {}, growthResolutionId: null,
     tileRotation: 0, tileSide: "A",
     movementState: null,
     advancedDraft: false
   };
+
+  function paymentCount(payment) {
+    return Object.values(payment || {}).reduce((sum, count) =>
+      sum + Math.max(0, Number(count || 0)), 0);
+  }
+
+  function cleanPayment(payment) {
+    const result = {};
+    Game.RESOURCES.forEach((resource) => {
+      const count = Math.max(0, Math.floor(Number(payment && payment[resource] || 0)));
+      if (count) result[resource] = count;
+    });
+    return result;
+  }
+
+  function syncFocusTradeTotal() {
+    sub.focusTradeSpent = Math.max(0, Math.floor(Number(sub.focusTradeSpent || 0)));
+    sub.tradeResources = cleanPayment(sub.tradeResources);
+    sub.tradeSpent = sub.focusTradeSpent + paymentCount(sub.tradeResources);
+    return sub.tradeSpent;
+  }
+
+  function restoreFocusTradePayment(payment) {
+    const normalized = payment && typeof payment === "object" ? payment : {};
+    sub.tradeResources = cleanPayment(normalized.resources);
+    sub.focusTradeSpent = Math.max(0, Number(normalized.focusSpent === undefined
+      ? Number(normalized.spent || 0) - paymentCount(sub.tradeResources)
+      : normalized.focusSpent));
+    syncFocusTradeTotal();
+  }
+
+  function focusTradePayload() {
+    syncFocusTradeTotal();
+    return {
+      tradeSpent: sub.tradeSpent,
+      tradeResources: cleanPayment(sub.tradeResources)
+    };
+  }
 
   // The tile-in-hand for setup: capital/tile phase reads playerTiles, the
   // advanced draft (Terra p14) reads its own hand so a capital dealt at the
@@ -2738,12 +2778,46 @@ const UI = (() => {
     return true;
   }
 
+  function setSubFromGrowthResolution(resolution) {
+    if (!resolution || resolution.playerId !== localPlayerId ||
+        resolution.cardType !== "growth" || resolution.step !== "growth_reinforce") return false;
+    if (sub.phase === "reinforcing_after_district" &&
+        sub.growthResolutionId === resolution.id) return true;
+    clearSub();
+    sub.phase = "reinforcing_after_district";
+    sub.cardType = "growth";
+    sub.growthResolutionId = resolution.id;
+    sub.districtKey = resolution.districtKey || null;
+    restoreFocusTradePayment(resolution.tradePayment || {
+      spent: resolution.tradeBudget || 0,
+      focusSpent: resolution.tradeBudget || 0,
+      resources: {}
+    });
+    sub.validHexes = Game.validReinforceHexes(state, localPlayerId);
+    const limit = Math.max(0, Number(resolution.reinforceBase || 0)) +
+      Math.max(0, Number(resolution.tradeBudget || 0));
+    sub.remaining = Math.min(limit, sub.validHexes.size);
+    sub.totalMarkers = sub.remaining;
+    sub.placedKeys = [];
+    return true;
+  }
+
   // Snapshots are the source of truth for a multi-step action. This also makes
   // a reload in the middle of exploration resume the exact tile and remaining
   // movement instead of dropping back to the focus row with an unresolved
   // engine state behind it.
   function reconcileAuthoritativeResolution() {
     if (!state || state.phase !== "playing") return;
+    const growth = state.cardResolution;
+    if (growth && growth.playerId === localPlayerId && growth.cardType === "growth" &&
+        growth.step === "growth_reinforce") {
+      setSubFromGrowthResolution(growth);
+      return;
+    }
+    if (sub.phase === "reinforcing_after_district" &&
+        (!growth || growth.id !== sub.growthResolutionId)) {
+      clearSub();
+    }
     const pending = state.pendingExploration;
     if (pending && pending.playerId === localPlayerId) {
       if (!isExploring(sub.phase)) setSubFromPendingExploration(pending);
@@ -4366,25 +4440,70 @@ const UI = (() => {
     document.getElementById("wiz-end-turn")?.addEventListener("click", () => dispatch({ type: "END_TURN", payload: { playerId: localPlayerId } }));
   }
 
+  function renderPalenqueTradeSelector(me, reserved) {
+    if (!Game.hasCityStateDiplomacy(me, "Palenque")) return "";
+    const rows = Game.RESOURCES.map((resource) => {
+      const usedElsewhere = Number(reserved && reserved[resource] || 0);
+      const available = Math.max(0, Number(me.resources[resource] || 0) - usedElsewhere);
+      const selected = Number(sub.tradeResources[resource] || 0);
+      if (!available && !selected) return "";
+      return `<div class="payment-stepper">
+        <span>${escapeHtml(resource)}</span>
+        <button type="button" class="sm pal-trade-step" data-resource="${escapeHtml(resource)}" data-delta="-1"${selected ? "" : " disabled"}>−</button>
+        <b>${selected}</b>
+        <button type="button" class="sm pal-trade-step" data-resource="${escapeHtml(resource)}" data-delta="1"${selected < available ? "" : " disabled"}>+</button>
+        <small>of ${available}</small>
+      </div>`;
+    }).join("");
+    if (!rows) return "";
+    return `<div class="payment-group palenque-payment">
+      <strong>Palenque resource substitutes</strong>
+      <span class="payment-help">Each selected resource replaces one trade token.</span>
+      ${rows}
+    </div>`;
+  }
+
+  function bindPalenqueTradeSteppers(me, reserved, rerender) {
+    document.querySelectorAll(".pal-trade-step").forEach((button) => {
+      button.addEventListener("click", () => {
+        const resource = button.dataset.resource;
+        const delta = Number(button.dataset.delta || 0);
+        const available = Math.max(0, Number(me.resources[resource] || 0) -
+          Number(reserved && reserved[resource] || 0));
+        const next = Math.max(0, Math.min(available,
+          Number(sub.tradeResources[resource] || 0) + delta));
+        if (next) sub.tradeResources[resource] = next;
+        else delete sub.tradeResources[resource];
+        syncFocusTradeTotal();
+        rerender();
+      });
+    });
+  }
+
   function renderCardSelected(me) {
     const slot = Game.getSlotValue(me, sub.cardType, state);
-    const tradeAvail = me.trade[sub.cardType];
-    // Military tokens are handed over during the combat itself, after both
-    // sides have rolled, so there is nothing to spend up front.
-    const spendsUpFront = sub.cardType !== "military";
+    const tradeAvail = Number(me.trade[sub.cardType] || 0);
+    // Industry payment depends on the chosen wonder and is therefore selected
+    // only after that card is known. City building never accepts a payment.
+    // Military tokens are handed over during combat after both dice.
+    const spendsUpFront = sub.cardType !== "military" && sub.cardType !== "industry";
+    syncFocusTradeTotal();
     const tradeBlock = spendsUpFront
       ? `<div class="trade-counter">
-          <span>Spend:</span>
-          <button id="tc-dec" class="sm">-</button>
-          <span class="tc-val" id="tc-val">${sub.tradeSpent}</span>
-          <button id="tc-inc" class="sm">+</button>
-        </div>`
-      : `<div class="wiz-note">Spent during combat, after both dice.</div>`;
+          <span>Focus trade:</span>
+          <button id="tc-dec" class="sm"${sub.focusTradeSpent ? "" : " disabled"}>-</button>
+          <span class="tc-val" id="tc-val">${sub.focusTradeSpent}</span>
+          <button id="tc-inc" class="sm"${sub.focusTradeSpent < tradeAvail ? "" : " disabled"}>+</button>
+          <span class="payment-total">${sub.tradeSpent} total</span>
+        </div>${renderPalenqueTradeSelector(me)}`
+      : sub.cardType === "industry"
+        ? `<div class="wiz-note">Cities use only the card's slot. Choose a world wonder first to select its eligible production payment.</div>`
+        : `<div class="wiz-note">Military trade is spent during combat, after both dice.</div>`;
     dom.wizard.innerHTML = `
       <div class="wiz-title">${Game.FOCUS_LABELS[sub.cardType]} (Slot ${slot})</div>
       <div class="wiz-body">
         ${Game.FOCUS_TRADE_DESC[sub.cardType]}<br>
-        Trade available: <strong>${tradeAvail}</strong>
+        Trade on card: <strong>${tradeAvail}</strong>
         ${tradeBlock}
         ${getCardPreview(sub.cardType, me, slot)}
       </div>
@@ -4396,8 +4515,17 @@ const UI = (() => {
         title="Resolve and reset this card without doing anything. It still counts as your turn's card.">${
           sub.confirmNothing ? "Yes — burn the card" : "Resolve for nothing"}</button></div>`;
     if (spendsUpFront) {
-      document.getElementById("tc-dec").addEventListener("click", () => { sub.tradeSpent = Math.max(0, sub.tradeSpent - 1); refreshWizard(); });
-      document.getElementById("tc-inc").addEventListener("click", () => { sub.tradeSpent = Math.min(tradeAvail, sub.tradeSpent + 1); refreshWizard(); });
+      document.getElementById("tc-dec").addEventListener("click", () => {
+        sub.focusTradeSpent = Math.max(0, sub.focusTradeSpent - 1);
+        syncFocusTradeTotal();
+        refreshWizard();
+      });
+      document.getElementById("tc-inc").addEventListener("click", () => {
+        sub.focusTradeSpent = Math.min(tradeAvail, sub.focusTradeSpent + 1);
+        syncFocusTradeTotal();
+        refreshWizard();
+      });
+      bindPalenqueTradeSteppers(me, null, refreshWizard);
     }
     document.getElementById("wiz-start").addEventListener("click", startAction);
     document.getElementById("wiz-cancel").addEventListener("click", cancelAction);
@@ -4428,26 +4556,47 @@ const UI = (() => {
   }
 
   function renderGrowthChoice() {
+    const me = Game.getPlayer(state, localPlayerId);
+    const profile = me && Game.growthCardProfile(me);
+    const slot = me ? Game.getSlotValue(me, "growth", state) : 0;
+    const districts = me ? Game.availableDistrictTypes(state, localPlayerId) : [];
+    const spaces = me ? Game.validDistrictHexes(state, localPlayerId, slot) : new Set();
+    const districtAvailable = districts.length > 0 && spaces.size > 0;
+    const sequential = !!(profile && profile.sequential);
+    const explanation = sequential
+      ? `First place a district. Then reinforce up to <strong>${slot + sub.tradeSpent}</strong> control markers (${slot} from the card, ${sub.tradeSpent} from payment).`
+      : `Choose one main effect: place a district, or reinforce up to <strong>${slot + sub.tradeSpent}</strong> control markers.`;
     dom.wizard.innerHTML = `
       <div class="wiz-title">Growth: Choose Action</div>
-      <div class="wiz-body">Place a district adjacent to your city, or reinforce existing control markers.</div>
+      <div class="wiz-body">${explanation}${districtAvailable ? "" : `<div class="wiz-note">${districts.length ? "No legal district space remains." : "All four of your district tokens are already on the map."}</div>`}</div>
       <div class="wiz-actions">
-        <button id="wiz-district"><span class="wiz-btn-icon" aria-hidden="true">🏘️</span> Place District</button>
-        <button id="wiz-reinforce"><span class="wiz-btn-icon" aria-hidden="true">🛡️</span> Reinforce</button>
+        <button id="wiz-district"${districtAvailable ? "" : " disabled"}><span class="wiz-btn-icon" aria-hidden="true">🏘️</span> Place District</button>
+        ${sequential
+          ? (!districtAvailable ? `<button class="primary" id="wiz-skip-district">Continue to Reinforcement</button>` : "")
+          : `<button id="wiz-reinforce"><span class="wiz-btn-icon" aria-hidden="true">🛡️</span> Reinforce Instead</button>`}
         <button class="ghost" id="wiz-cancel3">Cancel</button>
       </div>`;
-    document.getElementById("wiz-district").addEventListener("click", () => { sub.phase = "pick_district"; refreshWizard(); });
-    document.getElementById("wiz-reinforce").addEventListener("click", startReinforce);
+    document.getElementById("wiz-district")?.addEventListener("click", () => { sub.phase = "pick_district"; refreshWizard(); });
+    document.getElementById("wiz-reinforce")?.addEventListener("click", startReinforce);
+    document.getElementById("wiz-skip-district")?.addEventListener("click", async () => {
+      const result = await dispatch({ type: "SKIP_GROWTH_DISTRICT", payload: {
+        playerId: localPlayerId, ...focusTradePayload()
+      }});
+      if (!result || result.status !== "accepted") return;
+      if (!setSubFromGrowthResolution(state.cardResolution)) resetSub();
+      else render();
+    });
     document.getElementById("wiz-cancel3").addEventListener("click", cancelAction);
   }
 
   function renderPickDistrict() {
+    const available = Game.availableDistrictTypes(state, localPlayerId);
     dom.wizard.innerHTML = `
       <div class="wiz-title">Choose District Type</div>
-      <div class="district-grid">${Game.DISTRICTS.map((d) =>
+      <div class="district-grid">${available.map((d) =>
         `<button class="sm dist-btn" data-d="${d}">${Game.DISTRICT_LABELS[d]}</button>`
-      ).join("")}</div>
-      <div class="wiz-body" style="margin-top:6px;font-size:10px">${Game.DISTRICTS.map((d) =>
+      ).join("") || `<div class="wiz-note">No district token remains in your supply.</div>`}</div>
+      <div class="wiz-body" style="margin-top:6px;font-size:10px">${available.map((d) =>
         `<div><strong>${Game.DISTRICT_LABELS[d]}</strong>: ${Game.DISTRICT_EFFECTS[d]}</div>`
       ).join("")}</div>
       <div class="wiz-actions"><button class="ghost" id="wiz-back-growth">Back</button></div>`;
@@ -4879,15 +5028,33 @@ const UI = (() => {
 
     const visible = Game.getVisibleWonders(state).filter((w) => !builtWonders.has(w.name));
 
+    // The price here is the MODIFIED one. This screen is the only place a
+    // wonder is actually bought, and it was the one place still reading the
+    // printed w.cost - so Egypt's -1, the dial's trade token, Brussels and
+    // Buenos Aires all showed up in the reference panels and then changed
+    // nothing about what you could afford or what the button said you needed.
+    // calculateWonderCost is the shared pipeline: base, modifiers, final.
+    const me = Game.getPlayer(state, localPlayerId);
     let html = `<div class="wiz-title">Choose Visible Wonder (Production: ${prod})</div><div class="wiz-body wonder-pick-grid">`;
     visible.forEach((w) => {
-      const affordable = prod >= w.cost;
+      const priced = me && Game.calculateWonderCost
+        ? Game.calculateWonderCost(w.name, me, state)
+        : { finalCost: w.cost, baseCost: w.cost, modifiers: [] };
+      const cost = priced.finalCost;
+      const affordable = prod >= cost;
       const disabled = affordable ? "" : " disabled";
       const face = window.CivCardArt ? CivCardArt.wonderCard(w.name) : "";
+      // Say where a discount came from, so a reduced price reads as a rule
+      // rather than as a wrong number.
+      const why = (priced.modifiers || []).filter((m) => m.value)
+        .map((m) => `${m.source} ${m.value > 0 ? "+" : ""}${m.value}`).join(", ");
       html += `<button class="sm wonder-pick${disabled}" data-name="${escapeHtml(w.name)}"${disabled ? " disabled" : ""}>
         ${face ? `<img src="${escapeHtml(face)}" alt="" draggable="false">` : ""}
         <span class="wonder-pick-copy">
-          <strong>${escapeHtml(w.name)}</strong> (${escapeHtml(w.type)}, ${escapeHtml(w.era)}, cost ${w.cost})${affordable ? "" : ` <span style="color:var(--danger)">need ${w.cost}</span>`}<br>
+          <strong>${escapeHtml(w.name)}</strong> (${escapeHtml(w.type)}, ${escapeHtml(w.era)}, cost ${cost}${
+            cost !== priced.baseCost ? ` <s>${priced.baseCost}</s>` : ""})${
+            affordable ? "" : ` <span style="color:var(--danger)">need ${cost}</span>`}<br>
+          ${why ? `<span class="wonder-pick-why">${escapeHtml(why)}</span><br>` : ""}
           <span class="wonder-pick-effect">${escapeHtml(w.effect || "")}</span>
         </span>
       </button>`;

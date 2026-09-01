@@ -485,6 +485,9 @@ input, select {
   cursor: not-allowed;
   filter: saturate(0.4);
 }
+/* Where a wonder's discount came from, under its price. */
+.wonder-pick-why { font-size: 9px; font-style: italic; opacity: 0.8; }
+
 .pending-option .opt-why {
   display: block;
   margin-top: 2px;

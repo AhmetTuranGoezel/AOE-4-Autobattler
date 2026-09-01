@@ -695,8 +695,11 @@ const Game = (() => {
         byEra[withType.era].push(withType);
       });
       Object.values(byEra).forEach(shuffle);
-      if (byEra.ancient.length > 2) byEra.ancient.pop();
-      if (byEra.medieval.length > 2) byEra.medieval.pop();
+      // Terra setup step 7b removes one random card from EACH ancient and
+      // medieval pile. This still applies to Economy after Machu Picchu was
+      // removed during setup step 5; the rule prints no two-card exception.
+      if (byEra.ancient.length) byEra.ancient.pop();
+      if (byEra.medieval.length) byEra.medieval.pop();
       const deck = [...byEra.ancient, ...byEra.medieval, ...byEra.modern].map((w) => w.name);
       decks[type] = { deck, revealed: deck[0] || null, built: [], removed: [], token: 0 };
     });
@@ -714,8 +717,11 @@ const Game = (() => {
         const era = wonder.era || "modern";
         (byEra[era] || (byEra[era] = [])).push(wonder.name);
       });
-      const deck = byEra.ancient.slice(0, 2)
-        .concat(byEra.medieval.slice(0, 2), byEra.modern);
+      const deck = byEra.ancient.slice(0, Math.max(0, byEra.ancient.length - 1))
+        .concat(
+          byEra.medieval.slice(0, Math.max(0, byEra.medieval.length - 1)),
+          byEra.modern
+        );
       decks[type] = { deck, revealed: deck[0] || null, built: [], removed: [], token: 0 };
     });
     return decks;
@@ -907,6 +913,8 @@ const Game = (() => {
       upgradedThisTurn: false,
       arsenalUsed: false, arsenalReplay: null, estadioUsed: false,
       capitalismUsed: false, capitalismReplay: null, capitalismNoReset: false,
+      cartographyUsedThisTurn: false,
+      scorchedEarthUsedThisTurn: false,
       zimbabwe: 0,        // trade tokens parked on Great Zimbabwe
       cardTiers,
       cardLevels: { ...cardTiers },
@@ -940,6 +948,8 @@ const Game = (() => {
     if (player.capitalismUsed === undefined) player.capitalismUsed = false;
     if (player.capitalismReplay === undefined) player.capitalismReplay = null;
     if (player.capitalismNoReset === undefined) player.capitalismNoReset = false;
+    if (player.cartographyUsedThisTurn === undefined) player.cartographyUsedThisTurn = false;
+    if (player.scorchedEarthUsedThisTurn === undefined) player.scorchedEarthUsedThisTurn = false;
     FOCUS_TYPES.forEach((f) => {
       if (player.trade[f] === undefined) player.trade[f] = 0;
       if (player.cardTiers[f] === undefined) player.cardTiers[f] = 1;
@@ -1000,6 +1010,14 @@ const Game = (() => {
       if (st.phase !== "lobby") issues.add("agenda_deal_missing");
     }
     st.claimedAgendas = st.claimedAgendas || {};
+    // The tile catalogue is copied out of setup by finalizeSetup, so anything
+    // that reaches the playing phase by another route - a hand-built state, a
+    // save written before that copy existed - has no st.tiles at all. Four call
+    // sites read st.tiles[tileId] unguarded, so the first exploration threw
+    // "Cannot read properties of undefined" and the whole action was lost. The
+    // catalogue is static reference data; carrying it forward here costs
+    // nothing and removes the whole class of crash.
+    if (!st.tiles && st.setup && st.setup.tiles) st.tiles = st.setup.tiles;
     if (st.ibrahimHolder === undefined) st.ibrahimHolder = null;
     if (st.combat && st.combat.atkRolled === undefined) {
       st.combat.atkRolled = !!st.combat.rolled;
@@ -2631,6 +2649,8 @@ const Game = (() => {
         cp.capitalismUsed = false;
         cp.capitalismReplay = null;
         cp.capitalismNoReset = false;
+        cp.cartographyUsedThisTurn = false;
+        cp.scorchedEarthUsedThisTurn = false;
         cp.cardPlayed = false;
         cp.wonAttackThisTurn = false;
         cp.citiesTradedThisTurn = [];
@@ -3742,7 +3762,7 @@ const Game = (() => {
       if ((choice.hexKeys || []).includes(hexKey) && hex && hex.control && taker &&
           !armyGuards(st, hexKey)) {
         // "Unused, unreinforced" — the token that arrives is a plain one.
-        hex.control = { ownerId: taker.id, fortified: false, district: hex.control.district || null };
+        hex.control = { ownerId: taker.id, fortified: false, district: null };
         checkDevelopment(st, taker.id);
         log(st, `${player.name} gave up a control token to ${taker.name} (Eiffel Tower).`);
         resolved = true;

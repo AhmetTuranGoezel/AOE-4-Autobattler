@@ -704,11 +704,25 @@ function createCivNet(dependencies) {
         nextProcessedActionIds: processedIdsIncluding(actionId)
       };
       outcome = callbacks.onAction ? await callbacks.onAction(action, context) : await callbacks.onState(action, context);
-      if (actionGeneration !== lifecycleGeneration || !hostConnections.has(meta.connection)) return;
     } catch (error) {
       outcome = { accepted: false, code: "action_failed", message: error && error.message || "The action could not be completed." };
     }
-    upsertRoster(meta.seatId, { activeAction: null, lastSeen: clock.now(), status: "online" });
+    // The action transaction is tied to the host session, not to the
+    // DataConnection that happened to deliver it. The connection may close
+    // while onAction is durably checkpointing an accepted revision. In that
+    // case we still have to remember the result; the reconnecting client
+    // resends the same actionId and receives the cached outcome. Abandon the
+    // result only when the whole Net lifecycle changed (leave/new game/host
+    // replacement), because then it must not mutate the replacement session.
+    // Keep this guard outside the try/catch so a rejected transaction from an
+    // obsolete lifecycle cannot leak into the replacement session either.
+    if (actionGeneration !== lifecycleGeneration || role !== "host") return;
+    const originalConnectionIsCurrent = hostConnections.has(meta.connection) && meta.connection.open;
+    upsertRoster(meta.seatId, {
+      activeAction: null,
+      lastSeen: originalConnectionIsCurrent ? clock.now() : meta.lastSeen,
+      status: originalConnectionIsCurrent ? "online" : "offline"
+    });
     emitRoster();
     const result = normalizeActionOutcome(outcome, actionId, baseRevision);
     rememberProcessedAction(actionId, result);
@@ -717,7 +731,10 @@ function createCivNet(dependencies) {
       broadcastSnapshots(outcome && outcome.state);
     }
     // Reliable DataConnection ordering guarantees snapshot before ACK.
-    sendActionResult(meta.connection, result);
+    // Never ACK on a stale transport. If it disappeared while the transaction
+    // was in flight, the client's same-id retry will hit processedActions and
+    // receive this exact result without applying the action again.
+    if (originalConnectionIsCurrent) sendActionResult(meta.connection, result);
   }
 
   function normalizeActionOutcome(outcome, actionId, baseRevision) {

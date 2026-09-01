@@ -515,3 +515,49 @@ Stated plainly, because it would otherwise look authentic:
 - **Card art.** The published card scans could not be fetched (every Steam and
   Akamai host is blocked here), so the card faces are drawn in CSS from the
   printed layout rather than shown as images.
+
+## The twelve playtest reports (2026-09-01)
+
+Twelve bugs came back from a real game. Most of the work landed in one large
+pass; this records what each one turned out to be, because several were not what
+they looked like, and two were mistakes in the *tests*, not in the game.
+
+| # | Report | Where it stands |
+|---|---|---|
+| 1 | Natural wonder resources not usable | Tracked per player, spendable on eligible wonders, marked used for the turn rather than consumed |
+| 2 | Buenos Aires (and other city-state diplomacy) dead | A shared `hasCityStateDiplomacy` system; Buenos Aires is a cost modifier, verified by test |
+| 3 | Maturing a city granted Growth a trade token | Removed. `checkDevelopment` now says in as many words that maturity grants nothing; the Commercial Hub's mature-city payout onto *economy* is the separate printed effect it was confused with |
+| 4 | Map too small for exploration | The coordinate dictionary grows on demand — legality is decided in coordinate space and the rings are materialised when a tile commits. **The UI half was never broken** (see below) |
+| 5 | Exploration limit applied too widely | `exploredThisMove`, per figure, cleared per move — not per player, per turn, or per space |
+| 6 | Drama and Poetry missing its second effect | Resolves as a two-step card; the optional control-token move is offered after the main effect |
+| 7 | Industry's 3-trade city option offered without 3 trade | The engine reported it unavailable and **the panel drew it anyway** — disabled options now render dead with the reason on them |
+| 8 | Cost reductions not applied | One pipeline: base → modifiers → final. The wonder picker — the only screen a wonder is actually bought from — was the last place still reading the printed cost |
+| 9 | Apadana missing its "then" effect | Remembers the tile it placed and offers the control token on it |
+| 10 | Districts placed more than once | One physical token per type per player, refused with `district_token_unavailable` |
+| 11 | Growth III/IV asked "reinforce OR district" | Sanitation and Globalization are `sequential`: the card keeps resolving after the district instead of resetting |
+| 12 | Second paragraphs on cards ignored | `st.cardResolution` carries a card through several interactive steps; follow-up prompts hold a `cardResolutionId` |
+
+### Two things that were not bugs
+
+- **The wonder deck is 34, not 36.** Terra p2 step 5: *"Remove the base game
+  'Pentagon' and 'Machu Picchu' wonders."* Tests here asserted the pre-removal
+  box — 36 cards, nine of each type, three of every era, seven dealt each. After
+  the removal, military is short one modern (Pentagon) and economy short one
+  medieval (Machu Picchu), so setup deals seven of three types and six military.
+  The art pack corroborates it exactly: 36 card images, being the 34 plus the
+  two removed.
+
+- **Science stopped trusting the client's `amount`.** The dial moves by the
+  card's printed slot (base p7). A test asserting `tech === 1` from `amount: 1`
+  was asserting the very thing a forged payload must not control.
+
+### A measurement error worth recording
+
+Chasing #4's UI half, the board looked clipped after "fit the explored board" —
+four spaces apparently hanging off the right edge, by a suspiciously constant
+260px. `UI.hexPoint` returns **viewport** coordinates (`rect.left + x`) and the
+left panel is 260px wide; the check was comparing them against the canvas's
+`clientWidth`. Measured against the canvas's own rect, every one of 57 explored
+spaces is inside it. The fit was correct the whole time, and a rewrite of it was
+reverted. If a coordinate looks off by a constant, suspect the coordinate space
+before the code.

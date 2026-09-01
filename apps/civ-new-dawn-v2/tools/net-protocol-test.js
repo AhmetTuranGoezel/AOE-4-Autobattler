@@ -258,6 +258,13 @@ async function protocolSuite() {
   slowRelease();
   await flush();
   assert.equal(actions.filter((action) => action.type === "SLOW").length, 1);
+  assert.ok(host.getProcessedActionIds().includes(pendingId),
+    "a committed action is cached even when its original transport closed");
+  assert.equal(host.getRoster().find((seat) => seat.seatId === "seat-a").status, "offline",
+    "finishing an in-flight action does not revive its closed transport in the roster");
+  assert.equal(hub.messages.filter((entry) =>
+    entry.message.type === "actionResult" && entry.message.actionId === pendingId).length, 0,
+    "the host does not ACK the committed result on the stale transport");
   assert.equal(client.__debug().pendingEnvelope.actionId, pendingId, "retry retains action id");
   assert.equal(clock.runNextTimeout(), true);
   await flush(40);
@@ -333,6 +340,56 @@ async function takeoverAuthenticationSuite() {
   assert.equal(client.getStatus().phase, "synced");
   assert.equal(host.getRoster().find((seat) => seat.seatId === "seat-a").status, "online");
   client.leaveRoom();
+  host.leaveRoom();
+}
+
+async function lifecycleIsolationSuite() {
+  const hub = new FakeHub();
+  const clock = new FakeClock();
+  const host = createCivNet({ Peer: hub.Peer, clock, random: () => 0.5 });
+  const client = createCivNet({ Peer: hub.Peer, clock, random: () => 0.5 });
+  let releaseObsoleteAction;
+
+  host.init({
+    onAction: async () => {
+      await new Promise((resolve) => { releaseObsoleteAction = resolve; });
+      throw new Error("obsolete transaction failed");
+    }
+  });
+  client.init({});
+  host.createRoom({
+    peerId: "old-room", gameId: "old-game", seatId: "old-host", seatToken: "old-host-token",
+    revision: 0, profile: { name: "Old Host", color: "red" }
+  });
+  client.joinRoom({
+    hostPeerId: "old-room", gameId: "old-game", seatId: "old-seat", seatToken: "old-seat-token",
+    profile: { name: "Old Client", color: "blue" }, lastRevision: 0
+  });
+  await flush();
+
+  const obsoletePromise = client.submitAction({ type: "OBSOLETE", payload: {} });
+  await flush();
+  assert.ok(releaseObsoleteAction, "the obsolete action reached the original host lifecycle");
+
+  host.createRoom({
+    peerId: "replacement-room", gameId: "replacement-game",
+    seatId: "replacement-host", seatToken: "replacement-host-token",
+    revision: 7, profile: { name: "Replacement Host", color: "green" }
+  });
+  await flush();
+  releaseObsoleteAction();
+  await flush(40);
+
+  assert.equal(host.getStatus().revision, 7,
+    "an obsolete action outcome cannot advance the replacement session");
+  assert.deepEqual(host.getProcessedActionIds(), [],
+    "an obsolete action outcome cannot enter the replacement session's dedupe cache");
+  assert.deepEqual(host.getRoster().map((seat) => seat.seatId), ["replacement-host"],
+    "an obsolete action outcome cannot recreate a seat in the replacement roster");
+
+  client.leaveRoom();
+  const abandoned = await obsoletePromise;
+  assert.equal(abandoned.code, "resync_required");
   host.leaveRoom();
 }
 
@@ -413,10 +470,7 @@ let running = "(none)";
 const watchdog = setTimeout(() => {
   if (finished) return;
   console.error(`net-protocol-test: TIMED OUT in ${running}.`);
-  console.error("  protocolSuite hangs on `await slowPromise` (line ~264): an action");
-  console.error("  submitted immediately before a disconnect never settles for the client");
-  console.error("  after it reconnects and the host dedupes the resend. That is a real");
-  console.error("  defect in the pending-action path, not a defect in this harness.");
+  console.error("  A protocol promise did not settle before the watchdog expired.");
   process.exit(1);
 }, WATCHDOG_MS);
 
@@ -431,6 +485,7 @@ async function run(name, suite) {
   await run("large-payload serialization", largePayloadSerializationSuite);
   await run("protocol", protocolSuite);
   await run("takeover authentication", takeoverAuthenticationSuite);
+  await run("lifecycle isolation", lifecycleIsolationSuite);
   await run("reconnect schedule", reconnectScheduleSuite);
   finished = true;
   clearTimeout(watchdog);
