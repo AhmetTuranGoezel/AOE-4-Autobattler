@@ -2483,31 +2483,27 @@ const UI = (() => {
       const at = movePoint(mkId);
       if (at) { cx = at.x; cy = at.y; }
       const mkScale = at ? 1 : spawnScale(mkId);
-      // A district replaces the plain token; a plain token has two printed
-      // faces, and reinforcing it is a flip to the back with its ring of dots.
+      // A district replaces the plain token. Both kinds have two printed
+      // faces, and reinforcing either is a flip to the back with its dots.
       const face = art && (h.control.district
-        ? CivCardArt.district(color, h.control.district)
+        ? CivCardArt.district(color, h.control.district, h.control.fortified)
         : CivCardArt.control(color, h.control.fortified));
       // A district is a marker on the space, not a second tile covering it, so
-      // it is cropped to the same disc a control token occupies. The printed
-      // hex art is drawn at full size and clipped, which keeps the glyph at its
-      // designed size inside the disc instead of shrinking the whole hex.
-      const discR = 0.44 * HEX_SIZE * mkScale;
+      // it is cropped to a disc about the size of a control token. The whole
+      // printed token has to fit inside that disc: the reinforced back differs
+      // from the face only by a ring of dots near the token's rim, so cropping
+      // any tighter throws the ring away and the two sides become identical on
+      // the board. The disc still cuts the hex corners, which is what keeps the
+      // dark rectangle some of the extracted tokens sit on from showing.
+      const discR = 0.5 * HEX_SIZE * mkScale;
       const drawn = face && (h.control.district
-        ? drawToken(face, cx, cy, HEX_TOKEN * mkScale, { shadow: true, disc: discR })
+        ? drawToken(face, cx, cy, 0.55 * mkScale, { shadow: true, disc: discR })
         : drawToken(face, cx, cy, 0.44 * mkScale, { shadow: true }));
-      if (drawn) {
-        // The face says whose it is and what it is. Reinforcing is a flip on a
-        // plain token, but a district has only one printed face, so the ring
-        // carries it — the same white ring the fallback marker uses.
-        if (h.control.district && h.control.fortified) {
-          ctx.beginPath();
-          ctx.arc(cx, cy, discR + 1.4 * s, 0, Math.PI * 2);
-          ctx.lineWidth = 2 * s;
-          ctx.strokeStyle = "#fff";
-          ctx.stroke();
-        }
-      } else if (h.control.district) {
+      // When the art draws, the face already says whose it is, what it is and
+      // whether it is reinforced — both token kinds are printed on two sides,
+      // so nothing is drawn over it to stand in for the flip. The fallbacks
+      // below have no printed side to show, so there the ring has to carry it.
+      if (!drawn && h.control.district) {
         const w = 15 * s, hh = 11 * s;
         roundRect(cx - w / 2, cy - hh / 2, w, hh, 2 * s);
         ctx.fillStyle = "rgba(20,22,36,0.85)"; ctx.fill();
@@ -2515,7 +2511,12 @@ const UI = (() => {
         ctx.font = `bold ${Math.round(6.5 * s)}px sans-serif`;
         ctx.fillStyle = "#fff";
         ctx.fillText(h.control.district.slice(0, 3).toUpperCase(), cx, cy);
-      } else {
+        if (h.control.fortified) {
+          roundRect(cx - w / 2 - 1.6 * s, cy - hh / 2 - 1.6 * s,
+            w + 3.2 * s, hh + 3.2 * s, 3 * s);
+          ctx.lineWidth = 1.6 * s; ctx.strokeStyle = "#fff"; ctx.stroke();
+        }
+      } else if (!drawn) {
         ctx.beginPath(); ctx.arc(cx, cy, 6 * s, 0, Math.PI * 2);
         ctx.fillStyle = color; ctx.fill();
         ctx.lineWidth = 1.6 * s; ctx.strokeStyle = "rgba(10,10,20,0.8)"; ctx.stroke();

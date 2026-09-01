@@ -103,7 +103,9 @@ CITY_STATE_TOKENS = [
     ("Seoul", "Brussels"), ("Carthage", "Kumasi"),
 ]
 
-# tokens/district__image-face…, sorted: five colours of five, in this order.
+# tokens/district__image-face… and …__image-back…, each sorted: five colours of
+# five, in this order. Both listings run in the same order, so the back of a
+# token is found at the same index as its face.
 DISTRICT_ORDER = ["theater", "campus", "industrial", "trade", "encampment"]
 
 # tokens/gov…, sorted — the token names the government and its focus type.
@@ -566,11 +568,20 @@ def main():
         side = "plain" if "image-face" in name else "reinforced"
         control.setdefault(color, {})[side] = cutout(path)
 
-    faces = listing("tokens", r"^district__image-face")
-    if len(faces) != len(COLORS) * len(DISTRICT_ORDER):
-        raise SystemExit(f"districts: expected {len(COLORS) * len(DISTRICT_ORDER)}, got {len(faces)}")
-    for i, path in enumerate(faces):
-        district.setdefault(COLORS[i // len(DISTRICT_ORDER)], {})[DISTRICT_ORDER[i % len(DISTRICT_ORDER)]] = hexify(cutout(path))
+    # A district token is printed on both sides: the face, and a back carrying
+    # the same colour and glyph inside the reinforcement border of dots. Terra
+    # p9 flips the token rather than adding a piece, so both sides are indexed
+    # and the two listings must agree, colour for colour and glyph for glyph.
+    expected = len(COLORS) * len(DISTRICT_ORDER)
+    for side, pattern in (("plain", r"^district__image-face"),
+                          ("reinforced", r"^district__image-back")):
+        paths = listing("tokens", pattern)
+        if len(paths) != expected:
+            raise SystemExit(f"district {side}: expected {expected}, got {len(paths)}")
+        for i, path in enumerate(paths):
+            color = COLORS[i // len(DISTRICT_ORDER)]
+            kind = DISTRICT_ORDER[i % len(DISTRICT_ORDER)]
+            district.setdefault(color, {}).setdefault(kind, {})[side] = hexify(cutout(path))
 
     for color, path in zip_exact(listing("tokens", r"^science"), DIAL_COLORS, "tech dials"):
         dial[color] = path

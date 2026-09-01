@@ -105,6 +105,21 @@ const slug = (s) => s.toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g, "-")
   const districts = ["campus", "trade", "encampment", "industrial", "theater"];
   check("every district exists in all five colours",
     manifest.colors.every((c) => districts.every((d) => (manifest.district[c] || {})[d])));
+  // Terra p9 reinforces a district by flipping it, so every one of those needs
+  // the printed back as well — otherwise a reinforced district silently draws
+  // its plain side and the board stops reporting the state.
+  check("every district has both printed sides",
+    manifest.colors.every((c) => districts.every((d) => {
+      const sides = (manifest.district[c] || {})[d];
+      return sides && sides.plain && sides.reinforced;
+    })));
+  // The two sides differ only by the ring of dots, so a build that paired a
+  // token with itself would look almost right and still lose the state.
+  check("no district's two sides are the same file",
+    manifest.colors.every((c) => districts.every((d) => {
+      const sides = (manifest.district[c] || {})[d];
+      return sides && sides.plain !== sides.reinforced;
+    })));
 
   // Only four colours have a control token with a reinforced back, and the
   // game seats four. A fifth seat would have nothing to flip.

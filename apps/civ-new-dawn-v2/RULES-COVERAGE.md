@@ -561,3 +561,45 @@ left panel is 260px wide; the check was comparing them against the canvas's
 spaces is inside it. The fit was correct the whole time, and a rewrite of it was
 reverted. If a coordinate looks off by a constant, suspect the coordinate space
 before the code.
+
+## Districts: the reinforced side is printed, not drawn
+
+Terra p9 reinforces a district by flipping the token, and the pack has the
+token to prove it — `tokens/district__image-back…` is 25 files, one per colour
+and glyph, the face plus a ring of dots inside the rim. Only the 25 faces were
+indexed, so `card-art.js` had no reinforced district to return and the board
+drew a white ring of its own instead, under a comment asserting "a district has
+only one printed face". It has two. Both sides are now built and indexed, and
+`CivCardArt.district(color, kind, reinforced)` returns the printed one.
+
+The two listings are matched by sort order, the same way the faces already
+were, and the assumption was checked by eye at both colour boundaries and the
+last token — sorted index 4 is green/encampment, 5 is blue/theater, 24 is
+purple/encampment, each the expected glyph on the expected colour.
+
+**The crop mattered more than the art.** A district was drawn at `HEX_TOKEN`
+(≈0.87) and clipped to a disc of `0.44 * HEX_SIZE` — about half the token's
+half-width — deliberately, to keep the glyph large. The reinforcement dots sit
+near the rim, so that crop cut every one of them: rendered through the real
+registry and the real `drawToken` geometry, the plain and reinforced discs came
+out pixel-identical. Swapping in the correct art alone would have *removed* the
+reinforcement signal, not fixed it. The token is now drawn at `0.55` inside a
+disc of `0.5 * HEX_SIZE`, which keeps the dots and still cuts the hex corners —
+the corners being what the disc was there for, since some extracted tokens sit
+on a dark rectangle.
+
+`verify-art.js` now checks that every district has both sides and that no
+token is paired with itself, because a self-paired build renders plausibly and
+still loses the state.
+
+### What the natural wonder tokens confirmed
+
+The five renamed tokens are byte-identical to the files the manifest already
+used, so all twelve wonder-to-token mappings were right. Read off the printed
+tokens, the resource on each also matches `NATURAL_WONDER_RESOURCES` exactly:
+oil for Kilimanjaro, Everest and Gobustan; diamonds for Ha Long Bay, Grand Mesa
+and Torres del Paine; mercury for Galápagos, Mato Tipila and Crater Lake;
+marble for Cliffs of Dover, the Dead Sea and Pantanal. Worth knowing that the
+extraction's filename prefix is *not* that resource — `Gobustan` is filed under
+`diamond__` and prints an oil barrel, `Cliffs of Dover` under `diamond__` and
+prints marble. The prefix names the pack's own grouping, not the token.

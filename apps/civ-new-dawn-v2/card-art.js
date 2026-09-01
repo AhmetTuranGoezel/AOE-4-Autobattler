@@ -93,7 +93,13 @@ const CivCardArt = (() => {
   const govUrl = (focusType) => at(group("gov")[focusType]);
   const dialUrl = (color) => at(group("dial")[colorId(color)]);
   const focusBarUrl = (color) => at(group("focusBar")[colorId(color)]);
-  const districtUrl = (color, kind) => at((group("district")[colorId(color)] || {})[kind]);
+  // A district token is printed on both sides too, so reinforcing one is the
+  // same flip a control token gets rather than a marker drawn over the art.
+  const districtUrl = (color, kind, reinforced) => {
+    const sides = (group("district")[colorId(color)] || {})[kind];
+    if (!sides) return null;
+    return at(sides[reinforced ? "reinforced" : "plain"] || sides.plain);
+  };
   const diplomacyUrl = (color, kind) => at((group("diplomacy")[colorId(color)] || {})[kind]);
   const pieceUrl = (kind, color) => at((group("piece")[kind] || {})[colorId(color)]);
 

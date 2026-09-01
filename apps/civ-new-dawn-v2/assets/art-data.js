@@ -656,39 +656,114 @@ window.CivArtData = {
  },
  "district": {
   "green": {
-   "theater": "tokens/derived/hex-district__image-face__ugc-1658972912262965312__e167614163a81db2.webp",
-   "campus": "tokens/derived/hex-district__image-face__ugc-1658972912262993062__b97555849f832ab1.webp",
-   "industrial": "tokens/derived/hex-district__image-face__ugc-1658972912262994405__d8ca1e39d96d5572.webp",
-   "trade": "tokens/derived/hex-district__image-face__ugc-1658972912262995631__3edba0d5f7032d51.webp",
-   "encampment": "tokens/derived/hex-district__image-face__ugc-1658972912262997563__b944caf42c3377f2.webp"
+   "theater": {
+    "plain": "tokens/derived/hex-district__image-face__ugc-1658972912262965312__e167614163a81db2.webp",
+    "reinforced": "tokens/derived/hex-district__image-back__ugc-1658972912262968065__102380f8a03f5947.webp"
+   },
+   "campus": {
+    "plain": "tokens/derived/hex-district__image-face__ugc-1658972912262993062__b97555849f832ab1.webp",
+    "reinforced": "tokens/derived/hex-district__image-back__ugc-1658972912262993390__1f7a63b8a301cb02.webp"
+   },
+   "industrial": {
+    "plain": "tokens/derived/hex-district__image-face__ugc-1658972912262994405__d8ca1e39d96d5572.webp",
+    "reinforced": "tokens/derived/hex-district__image-back__ugc-1658972912262994763__44464e8baba33d11.webp"
+   },
+   "trade": {
+    "plain": "tokens/derived/hex-district__image-face__ugc-1658972912262995631__3edba0d5f7032d51.webp",
+    "reinforced": "tokens/derived/hex-district__image-back__ugc-1658972912262996458__5b41e6934ff502a5.webp"
+   },
+   "encampment": {
+    "plain": "tokens/derived/hex-district__image-face__ugc-1658972912262997563__b944caf42c3377f2.webp",
+    "reinforced": "tokens/derived/hex-district__image-back__ugc-1658972912262998208__bb7893751f7d1941.webp"
+   }
   },
   "blue": {
-   "theater": "tokens/derived/hex-district__image-face__ugc-1658972912263026893__ed22eb2515f51ab0.webp",
-   "campus": "tokens/derived/hex-district__image-face__ugc-1658972912263027991__f48103659c87733a.webp",
-   "industrial": "tokens/derived/hex-district__image-face__ugc-1658972912263031384__ca36d28b09bdbe21.webp",
-   "trade": "tokens/derived/hex-district__image-face__ugc-1658972912263033296__547326f730c6a096.webp",
-   "encampment": "tokens/derived/hex-district__image-face__ugc-1658972912263034593__da14b7f535748b77.webp"
+   "theater": {
+    "plain": "tokens/derived/hex-district__image-face__ugc-1658972912263026893__ed22eb2515f51ab0.webp",
+    "reinforced": "tokens/derived/hex-district__image-back__ugc-1658972912263027257__72c55ab02a4fc094.webp"
+   },
+   "campus": {
+    "plain": "tokens/derived/hex-district__image-face__ugc-1658972912263027991__f48103659c87733a.webp",
+    "reinforced": "tokens/derived/hex-district__image-back__ugc-1658972912263028281__9b48c565bdebdf5a.webp"
+   },
+   "industrial": {
+    "plain": "tokens/derived/hex-district__image-face__ugc-1658972912263031384__ca36d28b09bdbe21.webp",
+    "reinforced": "tokens/derived/hex-district__image-back__ugc-1658972912263031722__6daad23fc063e9e5.webp"
+   },
+   "trade": {
+    "plain": "tokens/derived/hex-district__image-face__ugc-1658972912263033296__547326f730c6a096.webp",
+    "reinforced": "tokens/derived/hex-district__image-back__ugc-1658972912263033618__2ff1ae1617824e8d.webp"
+   },
+   "encampment": {
+    "plain": "tokens/derived/hex-district__image-face__ugc-1658972912263034593__da14b7f535748b77.webp",
+    "reinforced": "tokens/derived/hex-district__image-back__ugc-1658972912263034973__8886dd4fbe8e2344.webp"
+   }
   },
   "orange": {
-   "theater": "tokens/derived/hex-district__image-face__ugc-1658972912263059284__5bba85309b4ea409.webp",
-   "campus": "tokens/derived/hex-district__image-face__ugc-1658972912263062892__a667677879b01614.webp",
-   "industrial": "tokens/derived/hex-district__image-face__ugc-1658972912263065796__1853b00ff24b77b6.webp",
-   "trade": "tokens/derived/hex-district__image-face__ugc-1658972912263067451__4980b98555cb1adc.webp",
-   "encampment": "tokens/derived/hex-district__image-face__ugc-1658972912263069639__7abb10a8e860264f.webp"
+   "theater": {
+    "plain": "tokens/derived/hex-district__image-face__ugc-1658972912263059284__5bba85309b4ea409.webp",
+    "reinforced": "tokens/derived/hex-district__image-back__ugc-1658972912263062130__8bcc9e7a1e21453e.webp"
+   },
+   "campus": {
+    "plain": "tokens/derived/hex-district__image-face__ugc-1658972912263062892__a667677879b01614.webp",
+    "reinforced": "tokens/derived/hex-district__image-back__ugc-1658972912263064414__7d94d5817108e0fc.webp"
+   },
+   "industrial": {
+    "plain": "tokens/derived/hex-district__image-face__ugc-1658972912263065796__1853b00ff24b77b6.webp",
+    "reinforced": "tokens/derived/hex-district__image-back__ugc-1658972912263066252__124724d42ae52044.webp"
+   },
+   "trade": {
+    "plain": "tokens/derived/hex-district__image-face__ugc-1658972912263067451__4980b98555cb1adc.webp",
+    "reinforced": "tokens/derived/hex-district__image-back__ugc-1658972912263067826__a1693985e8884d38.webp"
+   },
+   "encampment": {
+    "plain": "tokens/derived/hex-district__image-face__ugc-1658972912263069639__7abb10a8e860264f.webp",
+    "reinforced": "tokens/derived/hex-district__image-back__ugc-1658972912263070065__9c893914e1c68be4.webp"
+   }
   },
   "red": {
-   "theater": "tokens/derived/hex-district__image-face__ugc-1658972912263091935__e743e563e246ab93.webp",
-   "campus": "tokens/derived/hex-district__image-face__ugc-1658972912263093151__9f3d454bcf510217.webp",
-   "industrial": "tokens/derived/hex-district__image-face__ugc-1658972912263094819__b413ed91ffc6b6f3.webp",
-   "trade": "tokens/derived/hex-district__image-face__ugc-1658972912263095901__937645a2a71b301b.webp",
-   "encampment": "tokens/derived/hex-district__image-face__ugc-1658972912263097213__c2d0639bdf680a00.webp"
+   "theater": {
+    "plain": "tokens/derived/hex-district__image-face__ugc-1658972912263091935__e743e563e246ab93.webp",
+    "reinforced": "tokens/derived/hex-district__image-back__ugc-1658972912263092391__758549f610df0e21.webp"
+   },
+   "campus": {
+    "plain": "tokens/derived/hex-district__image-face__ugc-1658972912263093151__9f3d454bcf510217.webp",
+    "reinforced": "tokens/derived/hex-district__image-back__ugc-1658972912263093531__ffce8cfceaca0e2c.webp"
+   },
+   "industrial": {
+    "plain": "tokens/derived/hex-district__image-face__ugc-1658972912263094819__b413ed91ffc6b6f3.webp",
+    "reinforced": "tokens/derived/hex-district__image-back__ugc-1658972912263095154__0815106cefeca7ab.webp"
+   },
+   "trade": {
+    "plain": "tokens/derived/hex-district__image-face__ugc-1658972912263095901__937645a2a71b301b.webp",
+    "reinforced": "tokens/derived/hex-district__image-back__ugc-1658972912263096260__71a6b6cb0e55d952.webp"
+   },
+   "encampment": {
+    "plain": "tokens/derived/hex-district__image-face__ugc-1658972912263097213__c2d0639bdf680a00.webp",
+    "reinforced": "tokens/derived/hex-district__image-back__ugc-1658972912263097665__046789634885255a.webp"
+   }
   },
   "purple": {
-   "theater": "tokens/derived/hex-district__image-face__ugc-1658972912263121347__1e99c0de853aa561.webp",
-   "campus": "tokens/derived/hex-district__image-face__ugc-1658972912263123018__29d3d03fff54e7f1.webp",
-   "industrial": "tokens/derived/hex-district__image-face__ugc-1658972912263125339__0727e48a2380e00f.webp",
-   "trade": "tokens/derived/hex-district__image-face__ugc-1658972912263126541__75799058cdf7b0c5.webp",
-   "encampment": "tokens/derived/hex-district__image-face__ugc-1658972912263127743__269d9baf4feacf01.webp"
+   "theater": {
+    "plain": "tokens/derived/hex-district__image-face__ugc-1658972912263121347__1e99c0de853aa561.webp",
+    "reinforced": "tokens/derived/hex-district__image-back__ugc-1658972912263122087__075425fe2c21963b.webp"
+   },
+   "campus": {
+    "plain": "tokens/derived/hex-district__image-face__ugc-1658972912263123018__29d3d03fff54e7f1.webp",
+    "reinforced": "tokens/derived/hex-district__image-back__ugc-1658972912263123905__9f3c9cc18656b8e9.webp"
+   },
+   "industrial": {
+    "plain": "tokens/derived/hex-district__image-face__ugc-1658972912263125339__0727e48a2380e00f.webp",
+    "reinforced": "tokens/derived/hex-district__image-back__ugc-1658972912263125751__64278bf92a613c96.webp"
+   },
+   "trade": {
+    "plain": "tokens/derived/hex-district__image-face__ugc-1658972912263126541__75799058cdf7b0c5.webp",
+    "reinforced": "tokens/derived/hex-district__image-back__ugc-1658972912263126936__025adea7d897314b.webp"
+   },
+   "encampment": {
+    "plain": "tokens/derived/hex-district__image-face__ugc-1658972912263127743__269d9baf4feacf01.webp",
+    "reinforced": "tokens/derived/hex-district__image-back__ugc-1658972912263128136__2ad141998c30f6be.webp"
+   }
   }
  },
  "dial": {
