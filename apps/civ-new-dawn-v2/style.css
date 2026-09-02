@@ -1191,6 +1191,10 @@ input, select {
   background: var(--surface2); color: var(--text2); border-radius: 3px; padding: 2px 6px;
 }
 .lobby-player .lp-tag.you { background: var(--accent); color: #000; }
+/* Whether a seat is holding the game up has to be readable at a glance, not
+   inferred from the Start button refusing to work. */
+.lobby-player .lp-tag.ready { background: rgba(118, 169, 79, 0.22); color: #9ede7a; }
+.lobby-player .lp-tag.waiting { background: rgba(217, 71, 71, 0.18); color: #f0a0a0; }
 .wiz-primary {
   width: 100%; margin-top: 8px; padding: 10px; font-size: 13px; font-weight: 700;
   background: var(--accent); color: #000; border-color: var(--accent);

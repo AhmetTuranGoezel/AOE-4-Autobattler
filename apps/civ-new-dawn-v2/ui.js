@@ -486,7 +486,17 @@ const UI = (() => {
     if (action?.type === "START_GAME") {
       const missing = offlinePlayers();
       if (missing.length) return "Every seated player must be online before starting.";
-      if (!state.players.every((player) => player.ready)) return "Every player must be ready before starting.";
+      // The engine's gate is `!st.solo && !every(ready)`. This copy dropped the
+      // solo half, and Local Solo shows no Ready button at all (there is nobody
+      // to be ready for) — so a solo game could never be started: the Begin
+      // button was enabled and the click was refused here every time.
+      if (!state.solo) {
+        const notReady = state.players.filter((player) => !player.ready);
+        if (notReady.length) {
+          // Naming them turns "someone, somewhere" into something actionable.
+          return `Waiting for ${notReady.map((p) => p.name).join(", ")} to mark ready.`;
+        }
+      }
     }
     return "";
   }
@@ -3284,7 +3294,10 @@ const UI = (() => {
     const readyBtn = document.getElementById("btn-ready");
     if (readyBtn) {
       const me = Game.getPlayer(state, localPlayerId);
-      const show = state.phase === "lobby" && !!me && isNetworkGame();
+      // Show it whenever the ready gate actually applies to this game, which is
+      // every non-solo lobby. Gating on isNetworkGame() meant a lobby without
+      // live session credentials had the gate but no way to satisfy it.
+      const show = state.phase === "lobby" && !!me && !state.solo;
       readyBtn.classList.toggle("hidden", !show);
       if (show) {
         readyBtn.textContent = me.ready ? "Ready (click to withdraw)" : "Ready";
@@ -3731,16 +3744,35 @@ const UI = (() => {
     const code = roomCode || Net.getLocalId() || "";
     const min = Game.CFG.minPlayers, max = Game.CFG.maxPlayers;
     const n = state.players.length;
-    const canStart = isHost && n <= max && (state.solo || n >= min);
+    // Who is still holding the game up, in the engine's own terms: START_GAME
+    // refuses unless a non-solo table is unanimously ready.
+    const notReady = state.solo ? [] : state.players.filter((p) => !p.ready);
+    const startBlocker = !isHost ? "Only the host can start the game."
+      : (!state.solo && n < min) ? `Need at least ${min} players to start.`
+      : notReady.length ? `Waiting for ${notReady.map((p) => p.name).join(", ")} to mark ready.`
+      : "";
+    // The button used to stay enabled while the game was unstartable, so the
+    // click was swallowed with no visible reason. It now says why instead.
+    const canStart = isHost && n <= max && !startBlocker;
     const leaderById = Object.fromEntries((Game.LEADERS || []).map((l) => [l.id, l]));
+    // Ready state belongs on the roster. Without it the lobby refuses to start
+    // and gives no way to see who is holding it up — and because choosing a
+    // civilization deliberately clears your own ready mark, a table that had
+    // all-ready a moment ago can quietly stop being ready with nothing on
+    // screen changing.
     const playerList = state.players.map((p, i) => {
       const lead = leaderById[p.leaderId];
+      const readyTag = state.solo ? ""
+        : p.ready
+          ? '<span class="lp-tag ready">Ready</span>'
+          : '<span class="lp-tag waiting">Not ready</span>';
       return `
       <div class="lobby-player">
         <span class="dot" style="background:${safeColor(p.color)}"></span>
         <span class="lp-name">${escapeHtml(p.name)}${lead ? ` <span class="lp-civ">${escapeHtml(lead.civ)}</span>` : ` <span class="lp-civ dim">Random civ</span>`}</span>
         ${i === 0 ? '<span class="lp-tag">Host</span>' : ""}
         ${p.id === localPlayerId ? '<span class="lp-tag you">You</span>' : ""}
+        ${readyTag}
       </div>`;
     }).join("");
 
@@ -3815,12 +3847,14 @@ const UI = (() => {
         <div class="lobby-players compact"><div class="lobby-players-head">Players (${n}/${max})</div>${playerList}</div>
       </div>
       ${leaderSection}
-      <div class="lobby-footer">${n < min && !solo ? `<span>Need at least ${min} players to start.</span>` : "<span></span>"}
+      <div class="lobby-footer">${startBlocker && isHost ? `<span>${escapeHtml(startBlocker)}</span>` : "<span></span>"}
         ${isHost
           ? `<label class="lobby-draft-toggle" title="Terra p14's optional variant: each player drafts 2 tiles and places them in turn order instead of the core revealing automatically.">
               <input type="checkbox" id="lobby-advanced-draft" ${sub.advancedDraft ? "checked" : ""}> Advanced setup: draft core tiles
             </label>
-            <button id="lobby-start" class="wiz-primary" ${canStart ? "" : "disabled"}>${solo ? "Begin" : `Start Game (${n} player${n === 1 ? "" : "s"})`}</button>`
+            <button id="lobby-start" class="wiz-primary" ${canStart ? "" : "disabled"}${
+              startBlocker ? ` title="${escapeHtml(startBlocker)}"` : ""}>${
+              solo ? "Begin" : `Start Game (${n} player${n === 1 ? "" : "s"})`}</button>`
           : `<div class="wiz-body">Waiting for the host to start the game...</div>`}</div>
     `;
 
