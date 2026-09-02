@@ -68,6 +68,17 @@
           .sides[side].cells[i].terrain;
       assert("printed 9A cell 9 is the bay, not a hill", cellTerrain("02", "A", 9) === "water");
       assert("printed 11A cell 8 is grass, not a hill", cellTerrain("03", "A", 8) === "grass");
+      // A third, reported from a real game: printed 16B cell 9 is the hill
+      // between the capital (cell 6) and the mountain (cell 7), read as grass.
+      // Grass is difficulty 1 and hill is 3, so the wrong reading let cards
+      // place there that should not reach it. It measures 45.7 from the grass
+      // signature and 7.3 from hill, and matches cell 4 on the same face, which
+      // was always transcribed as hill.
+      assert("printed 16B cell 9 is the hill by the capital, not grass",
+        cellTerrain("04", "B", 9) === "hill", cellTerrain("04", "B", 9));
+      assert("and its neighbours on that face are unchanged",
+        cellTerrain("04", "B", 6) === "forest" && cellTerrain("04", "B", 7) === "mountain" &&
+        cellTerrain("04", "B", 8) === "grass" && cellTerrain("04", "B", 4) === "hill");
       // The playable wonder deck is base + expansion MINUS the two Terra takes
       // out by name. Terra p2 step 5: "Remove the base game 'Pentagon' and
       // 'Machu Picchu' wonders, and then combine the expansion wonder cards

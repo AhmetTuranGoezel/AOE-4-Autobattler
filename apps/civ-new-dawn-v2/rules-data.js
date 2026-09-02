@@ -73,7 +73,16 @@
     // Printed tile 16
     tile("04", "capital",
       ["water","water","grass","grass","hill","grass","grass","desert","grass","desert"],
-      ["water","grass","forest","desert","hill","grass","forest","mountain","grass","grass"],
+      // Cell 9 sits between the capital (6) and the mountain (7) and was read
+      // as grass. It is a hill: it measures RGB(109,107,50) against a grass
+      // signature of (131,147,51) and a hill signature of (114,112,48) — 45.7
+      // away from what the data claimed and 7.3 from what it is — and it is the
+      // same olive-with-brown-ridges as cell 4, which was always transcribed as
+      // hill. Grass is difficulty 1 and hill is 3, so the wrong reading let
+      // control tokens, districts and cities land there on cards that should
+      // not reach it. Reported from a real game; tools/audit-tile-terrain.py
+      // flags it independently.
+      ["water","grass","forest","desert","hill","grass","forest","mountain","grass","hill"],
       { 6: { feature: "capital" }, 9: { resource: "oil" } },
       { 4: { resource: "marble" }, 6: { feature: "capital" } }),
     // Printed tile 17
