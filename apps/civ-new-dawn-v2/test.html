@@ -157,13 +157,9 @@
       dup = Game.applyAction(dup, { type: "ADD_PLAYER", payload: Game.createPlayer("d2", "D2", "#169eae") });
       assert("asking for a taken colour gets the next free one",
         dup.players[0].color === "#169eae" && dup.players[1].color !== "#169eae");
-      const notReady = Game.applyAction(lob, { type: "START_GAME", payload: { playerId: lob.players[0].id } });
-      assert("a multiplayer lobby waits until every seat is ready", notReady.phase === "lobby");
-      lob.players.forEach((player) => {
-        lob = Game.applyAction(lob, { type: "SET_READY", payload: { playerId: player.id, ready: true } });
-      });
+      assert("new multiplayer seats begin with a false legacy ready flag", lob.players.every((player) => !player.ready));
       lob = Game.applyAction(lob, { type: "START_GAME", payload: { playerId: lob.players[0].id } });
-      assert("START_GAME builds a five-player setup", lob.phase === "setup" && lob.setup.phase === "fortress" && lob.setup.order.length === 5);
+      assert("START_GAME builds a five-player setup without a ready ceremony", lob.phase === "setup" && lob.setup.phase === "fortress" && lob.setup.order.length === 5);
       let midGame = Game.createState(players(2));
       midGame.phase = "playing";
       midGame = Game.applyAction(midGame, { type: "ADD_PLAYER", payload: Game.createPlayer("late", "Late", "#f77f00") });
@@ -179,9 +175,6 @@
       assert("SET_LEADER applies civ and focus order", ldr.players[0].leaderId === "rome" && ldr.players[0].focusRow[5] === "industry");
       ldr = Game.applyAction(ldr, { type: "SET_LEADER", payload: { playerId: ldrB, leaderId: "rome" } });
       assert("duplicate civ pick rejected", ldr.players[1].leaderId !== "rome");
-      ldr.players.forEach((player) => {
-        ldr = Game.applyAction(ldr, { type: "SET_READY", payload: { playerId: player.id, ready: true } });
-      });
       ldr = Game.applyAction(ldr, { type: "START_GAME", payload: { playerId: ldrA } });
       assert("random civs dealt at start", ldr.players.every((p) => p.leaderId && p.leaderId !== "random"));
       const plain = Game.createPlayer("pp", "P", "#fff");
@@ -3559,6 +3552,47 @@
 
         {
           const st = interactionState();
+          const [visitor, host, outsider] = st.players;
+          activate(st, "0,0", {
+            city: { ownerId: visitor.id, isCapital: true, developed: true,
+              hasWonder: false, wonder: null }
+          });
+          activate(st, "1,0", {
+            city: { ownerId: host.id, isCapital: true, developed: true,
+              hasWonder: false, wonder: null }
+          });
+          visitor.caravans[0].position = "0,0";
+          const arrival = Game.tryApplyAction(st, {
+            type: "PLAY_ECONOMY",
+            payload: { unitId: visitor.caravans[0].id, toKey: "1,0", tradeSpent: 0 }
+          }, { actorId: visitor.id, role: "player" });
+          const take = arrival.state.pendingChoices.find((choice) => choice.kind === "take_diplomacy");
+          const picked = Game.tryApplyAction(arrival.state, {
+            type: "RESOLVE_PENDING_CHOICE",
+            payload: { choiceId: take.id, optionId: "embassy" }
+          }, { actorId: visitor.id, role: "player" });
+          const hostPlacement = picked.state.pendingChoices.find((choice) =>
+            choice.source === "Embassy" && choice.kind === "trade_any" && choice.playerId === host.id);
+          assert("an Embassy taken by the arriving caravan triggers on that same capital visit",
+            picked.accepted && !!hostPlacement);
+          const hijack = Game.tryApplyAction(picked.state, {
+            type: "RESOLVE_PENDING_CHOICE",
+            payload: { choiceId: hostPlacement.id, optionId: "culture" }
+          }, { actorId: outsider.id, role: "player" });
+          assert("only the capital owner places the Embassy trade token",
+            !hijack.accepted && hijack.code === "choice_owner_mismatch");
+          const placed = Game.tryApplyAction(picked.state, {
+            type: "RESOLVE_PENDING_CHOICE",
+            payload: { choiceId: hostPlacement.id, optionId: "culture" }
+          }, { actorId: host.id, role: "player" });
+          assert("after the host places the Embassy token, the visitor owns the resource choice",
+            placed.accepted && placed.state.players[1].trade.culture === 1 &&
+            placed.state.pendingChoices.some((choice) =>
+              choice.source === "Embassy" && choice.kind === "gain_resource" && choice.playerId === visitor.id));
+        }
+
+        {
+          const st = interactionState();
           const [attacker, defender, ally] = st.players;
           attacker.diplomacy = [
             { fromId: defender.id, cardId: "joint_war", name: "Joint War" },
@@ -3594,6 +3628,33 @@
           assert("after a die is rolled, diplomacy return and combat are irreversible",
             rolled.accepted && !tooLate.accepted && tooLate.code === "combat_irreversible" &&
             rolled.state.players[0].diplomacy.length === 1);
+        }
+
+        {
+          const st = interactionState();
+          const [attacker, armyOwner, caravanOwner] = st.players;
+          const action = prepareArmyAttack(st, attacker, armyOwner);
+          caravanOwner.caravans[0].position = "1,0";
+          const targets = Game.findDefenders(st, "1,0", attacker.id);
+          assert("every rival figure sharing a neutral space is offered as its own target",
+            targets.length === 2 && targets.some((target) =>
+              target.type === "army" && target.ownerId === armyOwner.id) &&
+            targets.some((target) => target.type === "caravan" && target.ownerId === caravanOwner.id),
+            JSON.stringify(targets));
+          action.payload.targetType = "caravan";
+          action.payload.targetOwnerId = caravanOwner.id;
+          action.payload.targetUnitId = caravanOwner.caravans[0].id;
+          const begun = Game.tryApplyAction(st, action,
+            { actorId: attacker.id, role: "player" });
+          assert("the selected figure owner and unit survive the multiplayer action boundary",
+            begun.accepted && begun.state.combat.defenderOwnerId === caravanOwner.id &&
+            begun.state.combat.defenderUnitId === caravanOwner.caravans[0].id);
+          const forged = Game.tryApplyAction(st, {
+            ...action,
+            payload: { ...action.payload, targetUnitId: "missing-unit" }
+          }, { actorId: attacker.id, role: "player" });
+          assert("a stale exact figure target is rejected instead of attacking somebody else",
+            !forged.accepted && forged.code === "combat_target_missing");
         }
 
         {
@@ -3725,7 +3786,7 @@
             unit: false,
             targetType: "city",
             hex: { city: { ownerId: defender.id, isCapital: false, developed: true,
-              hasWonder: false, wonder: null,
+              hasWonder: true, wonder: { name: "Cristo Redentor", era: "modern", type: "culture" },
               conqueredCityState: { name: "Geneva", type: "science" } } }
           });
           const begun = Game.tryApplyAction(st, action,
@@ -3749,6 +3810,34 @@
             liberated.state.map.hexes["1,0"].cityState.name === "Geneva" &&
             liberated.state.players[0].diplomacy.some((card) => card.fromCityState === "Geneva") &&
             !liberated.state.players[1].cityStateTokens.includes("Geneva"));
+          assert("a liberated city-state keeps its world wonder physically present but unowned",
+            liberated.state.map.hexes["1,0"].unownedWonder.name === "Cristo Redentor" &&
+            !Game.hasWonder(liberated.state, attacker.id, "Cristo Redentor") &&
+            !Game.hasWonder(liberated.state, defender.id, "Cristo Redentor"));
+        }
+
+
+        {
+          const st = interactionState();
+          const [attacker] = st.players;
+          activate(st, "0,0", {
+            city: { ownerId: attacker.id, isCapital: true, developed: true,
+              hasWonder: false, wonder: null }
+          });
+          activate(st, "1,0", {
+            cityState: { name: "Geneva", type: "science", diplomacyCards: 2 },
+            unownedWonder: { name: "Apadana", era: "ancient", type: "culture" }
+          });
+          attacker.armies[0].position = "0,0";
+          const begun = Game.tryApplyAction(st, {
+            type: "PLAY_MILITARY_ATTACK",
+            payload: { unitId: attacker.armies[0].id, fromKey: "0,0", toKey: "1,0",
+              targetType: "citystate", tradeSpent: 0 }
+          }, { actorId: attacker.id, role: "player" });
+          const won = forceAttackerWin(begun.state, begun.state.players[0]);
+          assert("the next city-state conqueror captures its previously unowned wonder",
+            won.map.hexes["1,0"].city.wonder.name === "Apadana" &&
+            !won.map.hexes["1,0"].unownedWonder && Game.hasWonder(won, attacker.id, "Apadana"));
         }
 
         {

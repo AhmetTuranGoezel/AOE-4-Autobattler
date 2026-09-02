@@ -268,6 +268,7 @@ const Game = (() => {
           revealed: false,
           resource: null,
           cityState: null,
+          unownedWonder: null,
           barbarian: false,
           control: null,
           city: null,
@@ -291,6 +292,7 @@ const Game = (() => {
       resource: null,
       naturalWonder: null,
       cityState: null,
+      unownedWonder: null,
       barbarian: false,
       barbarianId: null,
       control: null,
@@ -467,6 +469,7 @@ const Game = (() => {
       hex.resource = null;
       hex.naturalWonder = null;
       hex.cityState = null;
+      hex.unownedWonder = null;
       hex.barbarian = false;
       hex.barbarianId = null;
       hex.control = null;
@@ -1059,6 +1062,7 @@ const Game = (() => {
     st.log = (st.log || []).slice(-MAX_LOG_ENTRIES);
     st.chat = (st.chat || []).slice(-MAX_CHAT_ENTRIES);
     Object.values(st.map?.hexes || {}).forEach((h) => {
+      if (h.unownedWonder === undefined) h.unownedWonder = null;
       if (h.city && h.city.wonder) h.city.hasWonder = true;
       if (h.city && h.city.hasWonder && !h.city.wonder) h.city.wonder = { name: "Unknown", era: "ancient", type: "military", effect: "" };
       if (h.cityState && h.cityState.diplomacyCards === undefined) h.cityState.diplomacyCards = 2;
@@ -1407,8 +1411,7 @@ const Game = (() => {
         }
         if (type === "PLAY_MILITARY_ATTACK") {
           const targets = findDefenders(st, payload.toKey, actorId);
-          const defender = payload.targetType
-            ? targets.find((entry) => entry.type === payload.targetType) : targets[0];
+          const defender = selectCombatDefender(targets, payload);
           if (!defender) return denied("combat_target_missing", "There is no legal target in that space.");
           if (defender.ownerId && !canAffectRivalPiece(st, actorId, defender.ownerId)) {
             const owner = getPlayer(st, defender.ownerId);
@@ -1728,7 +1731,6 @@ const Game = (() => {
     if (type === "START_GAME") {
       if (st.phase !== "lobby") return st;
       if (!st.solo && st.players.length < CFG.minPlayers) return st;
-      if (!st.solo && !st.players.every((player) => player.ready)) return st;
       assignRandomLeaders(st);
       const newState = createState(st.players, { advancedDraft: !!payload.advancedDraft });
       newState.solo = !!st.solo;
@@ -2229,6 +2231,9 @@ const Game = (() => {
         unit.position = null;   // back onto the economy card
         log(st, `${player.name}'s caravan traded at ${hex.cityState.name} (+${tradeGain} ${tradeType} trade). Back to the economy card.`);
       } else if (hex && hex.city && hex.city.ownerId !== payload.playerId) {
+        const hostPlayer = getPlayer(st, hex.city.ownerId);
+        const hadEmbassyOnArrival = !!(hex.city.isCapital && hostPlayer &&
+          heldDiplomacy(player, "embassy").some((d) => d.fromId === hostPlayer.id));
         for (let i = 0; i < tradeGain; i++) {
           queuePendingChoice(st, {
             kind: "trade_any", playerId: player.id, amount: 1,
@@ -2236,13 +2241,14 @@ const Game = (() => {
             options: tradeTargets(st, player)
           });
         }
-        grantPlayerDiplomacy(st, player, hex.city.ownerId);
+        grantPlayerDiplomacy(st, player, hex.city.ownerId, {
+          embassyOnTake: !!(hex.city.isCapital && hostPlayer && !hadEmbassyOnArrival)
+        });
         queueWheel();
         // Great Library: take a card of the same type and level as one of theirs.
         if (hasWonder(st, player.id, "Great Library")) {
           queueGreatLibrary(st, player, hex.city.ownerId);
         }
-        const hostPlayer = getPlayer(st, hex.city.ownerId);
         queueCartographyCity(st, player, payload.toKey);
         // Ibrahim: the visitor and the Ottoman each choose where their own
         // token goes. These are two seat-owned decisions, never an automatic
@@ -2276,8 +2282,7 @@ const Game = (() => {
         // token from the supply on a card in that player's focus row. Then,
         // gain 1 resource of your choice from the supply." The token goes to
         // them — an embassy is worth something to the host as well.
-        if (hex.city.isCapital && hostPlayer &&
-            heldDiplomacy(player, "embassy").some((d) => d.fromId === hostPlayer.id)) {
+        if (hadEmbassyOnArrival) {
           queueTradeGrant(st, {
             kind: "trade_grant",
             playerId: hostPlayer.id,
@@ -2374,8 +2379,7 @@ const Game = (() => {
       // sent the action, so the two sides of a network game can never disagree
       // about the numbers they are staking a fight on.
       const targets = findDefenders(st, payload.toKey, payload.playerId);
-      const defender = (payload.targetType &&
-        targets.find((d) => d.type === payload.targetType)) || targets[0];
+      const defender = selectCombatDefender(targets, payload);
       if (!defender) return st;
       if (defender.ownerId && !canAffectRivalPiece(st, player.id, defender.ownerId)) return st;
       const diplomacySource = defender.ownerId ||
@@ -2588,7 +2592,10 @@ const Game = (() => {
       const hex = st.map.hexes[payload.hexKey];
       if (!hex || !hex.city || hex.city.ownerId !== payload.playerId || hex.city.hasWonder) return st;
       const builtWonders = new Set();
-      Object.values(st.map.hexes).forEach((h) => { if (h.city && h.city.wonder) builtWonders.add(h.city.wonder.name); });
+      Object.values(st.map.hexes).forEach((h) => {
+        const wonder = h.city && h.city.wonder || h.unownedWonder;
+        if (wonder) builtWonders.add(wonder.name);
+      });
 
       const wonder = getVisibleWonders(st)
         .find((w) => w.name === payload.wonderName && !builtWonders.has(w.name));
@@ -3927,6 +3934,21 @@ const Game = (() => {
         });
         const src = getPlayer(st, choice.fromId);
         log(st, `${player.name} took ${card.name} from ${src ? src.name : "a rival"}.`);
+        if (cardId === "embassy" && choice.embassyOnTake && src) {
+          queueTradeGrant(st, {
+            kind: "trade_grant",
+            playerId: src.id,
+            source: "Embassy",
+            title: `Embassy: ${src.name}, Place a Trade Token`,
+            nextChoice: {
+              kind: "gain_resource",
+              playerId: player.id,
+              title: "Embassy: Gain a Resource",
+              source: "Embassy",
+              options: RESOURCES.map((resource) => ({ id: resource, label: resource }))
+            }
+          });
+        }
         resolved = true;
       }
     } else if (choice.kind === "capital_loot_take") {
@@ -4295,9 +4317,14 @@ const Game = (() => {
         } else {
           // City-state diplomacy cards are identical pairs, so liberation can
           // grant one immediately without another artificial choice.
+          const unownedWonder = hex.city.wonder ? cloneSerializable(hex.city.wonder) : null;
           hex.city = null;
           hex.cityState = { name: cs.name, type: cs.type, diplomacyCards: 2 };
+          hex.unownedWonder = unownedWonder;
           grantCityStateDiplomacy(st, player, hex.cityState);
+          if (unownedWonder) {
+            log(st, `${unownedWonder.name} remains in ${cs.name}'s space unowned until the city-state is conquered again.`);
+          }
           log(st, `${player.name} liberated ${cs.name}.`);
         }
         queueNonAggressionResponse(st, choice.defenderId, player.id,
@@ -4310,13 +4337,16 @@ const Game = (() => {
       const hex = st.map.hexes[choice.hexKey];
       if (payload.optionId === "yes" && hex && hex.cityState) {
         const cs = hex.cityState;
+        const capturedWonder = hex.unownedWonder ? cloneSerializable(hex.unownedWonder) : null;
         player.trade[cs.type] = Math.min(CFG.maxTrade, player.trade[cs.type] + 1);
         if (!player.cityStateTokens.includes(cs.name)) player.cityStateTokens.push(cs.name);
         returnAllCityStateDiplomacy(st, cs.name);
         hex.cityState = null;
         hex.city = { ownerId: player.id, isCapital: false, developed: false,
-          hasWonder: false, wonder: null,
+          hasWonder: !!capturedWonder, wonder: capturedWonder,
           conqueredCityState: { name: cs.name, type: cs.type } };
+        hex.unownedWonder = null;
+        triggerCapturedWonder(st, player, choice.hexKey, capturedWonder && capturedWonder.name);
         checkDevelopment(st, player.id);
         log(st, `${player.name} conquered ${cs.name} with Orszaghaz.`);
         resolved = true;
@@ -4722,6 +4752,7 @@ const Game = (() => {
     queuePendingChoice(st, {
       kind: "take_diplomacy", playerId: player.id, fromId: sourcePlayerId,
       keepHeld: potala || !!opts.keepHeld,
+      embassyOnTake: !!opts.embassyOnTake,
       title: opts.title || `Diplomacy with ${source.name}`,
       options: offer.map((id) => ({
         id,
@@ -4960,14 +4991,17 @@ const Game = (() => {
       if (target === "citystate" && hex.cityState) {
         const csType = hex.cityState.type;
         const csName = hex.cityState.name;
+        const capturedWonder = hex.unownedWonder ? cloneSerializable(hex.unownedWonder) : null;
         player.trade[csType] = Math.min(CFG.maxTrade, player.trade[csType] + 1);
         if (!player.cityStateTokens.includes(csName)) player.cityStateTokens.push(csName);
         returnAllCityStateDiplomacy(st, csName);
         log(st, `${player.name} gained +1 ${csType} trade and a ${csName} token.`);
         hex.cityState = null;
         hex.city = { ownerId: c.attackerId, isCapital: false, developed: false,
-          hasWonder: false, wonder: null,
+          hasWonder: !!capturedWonder, wonder: capturedWonder,
           conqueredCityState: { name: csName, type: csType } };
+        hex.unownedWonder = null;
+        triggerCapturedWonder(st, player, c.toKey, capturedWonder && capturedWonder.name);
       }
       if (target === "control" && hex.control && hex.control.ownerId !== c.attackerId) {
         // Terra p10: beating a district replaces it with your own unreinforced,
@@ -7885,7 +7919,7 @@ const Game = (() => {
     return reachable;
   }
 
-  function findDefender(st, hexKey, attackerId) {
+  function findDefender(st, hexKey, attackerId, targetUnitId, targetOwnerId) {
     const h = st.map.hexes[hexKey];
     if (!h) return null;
     // Every defender hands back where its number came from, so the fight can
@@ -7974,12 +8008,14 @@ const Game = (() => {
     }
     // A lone rival figure is still a target: its defence is the space's terrain
     // difficulty. Without this, walking onto an enemy army was a free move.
-    const rival = rivalUnitAt(st, hexKey, attackerId);
+    const rival = rivalUnitAt(st, hexKey, attackerId, targetUnitId, targetOwnerId);
     if (rival) {
       const parts = breakdown(rival.playerId,
         { label: `${TERRAIN_LABELS[h.terrain] || h.terrain} terrain`, value: terrainDifficulty(h) },
         rival.unitId, true);
-      return { type: rival.kind, label: rival.kind === "army" ? "Army" : "Caravan",
+      const rivalPlayer = getPlayer(st, rival.playerId);
+      return { type: rival.kind,
+        label: `${rivalPlayer ? rivalPlayer.name + "'s " : ""}${rival.kind === "army" ? "Army" : "Caravan"}`,
         ownerId: rival.playerId, unitId: rival.unitId,
         power: parts.reduce((a, x) => a + x.value, 0), parts };
     }
@@ -8008,24 +8044,46 @@ const Game = (() => {
 
     const out = [];
     const seen = new Set();
-    const add = (d) => { if (d && !seen.has(d.type)) { seen.add(d.type); out.push(d); } };
+    const add = (d) => {
+      const identity = d && `${d.type}:${d.ownerId || ""}:${d.unitId || ""}`;
+      if (d && !seen.has(identity)) { seen.add(identity); out.push(d); }
+    };
     if (h.control && h.control.ownerId !== attackerId) add(defenderOfType(st, hexKey, attackerId, "control"));
     if (h.city && h.city.ownerId !== attackerId) add(defenderOfType(st, hexKey, attackerId, "city"));
-    const rival = rivalUnitAt(st, hexKey, attackerId);
-    if (rival) add(defenderOfType(st, hexKey, attackerId, rival.kind));
+    rivalUnitsAt(st, hexKey, attackerId).forEach((rival) => {
+      add(defenderOfType(st, hexKey, attackerId, rival.kind, rival));
+    });
     return out;
+  }
+
+  function selectCombatDefender(targets, payload) {
+    const list = targets || [];
+    const request = payload || {};
+    const hasExactIdentity = !!(request.targetUnitId || request.targetOwnerId);
+    if (hasExactIdentity) {
+      return list.find((entry) =>
+        (!request.targetType || entry.type === request.targetType) &&
+        (!request.targetOwnerId || entry.ownerId === request.targetOwnerId) &&
+        (!request.targetUnitId || entry.unitId === request.targetUnitId)) || null;
+    }
+    return request.targetType
+      ? list.find((entry) => entry.type === request.targetType) || null
+      : list[0] || null;
   }
 
   // findDefender with the top of its priority order suppressed, so each piece
   // in a shared space can be described on its own terms.
-  function defenderOfType(st, hexKey, attackerId, type) {
+  function defenderOfType(st, hexKey, attackerId, type, rival) {
     const h = st.map.hexes[hexKey];
     if (!h) return null;
     const saveControl = h.control, saveCity = h.city;
     if (type !== "control") h.control = null;
     if (type !== "city") h.city = null;
     let d = null;
-    try { d = findDefender(st, hexKey, attackerId); } finally {
+    try {
+      d = findDefender(st, hexKey, attackerId,
+        rival && rival.unitId, rival && rival.playerId);
+    } finally {
       h.control = saveControl; h.city = saveCity;
     }
     return d && d.type === type ? d : null;
@@ -8033,18 +8091,31 @@ const Game = (() => {
 
   // The rival figure standing on a space, armies before caravans — an army is
   // what an attacker has to beat, and it is the one that escorts the caravan.
-  function rivalUnitAt(st, hexKey, attackerId) {
+  function rivalUnitsAt(st, hexKey, attackerId) {
+    const found = [];
     for (const p of st.players) {
       if (p.id === attackerId) continue;
-      const army = p.armies.find((u) => u.position === hexKey);
-      if (army) return { playerId: p.id, unitId: army.id, kind: "army" };
+      p.armies.filter((u) => u.position === hexKey).forEach((army) => {
+        found.push({ playerId: p.id, unitId: army.id, kind: "army" });
+      });
     }
     for (const p of st.players) {
       if (p.id === attackerId) continue;
-      const car = p.caravans.find((u) => u.position === hexKey);
-      if (car) return { playerId: p.id, unitId: car.id, kind: "caravan" };
+      p.caravans.filter((u) => u.position === hexKey).forEach((caravan) => {
+        found.push({ playerId: p.id, unitId: caravan.id, kind: "caravan" });
+      });
     }
-    return null;
+    return found;
+  }
+
+  function rivalUnitAt(st, hexKey, attackerId, targetUnitId, targetOwnerId) {
+    const rivals = rivalUnitsAt(st, hexKey, attackerId);
+    if (targetUnitId || targetOwnerId) {
+      return rivals.find((unit) =>
+        (!targetUnitId || unit.unitId === targetUnitId) &&
+        (!targetOwnerId || unit.playerId === targetOwnerId)) || null;
+    }
+    return rivals[0] || null;
   }
 
   function armiesAt(st, hexKey) {

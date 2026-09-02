@@ -16,6 +16,7 @@ const steps = [
   ["coverage matrix", "coverage-matrix.js"],
   ["authorization", "authorization-test.js"],
   ["net protocol", "net-protocol-test.js"],
+  ["lobby contract", "lobby-contract-test.js"],
   ["art index", "verify-art.js"]
 ];
 

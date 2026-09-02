@@ -486,17 +486,6 @@ const UI = (() => {
     if (action?.type === "START_GAME") {
       const missing = offlinePlayers();
       if (missing.length) return "Every seated player must be online before starting.";
-      // The engine's gate is `!st.solo && !every(ready)`. This copy dropped the
-      // solo half, and Local Solo shows no Ready button at all (there is nobody
-      // to be ready for) — so a solo game could never be started: the Begin
-      // button was enabled and the click was refused here every time.
-      if (!state.solo) {
-        const notReady = state.players.filter((player) => !player.ready);
-        if (notReady.length) {
-          // Naming them turns "someone, somewhere" into something actionable.
-          return `Waiting for ${notReady.map((p) => p.name).join(", ")} to mark ready.`;
-        }
-      }
     }
     return "";
   }
@@ -875,10 +864,6 @@ const UI = (() => {
 
     document.getElementById("btn-net-retry")?.addEventListener("click", retryNetworkAndBackup);
     document.getElementById("btn-host-takeover")?.addEventListener("click", takeOverHost);
-    document.getElementById("btn-ready")?.addEventListener("click", () => {
-      const me = state && Game.getPlayer(state, localPlayerId);
-      if (me) dispatch({ type: "SET_READY", payload: { playerId: localPlayerId, ready: !me.ready } });
-    });
     window.addEventListener("beforeunload", () => {
       stopSessionTimers();
       Net.leaveRoom?.();
@@ -2573,6 +2558,24 @@ const UI = (() => {
       }
     }
 
+    // A wonder stays physically in a liberated city-state's space but belongs
+    // to nobody until that city-state is conquered again (official FAQ). Keep
+    // the token visible so the next conqueror knows what changes hands.
+    if (h.unownedWonder) {
+      const tok = art && CivCardArt.wonderToken(h.unownedWonder.name || "");
+      const badgeX = cx + HEX_SIZE * 0.44, badgeY = cy - HEX_SIZE * 0.40;
+      const rad = HEX_SIZE * 0.27;
+      ctx.beginPath();
+      ctx.arc(badgeX, badgeY, rad, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(12,10,20,0.72)"; ctx.fill();
+      ctx.lineWidth = 1.4 * s; ctx.strokeStyle = "rgba(225,190,231,0.85)"; ctx.stroke();
+      if (!(tok && drawToken(tok, badgeX, badgeY, 0.24))) {
+        ctx.font = `bold ${Math.round(9 * s)}px sans-serif`;
+        ctx.fillStyle = "#e1bee7";
+        ctx.fillText("W", badgeX, badgeY + 0.5 * s);
+      }
+    }
+
     if (h.barbarian) {
       // The dial marches them a space at a time, and reactToChanges already
       // starts a tween keyed on the barbarian rather than on the space. It was
@@ -2995,6 +2998,7 @@ const UI = (() => {
       }
       if (h.barbarian) lines.push(`Barbarian (power ${Game.TERRAIN[h.terrain]})`);
       if (h.cityState) lines.push(`City-State: ${escapeHtml(h.cityState.name)} (${escapeHtml(h.cityState.type)})`);
+      if (h.unownedWonder) lines.push(`<strong style="color:#e1bee7">Unowned wonder: ${escapeHtml(h.unownedWonder.name)}</strong>`);
       if (h.resource) lines.push(`Resource: ${h.resource}`);
       if (h.fortress) {
         const owner = h.fortressOwnerId ? Game.getPlayer(state, h.fortressOwnerId) : null;
@@ -3029,6 +3033,7 @@ const UI = (() => {
     const markers = {}, barbarians = {};
     Object.entries(state.map.hexes).forEach(([k, h]) => {
       if (h.city && h.city.wonder) wonders[h.city.wonder.name] = k;
+      if (h.unownedWonder) wonders[h.unownedWonder.name] = k;
       if (h.city) cities[k] = h.city.ownerId;
       if (h.control && h.control.district) districts[k] = h.control.district;
       if (h.control) {
@@ -3286,25 +3291,6 @@ const UI = (() => {
       undoBtn.classList.toggle("undo-ready", !!undo.canUndo);
       undoBtn.title = undo.reason || "Undo current turn";
     }
-    // START_GAME refuses until every player is ready, and SET_READY has exactly
-    // one caller: this button. It ships with `hidden` on it in index.html and
-    // nothing ever took that off, so nobody could ever mark ready and no
-    // multiplayer game could be started at all. It belongs to the lobby, so it
-    // appears there and says which way it will flip.
-    const readyBtn = document.getElementById("btn-ready");
-    if (readyBtn) {
-      const me = Game.getPlayer(state, localPlayerId);
-      // Show it whenever the ready gate actually applies to this game, which is
-      // every non-solo lobby. Gating on isNetworkGame() meant a lobby without
-      // live session credentials had the gate but no way to satisfy it.
-      const show = state.phase === "lobby" && !!me && !state.solo;
-      readyBtn.classList.toggle("hidden", !show);
-      if (show) {
-        readyBtn.textContent = me.ready ? "Ready (click to withdraw)" : "Ready";
-        readyBtn.classList.toggle("primary", !me.ready);
-        readyBtn.title = me.ready ? "Click to withdraw your ready mark" : "Mark yourself ready to start";
-      }
-    }
     if (state.phase === "lobby") {
       dom.hdrRound.textContent = "Lobby";
       dom.hdrTurn.textContent = `${state.players.length}/${Game.CFG.maxPlayers} players`;
@@ -3526,6 +3512,7 @@ const UI = (() => {
         builtWonders.add(h.city.wonder.name);
         if (h.city.ownerId === localPlayerId) myWonders.push(h.city.wonder.name);
       }
+      if (h.unownedWonder) builtWonders.add(h.unownedWonder.name);
     });
     const myWonderStr = myWonders.length ? myWonders.join(", ") : "none";
     const myLeader = Game.getLeader ? Game.getLeader(me) : null;
@@ -3744,35 +3731,21 @@ const UI = (() => {
     const code = roomCode || Net.getLocalId() || "";
     const min = Game.CFG.minPlayers, max = Game.CFG.maxPlayers;
     const n = state.players.length;
-    // Who is still holding the game up, in the engine's own terms: START_GAME
-    // refuses unless a non-solo table is unanimously ready.
-    const notReady = state.solo ? [] : state.players.filter((p) => !p.ready);
+    const missing = offlinePlayers();
     const startBlocker = !isHost ? "Only the host can start the game."
       : (!state.solo && n < min) ? `Need at least ${min} players to start.`
-      : notReady.length ? `Waiting for ${notReady.map((p) => p.name).join(", ")} to mark ready.`
+      : missing.length ? `Waiting for ${missing.map((p) => p.name).join(", ")} to reconnect.`
       : "";
-    // The button used to stay enabled while the game was unstartable, so the
-    // click was swallowed with no visible reason. It now says why instead.
     const canStart = isHost && n <= max && !startBlocker;
     const leaderById = Object.fromEntries((Game.LEADERS || []).map((l) => [l.id, l]));
-    // Ready state belongs on the roster. Without it the lobby refuses to start
-    // and gives no way to see who is holding it up — and because choosing a
-    // civilization deliberately clears your own ready mark, a table that had
-    // all-ready a moment ago can quietly stop being ready with nothing on
-    // screen changing.
     const playerList = state.players.map((p, i) => {
       const lead = leaderById[p.leaderId];
-      const readyTag = state.solo ? ""
-        : p.ready
-          ? '<span class="lp-tag ready">Ready</span>'
-          : '<span class="lp-tag waiting">Not ready</span>';
       return `
       <div class="lobby-player">
         <span class="dot" style="background:${safeColor(p.color)}"></span>
         <span class="lp-name">${escapeHtml(p.name)}${lead ? ` <span class="lp-civ">${escapeHtml(lead.civ)}</span>` : ` <span class="lp-civ dim">Random civ</span>`}</span>
         ${i === 0 ? '<span class="lp-tag">Host</span>' : ""}
         ${p.id === localPlayerId ? '<span class="lp-tag you">You</span>' : ""}
-        ${readyTag}
       </div>`;
     }).join("");
 
@@ -4931,7 +4904,7 @@ const UI = (() => {
     // target it applies to.
     const attackAgainst = (d) => me ? Game.getSlotValue(me, "military", state) +
       Game.getMilitaryCombatBonus(me, d && d.type) +
-      Game.getLeaderAttackBonus(state, localPlayerId, t.hexKey) : 0;
+      Game.getLeaderAttackBonus(state, localPlayerId, t.hexKey, d && d.ownerId) : 0;
     dom.wizard.innerHTML = `
       <div class="wiz-title">Which piece are you attacking?</div>
       <div class="wiz-body">
@@ -4952,7 +4925,8 @@ const UI = (() => {
         flashHex(t.hexKey, "rgb(239,83,80)", 800);
         const result = await dispatch({ type: "PLAY_MILITARY_ATTACK", payload: {
           playerId: localPlayerId, unitId: t.unitId, toKey: t.hexKey,
-          fromKey: t.fromKey, targetType: d.type } });
+          fromKey: t.fromKey, targetType: d.type,
+          targetOwnerId: d.ownerId || null, targetUnitId: d.unitId || null } });
         if (!result || result.status !== "accepted") return;
         sub.attackTargets = null;
         nextUnitOrFinish("army");
@@ -5117,7 +5091,8 @@ const UI = (() => {
         flashHex(ms.currentKey, "rgb(239,83,80)", 800);
         const result = await dispatch({ type: "PLAY_MILITARY_ATTACK", payload: {
           playerId: localPlayerId, unitId: ms.unitId, toKey: ms.currentKey,
-          fromKey: ms.startKey, targetType: defender.type
+          fromKey: ms.startKey, targetType: defender.type,
+          targetOwnerId: defender.ownerId || null, targetUnitId: defender.unitId || null
         }});
         if (!result || result.status !== "accepted") return;
       } else {
@@ -5249,7 +5224,10 @@ const UI = (() => {
 
   function renderPickingWonder() {
     const builtWonders = new Set();
-    Object.values(state.map.hexes).forEach((h) => { if (h.city && h.city.wonder) builtWonders.add(h.city.wonder.name); });
+    Object.values(state.map.hexes).forEach((h) => {
+      const wonder = h.city && h.city.wonder || h.unownedWonder;
+      if (wonder) builtWonders.add(wonder.name);
+    });
 
     const visible = Game.getVisibleWonders(state).filter((w) => !builtWonders.has(w.name));
 
@@ -5425,8 +5403,16 @@ const UI = (() => {
     Object.entries(state.map.hexes).forEach(([k, h]) => {
       if (h.city && h.city.wonder && h.city.wonder.name === name) {
         built = h.city.ownerId; atKey = k; atHex = h;
+      } else if (h.unownedWonder && h.unownedWonder.name === name) {
+        built = "unowned"; atKey = k; atHex = h;
       }
     });
+    if (built === "unowned") {
+      return {
+        label: `unowned in ${atHex.cityState ? atHex.cityState.name : "a city-state space"}`,
+        cls: "built", hexKey: atKey, ownerColor: null
+      };
+    }
     if (built) {
       const owner = Game.getPlayer(state, built);
       const where = atHex.city.isCapital ? "their capital"

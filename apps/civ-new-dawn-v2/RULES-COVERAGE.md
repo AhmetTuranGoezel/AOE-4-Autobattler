@@ -133,6 +133,16 @@ token" got wrong, and it was wrong in both the engine and the UI.
 - A diplomacy card on arrival: the city-state's own card if a copy is left (two
   copies exist per city-state), or a **choice** among that rival's cards, with the
   option to swap the one you already hold.
+- **Embassy** also triggers when it is the card taken by the caravan that has just
+  reached the giver's capital. The capital owner chooses the destination of their
+  trade token, then the visitor chooses their resource; neither browser can answer
+  the other player's choice.
+
+### Multiplayer lobby
+
+- There is no separate Ready ceremony. The host can start once the minimum number
+  of seats is present. In a network room, a genuinely disconnected occupied seat
+  is the only connection-related start blocker and is named in the lobby.
 
 ### The technology dial (base p8 and p16)
 
@@ -366,6 +376,9 @@ sequence. Three things here were wrong, and one was mine:
   example is explicit the other way: beating the army in Shaka's city leaves the
   city where it was, and Victoria's army "cannot occupy the same space as
   Shaka's city, so the army returns to the last space it occupied."
+- If figures belonging to several rivals share the space, each figure is a
+  separate target identified by both owner and unit ID. A stale or forged target
+  is rejected rather than silently redirected to the first figure found.
 - **Terra changes what a lost army attack means.** The base rule's "nothing
   happens" is superseded for expansion armies: if the defender wins, the
   attacking army is defeated and returns to its military card (Terra p10).
@@ -415,6 +428,9 @@ Added in this pass, all of them from the English card text:
 - **Great Library** — a caravan reaching a rival city can copy a card of the same
   type and tech level from their row. Only cards ahead of your own are offered.
 - **Orszaghaz** — after trading at a city-state, take it.
+- When a conquered city-state is liberated, any wonder token in its space remains
+  there unowned. It becomes owned, and its capture trigger fires, only when a
+  later player conquers that city-state.
 - **University of Sankore** — having replaced a card that turn, swap any two
   non-science cards at the end of it.
 - **Potala Palace** — its owner may hold all four of a rival's diplomacy cards
