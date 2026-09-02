@@ -652,6 +652,10 @@ window.CivArtData = {
   "red": {
    "reinforced": "tokens/derived/cut-control-red__image-back__ugc-1994562021176703452__50a5c8462fbf8982.webp",
    "plain": "other-images/control-red__image-face__ugc-1994562021176703344__337f8cb60a4a8b8b.webp"
+  },
+  "purple": {
+   "plain": "tokens/derived/cut-control-purple__image-face.webp",
+   "reinforced": "tokens/derived/cut-control-purple__image-back.webp"
   }
  },
  "district": {

@@ -132,16 +132,15 @@
       assert("lobby state starts in lobby phase", lob.phase === "lobby");
       lob = Game.applyAction(lob, { type: "START_GAME", payload: { playerId: lob.players[0].id } });
       assert("cannot start a lobby with one player", lob.phase === "lobby");
-      const joiners = players(4).slice(1);
+      const joiners = players(5).slice(1);
       joiners.forEach((p) => { lob = Game.applyAction(lob, { type: "ADD_PLAYER", payload: p }); });
-      assert("lobby fills to four players", lob.players.length === 4 && lob.phase === "lobby");
-      lob = Game.applyAction(lob, { type: "ADD_PLAYER", payload: Game.createPlayer("p5", "P5", "#f77f00") });
-      assert("lobby rejects a fifth player", lob.players.length === 4);
-      // Seats are dealt, not chosen. The game ships five sets of focus cards
-      // and dials but only four control-token colours, and two players sharing
-      // a colour would be two players with the same tokens on the board.
-      assert("four seats, four different printed colours",
-        new Set(lob.players.map((p) => p.color)).size === 4 &&
+      assert("Terra lobby fills to five players", lob.players.length === 5 && lob.phase === "lobby");
+      lob = Game.applyAction(lob, { type: "ADD_PLAYER", payload: Game.createPlayer("p6", "P6", "#f77f00") });
+      assert("lobby rejects a sixth player", lob.players.length === 5);
+      // Terra ships five physical player sets, including purple. Seats are
+      // dealt rather than chosen and may never share a component colour.
+      assert("five seats, five different printed colours",
+        new Set(lob.players.map((p) => p.color)).size === 5 &&
         lob.players.every((p) => Game.SEAT_COLORS.includes(p.color)));
       let dup = Game.createLobbyState([Game.createPlayer("d1", "D1", "#169eae")]);
       dup = Game.applyAction(dup, { type: "ADD_PLAYER", payload: Game.createPlayer("d2", "D2", "#169eae") });
@@ -153,7 +152,7 @@
         lob = Game.applyAction(lob, { type: "SET_READY", payload: { playerId: player.id, ready: true } });
       });
       lob = Game.applyAction(lob, { type: "START_GAME", payload: { playerId: lob.players[0].id } });
-      assert("START_GAME builds a four-player setup", lob.phase === "setup" && lob.setup.phase === "fortress" && lob.setup.order.length === 4);
+      assert("START_GAME builds a five-player setup", lob.phase === "setup" && lob.setup.phase === "fortress" && lob.setup.order.length === 5);
       let midGame = Game.createState(players(2));
       midGame.phase = "playing";
       midGame = Game.applyAction(midGame, { type: "ADD_PLAYER", payload: Game.createPlayer("late", "Late", "#f77f00") });
@@ -495,7 +494,7 @@
       });
       Game.migrateState(oldNaturalFace);
       assert("rules-v1 saves remap a placed Natural Wonder from its printed face",
-        oldNaturalFace.rulesVersion === 2 &&
+        oldNaturalFace.rulesVersion === 3 &&
         oldNaturalFace.map.hexes["0,0"].naturalWonder === "Torres del Paine" &&
         oldNaturalFace.map.hexes["0,0"].resource === "wonder");
       const naturalFaceOnce = JSON.stringify(oldNaturalFace);
@@ -3140,6 +3139,622 @@
         Game.resolveEvent(st1, "barbarian_return");
         assert("a defeated barbarian returns to its printed space",
           st1.map.hexes["2,0"].barbarian === true && st1.map.hexes["2,0"].barbarianId === "K");
+      }
+
+      // ── Reported from a real game: industry trade, the Sanitation sequence,
+      //    and the undo that could not escape it ──────────────────────────────
+      //
+      // All three had one shape: a value the player could see disagreed with
+      // the value a subsystem acted on. The engine assertions below pin the
+      // arithmetic and the sequencing so the wizard has one thing to render.
+      {
+        // FOCUS_SLOTS is [1,1,2,3,4,5]: six positions, printed slots 1..5. A
+        // card in the fifth ARRAY position is printed slot 4.
+        const industryAt = (trade) => {
+          const st = rulesState();
+          const me = st.players[0];
+          me.cardPlayed = false;
+          me.focusRow = ["growth", "science", "economy", "culture", "industry", "military"];
+          me.trade.industry = trade;
+          Object.keys(st.map.hexes).forEach((k) => activate(st, k));
+          activate(st, "0,0", { city: { ownerId: me.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
+          const deck = st.wonderDecks.military;
+          deck.deck = ["Terracotta Army"].concat(deck.deck.filter((n) => n !== "Terracotta Army"));
+          deck.revealed = "Terracotta Army";
+          deck.token = 0;
+          return { st, me };
+        };
+        const { st: iSt, me: iMe } = industryAt(3);
+        assert("industry sits in printed slot 4", Game.getSlotValue(iMe, "industry", iSt) === 4,
+          Game.getSlotValue(iMe, "industry", iSt));
+        assert("the card really holds 3 trade tokens (the storage cap)",
+          iMe.trade.industry === 3 && Game.CFG.maxTrade === 3);
+        // Each industry trade token spent on a wonder is +1 production. The
+        // wizard once previewed slot + a STALE selection carried over from the
+        // previously clicked card, so a card holding 3 read as though 2 were
+        // already committed.
+        [0, 1, 2, 3].forEach((spend) => {
+          const preview = Game.calculateWonderProduction(iSt, iMe, "Terracotta Army", { tradeSpent: spend });
+          assert(`industry slot 4 + ${spend} trade = ${4 + spend} production`,
+            preview.ok && preview.production.total === 4 + spend,
+            preview.ok ? preview.production.total : preview.message);
+          assert(`and the breakdown attributes ${spend} of it to trade`,
+            preview.ok && preview.production.base === 4 && preview.production.trade === spend);
+        });
+        const short = Game.calculateWonderProduction(iSt, iMe, "Terracotta Army", { tradeSpent: 2 });
+        assert("2 trade is one short of a cost-7 wonder", short.ok && !short.affordable && short.shortfall === 1);
+        const full = Game.calculateWonderProduction(iSt, iMe, "Terracotta Army", { tradeSpent: 3 });
+        assert("3 trade affords it", full.ok && full.affordable);
+        assert("spending more trade than the card holds is refused",
+          !Game.calculateWonderProduction(industryAt(2).st, industryAt(2).me, "Terracotta Army", { tradeSpent: 3 }).ok);
+
+        // The FINAL payment, not just the preview.
+        const { st: bSt, me: bMe } = industryAt(3);
+        const built = Game.applyAction(bSt, { type: "PLAY_INDUSTRY_WONDER", payload: {
+          playerId: bMe.id, hexKey: "0,0", wonderName: "Terracotta Army", tradeSpent: 3 } });
+        assert("the wonder is actually built with all 3 tokens",
+          built.map.hexes["0,0"].city.wonder && built.map.hexes["0,0"].city.wonder.name === "Terracotta Army");
+        assert("and all 3 industry trade tokens were really removed",
+          Game.getPlayer(built, bMe.id).trade.industry === 0,
+          Game.getPlayer(built, bMe.id).trade.industry);
+
+        // A world wonder needs a friendly city WITHOUT a wonder. Maturity is
+        // not part of that test and must never become one.
+        const { st: pSt, me: pMe } = industryAt(3);
+        activate(pSt, "2,0", { city: { ownerId: pMe.id, isCapital: false, developed: false, hasWonder: false, wonder: null } });
+        activate(pSt, "4,0", { city: { ownerId: pMe.id, isCapital: false, developed: false, hasWonder: true,
+          wonder: { name: "Petra", era: "ancient", type: "military", cost: 7, effect: "" } } });
+        activate(pSt, "6,0", { city: { ownerId: pSt.players[1].id, isCapital: false, developed: false, hasWonder: false, wonder: null } });
+        const sites = Game.validWonderHexes(pSt, pMe.id);
+        assert("a friendly city that is NOT mature can take a world wonder",
+          sites.has("2,0") && pSt.map.hexes["2,0"].city.developed === false);
+        assert("a mature friendly city can too", sites.has("0,0"));
+        assert("a city that already holds a wonder cannot take another", !sites.has("4,0"));
+        assert("a rival city is never a wonder site", !sites.has("6,0"));
+
+        // Industry's OTHER trade rule — the Industrial Zone's exactly-3 city
+        // option — must not share a cap or a selection with wonder production.
+        const { st: zSt, me: zMe } = industryAt(3);
+        activate(zSt, "1,0", { control: { ownerId: zMe.id, fortified: false, district: "industrial" } });
+        assert("the Industrial Zone city option needs exactly 3 industry trade",
+          Game.industrialZoneCityOption(zSt, zMe.id).ok);
+        zMe.trade.industry = 2;
+        assert("and is refused at 2", !Game.industrialZoneCityOption(zSt, zMe.id).ok);
+        zMe.trade.industry = 3;
+        assert("while wonder production still accepts a partial 1-token spend",
+          Game.calculateWonderProduction(zSt, zMe, "Terracotta Army", { tradeSpent: 1 }).production.total === 5);
+      }
+
+      {
+        // Sanitation (standard growth III) prints a SEQUENCE: place a district,
+        // then reinforce up to this slot's number. Its reinforcement is a card
+        // effect and owes nothing to trade — it works with an empty growth card.
+        const sanitation = (trade, spareTokens) => {
+          const st = rulesState();
+          const me = st.players[0];
+          me.cardPlayed = false;
+          me.cardTiers.growth = 3;
+          me.cardLevels.growth = 3;
+          me.focusRow = ["science", "economy", "culture", "growth", "industry", "military"];
+          me.trade.growth = trade;
+          Object.keys(st.map.hexes).forEach((k) => activate(st, k));
+          activate(st, "0,0", { city: { ownerId: me.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
+          activate(st, "1,0");
+          ["0,1", "-1,1", "-1,0", "0,-1"].slice(0, spareTokens).forEach((k) =>
+            activate(st, k, { control: { ownerId: me.id, fortified: false, district: null } }));
+          return { st, me };
+        };
+        const profile = Game.growthCardProfile(sanitation(0, 0).me);
+        assert("growth III is Sanitation", profile.name === "Sanitation" && profile.standard);
+        assert("Sanitation is sequential, never district-OR-reinforce", profile.sequential === true);
+
+        // Zero growth trade: the printed reinforcement still happens.
+        let zSt = sanitation(0, 3).st;
+        const zMe = zSt.players[0];
+        assert("growth resolves in printed slot 3", Game.getSlotValue(zMe, "growth", zSt) === 3);
+        zSt = Game.applyAction(zSt, { type: "PLAY_GROWTH_DISTRICT", payload: {
+          playerId: zMe.id, hexKey: "1,0", district: "campus", tradeSpent: 0 } });
+        assert("the district is placed", zSt.map.hexes["1,0"].control &&
+          zSt.map.hexes["1,0"].control.district === "campus");
+        assert("a reinforcement step follows instead of resetting the card",
+          zSt.cardResolution && zSt.cardResolution.step === "growth_reinforce");
+        assert("the growth card is NOT reset yet", Game.getPlayer(zSt, zMe.id).cardPlayed === false);
+        assert("the card's own allowance is the slot number, 3",
+          zSt.cardResolution.reinforceBase === 3, zSt.cardResolution.reinforceBase);
+        assert("and the trade allowance is a separate, honest 0",
+          zSt.cardResolution.tradeBudget === 0, zSt.cardResolution.tradeBudget);
+        assert("the district just placed is itself a legal reinforcement target",
+          Game.validReinforceHexes(zSt, zMe.id).has("1,0"));
+        // "Up to": stopping under the maximum is legal.
+        zSt = Game.applyAction(zSt, { type: "PLAY_GROWTH_REINFORCE", payload: {
+          playerId: zMe.id, hexKeys: ["1,0", "0,1"], tradeSpent: 0 } });
+        assert("reinforcing 2 of an allowed 3 is accepted", zSt.cardResolution === null);
+        assert("including the brand-new district", zSt.map.hexes["1,0"].control.fortified === true);
+        assert("the card is spent once the sequence closes", Game.getPlayer(zSt, zMe.id).cardPlayed === true);
+        assert("and no trade was taken from an empty card", Game.getPlayer(zSt, zMe.id).trade.growth === 0);
+
+        // Reinforcing nothing at all is also a legal exit.
+        let nSt = sanitation(0, 3).st;
+        const nMe = nSt.players[0];
+        nSt = Game.applyAction(nSt, { type: "PLAY_GROWTH_DISTRICT", payload: {
+          playerId: nMe.id, hexKey: "1,0", district: "campus", tradeSpent: 0 } });
+        nSt = Game.applyAction(nSt, { type: "END_FOCUS_CARD", payload: {
+          playerId: nMe.id, cardType: "growth", tradeSpent: 0 } });
+        assert("END_FOCUS_CARD closes an open growth sequence", nSt.cardResolution === null);
+        assert("the district survives that exit", !!nSt.map.hexes["1,0"].control);
+
+        // Fewer legal targets than the maximum must not demand impossible clicks.
+        let fSt = sanitation(0, 0).st;
+        const fMe = fSt.players[0];
+        fSt = Game.applyAction(fSt, { type: "PLAY_GROWTH_DISTRICT", payload: {
+          playerId: fMe.id, hexKey: "1,0", district: "campus", tradeSpent: 0 } });
+        const only = Game.validReinforceHexes(fSt, fMe.id);
+        assert("allowance 3 with a single marker on the board", only.size === 1, only.size);
+        if (fSt.cardResolution) {
+          fSt = Game.applyAction(fSt, { type: "PLAY_GROWTH_REINFORCE", payload: {
+            playerId: fMe.id, hexKeys: ["1,0"], tradeSpent: 0 } });
+        }
+        assert("reinforcing the one that exists finishes the card",
+          fSt.cardResolution === null && Game.getPlayer(fSt, fMe.id).cardPlayed === true);
+
+        // With trade: the two allowances stay apart, and trade is charged only
+        // for markers beyond the printed free ones.
+        let tSt = sanitation(2, 4).st;
+        const tMe = tSt.players[0];
+        tSt = Game.applyAction(tSt, { type: "PLAY_GROWTH_DISTRICT", payload: {
+          playerId: tMe.id, hexKey: "1,0", district: "campus", tradeSpent: 2 } });
+        assert("card allowance 3 and trade allowance 2 are recorded separately",
+          tSt.cardResolution.reinforceBase === 3 && tSt.cardResolution.tradeBudget === 2);
+        assert("trade is not taken up front", Game.getPlayer(tSt, tMe.id).trade.growth === 2);
+        // applyAction mutates and returns the same state, so each branch needs
+        // its own run of the sequence rather than a second call on tSt.
+        const within = Game.applyAction(tSt, { type: "PLAY_GROWTH_REINFORCE", payload: {
+          playerId: tMe.id, hexKeys: ["1,0", "0,1", "-1,1"], tradeSpent: 2 } });
+        assert("3 reinforcements use only the printed allowance, costing no trade",
+          Game.getPlayer(within, tMe.id).trade.growth === 2,
+          Game.getPlayer(within, tMe.id).trade.growth);
+        let bSt2 = sanitation(2, 4).st;
+        const bMe2 = bSt2.players[0];
+        bSt2 = Game.applyAction(bSt2, { type: "PLAY_GROWTH_DISTRICT", payload: {
+          playerId: bMe2.id, hexKey: "1,0", district: "campus", tradeSpent: 2 } });
+        const beyond = Game.applyAction(bSt2, { type: "PLAY_GROWTH_REINFORCE", payload: {
+          playerId: bMe2.id, hexKeys: ["1,0", "0,1", "-1,1", "-1,0", "0,-1"], tradeSpent: 2 } });
+        assert("going past it charges exactly the 2 extra trade",
+          Game.getPlayer(beyond, bMe2.id).trade.growth === 0,
+          Game.getPlayer(beyond, bMe2.id).trade.growth);
+        assert("and all five markers really are reinforced",
+          ["1,0", "0,1", "-1,1", "-1,0", "0,-1"].every((k) => beyond.map.hexes[k].control.fortified));
+      }
+
+      {
+        // A half-resolved card blocks every other action "until it finishes".
+        // Undo therefore has to be reachable from inside one, or a step that
+        // cannot complete is a dead match. The checkpoint predates the card,
+        // so restoring it clears the resolution with everything else.
+        //
+        // applyAction mutates the state it is given, so each scenario builds
+        // its own board rather than branching off a shared one.
+        const armedSanitation = () => {
+          const st = rulesState();
+          const p = st.players[0];
+          p.cardPlayed = false;
+          p.cardTiers.growth = 3;
+          p.cardLevels.growth = 3;
+          p.focusRow = ["science", "economy", "culture", "growth", "industry", "military"];
+          p.trade.growth = 2;
+          Object.keys(st.map.hexes).forEach((k) => activate(st, k));
+          activate(st, "0,0", { city: { ownerId: p.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
+          activate(st, "1,0");
+          ["0,1", "-1,1"].forEach((k) => activate(st, k, { control: { ownerId: p.id, fortified: false, district: null } }));
+          // Arm the checkpoint the way the start of a real turn does.
+          return { st: Game.applyAction(st, { type: "END_FOCUS_CARD", payload: { playerId: "nobody" } }), me: p };
+        };
+        const { st: armed, me } = armedSanitation();
+        const mid = Game.applyAction(armed, { type: "PLAY_GROWTH_DISTRICT", payload: {
+          playerId: me.id, hexKey: "1,0", district: "campus", tradeSpent: 2 } });
+        assert("mid-sequence, a reinforcement step is open",
+          mid.cardResolution && mid.cardResolution.step === "growth_reinforce");
+        const ctx = { actorId: me.id };
+        assert("an unrelated focus action is correctly refused mid-sequence",
+          Game.getActionPermission(mid, { type: "PLAY_SCIENCE", payload: {} }, ctx).code === "card_resolution_pending");
+        assert("but UNDO_TURN is not refused by that guard",
+          Game.getActionPermission(mid, { type: "UNDO_TURN", payload: {} }, ctx).ok,
+          Game.getActionPermission(mid, { type: "UNDO_TURN", payload: {} }, ctx).code);
+        assert("and undo reports itself available", Game.getUndoStatus(mid, me.id).canUndo,
+          Game.getUndoStatus(mid, me.id).reason);
+        const back = Game.applyAction(mid, { type: "UNDO_TURN", payload: { playerId: me.id } });
+        assert("undo clears cardResolution, not just the board", !back.cardResolution);
+        assert("undo takes the district back off the map", !back.map.hexes["1,0"].control);
+        assert("undo restores the growth trade", Game.getPlayer(back, me.id).trade.growth === 2);
+        assert("undo restores the unplayed card", Game.getPlayer(back, me.id).cardPlayed === false);
+        assert("no pending choice survives the undo", (back.pendingChoices || []).length === 0);
+        assert("and ordinary play is immediately possible again",
+          Game.getActionPermission(back, { type: "PLAY_SCIENCE", payload: {} }, ctx).ok);
+
+        // Undo before anything is placed leaves an ordinary, playable turn.
+        const early = armedSanitation();
+        assert("undo before the district still leaves the card playable",
+          Game.getActionPermission(
+            Game.applyAction(early.st, { type: "UNDO_TURN", payload: { playerId: early.me.id } }),
+            { type: "PLAY_GROWTH_DISTRICT", payload: {} }, { actorId: early.me.id }
+          ).code !== "card_resolution_pending");
+
+        // A finished card is undoable too.
+        const fin = armedSanitation();
+        const done = Game.applyAction(
+          Game.applyAction(fin.st, { type: "PLAY_GROWTH_DISTRICT", payload: {
+            playerId: fin.me.id, hexKey: "1,0", district: "campus", tradeSpent: 0 } }),
+          { type: "PLAY_GROWTH_REINFORCE", payload: { playerId: fin.me.id, hexKeys: ["0,1"], tradeSpent: 0 } });
+        assert("the whole sequence completed", !done.cardResolution &&
+          Game.getPlayer(done, fin.me.id).cardPlayed === true);
+        const rolled = Game.applyAction(done, { type: "UNDO_TURN", payload: { playerId: fin.me.id } });
+        assert("a completed growth card is still undoable",
+          !rolled.map.hexes["1,0"].control && Game.getPlayer(rolled, fin.me.id).cardPlayed === false);
+
+        // An open sequence always has an exit — no focus card may soft-lock.
+        const esc = armedSanitation();
+        let escape = Game.applyAction(esc.st, { type: "PLAY_GROWTH_DISTRICT", payload: {
+          playerId: esc.me.id, hexKey: "1,0", district: "campus", tradeSpent: 0 } });
+        assert("the escape scenario really is mid-sequence", !!escape.cardResolution);
+        let guard = 0;
+        while (escape.cardResolution && guard++ < 5) {
+          escape = Game.applyAction(escape, { type: "END_FOCUS_CARD", payload: {
+            playerId: esc.me.id, cardType: "growth", tradeSpent: 0 } });
+        }
+        assert("END_FOCUS_CARD always terminates an open sequence", !escape.cardResolution, guard);
+        assert("after which the turn can be ended",
+          Game.getActionPermission(escape, { type: "END_TURN", payload: {} }, { actorId: esc.me.id }).ok);
+      }
+
+      // --- Cross-player effects: ownership, target identity and sequencing --
+      {
+        function interactionState(count = 3) {
+          const st = Game.createState(players(count));
+          st.phase = "playing";
+          st.setup.phase = "done";
+          st.turn.order = st.players.map((player) => player.id);
+          st.turn.index = 0;
+          st.pendingChoices = [];
+          st.players.forEach((player) => {
+            Game.syncUnitCounts(st, player);
+            player.trade.military = 0;
+            player.cardPlayed = false;
+          });
+          return st;
+        }
+
+        function prepareArmyAttack(st, attacker, defender, options = {}) {
+          activate(st, "0,0", {
+            city: { ownerId: attacker.id, isCapital: true, developed: true,
+              hasWonder: false, wonder: null }
+          });
+          activate(st, "1,0", options.hex || {});
+          attacker.armies[0].position = "0,0";
+          if (options.unit !== false) defender.armies[0].position = "1,0";
+          return {
+            type: "PLAY_MILITARY_ATTACK",
+            payload: {
+              unitId: attacker.armies[0].id,
+              fromKey: "0,0",
+              toKey: "1,0",
+              targetType: options.targetType || (options.unit === false ? "city" : "army"),
+              tradeSpent: 0
+            }
+          };
+        }
+
+        function forceAttackerWin(st, attacker) {
+          st.combat.atkRoll = 6;
+          st.combat.defRoll = 1;
+          st.combat.atkRolled = true;
+          st.combat.defRolled = true;
+          st.combat.rolled = true;
+          st.combat.turn = "attacker";
+          st.combat.atkTrade = 0;
+          st.combat.defTrade = 0;
+          st.combat.atkResource = 0;
+          st.combat.defResource = 0;
+          return Game.applyAction(st, {
+            type: "COMBAT_PASS", payload: { playerId: attacker.id, side: "attacker" }
+          });
+        }
+
+        // Terra includes a complete fifth physical seat, not a spectator slot.
+        const five = interactionState(5);
+        assert("five-player state retains five distinct physical colours",
+          five.players.length === 5 && new Set(five.players.map((p) => p.color)).size === 5 &&
+          five.players.some((p) => p.color === "#8b62b5"));
+
+        // The first player receives start-of-turn leader choices immediately.
+        const opening = Game.createState(players(2));
+        opening.players[0].leaderId = "ottoman";
+        opening.turn.order = opening.players.map((player) => player.id);
+        opening.turn.index = 0;
+        Game.finalizeSetup(opening);
+        assert("Ottoman receives the Ibrahim choice on turn one",
+          opening.pendingChoices.some((choice) =>
+            choice.kind === "give_ibrahim" && choice.playerId === opening.players[0].id));
+
+        {
+          const st = interactionState();
+          const [ottoman, holder, outsider] = st.players;
+          ottoman.leaderId = "ottoman";
+          st.ibrahimHolder = holder.id;
+          st.turn.index = 1;
+          activate(st, "0,0", {
+            city: { ownerId: holder.id, isCapital: true, developed: true,
+              hasWonder: false, wonder: null }
+          });
+          activate(st, "1,0", {
+            city: { ownerId: ottoman.id, isCapital: true, developed: true,
+              hasWonder: false, wonder: null }
+          });
+          holder.caravans[0].position = "0,0";
+          const arrival = Game.tryApplyAction(st, {
+            type: "PLAY_ECONOMY",
+            payload: { unitId: holder.caravans[0].id, toKey: "1,0", tradeSpent: 0 }
+          }, { actorId: holder.id, role: "player" });
+          const holderPick = arrival.state.pendingChoices.find((choice) =>
+            choice.source === "Ibrahim" && choice.playerId === holder.id);
+          assert("Ibrahim lets the visiting holder choose their own focus card",
+            arrival.accepted && holderPick && holderPick.options.length === 6 &&
+            holder.trade.economy === 0);
+          assert("the Ottoman placement waits for the holder's placement",
+            !arrival.state.pendingChoices.some((choice) =>
+              choice.source === "Ibrahim" && choice.playerId === ottoman.id));
+
+          const stolenBefore = JSON.stringify(arrival.state);
+          const stolen = Game.tryApplyAction(arrival.state, {
+            type: "RESOLVE_PENDING_CHOICE",
+            payload: { choiceId: holderPick.id, optionId: "culture" }
+          }, { actorId: outsider.id, role: "player" });
+          assert("an uninvolved seat cannot answer Ibrahim for its holder",
+            !stolen.accepted && stolen.code === "choice_owner_mismatch" &&
+            JSON.stringify(arrival.state) === stolenBefore);
+
+          const own = Game.tryApplyAction(arrival.state, {
+            type: "RESOLVE_PENDING_CHOICE",
+            payload: { choiceId: holderPick.id, optionId: "culture" }
+          }, { actorId: holder.id, role: "player" });
+          const ottomanPick = own.state.pendingChoices.find((choice) =>
+            choice.source === "Ibrahim" && choice.playerId === ottoman.id);
+          assert("Ibrahim sequences the Ottoman's separately owned placement second",
+            own.accepted && own.state.players[1].trade.culture === 1 && !!ottomanPick);
+        }
+
+        {
+          const st = interactionState();
+          const [ottoman, holder] = st.players;
+          ottoman.leaderId = "ottoman";
+          st.ibrahimHolder = holder.id;
+          const action = prepareArmyAttack(st, ottoman, holder);
+          const begun = Game.tryApplyAction(st, action,
+            { actorId: ottoman.id, role: "player" });
+          assert("Ottoman gets +2 against the actual Ibrahim figure owner on a neutral space",
+            begun.accepted && begun.state.combat.atkParts.some((part) =>
+              part.label.includes("Ottoman") && part.value === 2));
+
+          const defence = interactionState();
+          const [attacker, ottomanDefender] = defence.players;
+          ottomanDefender.leaderId = "ottoman";
+          defence.ibrahimHolder = attacker.id;
+          const defenceAction = prepareArmyAttack(defence, attacker, ottomanDefender);
+          const attacked = Game.tryApplyAction(defence, defenceAction,
+            { actorId: attacker.id, role: "player" });
+          assert("Ottoman also gets +2 while defending against Ibrahim",
+            attacked.accepted && attacked.state.combat.defParts.some((part) =>
+              part.label.includes("Ottoman") && part.value >= 2));
+        }
+
+        {
+          const st = interactionState();
+          const [attacker, defender, ally] = st.players;
+          attacker.diplomacy = [
+            { fromId: defender.id, cardId: "joint_war", name: "Joint War" },
+            { fromId: ally.id, cardId: "joint_war", name: "Joint War" }
+          ];
+          const begun = Game.tryApplyAction(st,
+            prepareArmyAttack(st, attacker, defender),
+            { actorId: attacker.id, role: "player" });
+          const joint = begun.state.combat.atkParts.find((part) => part.label === "joint war pacts");
+          assert("Joint War uses the neutral-space figure owner, excluding only that giver",
+            begun.accepted && joint && joint.value === 2);
+          assert("attacker returns the defender's diplomacy before the first die",
+            begun.state.players[0].diplomacy.length === 1 &&
+            begun.state.players[0].diplomacy[0].fromId === ally.id &&
+            begun.state.combat.returnedDiplomacy.length === 1);
+
+          const cancelled = Game.tryApplyAction(begun.state,
+            { type: "CANCEL_COMBAT", payload: {} },
+            { actorId: attacker.id, role: "player" });
+          assert("cancelling before the first die restores returned diplomacy",
+            cancelled.accepted && cancelled.state.players[0].diplomacy.length === 2 &&
+            !cancelled.state.combat);
+
+          const restarted = Game.tryApplyAction(cancelled.state,
+            prepareArmyAttack(cancelled.state, cancelled.state.players[0], cancelled.state.players[1]),
+            { actorId: attacker.id, role: "player" });
+          const rolled = Game.tryApplyAction(restarted.state,
+            { type: "COMBAT_ROLL", payload: { side: "attacker" } },
+            { actorId: attacker.id, role: "player" });
+          const tooLate = Game.tryApplyAction(rolled.state,
+            { type: "CANCEL_COMBAT", payload: {} },
+            { actorId: attacker.id, role: "player" });
+          assert("after a die is rolled, diplomacy return and combat are irreversible",
+            rolled.accepted && !tooLate.accepted && tooLate.code === "combat_irreversible" &&
+            rolled.state.players[0].diplomacy.length === 1);
+        }
+
+        {
+          const st = interactionState();
+          const [attacker, defender] = st.players;
+          attacker.diplomacy = [{ fromId: defender.id, cardId: "non_aggression",
+            name: "Non-Aggression Pact" }];
+          const blockedAction = prepareArmyAttack(st, attacker, defender);
+          const before = JSON.stringify(st);
+          const blocked = Game.tryApplyAction(st, blockedAction,
+            { actorId: attacker.id, role: "player" });
+          // "non_aggression" is the CARD id; the refusal reason is
+          // "non_aggression_pact". Asserting the card id here made a correct
+          // block look like a failure.
+          assert("Non-Aggression blocks the actual owner of a lone neutral-space army",
+            !blocked.accepted && blocked.code === "non_aggression_pact" &&
+            JSON.stringify(st) === before,
+            JSON.stringify({ accepted: blocked.accepted, code: blocked.code,
+              unchanged: JSON.stringify(st) === before }));
+
+          const effect = interactionState();
+          const [giver, victim, outsider] = effect.players;
+          victim.diplomacy = [{ fromId: giver.id, cardId: "non_aggression",
+            name: "Non-Aggression Pact" }];
+          activate(effect, "0,0", { control: { ownerId: victim.id, fortified: false, district: null } });
+          effect.pendingChoices = [{
+            id: "effect-remove", kind: "remove_control", playerId: giver.id,
+            source: "test effect", hexKeys: ["0,0"]
+          }];
+          const removed = Game.tryApplyAction(effect, {
+            type: "RESOLVE_PENDING_CHOICE",
+            payload: { choiceId: "effect-remove", hexKey: "0,0" }
+          }, { actorId: giver.id, role: "player" });
+          const response = removed.state.pendingChoices.find((choice) =>
+            choice.kind === "non_aggression_swap" && choice.playerId === victim.id);
+          assert("the pact holder owns the response when its giver destroys a piece",
+            removed.accepted && !!response);
+          const foreign = Game.tryApplyAction(removed.state, {
+            type: "RESOLVE_PENDING_CHOICE",
+            payload: { choiceId: response.id, optionId: "culture" }
+          }, { actorId: outsider.id, role: "player" });
+          assert("a third seat cannot choose the Non-Aggression response",
+            !foreign.accepted && foreign.code === "choice_owner_mismatch");
+          const oldMilitary = removed.state.players[1].focusRow.indexOf("military");
+          const oldCulture = removed.state.players[1].focusRow.indexOf("culture");
+          const swapped = Game.tryApplyAction(removed.state, {
+            type: "RESOLVE_PENDING_CHOICE",
+            payload: { choiceId: response.id, optionId: "culture" }
+          }, { actorId: victim.id, role: "player" });
+          assert("the pact holder can return it and swap Military with a chosen card",
+            swapped.accepted && swapped.state.players[1].diplomacy.length === 0 &&
+            swapped.state.players[1].focusRow[oldMilitary] === "culture" &&
+            swapped.state.players[1].focusRow[oldCulture] === "military");
+        }
+
+        {
+          const st = interactionState();
+          const [holder, giver, stranger] = st.players;
+          holder.diplomacy = [{ fromId: giver.id, cardId: "open_borders", name: "Open Borders" }];
+          activate(st, "0,0", { terrain: "mountain",
+            control: { ownerId: holder.id, fortified: false, district: "campus" } });
+          activate(st, "1,0", { terrain: "mountain",
+            control: { ownerId: giver.id, fortified: false, district: null } });
+          activate(st, "0,1", { terrain: "mountain",
+            control: { ownerId: stranger.id, fortified: false, district: null } });
+          Game.resolveEvent(st, "district_event");
+          assert("Open Borders counts its giver's control for district effects, not a third player's",
+            holder.trade.science === 2, String(holder.trade.science));
+
+          const mature = interactionState();
+          const [owner, borderGiver] = mature.players;
+          owner.diplomacy = [{ fromId: borderGiver.id, cardId: "open_borders", name: "Open Borders" }];
+          const city = activate(mature, "0,0", { city: { ownerId: owner.id, isCapital: false,
+            developed: false, hasWonder: false, wonder: null } });
+          Game.hexNeighborKeys(0, 0).forEach((hexKey) => activate(mature, hexKey, { terrain: "water" }));
+          activate(mature, "1,0", { control: { ownerId: borderGiver.id, fortified: false, district: null } });
+          assert("Open Borders applies to city maturity",
+            Game.isCityDeveloped(mature, city), JSON.stringify(Game.hexNeighborKeys(0, 0).map((k) => mature.map.hexes[k])));
+          owner.diplomacy = [];
+          assert("without Open Borders the same rival neighbour prevents maturity",
+            !Game.isCityDeveloped(mature, city));
+        }
+
+        {
+          const st = interactionState();
+          const [attacker, defender, outsider] = st.players;
+          defender.trade.culture = 1;
+          defender.trade.science = 1;
+          const action = prepareArmyAttack(st, attacker, defender, {
+            unit: false,
+            targetType: "city",
+            hex: { city: { ownerId: defender.id, isCapital: true, developed: true,
+              hasWonder: false, wonder: null } }
+          });
+          const begun = Game.tryApplyAction(st, action,
+            { actorId: attacker.id, role: "player" });
+          const won = forceAttackerWin(begun.state, begun.state.players[0]);
+          const take = won.pendingChoices.find((choice) => choice.kind === "capital_loot_take");
+          assert("capital loot waits for the attacker to choose an existing rival token",
+            !!take && take.playerId === attacker.id && take.options.length === 2 &&
+            won.players[0].trade.culture === 0 && won.players[0].trade.science === 0);
+          const theft = Game.tryApplyAction(won, {
+            type: "RESOLVE_PENDING_CHOICE",
+            payload: { choiceId: take.id, optionId: "science" }
+          }, { actorId: attacker.id, role: "player" });
+          const place = theft.state.pendingChoices.find((choice) => choice.kind === "capital_loot_place");
+          assert("the stolen token is removed only after the attacker chooses it",
+            theft.accepted && theft.state.players[1].trade.science === 0 && !!place);
+          const hijack = Game.tryApplyAction(theft.state, {
+            type: "RESOLVE_PENDING_CHOICE",
+            payload: { choiceId: place.id, optionId: "economy" }
+          }, { actorId: outsider.id, role: "player" });
+          assert("another player cannot choose where captured-capital loot goes",
+            !hijack.accepted && hijack.code === "choice_owner_mismatch");
+          const placed = Game.tryApplyAction(theft.state, {
+            type: "RESOLVE_PENDING_CHOICE",
+            payload: { choiceId: place.id, optionId: "economy" }
+          }, { actorId: attacker.id, role: "player" });
+          assert("the attacker chooses their own destination card for capital loot",
+            placed.accepted && placed.state.players[0].trade.economy === 1 &&
+            placed.state.pendingChoices.some((choice) => choice.kind === "capital_loot_take"));
+        }
+
+        {
+          const st = interactionState();
+          const [attacker, defender, outsider] = st.players;
+          defender.cityStateTokens = ["Geneva"];
+          const action = prepareArmyAttack(st, attacker, defender, {
+            unit: false,
+            targetType: "city",
+            hex: { city: { ownerId: defender.id, isCapital: false, developed: true,
+              hasWonder: false, wonder: null,
+              conqueredCityState: { name: "Geneva", type: "science" } } }
+          });
+          const begun = Game.tryApplyAction(st, action,
+            { actorId: attacker.id, role: "player" });
+          const won = forceAttackerWin(begun.state, begun.state.players[0]);
+          const fate = won.pendingChoices.find((choice) => choice.kind === "city_state_fate");
+          assert("captured city-state cities create an attacker-owned conquer/liberate choice",
+            !!fate && fate.playerId === attacker.id && fate.options.length === 2);
+          const denied = Game.tryApplyAction(won, {
+            type: "RESOLVE_PENDING_CHOICE",
+            payload: { choiceId: fate.id, optionId: "liberate" }
+          }, { actorId: outsider.id, role: "player" });
+          assert("an unrelated seat cannot decide a conquered city-state's fate",
+            !denied.accepted && denied.code === "choice_owner_mismatch");
+          const liberated = Game.tryApplyAction(won, {
+            type: "RESOLVE_PENDING_CHOICE",
+            payload: { choiceId: fate.id, optionId: "liberate" }
+          }, { actorId: attacker.id, role: "player" });
+          assert("liberation restores the city-state and grants its diplomacy",
+            liberated.accepted && liberated.state.map.hexes["1,0"].city === null &&
+            liberated.state.map.hexes["1,0"].cityState.name === "Geneva" &&
+            liberated.state.players[0].diplomacy.some((card) => card.fromCityState === "Geneva") &&
+            !liberated.state.players[1].cityStateTokens.includes("Geneva"));
+        }
+
+        {
+          // Dutch water is friendly as every terrain only for district effects.
+          const st = interactionState();
+          const dutch = st.players[0];
+          dutch.leaderId = "netherlands";
+          activate(st, "0,0", { terrain: "grass",
+            control: { ownerId: dutch.id, fortified: false, district: "campus" } });
+          activate(st, "1,0", { terrain: "water" });
+          Game.resolveEvent(st, "district_event");
+          assert("Netherlands treats water beside a district as friendly mountain for Campus",
+            dutch.trade.science >= 1 && st.districtReport[0].paid.includes("1,0"), JSON.stringify({ trade: dutch.trade.science,
+              report: st.districtReport, log: st.log.slice(-4) }));
+          assert("Dutch district water does not become an ordinary friendly Culture anchor",
+            !Game.validControlHexes(st, dutch.id, 5).has("0,1"));
+        }
       }
 
       summary.textContent = `${passed} passed, ${failed} failed`;

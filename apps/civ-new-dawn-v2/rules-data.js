@@ -636,7 +636,7 @@
         text: "Move each of your caravans up to 4 spaces. They can move into spaces matching this slot's terrain or lower, as well as water. Before 1 of your caravans explores, you may place a water token touching that caravan's space.",
         move: 4, water: true, beforeExplore: { kind: "place_water_token", oncePerResolution: true, optional: true } } },
     { id: "netherlands", civ: "Netherlands", name: "Netherlands", source: "terra",
-      ability: { text: "Water spaces adjacent to your districts are treated as friendly spaces of all terrain types when resolving your districts' abilities.", manual: true },
+      ability: { text: "Water spaces adjacent to your districts are treated as friendly spaces of all terrain types when resolving your districts' abilities." },
       focusOrder: ["growth", "culture", "science", "industry", "economy", "military"],
       unique: { name: "Cartography", type: "economy", tier: 3, auto: true,
         text: "Move each of your caravans up to 6 spaces. They can move into spaces matching this slot's terrain or lower, as well as water. Once per turn, when your caravan moves to a rival city that is 8 or more spaces from your capital, you may build a city on a legal space within 2 spaces of that city.",
@@ -681,7 +681,7 @@
   ];
 
   window.CivRulesData = {
-    rulesVersion: 2,
+    rulesVersion: 3,
     TILES,
     TILE_OFFSETS,
     CARD_DEFS,

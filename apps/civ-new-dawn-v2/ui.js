@@ -122,6 +122,7 @@ const UI = (() => {
     districtType: null, spentResources: {}, tradeResources: {},
     focusTradeSpent: 0, naturalWonders: [], placedKeys: [],
     cityUseFigure: false, cityFigureByHex: {}, growthResolutionId: null,
+    districtKey: null, cardReinforceLimit: 0, tradeReinforceLimit: 0,
     tileRotation: 0, tileSide: "A",
     movementState: null,
     advancedDraft: false
@@ -2829,10 +2830,21 @@ const UI = (() => {
       focusSpent: resolution.tradeBudget || 0,
       resources: {}
     });
+    // Recomputed AFTER the district is on the board, so the district token the
+    // player has just placed is itself an eligible target (it is an ordinary
+    // unreinforced control token until it is flipped).
     sub.validHexes = Game.validReinforceHexes(state, localPlayerId);
-    const limit = Math.max(0, Number(resolution.reinforceBase || 0)) +
-      Math.max(0, Number(resolution.tradeBudget || 0));
-    sub.remaining = Math.min(limit, sub.validHexes.size);
+    // Two different reinforcement allowances, kept apart because they are
+    // earned differently and the panel has to say which is which. The printed
+    // effect ("reinforce up to this slot's number") owes nothing to trade, and
+    // Sanitation grants it with an empty growth card.
+    sub.cardReinforceLimit = Math.max(0, Number(resolution.reinforceBase || 0));
+    sub.tradeReinforceLimit = Math.max(0, Number(resolution.tradeBudget || 0));
+    // "Up to": the ceiling is whichever is smaller, the allowance or the number
+    // of markers that actually exist. Fewer targets than the maximum must never
+    // ask for clicks that cannot be made.
+    sub.remaining = Math.min(sub.cardReinforceLimit + sub.tradeReinforceLimit,
+      sub.validHexes.size);
     sub.totalMarkers = sub.remaining;
     sub.placedKeys = [];
     return true;
@@ -2844,6 +2856,11 @@ const UI = (() => {
   // engine state behind it.
   function reconcileAuthoritativeResolution() {
     if (!state || state.phase !== "playing") return;
+    // A fight is a modal decision on the combat panel; no map target belongs to
+    // it. Whatever route opened it, the highlights come down here too, so a
+    // path that reaches combat without going through nextUnitOrFinish cannot
+    // leave the board pulsing at spaces the attack already used up.
+    if (state.combat && sub.validHexes.size) clearMovementTargets();
     const growth = state.cardResolution;
     if (growth && growth.playerId === localPlayerId && growth.cardType === "growth" &&
         growth.step === "growth_reinforce") {
@@ -4688,7 +4705,10 @@ const UI = (() => {
     const explanation = profile && profile.militaryEngineering
       ? "Place a district. Then you may deploy each army still on your Military card to one of your cities; all control tokens in or beside a friendly army are reinforced."
       : sequential
-      ? `First place a district. Then reinforce up to <strong>${slot + sub.tradeSpent}</strong> control markers (${slot} from the card, ${sub.tradeSpent} from payment).`
+      // Both steps happen; they are not alternatives. The two allowances are
+      // named apart because the printed one is owed even on an empty card.
+      ? `First place a district. Then reinforce up to <strong>${slot + sub.tradeSpent}</strong> control markers — <strong>${slot}</strong> from ${escapeHtml(profile.name)}'s printed effect${
+          sub.tradeSpent ? ` and <strong>${sub.tradeSpent}</strong> more for the trade you are spending` : ", with no trade selected"}.`
       : `Choose one main effect: place a district, or reinforce up to <strong>${slot + sub.tradeSpent}</strong> control markers.`;
     dom.wizard.innerHTML = `
       <div class="wiz-title">Growth: Choose Action</div>
@@ -4821,12 +4841,33 @@ const UI = (() => {
   }
 
   // The rail says what is happening; the board says what to do about it.
+  //
+  // The two allowances are named separately because they are earned
+  // separately. This panel used to credit every reinforcement to trade \u2014 so
+  // Sanitation, whose printed effect reinforces up to the slot number on its
+  // own, announced "each trade token you spent" to a player holding no growth
+  // trade at all.
   function renderReinforceAfterDistrict() {
+    const fromCard = Math.max(0, Number(sub.cardReinforceLimit || 0));
+    const fromTrade = Math.max(0, Number(sub.tradeReinforceLimit || 0));
+    // getCardName dereferences the player; this panel must not be the thing
+    // that throws during a render, since it is the only way out of the step.
+    const owner = Game.getPlayer(state, localPlayerId);
+    const cardName = owner ? Game.getCardName(owner, "growth") : "the growth card";
+    const sources = [
+      fromCard ? `<strong>${fromCard}</strong> from ${escapeHtml(cardName)}'s printed effect` : "",
+      fromTrade ? `<strong>${fromTrade}</strong> from the trade you spent` : ""
+    ].filter(Boolean).join(" and ");
+    const capped = sub.totalMarkers < fromCard + fromTrade
+      ? ` Only <strong>${sub.totalMarkers}</strong> of your control tokens are unreinforced, so that is the most you can turn over.`
+      : "";
     dom.wizard.innerHTML = `
-      <div class="wiz-title">Reinforce with your trade</div>
-      <div class="wiz-body">The district is placed. Each trade token you spent also turns one of your
-        control tokens over \u2014 click <strong>${sub.remaining}</strong> more on the map.</div>
-      <div class="wiz-actions"><button id="wiz-skip-reinforce">Stop here</button></div>`;
+      <div class="wiz-title">Reinforce control tokens</div>
+      <div class="wiz-body">The district is placed${sub.districtKey ? " and can be reinforced like any other token" : ""}.
+        You may reinforce up to ${sources || "<strong>0</strong> tokens"}.${capped}<br>
+        Click <strong>${sub.remaining}</strong> more on the map, or stop at any point.</div>
+      <div class="wiz-actions"><button id="wiz-skip-reinforce">${
+        sub.placedKeys.length ? "Done reinforcing" : "Reinforce nothing"}</button></div>`;
     document.getElementById("wiz-skip-reinforce").addEventListener("click", finishDistrictWithReinforcements);
   }
 
@@ -5070,7 +5111,18 @@ const UI = (() => {
     const active = state.activeCard;
     // A fight opens before activeCard is set, so bailing on "no active card"
     // here dropped the player back to idle mid-attack.
-    if (state.combat) { sub.phase = "idle"; render(); return; }
+    if (state.combat) {
+      // The interaction that opened this fight is over: its route, its chosen
+      // unit and its reachable/attackable set describe a decision that has
+      // already been made. Setting the phase alone left sub.validHexes
+      // populated, and the map pulses whatever is in that set regardless of
+      // phase — which is why hexes kept glowing through the dice and after the
+      // result, until some later action happened to clear sub.
+      clearMovementTargets();
+      sub.phase = "idle";
+      render();
+      return;
+    }
     if (!me || !active || active.playerId !== localPlayerId) { resetSub(); return; }
     const list = unitType === "caravan" ? me.caravans : me.armies;
     const left = (list || []).filter((u) => !u.movedThisCard);
@@ -5906,12 +5958,20 @@ const UI = (() => {
       case "industry": {
         const def = (Game.CARD_DEFS.industry || {})[Game.getCardTier(player, "industry")] || {};
         const base = !unique && slot === 5 && def.wonderSlot5Production ? def.wonderSlot5Production : slot;
+        // Industry is the one card whose trade is chosen later, on the wonder's
+        // own payment screen, because which resources count depends on the
+        // wonder. Naming the base AND the ceiling here stops a bare number
+        // reading as the final production total.
+        const held = Number(player.trade.industry || 0);
+        const ceiling = held
+          ? ` Each industry trade token spent adds <strong>+1</strong>; you hold <strong>${held}</strong>, so up to <strong>${base + held}</strong> before resources.`
+          : " No industry trade tokens on the card to add.";
         if (uniqueName === "Industrialization") {
           const districts = Object.values(state.map.hexes).filter((hex) =>
             hex.control && hex.control.ownerId === player.id && hex.control.district).length;
-          outcome = `Wonder base: <strong>${base}</strong> + <strong>${districts}</strong> from districts. City range: ${Game.getCityRange(player)} through water.`;
+          outcome = `Wonder base: <strong>${base}</strong> + <strong>${districts}</strong> from districts. City range: ${Game.getCityRange(player)} through water.${ceiling}`;
         } else {
-          outcome = `Wonder base: <strong>${base}</strong>. City range: ${Game.getCityRange(player)}.`;
+          outcome = `Wonder base: <strong>${base}</strong>. City range: ${Game.getCityRange(player)}.${ceiling}`;
           if (uniqueName === "Construction") outcome += " Each eligible resource produces 1 extra.";
           if (uniqueName === "Craftsmanship") outcome += " Building a wonder also advances tech by 1.";
         }
@@ -5970,10 +6030,27 @@ const UI = (() => {
     render();
   }
 
-  function finishDistrictWithReinforcements() {
-    dispatch({ type: "PLAY_GROWTH_DISTRICT", payload: {
-      playerId: localPlayerId, hexKey: sub.districtKey, district: sub.districtType,
-      reinforceKeys: sub.placedKeys.slice(), tradeSpent: sub.tradeSpent } });
+  // Closes the "then reinforce" step of a growth card the engine is already
+  // resolving. It used to re-send PLAY_GROWTH_DISTRICT with a reinforceKeys
+  // bundle — a packet the reducer refuses twice over (the district is placed,
+  // and a resolution is open) — and then called resetSub() without looking at
+  // the result. Every click and every "Stop here" was therefore discarded while
+  // cardResolution stayed open, which is the soft-lock. The two real closers
+  // are PLAY_GROWTH_REINFORCE (markers chosen) and END_FOCUS_CARD (none).
+  async function finishDistrictWithReinforcements() {
+    const chosen = sub.placedKeys.slice();
+    const result = chosen.length
+      ? await dispatch({ type: "PLAY_GROWTH_REINFORCE", payload: {
+          playerId: localPlayerId, hexKeys: chosen, ...focusTradePayload() } })
+      : await dispatch({ type: "END_FOCUS_CARD", payload: {
+          playerId: localPlayerId, cardType: "growth", tradeSpent: 0 } });
+    if (!result || result.status !== "accepted") {
+      // Leave the panel standing so the step is still finishable rather than
+      // dropping the player into an idle wizard behind a locked focus row.
+      showToast(result && result.message ? result.message : "That reinforcement was refused.");
+      render();
+      return;
+    }
     resetSub();
   }
 
@@ -5981,10 +6058,14 @@ const UI = (() => {
     const me = Game.getPlayer(state, localPlayerId);
     const slot = Game.getSlotValue(me, "growth", state);
     sub.phase = "reinforcing";
-    sub.remaining = slot + sub.tradeSpent;
-    sub.totalMarkers = sub.remaining;
     sub.placedKeys = [];
     sub.validHexes = Game.validReinforceHexes(state, localPlayerId);
+    // "Up to": counting down from an allowance larger than the number of
+    // markers on the board asks for clicks that cannot be made.
+    sub.cardReinforceLimit = slot;
+    sub.tradeReinforceLimit = sub.tradeSpent;
+    sub.remaining = Math.min(slot + sub.tradeSpent, sub.validHexes.size);
+    sub.totalMarkers = sub.remaining;
     render();
   }
 
@@ -6045,6 +6126,17 @@ const UI = (() => {
     render();
   }
 
+  // Everything a finished move/attack drew on the board, without touching the
+  // card the player is still resolving. The map pulses sub.validHexes whatever
+  // the phase says, so an interaction that is over has to take its own
+  // highlights down rather than waiting for the next action to overwrite them.
+  function clearMovementTargets() {
+    sub.validHexes = new Set();
+    sub.selectedUnit = null;
+    sub.movementState = null;
+    sub.attackTargets = null;
+  }
+
   function clearSub() {
     sub.phase = "idle"; sub.cardType = null; sub.tradeSpent = 0; sub.remaining = 0;
     sub.totalMarkers = 0; sub.validHexes = new Set(); sub.selectedUnit = null;
@@ -6053,6 +6145,11 @@ const UI = (() => {
     sub.cityUseFigure = false; sub.cityFigureByHex = new Map();
     sub.movementState = null; sub.selectedWonder = null; sub.wonderProduction = 0;
     sub.freeFrom = null; sub.attackTargets = null;
+    // Growth-sequence state. districtKey and growthResolutionId used to survive
+    // a clear, so a finished card could still name a district and a resolution
+    // that no longer existed.
+    sub.districtKey = null; sub.growthResolutionId = null;
+    sub.cardReinforceLimit = 0; sub.tradeReinforceLimit = 0;
   }
 
   function resumeActiveCard() {
@@ -6171,20 +6268,25 @@ const UI = (() => {
     if (sub.phase === "placing_district") {
       if (!sub.validHexes.has(hexKey)) { showToast("Must be adjacent to your city"); return; }
       flashHex(hexKey, "rgb(79,195,247)", 600);
-      // Trade tokens on a growth card reinforce whether or not the card's own
-      // effect did (Terra p8), so a district still leaves them to spend.
-      if (sub.tradeSpent > 0) {
-        sub.districtKey = hexKey;
-        sub.phase = "reinforcing_after_district";
-        sub.remaining = sub.tradeSpent;
-        sub.totalMarkers = sub.tradeSpent;
-        sub.placedKeys = [];
-        sub.validHexes = Game.validReinforceHexes(state, localPlayerId);
-        render();
+      // The district always goes to the engine, which owns the rest of the
+      // printed sequence. This used to branch on sub.tradeSpent and, when trade
+      // was selected, flip to a LOCAL reinforcement phase without ever
+      // dispatching the district — so the placement was silently lost and every
+      // later packet was refused. The engine decides whether a "then" step
+      // follows; reconcileAuthoritativeResolution rebuilds the panel from it.
+      const placed = await dispatch({ type: "PLAY_GROWTH_DISTRICT", payload: {
+        playerId: localPlayerId, hexKey, district: sub.districtType,
+        ...focusTradePayload()
+      }});
+      if (!placed || placed.status !== "accepted") {
+        showToast(placed && placed.message ? placed.message : "That district could not be placed.");
         return;
       }
-      dispatch({ type: "PLAY_GROWTH_DISTRICT", payload: { playerId: localPlayerId, hexKey, district: sub.districtType, tradeSpent: sub.tradeSpent } });
-      resetSub(); return;
+      // Sanitation and Globalization hold the card open for their printed
+      // "then" step; Irrigation with no trade is finished right here.
+      if (!setSubFromGrowthResolution(state.cardResolution)) resetSub();
+      else render();
+      return;
     }
     if (sub.phase === "reinforcing_after_district") {
       if (!sub.validHexes.has(hexKey)) { showToast("Needs your own unreinforced control marker there"); return; }
@@ -6723,7 +6825,15 @@ const UI = (() => {
           setTimeout(() => { pendingCardAnim = null; renderFocusRow(); }, 440);
           sub.phase = "card_selected";
           sub.cardType = el.dataset.card;
-          sub.tradeSpent = 0;
+          // sub.tradeSpent is DERIVED (syncFocusTradeTotal recomputes it from
+          // focusTradeSpent + Palenque substitutes). Zeroing only the derived
+          // value let the previous card's selection survive: pick Culture, take
+          // 2 trade, then click Industry, and the very next sync put that 2
+          // back — which is how a card holding 3 tokens previewed as though 2
+          // were already committed. Clear the sources and re-derive.
+          sub.focusTradeSpent = 0;
+          sub.tradeResources = {};
+          syncFocusTradeTotal();
           // With no tokens on the card there is nothing to decide, so don't ask:
           // clicking the card is the decision, and the action starts.
           const meNow = Game.getPlayer(state, localPlayerId);

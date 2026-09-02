@@ -29,7 +29,7 @@ const CivCardArt = (() => {
     { id: "green", label: "Green", value: "#76a94f" },
     { id: "purple", label: "Purple", value: "#8b62b5" }
   ];
-  const SEAT_COLORS = PLAYER_COLORS.filter((c) => c.id !== "purple");
+  const SEAT_COLORS = PLAYER_COLORS.slice();
 
   // Colours from before the components were matched, so an old save still
   // resolves to a component rather than to the nearest-match guess below.

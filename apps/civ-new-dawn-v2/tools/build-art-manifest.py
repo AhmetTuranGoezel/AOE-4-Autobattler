@@ -33,8 +33,9 @@ APP = os.path.dirname(HERE)
 PACK = os.path.join(APP, "assets", "tts-web")
 OUT = os.path.join(APP, "assets", "art-data.js")
 
-# The five printed player colours, in the order the components are numbered.
-# Only the first four have control tokens in the pack, and the game seats four.
+# The five printed Terra Incognita player colours, in the order the components
+# are numbered. Purple's control faces live together in a two-up diffuse image
+# and are sliced below just like the city-state atlases.
 COLORS = ["green", "blue", "orange", "red", "purple"]
 
 # --- read by eye off the images ------------------------------------------
@@ -444,6 +445,44 @@ def cutout(rel_path, tol=26):
     return rel("tokens/derived", name)
 
 
+def slice_purple_control():
+    """Split the fifth player's two-up control texture into usable discs.
+
+    The mod stores both sides on one 576x280 diffuse image while the first four
+    colours have separate face/back files. Each printed square is 256px and is
+    centred in its half; clearing its white surround yields the same transparent
+    token shape as ``cutout`` produces for the other colours.
+    """
+    try:
+        from PIL import Image
+    except ImportError:
+        print("Pillow not installed; keeping previously sliced purple controls.",
+              file=sys.stderr)
+        return {}
+
+    matches = listing("other-images", r"^purple-control-tokens__diffuse")
+    if len(matches) != 1:
+        raise SystemExit(f"purple controls: expected 1 two-up texture, got {len(matches)}")
+    im = Image.open(os.path.join(PACK, *matches[0].split("/"))).convert("RGBA")
+    # Exact white-backed squares in the committed 672x280 texture. Fail loudly
+    # if the source is ever replaced instead of silently cropping the emblem.
+    if im.size != (672, 280):
+        raise SystemExit(f"purple controls: unexpected texture size {im.size}")
+    boxes = ((35, 16, 289, 270), (304, 16, 558, 270))
+    out_dir = os.path.join(PACK, "tokens", "derived")
+    os.makedirs(out_dir, exist_ok=True)
+    made = {}
+    for side, box in zip(("plain", "reinforced"), boxes):
+        crop = im.crop(box)
+        cut = clear_flat_background(crop, 30)
+        crop = cut if cut is not None else crop.crop(crop.getbbox() or (0, 0, crop.width, crop.height))
+        suffix = "face" if side == "plain" else "back"
+        name = f"cut-control-purple__image-{suffix}.webp"
+        crop.save(os.path.join(out_dir, name), "WEBP", quality=90)
+        made[side] = rel("tokens/derived", name)
+    return made
+
+
 def hexify(rel_path):
     """Store a token as a clean pointy-top hex with upright printed content.
 
@@ -567,6 +606,7 @@ def main():
         color = name.split("__")[0].split("-")[1]
         side = "plain" if "image-face" in name else "reinforced"
         control.setdefault(color, {})[side] = cutout(path)
+    control["purple"] = slice_purple_control()
 
     # A district token is printed on both sides: the face, and a back carrying
     # the same colour and glyph inside the reinforcement border of dots. Terra

@@ -163,7 +163,7 @@ const Game = (() => {
     techResetAt: 15,   // past space 24 the arrow jumps straight here (base p16)
     maxRounds: 20,
     minPlayers: 2,
-    maxPlayers: 4,
+    maxPlayers: 5,
     victoryMilitary: 12,
     victoryScience: 24,
     victoryCulture: 3,
@@ -877,12 +877,9 @@ const Game = (() => {
     }
   }
 
-  // The four printed player colours. The game ships five sets of focus cards
-  // and dials, but only these four have a control token with a reinforced
-  // back — and CFG.maxPlayers is four, so purple is the spare. Seats are
-  // handed out from this list rather than chosen freely: two players in the
-  // same colour would be two players with the same tokens on the board.
-  const SEAT_COLORS = ["#169eae", "#d94747", "#e88b24", "#76a94f"];
+  // Terra adds a complete fifth, purple player set. Seats are assigned from
+  // the five physical colours so no two players share the same board pieces.
+  const SEAT_COLORS = ["#169eae", "#d94747", "#e88b24", "#76a94f", "#8b62b5"];
 
   function seatColor(taken, wanted) {
     const free = SEAT_COLORS.filter((c) => !taken.includes(c));
@@ -918,6 +915,7 @@ const Game = (() => {
       capitalismUsed: false, capitalismReplay: null, capitalismNoReset: false,
       cartographyUsedThisTurn: false,
       scorchedEarthUsedThisTurn: false,
+      polandFirstTurnUsed: false,
       zimbabwe: 0,        // trade tokens parked on Great Zimbabwe
       cardTiers,
       cardLevels: { ...cardTiers },
@@ -953,6 +951,7 @@ const Game = (() => {
     if (player.capitalismNoReset === undefined) player.capitalismNoReset = false;
     if (player.cartographyUsedThisTurn === undefined) player.cartographyUsedThisTurn = false;
     if (player.scorchedEarthUsedThisTurn === undefined) player.scorchedEarthUsedThisTurn = false;
+    if (player.polandFirstTurnUsed === undefined) player.polandFirstTurnUsed = false;
     FOCUS_TYPES.forEach((f) => {
       if (player.trade[f] === undefined) player.trade[f] = 0;
       if (player.cardTiers[f] === undefined) player.cardTiers[f] = 1;
@@ -1262,6 +1261,13 @@ const Game = (() => {
       if (resolution.playerId !== actorId) {
         return denied("card_resolution_owner_mismatch", "Another player's focus card is still resolving.");
       }
+      // Undo has to be reachable from inside a half-resolved card, or a step
+      // that cannot be completed is a dead match: every other action is refused
+      // "until the card finishes", and the card is what will not finish. The
+      // checkpoint predates the card being played, so restoring it clears the
+      // resolution along with everything else — it is the exit, not a bypass.
+      // It still falls through to the current-player and getUndoStatus checks.
+      const escapingWithUndo = type === "UNDO_TURN";
       const finishingGrowth = resolution.cardType === "growth" &&
         resolution.step === "growth_reinforce" &&
         (type === "PLAY_GROWTH_REINFORCE" || type === "END_FOCUS_CARD");
@@ -1269,7 +1275,7 @@ const Game = (() => {
         resolution.cardName === "Astronomy" &&
         resolution.step === "astronomy_exploration" &&
         EXPLORATION_RESOLUTION_ACTIONS.has(type);
-      if (!finishingGrowth && !finishingAstronomy) {
+      if (!finishingGrowth && !finishingAstronomy && !escapingWithUndo) {
         return denied("card_resolution_pending", "Finish the remaining steps of this focus card first.");
       }
     }
@@ -1398,6 +1404,17 @@ const Game = (() => {
         if (!movementTradePayment(st, actor, "military", payload)) {
           return denied("military_trade_timing",
             "Military trade is spent during combat after the dice are rolled, not before movement.");
+        }
+        if (type === "PLAY_MILITARY_ATTACK") {
+          const targets = findDefenders(st, payload.toKey, actorId);
+          const defender = payload.targetType
+            ? targets.find((entry) => entry.type === payload.targetType) : targets[0];
+          if (!defender) return denied("combat_target_missing", "There is no legal target in that space.");
+          if (defender.ownerId && !canAffectRivalPiece(st, actorId, defender.ownerId)) {
+            const owner = getPlayer(st, defender.ownerId);
+            return denied("non_aggression_pact",
+              `Your Non-Aggression Pact prevents an attack on ${owner ? owner.name : "that player"}.`);
+          }
         }
       }
       return { ok: true };
@@ -1632,18 +1649,8 @@ const Game = (() => {
       player.caravans.forEach((u) => { u.position = null; resetFigureForCard(u); });
     });
 
-    // Poland: before their first turn they raid a rival's diplomacy hand.
-    st.players.forEach((player) => {
-      if (hasLeader(player, "poland") && st.players.length > 1) {
-        queuePendingChoice(st, {
-          kind: "pick_rival_diplomacy", playerId: player.id,
-          title: "Poland: Take a Diplomacy Card",
-          options: st.players.filter((p) => p.id !== player.id).map((p) => ({ id: p.id, label: p.name }))
-        });
-      }
-    });
-
     log(st, "Setup complete! Game begins.");
+    queueStartOfTurnEffects(st, currentPlayer(st));
     armTurnUndo(st);
   }
 
@@ -2237,11 +2244,22 @@ const Game = (() => {
         }
         const hostPlayer = getPlayer(st, hex.city.ownerId);
         queueCartographyCity(st, player, payload.toKey);
-        // Ibrahim card: its holder trading at an Ottoman city enriches both sides.
+        // Ibrahim: the visitor and the Ottoman each choose where their own
+        // token goes. These are two seat-owned decisions, never an automatic
+        // deposit on Economy.
         if (st.ibrahimHolder === player.id && hasLeader(hostPlayer, "ottoman")) {
-          player.trade.economy = Math.min(CFG.maxTrade, player.trade.economy + 1);
-          hostPlayer.trade.economy = Math.min(CFG.maxTrade, hostPlayer.trade.economy + 1);
-          log(st, `Ibrahim: ${player.name} and ${hostPlayer.name} each gain +1 economy trade.`);
+          queueTradeGrant(st, {
+            kind: "trade_grant",
+            playerId: player.id,
+            source: "Ibrahim",
+            title: "Ibrahim: Place Your Trade Token",
+            nextChoice: {
+              kind: "trade_grant",
+              playerId: hostPlayer.id,
+              source: "Ibrahim",
+              title: "Ibrahim: Place the Ottoman Trade Token"
+            }
+          });
         }
         // Ottoman Banking (unique Economy III): a caravan reaching the Ibrahim
         // holder's capital brings home a resource.
@@ -2260,12 +2278,18 @@ const Game = (() => {
         // them — an embassy is worth something to the host as well.
         if (hex.city.isCapital && hostPlayer &&
             heldDiplomacy(player, "embassy").some((d) => d.fromId === hostPlayer.id)) {
-          hostPlayer.trade.economy = Math.min(CFG.maxTrade, hostPlayer.trade.economy + 1);
-          log(st, `Embassy: ${hostPlayer.name} gains +1 economy trade from ${player.name}'s caravan.`);
-          queuePendingChoice(st, {
-            kind: "gain_resource", playerId: player.id,
-            title: "Embassy: Gain a Resource",
-            options: RESOURCES.map((r) => ({ id: r, label: r }))
+          queueTradeGrant(st, {
+            kind: "trade_grant",
+            playerId: hostPlayer.id,
+            source: "Embassy",
+            title: `Embassy: ${hostPlayer.name}, Place a Trade Token`,
+            nextChoice: {
+              kind: "gain_resource",
+              playerId: player.id,
+              title: "Embassy: Gain a Resource",
+              source: "Embassy",
+              options: RESOURCES.map((r) => ({ id: r, label: r }))
+            }
           });
         }
         unit.position = null;   // back onto the economy card
@@ -2343,12 +2367,6 @@ const Game = (() => {
       if (!reachable.has(payload.toKey) && from !== payload.toKey) return st;
       // A Non-Aggression Pact stops the attack before it starts: "You cannot
       // attack or destroy the pieces of the player who gave you this card."
-      const holds = hexOwnerAt(st, payload.toKey);
-      if (nonAggressionWith(st, payload.playerId, holds)) {
-        log(st, `${player.name} cannot attack ${getPlayer(st, holds).name} — a non-aggression pact stands between them.`);
-        return st;
-      }
-
       // Nothing is rolled yet. The dice are thrown when somebody throws them,
       // and only then does the bidding start — the attacker spending everything
       // they mean to spend before the defender may answer (Terra p10).
@@ -2359,6 +2377,11 @@ const Game = (() => {
       const defender = (payload.targetType &&
         targets.find((d) => d.type === payload.targetType)) || targets[0];
       if (!defender) return st;
+      if (defender.ownerId && !canAffectRivalPiece(st, player.id, defender.ownerId)) return st;
+      const diplomacySource = defender.ownerId ||
+        (defender.type === "citystate" && hex.cityState ? hex.cityState.name : null);
+      const returnedDiplomacy = diplomacySource
+        ? detachDiplomacyFromSource(st, player, diplomacySource) : [];
       const slot = getSlotValue(player, "military", st);
       const atkParts = getAttackCombatParts(st, player, payload.toKey, defender, slot);
       const leaderBonus = atkParts
@@ -2391,7 +2414,9 @@ const Game = (() => {
         history: [],
         massProductionRedeploy: redeploying,
         movementContinuation: continuation ? { ...continuation } : null,
-        tradePayment
+        tradePayment,
+        diplomacySource,
+        returnedDiplomacy
       };
       if (continuation) st.movementContinuation = null;
       log(st, `${player.name} attacks ${defender.label}.`);
@@ -2406,6 +2431,10 @@ const Game = (() => {
       if (!c || c.atkRolled || c.defRolled || c.rolled || c.turn === "done") return st;
       if (!payload.hostOverride && payload.playerId !== c.attackerId) return st;
       const attacker = getPlayer(st, c.attackerId);
+      if (attacker && Array.isArray(c.returnedDiplomacy) && c.returnedDiplomacy.length) {
+        attacker.diplomacy = (attacker.diplomacy || []).concat(c.returnedDiplomacy);
+        log(st, `${attacker.name}'s diplomacy card was restored because no die was rolled.`);
+      }
       st.combat = null;
       log(st, `${attacker ? attacker.name : "The attacker"} cancelled the attack before rolling.`);
       return st;
@@ -2693,21 +2722,8 @@ const Game = (() => {
       }
       st.turn.index = (st.turn.index + 1) % st.turn.order.length;
       st.lastCombat = null;
-      // Ottoman: at the start of their turn they may hand out the Ibrahim card.
       const np = currentPlayer(st);
-      if (np && hasLeader(np, "ottoman") && st.players.length > 1 &&
-          !(st.pendingChoices || []).some((c) => c.kind === "give_ibrahim" && c.playerId === np.id)) {
-        queuePendingChoice(st, {
-          kind: "give_ibrahim", playerId: np.id,
-          title: "Ottoman: Give the Ibrahim Card?",
-          options: st.players.filter((p) => p.id !== np.id).map((p) => ({ id: p.id, label: p.name }))
-            .concat([{ id: "keep", label: st.ibrahimHolder ? "Leave as is" : "Not this turn" }])
-        });
-      }
-      if (np) {
-        queueStartOfTurnCityStates(st, np);
-        queueStartOfTurnWonders(st, np);
-      }
+      queueStartOfTurnEffects(st, np);
       if (st.turn.index === 0) {
         const winnerBeforeEvent = checkVictory(st);
         if (winnerBeforeEvent) {
@@ -2983,6 +2999,7 @@ const Game = (() => {
       isFriendlyCity(st, hex, playerId));
     return Object.entries(st.map.hexes).filter(([hexKey, hex]) => {
       if (!hex || !hex.city || hex.city.ownerId === playerId || hex.city.isCapital ||
+          !canAffectRivalPiece(st, playerId, hex.city.ownerId) ||
           armyGuards(st, hexKey)) return false;
       return friendlyCities.some((city) => hexDist(city, hex) <= 4);
     }).map(([hexKey]) => hexKey);
@@ -3649,8 +3666,26 @@ const Game = (() => {
     return `${kind}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
   }
 
+  // Every pending choice blocks the table until its seat answers it, and the
+  // client can only answer one that offers something to pick: the wizard
+  // renders `options` as buttons and `hexKeys` as board targets. A choice
+  // carrying neither is unanswerable, so queuing it would stop the match with
+  // no legal exit — the same shape of soft-lock as an unfinishable focus card.
+  // Callers are expected to check first and log why (queueTradeGrant and
+  // queueCapitalLootTake both do); this refuses the rest rather than hanging.
+  function choiceIsAnswerable(choice) {
+    if (!choice) return false;
+    if (Array.isArray(choice.options) && choice.options.length) return true;
+    if (Array.isArray(choice.hexKeys) && choice.hexKeys.length) return true;
+    return false;
+  }
+
   function queuePendingChoice(st, choice) {
     st.pendingChoices = st.pendingChoices || [];
+    if (!choiceIsAnswerable(choice)) {
+      log(st, `An effect (${(choice && (choice.source || choice.kind)) || "unknown"}) offered no legal choice and was skipped.`);
+      return null;
+    }
     const queued = {
       id: choice.id || makeChoiceId(choice.kind || "choice"),
       round: st.turn ? st.turn.round : 0,
@@ -3894,6 +3929,38 @@ const Game = (() => {
         log(st, `${player.name} took ${card.name} from ${src ? src.name : "a rival"}.`);
         resolved = true;
       }
+    } else if (choice.kind === "capital_loot_take") {
+      const defender = getPlayer(st, choice.defenderId);
+      const sourceType = payload.optionId;
+      if (defender && FOCUS_TYPES.includes(sourceType) &&
+          (choice.options || []).some((option) => option.id === sourceType) &&
+          Number(defender.trade[sourceType] || 0) > 0 && focusTradeTargets(player).length) {
+        defender.trade[sourceType]--;
+        queuePendingChoice(st, {
+          kind: "capital_loot_place",
+          playerId: player.id,
+          defenderId: defender.id,
+          remaining: choice.remaining,
+          stolenFrom: sourceType,
+          title: "Captured Capital: Place the Stolen Trade Token",
+          source: "Captured capital",
+          options: focusTradeTargets(player)
+        });
+        resolved = true;
+      }
+    } else if (choice.kind === "capital_loot_place") {
+      const targetType = payload.optionId;
+      if (FOCUS_TYPES.includes(targetType) &&
+          (choice.options || []).some((option) => option.id === targetType) &&
+          Number(player.trade[targetType] || 0) < CFG.maxTrade) {
+        player.trade[targetType]++;
+        log(st, `${player.name} placed a captured trade token on ${FOCUS_LABELS[targetType]}.`);
+        if (Number(choice.remaining || 1) > 1) {
+          queueCapitalLootTake(st, player.id, choice.defenderId,
+            Number(choice.remaining || 1) - 1);
+        }
+        resolved = true;
+      }
     } else if (choice.kind === "trade_any") {
       const cardType = payload.optionId;
       const offered = !Array.isArray(choice.options) ||
@@ -3901,30 +3968,40 @@ const Game = (() => {
       if (!offered) {
         resolved = false;
       } else if (cardType === "zimbabwe" && hasWonder(st, player.id, "Great Zimbabwe")) {
-        const amount = choice.amount || 1;
         const capacity = Math.max(0, 4 - Number(player.zimbabwe || 0));
-        const banked = Math.min(capacity, amount);
-        const overflow = amount - banked;
-        player.zimbabwe = Number(player.zimbabwe || 0) + banked;
-        if (banked) log(st, `${player.name} banked ${banked} trade token(s) on Great Zimbabwe (${player.zimbabwe}/4).`);
-        if (overflow) {
-          queuePendingChoice(st, {
-            kind: "trade_any",
-            playerId: player.id,
-            title: `Place ${overflow} Overflow Trade Token${overflow === 1 ? "" : "s"}`,
-            source: choice.source || "Great Zimbabwe",
-            amount: overflow,
-            options: FOCUS_TYPES.map((focusType) => ({
-              id: focusType, label: FOCUS_LABELS[focusType]
-            }))
-          });
+        if (capacity > 0) {
+          player.zimbabwe = Number(player.zimbabwe || 0) + 1;
+          log(st, `${player.name} banked 1 trade token on Great Zimbabwe (${player.zimbabwe}/4).`);
+          resolved = true;
         }
+      } else if (FOCUS_TYPES.includes(cardType) &&
+          Number(player.trade[cardType] || 0) < CFG.maxTrade) {
+        player.trade[cardType] = Number(player.trade[cardType] || 0) + 1;
+        log(st, `${player.name} gained +1 ${cardType} trade.`);
         resolved = true;
-      } else if (FOCUS_TYPES.includes(cardType)) {
-        const amount = choice.amount || 1;
-        player.trade[cardType] = Math.min(CFG.maxTrade, (player.trade[cardType] || 0) + amount);
-        log(st, `${player.name} gained +${amount} ${cardType} trade.`);
-        resolved = true;
+      }
+      // Multi-token effects are separate physical placements. Recompute the
+      // target list after each token so the player can distribute them and a
+      // card that just filled cannot eat the rest through a stale UI option.
+      if (resolved && Number(choice.amount || 1) > 1) {
+        const remaining = Number(choice.amount || 1) - 1;
+        const options = tradeTargets(st, player);
+        if (options.length) {
+          queuePendingChoice(st, {
+            ...choice,
+            id: undefined,
+            amount: remaining,
+            title: `${choice.source || "Trade reward"}: Place ${remaining} More Trade Token${remaining === 1 ? "" : "s"}`,
+            options,
+            nextChoice: choice.nextChoice || null
+          });
+          // Only the final token advances a parent card sequence or starts the
+          // next player's interaction choice.
+          choice.cardResolutionId = null;
+          choice.nextChoice = null;
+        } else {
+          log(st, `${choice.source || "Trade reward"}: ${player.name} has no room for ${remaining} remaining trade token${remaining === 1 ? "" : "s"}.`);
+        }
       }
     } else if (choice.kind === "place_control") {
       const hexKey = payload.hexKey;
@@ -4051,6 +4128,7 @@ const Game = (() => {
           log(st, `${player.name} flipped a rival reinforced control token with Mass Media.`);
         } else {
           hex.control = { ownerId: player.id, fortified: false, district: null };
+          queueNonAggressionResponse(st, formerOwner, player.id, "Mass Media");
           log(st, `${player.name} replaced a rival control token with Mass Media.`);
         }
         checkDevelopment(st, formerOwner);
@@ -4061,8 +4139,11 @@ const Game = (() => {
       const hexKey = payload.hexKey;
       const hex = st.map.hexes[hexKey];
       if ((choice.hexKeys || []).includes(hexKey) && hex && hex.control &&
-          hex.control.ownerId !== player.id && !armyGuards(st, hexKey)) {
+          hex.control.ownerId !== player.id && !armyGuards(st, hexKey) &&
+          canAffectRivalPiece(st, player.id, hex.control.ownerId)) {
+        const formerOwner = hex.control.ownerId;
         hex.control = null;
+        queueNonAggressionResponse(st, formerOwner, player.id, choice.source || "Effect");
         log(st, `${player.name} removed a rival control token (${choice.source || "effect"}).`);
         resolved = true;
       }
@@ -4112,7 +4193,8 @@ const Game = (() => {
     } else if (choice.kind === "eiffel_target") {
       // Step 1: the rival. Step 2 and 3 pick the two tokens.
       const victim = getPlayer(st, payload.optionId);
-      const spots = victim ? Object.entries(st.map.hexes)
+      const spots = victim && canAffectRivalPiece(st, player.id, victim.id)
+        ? Object.entries(st.map.hexes)
         .filter(([k, h]) => h.control && h.control.ownerId === victim.id && !armyGuards(st, k))
         .map(([k]) => k) : [];
       if (victim && spots.length >= 2) {
@@ -4127,7 +4209,8 @@ const Game = (() => {
       const hexKey = payload.hexKey;
       const hex = st.map.hexes[hexKey];
       if ((choice.hexKeys || []).includes(hexKey) && hex && hex.control &&
-          hex.control.ownerId === choice.victimId) {
+          hex.control.ownerId === choice.victimId &&
+          canAffectRivalPiece(st, player.id, choice.victimId)) {
         const picked = (choice.picked || []).concat([hexKey]);
         if (picked.length < 2) {
           const victim = getPlayer(st, choice.victimId);
@@ -4151,18 +4234,23 @@ const Game = (() => {
       const hex = st.map.hexes[hexKey];
       const taker = getPlayer(st, choice.takerId);
       if ((choice.hexKeys || []).includes(hexKey) && hex && hex.control && taker &&
-          !armyGuards(st, hexKey)) {
+          !armyGuards(st, hexKey) &&
+          canAffectRivalPiece(st, taker.id, hex.control.ownerId)) {
         // "Unused, unreinforced" — the token that arrives is a plain one.
+        const formerOwner = hex.control.ownerId;
         hex.control = { ownerId: taker.id, fortified: false, district: null };
+        queueNonAggressionResponse(st, formerOwner, taker.id, "Eiffel Tower");
         checkDevelopment(st, taker.id);
         log(st, `${player.name} gave up a control token to ${taker.name} (Eiffel Tower).`);
         resolved = true;
       }
     } else if (choice.kind === "zimbabwe_move") {
       const cardType = payload.optionId;
-      if (FOCUS_TYPES.includes(cardType) && (player.zimbabwe || 0) > 0) {
+      if (FOCUS_TYPES.includes(cardType) && (player.zimbabwe || 0) > 0 &&
+          Number(player.trade[cardType] || 0) < CFG.maxTrade &&
+          (choice.options || []).some((option) => option.id === cardType)) {
         player.zimbabwe--;
-        player.trade[cardType] = Math.min(CFG.maxTrade, (player.trade[cardType] || 0) + 1);
+        player.trade[cardType] = Number(player.trade[cardType] || 0) + 1;
         log(st, `${player.name} moved a banked token onto ${FOCUS_LABELS[cardType]}.`);
         // Still more on the wonder: offer the next one.
         queueZimbabweRelease(st, player);
@@ -4180,6 +4268,44 @@ const Game = (() => {
         log(st, `${player.name} copied ${host.name}'s ${FOCUS_LABELS[cardType]} card at the Great Library.`);
         resolved = true;
       }
+    } else if (choice.kind === "city_state_fate") {
+      const hex = st.map.hexes[choice.hexKey];
+      const formerOwner = getPlayer(st, choice.defenderId);
+      const cs = choice.cityState || {};
+      const live = hex && hex.city && hex.city.ownerId === choice.defenderId &&
+        hex.city.conqueredCityState && hex.city.conqueredCityState.name === cs.name;
+      if (live && (payload.optionId === "conquer" || payload.optionId === "liberate")) {
+        if (formerOwner) {
+          formerOwner.cityStateTokens = (formerOwner.cityStateTokens || [])
+            .filter((name) => name !== cs.name);
+        }
+        if (payload.optionId === "conquer") {
+          if (!(player.cityStateTokens || []).includes(cs.name)) player.cityStateTokens.push(cs.name);
+          const capturedWonderName = hex.city.wonder && hex.city.wonder.name;
+          replaceAdjacentControlsForStatue(st, player, choice.hexKey);
+          hex.city.ownerId = player.id;
+          hex.city.developed = false;
+          sweepFigures(st, choice.hexKey, player.id);
+          const army = (player.armies || []).find((unit) => unit.id === choice.unitId);
+          if (army && canOccupyAfterCombat(st, choice.hexKey, player.id)) {
+            army.position = choice.hexKey;
+          }
+          triggerCapturedWonder(st, player, choice.hexKey, capturedWonderName);
+          log(st, `${player.name} conquered ${cs.name} from ${formerOwner ? formerOwner.name : "a rival"}.`);
+        } else {
+          // City-state diplomacy cards are identical pairs, so liberation can
+          // grant one immediately without another artificial choice.
+          hex.city = null;
+          hex.cityState = { name: cs.name, type: cs.type, diplomacyCards: 2 };
+          grantCityStateDiplomacy(st, player, hex.cityState);
+          log(st, `${player.name} liberated ${cs.name}.`);
+        }
+        queueNonAggressionResponse(st, choice.defenderId, player.id,
+          payload.optionId === "conquer" ? "City-state conquest" : "City-state liberation");
+        checkDevelopment(st, choice.defenderId);
+        checkDevelopment(st, player.id);
+        resolved = true;
+      }
     } else if (choice.kind === "conquer_city_state") {
       const hex = st.map.hexes[choice.hexKey];
       if (payload.optionId === "yes" && hex && hex.cityState) {
@@ -4188,7 +4314,9 @@ const Game = (() => {
         if (!player.cityStateTokens.includes(cs.name)) player.cityStateTokens.push(cs.name);
         returnAllCityStateDiplomacy(st, cs.name);
         hex.cityState = null;
-        hex.city = { ownerId: player.id, isCapital: false, developed: false, hasWonder: false, wonder: null };
+        hex.city = { ownerId: player.id, isCapital: false, developed: false,
+          hasWonder: false, wonder: null,
+          conqueredCityState: { name: cs.name, type: cs.type } };
         checkDevelopment(st, player.id);
         log(st, `${player.name} conquered ${cs.name} with Orszaghaz.`);
         resolved = true;
@@ -4197,8 +4325,10 @@ const Game = (() => {
       const hexKey = payload.hexKey;
       const hex = st.map.hexes[hexKey];
       if ((choice.hexKeys || []).includes(hexKey) && hex && hex.city &&
-          hex.city.ownerId !== player.id && !hex.city.isCapital && !armyGuards(st, hexKey)) {
+          hex.city.ownerId !== player.id && !hex.city.isCapital && !armyGuards(st, hexKey) &&
+          canAffectRivalPiece(st, player.id, hex.city.ownerId)) {
         const from = getPlayer(st, hex.city.ownerId);
+        const formerOwner = hex.city.ownerId;
         const capturedWonderName = hex.city.wonder && hex.city.wonder.name;
         replaceAdjacentControlsForStatue(st, player, hexKey);
         // The wonder in that city, if any, changes hands with it.
@@ -4206,6 +4336,7 @@ const Game = (() => {
           hasWonder: hex.city.hasWonder, wonder: hex.city.wonder };
         checkDevelopment(st, player.id);
         log(st, `${player.name} took ${from ? from.name + "'s" : "a rival"} city with ${choice.source || "an effect"}.`);
+        queueNonAggressionResponse(st, formerOwner, player.id, choice.source || "City replacement");
         triggerCapturedWonder(st, player, hexKey, capturedWonderName);
         resolved = true;
       }
@@ -4293,10 +4424,15 @@ const Game = (() => {
         const affectedOwners = new Set();
         [centerKey].concat(hexNeighborKeys(center.q, center.r)).forEach((hexKey) => {
           const hex = st.map.hexes[hexKey];
-          if (!hex || !hex.control || armyGuards(st, hexKey)) return;
+          if (!hex || !hex.control || armyGuards(st, hexKey) ||
+              !canAffectRivalPiece(st, player.id, hex.control.ownerId)) return;
           affectedOwners.add(hex.control.ownerId);
           if (hex.control.fortified) hex.control.fortified = false;
-          else hex.control = null;
+          else {
+            const formerOwner = hex.control.ownerId;
+            hex.control = null;
+            queueNonAggressionResponse(st, formerOwner, player.id, "Nuclear Power");
+          }
         });
         affectedOwners.forEach((ownerId) => checkDevelopment(st, ownerId));
         log(st, `${player.name} resolved Nuclear Power at ${centerKey}.`);
@@ -4314,6 +4450,21 @@ const Game = (() => {
         log(st, `${player.name} swapped ${FOCUS_LABELS[a]} and ${FOCUS_LABELS[b]}.`);
         resolved = true;
       }
+    } else if (choice.kind === "non_aggression_swap") {
+      const otherType = payload.optionId;
+      const militaryIndex = player.focusRow.indexOf("military");
+      const otherIndex = player.focusRow.indexOf(otherType);
+      const heldIndex = (player.diplomacy || []).findIndex((card) =>
+        card.cardId === "non_aggression" && card.fromId === choice.fromId);
+      if (FOCUS_TYPES.includes(otherType) && otherType !== "military" &&
+          militaryIndex >= 0 && otherIndex >= 0 && heldIndex >= 0) {
+        player.diplomacy.splice(heldIndex, 1);
+        player.focusRow[militaryIndex] = otherType;
+        player.focusRow[otherIndex] = "military";
+        const giver = getPlayer(st, choice.fromId);
+        log(st, `${player.name} returned the Non-Aggression Pact from ${giver ? giver.name : "its giver"} and moved Military.`);
+        resolved = true;
+      }
     } else if (choice.kind === "give_ibrahim") {
       if (payload.optionId === "keep") {
         resolved = true;
@@ -4325,9 +4476,11 @@ const Game = (() => {
     } else if (choice.kind === "pick_rival_diplomacy") {
       const rival = getPlayer(st, payload.optionId);
       if (rival && rival.id !== player.id) {
-        grantPlayerDiplomacy(st, player, rival.id);
-        log(st, `${player.name} (Poland) took a diplomacy card from ${rival.name}.`);
-        resolved = true;
+        if (grantPlayerDiplomacy(st, player, rival.id)) {
+          player.polandFirstTurnUsed = true;
+          log(st, `${player.name} (Poland) chooses a diplomacy card from ${rival.name}.`);
+          resolved = true;
+        }
       }
     } else if (choice.kind === "reinforce") {
       const hexKey = payload.hexKey;
@@ -4370,9 +4523,11 @@ const Game = (() => {
           resolved = true;
         } else {
           const beaten = st.players.find((p) => p.id !== player.id &&
+            canAffectRivalPiece(st, player.id, p.id) &&
             (p.armies || []).some((u) => u.position === hexKey));
           if (beaten) {
             beaten.armies.filter((u) => u.position === hexKey).forEach((u) => { u.position = null; });
+            queueNonAggressionResponse(st, beaten.id, player.id, "Encampment");
             log(st, `${player.name}'s encampment defeated ${beaten.name}'s army at ${hexKey}.`);
             resolved = true;
           }
@@ -4427,6 +4582,7 @@ const Game = (() => {
     }
     if (resolved || dismissed) {
       st.pendingChoices.splice(idx, 1);
+      if (choice.nextChoice) queueInteractionChoice(st, choice.nextChoice);
       if (choice.cardResolutionId) advanceCardResolution(st, choice.cardResolutionId);
       if (choice.kind === "scorched_earth" && !player.scorchedEarthUsedThisTurn &&
           !unitsLeftToMove(player, "military")) {
@@ -4575,13 +4731,20 @@ const Game = (() => {
     return true;
   }
 
+  function detachDiplomacyFromSource(st, player, sourceId) {
+    if (!player || !sourceId) return [];
+    const removed = [];
+    player.diplomacy = (player.diplomacy || []).filter((card) => {
+      const match = card.fromId === sourceId || card.fromCityState === sourceId || card.name === sourceId;
+      if (match) removed.push(card);
+      return !match;
+    });
+    if (removed.length) log(st, `${player.name} returned ${removed.length} diplomacy card(s) before attacking.`);
+    return removed;
+  }
+
   function returnDiplomacyFromSource(st, player, sourceId) {
-    if (!player || !sourceId) return 0;
-    const before = (player.diplomacy || []).length;
-    player.diplomacy = (player.diplomacy || []).filter((d) => d.fromId !== sourceId && d.fromCityState !== sourceId && d.name !== sourceId);
-    const returned = before - player.diplomacy.length;
-    if (returned > 0) log(st, `${player.name} returned ${returned} diplomacy card(s).`);
-    return returned;
+    return detachDiplomacyFromSource(st, player, sourceId).length;
   }
 
   function returnAllCityStateDiplomacy(st, cityStateName) {
@@ -4802,10 +4965,11 @@ const Game = (() => {
         returnAllCityStateDiplomacy(st, csName);
         log(st, `${player.name} gained +1 ${csType} trade and a ${csName} token.`);
         hex.cityState = null;
-        hex.city = { ownerId: c.attackerId, isCapital: false, developed: false, hasWonder: false, wonder: null };
+        hex.city = { ownerId: c.attackerId, isCapital: false, developed: false,
+          hasWonder: false, wonder: null,
+          conqueredCityState: { name: csName, type: csType } };
       }
       if (target === "control" && hex.control && hex.control.ownerId !== c.attackerId) {
-        returnDiplomacyFromSource(st, player, hex.control.ownerId);
         // Terra p10: beating a district replaces it with your own unreinforced,
         // NON-district token — the district itself is destroyed, not captured.
         hex.control = { ownerId: c.attackerId, fortified: false, district: null };
@@ -4817,23 +4981,37 @@ const Game = (() => {
       if (target === "city" && hex.city && hex.city.ownerId !== c.attackerId) {
         const defenderId = hex.city.ownerId;
         const defender = getPlayer(st, defenderId);
+        const conqueredCityState = hex.city.conqueredCityState || null;
         const capturedWonderName = hex.city.wonder && hex.city.wonder.name;
-        returnDiplomacyFromSource(st, player, defenderId);
-        if (defender) returnDiplomacyFromSource(st, defender, c.attackerId);
-        replaceAdjacentControlsForStatue(st, player, c.toKey);
-        if (hex.city.isCapital && defender) {
-          let taken = 0;
-          FOCUS_TYPES.forEach((f) => {
-            if (taken >= 2 && defender.trade[f] > 0) return;
-            if (defender.trade[f] > 0) { defender.trade[f]--; player.trade[f] = Math.min(CFG.maxTrade, player.trade[f] + 1); taken++; }
+        if (conqueredCityState) {
+          queuePendingChoice(st, {
+            kind: "city_state_fate",
+            playerId: player.id,
+            defenderId,
+            hexKey: c.toKey,
+            unitId: c.unitId,
+            fromKey: c.fromKey,
+            cityState: cloneSerializable(conqueredCityState),
+            title: `${conqueredCityState.name}: Conquer or Liberate?`,
+            source: conqueredCityState.name,
+            options: [
+              { id: "conquer", label: `Conquer ${conqueredCityState.name}` },
+              { id: "liberate", label: `Liberate ${conqueredCityState.name}` }
+            ]
           });
-          if (taken > 0) log(st, `${player.name} seized ${taken} trade token(s) from ${defender.name}'s capital!`);
+        } else {
+          replaceAdjacentControlsForStatue(st, player, c.toKey);
+        }
+        if (hex.city.isCapital && defender) {
+          queueCapitalLootTake(st, player.id, defender.id, 2);
           player.capturedCapitals = (player.capturedCapitals || 0) + 1;
         }
-        hex.city.ownerId = c.attackerId;
-        hex.city.developed = false;
-        sweepFigures(st, c.toKey, c.attackerId);
-        triggerCapturedWonder(st, player, c.toKey, capturedWonderName);
+        if (!conqueredCityState) {
+          hex.city.ownerId = c.attackerId;
+          hex.city.developed = false;
+          sweepFigures(st, c.toKey, c.attackerId);
+          triggerCapturedWonder(st, player, c.toKey, capturedWonderName);
+        }
       }
       // Terra p11: a beaten figure goes back to its player's card. Only the
       // figure that was attacked — the rest of the space is untouched.
@@ -4889,6 +5067,9 @@ const Game = (() => {
     // offer is made; it keeps the card open by leaving that army un-moved, and
     // taking it up closes the allowance for every other defeated army.
     if (!win) offerMassProductionRedeploy(st, player, unit);
+    if (c.defenderOwnerId) {
+      queueNonAggressionResponse(st, c.defenderOwnerId, c.attackerId, "Attack");
+    }
     checkDevelopment(st, c.attackerId);
     if (!scorchedOffer && !unitsLeftToMove(player, "military")) finishActiveCard(st);
       st.combat = null;
@@ -5204,6 +5385,34 @@ const Game = (() => {
       (st && antananarivoIsFriendlyCity(st, h, playerId)));
   }
 
+  // Open Borders is deliberately narrower than ordinary friendliness: it is
+  // printed for district abilities and city maturity only. Keeping a separate
+  // helper prevents it from accidentally extending Culture placement, unit
+  // launch spaces, or city-building range.
+  function isDistrictFriendlySpace(st, h, playerId) {
+    if (isFriendlySpace(h, playerId, st)) return true;
+    const ownerId = h && (h.control && h.control.ownerId || h.city && h.city.ownerId);
+    if (ownerId && openBordersWith(st, playerId, ownerId)) return true;
+    // Netherlands: water beside any of your districts is a friendly space of
+    // every terrain type, but only while a district ability is resolving.
+    // Keeping it here (rather than isFriendlySpace) prevents Dutch water from
+    // becoming a Culture anchor, unit launch point, or city-building origin.
+    if (!h || h.terrain !== "water" || !hasLeader(getPlayer(st, playerId), "netherlands")) {
+      return false;
+    }
+    return hexNeighborKeys(h.q, h.r).some((neighborKey) => {
+      const neighbor = st.map.hexes[neighborKey];
+      return !!(neighbor && neighbor.control && neighbor.control.ownerId === playerId &&
+        neighbor.control.district);
+    });
+  }
+
+  function districtTerrainMatches(st, h, playerId, terrain) {
+    return !!h && (h.terrain === terrain ||
+      (h.terrain === "water" && isDistrictFriendlySpace(st, h, playerId) &&
+        hasLeader(getPlayer(st, playerId), "netherlands")));
+  }
+
   // "in or adjacent to" includes the district's own space, which the desert and
   // forest counts were both leaving out.
   function inOrAdjacent(st, hexKey) {
@@ -5214,7 +5423,8 @@ const Game = (() => {
 
   function countFriendlyTerrainNear(st, hexKey, playerId, terrain) {
     return inOrAdjacent(st, hexKey)
-      .filter(({ hex }) => hex.active && hex.terrain === terrain && isFriendlySpace(hex, playerId, st))
+      .filter(({ hex }) => hex.active && districtTerrainMatches(st, hex, playerId, terrain) &&
+        isDistrictFriendlySpace(st, hex, playerId))
       .length;
   }
 
@@ -5223,7 +5433,8 @@ const Game = (() => {
   function wonderCityControlChoices(st, playerId) {
     const out = new Set();
     Object.entries(st.map.hexes).forEach(([k, h]) => {
-      if (!h.city || h.city.ownerId !== playerId) return;
+      if (!h.city || (h.city.ownerId !== playerId &&
+          !openBordersWith(st, playerId, h.city.ownerId))) return;
       if (!h.city.hasWonder && !h.city.wonder) return;
       hexesWithinRange(st.map, k, 2).forEach((nk) => {
         const nh = st.map.hexes[nk];
@@ -5250,6 +5461,7 @@ const Game = (() => {
       if (!h) return false;
       if (h.barbarian) return true;
       return st.players.some((p) => p.id !== playerId &&
+        canAffectRivalPiece(st, playerId, p.id) &&
         (p.armies || []).some((u) => u.position === nk));
     });
   }
@@ -5267,12 +5479,13 @@ const Game = (() => {
     // mountain nobody owns is worth nothing, however close it sits. This one
     // has no second option, so it simply resolves.
     if (kind === "campus") {
-      const featured = (h) => !!h && (h.terrain === "mountain" || h.resource === "wonder" || !!h.naturalWonder);
+      const featured = (h) => !!h && (districtTerrainMatches(st, h, player.id, "mountain") ||
+        h.resource === "wonder" || !!h.naturalWonder);
       const paid = [];
       const nearMisses = [];
       keys.forEach((dk) => {
         inOrAdjacent(st, dk).forEach(({ key: nk, hex: h }) => {
-          if (isFriendlySpace(h, player.id, st) && featured(h)) paid.push(nk);
+          if (isDistrictFriendlySpace(st, h, player.id) && featured(h)) paid.push(nk);
           else if (featured(h) && h.active) nearMisses.push(nk);
         });
       });
@@ -5907,23 +6120,97 @@ const Game = (() => {
 
   // Where a trade token you have just gained may go. Great Zimbabwe adds its own
   // card as a fifth-and-more place to park one, up to a printed limit of 4.
+  function focusTradeTargets(player) {
+    if (!player) return [];
+    return FOCUS_TYPES.filter((f) => Number(player.trade[f] || 0) < CFG.maxTrade)
+      .map((f) => ({
+        id: f,
+        label: `${FOCUS_LABELS[f]} (${player.trade[f] || 0}/${CFG.maxTrade})`
+      }));
+  }
+
   function tradeTargets(st, player) {
-    const opts = FOCUS_TYPES.map((f) => ({ id: f, label: FOCUS_LABELS[f] }));
+    const opts = focusTradeTargets(player);
     if (hasWonder(st, player.id, "Great Zimbabwe") && (player.zimbabwe || 0) < 4) {
       opts.push({ id: "zimbabwe", label: `Great Zimbabwe (${player.zimbabwe || 0}/4 banked)` });
     }
     return opts;
   }
 
+  // Cross-player rewards must be decisions owned by the player receiving the
+  // token. A descriptor can carry the next decision in the printed sequence;
+  // it is queued only after this one resolves, so two browsers cannot answer a
+  // single card out of order.
+  function queueInteractionChoice(st, descriptor) {
+    if (!descriptor) return false;
+    if (descriptor.kind === "trade_grant") return queueTradeGrant(st, descriptor);
+    if (!getPlayer(st, descriptor.playerId)) return false;
+    queuePendingChoice(st, descriptor);
+    return true;
+  }
+
+  function queueTradeGrant(st, descriptor) {
+    const player = getPlayer(st, descriptor && descriptor.playerId);
+    if (!player) return false;
+    const options = focusTradeTargets(player);
+    if (!options.length) {
+      log(st, `${descriptor.source || "Trade reward"}: ${player.name} has no focus card with room for another trade token.`);
+      return descriptor.nextChoice
+        ? queueInteractionChoice(st, descriptor.nextChoice) : false;
+    }
+    queuePendingChoice(st, {
+      kind: "trade_any",
+      playerId: player.id,
+      title: descriptor.title || `${descriptor.source || "Trade reward"}: Place a Trade Token`,
+      source: descriptor.source || "Trade reward",
+      amount: 1,
+      options,
+      nextChoice: descriptor.nextChoice || null
+    });
+    return true;
+  }
+
+  function queueCapitalLootTake(st, attackerId, defenderId, remaining) {
+    const attacker = getPlayer(st, attackerId);
+    const defender = getPlayer(st, defenderId);
+    if (!attacker || !defender || remaining <= 0) return false;
+    if (!focusTradeTargets(attacker).length) {
+      log(st, `${attacker.name} has no room to place captured trade tokens.`);
+      return false;
+    }
+    const options = FOCUS_TYPES.filter((type) => Number(defender.trade[type] || 0) > 0)
+      .map((type) => ({
+        id: type,
+        label: `${FOCUS_LABELS[type]} (${defender.trade[type]} available)`
+      }));
+    if (!options.length) return false;
+    queuePendingChoice(st, {
+      kind: "capital_loot_take",
+      playerId: attacker.id,
+      defenderId: defender.id,
+      remaining,
+      title: `Captured Capital: Choose Trade Token ${3 - remaining} of 2`,
+      source: "Captured capital",
+      optional: true,
+      options
+    });
+    return true;
+  }
+
   // Great Zimbabwe, at the start of the turn: move what is banked on the wonder
   // out onto the row, one token at a time.
   function queueZimbabweRelease(st, player) {
     if (!hasWonder(st, player.id, "Great Zimbabwe") || !(player.zimbabwe > 0)) return;
+    const options = focusTradeTargets(player);
+    if (!options.length) {
+      log(st, `Great Zimbabwe: ${player.name} has no focus card with room for a banked token.`);
+      return;
+    }
     queuePendingChoice(st, {
       kind: "zimbabwe_move", playerId: player.id,
       title: `Great Zimbabwe: Move a Banked Trade Token (${player.zimbabwe} left)`,
       source: "Great Zimbabwe", optional: true,
-      options: FOCUS_TYPES.map((f) => ({ id: f, label: FOCUS_LABELS[f] }))
+      options
     });
   }
 
@@ -5955,8 +6242,11 @@ const Game = (() => {
     hexNeighborKeys(cityHex.q, cityHex.r).forEach((neighborKey) => {
       const neighbor = st.map.hexes[neighborKey];
       if (!neighbor || !neighbor.control || neighbor.control.ownerId === player.id) return;
+      if (!canAffectRivalPiece(st, player.id, neighbor.control.ownerId)) return;
       if (armyGuards(st, neighborKey)) return;
+      const formerOwner = neighbor.control.ownerId;
       neighbor.control = { ownerId: player.id, fortified: false, district: null };
+      queueNonAggressionResponse(st, formerOwner, player.id, "Statue of Liberty");
       replaced++;
     });
     if (replaced) log(st, `${player.name} replaced ${replaced} adjacent rival control marker${replaced === 1 ? "" : "s"} with Statue of Liberty.`);
@@ -5977,7 +6267,8 @@ const Game = (() => {
     if (!from) return;
     const spots = [];
     Object.entries(st.map.hexes).forEach(([k, h]) => {
-      if (!h.city || h.city.ownerId === player.id || h.city.isCapital) return;
+      if (!h.city || h.city.ownerId === player.id || h.city.isCapital ||
+          !canAffectRivalPiece(st, player.id, h.city.ownerId)) return;
       if (hexDist(from, h) > 3) return;
       if (getUnitsAt(st, k).some((u) => u.type === "army")) return;
       spots.push(k);
@@ -6169,6 +6460,44 @@ const Game = (() => {
     return moves;
   }
 
+  function queueStartOfTurnEffects(st, player) {
+    if (!player) return;
+    const pending = st.pendingChoices || [];
+
+    // This path is shared by setup completion and ordinary turn rotation. The
+    // first player therefore receives the same start-of-turn abilities as
+    // everybody else instead of waiting a full round.
+    if (hasLeader(player, "ottoman") && st.players.length > 1 &&
+        !pending.some((c) => c.kind === "give_ibrahim" && c.playerId === player.id)) {
+      queuePendingChoice(st, {
+        kind: "give_ibrahim",
+        playerId: player.id,
+        title: "Ottoman: Give the Ibrahim Card?",
+        source: "Ottoman",
+        optional: true,
+        options: st.players.filter((p) => p.id !== player.id)
+          .map((p) => ({ id: p.id, label: p.name }))
+          .concat([{ id: "keep", label: st.ibrahimHolder ? "Leave as is" : "Not this turn" }])
+      });
+    }
+
+    if (hasLeader(player, "poland") && !player.polandFirstTurnUsed &&
+        st.players.length > 1 &&
+        !pending.some((c) => c.kind === "pick_rival_diplomacy" && c.playerId === player.id)) {
+      queuePendingChoice(st, {
+        kind: "pick_rival_diplomacy",
+        playerId: player.id,
+        title: "Poland: Take a Diplomacy Card",
+        source: "Poland",
+        options: st.players.filter((p) => p.id !== player.id)
+          .map((p) => ({ id: p.id, label: p.name }))
+      });
+    }
+
+    queueStartOfTurnCityStates(st, player);
+    queueStartOfTurnWonders(st, player);
+  }
+
   function queueStartOfTurnCityStates(st, player) {
     if (hasCityStateDiplomacy(player, "Geneva")) {
       const options = genevaSwapOptions(st, player);
@@ -6246,7 +6575,8 @@ const Game = (() => {
     if (hasWonder(st, pid, "Forbidden City")) {
       const spots = [];
       Object.entries(st.map.hexes).forEach(([k, h]) => {
-        if (!h.control || h.control.ownerId === pid) return;
+        if (!h.control || h.control.ownerId === pid ||
+            !canAffectRivalPiece(st, pid, h.control.ownerId)) return;
         if (armyGuards(st, k)) return;
         const nextToFriendly = hexNeighborKeys(h.q, h.r)
           .some((neighborKey) => isFriendlySpace(st.map.hexes[neighborKey], pid, st));
@@ -6266,7 +6596,8 @@ const Game = (() => {
     if (hasWonder(st, pid, "Eiffel Tower")) {
       const byOwner = {};
       Object.entries(st.map.hexes).forEach(([k, h]) => {
-        if (!h.control || h.control.ownerId === pid || armyGuards(st, k)) return;
+        if (!h.control || h.control.ownerId === pid || armyGuards(st, k) ||
+            !canAffectRivalPiece(st, pid, h.control.ownerId)) return;
         (byOwner[h.control.ownerId] = byOwner[h.control.ownerId] || []).push(k);
       });
       const victims = Object.keys(byOwner).filter((id) => byOwner[id].length >= 2);
@@ -6301,7 +6632,7 @@ const Game = (() => {
   }
 
   // Attack-side wonder bonuses for an attack into toKey.
-  function getWonderAttackBonus(st, playerId, toKey) {
+  function getWonderAttackBonus(st, playerId, toKey, defenderOwnerId) {
     if (!toKey) return 0;
     let bonus = 0;
     if (hasWonder(st, playerId, "Terracotta Army")) bonus += 2;
@@ -6310,7 +6641,7 @@ const Game = (() => {
     if (hasWonder(st, playerId, "Big Ben")) bonus += 2 * countAdjacentCaravans(st, toKey, playerId);
     if (hasWonder(st, playerId, "Kremlin")) {
       const h = st.map.hexes[toKey];
-      const defenderId = h ? hexOwnerAt(st, toKey) : null;
+      const defenderId = defenderOwnerId || (h ? hexOwnerAt(st, toKey) : null);
       // Rival spaces only — city-states are excluded.
       if (h && !h.cityState && defenderId && defenderId !== playerId &&
           countReinforced(st, playerId) > countReinforced(st, defenderId)) {
@@ -6458,10 +6789,10 @@ const Game = (() => {
   // you this card." Two Joint Wars from two rivals both apply when you attack
   // a third, which is what the printed cards say and what makes them worth
   // collecting.
-  function getDiplomacyAttackBonus(st, playerId, toKey) {
+  function getDiplomacyAttackBonus(st, playerId, toKey, defenderOwnerId) {
     const player = getPlayer(st, playerId);
     if (!player || !toKey) return 0;
-    const against = hexOwnerAt(st, toKey);
+    const against = defenderOwnerId || hexOwnerAt(st, toKey);
     return heldDiplomacy(player, "joint_war")
       .filter((d) => !against || d.fromId !== against).length * 2;
   }
@@ -6481,6 +6812,33 @@ const Game = (() => {
     const player = getPlayer(st, playerId);
     if (!player || !otherId || playerId === otherId) return false;
     return heldDiplomacy(player, "non_aggression").some((d) => d.fromId === otherId);
+  }
+
+  function canAffectRivalPiece(st, actorId, ownerId) {
+    if (!ownerId || actorId === ownerId) return true;
+    return !nonAggressionWith(st, actorId, ownerId);
+  }
+
+  function queueNonAggressionResponse(st, victimId, aggressorId, source) {
+    const victim = getPlayer(st, victimId);
+    if (!victim || !aggressorId || victimId === aggressorId) return false;
+    const held = heldDiplomacy(victim, "non_aggression")
+      .find((card) => card.fromId === aggressorId);
+    if (!held) return false;
+    if ((st.pendingChoices || []).some((choice) => choice.kind === "non_aggression_swap" &&
+        choice.playerId === victimId && choice.fromId === aggressorId)) return false;
+    queuePendingChoice(st, {
+      kind: "non_aggression_swap",
+      playerId: victimId,
+      fromId: aggressorId,
+      cardId: held.cardId,
+      title: "Non-Aggression Pact: Return It and Move Military?",
+      source: source || "Non-Aggression Pact",
+      optional: true,
+      options: FOCUS_TYPES.filter((type) => type !== "military")
+        .map((type) => ({ id: type, label: `Swap Military with ${FOCUS_LABELS[type]}` }))
+    });
+    return true;
   }
 
   // Open Borders: "The cities and control tokens of the player who gave you
@@ -6530,7 +6888,7 @@ const Game = (() => {
       ? countCarthageSupports(st, playerId, defendingKey) : 0;
   }
 
-  function getLeaderAttackBonus(st, playerId, toKey) {
+  function getLeaderAttackBonus(st, playerId, toKey, defenderOwnerId) {
     const player = getPlayer(st, playerId);
     if (!player || !toKey) return 0;
     let bonus = 0;
@@ -6538,11 +6896,12 @@ const Game = (() => {
     // Scythia: +3 when attacking a grassland or hill space.
     if (hasLeader(player, "scythia") && h && (h.terrain === "grass" || h.terrain === "hill")) bonus += 3;
     // Ottoman: +2 against the player holding the Ibrahim card.
-    if (hasLeader(player, "ottoman") && st.ibrahimHolder && hexOwnerAt(st, toKey) === st.ibrahimHolder) bonus += 2;
+    const against = defenderOwnerId || hexOwnerAt(st, toKey);
+    if (hasLeader(player, "ottoman") && st.ibrahimHolder && against === st.ibrahimHolder) bonus += 2;
     // World wonders the attacker controls.
-    bonus += getWonderAttackBonus(st, playerId, toKey);
+    bonus += getWonderAttackBonus(st, playerId, toKey, against);
     // Joint War pacts held against anyone but the defender.
-    bonus += getDiplomacyAttackBonus(st, playerId, toKey);
+    bonus += getDiplomacyAttackBonus(st, playerId, toKey, against);
     return bonus;
   }
 
@@ -6574,12 +6933,13 @@ const Game = (() => {
     if (hasLeader(player, "scythia") && h && (h.terrain === "grass" || h.terrain === "hill")) {
       parts.push({ label: "Scythia (grass/hill)", value: 3, category: "leader" });
     }
-    if (hasLeader(player, "ottoman") && st.ibrahimHolder && hexOwnerAt(st, toKey) === st.ibrahimHolder) {
+    const against = defender && defender.ownerId || hexOwnerAt(st, toKey);
+    if (hasLeader(player, "ottoman") && st.ibrahimHolder && against === st.ibrahimHolder) {
       parts.push({ label: "Ottoman (vs Ibrahim)", value: 2, category: "leader" });
     }
-    const wonderBonus = getWonderAttackBonus(st, player.id, toKey);
+    const wonderBonus = getWonderAttackBonus(st, player.id, toKey, against);
     if (wonderBonus) parts.push({ label: "world wonders", value: wonderBonus, category: "leader" });
-    const pactBonus = getDiplomacyAttackBonus(st, player.id, toKey);
+    const pactBonus = getDiplomacyAttackBonus(st, player.id, toKey, against);
     if (pactBonus) parts.push({ label: "joint war pacts", value: pactBonus, category: "leader" });
     getCityStateAttackParts(st, player, toKey, defender).forEach((part) => parts.push(part));
 
@@ -7559,7 +7919,10 @@ const Game = (() => {
     // Scythia adds +3 defending a grassland or hill space.
     const defenderLeaderBonus = (ownerId) => {
       const owner = getPlayer(st, ownerId);
-      return hasLeader(owner, "scythia") && (h.terrain === "grass" || h.terrain === "hill") ? 3 : 0;
+      let value = hasLeader(owner, "scythia") &&
+        (h.terrain === "grass" || h.terrain === "hill") ? 3 : 0;
+      if (hasLeader(owner, "ottoman") && st.ibrahimHolder === attackerId) value += 2;
+      return value;
     };
     const siegeReduction = uniqueInPlay(getPlayer(st, attackerId), "georgia") ? 1 : 0;
     const reinforcedTokenValue = (ownerId) => Math.max(0,
@@ -7587,7 +7950,11 @@ const Game = (() => {
         push("adjacent reinforced", reinforcedValue(ownerId));
       }
       push("friendly army in the space", escortBonus(ownerId, defendingUnitId));
-      push("leader", defenderLeaderBonus(ownerId));
+      const leaderValue = defenderLeaderBonus(ownerId);
+      if (leaderValue) {
+        const ottoman = hasLeader(getPlayer(st, ownerId), "ottoman") && st.ibrahimHolder === attackerId;
+        push(ottoman ? "leader (including Ottoman vs Ibrahim)" : "leader", leaderValue);
+      }
       push("wonder", getWonderDefenseBonus(st, ownerId, hexKey));
       push("defensive pact", getDiplomacyDefenseBonus(st, ownerId, attackerId));
       push("Carthage diplomacy", getCityStateDefenseBonus(st, ownerId, hexKey));

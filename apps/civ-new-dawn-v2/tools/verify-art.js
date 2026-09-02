@@ -121,12 +121,12 @@ const slug = (s) => s.toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g, "-")
       return sides && sides.plain !== sides.reinforced;
     })));
 
-  // Only four colours have a control token with a reinforced back, and the
-  // game seats four. A fifth seat would have nothing to flip.
+  // Terra Incognita supplies five complete component colours. Purple's control
+  // faces are derived from its two-up texture by build-art-manifest.py.
   const complete = manifest.colors.filter((c) =>
     manifest.control[c] && manifest.control[c].plain && manifest.control[c].reinforced);
-  check(`four colours have a control token, plain and reinforced (${complete.join(", ")})`,
-    complete.length === 4);
+  check(`five colours have a control token, plain and reinforced (${complete.join(", ")})`,
+    complete.length === 5);
 
   check("every government has a token",
     Object.keys(RULES.GOVERNMENTS).every((t) => manifest.gov[t]));
@@ -161,8 +161,8 @@ const slug = (s) => s.toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g, "-")
 // --- the module actually hands these back ------------------------------
 {
   const seats = ART.seatColors.map((c) => c.id);
-  check(`four seat colours, no purple (${seats.join(", ")})`,
-    seats.length === 4 && !seats.includes("purple"));
+  check(`five seat colours including purple (${seats.join(", ")})`,
+    seats.length === 5 && seats.includes("purple"));
   check("every seat colour resolves a control token, both faces",
     seats.every((c) => ART.control(c, false) && ART.control(c, true)));
   check("a legacy save colour still finds its components",
