@@ -6901,5 +6901,10 @@ const UI = (() => {
   }
 
   document.addEventListener("DOMContentLoaded", init);
-  return { render, dispatch, renderCardFace, hexPoint };
+  // debugState is a read-only window onto the state this client is already
+  // showing, so tools/browser-smoke.js can drive the real page and then ask
+  // what the board actually became. It hands back the live object rather than a
+  // copy on purpose - nothing in the app reads it, and a copy of a full game
+  // state on every call would be the more surprising thing to leave behind.
+  return { render, dispatch, renderCardFace, hexPoint, debugState: () => state };
 })();

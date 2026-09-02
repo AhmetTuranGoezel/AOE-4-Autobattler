@@ -17,7 +17,11 @@ const steps = [
   ["authorization", "authorization-test.js"],
   ["net protocol", "net-protocol-test.js"],
   ["lobby contract", "lobby-contract-test.js"],
-  ["art index", "verify-art.js"]
+  ["art index", "verify-art.js"],
+  // Last because it is the slow one: it starts the dev session server, drives a
+  // real Chrome, and plays a turn. Everything above proves the engine agrees
+  // with itself; this proves the page a person actually opens still works.
+  ["browser smoke", "browser-smoke.js"]
 ];
 
 const SOURCES = ["game.js", "ui.js", "rules-data.js", "card-art.js", "tile-art.js",
