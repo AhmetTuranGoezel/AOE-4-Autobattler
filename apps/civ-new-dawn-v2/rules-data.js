@@ -112,18 +112,18 @@
       ["desert","desert","water","desert","desert","water","grass","desert","desert","desert"],
       { 2: { cityState: "Auckland" }, 7: { resource: "diamonds" }, 8: { barbarian: "K" } },
       { 0: { barbarian: "K" }, 4: { resource: "mercury" }, 6: { cityState: "Akkad" } }),
-    // Printed tile 4 — Galapagos Islands / Grand Mesa
+    // Printed tile 4 — Grand Mesa / Galapagos Islands
     tile("11", "natural",
       ["mountain","mountain","hill","forest","grass","hill","desert","mountain","desert","desert"],
       ["mountain","hill","grass","water","hill","water","grass","water","water","water"],
-      { 0: { resource: "mercury" }, 4: { barbarian: "D" }, 6: { naturalWonder: "Galapagos Islands" } },
-      { 0: { barbarian: "D" }, 6: { naturalWonder: "Grand Mesa" } }),
-    // Printed tile 18 — Mato Tipila / Dead Sea
+      { 0: { resource: "mercury" }, 4: { barbarian: "D" }, 6: { naturalWonder: "Grand Mesa" } },
+      { 0: { barbarian: "D" }, 6: { naturalWonder: "Galapagos Islands" } }),
+    // Printed tile 18 — Dead Sea / Mato Tipila
     tile("12", "natural",
       ["grass","hill","desert","mountain","water","hill","desert","desert","water","desert"],
       ["grass","grass","hill","grass","forest","forest","desert","hill","hill","grass"],
-      { 6: { naturalWonder: "Mato Tipila" }, 7: { resource: "oil" }, 9: { barbarian: "F" } },
-      { 0: { resource: "marble" }, 5: { barbarian: "E" }, 6: { naturalWonder: "Dead Sea" } }),
+      { 6: { naturalWonder: "Dead Sea" }, 7: { resource: "oil" }, 9: { barbarian: "F" } },
+      { 0: { resource: "marble" }, 5: { barbarian: "E" }, 6: { naturalWonder: "Mato Tipila" } }),
     // Printed tile 13 — Mt Kilimanjaro / Pantanal
     tile("13", "natural",
       ["forest","forest","desert","desert","hill","grass","mountain","desert","hill","hill"],
@@ -142,12 +142,12 @@
       ["grass","grass","grass","hill","grass","hill","mountain","forest","forest","forest"],
       { 1: { resource: "oil" }, 9: { resource: "diamonds" } },
       { 1: { barbarian: "E" }, 6: { resource: "mercury" } }),
-    // Printed tile 1 — Cliffs of Dover / Torres del Paine
+    // Printed tile 1 — Torres del Paine / Cliffs of Dover
     tile("16", "natural",
       ["water","mountain","mountain","mountain","mountain","hill","mountain","hill","grass","desert"],
       ["grass","grass","hill","forest","water","water","mountain","grass","water","water"],
-      { 2: { barbarian: "A" }, 4: { resource: "marble" }, 6: { naturalWonder: "Cliffs of Dover" } },
-      { 6: { naturalWonder: "Torres del Paine" }, 7: { barbarian: "A" } }),
+      { 2: { barbarian: "A" }, 4: { resource: "marble" }, 6: { naturalWonder: "Torres del Paine" } },
+      { 6: { naturalWonder: "Cliffs of Dover" }, 7: { barbarian: "A" } }),
     // Printed tile 21 — Antananarivo / Palenque
     tile("TI01", "citystate",
       ["grass","mountain","forest","water","hill","hill","water","grass","water","forest"],
@@ -172,12 +172,12 @@
       ["water","water","grass","desert","water","grass","forest","forest","desert","hill"],
       { 1: { barbarian: "F" }, 2: { resource: "oil" } },
       { 3: { resource: "marble" }, 6: { barbarian: "E" }, 8: { resource: "diamonds" } }),
-    // Printed tile 2 — Crater Lake / Mount Everest
+    // Printed tile 2 — Mt. Everest / Crater Lake
     tile("TI05", "natural",
       ["mountain","hill","grass","hill","mountain","mountain","mountain","mountain","hill","hill"],
       ["forest","hill","mountain","mountain","forest","mountain","water","mountain","hill","mountain"],
-      { 4: { barbarian: "B" }, 6: { naturalWonder: "Crater Lake" } },
-      { 5: { naturalWonder: "Mount Everest" }, 9: { resource: "diamonds" } })
+      { 4: { barbarian: "B" }, 6: { naturalWonder: "Mt. Everest" } },
+      { 5: { naturalWonder: "Crater Lake" }, 9: { resource: "diamonds" } })
   ];
 
   const CARD_DEFS = {
@@ -228,9 +228,9 @@
       4: { name: "Flight", effectText: "Move each of your armies up to 6 spaces. They can move into spaces matching this slot's terrain or lower, as well as water. They can move through spaces with unreinforced control tokens, caravans, barbarians, and city-states. Your combat value equals this slot's number plus 3.", figures: "2 armies", move: 6, armies: 2, combat: 3, water: true, passThrough: true }
     },
     industry: {
-      1: { name: "Pottery", effectText: "Build 1 world wonder, contributing production equal to this slot's number. Or build 1 city on a legal space matching this slot's terrain or lower, within 2 spaces of a friendly space. A city must be founded on a space holding your own caravan or control token.", cityRange: 2 },
+      1: { name: "Pottery", effectText: "Build 1 world wonder. Your production equals this slot's number. Or, build 1 city on a legal space of this slot's terrain or lower within 2 spaces of a friendly space.", cityRange: 2 },
       2: { name: "Animal Husbandry", effectText: "Build 1 world wonder; production equals this slot's number. Or, build 1 city on a legal space of this slot's terrain or lower within 3 spaces of a friendly space. Or, build 1 city on a legal space containing a friendly caravan or army, then return that figure to its focus card.", cityRange: 3, effect: "build_on_unit" },
-      3: { name: "Nationalism", effectText: "Build 1 world wonder, contributing production equal to this slot's number. Or build 1 city on a legal space matching this slot's terrain or lower, within 4 spaces of a friendly space. A city must be founded on a space holding your own caravan or control token.", cityRange: 4, water: true, wonderSlot5Production: 7 },
+      3: { name: "Nationalism", effectText: "Build 1 world wonder. Your production equals this slot's number, or, if this card is in the fifth slot, your production equals 7. Or, build 1 city on a legal space of this slot's terrain or lower within 4 spaces of a friendly space. You can count through water.", cityRange: 4, water: true, wonderSlot5Production: 7 },
       4: { name: "Urbanization", effectText: "Build 1 world wonder; production equals this slot's number. Or, build 1 city on a legal space of this slot's terrain or lower within 5 spaces of a friendly space; you can count through water. Then, if you built a city, place up to 2 control tokens adjacent to that city on spaces matching this slot's terrain or lower.", cityRange: 5, water: true, effect: "control_after_city" }
     }
   };
@@ -241,7 +241,7 @@
   // three of every resource type in the combined game.
   const NATURAL_WONDER_RESOURCES = Object.freeze({
     "Mt Kilimanjaro": "oil",
-    "Mount Everest": "oil",
+    "Mt. Everest": "oil",
     Gobustan: "oil",
     "Ha Long Bay": "diamonds",
     "Grand Mesa": "diamonds",
@@ -555,41 +555,43 @@
   // extended focus bar. `unique` is the civ's unique focus card; `auto: true`
   // means the engine enforces it, otherwise it is shown as a table reminder.
   // Abilities marked `manual: true` are reminders too (resolve via Host Tools).
-  // An emblem and a colour per civilization. Eighteen names in a list all look
-  // the same; a glyph and a colour each give them an identity in the picker, on
-  // the civ card and in the player list.
+  // A compact monogram and a colour per civilization. These remain stable on
+  // every platform, unlike system emoji, and are only a fallback where the
+  // photographed civilization sheet is unavailable.
   const CIV_STYLE = {
-    america:     { emblem: "\ud83e\udd85", color: "#3f6fb5" },
-    aztec:       { emblem: "\ud83c\udf1e", color: "#c0632b" },
-    china:       { emblem: "\ud83d\udc09", color: "#c62828" },
-    egypt:       { emblem: "\ud83d\udd3a", color: "#d4a017" },
-    england:     { emblem: "\ud83d\udc51", color: "#8e2f45" },
-    france:      { emblem: "\u269c\ufe0f", color: "#4a63b8" },
-    georgia:     { emblem: "\ud83c\udf47", color: "#7b3f8f" },
-    japan:       { emblem: "\ud83c\udf38", color: "#d1567f" },
-    inca:        { emblem: "\ud83c\udfd4\ufe0f", color: "#c9a227" },
-    indonesia:   { emblem: "\ud83c\udf0a", color: "#1e8a8a" },
-    netherlands: { emblem: "\ud83c\udf37", color: "#e07b1f" },
-    nubia:       { emblem: "\ud83c\udff9", color: "#a8642a" },
-    ottoman:     { emblem: "\ud83c\udf19", color: "#1f7a4d" },
-    poland:      { emblem: "\ud83e\udd85", color: "#b03050" },
-    rome:        { emblem: "\ud83e\udd85", color: "#9e2b2b" },
-    scythia:     { emblem: "\ud83c\udff9", color: "#b58b2e" },
-    sumeria:     { emblem: "\ud83d\udcdc", color: "#6a7f3a" },
-    zulu:        { emblem: "\ud83d\udee1\ufe0f", color: "#2f6b4f" }
+    america:     { emblem: "AM", color: "#3f6fb5" },
+    aztec:       { emblem: "AZ", color: "#c0632b" },
+    china:       { emblem: "CN", color: "#c62828" },
+    egypt:       { emblem: "EG", color: "#d4a017" },
+    england:     { emblem: "EN", color: "#8e2f45" },
+    france:      { emblem: "FR", color: "#4a63b8" },
+    georgia:     { emblem: "GE", color: "#7b3f8f" },
+    japan:       { emblem: "JP", color: "#d1567f" },
+    inca:        { emblem: "IN", color: "#c9a227" },
+    indonesia:   { emblem: "ID", color: "#1e8a8a" },
+    netherlands: { emblem: "NL", color: "#e07b1f" },
+    nubia:       { emblem: "NU", color: "#a8642a" },
+    ottoman:     { emblem: "OT", color: "#1f7a4d" },
+    poland:      { emblem: "PL", color: "#b03050" },
+    rome:        { emblem: "RO", color: "#9e2b2b" },
+    scythia:     { emblem: "SC", color: "#b58b2e" },
+    sumeria:     { emblem: "SU", color: "#6a7f3a" },
+    zulu:        { emblem: "ZU", color: "#2f6b4f" }
   };
 
   const LEADERS = [
     { id: "america", civ: "America", name: "America", source: "terra",
       ability: { text: "When you gain or spend a natural wonder token, place it on any card in your focus row. You can spend a natural wonder token on a focus card either as a trade token on that card or as a resource.", manual: true },
       focusOrder: ["growth", "military", "science", "industry", "culture", "economy"],
-      unique: { name: "Radio", type: "culture", tier: 4, auto: false,
-        text: "Place 3 control tokens on spaces matching this slot's terrain or lower that are adjacent to friendly cities. Then, if you resolved this card in the fifth slot, choose a rival non-capital city within 4 spaces of a friendly city (without an army in its space) and replace it with 1 of your unused cities." } },
+      unique: { name: "Radio", type: "culture", tier: 4, auto: true,
+        text: "Place 3 control tokens on spaces matching this slot's terrain or lower that are adjacent to friendly cities. Then, if you resolved this card in the fifth slot, choose a rival non-capital city within 4 spaces of a friendly city (without an army in its space) and replace it with 1 of your unused cities.",
+        resolution: [{ kind: "place_control", count: 3 }, { kind: "seize_city", slot: 5, range: 4, optional: false }] } },
     { id: "aztec", civ: "Aztec", name: "Aztec", source: "terra",
       ability: { text: "After you reset your military focus card, if you won at least 1 attack this turn, you may swap any 2 cards in your focus row." },
       focusOrder: ["growth", "science", "culture", "economy", "military", "industry"],
-      unique: { name: "Mysticism", type: "growth", tier: 1, auto: false,
-        text: "Place a district on a space matching this slot's terrain or lower that is adjacent to a friendly city. If you place this district on a space within 1 of your control tokens, you may place that token on a space adjacent to this district. Or, reinforce a number of your control tokens up to this slot's number." } },
+      unique: { name: "Mysticism", type: "growth", tier: 1, auto: true,
+        text: "Place a district on a space matching this slot's terrain or lower that is adjacent to a friendly city. If you place this district on a space with 1 of your control tokens, you may place that token on a space adjacent to this district. Or, reinforce a number of your control tokens up to this slot's number.",
+        resolution: { mode: "choice", options: [{ kind: "sequence", steps: ["place_district", "relocate_replaced_control"] }, "reinforce"] } } },
     { id: "china", civ: "China", name: "China", source: "terra",
       ability: { text: "When defending, your reinforced control tokens increase your combat value by 2 instead of 1." },
       focusOrder: ["growth", "military", "industry", "economy", "culture", "science"],
@@ -613,8 +615,9 @@
     { id: "georgia", civ: "Georgia", name: "Georgia", source: "terra",
       ability: { text: "When resolving a focus card, if you have a diplomacy card from a city-state of that focus card's type, resolve it as though it is 1 slot farther to the right." },
       focusOrder: ["growth", "industry", "science", "economy", "military", "culture"],
-      unique: { name: "Siege Tactics", type: "military", tier: 3, auto: false,
-        text: "Move each of your armies up to 5 spaces. They can move into spaces matching this slot's terrain or lower, as well as water. During your turn, reduce the combat bonus provided by each reinforced control token by 1." } },
+      unique: { name: "Siege Tactics", type: "military", tier: 3, auto: true,
+        text: "Move each of your armies up to 5 spaces. They can move into spaces matching this slot's terrain or lower, as well as water. Your combat value equals this slot's number plus 2. During your turn, reduce the combat bonus provided by each reinforced control token by 1.",
+        move: 5, water: true, combat: 2, reinforcedReduction: 1 } },
     { id: "japan", civ: "Japan", name: "Japan", source: "terra",
       ability: { text: "During your turn, desert and mountain spaces that are adjacent to water or the edge of the map are treated as having a terrain difficulty of 3." },
       focusOrder: ["growth", "industry", "economy", "military", "science", "culture"],
@@ -624,22 +627,26 @@
       ability: { text: "After you place a control token on a mountain space, you may place a control token on a space adjacent to that space (which can trigger this effect again)." },
       focusOrder: ["growth", "culture", "military", "science", "industry", "economy"],
       unique: { name: "State Workforce", type: "culture", tier: 2, auto: true,
-        text: "Place 2 control tokens on spaces matching this slot's terrain or lower that are adjacent to friendly cities. Then, if you resolved this card in the fifth slot, place 1 control token on a mountain space adjacent to a friendly space." } },
+        text: "Place 2 control tokens on spaces matching this slot's terrain or lower that are adjacent to friendly cities. Then, if you resolved this card in the fifth slot, place 1 control token on a mountain space adjacent to a friendly space.",
+        resolution: [{ kind: "place_control", count: 2 }, { kind: "place_mountain_control", slot: 5, count: 1 }] } },
     { id: "indonesia", civ: "Indonesia", name: "Indonesia", source: "terra",
       ability: { text: "Your caravans and armies can move into water. When you move a caravan, treat water spaces on the edge of the map as though they are adjacent to each other." },
       focusOrder: ["growth", "culture", "military", "science", "industry", "economy"],
-      unique: { name: "Shipbuilding", type: "economy", tier: 2, auto: false,
-        text: "Move each of your caravans up to 4 spaces. They can move into spaces matching this slot's terrain or lower, as well as water. Before 1 of your caravans explores, you may place a water token touching that caravan's space." } },
+      unique: { name: "Shipbuilding", type: "economy", tier: 2, auto: true,
+        text: "Move each of your caravans up to 4 spaces. They can move into spaces matching this slot's terrain or lower, as well as water. Before 1 of your caravans explores, you may place a water token touching that caravan's space.",
+        move: 4, water: true, beforeExplore: { kind: "place_water_token", oncePerResolution: true, optional: true } } },
     { id: "netherlands", civ: "Netherlands", name: "Netherlands", source: "terra",
       ability: { text: "Water spaces adjacent to your districts are treated as friendly spaces of all terrain types when resolving your districts' abilities.", manual: true },
       focusOrder: ["growth", "culture", "science", "industry", "economy", "military"],
-      unique: { name: "Cartography", type: "economy", tier: 3, auto: false,
-        text: "Move each of your caravans up to 6 spaces. They can move into spaces matching this slot's terrain or lower, as well as water. Once per turn, when your caravan moves to a rival city that is 8 or more spaces from your capital, you may build a city on a legal space within 2 spaces of that city." } },
+      unique: { name: "Cartography", type: "economy", tier: 3, auto: true,
+        text: "Move each of your caravans up to 6 spaces. They can move into spaces matching this slot's terrain or lower, as well as water. Once per turn, when your caravan moves to a rival city that is 8 or more spaces from your capital, you may build a city on a legal space within 2 spaces of that city.",
+        move: 6, water: true, onRivalCity: { kind: "build_city", minimumCapitalDistance: 8, range: 2, oncePerTurn: true, optional: true } } },
     { id: "nubia", civ: "Nubia", name: "Nubia", source: "terra",
       ability: { text: "After you reset your growth focus card, resolve the effect of any 1 of your districts." },
       focusOrder: ["growth", "economy", "industry", "culture", "science", "military"],
       unique: { name: "Construction", type: "industry", tier: 2, auto: true,
-        text: "Build 1 world wonder. Your production equals this slot's number. Each resource spent to build this wonder increases production by an additional 1." } },
+        text: "Build 1 world wonder. Your production equals this slot's number. Each resource spent to build this wonder increases production by an additional 1. Or, build 1 city on a legal space of this slot's terrain or lower within 3 spaces of a friendly space.",
+        cityRange: 3, resourceProductionBonus: 1 } },
     { id: "ottoman", civ: "Ottoman", name: "Ottoman", source: "terra",
       ability: { text: "At the start of your turn, you may choose another player. Give that player the \"Ibrahim\" card. When attacking or defending against the player with the \"Ibrahim\" card, increase your combat value by 2. (Ibrahim: when its holder moves a caravan to an Ottoman city, both players place 1 trade token from the supply on a focus card.)" },
       focusOrder: ["growth", "science", "industry", "culture", "military", "economy"],
@@ -648,13 +655,14 @@
     { id: "poland", civ: "Poland", name: "Poland", source: "terra",
       ability: { text: "At the start of your first turn, choose another player. Take 1 diplomacy card of your choice from that player. You can have any number of diplomacy cards from the chosen player." },
       focusOrder: ["growth", "culture", "military", "industry", "economy", "science"],
-      unique: { name: "Astronomy", type: "science", tier: 2, auto: false,
+      unique: { name: "Astronomy", type: "science", tier: 2, auto: true,
         text: "Look at up to 2 map tiles from the bottom of the map tile stack. You may place 1 as though you are exploring from any edge space of your capital tile. Return any remaining tiles to the top or bottom of the stack in any order. Then, advance your tech dial a number of spaces equal to this slot's number." } },
     { id: "rome", civ: "Rome", name: "Rome", source: "terra",
       ability: { text: "When you move a caravan from your economy card, it can move from any of your cities (even a city that is not mature)." },
       focusOrder: ["growth", "science", "economy", "military", "culture", "industry"],
-      unique: { name: "Military Engineering", type: "growth", tier: 2, auto: false,
-        text: "Place a district on a space matching this slot's terrain or lower that is adjacent to a friendly city. Then, for each army on your military card, you may place that army in a space containing one of your cities. Then reinforce each of your control tokens that is in or adjacent to a space containing a friendly army." } },
+      unique: { name: "Military Engineering", type: "growth", tier: 2, auto: true,
+        text: "Place a district on a space matching this slot's terrain or lower that is adjacent to a friendly city. Then, for each army on your military card, you may place that army in a space containing one of your cities. Then reinforce each of your control tokens that is in or adjacent to a space containing a friendly army.",
+        resolution: { mode: "sequence", steps: ["place_district", "deploy_armies", "reinforce_near_armies"] } } },
     { id: "scythia", civ: "Scythia", name: "Scythia", source: "terra",
       ability: { text: "When attacking or defending a grassland or hill space, increase your combat value by 3." },
       focusOrder: ["growth", "culture", "military", "science", "economy", "industry"],
@@ -668,12 +676,12 @@
     { id: "zulu", civ: "Zulu", name: "Zulu", source: "terra",
       ability: { text: "After you win a combat as the attacker, place 1 trade token from the supply on your military focus card, plus 1 additional trade token if you attacked a rival city or city-state." },
       focusOrder: ["growth", "industry", "culture", "economy", "science", "military"],
-      unique: { name: "Scorched Earth", type: "military", tier: 2, auto: false,
+      unique: { name: "Scorched Earth", type: "military", tier: 2, auto: true,
         text: "Move each of your armies up to 4 spaces. They can move into spaces matching this slot's terrain or lower. Your combat value equals this slot's number. Once per turn, after you win an attack against a control token, you may discard it instead of replacing it to move (and attack with) the attacking army a second time." } }
   ];
 
   window.CivRulesData = {
-    rulesVersion: 1,
+    rulesVersion: 2,
     TILES,
     TILE_OFFSETS,
     CARD_DEFS,

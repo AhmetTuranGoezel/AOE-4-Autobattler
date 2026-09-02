@@ -405,6 +405,27 @@ const UI = (() => {
     return /^#[0-9a-f]{6}$/i.test(color) ? color : "#a0aec0";
   }
 
+  // Focus types already have a stable colour language. A short, typographic
+  // mark preserves that language without relying on platform-dependent emoji
+  // (the old CARD_ICONS are also mojibake in some browsers).
+  const FOCUS_MARKS = {
+    culture: "CU", growth: "GR", science: "SC",
+    economy: "EC", military: "MI", industry: "IN"
+  };
+
+  function focusMark(type, extraClass) {
+    const known = Object.prototype.hasOwnProperty.call(FOCUS_MARKS, type) ? type : "unknown";
+    const label = Game.FOCUS_LABELS[type] || type || "Focus";
+    return `<span class="focus-mark type-${escapeHtml(known)}${extraClass ? ` ${escapeHtml(extraClass)}` : ""}"
+      aria-hidden="true" title="${escapeHtml(label)}">${escapeHtml(FOCUS_MARKS[type] || "FC")}</span>`;
+  }
+
+  function componentImage(src, label, className) {
+    if (!src) return "";
+    return `<img class="${escapeHtml(className || "component-icon")}" src="${escapeHtml(src)}"
+      alt="" aria-hidden="true" loading="lazy" draggable="false">`;
+  }
+
   function randomToken() {
     if (window.CivSessionStore?.generateToken) return CivSessionStore.generateToken();
     const bytes = new Uint8Array(16);
@@ -748,6 +769,20 @@ const UI = (() => {
     dom.tableStrip = document.getElementById("table-strip");
     dom.gameLog = document.getElementById("game-log");
     dom.focusRow = document.getElementById("focus-row");
+
+    // The HTML keeps working without JavaScript, but its old navigation labels
+    // use system emoji. Replace them as soon as the UI owns the page so the
+    // controls render consistently on every operating system.
+    Object.entries({
+      "btn-civ": "Civilization",
+      "btn-wonders": "Wonders",
+      "btn-players": "Players",
+      "btn-diplomacy": "Diplomacy",
+      "btn-drawer": "Log"
+    }).forEach(([id, label]) => {
+      const button = document.getElementById(id);
+      if (button) button.textContent = label;
+    });
 
     document.getElementById("btn-undo")?.addEventListener("click", () => {
       const status = Game.getUndoStatus ? Game.getUndoStatus(state, localPlayerId) : { canUndo: false };
@@ -1638,7 +1673,7 @@ const UI = (() => {
       // map. It belongs to no tile, so drawTileArt skips it and it used to come
       // out as flat terrain colour, visibly not the same material as the
       // photographed tiles around it.
-      if (h.tileId === "water-fill" && window.CivCardArt &&
+      if ((h.tileId === "water-fill" || h.tileId === "water-token") && window.CivCardArt &&
           drawToken(CivCardArt.waterToken(), p.x, p.y, HEX_TOKEN)) {
         hexPath(p.x, p.y, HEX_SIZE);
         ctx.strokeStyle = "rgba(0,0,0,0.35)";
@@ -1851,7 +1886,7 @@ const UI = (() => {
     // Gather each placed tile's ten spaces by the cell index they carry.
     const groups = new Map();
     Object.entries(hexes).forEach(([k, h]) => {
-      if (!h.active || !h.tileId || h.tileId === "water-fill") return;
+      if (!h.active || !h.tileId || h.tileId === "water-fill" || h.tileId === "water-token") return;
       if (h.tileCell === undefined || h.tileCell === null) return;
       if (!groups.has(h.tileId)) groups.set(h.tileId, []);
       groups.get(h.tileId).push([k, h]);
@@ -1990,12 +2025,12 @@ const UI = (() => {
     ctx.textBaseline = "middle";
 
     if (cell.feature === "capital") {
-      ctx.font = `bold ${Math.round(16 * s)}px sans-serif`;
+      ctx.font = `bold ${Math.round(7 * s)}px sans-serif`;
       ctx.fillStyle = "#ffd54f";
       ctx.strokeStyle = "rgba(0,0,0,0.85)";
       ctx.lineWidth = 2.4 * s;
-      ctx.strokeText("\u2605", cx, cy);
-      ctx.fillText("\u2605", cx, cy);
+      ctx.strokeText("CAP", cx, cy);
+      ctx.fillText("CAP", cx, cy);
       return;
     }
     if (cell.cityState) {
@@ -2007,9 +2042,9 @@ const UI = (() => {
     }
     if (cell.naturalWonder) {
       if (art && drawToken(CivCardArt.naturalWonder(cell.naturalWonder), cx, cy, 0.56)) return;
-      ctx.font = `bold ${Math.round(12 * s)}px sans-serif`;
+      ctx.font = `bold ${Math.round(7 * s)}px sans-serif`;
       ctx.fillStyle = "#e1bee7";
-      ctx.fillText("\u2726", cx, cy);
+      ctx.fillText("NW", cx, cy);
       return;
     }
     if (cell.barbarian) {
@@ -2248,7 +2283,7 @@ const UI = (() => {
     if (!list.length) return "";
     const home = list.filter((u) => !u.position).length;
     const pieceKind = kind === "armies" ? "army" : "caravan";
-    const glyph = kind === "armies" ? "\u2694" : "\u26fa";
+    const glyph = kind === "armies" ? "A" : "C";
     const sprite = window.CivCardArt ? CivCardArt.piece(pieceKind, player.color) : "";
     let pips = "";
     for (let i = 0; i < list.length; i++) {
@@ -2407,11 +2442,11 @@ const UI = (() => {
         ctx.fillStyle = "#fff"; ctx.fill();
       }
       if (h.city.isCapital) {
-        ctx.font = `bold ${Math.round(9 * s)}px sans-serif`;
+        ctx.font = `bold ${Math.round(5.5 * s)}px sans-serif`;
         ctx.fillStyle = "#ffd54f";
         ctx.strokeStyle = "rgba(0,0,0,0.8)"; ctx.lineWidth = 2 * s;
-        ctx.strokeText("★", cx, cy - hh / 2 - 8 * s);
-        ctx.fillText("★", cx, cy - hh / 2 - 8 * s);
+        ctx.strokeText("CAP", cx, cy - hh / 2 - 8 * s);
+        ctx.fillText("CAP", cx, cy - hh / 2 - 8 * s);
       }
       if (h.city.hasWonder) {
         // On the table the wonder's own token goes on the city, which is what
@@ -2434,7 +2469,7 @@ const UI = (() => {
           ctx.font = `bold ${Math.round(9 * s)}px sans-serif`;
           ctx.fillStyle = "#e1bee7";
           ctx.textAlign = "center"; ctx.textBaseline = "middle";
-          ctx.fillText("♦", badgeX, badgeY + 0.5 * s);
+          ctx.fillText("W", badgeX, badgeY + 0.5 * s);
         }
       }
     } else if (h.cityState) {
@@ -2548,7 +2583,7 @@ const UI = (() => {
       ctx.lineWidth = 1.6 * s; ctx.strokeStyle = "#ffb4a9"; ctx.stroke();
       ctx.font = `bold ${Math.round(9 * s)}px sans-serif`;
       ctx.fillStyle = "#fff";
-      ctx.fillText("☠", bx, by + 0.5 * s);
+      ctx.fillText("B", bx, by + 0.5 * s);
       }
     }
 
@@ -2594,7 +2629,7 @@ const UI = (() => {
     ctx.stroke();
     ctx.font = `bold ${Math.round(6.5 * s * (scale || 1))}px sans-serif`;
     ctx.fillStyle = u.type === "army" ? "#fff" : "rgba(15,15,25,0.95)";
-    ctx.fillText(u.type === "army" ? "⚔" : "C", ux, uy + 0.4 * s);
+    ctx.fillText(u.type === "army" ? "A" : "C", ux, uy + 0.4 * s);
   }
 
   function drawUnits(cx, cy, k, s) {
@@ -3038,7 +3073,7 @@ const UI = (() => {
     if (prevSeen) {
       Object.entries(now.wonders).forEach(([name, k]) => {
         if (prevSeen.wonders[name]) return;
-        announce(`\u2728 ${name} completed`, "wonder");
+        announce(`${name} completed`, "wonder");
         flashHex(k, "rgb(255,213,79)", 1400);
       });
       Object.keys(now.cities).forEach((k) => {
@@ -3067,17 +3102,17 @@ const UI = (() => {
         Object.keys(now.trade).forEach((type) => {
           const gained = now.trade[type] - prevSeen.trade[type];
           for (let i = 0; i < gained; i++) {
-            setTimeout(() => flyToken(boardCentre(), focusCardEl(type), "\ud83e\ude99"), i * 130);
+            setTimeout(() => flyToken(boardCentre(), focusCardEl(type), "T"), i * 130);
           }
         });
       }
       // The government marker stamps onto the card you chose.
       if (now.government && now.government !== prevSeen.government) {
-        flyToken(boardCentre(), focusCardEl(now.government), "\ud83c\udfdb\ufe0f", "#ffd54f");
+        flyToken(boardCentre(), focusCardEl(now.government), "G", "#ffd54f");
       }
       // A diplomacy card slides over to your leader sheet.
       if (now.diplomacy > prevSeen.diplomacy && dom.myStats) {
-        flyToken(boardCentre(), dom.myStats, "\ud83e\udd1d", "#81d4fa");
+        flyToken(boardCentre(), dom.myStats, "D", "#81d4fa");
       }
       // A district that paid out lights the spaces that paid, and one that paid
       // nothing lights what it was looking at, so "why did nothing happen" has
@@ -3235,7 +3270,7 @@ const UI = (() => {
       const show = state.phase === "lobby" && !!me && isNetworkGame();
       readyBtn.classList.toggle("hidden", !show);
       if (show) {
-        readyBtn.textContent = me.ready ? "✓ Ready" : "Ready";
+        readyBtn.textContent = me.ready ? "Ready (click to withdraw)" : "Ready";
         readyBtn.classList.toggle("primary", !me.ready);
         readyBtn.title = me.ready ? "Click to withdraw your ready mark" : "Mark yourself ready to start";
       }
@@ -3270,11 +3305,59 @@ const UI = (() => {
     strip.classList.remove("hidden");
     strip.innerHTML = others.map((p) => `
       <div class="pres-row">
-        <span class="dot" style="background:${escapeHtml(p.color || "#fff")}"></span>
+        <span class="dot" style="background:${safeColor(p.color)}"></span>
         <b>${escapeHtml(p.name || "player")}</b>
         <span>${escapeHtml(presenceVerb(p))}</span>
         ${p.hover ? `<em>${escapeHtml(p.hover)}</em>` : ""}
       </div>`).join("");
+  }
+
+  function renderOpponentFocusRow(player) {
+    if (!player || player.id === localPlayerId || !Array.isArray(player.focusRow)) return "";
+    const cards = player.focusRow.map((type) => {
+      const tier = Game.getCardTier(player, type);
+      const slot = Game.getSlotValue(player, type, state);
+      const trade = Number((player.trade || {})[type] || 0);
+      const name = Game.getCardName ? Game.getCardName(player, type)
+        : ((Game.CARD_NAMES[type] || [])[tier - 1] || type);
+      const effect = Game.getCardEffectText ? Game.getCardEffectText(player, type) : "";
+      const government = player.government === type ? (Game.GOVERNMENTS || {})[type] : null;
+      const unique = Game.getActiveUniqueCard ? Game.getActiveUniqueCard(player, type) : null;
+      const art = window.CivCardArt
+        ? (unique ? CivCardArt.uniqueUrl(player.leaderId)
+          : CivCardArt.focusUrl(type, tier, player.color))
+        : "";
+      const accessible = `${name}, ${Game.FOCUS_LABELS[type] || type} tier ${tier}, ` +
+        `focus slot ${slot}, ${trade} trade token${trade === 1 ? "" : "s"}. ${effect}`;
+      return `<details class="pmini-card type-${escapeHtml(type)}${government ? " has-gov" : ""}">
+        <summary aria-label="${escapeHtml(accessible)}" title="${escapeHtml(accessible)}">
+          <span class="pmini-slot">${slot}</span>
+          <span class="pmini-copy">
+            <span class="pmini-name">${escapeHtml(name)}</span>
+            <span class="pmini-meta">Tier ${["I", "II", "III", "IV"][tier - 1] || tier}${government ? ` · ${escapeHtml(government.name)}` : ""}</span>
+          </span>
+          <span class="pmini-trade" aria-label="${trade} trade tokens">T${trade}</span>
+        </summary>
+        <div class="pmini-detail">
+          ${art ? `<img src="${escapeHtml(art)}" alt="${escapeHtml(name)} focus card" loading="lazy" draggable="false">` : focusMark(type)}
+          <span><strong>${escapeHtml(Game.FOCUS_LABELS[type] || type)} ${["I", "II", "III", "IV"][tier - 1] || tier}</strong>
+          ${escapeHtml(effect || "No additional printed text.")}</span>
+        </div>
+      </details>`;
+    }).join("");
+    return `<div class="pmini-wrap">
+      <span class="pmini-label">Focus row · click a card for its full text</span>
+      <div class="pmini-row" aria-label="${escapeHtml(player.name)} focus row">${cards}</div>
+    </div>`;
+  }
+
+  function publicComponentChip(kind, label, value, imageSrc, title, extraClass) {
+    const full = `${label}${value ? ` ${value}` : ""}${title ? `. ${title}` : ""}`;
+    return `<span class="ptab-chip ${escapeHtml(kind)}${extraClass ? ` ${escapeHtml(extraClass)}` : ""}"
+      title="${escapeHtml(full)}" aria-label="${escapeHtml(full)}">
+      ${componentImage(imageSrc, label, "ptab-icon")}
+      <span>${escapeHtml(label)}</span>${value ? `<b>${escapeHtml(value)}</b>` : ""}
+    </span>`;
   }
 
   function renderPlayers() {
@@ -3290,35 +3373,72 @@ const UI = (() => {
       const civTag = lead ? `<span class="pcv" title="${escapeHtml(lead.ability.text)}">${escapeHtml(lead.civ)}</span>` : "";
 
       // Everyone's tableau is face up on a real table, so it is face up here.
-      // This used to stop at cities/control/score, and a rival's resources and
-      // diplomacy hand lived only behind the Players panel — which meant the
-      // state of the game was something you had to go and ask for.
+      // Physical component art and short labels keep the summary readable
+      // without turning the sidebar into another full reference screen.
       let tableau = "";
       if (state.phase === "playing") {
         const res = Object.entries(p.resources || {}).filter(([, v]) => v > 0);
         const dip = p.diplomacy || [];
         const wonders = [];
+        const districts = [];
         Object.values(state.map.hexes).forEach((h) => {
           if (h.city && h.city.ownerId === p.id && h.city.wonder) wonders.push(h.city.wonder.name);
+          if (h.control && h.control.ownerId === p.id && h.control.district) {
+            districts.push({ type: h.control.district, fortified: !!h.control.fortified });
+          }
         });
-        const trade = Object.entries(p.trade || {}).filter(([, v]) => v > 0);
-        const line = (label, body, title) =>
-          `<div class="ptab-row"${title ? ` title="${escapeHtml(title)}"` : ""}>
-            <span>${label}</span><b>${body}</b></div>`;
-        tableau = `<div class="ptab">
-          ${line("Res", res.length
-            ? res.map(([k, v]) => `${escapeHtml(k.slice(0, 3))}&nbsp;${v}`).join(" · ")
-            : "<i>none</i>")}
-          ${line("Trade", trade.length
-            ? trade.map(([k, v]) => `${escapeHtml((Game.FOCUS_LABELS[k] || k).slice(0, 3))}&nbsp;${v}`).join(" · ")
-            : "<i>none</i>")}
-          ${line("Diplo", dip.length
-            ? dip.map((d) => escapeHtml(d.name || d.cardId)).join(", ")
-            : "<i>none</i>",
-            dip.map((d) => `${d.name || d.cardId}: ${d.effect || ""}`).join("\n"))}
-          ${line("Wonders", wonders.length ? wonders.map(escapeHtml).join(", ") : "<i>none</i>")}
-          ${p.government ? line("Gov",
-            escapeHtml(((Game.GOVERNMENTS || {})[p.government] || {}).name || p.government)) : ""}
+        const natural = Game.getControlledNaturalWonders
+          ? Game.getControlledNaturalWonders(state, p.id)
+          : [];
+        const group = (label, body) => `<div class="ptab-group">
+          <span class="ptab-label">${escapeHtml(label)}</span>
+          <div class="ptab-chips">${body || `<i>none</i>`}</div>
+        </div>`;
+        const resourceChips = res.map(([resource, count]) => publicComponentChip(
+          "resource", resource, `×${count}`,
+          window.CivCardArt ? CivCardArt.resource(resource) : "",
+          `${count} ordinary ${resource} resource token${count === 1 ? "" : "s"}`
+        )).join("");
+        const naturalChips = natural.map((entry) => publicComponentChip(
+          "natural", entry.name, entry.resource,
+          window.CivCardArt ? CivCardArt.naturalWonder(entry.name) : "",
+          entry.usedThisTurn ? "Already used this turn" : "Available this turn",
+          entry.usedThisTurn ? "used" : "available"
+        )).join("");
+        const diplomacyChips = dip.map((card) => {
+          const cardName = card.name || card.cardId || "Diplomacy card";
+          const sourcePlayer = Game.getPlayer(state, card.fromId);
+          const source = card.fromCityState || (sourcePlayer && sourcePlayer.name) || "another player";
+          // Diplomacy cards carry their source's colour, not the holder's.
+          // City-state cards are a separate physical deck with their own art.
+          const cardArt = !window.CivCardArt ? ""
+            : card.fromCityState
+              ? CivCardArt.cityStateCard(card.fromCityState)
+              : CivCardArt.diplomacy(sourcePlayer && sourcePlayer.color, card.cardId || card.type);
+          return publicComponentChip("diplomacy", cardName, "", cardArt,
+            `From ${source}. ${card.effect || ""}`);
+        }).join("");
+        const districtChips = districts.map((district) => publicComponentChip(
+          "district", Game.DISTRICT_LABELS[district.type] || district.type,
+          district.fortified ? "reinforced" : "",
+          window.CivCardArt ? CivCardArt.district(p.color, district.type, district.fortified) : "",
+          district.fortified ? "Reinforced district" : "District"
+        )).join("");
+        const wonderChips = wonders.map((name) => publicComponentChip(
+          "wonder", name, "",
+          window.CivCardArt ? (CivCardArt.wonderToken(name) || CivCardArt.wonderCard(name)) : "",
+          "Built world wonder"
+        )).join("");
+        const government = p.government
+          ? ((Game.GOVERNMENTS || {})[p.government] || {}).name || p.government
+          : "None";
+        tableau = `${renderOpponentFocusRow(p)}<div class="ptab">
+          ${group("Resources", resourceChips)}
+          ${natural.length ? group("Natural wonders", naturalChips) : ""}
+          ${group("Diplomacy", diplomacyChips)}
+          ${districts.length ? group(`Districts (${districts.length})`, districtChips) : ""}
+          ${wonders.length ? group(`Wonders (${wonders.length})`, wonderChips) : ""}
+          <div class="ptab-row"><span>Government</span><b>${escapeHtml(government)}</b></div>
         </div>`;
       }
 
@@ -3385,7 +3505,7 @@ const UI = (() => {
       const tierLabel = u ? ["I", "II", "III", "IV"][u.tier - 1] : "";
       const uActive = u && Game.getActiveUniqueCard && Game.getActiveUniqueCard(me, u.type);
       const uniqueLine = u
-        ? `<div class="lb-unique ${uActive ? "on" : ""}">★ ${escapeHtml(u.name)} <span class="lb-ut">(${Game.FOCUS_LABELS[u.type]} ${tierLabel}${u.auto ? "" : " — manual"})</span>${uActive ? " <span class=\"lb-live\">active</span>" : ""}
+        ? `<div class="lb-unique ${uActive ? "on" : ""}"><span class="unique-label">Unique</span> ${escapeHtml(u.name)} <span class="lb-ut">(${Game.FOCUS_LABELS[u.type]} ${tierLabel}${u.auto ? "" : " — manual"})</span>${uActive ? " <span class=\"lb-live\">active</span>" : ""}
            <div class="lb-utext">${escapeHtml(u.text)}</div></div>`
         : "";
       leaderRow = `<div class="leader-box"><div class="lb-head">${escapeHtml(myLeader.civ)}${myLeader.ability.manual ? ' <span class="lb-ut">(manual ability)</span>' : ""}</div>
@@ -3555,6 +3675,7 @@ const UI = (() => {
     else if (sub.phase === "placing_city") { renderPlacingCity(); }
     else if (sub.phase === "placing_wonder") { renderPlacingWonder(); }
     else if (sub.phase === "picking_wonder") { renderPickingWonder(); }
+    else if (sub.phase === "wonder_payment") { renderWonderPayment(); }
     else if (sub.phase === "choose_target") { renderChooseTarget(); }
     else { return; }
 
@@ -3644,13 +3765,13 @@ const UI = (() => {
         ${previewUnique ? `<p class="leader-unique"><b>Unique focus card:</b> ${escapeHtml(previewUnique)}<br>${escapeHtml(preview.unique.text)}</p>` : ""}
         <button id="leader-confirm" class="wiz-primary" ${previewTakenBy ? "disabled" : ""}>${previewTakenBy
           ? `Taken by ${escapeHtml(previewTakenBy.name)}`
-          : me && me.leaderId === preview.id ? `${escapeHtml(preview.civ)} selected ✓` : `Choose ${escapeHtml(preview.civ)}`}</button>
+          : me && me.leaderId === preview.id ? `${escapeHtml(preview.civ)} selected` : `Choose ${escapeHtml(preview.civ)}`}</button>
       </div>` : `
       <div class="leader-random-art"><span>?</span><b>Random civilization</b><small>A remaining sheet is dealt when the game starts.</small></div>
       <div class="leader-preview-copy">
         <h2>Let fate decide</h2>
         <p>You will receive one of the civilization sheets no player selected.</p>
-        <button id="leader-confirm" class="wiz-primary">${randomPicked ? "Random selected ✓" : "Choose Random"}</button>
+        <button id="leader-confirm" class="wiz-primary">${randomPicked ? "Random selected" : "Choose Random"}</button>
       </div>`;
 
     const leaderSection = me ? `
@@ -3818,9 +3939,9 @@ const UI = (() => {
       const put = (href, r) => `<image href="${href}" x="${(cx - r).toFixed(3)}" y="${(cy - r).toFixed(3)}"
         width="${(r * 2).toFixed(3)}" height="${(r * 2).toFixed(3)}" preserveAspectRatio="xMidYMid meet"/>`;
       if (c.feature === "capital") {
-        out += `<text x="${cx.toFixed(3)}" y="${(cy + 0.34).toFixed(3)}" font-size="1.1"
+        out += `<text x="${cx.toFixed(3)}" y="${(cy + 0.2).toFixed(3)}" font-size="0.5"
           text-anchor="middle" fill="#ffd54f" stroke="rgba(0,0,0,0.85)" stroke-width="0.09"
-          paint-order="stroke">\u2605</text>`;
+          paint-order="stroke">CAP</text>`;
       } else if (c.cityState && art && art.cityStateToken(c.cityState)) {
         out += put(art.cityStateToken(c.cityState), 0.95);
       } else if (c.naturalWonder && art && art.naturalWonder(c.naturalWonder)) {
@@ -3935,10 +4056,10 @@ const UI = (() => {
       ? (unique ? CivCardArt.uniqueUrl(owner && owner.leaderId)
         : CivCardArt.focusUrl(cardType, tier, owner ? owner.color : ""))
       : "";
-    return `${art ? `<img class="opt-face" src="${escapeHtml(art)}" alt="" loading="lazy" draggable="false">` : ""}
+    return `${art ? `<img class="opt-face" src="${escapeHtml(art)}" alt="${escapeHtml(name)} focus card" loading="lazy" draggable="false">` : ""}
       <span class="opt-copy">
         <span class="opt-head">
-          <span class="opt-name">${unique ? "★ " : ""}${escapeHtml(name)}</span>
+          <span class="opt-name">${unique ? `<span class="opt-unique">Unique</span>` : ""}${escapeHtml(name)}</span>
           <span class="opt-tier">${escapeHtml(Game.FOCUS_LABELS[cardType] || cardType)} ${TIER_ROMAN[tier - 1] || tier}</span>
         </span>
         <span class="opt-text">${escapeHtml(rules)}</span>
@@ -4066,12 +4187,12 @@ const UI = (() => {
         ${face ? `<img class="ts-w-face" src="${escapeHtml(face)}" alt="${escapeHtml(w.name)} world wonder card" draggable="false">` : ""}
         <div class="ts-w-info">
           <div class="ts-w-top">
-            <span class="ts-w-icon">${WONDER_ICONS[w.type] || "\u2b50"}</span>
+            <span class="ts-w-icon">${focusMark(w.type, "focus-mark-sm")}</span>
             <span class="ts-w-era">${escapeHtml(w.era)}</span>
             <span class="ts-w-cost">${cost}${cost !== w.cost ? `<s>${w.cost}</s>` : ""}</span>
           </div>
           <div class="ts-w-name">${escapeHtml(w.name)}</div>
-          ${w.token ? `<div class="ts-w-token">\ud83e\ude99 costs 1 less \u00b7 leaves next dial</div>` : ""}
+          ${w.token ? `<div class="ts-w-token">Discount token · cost 1 less · leaves next dial</div>` : ""}
         </div>
       </div>`;
     }).join("");
@@ -4085,7 +4206,7 @@ const UI = (() => {
           title="${escapeHtml(a.description || "")}">${escapeHtml(a.name)}</span>`;
       }).join(`<span class="ts-a-or">or</span>`);
       return `<div class="ts-agenda ${claims[card.id] ? "won" : ""}">
-        <span class="ts-a-mark">${claims[card.id] ? "\u2713" : ""}</span>
+        <span class="ts-a-mark">${claims[card.id] ? "claimed" : ""}</span>
         <span class="ts-a-name">${halves}</span>
       </div>`;
     }).join("");
@@ -4328,7 +4449,7 @@ const UI = (() => {
         <div class="cs-vs"><strong>${escapeHtml(atkName || "Attacker")}</strong> attacks <strong>${escapeHtml(defName || "?")}</strong></div>
         <div class="cs-duel">
           ${side("atk", atkName, atkRoll, totals.atk, atkNote, atkThrown, live && !atkThrown)}
-          <div class="cs-x">\u2694</div>
+          <div class="cs-x" aria-hidden="true">VS</div>
           ${side("def", defName, defRoll, totals.def, defNote, defThrown, live && atkThrown && !defThrown)}
         </div>
         ${story ? `<ul class="cs-story">${story}</ul>` : ""}
@@ -4564,17 +4685,19 @@ const UI = (() => {
     const spaces = me ? Game.validDistrictHexes(state, localPlayerId, slot) : new Set();
     const districtAvailable = districts.length > 0 && spaces.size > 0;
     const sequential = !!(profile && profile.sequential);
-    const explanation = sequential
+    const explanation = profile && profile.militaryEngineering
+      ? "Place a district. Then you may deploy each army still on your Military card to one of your cities; all control tokens in or beside a friendly army are reinforced."
+      : sequential
       ? `First place a district. Then reinforce up to <strong>${slot + sub.tradeSpent}</strong> control markers (${slot} from the card, ${sub.tradeSpent} from payment).`
       : `Choose one main effect: place a district, or reinforce up to <strong>${slot + sub.tradeSpent}</strong> control markers.`;
     dom.wizard.innerHTML = `
       <div class="wiz-title">Growth: Choose Action</div>
       <div class="wiz-body">${explanation}${districtAvailable ? "" : `<div class="wiz-note">${districts.length ? "No legal district space remains." : "All four of your district tokens are already on the map."}</div>`}</div>
       <div class="wiz-actions">
-        <button id="wiz-district"${districtAvailable ? "" : " disabled"}><span class="wiz-btn-icon" aria-hidden="true">🏘️</span> Place District</button>
+        <button id="wiz-district"${districtAvailable ? "" : " disabled"}>Place District</button>
         ${sequential
           ? (!districtAvailable ? `<button class="primary" id="wiz-skip-district">Continue to Reinforcement</button>` : "")
-          : `<button id="wiz-reinforce"><span class="wiz-btn-icon" aria-hidden="true">🛡️</span> Reinforce Instead</button>`}
+          : `<button id="wiz-reinforce">Reinforce Instead</button>`}
         <button class="ghost" id="wiz-cancel3">Cancel</button>
       </div>`;
     document.getElementById("wiz-district")?.addEventListener("click", () => { sub.phase = "pick_district"; refreshWizard(); });
@@ -4868,6 +4991,16 @@ const UI = (() => {
       tradeSpent: sub.tradeSpent
     }});
     if (!result || result.status !== "accepted") return;   // toast already shown
+    if (!state.pendingExploration && (state.pendingChoices || []).some((choice) =>
+      choice.playerId === localPlayerId && choice.kind === "shipbuilding_water")) {
+      // The printed optional window happens before the reveal. Put the local
+      // movement preview aside while the map owns that choice; resolving or
+      // skipping it atomically creates pendingExploration, which the normal
+      // authoritative reconciliation below restores.
+      clearSub();
+      render();
+      return;
+    }
     if (!setSubFromPendingExploration(state.pendingExploration)) {
       showToast("The revealed tile could not be restored. Reconnecting…");
       Net.retryNow?.();
@@ -4980,35 +5113,41 @@ const UI = (() => {
 
   function renderIndustryChoice(me) {
     const slot = Game.getSlotValue(me, "industry", state);
-    let spentBonus = 0;
-    Object.values(sub.spentResources).forEach((v) => { if (v) spentBonus += Game.CFG.resourceProdValue; });
-    const totalProd = slot + sub.tradeSpent + spentBonus;
-    const resEntries = Object.entries(me.resources).filter(([, v]) => v > 0);
-    const resHtml = resEntries.length ? resEntries.map(([k, v]) => {
-      const active = sub.spentResources[k] ? " primary" : "";
-      return `<button class="sm res-btn${active}" data-r="${k}">${k}(${v}) +${Game.CFG.resourceProdValue}</button>`;
-    }).join(" ") : "<em>No resources</em>";
+    const animalHusbandry = Game.getCardName(me, "industry") === "Animal Husbandry";
+    const figureSpaces = animalHusbandry ? industryFigureCitySpaces(me) : new Map();
 
     dom.wizard.innerHTML = `
-      <div class="wiz-title">Industry (Production: ${totalProd})</div>
-      <div class="wiz-body">Base ${slot} + ${sub.tradeSpent} trade + ${spentBonus} resources<br><div style="margin:6px 0">${resHtml}</div></div>
+      <div class="wiz-title">Industry</div>
+      <div class="wiz-body">Choose the printed branch. A city uses only terrain difficulty and range. Wonder payment comes after choosing a wonder, because each wonder accepts different resource types.</div>
       <div class="wiz-actions">
-        <button id="wiz-build-city"><span class="wiz-btn-icon" aria-hidden="true">🏰</span> Build City (cost=terrain, range=${Game.getCityRange(me)})</button>
-        <button id="wiz-build-wonder"><span class="wiz-btn-icon" aria-hidden="true">🗿</span> Build Wonder (7/9/12)</button>
+        <button id="wiz-build-city">Build City (cost=terrain, range=${Game.getCityRange(me)})</button>
+        ${figureSpaces.size ? `<button id="wiz-build-figure-city">Build City Where a Figure Stands (${figureSpaces.size})</button>` : ""}
+        <button id="wiz-build-wonder">Build Wonder (7/9/12)</button>
         <button class="ghost" id="wiz-cancel7">Cancel</button>
       </div>`;
-    document.querySelectorAll(".res-btn").forEach((btn) => {
-      btn.addEventListener("click", () => { sub.spentResources[btn.dataset.r] = !sub.spentResources[btn.dataset.r]; refreshWizard(); });
-    });
-    document.getElementById("wiz-build-city").addEventListener("click", () => startBuildCity(totalProd));
-    document.getElementById("wiz-build-wonder").addEventListener("click", () => startBuildWonder(totalProd));
+    document.getElementById("wiz-build-city").addEventListener("click", () => startBuildCity(slot, false));
+    document.getElementById("wiz-build-figure-city")?.addEventListener("click", () => startBuildCity(slot, true));
+    document.getElementById("wiz-build-wonder").addEventListener("click", startBuildWonder);
     document.getElementById("wiz-cancel7").addEventListener("click", cancelAction);
+  }
+
+  function industryFigureCitySpaces(me) {
+    const result = new Map();
+    if (!me) return result;
+    Object.keys(state.map.hexes).forEach((hexKey) => {
+      const validation = Game.validateIndustryCityAction(state, me.id, {
+        hexKey, useFigure: true, tradeSpent: 0
+      });
+      if (validation.ok && validation.figure) result.set(hexKey, validation.figure.id);
+    });
+    return result;
   }
 
   function renderPlacingCity() {
     dom.wizard.innerHTML = `
       <div class="wiz-title">Place New City</div>
-      <div class="wiz-body">Click a <strong>highlighted hex</strong> to build your city.</div>
+      <div class="wiz-body">Click a <strong>highlighted hex</strong> to build your city.${
+        sub.cityUseFigure ? " The caravan or army there returns to its focus card." : ""}</div>
       <div class="wiz-actions"><button class="ghost" id="wiz-cancel8">Cancel</button></div>`;
     document.getElementById("wiz-cancel8").addEventListener("click", cancelAction);
   }
@@ -5023,7 +5162,6 @@ const UI = (() => {
   }
 
   function renderPickingWonder() {
-    const prod = sub.wonderProduction || 0;
     const builtWonders = new Set();
     Object.values(state.map.hexes).forEach((h) => { if (h.city && h.city.wonder) builtWonders.add(h.city.wonder.name); });
 
@@ -5036,25 +5174,22 @@ const UI = (() => {
     // nothing about what you could afford or what the button said you needed.
     // calculateWonderCost is the shared pipeline: base, modifiers, final.
     const me = Game.getPlayer(state, localPlayerId);
-    let html = `<div class="wiz-title">Choose Visible Wonder (Production: ${prod})</div><div class="wiz-body wonder-pick-grid">`;
+    let html = `<div class="wiz-title">Choose a Visible Wonder</div><div class="wiz-body wonder-pick-grid">`;
     visible.forEach((w) => {
       const priced = me && Game.calculateWonderCost
         ? Game.calculateWonderCost(w.name, me, state)
         : { finalCost: w.cost, baseCost: w.cost, modifiers: [] };
       const cost = priced.finalCost;
-      const affordable = prod >= cost;
-      const disabled = affordable ? "" : " disabled";
       const face = window.CivCardArt ? CivCardArt.wonderCard(w.name) : "";
       // Say where a discount came from, so a reduced price reads as a rule
       // rather than as a wrong number.
       const why = (priced.modifiers || []).filter((m) => m.value)
         .map((m) => `${m.source} ${m.value > 0 ? "+" : ""}${m.value}`).join(", ");
-      html += `<button class="sm wonder-pick${disabled}" data-name="${escapeHtml(w.name)}"${disabled ? " disabled" : ""}>
+      html += `<button class="sm wonder-pick" data-name="${escapeHtml(w.name)}">
         ${face ? `<img src="${escapeHtml(face)}" alt="" draggable="false">` : ""}
         <span class="wonder-pick-copy">
           <strong>${escapeHtml(w.name)}</strong> (${escapeHtml(w.type)}, ${escapeHtml(w.era)}, cost ${cost}${
-            cost !== priced.baseCost ? ` <s>${priced.baseCost}</s>` : ""})${
-            affordable ? "" : ` <span style="color:var(--danger)">need ${cost}</span>`}<br>
+            cost !== priced.baseCost ? ` <s>${priced.baseCost}</s>` : ""})<br>
           ${why ? `<span class="wonder-pick-why">${escapeHtml(why)}</span><br>` : ""}
           <span class="wonder-pick-effect">${escapeHtml(w.effect || "")}</span>
         </span>
@@ -5064,25 +5199,138 @@ const UI = (() => {
     html += `</div><div class="wiz-actions"><button class="ghost" id="wiz-cancel-wonder">Cancel</button></div>`;
 
     dom.wizard.innerHTML = html;
-    document.querySelectorAll(".wonder-pick:not([disabled])").forEach((btn) => {
+    document.querySelectorAll(".wonder-pick").forEach((btn) => {
       btn.addEventListener("click", () => {
         const wonder = Game.getVisibleWonders(state).find((w) => w.name === btn.dataset.name);
         if (!wonder) return;
         sub.selectedWonder = wonder;
-        sub.phase = "placing_wonder";
-        sub.validHexes = Game.validWonderHexes(state, localPlayerId);
-        render();
+        sub.phase = "wonder_payment";
+        refreshWizard();
       });
     });
     document.getElementById("wiz-cancel-wonder").addEventListener("click", cancelAction);
+  }
+
+  function renderWonderPayment() {
+    const me = Game.getPlayer(state, localPlayerId);
+    const wonder = sub.selectedWonder;
+    if (!me || !wonder) { sub.phase = "picking_wonder"; refreshWizard(); return; }
+
+    const eligible = Array.isArray(wonder.eligibleResources) ? wonder.eligibleResources : [];
+    sub.spentResources = cleanPayment(sub.spentResources);
+    // A physical resource token cannot be both production and a Palenque trade
+    // substitute. Keep the controls inside the same bounds as the validator.
+    Game.RESOURCES.forEach((resource) => {
+      const availableForTrade = Math.max(0, Number(me.resources[resource] || 0) -
+        Number(sub.spentResources[resource] || 0));
+      const selected = Math.min(availableForTrade, Number(sub.tradeResources[resource] || 0));
+      if (selected) sub.tradeResources[resource] = selected;
+      else delete sub.tradeResources[resource];
+    });
+    syncFocusTradeTotal();
+
+    const payment = {
+      resources: cleanPayment(sub.spentResources),
+      naturalWonders: (sub.naturalWonders || []).slice(),
+      ...focusTradePayload()
+    };
+    const preview = Game.calculateWonderProduction(state, me, wonder.name, payment);
+    const production = preview.ok ? preview.production : null;
+    const priced = preview.ok ? preview.cost : Game.calculateWonderCost(wonder.name, me, state);
+
+    const resourceRows = eligible.map((resource) => {
+      const owned = Number(me.resources[resource] || 0);
+      const used = Number(sub.spentResources[resource] || 0);
+      return `<div class="payment-step"><span>${escapeHtml(resource)} (${owned} owned)</span>
+        <button class="sm wonder-res-step" data-resource="${escapeHtml(resource)}" data-delta="-1"${used ? "" : " disabled"}>-</button>
+        <b>${used}</b>
+        <button class="sm wonder-res-step" data-resource="${escapeHtml(resource)}" data-delta="1"${used < owned ? "" : " disabled"}>+</button>
+      </div>`;
+    }).join("") || "<em>This wonder has no ordinary resource icons.</em>";
+
+    const controlledNatural = Game.getControlledNaturalWonders(state, me.id)
+      .filter((entry) => eligible.includes(entry.resource));
+    const naturalRows = controlledNatural.map((entry) => {
+      const selected = (sub.naturalWonders || []).includes(entry.hexKey);
+      return `<button class="sm natural-pay${selected ? " primary" : ""}" data-hex="${escapeHtml(entry.hexKey)}"${
+        entry.usedThisTurn ? " disabled" : ""}>${escapeHtml(entry.name)} (${escapeHtml(entry.resource)})${
+        entry.usedThisTurn ? " — already used" : selected ? " — selected" : ""}</button>`;
+    }).join(" ") || "<em>No eligible natural wonder under your control.</em>";
+
+    const focusAvailable = Number(me.trade.industry || 0);
+    const palenque = renderPalenqueTradeSelector(me, sub.spentResources);
+    const resultLine = preview.ok
+      ? `Production <strong>${production.total}</strong> / cost <strong>${priced.finalCost}</strong>${
+          preview.affordable ? " — ready" : ` — ${preview.shortfall} short`}`
+      : `<span style="color:var(--danger)">${escapeHtml(preview.message || "Invalid payment")}</span>`;
+    const breakdown = production
+      ? `Base ${production.base} + trade ${production.trade} + resources ${
+          (production.ordinaryResources + production.naturalWonderResources) * production.eachResource}${
+          production.districtBonus ? ` + districts ${production.districtBonus}` : ""}`
+      : "";
+
+    dom.wizard.innerHTML = `
+      <div class="wiz-title">Pay for ${escapeHtml(wonder.name)}</div>
+      <div class="wiz-body">
+        <div class="wonder-payment-result">${resultLine}<br><small>${escapeHtml(breakdown)}</small></div>
+        <strong>Ordinary resources printed on this wonder</strong>${resourceRows}
+        <strong>Natural wonder tokens</strong><div class="natural-payments">${naturalRows}</div>
+        <div class="trade-counter"><span>Industry trade:</span>
+          <button id="wonder-trade-dec" class="sm"${sub.focusTradeSpent ? "" : " disabled"}>-</button>
+          <span class="tc-val">${sub.focusTradeSpent}</span>
+          <button id="wonder-trade-inc" class="sm"${sub.focusTradeSpent < focusAvailable ? "" : " disabled"}>+</button>
+        </div>${palenque}
+      </div>
+      <div class="wiz-actions">
+        <button class="primary" id="wonder-payment-ok"${preview.ok && preview.affordable ? "" : " disabled"}>Place Wonder</button>
+        <button class="ghost" id="wonder-payment-back">Back</button>
+        <button class="ghost" id="wonder-payment-cancel">Cancel</button>
+      </div>`;
+
+    document.querySelectorAll(".wonder-res-step").forEach((button) => {
+      button.addEventListener("click", () => {
+        const resource = button.dataset.resource;
+        const delta = Number(button.dataset.delta || 0);
+        const owned = Number(me.resources[resource] || 0);
+        const next = Math.max(0, Math.min(owned,
+          Number(sub.spentResources[resource] || 0) + delta));
+        if (next) sub.spentResources[resource] = next;
+        else delete sub.spentResources[resource];
+        refreshWizard();
+      });
+    });
+    document.querySelectorAll(".natural-pay:not([disabled])").forEach((button) => {
+      button.addEventListener("click", () => {
+        const selected = new Set(sub.naturalWonders || []);
+        if (selected.has(button.dataset.hex)) selected.delete(button.dataset.hex);
+        else selected.add(button.dataset.hex);
+        sub.naturalWonders = [...selected];
+        refreshWizard();
+      });
+    });
+    document.getElementById("wonder-trade-dec")?.addEventListener("click", () => {
+      sub.focusTradeSpent = Math.max(0, sub.focusTradeSpent - 1); refreshWizard();
+    });
+    document.getElementById("wonder-trade-inc")?.addEventListener("click", () => {
+      sub.focusTradeSpent = Math.min(focusAvailable, sub.focusTradeSpent + 1); refreshWizard();
+    });
+    bindPalenqueTradeSteppers(me, sub.spentResources, refreshWizard);
+    document.getElementById("wonder-payment-ok")?.addEventListener("click", () => {
+      sub.wonderProduction = preview;
+      sub.phase = "placing_wonder";
+      sub.validHexes = Game.validWonderHexes(state, localPlayerId);
+      render();
+    });
+    document.getElementById("wonder-payment-back").addEventListener("click", () => {
+      sub.phase = "picking_wonder"; refreshWizard();
+    });
+    document.getElementById("wonder-payment-cancel").addEventListener("click", cancelAction);
   }
 
   // --- Reference panels -----------------------------------------------------
   // Wonders, diplomacy and city-states were all but unreadable: costs and
   // effects only appeared deep inside the build flow, and diplomacy text hid in
   // a hover. These open from the header at any time.
-
-  const WONDER_ICONS = { military: "\u2694\ufe0f", culture: "\ud83c\udfad", economy: "\ud83d\udcb0", science: "\ud83d\udd2c" };
 
   function wonderState(name) {
     // Where it stands, not just whose it is: "built by Red" still left you
@@ -5117,11 +5365,13 @@ const UI = (() => {
     all.forEach((w) => { (byType[w.type] = byType[w.type] || []).push(w); });
     const types = Object.keys(byType);
     let html = `<div class="ref-card">
-      <button class="detail-close" id="ref-close" aria-label="Close">✕</button>
+      <button class="detail-close" id="ref-close" aria-label="Close">&times;</button>
       <h2 class="ref-title">World Wonders</h2>
       <p class="ref-lede">Built with the industry card. Production is that card's
-        place number, +1 per industry trade token spent, and +2 for every resource
-        you put in. You need a city of your own that has no wonder yet.</p>`;
+        printed base, +1 per industry trade token spent, and +2 for each ordinary
+        or natural-wonder resource whose icon is printed on that wonder. Card and
+        civilization bonuses are included in the payment preview. You need a city
+        of your own that has no wonder yet.</p>`;
     let anyShown = false;
     types.forEach((type) => {
       // Two of every ancient/medieval deck are shuffled out face-down before
@@ -5147,7 +5397,7 @@ const UI = (() => {
             ${wArt ? `<img class="wcard-face" src="${escapeHtml(wArt)}" alt="${escapeHtml(w.name)} world wonder card" loading="lazy" draggable="false">` : ""}
             <div class="wcard-copy">
             <div class="wcard-top">
-              <span class="wcard-icon">${WONDER_ICONS[type] || "\u2b50"}</span>
+              <span class="wcard-icon">${focusMark(type, "focus-mark-sm")}</span>
               <span class="wcard-era">${escapeHtml(w.era)}</span>
               <span class="wcard-coin" title="Production cost">${afford}${afford !== w.cost ? `<s>${w.cost}</s>` : ""}</span>
             </div>
@@ -5157,7 +5407,7 @@ const UI = (() => {
               ${w.auto ? "" : `<p class="wcard-manual">Resolve at the table — not automated</p>`}
             </div>
             ${token ? `<div class="wcard-token" title="Placed by the event dial">
-              \ud83e\ude99 costs 1 less \u2014 leaves the game on the next wonder icon</div>` : ""}
+              Discount token: costs 1 less — leaves the game on the next wonder icon</div>` : ""}
             <div class="wcard-foot st-${st8.cls}"${st8.ownerColor ? ` style="border-left:3px solid ${escapeHtml(st8.ownerColor)}"` : ""}>
               ${st8.label}
               ${st8.hexKey ? `<button class="wcard-goto" data-hex="${escapeHtml(st8.hexKey)}"
@@ -5183,7 +5433,7 @@ const UI = (() => {
     const claims = (state.claimedAgendas && state.claimedAgendas[localPlayerId]) || {};
     const won = Game.getClaimedAgendaCount ? Game.getClaimedAgendaCount(state, localPlayerId) : 0;
     return `<div class="ref-card">
-      <button class="detail-close" id="ref-close" aria-label="Close">\u2715</button>
+      <button class="detail-close" id="ref-close" aria-label="Close">&times;</button>
       <h2 class="ref-title">Victory \u2014 ${won} of 4</h2>
       <p class="ref-lede">Every victory card is divided into <strong>two agendas</strong>, and completing
         <strong>either</strong> one claims the card (base p12). Claim <strong>four</strong> of these five
@@ -5196,7 +5446,7 @@ const UI = (() => {
         return `
         <div class="vcard ${claims[card.id] ? "won" : ""}${face ? " has-art" : ""}">
           ${face ? `<img class="vcard-face" src="${face}" alt="" draggable="false">` : ""}
-          <div class="vcard-top">${claims[card.id] ? "\u2713 claimed" : "not yet"}${card.fortress ? " \u00b7 must be held" : ""}</div>
+          <div class="vcard-top">${claims[card.id] ? "claimed" : "not yet"}${card.fortress ? " \u00b7 must be held" : ""}</div>
           ${card.agendas.map((id) => {
             const a = agendaMap[id] || { name: id, description: "" };
             return `<div class="vcard-half ${claims[id] ? "done" : ""}">
@@ -5227,7 +5477,7 @@ const UI = (() => {
     const token = window.CivCardArt ? CivCardArt.cityStateToken(name) : "";
     const type = data.type || "culture";
     return `<div class="ref-card">
-      <button class="detail-close" id="ref-close" aria-label="Close">✕</button>
+      <button class="detail-close" id="ref-close" aria-label="Close">&times;</button>
       <h2 class="ref-title">${escapeHtml(name)}</h2>
       <p class="ref-lede">A caravan that reaches a city-state goes back to its economy
         card and brings home <strong>2 trade tokens on the matching card</strong> plus
@@ -5261,7 +5511,7 @@ const UI = (() => {
     });
 
     let html = `<div class="ref-card">
-      <button class="detail-close" id="ref-close" aria-label="Close">✕</button>
+      <button class="detail-close" id="ref-close" aria-label="Close">&times;</button>
       <h2 class="ref-title">Players</h2>
       <p class="ref-lede">Every focus row, at the number it actually resolves at.
         A card's place in the row is its base; a government marker, and the wonders
@@ -5277,7 +5527,7 @@ const UI = (() => {
 
       html += `<div class="pl-block${active ? " active" : ""}">
         <div class="pl-head">
-          <span class="dot" style="background:${escapeHtml(p.color)}"></span>
+          <span class="dot" style="background:${safeColor(p.color)}"></span>
           <b>${escapeHtml(p.name)}${isMe ? " (you)" : ""}</b>
           ${lead ? `<span class="pl-civ">${escapeHtml(lead.civ)} · ${escapeHtml(lead.name)}</span>` : ""}
           ${active ? `<span class="pl-turn">to move</span>` : ""}
@@ -5295,7 +5545,7 @@ const UI = (() => {
         const trade = (p.trade || {})[type] || 0;
         return html += `<div class="pl-card type-${type}${gov ? " has-gov" : ""}" title="${escapeHtml(name)}">
           <span class="pl-slot">${slot}</span>
-          <span class="pl-ico">${Game.CARD_ICONS[type] || ""}</span>
+          <span class="pl-ico">${focusMark(type, "focus-mark-sm")}</span>
           <span class="pl-type">${escapeHtml(Game.FOCUS_LABELS[type] || type)}</span>
           <span class="pl-tier">${TIER_ROMAN[tier - 1] || tier}</span>
           <span class="pl-trade">${trade ? "●".repeat(trade) : "·"}</span>
@@ -5335,7 +5585,7 @@ const UI = (() => {
     const cards = Game.DIPLOMACY_CARDS || {};
     const mine = (me && me.diplomacy) || [];
     let html = `<div class="ref-card">
-      <button class="detail-close" id="ref-close" aria-label="Close">✕</button>
+      <button class="detail-close" id="ref-close" aria-label="Close">&times;</button>
       <h2 class="ref-title">Diplomacy</h2>
       <p class="ref-lede">A caravan reaching a city-state or a rival city brings one
         back. Each city-state has two copies of its own card; each rival offers a
@@ -5347,7 +5597,7 @@ const UI = (() => {
         ? `from ${escapeHtml(d.fromCityState)}`
         : `from ${escapeHtml((Game.getPlayer(state, d.fromId) || {}).name || "a rival")}`;
       return `<div class="wcard type-${d.type || "culture"} held">
-        <div class="wcard-top"><span class="wcard-icon">\ud83e\udd1d</span><span class="wcard-era">${from}</span></div>
+        <div class="wcard-top"><span class="wcard-icon"><span class="ui-mark">DIP</span></span><span class="wcard-era">${from}</span></div>
         <div class="wcard-name">${escapeHtml(d.name || d.cardId)}</div>
         <div class="wcard-body"><p class="wcard-text">${escapeHtml(d.effect || meta.text || meta.effect || "")}</p></div>
       </div>`;
@@ -5361,7 +5611,7 @@ const UI = (() => {
       const face = window.CivCardArt ? CivCardArt.diplomacy(mySeat, id) : "";
       html += `<div class="wcard type-military${face ? " has-face" : ""}">
         ${face ? `<img class="wcard-face" src="${face}" alt="" draggable="false">` : ""}
-        <div class="wcard-top"><span class="wcard-icon">\ud83d\udcdc</span><span class="wcard-era">rival card</span></div>
+        <div class="wcard-top"><span class="wcard-icon"><span class="ui-mark">CARD</span></span><span class="wcard-era">rival card</span></div>
         <div class="wcard-name">${escapeHtml(c.name)}</div>
         <div class="wcard-body"><p class="wcard-text">${escapeHtml(c.text || c.effect || "")}</p></div>
       </div>`;
@@ -5380,7 +5630,7 @@ const UI = (() => {
       return `<div class="wcard type-${cs.type}${face ? " has-face" : ""}">
         ${face ? `<img class="wcard-face" src="${face}" alt="" draggable="false">` : ""}
         <div class="wcard-top">
-          <span class="wcard-icon">\ud83c\udfdb\ufe0f</span>
+          <span class="wcard-icon"><span class="ui-mark">CS</span></span>
           <span class="wcard-era">${escapeHtml(cs.type)}</span>
           <span class="wcard-coin" title="Defence value">${Game.CFG.cityStateDefense}</span>
         </div>
@@ -5403,11 +5653,13 @@ const UI = (() => {
     const who = Game.getPlayer(state, playerId || localPlayerId);
     const lead = who && Game.getLeader ? Game.getLeader(who) : null;
     if (!lead) {
-      return `<div class="ref-card"><button class="detail-close" id="ref-close">✕</button>
+      return `<div class="ref-card"><button class="detail-close" id="ref-close" aria-label="Close">&times;</button>
         <h2 class="ref-title">No civilization yet</h2>
         <p class="ref-lede">One is drawn when the game starts.</p></div>`;
     }
-    const style = (Game.CIV_STYLE || {})[lead.id] || { emblem: "⭐", color: "#666" };
+    const style = (Game.CIV_STYLE || {})[lead.id] || { color: "#666" };
+    const civInitials = String(lead.civ || "Civ").split(/\s+/).slice(0, 2)
+      .map((part) => part.slice(0, 1)).join("").toUpperCase();
     const u = lead.unique;
     const tierRoman = ["I", "II", "III", "IV"];
 
@@ -5417,7 +5669,7 @@ const UI = (() => {
     const order = (lead.focusOrder || []).map((f, i) => `
       <div class="civ-slot type-${f}">
         <span class="civ-slot-n">${slots[i] !== undefined ? slots[i] : i + 1}</span>
-        <span class="civ-slot-ico">${Game.CARD_ICONS[f] || ""}</span>
+        <span class="civ-slot-ico">${focusMark(f, "focus-mark-sm")}</span>
         <span class="civ-slot-lab">${Game.FOCUS_LABELS[f] || f}</span>
       </div>`).join("");
 
@@ -5451,10 +5703,10 @@ const UI = (() => {
         </div>` : "";
 
     return `<div class="ref-card">
-      <button class="detail-close" id="ref-close" aria-label="Close">✕</button>
+      <button class="detail-close" id="ref-close" aria-label="Close">&times;</button>
       ${civSheet}
       <div class="civ-head" style="--civ:${style.color}">
-        <span class="civ-emblem">${style.emblem}</span>
+        <span class="civ-emblem" aria-hidden="true">${escapeHtml(civInitials)}</span>
         <div>
           <h2 class="civ-name">${escapeHtml(lead.civ)}</h2>
           <span class="civ-src">${lead.source === "terra" ? "Terra Incognita" : "Base game"}</span>
@@ -5531,7 +5783,7 @@ const UI = (() => {
         : which === "citystate" ? renderCityStateRef(arg)
         : renderDiplomacyRef();
     } catch (err) {
-      body.innerHTML = `<div class="ref-card"><button class="detail-close" id="ref-close">\u2715</button>
+      body.innerHTML = `<div class="ref-card"><button class="detail-close" id="ref-close" aria-label="Close">&times;</button>
         <h2 class="ref-title">Could not build that panel</h2>
         <p class="ref-lede">${escapeHtml(String(err && err.message || err))}</p></div>`;
     }
@@ -5588,9 +5840,9 @@ const UI = (() => {
     return `<div class="cface type-${cardType}${unique ? " unique" : ""}${o.compact ? " compact" : ""}${art ? " has-art" : ""}"
       role="img" aria-label="${escapeHtml(name)}, ${Game.FOCUS_LABELS[cardType]} tier ${tier}"${art ? ` style='${art}'` : ""}>
       <div class="cface-head">
-        <span class="cface-icon">${Game.CARD_ICONS[cardType]}</span>
+        <span class="cface-icon">${focusMark(cardType, "focus-mark-sm")}</span>
         <span class="cface-type">${Game.FOCUS_LABELS[cardType]}</span>
-        <span class="cface-tier">${unique ? "★" : TIER_ROMAN[tier - 1]}</span>
+        <span class="cface-tier">${unique ? "Unique" : TIER_ROMAN[tier - 1]}</span>
       </div>
       <div class="cface-title">${escapeHtml(name)}</div>
       <div class="cface-text">${escapeHtml(printed)}</div>
@@ -5608,6 +5860,8 @@ const UI = (() => {
   function getCardPreview(cardType, player, slot) {
     const spend = sub.tradeSpent;
     const face = renderCardFace(player, cardType);
+    const unique = Game.getActiveUniqueCard ? Game.getActiveUniqueCard(player, cardType) : null;
+    const uniqueName = unique ? unique.name : "";
     // What this particular play resolves to, given the tokens being spent.
     // Trade tokens do only what the card's trade track says they do.
     let outcome = "";
@@ -5615,14 +5869,28 @@ const UI = (() => {
       case "culture": {
         const markers = Game.getCultureMarkers(player, spend, state);
         outcome = `Markers to place: <strong>${markers}</strong> (terrain ≤ ${slot})`;
+        if (uniqueName === "Radio" && slot === 5) outcome += "; then choose a legal rival non-capital city.";
+        if (uniqueName === "State Workforce" && slot === 5) outcome += "; then place the mountain control token.";
+        if (uniqueName === "Humanism") outcome += "; then distribute trade for each mature city.";
         break;
       }
       case "growth":
-        outcome = `Place 1 district (terrain ≤ ${slot}), or reinforce <strong>${slot + spend}</strong> markers.`;
+        outcome = uniqueName === "Military Engineering"
+          ? `Place 1 district (terrain ≤ ${slot}); then deploy armies from the card and reinforce control beside them.`
+          : `Place 1 district (terrain ≤ ${slot}), or reinforce <strong>${slot + spend}</strong> markers.`;
         break;
-      case "science":
-        outcome = `Advance tech by <strong>${slot + spend}</strong>. Current: ${player.tech}/${Game.CFG.techWheelSize}`;
+      case "science": {
+        let advance = slot + spend;
+        if (uniqueName === "Writing" && Game.countWonders(state, player.id) > 0) advance++;
+        if (uniqueName === "Natural History") {
+          const types = new Set(Game.RESOURCES.filter((resource) => Number(player.resources[resource] || 0) > 0));
+          Game.getControlledNaturalWonders(state, player.id).forEach((entry) => types.add(entry.resource));
+          advance += types.size;
+        }
+        const prelude = uniqueName === "Astronomy" ? "Inspect/reorder up to 2 tiles and optionally explore; then " : "";
+        outcome = `${prelude}advance tech by <strong>${advance}</strong>. Current: ${player.tech}/${Game.CFG.techWheelSize}`;
         break;
+      }
       case "economy":
         outcome = `Move each caravan up to <strong>${Game.getEconomyMove(player, state) + spend}</strong> spaces.`;
         break;
@@ -5635,9 +5903,20 @@ const UI = (() => {
           `Combat: d6 + ${slot}${combatBonus ? ` +${combatBonus} tier` : ""}, plus any tokens spent in the fight.`;
         break;
       }
-      case "industry":
-        outcome = `Production: <strong>${slot + spend}</strong>. City range: ${Game.getCityRange(player)}.`;
+      case "industry": {
+        const def = (Game.CARD_DEFS.industry || {})[Game.getCardTier(player, "industry")] || {};
+        const base = !unique && slot === 5 && def.wonderSlot5Production ? def.wonderSlot5Production : slot;
+        if (uniqueName === "Industrialization") {
+          const districts = Object.values(state.map.hexes).filter((hex) =>
+            hex.control && hex.control.ownerId === player.id && hex.control.district).length;
+          outcome = `Wonder base: <strong>${base}</strong> + <strong>${districts}</strong> from districts. City range: ${Game.getCityRange(player)} through water.`;
+        } else {
+          outcome = `Wonder base: <strong>${base}</strong>. City range: ${Game.getCityRange(player)}.`;
+          if (uniqueName === "Construction") outcome += " Each eligible resource produces 1 extra.";
+          if (uniqueName === "Craftsmanship") outcome += " Building a wonder also advances tech by 1.";
+        }
         break;
+      }
     }
     return `${face}<div class="cface-outcome">${outcome}</div>`;
   }
@@ -5709,17 +5988,26 @@ const UI = (() => {
     render();
   }
 
-  function startBuildCity(production) {
+  function startBuildCity(production, useFigure) {
     const me = Game.getPlayer(state, localPlayerId);
     const range = me ? Game.getCityRange(me) : 2;
     sub.phase = "placing_city";
-    sub.validHexes = Game.validCityHexes(state, localPlayerId, production, range);
+    sub.cityUseFigure = !!useFigure;
+    sub.cityFigureByHex = useFigure ? industryFigureCitySpaces(me) : new Map();
+    sub.validHexes = useFigure
+      ? new Set(sub.cityFigureByHex.keys())
+      : Game.validCityHexes(state, localPlayerId, production, range);
     render();
   }
 
-  function startBuildWonder(production) {
+  function startBuildWonder() {
     sub.phase = "picking_wonder";
-    sub.wonderProduction = production;
+    sub.selectedWonder = null;
+    sub.spentResources = {};
+    sub.naturalWonders = [];
+    sub.focusTradeSpent = 0;
+    sub.tradeResources = {};
+    syncFocusTradeTotal();
     refreshWizard();
   }
 
@@ -5760,7 +6048,9 @@ const UI = (() => {
   function clearSub() {
     sub.phase = "idle"; sub.cardType = null; sub.tradeSpent = 0; sub.remaining = 0;
     sub.totalMarkers = 0; sub.validHexes = new Set(); sub.selectedUnit = null;
-    sub.districtType = null; sub.spentResources = {}; sub.placedKeys = [];
+    sub.districtType = null; sub.spentResources = {}; sub.tradeResources = {};
+    sub.focusTradeSpent = 0; sub.naturalWonders = []; sub.placedKeys = [];
+    sub.cityUseFigure = false; sub.cityFigureByHex = new Map();
     sub.movementState = null; sub.selectedWonder = null; sub.wonderProduction = 0;
     sub.freeFrom = null; sub.attackTargets = null;
   }
@@ -6057,19 +6347,28 @@ const UI = (() => {
     if (sub.phase === "placing_city") {
       if (!sub.validHexes.has(hexKey)) { showToast("Invalid city location"); return; }
       flashHex(hexKey, "rgb(255,213,79)", 800);
-      const resources = {}; Object.entries(sub.spentResources).forEach(([r, spent]) => { if (spent) resources[r] = 1; });
-      dispatch({ type: "PLAY_INDUSTRY_CITY", payload: { playerId: localPlayerId, hexKey, resources, tradeSpent: sub.tradeSpent } });
-      resetSub(); return;
+      const result = await dispatch({ type: "PLAY_INDUSTRY_CITY", payload: {
+        playerId: localPlayerId, hexKey,
+        useFigure: !!sub.cityUseFigure,
+        figureId: sub.cityUseFigure && sub.cityFigureByHex.get
+          ? sub.cityFigureByHex.get(hexKey) : null,
+        resources: {}, tradeSpent: 0
+      } });
+      if (result && result.status === "accepted") resetSub();
+      return;
     }
     if (sub.phase === "placing_wonder") {
       if (!sub.validHexes.has(hexKey)) { showToast("Must be your city without a wonder"); return; }
       flashHex(hexKey, "rgb(206,147,216)", 800);
-      const resources = {}; Object.entries(sub.spentResources).forEach(([r, spent]) => { if (spent) resources[r] = 1; });
-      dispatch({ type: "PLAY_INDUSTRY_WONDER", payload: {
-        playerId: localPlayerId, hexKey, resources, tradeSpent: sub.tradeSpent,
+      const result = await dispatch({ type: "PLAY_INDUSTRY_WONDER", payload: {
+        playerId: localPlayerId, hexKey,
+        resources: cleanPayment(sub.spentResources),
+        naturalWonders: (sub.naturalWonders || []).slice(),
+        ...focusTradePayload(),
         wonderName: sub.selectedWonder ? sub.selectedWonder.name : null
       }});
-      resetSub(); return;
+      if (result && result.status === "accepted") resetSub();
+      return;
     }
 
     // Nothing was waiting on the click. A city-state is the one space on the
@@ -6295,7 +6594,6 @@ const UI = (() => {
       const tier = Game.getCardTier(me, cardType);
       const uniqueCard = Game.getActiveUniqueCard ? Game.getActiveUniqueCard(me, cardType) : null;
       const cardName = uniqueCard ? uniqueCard.name : Game.CARD_NAMES[cardType][tier - 1];
-      const icon = Game.CARD_ICONS[cardType];
       const maxT = Game.CFG.maxTrade;
       const filled = me.trade[cardType];
       let tradeDots = "";
@@ -6322,17 +6620,17 @@ const UI = (() => {
             ${govtArt ? `<img src="${escapeHtml(govtArt)}" alt="" draggable="false">` : `<span class="fc-gov-name">${escapeHtml(govt.name)}</span>`}
             <span class="fc-gov-shift">+${govt.shift} places</span>
           </span>` : ""}
-          ${uniqueCard ? `<span class="fc-unique-seal" title="Unique ${escapeHtml(me.leaderId)} card">★</span>` : ""}
+          ${uniqueCard ? `<span class="fc-unique-seal" title="Unique ${escapeHtml(me.leaderId)} card">UNQ</span>` : ""}
         </div>
         <div class="fc-header">
-          <span class="fc-icon">${icon}</span>
+          <span class="fc-icon">${focusMark(cardType, "focus-mark-sm")}</span>
           <span class="fc-type">${Game.FOCUS_LABELS[cardType]}</span>
           <span class="fc-tier-roman">${TIER_LABELS[tier - 1]}</span>
         </div>
         <div class="fc-body">
           <div class="fc-nameline">
             <span class="fc-power">${effective}${govt ? `<span class="gov-plus" title="${govt.name}: resolves ${govt.shift} places further right">${govt.name[0]}</span>` : ""}</span>
-            <span class="fc-cardname">${uniqueCard ? "★ " : ""}${escapeHtml(cardName)}</span>
+            <span class="fc-cardname">${uniqueCard ? `<span class="fc-unique-label">Unique</span> ` : ""}${escapeHtml(cardName)}</span>
           </div>
           <div class="fc-printed">${escapeHtml(printed)}</div>
         </div>

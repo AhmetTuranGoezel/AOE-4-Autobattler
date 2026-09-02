@@ -796,7 +796,7 @@ window.CivArtData = {
  },
  "naturalWonder": {
   "Mt Kilimanjaro": "tokens/nat-wonder__image-face__ugc-1994562021176699687__6d77c8e0aba6c48c.webp",
-  "Mount Everest": "tokens/nat-wonder__image-face__ugc-1994562021176700608__41f6894973027958.webp",
+  "Mt. Everest": "tokens/nat-wonder__image-face__ugc-1994562021176700608__41f6894973027958.webp",
   "Ha Long Bay": "tokens/diamond__image-face__ugc-1658972912263553292__d752ad6966c27901.webp",
   "Gobustan": "tokens/diamond__image-face__ugc-1658972912263554175__888fdf427d816f86.webp",
   "Grand Mesa": "tokens/diamond__image-face__ugc-1994562021176700226__5a75b3b7345ca4c8.webp",

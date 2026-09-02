@@ -18,6 +18,7 @@
   <pre id="summary"></pre>
 
   <script src="rules-data.js"></script>
+  <script src="tile-art.js"></script>
   <script src="game.js"></script>
   <script>
     const results = document.getElementById("results");
@@ -300,6 +301,39 @@
       assert("Uluru is not on any tile", !natWonders.has("Uluru"));
       ["Cliffs of Dover", "Crater Lake", "Mt Kilimanjaro", "Mato Tipila", "Gobustan"].forEach((w) =>
         assert("natural wonder present: " + w, natWonders.has(w)));
+      const printedNaturalFaces = [
+        ["11", "A", "04A", "Grand Mesa", "diamonds", "tile-04-side-a.webp"],
+        ["11", "B", "04B", "Galapagos Islands", "mercury", "tile-04-side-b.webp"],
+        ["12", "A", "18A", "Dead Sea", "marble", "tile-18-side-a.webp"],
+        ["12", "B", "18B", "Mato Tipila", "mercury", "tile-18-side-b.webp"],
+        ["13", "A", "13A", "Mt Kilimanjaro", "oil", "tile-13-side-a.webp"],
+        ["13", "B", "13B", "Pantanal", "marble", "tile-13-side-b.webp"],
+        ["16", "A", "01A", "Torres del Paine", "diamonds", "tile-01-side-a.webp"],
+        ["16", "B", "01B", "Cliffs of Dover", "marble", "tile-01-side-b.webp"],
+        ["TI02", "A", "19A", "Ha Long Bay", "diamonds", "tile-19-side-a.webp"],
+        ["TI02", "B", "19B", "Gobustan", "oil", "tile-19-side-b.webp"],
+        ["TI05", "A", "02A", "Mt. Everest", "oil", "tile-02-side-a.webp"],
+        ["TI05", "B", "02B", "Crater Lake", "mercury", "tile-02-side-b.webp"]
+      ];
+      printedNaturalFaces.forEach(([tileId, side, printedId, name, resource, image]) => {
+        const face = data.TILES.find((tile) => tile.id === tileId).sides[side];
+        const printed = face.cells.find((cell) => cell.naturalWonder);
+        assert(`printed tile ${printedId} has ${name} (${resource})`,
+          printed && printed.naturalWonder === name &&
+          data.NATURAL_WONDER_RESOURCES[name] === resource,
+          printed && `${printed.naturalWonder}/${data.NATURAL_WONDER_RESOURCES[printed.naturalWonder]}`);
+        assert(`printed tile ${printedId} uses ${image}`,
+          CivTileArt.tileImagePath(tileId, side)?.endsWith(image),
+          CivTileArt.tileImagePath(tileId, side));
+      });
+      const naturalResourceCounts = Object.values(data.NATURAL_WONDER_RESOURCES)
+        .reduce((counts, resource) => {
+          counts[resource] = (counts[resource] || 0) + 1;
+          return counts;
+        }, {});
+      assert("the twelve printed Natural Wonders contain three of each resource",
+        Game.RESOURCES.every((resource) => naturalResourceCounts[resource] === 3),
+        JSON.stringify(naturalResourceCounts));
       assert("twelve city-states on the tiles", cityStatesOnTiles.size === 12);
       const tile20 = data.TILES.find((t) => t.id === "10");
       const tile20AStates = tile20.sides.A.cells.map((c) => c.cityState).filter(Boolean);
@@ -447,6 +481,27 @@
       } });
       assert("a save with lost hidden state stays read-only even offline",
         oldSave.map.hexes["0,0"].terrain === "grass");
+
+      const oldNaturalFace = Game.createState(players(2));
+      oldNaturalFace.rulesVersion = 1;
+      Object.assign(oldNaturalFace.map.hexes["0,0"], {
+        active: true,
+        revealed: true,
+        tileId: "16",
+        tileCell: 6,
+        tileSide: "A",
+        resource: "wonder",
+        naturalWonder: "Cliffs of Dover"
+      });
+      Game.migrateState(oldNaturalFace);
+      assert("rules-v1 saves remap a placed Natural Wonder from its printed face",
+        oldNaturalFace.rulesVersion === 2 &&
+        oldNaturalFace.map.hexes["0,0"].naturalWonder === "Torres del Paine" &&
+        oldNaturalFace.map.hexes["0,0"].resource === "wonder");
+      const naturalFaceOnce = JSON.stringify(oldNaturalFace);
+      Game.migrateState(oldNaturalFace);
+      assert("Natural Wonder face migration is idempotent",
+        JSON.stringify(oldNaturalFace) === naturalFaceOnce);
 
 
       // --- Rulebook conformance: trade tokens, combat, unit counts ----------
@@ -880,6 +935,214 @@
         }, { actorId: second.player.id, role: "player" });
         assert("an actually unplaceable tile returns to the top after exhaustive checking",
           abandoned.accepted && abandoned.state.tileStack[0] === returnedId && !abandoned.state.pendingExploration);
+
+        {
+          // Shipbuilding's lower paragraph is an owned decision BEFORE the
+          // reveal. No tile or movement point may disappear while that prompt
+          // waits, and choosing a water token must continue the same expedition
+          // rather than forcing the interface to start it a second time.
+          const indonesia = explorationState();
+          const sailor = indonesia.player;
+          sailor.leaderId = "indonesia";
+          sailor.cardTiers.economy = 2;
+          sailor.cardLevels.economy = 2;
+          sailor.uniqueTaken = true;
+          sailor.armies = [];
+          sailor.caravans = [{ id: "shipbuilder", position: indonesia.origin }];
+          const seat = { actorId: sailor.id, role: "player" };
+          const stackBefore = indonesia.st.tileStack.slice();
+          const offered = Game.tryApplyAction(indonesia.st, {
+            type: "BEGIN_EXPLORATION",
+            payload: {
+              fromKey: indonesia.origin, unitId: "shipbuilder",
+              unitType: "caravan", startKey: indonesia.origin,
+              route: [], tradeSpent: 0
+            }
+          }, seat);
+          const waterChoice = offered.accepted && offered.state.pendingChoices
+            .find((choice) => choice.kind === "shipbuilding_water");
+          assert("Shipbuilding asks its owner before revealing the tile",
+            offered.accepted && !!waterChoice && !offered.state.pendingExploration &&
+            JSON.stringify(offered.state.tileStack) === JSON.stringify(stackBefore));
+
+          const waterKey = waterChoice && waterChoice.hexKeys[0];
+          const continued = waterChoice ? Game.tryApplyAction(offered.state, {
+            type: "RESOLVE_PENDING_CHOICE",
+            payload: { choiceId: waterChoice.id, hexKey: waterKey }
+          }, seat) : { accepted: false };
+          const waterHex = continued.accepted && continued.state.map.hexes[waterKey];
+          assert("placing Shipbuilding's water token atomically reveals the expedition tile",
+            continued.accepted && waterHex && waterHex.active &&
+            waterHex.terrain === "water" && waterHex.tileId === "water-token" &&
+            continued.state.pendingExploration &&
+            continued.state.pendingExploration.shipbuildingWaterKey === waterKey);
+          assert("Shipbuilding charges exactly one exploration movement point",
+            continued.accepted &&
+            continued.state.pendingExploration.movementContinuation.remaining ===
+              Game.getEconomyMove(sailor, indonesia.st) - 1);
+          assert("Shipbuilding records its once-per-resolution opportunity on the active card",
+            continued.accepted && continued.state.activeCard &&
+            continued.state.activeCard.shipbuildingWaterOffered &&
+            continued.state.activeCard.shipbuildingWaterPlaced);
+        }
+
+        {
+          // Skipping the optional token is not cancelling the expedition: it
+          // must reveal the same bottom tile and leave the map untouched.
+          const indonesia = explorationState();
+          const sailor = indonesia.player;
+          sailor.leaderId = "indonesia";
+          sailor.cardTiers.economy = 2;
+          sailor.cardLevels.economy = 2;
+          sailor.uniqueTaken = true;
+          sailor.armies = [];
+          sailor.caravans = [{ id: "shipbuilder-skip", position: indonesia.origin }];
+          const seat = { actorId: sailor.id, role: "player" };
+          const offered = Game.tryApplyAction(indonesia.st, {
+            type: "BEGIN_EXPLORATION",
+            payload: {
+              fromKey: indonesia.origin, unitId: "shipbuilder-skip",
+              unitType: "caravan", startKey: indonesia.origin,
+              route: [], tradeSpent: 0
+            }
+          }, seat);
+          const choice = offered.accepted && offered.state.pendingChoices
+            .find((entry) => entry.kind === "shipbuilding_water");
+          const activeBefore = choice
+            ? choice.hexKeys.filter((key) => offered.state.map.hexes[key].active).length : -1;
+          const skipped = choice ? Game.tryApplyAction(offered.state, {
+            type: "RESOLVE_PENDING_CHOICE",
+            payload: { choiceId: choice.id, dismiss: true }
+          }, seat) : { accepted: false };
+          const activeAfter = choice && skipped.accepted
+            ? choice.hexKeys.filter((key) => skipped.state.map.hexes[key].active).length : -2;
+          assert("skipping Shipbuilding continues exploration without placing water",
+            skipped.accepted && skipped.state.pendingExploration &&
+            !skipped.state.pendingChoices.some((entry) => entry.id === choice.id) &&
+            activeAfter === activeBefore);
+        }
+
+        {
+          // Astronomy is a full replacement science card: inspect/reorder first,
+          // optionally explore with a retained tile, and only then move the dial
+          // and reset the card.
+          const st0 = rulesState();
+          const astronomer = st0.players[0];
+          astronomer.leaderId = "poland";
+          astronomer.cardTiers.science = 2;
+          astronomer.cardLevels.science = 2;
+          astronomer.uniqueTaken = true;
+          st0.tiles = st0.setup.tiles;
+          st0.tileStack = st0.setup.tileStack.slice();
+          st0.tileDeck = st0.tileStack.slice();
+          const capitalEdge = Object.keys(st0.map.hexes).find((hexKey) => {
+            const hex = st0.map.hexes[hexKey];
+            return hex && hex.active && hex.terrain !== "water" &&
+              Game.hexNeighborKeys(hex.q, hex.r)
+                .some((neighbor) => !st0.map.hexes[neighbor] || !st0.map.hexes[neighbor].active);
+          });
+          activate(st0, capitalEdge, {
+            tileId: st0.map.hexes[capitalEdge].tileId,
+            city: { ownerId: astronomer.id, isCapital: true, developed: false,
+              hasWonder: false, wonder: null }
+          });
+          const expectedAdvance = Game.getSlotValue(astronomer, "science", st0);
+          const originalStack = st0.tileStack.slice();
+          const seat = { actorId: astronomer.id, role: "player" };
+          const begun = Game.tryApplyAction(st0, {
+            type: "PLAY_SCIENCE", payload: { tradeSpent: 0 }
+          }, seat);
+          const inspect = begun.accepted && begun.state.pendingChoices
+            .find((choice) => choice.kind === "astronomy_tiles");
+          assert("Astronomy exposes at most the bottom two tiles before moving the dial",
+            begun.accepted && inspect && inspect.tileIds.length > 0 &&
+            inspect.tileIds.length <= 2 && astronomer.tech === 0 &&
+            begun.state.players[0].tech === 0);
+          const reordered = inspect ? Game.tryApplyAction(begun.state, {
+            type: "RESOLVE_PENDING_CHOICE",
+            payload: { choiceId: inspect.id, optionId: "none|top|forward" }
+          }, seat) : { accepted: false };
+          assert("Astronomy can return both inspected tiles to the top in order",
+            reordered.accepted &&
+            JSON.stringify(reordered.state.tileStack.slice(0, inspect.tileIds.length)) ===
+              JSON.stringify(inspect.tileIds) &&
+            reordered.state.tileStack.length === originalStack.length);
+          assert("Astronomy advances and resets only after the tile decision is complete",
+            reordered.accepted && !reordered.state.cardResolution &&
+            reordered.state.players[0].tech === expectedAdvance &&
+            reordered.state.players[0].cardPlayed);
+        }
+
+        {
+          const st0 = rulesState();
+          const astronomer = st0.players[0];
+          astronomer.leaderId = "poland";
+          astronomer.cardTiers.science = 2;
+          astronomer.cardLevels.science = 2;
+          astronomer.uniqueTaken = true;
+          st0.tiles = st0.setup.tiles;
+          st0.tileStack = st0.setup.tileStack.slice();
+          st0.tileDeck = st0.tileStack.slice();
+          const capitalEdge = Object.keys(st0.map.hexes).find((hexKey) => {
+            const hex = st0.map.hexes[hexKey];
+            return hex && hex.active && hex.terrain !== "water" &&
+              Game.hexNeighborKeys(hex.q, hex.r)
+                .some((neighbor) => !st0.map.hexes[neighbor] || !st0.map.hexes[neighbor].active);
+          });
+          activate(st0, capitalEdge, {
+            tileId: st0.map.hexes[capitalEdge].tileId,
+            city: { ownerId: astronomer.id, isCapital: true, developed: false,
+              hasWonder: false, wonder: null }
+          });
+          const expectedAdvance = Game.getSlotValue(astronomer, "science", st0);
+          const seat = { actorId: astronomer.id, role: "player" };
+          const begun = Game.tryApplyAction(st0, {
+            type: "PLAY_SCIENCE", payload: { tradeSpent: 0 }
+          }, seat);
+          const inspect = begun.accepted && begun.state.pendingChoices
+            .find((choice) => choice.kind === "astronomy_tiles");
+          const placeOption = inspect && inspect.options.find((option) =>
+            String(option.id).startsWith("place|"));
+          const selected = placeOption ? Game.tryApplyAction(begun.state, {
+            type: "RESOLVE_PENDING_CHOICE",
+            payload: { choiceId: inspect.id, optionId: placeOption.id }
+          }, seat) : { accepted: false };
+          const edge = selected.accepted && selected.state.pendingChoices
+            .find((choice) => choice.kind === "astronomy_edge");
+          const explored = edge ? Game.tryApplyAction(selected.state, {
+            type: "RESOLVE_PENDING_CHOICE",
+            payload: { choiceId: edge.id, hexKey: edge.hexKeys[0] }
+          }, seat) : { accepted: false };
+          const pending = explored.accepted && explored.state.pendingExploration;
+          assert("Astronomy explores the chosen retained tile from a capital-tile edge",
+            explored.accepted && pending && pending.freeRun &&
+            pending.followUp === "astronomy_finish" &&
+            pending.tileId === (placeOption && placeOption.id.split("|")[1]) &&
+            !explored.state.tileStack.includes(pending.tileId));
+
+          let finished = { accepted: false };
+          if (pending) {
+            const placements = Game.getLegalExplorationPlacements(explored.state, pending);
+            if (placements.length) {
+              const home = placements[0];
+              finished = Game.tryApplyAction(explored.state, {
+                type: "PLACE_EXPLORED_TILE",
+                payload: {
+                  anchorKey: home.anchorKey, rotation: home.rotation, side: home.side
+                }
+              }, seat);
+            } else {
+              finished = Game.tryApplyAction(explored.state, {
+                type: "ABANDON_EXPLORATION", payload: {}
+              }, seat);
+            }
+          }
+          assert("placing or returning Astronomy's tile closes its science transaction",
+            finished.accepted && !finished.state.pendingExploration &&
+            !finished.state.cardResolution &&
+            finished.state.players[0].tech === expectedAdvance &&
+            finished.state.players[0].cardPlayed);
+        }
       }
 
       {
@@ -2564,6 +2827,291 @@
           deck.revealed !== first && (deck.removed || []).indexOf(first) >= 0);
         assert("the replacement starts unmarked", deck.token === 0);
         assert("a removed wonder is out of the deck", deck.deck.indexOf(first) < 0);
+      }
+
+      {
+        // Mysticism moves the control token which was underneath the district.
+        // It must not offer an adjacent, unrelated token as the source.
+        let st0 = rulesState();
+        const me = st0.players[0];
+        me.leaderId = "aztec";
+        activate(st0, "0,0", {
+          city: { ownerId: me.id, isCapital: true, developed: false, hasWonder: false, wonder: null }
+        });
+        activate(st0, "1,0", {
+          control: { ownerId: me.id, fortified: true, district: null }
+        });
+        activate(st0, "1,-1");
+        activate(st0, "0,1", {
+          control: { ownerId: me.id, fortified: false, district: null }
+        });
+
+        st0 = Game.applyAction(st0, { type: "PLAY_GROWTH_DISTRICT", payload: {
+          playerId: me.id, hexKey: "1,0", district: "campus", tradeSpent: 0
+        } });
+        const relocation = (st0.pendingChoices || []).find((choice) =>
+          choice.kind === "mysticism_control_destination");
+        assert("Mysticism offers the replaced token's destination directly",
+          relocation && !st0.pendingChoices.some((choice) =>
+            choice.kind === "mysticism_control_source") &&
+          relocation.carriedControl && relocation.carriedControl.fortified === true,
+          JSON.stringify(st0.pendingChoices));
+        assert("a Mysticism district is placed on its unreinforced side",
+          st0.map.hexes["1,0"].control.district === "campus" &&
+          st0.map.hexes["1,0"].control.fortified === false);
+
+        st0 = Game.applyAction(st0, { type: "RESOLVE_PENDING_CHOICE", payload: {
+          playerId: me.id, choiceId: relocation.id, hexKey: "1,-1"
+        } });
+        assert("Mysticism relocates that same physical control token beside the district",
+          st0.map.hexes["1,-1"].control &&
+          st0.map.hexes["1,-1"].control.ownerId === me.id &&
+          st0.map.hexes["1,-1"].control.fortified === true &&
+          st0.map.hexes["0,1"].control && !st0.map.hexes["0,1"].control.fortified);
+        assert("Mysticism completes its focus-card transaction after relocation",
+          me.id === st0.players[0].id && st0.players[0].cardPlayed === true && !st0.cardResolution);
+      }
+
+      {
+        // Radio's fifth-slot city replacement is printed as a mandatory
+        // choice when a legal city exists; it is never a host-skippable prompt.
+        let st0 = rulesState();
+        const me = st0.players[0];
+        const rival = st0.players[1];
+        me.leaderId = "america";
+        me.uniqueTaken = true;
+        me.cardTiers.culture = 4;
+        me.cardLevels.culture = 4;
+        me.focusRow = ["growth", "science", "economy", "military", "industry", "culture"];
+        activate(st0, "0,0", {
+          city: { ownerId: me.id, isCapital: true, developed: false, hasWonder: false, wonder: null }
+        });
+        ["1,0", "0,1", "-1,1"].forEach((hexKey) => activate(st0, hexKey));
+        activate(st0, "3,0", {
+          city: { ownerId: rival.id, isCapital: false, developed: false, hasWonder: false, wonder: null }
+        });
+
+        st0 = Game.applyAction(st0, { type: "PLAY_CULTURE", payload: {
+          playerId: me.id, hexKeys: ["1,0", "0,1", "-1,1"], tradeSpent: 0
+        } });
+        const seizure = (st0.pendingChoices || []).find((choice) => choice.kind === "seize_city");
+        assert("Radio requires its owner to choose a legal fifth-slot rival city",
+          seizure && seizure.playerId === me.id && seizure.optional !== true &&
+          seizure.hexKeys.includes("3,0"), JSON.stringify(st0.pendingChoices));
+      }
+
+      {
+        // Industrialization replaces Nationalism; it keeps slot-5 production
+        // at 5 and adds districts instead of inheriting Nationalism's printed 7.
+        const st0 = rulesState();
+        const me = st0.players[0];
+        me.leaderId = "japan";
+        me.uniqueTaken = true;
+        me.cardTiers.industry = 3;
+        me.cardLevels.industry = 3;
+        me.focusRow = ["culture", "growth", "science", "economy", "military", "industry"];
+        activate(st0, "0,0", {
+          control: { ownerId: me.id, fortified: false, district: "campus" }
+        });
+        activate(st0, "1,0", {
+          control: { ownerId: me.id, fortified: true, district: "industrial" }
+        });
+        const wonderName = Game.ALL_WONDERS[0].name;
+        const japan = Game.calculateWonderProduction(st0, me, wonderName, {});
+        assert("Industrialization uses slot 5 plus one production per district",
+          japan.ok && japan.production.base === 5 &&
+          japan.production.districtBonus === 2 && japan.production.total === 7,
+          JSON.stringify(japan.production));
+
+        const standard = rulesState();
+        const builder = standard.players[0];
+        builder.cardTiers.industry = 3;
+        builder.cardLevels.industry = 3;
+        builder.focusRow = ["culture", "growth", "science", "economy", "military", "industry"];
+        const nationalism = Game.calculateWonderProduction(standard, builder, wonderName, {});
+        assert("standard Nationalism still produces 7 in the fifth slot",
+          nationalism.ok && nationalism.production.base === 7 &&
+          nationalism.production.districtBonus === 0);
+      }
+
+      {
+        // Petra errata: a barbarian that would enter one of the owner's cities
+        // or reinforced markers walks in the opposite direction instead.
+        const st0 = rulesState();
+        const owner = st0.players[0];
+        Object.values(st0.map.hexes).forEach((hex) => {
+          hex.barbarian = false; hex.barbarianId = null;
+        });
+        activate(st0, "0,0", { barbarian: true });
+        st0.map.hexes["0,0"].barbarianId = "P";
+        activate(st0, "1,-1", {
+          control: { ownerId: owner.id, fortified: true, district: null }
+        });
+        activate(st0, "-1,1");
+        activate(st0, "0,2", {
+          city: { ownerId: owner.id, isCapital: false, developed: false, hasWonder: true,
+            wonder: { name: "Petra", type: "military", era: "ancient" } }
+        });
+        const originalRandom = Math.random;
+        Math.random = () => 0; // direction-token face 1: north-east
+        try { Game.resolveEvent(st0, "barbarian_move"); }
+        finally { Math.random = originalRandom; }
+        assert("Petra sends a barbarian in the opposite direction",
+          st0.map.hexes["-1,1"].barbarian === true &&
+          st0.map.hexes["0,0"].barbarian === false);
+        assert("Petra prevents the reinforced marker from being battered",
+          st0.map.hexes["1,-1"].control && st0.map.hexes["1,-1"].control.fortified === true);
+      }
+
+      {
+        // Cristo Redentor says build OR capture. Capturing it through any city
+        // replacement must queue its city choice and must exclude every army,
+        // including one belonging to the new owner.
+        let st0 = rulesState();
+        const me = st0.players[0];
+        const rival = st0.players[1];
+        activate(st0, "0,0", {
+          city: { ownerId: rival.id, isCapital: false, developed: false, hasWonder: true,
+            wonder: { name: "Cristo Redentor", type: "culture", era: "modern" } }
+        });
+        activate(st0, "1,0", {
+          city: { ownerId: rival.id, isCapital: false, developed: false, hasWonder: false, wonder: null }
+        });
+        activate(st0, "2,0", {
+          city: { ownerId: rival.id, isCapital: false, developed: false, hasWonder: false, wonder: null }
+        });
+        me.armies.push({ id: "cristo-guard", position: "2,0" });
+        st0.pendingChoices = [{
+          id: "capture-cristo", kind: "seize_city", playerId: me.id,
+          source: "test", hexKeys: ["0,0"]
+        }];
+        st0 = Game.applyAction(st0, { type: "RESOLVE_PENDING_CHOICE", payload: {
+          playerId: me.id, choiceId: "capture-cristo", hexKey: "0,0"
+        } });
+        const followUp = (st0.pendingChoices || []).find((choice) =>
+          choice.source === "Cristo Redentor");
+        assert("capturing Cristo Redentor triggers its city takeover",
+          followUp && followUp.hexKeys.includes("1,0"), JSON.stringify(st0.pendingChoices));
+        assert("Cristo Redentor excludes a city containing any army",
+          followUp && !followUp.hexKeys.includes("2,0"));
+      }
+
+      {
+        // Statue of Liberty applies before effect-based replacement as well as
+        // combat, and unused plain control tokens never copy rival districts.
+        let st0 = rulesState();
+        const me = st0.players[0];
+        const rival = st0.players[1];
+        activate(st0, "-2,0", {
+          city: { ownerId: me.id, isCapital: false, developed: false, hasWonder: true,
+            wonder: { name: "Statue of Liberty", type: "military", era: "modern" } }
+        });
+        activate(st0, "0,0", {
+          city: { ownerId: rival.id, isCapital: false, developed: false, hasWonder: false, wonder: null }
+        });
+        activate(st0, "1,0", {
+          control: { ownerId: rival.id, fortified: true, district: "campus" }
+        });
+        activate(st0, "0,1", {
+          control: { ownerId: rival.id, fortified: false, district: null }
+        });
+        st0.pendingChoices = [{
+          id: "liberty-city", kind: "seize_city", playerId: me.id,
+          source: "Radio", hexKeys: ["0,0"]
+        }];
+        st0 = Game.applyAction(st0, { type: "RESOLVE_PENDING_CHOICE", payload: {
+          playerId: me.id, choiceId: "liberty-city", hexKey: "0,0"
+        } });
+        assert("Statue of Liberty fires on a non-combat city replacement",
+          st0.map.hexes["1,0"].control.ownerId === me.id &&
+          st0.map.hexes["0,1"].control.ownerId === me.id);
+        assert("Statue of Liberty replaces districts with plain unreinforced control",
+          st0.map.hexes["1,0"].control.district === null &&
+          st0.map.hexes["1,0"].control.fortified === false);
+      }
+
+      {
+        // Stonehenge triggers from generic placement effects and "1 or more"
+        // means every adjacent hill is independently available, not just one.
+        let st0 = rulesState();
+        const me = st0.players[0];
+        activate(st0, "3,0", {
+          city: { ownerId: me.id, isCapital: false, developed: false, hasWonder: true,
+            wonder: { name: "Stonehenge", type: "culture", era: "ancient" } }
+        });
+        activate(st0, "0,0", { terrain: "hill" });
+        activate(st0, "1,0", { terrain: "hill" });
+        activate(st0, "-1,0", { terrain: "hill" });
+        st0.pendingChoices = [{
+          id: "gardens-hill", kind: "place_control", playerId: me.id,
+          source: "Hanging Gardens", hexKeys: ["0,0"], optional: true
+        }];
+        st0 = Game.applyAction(st0, { type: "RESOLVE_PENDING_CHOICE", payload: {
+          playerId: me.id, choiceId: "gardens-hill", hexKey: "0,0"
+        } });
+        let links = (st0.pendingChoices || []).filter((choice) => choice.source === "Stonehenge");
+        assert("Stonehenge triggers from a Hanging Gardens control placement",
+          links.some((choice) => choice.hexKeys.includes("1,0")) &&
+          links.some((choice) => choice.hexKeys.includes("-1,0")), JSON.stringify(links));
+        for (const target of ["1,0", "-1,0"]) {
+          const link = (st0.pendingChoices || []).find((choice) =>
+            choice.source === "Stonehenge" && choice.hexKeys.includes(target));
+          st0 = Game.applyAction(st0, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: link.id, hexKey: target
+          } });
+        }
+        assert("Stonehenge may place on more than one hill beside the triggering space",
+          st0.map.hexes["1,0"].control.ownerId === me.id &&
+          st0.map.hexes["-1,0"].control.ownerId === me.id);
+      }
+
+      {
+        // Great Zimbabwe has four physical spaces. If a multi-token reward
+        // overflows it, the remaining token still has to reach a focus card.
+        let st0 = rulesState();
+        const me = st0.players[0];
+        activate(st0, "0,0", {
+          city: { ownerId: me.id, isCapital: false, developed: false, hasWonder: true,
+            wonder: { name: "Great Zimbabwe", type: "economy", era: "medieval" } }
+        });
+        me.zimbabwe = 3;
+        st0.pendingChoices = [{
+          id: "zimbabwe-overflow", kind: "trade_any", playerId: me.id,
+          source: "test reward", amount: 2,
+          options: [{ id: "zimbabwe", label: "Great Zimbabwe" }]
+        }];
+        st0 = Game.applyAction(st0, { type: "RESOLVE_PENDING_CHOICE", payload: {
+          playerId: me.id, choiceId: "zimbabwe-overflow", optionId: "zimbabwe"
+        } });
+        const overflow = (st0.pendingChoices || []).find((choice) =>
+          choice.kind === "trade_any" && choice.amount === 1);
+        assert("Great Zimbabwe fills only its fourth space", st0.players[0].zimbabwe === 4);
+        assert("Great Zimbabwe reroutes an overflowing trade token instead of deleting it",
+          overflow && overflow.options.every((option) => option.id !== "zimbabwe"));
+      }
+
+      {
+        // Antananarivo is a friendly city for district/wonder effects, so the
+        // central friendly-space test must also feed Forbidden City.
+        let st0 = rulesState();
+        const ending = st0.players[0];
+        const owner = st0.players[1];
+        ending.cardPlayed = true;
+        owner.diplomacy.push({ fromCityState: "Antananarivo", type: "culture" });
+        activate(st0, "-2,0", {
+          city: { ownerId: owner.id, isCapital: false, developed: false, hasWonder: true,
+            wonder: { name: "Forbidden City", type: "culture", era: "medieval" } }
+        });
+        activate(st0, "0,0", {
+          cityState: { name: "Antananarivo", type: "culture" }
+        });
+        activate(st0, "1,0", {
+          control: { ownerId: ending.id, fortified: false, district: null }
+        });
+        st0 = Game.applyAction(st0, { type: "END_TURN", payload: { playerId: ending.id } });
+        const forbidden = (st0.pendingChoices || []).find((choice) => choice.source === "Forbidden City");
+        assert("Forbidden City recognizes Antananarivo as a friendly adjacent space",
+          forbidden && forbidden.hexKeys.includes("1,0"), JSON.stringify(st0.pendingChoices));
       }
 
       {

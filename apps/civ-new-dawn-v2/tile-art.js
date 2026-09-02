@@ -10,7 +10,7 @@
 // The extractor numbers tiles 1-21, the way the physical tiles are numbered.
 // This app numbers them "01".."16" and "TI01".."TI05". The bridge below is
 // twelve tiles matched by the names printed on their two sides (a tile whose
-// A side is Cliffs of Dover and B side Torres del Paine is physical tile 1,
+// A side is Torres del Paine and B side Cliffs of Dover is physical tile 1,
 // and nothing else is), and nine assigned within their category because there
 // is nothing printed on them to match. Both are marked, so nobody reads more
 // certainty into this table than it has.
@@ -26,15 +26,15 @@ const CivTileArt = (() => {
   //         group; capital tiles are dealt at random and the plain tiles are
   //         shuffled into the stack, so which is which does not affect play.
   const TILE_NUMBER = {
-    "16":   { n: 1,  by: "match", sides: "Cliffs of Dover / Torres del Paine" },
-    "TI05": { n: 2,  by: "match", sides: "Crater Lake / Mount Everest" },
-    "11":   { n: 4,  by: "match", sides: "Galapagos / Grand Mesa" },
+    "16":   { n: 1,  by: "match", sides: "Torres del Paine / Cliffs of Dover" },
+    "TI05": { n: 2,  by: "match", sides: "Mt. Everest / Crater Lake" },
+    "11":   { n: 4,  by: "match", sides: "Grand Mesa / Galapagos Islands" },
     "06":   { n: 6,  by: "match", sides: "Carthage / Kumasi" },
     "07":   { n: 12, by: "match", sides: "Brussels / Seoul" },
     "13":   { n: 13, by: "match", sides: "Mt Kilimanjaro / Pantanal" },
     "09":   { n: 14, by: "match", sides: "Geneva / Mohenjo Daro" },
     "08":   { n: 15, by: "match", sides: "Kabul / Buenos Aires" },
-    "12":   { n: 18, by: "match", sides: "Mato Tipila / Dead Sea" },
+    "12":   { n: 18, by: "match", sides: "Dead Sea / Mato Tipila" },
     "TI02": { n: 19, by: "match", sides: "Ha Long Bay / Gobustan" },
     "10":   { n: 20, by: "match", sides: "Akkad / Auckland" },
     "TI01": { n: 21, by: "match", sides: "Antananarivo / Palenque" },

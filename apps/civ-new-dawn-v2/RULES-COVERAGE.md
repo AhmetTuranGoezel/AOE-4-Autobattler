@@ -307,10 +307,10 @@ face, clockwise from the starting space:
 ### Tile identity
 
 `tile-art.js` bridges this app's tile ids to the numbers on the physical tiles.
-Twelve are certain: a tile whose two sides are Cliffs of Dover and Torres del
-Paine is printed tile 1, and nothing else is. Two of those twelve have their
-sides the other way round from this app's A/B, which the table records so a
-picture is never shown on the wrong face. The other nine — five capitals and
+Twelve are certain: a tile whose A/B faces are Torres del Paine and Cliffs of
+Dover is printed tile 1, and nothing else is. Every certain mapping now uses
+the physical A/B order directly, so a picture is never shown on the wrong
+face. The other nine — five capitals and
 four plain tiles — carry nothing printed to tell them apart, so they are
 assigned: stable, one-to-one, and arbitrary. Every entry is marked with which
 it is, and the tile inspector repeats it on screen rather than implying more
@@ -392,12 +392,21 @@ Added in this pass, all of them from the English card text:
 - **Jebel Barkal** — resource tokens can be spent in a fight, +2 apiece. They
   appear as their own row of buttons on the combat stage next to the trade-token
   bid, and the bidding no longer skips a side whose only ammunition is resources.
-- **Cristo Redentor** — on building it, take a rival non-capital city within 3
-  spaces with no army standing in it. Any wonder in that city changes hands too.
+- **Cristo Redentor** — on building or capturing it, take a rival non-capital
+  city within 3 spaces with no army standing in it. Any wonder in that city
+  changes hands too.
+- **Petra** — grants +2 while defending, and its errata protection sends a
+  barbarian in the opposite direction before it can enter one of the owner's
+  cities or reinforced control tokens.
+- **Statue of Liberty** — runs before combat and effect-based city replacement;
+  eligible adjacent rival markers become the owner's unused, plain control
+  markers, never copied rival districts.
+- **Stonehenge** — listens to every actual control-token placement source, not
+  just the Culture card, and offers every eligible adjacent hill independently.
 - **Eiffel Tower** — at the start of your turn, name two control tokens belonging
   to one rival; that rival chooses which of the two to hand over, and it arrives
   unreinforced.
-- **Apadana** — on building it, explore from any edge space on any tile. That is
+- **Apadana** — on building or capturing it, explore from any edge space on any tile. That is
   looser than a normal expedition, which has to start on the tile your capital is
   on, so it runs on a one-shot licence the engine issues and spends.
 - **Great Zimbabwe** — trade tokens can be banked on the wonder instead of the
@@ -439,8 +448,8 @@ Added in this pass, all of them from the English card text:
 
 ## 2. Implemented, but approximated
 
-- **1 of the 36 world wonders is a table reminder.** Its printed text is shown on
-  the card, but the effect is not automated. The other 35 resolve themselves.
+- **1 of the 34 world wonders is a table reminder.** Its printed text is shown on
+  the card, but the effect is not automated. The other 33 resolve themselves.
   The one is **Oxford University**: "when you replace a focus card other than a
   science card, you do not have to replace it with a card of the same type." The
   row here is six card *types* with a tier each, so there is no way to hold two
@@ -457,17 +466,15 @@ Added in this pass, all of them from the English card text:
   plainest reading rather than a page this app has not seen. Standard setup
   (unaffected when the checkbox is off) and the shared exploration stack are
   fully implemented, as before.
-- **How far a government marker shifts a card.** All six are 2 here. Terra p13
-  now backs three of them directly: the Monarchy worked example ("two slots to
-  the right ... the 5 slot instead of the 3 slot"), the Republic worked example
-  ("two slots farther to the right"), and the Autocracy token in the page's own
-  artwork, which carries two arrows. The other three are still inferred from the
-  set being symmetrical.
-- **Which resources each wonder accepts.** The rules say the bottom right of every
-  wonder card shows the resources that may contribute, and production gets +2 per
-  *suitable* one. That mapping is printed on the card art and appears in neither
-  the reference PDF nor the mod save, so any resource counts for any wonder here.
-  The Wonders panel says so rather than implying otherwise.
+- **How far a government marker shifts a card.** The physical government tokens
+  are authoritative: Republic, Monarchy, Oligarchy and Autocracy shift 2; the
+  Democracy and Communism tokens shift 1. The UI and effective-slot calculation
+  use those printed values.
+- **Which resources each wonder accepts.** The bottom-right icons on every wonder
+  card have been transcribed into `WONDER_RESOURCE_ELIGIBILITY`. Ordinary and
+  natural-wonder resources are accepted only when their icon is printed on the
+  chosen wonder; the payment preview and authoritative action validator share
+  that same mapping.
 ### Known gaps, read in the English books and not yet closed
 
 - **Agenda wording.** Terra p16 prints exact targets for all twelve agendas. A few
@@ -509,8 +516,8 @@ Stated plainly, because it would otherwise look authentic:
   the scale — puts exactly 10 hexes on a tile, in columns of 4/4/2, which is the
   shape the app already used. The geometry is real; only the terrain inside it is
   mine.
-- **What *is* real** on the tiles: the front/back pairings. Tile 1 is Cliffs of
-  Dover / Torres del Paine, tile 13 is Mt Kilimanjaro / Pantanal, tile 20 is
+- **What *is* real** on the tiles: the front/back pairings. Tile 1 is Torres del
+  Paine / Cliffs of Dover, tile 13 is Mt Kilimanjaro / Pantanal, tile 20 is
   Akkad / Auckland, and so on — those come from the mod's own tile descriptions.
 - **Card art.** The published card scans could not be fetched (every Steam and
   Akamai host is blocked here), so the card faces are drawn in CSS from the

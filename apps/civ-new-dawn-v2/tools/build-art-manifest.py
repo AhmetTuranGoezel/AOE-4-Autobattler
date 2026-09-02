@@ -130,7 +130,7 @@ BARBARIANS = ["J", "K", "G", "I", "H", "F", "E", "D", "C", "B", "A"]
 # nat-wonder, diamond, marble, mercury and oil, with the four plain resource
 # tokens marked as such.
 RESOURCE_GROUP = [
-    ("nw", "Mt Kilimanjaro"), ("nw", "Mount Everest"),
+    ("nw", "Mt Kilimanjaro"), ("nw", "Mt. Everest"),
     ("nw", "Ha Long Bay"), ("nw", "Gobustan"),
     ("res", "diamonds"),
     ("nw", "Grand Mesa"), ("nw", "Galapagos Islands"), ("nw", "Torres del Paine"),

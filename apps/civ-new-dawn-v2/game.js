@@ -94,9 +94,12 @@ const Game = (() => {
     military: ["Masonry", "Iron Working", "Mass Production", "Flight"],
     industry: ["Pottery", "Animal Husbandry", "Nationalism", "Urbanization"]
   };
+  // Stable typographic marks for integrations that still consume this public
+  // table. Platform emoji rendered inconsistently and made the tabletop UI
+  // look like a prototype; the main interface combines these with type colour.
   const CARD_ICONS = {
-    culture: "🎭", growth: "🌿", science: "🔬",
-    economy: "💰", military: "⚔️", industry: "🏗️"
+    culture: "CU", growth: "GR", science: "SC",
+    economy: "EC", military: "MI", industry: "IN"
   };
   // Straight from the rulebook's Handelsmarker table: each token spent on a card
   // gives exactly this. Note culture gives an extra TOKEN, not extra reach.
@@ -982,12 +985,32 @@ const Game = (() => {
     if (!st) return st;
     const projectedView = st.stateView === true;
     const sourceSchema = Number.isInteger(st.saveSchemaVersion) ? st.saveSchemaVersion : 1;
+    const sourceRulesVersion = Number.isFinite(Number(st.rulesVersion))
+      ? Number(st.rulesVersion) : 0;
     const previousMigrationFrom = st.migrationStatus && st.migrationStatus.migratedFrom;
     const previousIssues = st.migrationStatus && Array.isArray(st.migrationStatus.issues)
       ? st.migrationStatus.issues.slice() : [];
     const issues = new Set(previousIssues);
 
-    st.rulesVersion = st.rulesVersion || RULE_VERSION;
+    // Rules v2 corrects the A/B identity of printed Natural Wonder tiles 1,
+    // 2, 4 and 18. Placed tiles store their printed contents in the map, so a
+    // catalogue-only fix would leave an in-progress game with the old names.
+    // Re-read only an already-present Natural Wonder from its physical face;
+    // control, units and every other piece on the space remain untouched.
+    if (sourceRulesVersion < 2) {
+      Object.values(st.map?.hexes || {}).forEach((hex) => {
+        if (!hex || !hex.naturalWonder || !hex.tileId || !Number.isInteger(hex.tileCell)) return;
+        const tileState = (st.tiles && st.tiles[hex.tileId]) ||
+          (st.setup && st.setup.tiles && st.setup.tiles[hex.tileId]);
+        const side = hex.tileSide || (tileState && tileState.side) || "A";
+        const face = RULE_TILE_BY_ID[hex.tileId]?.sides?.[side];
+        const printed = face?.cells?.[hex.tileCell];
+        if (!printed || !printed.naturalWonder) return;
+        hex.naturalWonder = printed.naturalWonder;
+        hex.resource = "wonder";
+      });
+    }
+    st.rulesVersion = RULE_VERSION;
     st.players = (st.players || []).map(migratePlayer);
     if (!projectedView && !Array.isArray(st.tileStack)) {
       if (Array.isArray(st.tileDeck)) st.tileStack = st.tileDeck.slice();
@@ -1242,7 +1265,11 @@ const Game = (() => {
       const finishingGrowth = resolution.cardType === "growth" &&
         resolution.step === "growth_reinforce" &&
         (type === "PLAY_GROWTH_REINFORCE" || type === "END_FOCUS_CARD");
-      if (!finishingGrowth) {
+      const finishingAstronomy = resolution.cardType === "science" &&
+        resolution.cardName === "Astronomy" &&
+        resolution.step === "astronomy_exploration" &&
+        EXPLORATION_RESOLUTION_ACTIONS.has(type);
+      if (!finishingGrowth && !finishingAstronomy) {
         return denied("card_resolution_pending", "Finish the remaining steps of this focus card first.");
       }
     }
@@ -2007,6 +2034,12 @@ const Game = (() => {
       if (!validation.ok) return st;
       const { player, slot: growthSlot, tradeSpent, tradePayment, profile } = validation;
       const hex = st.map.hexes[payload.hexKey];
+      // Mysticism moves the physical control token from the district's own
+      // space. Capture that token before the district replaces it; adjacent
+      // control tokens are not part of the printed effect.
+      const mysticismControl = profile.mysticism && hex.control &&
+        hex.control.ownerId === player.id && !hex.control.district
+        ? cloneSerializable(hex.control) : null;
       // A district is a control marker, so it collects the resource token on
       // its space exactly as a plain one does (PLAY_CULTURE and the
       // place_control choice both already do this). Without it the token was
@@ -2026,7 +2059,7 @@ const Game = (() => {
       log(st, `${player.name} placed a ${payload.district} district.`);
       checkDevelopment(st, payload.playerId);
       startGrowthDistrictSequence(st, player, profile, growthSlot,
-        tradePayment, payload.hexKey);
+        tradePayment, payload.hexKey, { mysticismControl });
       return st;
     }
 
@@ -2203,6 +2236,7 @@ const Game = (() => {
           queueGreatLibrary(st, player, hex.city.ownerId);
         }
         const hostPlayer = getPlayer(st, hex.city.ownerId);
+        queueCartographyCity(st, player, payload.toKey);
         // Ibrahim card: its holder trading at an Ottoman city enriches both sides.
         if (st.ibrahimHolder === player.id && hasLeader(hostPlayer, "ottoman")) {
           player.trade.economy = Math.min(CFG.maxTrade, player.trade.economy + 1);
@@ -2935,10 +2969,71 @@ const Game = (() => {
     }).map(([hexKey]) => hexKey);
   }
 
+  function stateWorkforceMountainTargets(st, playerId) {
+    return Object.entries(st.map.hexes).filter(([, hex]) => {
+      if (!hex || !hex.active || hex.terrain !== "mountain" || hex.city ||
+          hex.cityState || hex.barbarian || hex.control || (hex.fortress && !hex.city)) return false;
+      return hexNeighborKeys(hex.q, hex.r).some((neighborKey) =>
+        isFriendlySpace(st.map.hexes[neighborKey], playerId, st));
+    }).map(([hexKey]) => hexKey);
+  }
+
+  function radioCityTargets(st, playerId) {
+    const friendlyCities = Object.values(st.map.hexes).filter((hex) =>
+      isFriendlyCity(st, hex, playerId));
+    return Object.entries(st.map.hexes).filter(([hexKey, hex]) => {
+      if (!hex || !hex.city || hex.city.ownerId === playerId || hex.city.isCapital ||
+          armyGuards(st, hexKey)) return false;
+      return friendlyCities.some((city) => hexDist(city, hex) <= 4);
+    }).map(([hexKey]) => hexKey);
+  }
+
+  function queueUniqueCultureFollowUp(st, player, tradePayment) {
+    const unique = getActiveUniqueCard(player, "culture");
+    if (!unique) return false;
+    const slot = getSlotValue(player, "culture", st);
+
+    if (unique.name === "State Workforce" && slot === 5) {
+      const spots = stateWorkforceMountainTargets(st, player.id);
+      if (!spots.length) return false;
+      const resolution = beginCultureResolution(st, player, tradePayment,
+        unique.name, "state_workforce_mountain");
+      queuePendingChoice(st, {
+        kind: "place_control",
+        playerId: player.id,
+        title: "State Workforce: Place a Control Token on a Mountain",
+        source: unique.name,
+        hexKeys: spots,
+        cardResolutionId: resolution.id
+      });
+      return true;
+    }
+
+    if (unique.name === "Radio" && slot === 5) {
+      const spots = radioCityTargets(st, player.id);
+      if (!spots.length) return false;
+      const resolution = beginCultureResolution(st, player, tradePayment,
+        unique.name, "radio_city");
+      queuePendingChoice(st, {
+        kind: "seize_city",
+        playerId: player.id,
+        title: "Radio: Replace a Rival Non-Capital City",
+        source: unique.name,
+        hexKeys: spots,
+        cardResolutionId: resolution.id
+      });
+      return true;
+    }
+
+    return false;
+  }
+
   function queueCultureFollowUp(st, player, tradePayment) {
     // Civilization-specific replacements have their own printed paragraphs;
     // they must never inherit the standard card at the same tier.
-    if (getActiveUniqueCard(player, "culture")) return false;
+    if (getActiveUniqueCard(player, "culture")) {
+      return queueUniqueCultureFollowUp(st, player, tradePayment);
+    }
     const tier = getCardTier(player, "culture");
 
     if (tier === 2) {
@@ -3032,7 +3127,51 @@ const Game = (() => {
   function queueSciencePrelude(st, player, tradePayment, advanceAmount) {
     // Unique science cards replace, rather than supplement, the standard card
     // at their tier. Their own handlers decide whether they need a sequence.
-    if (getActiveUniqueCard(player, "science")) return false;
+    const unique = getActiveUniqueCard(player, "science");
+    if (unique && unique.name === "Astronomy") {
+      const resolution = beginScienceResolution(st, player, tradePayment,
+        advanceAmount, "Astronomy", "astronomy_tiles");
+      const visible = (st.tileStack || []).slice(-2);
+      if (!visible.length) {
+        finishScienceResolution(st, resolution);
+        return true;
+      }
+      const options = [];
+      const capitalKey = findCapital(st, player.id);
+      const capital = capitalKey && st.map.hexes[capitalKey];
+      const edgeSpaces = capital ? Object.entries(st.map.hexes)
+        .filter(([, hex]) => hex && hex.active && hex.tileId === capital.tileId && isEdgeSpace(st, hex))
+        .map(([hexKey]) => hexKey) : [];
+      if (edgeSpaces.length) {
+        visible.forEach((tileId) => {
+          const remaining = visible.filter((id) => id !== tileId);
+          if (!remaining.length) {
+            options.push({ id: `place|${tileId}|bottom`, label: `Place tile ${tileId}` });
+          } else {
+            options.push({ id: `place|${tileId}|top`, label: `Place tile ${tileId}; return the other to the top` });
+            options.push({ id: `place|${tileId}|bottom`, label: `Place tile ${tileId}; return the other to the bottom` });
+          }
+        });
+      }
+      ["top", "bottom"].forEach((where) => {
+        options.push({ id: `none|${where}|forward`,
+          label: `Place neither; return ${visible.join(" then ")} to the ${where}` });
+        if (visible.length > 1) options.push({ id: `none|${where}|reverse`,
+          label: `Place neither; return ${visible.slice().reverse().join(" then ")} to the ${where}` });
+      });
+      queuePendingChoice(st, {
+        kind: "astronomy_tiles",
+        playerId: player.id,
+        title: "Astronomy: Inspect the Bottom Map Tiles",
+        source: "Astronomy",
+        tileIds: visible,
+        edgeSpaces,
+        options,
+        cardResolutionId: resolution.id
+      });
+      return true;
+    }
+    if (unique) return false;
     const tier = getCardTier(player, "science");
     if (tier === 2) {
       const resolution = beginScienceResolution(st, player, tradePayment,
@@ -3111,7 +3250,59 @@ const Game = (() => {
     }
   }
 
-  function startGrowthDistrictSequence(st, player, profile, slot, tradePayment, districtKey) {
+  function mysticismControlDestinations(st, playerId, districtKey, fromKey) {
+    const district = districtKey && st.map.hexes[districtKey];
+    const from = fromKey && st.map.hexes[fromKey];
+    if (!district || !from || !from.control || from.control.ownerId !== playerId ||
+        from.control.district || hexDist(district, from) > 1) return [];
+    return hexNeighborKeys(district.q, district.r).filter((hexKey) => {
+      if (hexKey === fromKey) return false;
+      const hex = st.map.hexes[hexKey];
+      return hex && hex.active && hex.terrain !== "water" && !hex.city &&
+        !hex.cityState && !hex.barbarian && !hex.control && !(hex.fortress && !hex.city);
+    });
+  }
+
+  function mysticismControlSources(st, playerId, districtKey) {
+    const district = districtKey && st.map.hexes[districtKey];
+    if (!district) return [];
+    return Object.entries(st.map.hexes).filter(([hexKey, hex]) =>
+      hexKey !== districtKey && hex && hex.control &&
+      hex.control.ownerId === playerId && !hex.control.district &&
+      hexDist(district, hex) <= 1 &&
+      mysticismControlDestinations(st, playerId, districtKey, hexKey).length
+    ).map(([hexKey]) => hexKey);
+  }
+
+  function mysticismDistrictDestinations(st, districtKey) {
+    const district = districtKey && st.map.hexes[districtKey];
+    if (!district || !district.control || !district.control.district) return [];
+    return hexNeighborKeys(district.q, district.r).filter((hexKey) => {
+      const hex = st.map.hexes[hexKey];
+      return hex && hex.active && hex.terrain !== "water" && !hex.city &&
+        !hex.cityState && !hex.barbarian && !hex.control &&
+        !(hex.fortress && !hex.city);
+    });
+  }
+
+  function reinforceNearFriendlyArmies(st, player) {
+    const armySpaces = new Set((player.armies || [])
+      .map((army) => army.position).filter(Boolean));
+    let reinforced = 0;
+    Object.entries(st.map.hexes).forEach(([hexKey, hex]) => {
+      if (!hex || !hex.control || hex.control.ownerId !== player.id ||
+          hex.control.fortified) return;
+      const nearArmy = armySpaces.has(hexKey) || hexNeighborKeys(hex.q, hex.r)
+        .some((neighborKey) => armySpaces.has(neighborKey));
+      if (!nearArmy) return;
+      hex.control.fortified = true;
+      reinforced++;
+    });
+    log(st, `${player.name} reinforced ${reinforced} control token${reinforced === 1 ? "" : "s"} near friendly armies (Military Engineering).`);
+    return reinforced;
+  }
+
+  function startGrowthDistrictSequence(st, player, profile, slot, tradePayment, districtKey, context) {
     const normalizedPayment = tradePayment && typeof tradePayment === "object"
       ? cloneSerializable(tradePayment)
       : { spent: Number(tradePayment || 0), focusSpent: Number(tradePayment || 0), resources: {} };
@@ -3127,9 +3318,52 @@ const Game = (() => {
       tradeBudget: normalizedPayment.spent,
       tradePayment: normalizedPayment,
       districtKey: districtKey || null,
+      mysticismControl: context && context.mysticismControl
+        ? cloneSerializable(context.mysticismControl) : null,
       step: "starting"
     };
     st.cardResolution = resolution;
+
+    if (profile.mysticism) {
+      const destinations = resolution.mysticismControl
+        ? mysticismDistrictDestinations(st, districtKey) : [];
+      if (destinations.length) {
+        resolution.step = "mysticism_control_destination";
+        queuePendingChoice(st, {
+          kind: "mysticism_control_destination",
+          playerId: player.id,
+          title: "Mysticism: Relocate the Replaced Control Token?",
+          source: "Mysticism",
+          optional: true,
+          carriedControl: cloneSerializable(resolution.mysticismControl),
+          hexKeys: destinations,
+          cardResolutionId: resolution.id
+        });
+        return;
+      }
+    }
+
+    if (profile.militaryEngineering) {
+      const cities = Object.entries(st.map.hexes)
+        .filter(([, hex]) => hex && hex.city && hex.city.ownerId === player.id)
+        .map(([hexKey]) => hexKey);
+      const armies = (player.armies || []).filter((army) => !army.position);
+      if (cities.length && armies.length) {
+        resolution.step = "military_engineering_armies";
+        armies.forEach((army) => queuePendingChoice(st, {
+          kind: "military_engineering_army",
+          playerId: player.id,
+          title: `Military Engineering: Deploy ${army.id}?`,
+          source: "Military Engineering",
+          optional: true,
+          unitId: army.id,
+          hexKeys: cities,
+          cardResolutionId: resolution.id
+        }));
+        return;
+      }
+      reinforceNearFriendlyArmies(st, player);
+    }
 
     if (profile.globalization) {
       resolution.step = "globalization_district_type";
@@ -3181,9 +3415,21 @@ const Game = (() => {
           ? resolution.resolvedSlot : 0);
       return;
     }
+    if (resolution.step === "mysticism_control_source" ||
+        resolution.step === "mysticism_control_destination") {
+      beginGrowthReinforcementStep(st, resolution, 0);
+      return;
+    }
+    if (resolution.step === "military_engineering_armies") {
+      const owner = getPlayer(st, resolution.playerId);
+      if (owner) reinforceNearFriendlyArmies(st, owner);
+      beginGrowthReinforcementStep(st, resolution, 0);
+      return;
+    }
     if (resolution.cardType === "culture" && [
       "drama_move_source", "drama_move_destination",
-      "civil_service_control", "mass_media_target"
+      "civil_service_control", "mass_media_target",
+      "state_workforce_mountain", "radio_city"
     ].includes(resolution.step)) {
       finishFocusSequence(st, {
         playerId: resolution.playerId,
@@ -3460,6 +3706,70 @@ const Game = (() => {
         if (choice.chain) queueCardUpgrade(st, player, choice.chain);
         resolved = true;
       }
+    } else if (choice.kind === "astronomy_tiles") {
+      const option = (choice.options || []).find((entry) => entry.id === payload.optionId);
+      const resolution = st.cardResolution;
+      const visible = (choice.tileIds || []).slice();
+      const tail = (st.tileStack || []).slice(-visible.length);
+      if (option && resolution && resolution.id === choice.cardResolutionId &&
+          JSON.stringify(tail) === JSON.stringify(visible)) {
+        const [mode, value, orderMode] = option.id.split("|");
+        st.tileStack.splice(st.tileStack.length - visible.length, visible.length);
+        const returnTiles = (tiles, where) => {
+          if (where === "top") st.tileStack = tiles.concat(st.tileStack);
+          else st.tileStack = st.tileStack.concat(tiles);
+        };
+        if (mode === "place" && visible.includes(value)) {
+          const remaining = visible.filter((tileId) => tileId !== value);
+          returnTiles(remaining, orderMode === "top" ? "top" : "bottom");
+          resolution.astronomyTileId = value;
+          resolution.step = "astronomy_edge";
+          queuePendingChoice(st, {
+            kind: "astronomy_edge",
+            playerId: player.id,
+            title: `Astronomy: Explore Tile ${value} From Your Capital Tile`,
+            source: "Astronomy",
+            tileId: value,
+            hexKeys: (choice.edgeSpaces || []).slice(),
+            cardResolutionId: resolution.id
+          });
+        } else if (mode === "none") {
+          const ordered = orderMode === "reverse" ? visible.slice().reverse() : visible;
+          returnTiles(ordered, value === "top" ? "top" : "bottom");
+          finishScienceResolution(st, resolution);
+        } else {
+          return st;
+        }
+        st.tileDeck = st.tileStack.slice();
+        resolved = true;
+      }
+    } else if (choice.kind === "astronomy_edge") {
+      const hexKey = payload.hexKey;
+      const resolution = st.cardResolution;
+      if ((choice.hexKeys || []).includes(hexKey) && resolution &&
+          resolution.id === choice.cardResolutionId &&
+          resolution.astronomyTileId === choice.tileId) {
+        resolution.step = "astronomy_exploration";
+        st.freeExplore = {
+          playerId: player.id,
+          fromKey: hexKey,
+          source: "Astronomy",
+          followUp: "astronomy_finish",
+          tileId: choice.tileId,
+          scienceResolutionId: resolution.id
+        };
+        beginExploration(st, { playerId: player.id, fromKey: hexKey });
+        resolved = !!(st.pendingExploration && st.pendingExploration.tileId === choice.tileId);
+        if (!resolved) st.freeExplore = null;
+      }
+    } else if (choice.kind === "shipbuilding_water") {
+      const pickedKey = payload.hexKey;
+      const skip = !!payload.dismiss;
+      const legalPick = !skip && (choice.hexKeys || []).includes(pickedKey) &&
+        isShipbuildingWaterSpace(st, choice.fromKey, pickedKey);
+      if ((skip || legalPick) && continueShipbuildingExploration(st, choice, legalPick ? pickedKey : null)) {
+        resolved = !skip;
+      }
     } else if (choice.kind === "growth_globalization_type") {
       const kind = payload.optionId;
       const resolution = st.cardResolution;
@@ -3592,8 +3902,23 @@ const Game = (() => {
         resolved = false;
       } else if (cardType === "zimbabwe" && hasWonder(st, player.id, "Great Zimbabwe")) {
         const amount = choice.amount || 1;
-        player.zimbabwe = Math.min(4, (player.zimbabwe || 0) + amount);
-        log(st, `${player.name} banked ${amount} trade token(s) on Great Zimbabwe (${player.zimbabwe}/4).`);
+        const capacity = Math.max(0, 4 - Number(player.zimbabwe || 0));
+        const banked = Math.min(capacity, amount);
+        const overflow = amount - banked;
+        player.zimbabwe = Number(player.zimbabwe || 0) + banked;
+        if (banked) log(st, `${player.name} banked ${banked} trade token(s) on Great Zimbabwe (${player.zimbabwe}/4).`);
+        if (overflow) {
+          queuePendingChoice(st, {
+            kind: "trade_any",
+            playerId: player.id,
+            title: `Place ${overflow} Overflow Trade Token${overflow === 1 ? "" : "s"}`,
+            source: choice.source || "Great Zimbabwe",
+            amount: overflow,
+            options: FOCUS_TYPES.map((focusType) => ({
+              id: focusType, label: FOCUS_LABELS[focusType]
+            }))
+          });
+        }
         resolved = true;
       } else if (FOCUS_TYPES.includes(cardType)) {
         const amount = choice.amount || 1;
@@ -3616,7 +3941,10 @@ const Game = (() => {
         if (choice.source === "inca" && hex.terrain === "mountain") {
           queueIncaChain(st, player, hexKey);
         }
-        if (choice.source === "Stonehenge" && hex.terrain === "hill") {
+        // Stonehenge listens to every actual placement source (Hanging
+        // Gardens, Engineering, Urbanization, Amundsen-Scott, Inca, etc.),
+        // not only Culture-card placements or its own previous link.
+        if (hasWonder(st, player.id, "Stonehenge") && hex.terrain === "hill") {
           queueStonehengeChain(st, player, hexKey);
         }
         if (choice.chainKey && choice.chainLeft > 0) {
@@ -3661,6 +3989,56 @@ const Game = (() => {
         log(st, `${player.name} moved a control token with Drama and Poetry.`);
         resolved = true;
       }
+    } else if (choice.kind === "mysticism_control_source") {
+      const fromKey = payload.hexKey;
+      const resolution = st.cardResolution;
+      const destinations = resolution && resolution.id === choice.cardResolutionId
+        ? mysticismControlDestinations(st, player.id, resolution.districtKey, fromKey)
+        : [];
+      if ((choice.hexKeys || []).includes(fromKey) && destinations.length) {
+        resolution.step = "mysticism_control_destination";
+        queuePendingChoice(st, {
+          kind: "mysticism_control_destination",
+          playerId: player.id,
+          title: "Mysticism: Place That Token Beside the New District",
+          source: "Mysticism",
+          optional: true,
+          fromKey,
+          hexKeys: destinations,
+          cardResolutionId: resolution.id
+        });
+        resolved = true;
+      }
+    } else if (choice.kind === "mysticism_control_destination") {
+      const resolution = st.cardResolution;
+      const toKey = payload.hexKey;
+      const carried = choice.carriedControl ||
+        (resolution && resolution.mysticismControl) || null;
+      const destinations = carried && resolution
+        ? mysticismDistrictDestinations(st, resolution.districtKey) : [];
+      if (carried && carried.ownerId === player.id && !carried.district &&
+          (choice.hexKeys || []).includes(toKey) && destinations.includes(toKey)) {
+        const destination = st.map.hexes[toKey];
+        destination.control = cloneSerializable(carried);
+        if (destination.resource && destination.resource !== "wonder" &&
+            player.resources[destination.resource] !== undefined) {
+          player.resources[destination.resource]++;
+          destination.resource = null;
+        }
+        checkDevelopment(st, player.id);
+        log(st, `${player.name} relocated a control token with Mysticism.`);
+        resolved = true;
+      }
+    } else if (choice.kind === "military_engineering_army") {
+      const army = (player.armies || []).find((unit) => unit.id === choice.unitId);
+      const hexKey = payload.hexKey;
+      const hex = st.map.hexes[hexKey];
+      if (army && !army.position && (choice.hexKeys || []).includes(hexKey) &&
+          hex && hex.city && hex.city.ownerId === player.id) {
+        army.position = hexKey;
+        log(st, `${player.name} deployed an army from Military Engineering.`);
+        resolved = true;
+      }
     } else if (choice.kind === "mass_media_target") {
       const hexKey = payload.hexKey;
       const hex = st.map.hexes[hexKey];
@@ -3701,6 +4079,19 @@ const Game = (() => {
         checkDevelopment(st, player.id);
         log(st, `${player.name} founded a city on the rim for Amundsen-Scott Research Station.`);
         queueAmundsenTokens(st, player, hexKey, 2);
+        resolved = true;
+      }
+    } else if (choice.kind === "scorched_earth") {
+      const hex = st.map.hexes[choice.hexKey];
+      const army = (player.armies || []).find((unit) => unit.id === choice.unitId);
+      if (payload.optionId === "discard" && !player.scorchedEarthUsedThisTurn &&
+          hex && hex.control && hex.control.ownerId === player.id &&
+          army && army.position === choice.hexKey) {
+        hex.control = null;
+        player.scorchedEarthUsedThisTurn = true;
+        army.movedThisCard = false;
+        army.moveInProgress = false;
+        log(st, `${player.name} discarded the conquered control token and may move that army again (Scorched Earth).`);
         resolved = true;
       }
     } else if (choice.kind === "arsenal_replay") {
@@ -3806,13 +4197,16 @@ const Game = (() => {
       const hexKey = payload.hexKey;
       const hex = st.map.hexes[hexKey];
       if ((choice.hexKeys || []).includes(hexKey) && hex && hex.city &&
-          hex.city.ownerId !== player.id && !hex.city.isCapital) {
+          hex.city.ownerId !== player.id && !hex.city.isCapital && !armyGuards(st, hexKey)) {
         const from = getPlayer(st, hex.city.ownerId);
+        const capturedWonderName = hex.city.wonder && hex.city.wonder.name;
+        replaceAdjacentControlsForStatue(st, player, hexKey);
         // The wonder in that city, if any, changes hands with it.
         hex.city = { ownerId: player.id, isCapital: false, developed: false,
           hasWonder: hex.city.hasWonder, wonder: hex.city.wonder };
         checkDevelopment(st, player.id);
-        log(st, `${player.name} took ${from ? from.name + "'s" : "a rival"} city with Cristo Redentor.`);
+        log(st, `${player.name} took ${from ? from.name + "'s" : "a rival"} city with ${choice.source || "an effect"}.`);
+        triggerCapturedWonder(st, player, hexKey, capturedWonderName);
         resolved = true;
       }
     } else if (choice.kind === "apadana_explore") {
@@ -3994,6 +4388,21 @@ const Game = (() => {
         checkDevelopment(st, player.id);
         resolved = true;
       }
+    } else if (choice.kind === "cartography_city") {
+      const hexKey = payload.hexKey;
+      const hex = st.map.hexes[hexKey];
+      const legal = (choice.hexKeys || []).includes(hexKey) &&
+        hex && isLegalCitySpace(st, hex, hexKey, player.id) &&
+        !player.cartographyUsedThisTurn;
+      if (legal) {
+        if (hex.control && hex.control.ownerId === player.id) hex.control = null;
+        hex.city = { ownerId: player.id, isCapital: false, developed: false,
+          hasWonder: false, wonder: null };
+        player.cartographyUsedThisTurn = true;
+        checkDevelopment(st, player.id);
+        log(st, `${player.name} built a distant city with Cartography.`);
+        resolved = true;
+      }
     } else if (choice.kind === "district_mode") {
       // Terra p9 prints three of the five districts as a choice of one of two
       // options. Resolving the chosen one is what makes them the printed cards
@@ -4019,6 +4428,10 @@ const Game = (() => {
     if (resolved || dismissed) {
       st.pendingChoices.splice(idx, 1);
       if (choice.cardResolutionId) advanceCardResolution(st, choice.cardResolutionId);
+      if (choice.kind === "scorched_earth" && !player.scorchedEarthUsedThisTurn &&
+          !unitsLeftToMove(player, "military")) {
+        finishActiveCard(st);
+      }
     }
     return st;
   }
@@ -4334,6 +4747,7 @@ const Game = (() => {
     // Zulu cares whether the target was a rival city or city-state — note it
     // before the capture logic rewrites the hex.
     const targetWasCityOrCS = !!(hex.cityState || (hex.city && hex.city.ownerId !== c.attackerId));
+    let scorchedOffer = null;
 
     // The breakdown has to outlive the fight. The result panel reads lastCombat
     // once combat is cleared, and without the parts it fell back to a bare
@@ -4396,6 +4810,9 @@ const Game = (() => {
         // NON-district token — the district itself is destroyed, not captured.
         hex.control = { ownerId: c.attackerId, fortified: false, district: null };
         sweepFigures(st, c.toKey, c.attackerId);
+        if (uniqueInPlay(player, "zulu") && !player.scorchedEarthUsedThisTurn) {
+          scorchedOffer = { hexKey: c.toKey, unitId: unit.id };
+        }
       }
       if (target === "city" && hex.city && hex.city.ownerId !== c.attackerId) {
         const defenderId = hex.city.ownerId;
@@ -4403,16 +4820,7 @@ const Game = (() => {
         const capturedWonderName = hex.city.wonder && hex.city.wonder.name;
         returnDiplomacyFromSource(st, player, defenderId);
         if (defender) returnDiplomacyFromSource(st, defender, c.attackerId);
-        // Statue of Liberty: the ring of rival control around the city falls with it.
-        if (hasWonder(st, c.attackerId, "Statue of Liberty")) {
-          hexNeighborKeys(hex.q, hex.r).forEach((nk) => {
-            const nh = st.map.hexes[nk];
-            if (armyGuards(st, nk)) return;
-            if (nh && nh.control && nh.control.ownerId !== c.attackerId) {
-              nh.control = { ownerId: c.attackerId, fortified: false, district: nh.control.district };
-            }
-          });
-        }
+        replaceAdjacentControlsForStatue(st, player, c.toKey);
         if (hex.city.isCapital && defender) {
           let taken = 0;
           FOCUS_TYPES.forEach((f) => {
@@ -4425,7 +4833,7 @@ const Game = (() => {
         hex.city.ownerId = c.attackerId;
         hex.city.developed = false;
         sweepFigures(st, c.toKey, c.attackerId);
-        if (capturedWonderName === "Apadana") queueApadanaExplore(st, player);
+        triggerCapturedWonder(st, player, c.toKey, capturedWonderName);
       }
       // Terra p11: a beaten figure goes back to its player's card. Only the
       // figure that was attacked — the rest of the space is untouched.
@@ -4463,6 +4871,18 @@ const Game = (() => {
       st.activeCard && st.activeCard.cardType === "military"
         ? st.activeCard.tradePayment || st.activeCard.tradeSpent
         : c.tradePayment || 0);
+    if (scorchedOffer) {
+      queuePendingChoice(st, {
+        kind: "scorched_earth",
+        playerId: player.id,
+        title: "Scorched Earth: Discard the Conquered Token and Move Again?",
+        source: "Scorched Earth",
+        optional: true,
+        hexKey: scorchedOffer.hexKey,
+        unitId: scorchedOffer.unitId,
+        options: [{ id: "discard", label: "Discard the token; move this army again" }]
+      });
+    }
     // Mass Production III: "You may move (and attack with) 1 of your armies that
     // was defeated this turn a second time after returning it to this card."
     // This is the moment the army returns to the card, so this is where the
@@ -4470,7 +4890,7 @@ const Game = (() => {
     // taking it up closes the allowance for every other defeated army.
     if (!win) offerMassProductionRedeploy(st, player, unit);
     checkDevelopment(st, c.attackerId);
-    if (!unitsLeftToMove(player, "military")) finishActiveCard(st);
+    if (!scorchedOffer && !unitsLeftToMove(player, "military")) finishActiveCard(st);
       st.combat = null;
   }
 
@@ -4526,7 +4946,25 @@ const Game = (() => {
       }
       return null;
     }
-    const destination = (fromKey) => destinationFrom(fromKey, dir);
+    function protectedByPetra(hexKey) {
+      const target = hexKey && st.map.hexes[hexKey];
+      if (!target) return false;
+      const ownerId = target.city ? target.city.ownerId
+        : target.control && target.control.fortified ? target.control.ownerId : null;
+      return !!ownerId && hasWonder(st, ownerId, "Petra");
+    }
+
+    function barbarianDestination(fromKey, heading) {
+      const forward = destinationFrom(fromKey, heading);
+      if (!protectedByPetra(forward)) return forward;
+      const reverse = { dq: -heading.dq, dr: -heading.dr };
+      const redirected = destinationFrom(fromKey, reverse);
+      log(st, `Petra turned a barbarian away from ${forward}.`);
+      // Petra's prohibition is absolute. On a cramped board where the normal
+      // edge reversal points at another protected space, the barbarian stays.
+      return protectedByPetra(redirected) ? null : redirected;
+    }
+    const destination = (fromKey) => barbarianDestination(fromKey, dir);
 
     // What a barbarian arriving at a space does to it. Barbarians already
     // standing there are NOT a reason to stop: base p16 lets them share a space
@@ -4642,7 +5080,7 @@ const Game = (() => {
       const pushRoll = rollDie();
       const pushDir = BARBARIAN_DIRS[pushRoll - 1];
       const id = ids[ids.length - 1];            // deterministic on every client
-      const toKey = destinationFrom(k, pushDir);
+      const toKey = barbarianDestination(k, pushDir);
       const outcome = outcomeAt(toKey);
       log(st, `Two barbarians met at ${k}: one is pushed ${pushDir.label} (rolled ${pushRoll}).`);
       if (outcome === "move") {
@@ -5418,6 +5856,8 @@ const Game = (() => {
   // read it.
   function getMilitaryCombatBonus(player, defenderType) {
     const tier = getCardTier(player, "military");
+    const unique = getActiveUniqueCard(player, "military");
+    if (unique) return Number(unique.combat || 0);
     const def = (CARD_DEFS.military || {})[tier] || {};
     const flat = Number(def.combat || 0);
     const vsBarb = Number(def.vsBarbarian || 0);
@@ -5505,8 +5945,33 @@ const Game = (() => {
     });
   }
 
-  // Cristo Redentor: on building it, take a rival non-capital city within 3
-  // spaces that has no army standing in it.
+  // Statue of Liberty is checked before every city replacement, including
+  // focus-card and wonder effects. A district token is not captured: every
+  // replaced marker comes from the attacker's unused, plain control supply.
+  function replaceAdjacentControlsForStatue(st, player, cityKey) {
+    const cityHex = st.map.hexes[cityKey];
+    if (!cityHex || !hasWonder(st, player.id, "Statue of Liberty")) return 0;
+    let replaced = 0;
+    hexNeighborKeys(cityHex.q, cityHex.r).forEach((neighborKey) => {
+      const neighbor = st.map.hexes[neighborKey];
+      if (!neighbor || !neighbor.control || neighbor.control.ownerId === player.id) return;
+      if (armyGuards(st, neighborKey)) return;
+      neighbor.control = { ownerId: player.id, fortified: false, district: null };
+      replaced++;
+    });
+    if (replaced) log(st, `${player.name} replaced ${replaced} adjacent rival control marker${replaced === 1 ? "" : "s"} with Statue of Liberty.`);
+    return replaced;
+  }
+
+  // The printed build-or-capture wonders trigger regardless of whether a city
+  // changed hands through combat, Radio, Cristo Redentor, or another effect.
+  function triggerCapturedWonder(st, player, cityKey, wonderName) {
+    if (wonderName === "Apadana") queueApadanaExplore(st, player);
+    if (wonderName === "Cristo Redentor") queueCristoTakeover(st, player, cityKey);
+  }
+
+  // Cristo Redentor: on building or capturing it, take a rival non-capital
+  // city within 3 spaces that has no army standing in it.
   function queueCristoTakeover(st, player, fromKey) {
     const from = st.map.hexes[fromKey];
     if (!from) return;
@@ -5514,15 +5979,38 @@ const Game = (() => {
     Object.entries(st.map.hexes).forEach(([k, h]) => {
       if (!h.city || h.city.ownerId === player.id || h.city.isCapital) return;
       if (hexDist(from, h) > 3) return;
-      if (getUnitsAt(st, k).some((u) => u.playerId !== player.id && u.type === "army")) return;
+      if (getUnitsAt(st, k).some((u) => u.type === "army")) return;
       spots.push(k);
     });
     if (!spots.length) return;
     queuePendingChoice(st, {
       kind: "seize_city", playerId: player.id,
       title: "Cristo Redentor: Take a Rival City",
-      source: "Cristo Redentor", hexKeys: spots, optional: true
+      source: "Cristo Redentor", hexKeys: spots
     });
+  }
+
+  function queueCartographyCity(st, player, rivalCityKey) {
+    if (!uniqueInPlay(player, "netherlands") || player.cartographyUsedThisTurn) return false;
+    const capitalKey = findCapital(st, player.id);
+    const capital = capitalKey && st.map.hexes[capitalKey];
+    const rivalCity = st.map.hexes[rivalCityKey];
+    if (!capital || !rivalCity || !rivalCity.city ||
+        rivalCity.city.ownerId === player.id || hexDist(capital, rivalCity) < 8) return false;
+    const spots = Object.entries(st.map.hexes).filter(([hexKey, hex]) =>
+      hex && hexDist(rivalCity, hex) <= 2 &&
+      isLegalCitySpace(st, hex, hexKey, player.id)).map(([hexKey]) => hexKey);
+    if (!spots.length) return false;
+    queuePendingChoice(st, {
+      kind: "cartography_city",
+      playerId: player.id,
+      title: "Cartography: Build a City Within 2 Spaces",
+      source: "Cartography",
+      optional: true,
+      fromKey: rivalCityKey,
+      hexKeys: spots
+    });
+    return true;
   }
 
   // Apadana: on building it, explore from any edge space on any tile.
@@ -5760,12 +6248,8 @@ const Game = (() => {
       Object.entries(st.map.hexes).forEach(([k, h]) => {
         if (!h.control || h.control.ownerId === pid) return;
         if (armyGuards(st, k)) return;
-        const nextToFriendly = hexNeighborKeys(h.q, h.r).some((nk) => {
-          const nh = st.map.hexes[nk];
-          if (!nh) return false;
-          return (nh.city && nh.city.ownerId === pid) ||
-                 (nh.control && nh.control.ownerId === pid);
-        });
+        const nextToFriendly = hexNeighborKeys(h.q, h.r)
+          .some((neighborKey) => isFriendlySpace(st.map.hexes[neighborKey], pid, st));
         if (nextToFriendly) spots.push(k);
       });
       if (spots.length) {
@@ -5895,8 +6379,30 @@ const Game = (() => {
   }
   const queueIncaChain = (st, player, key) =>
     queueControlChain(st, player, key, { source: "inca", title: "Inca: Mountain Expansion" });
-  const queueStonehengeChain = (st, player, key) =>
-    queueControlChain(st, player, key, { terrain: "hill", source: "Stonehenge", title: "Stonehenge: Hill Chain" });
+  function queueStonehengeChain(st, player, fromKey) {
+    const alreadyQueued = new Set((st.pendingChoices || [])
+      .filter((choice) => choice.kind === "place_control" && choice.source === "Stonehenge")
+      .flatMap((choice) => choice.hexKeys || []));
+    const spots = hexNeighborKeys(parseQ(fromKey), parseR(fromKey)).filter((neighborKey) => {
+      if (alreadyQueued.has(neighborKey)) return false;
+      const neighbor = st.map.hexes[neighborKey];
+      return neighbor && neighbor.active && neighbor.terrain === "hill" &&
+        !neighbor.city && !neighbor.control && !neighbor.barbarian && !neighbor.cityState &&
+        !(neighbor.fortress && !neighbor.city);
+    });
+    // "1 or more" is a set of independent optional placements. Queuing one
+    // choice per adjacent hill lets the owner take any number of them, while
+    // each hill that is actually taken can start its own chain.
+    spots.forEach((hexKey) => queuePendingChoice(st, {
+      kind: "place_control",
+      playerId: player.id,
+      title: "Stonehenge: Place on an Adjacent Hill?",
+      source: "Stonehenge",
+      originKey: fromKey,
+      hexKeys: [hexKey],
+      optional: true
+    }));
+  }
 
   // Is this space on the rim of the explored map? (same test exploration uses)
   function isEdgeSpace(st, hex) {
@@ -6249,7 +6755,8 @@ const Game = (() => {
     const printed = (CARD_DEFS.industry || {})[tier] || {};
     // Nationalism III explicitly contributes 7, rather than 5, when it is
     // treated as resolving in the fifth slot.
-    const value = slot === 5 && Number(printed.wonderSlot5Production || 0) > 0
+    const value = !getActiveUniqueCard(player, "industry") && slot === 5 &&
+      Number(printed.wonderSlot5Production || 0) > 0
       ? Number(printed.wonderSlot5Production) : slot;
     return { slot, value, label: value === slot ? `Industry slot ${slot}` : `Nationalism in slot 5` };
   }
@@ -6413,14 +6920,19 @@ const Game = (() => {
 
   function validControlHexes(st, playerId, maxTerrain) {
     const player = getPlayer(st, playerId);
+    const humanism = uniqueInPlay(player, "france");
     const valid = [];
     Object.entries(st.map.hexes).forEach(([k, h]) => {
       if (!h.active || h.terrain === "water") return;
       if (placementDifficulty(st, h, player, "culture") > maxTerrain) return;
       if (h.city || h.cityState || h.barbarian || h.control || (h.fortress && !h.city)) return;
-      // Base p8: "on a space adjacent to a friendly city" — next to one of your
-      // own control tokens is not enough, or territory would sprawl for ever.
-      if (!adjacentToFriendlyCity(st, h, playerId) && !chichenAllows(st, playerId, h)) return;
+      // Humanism replaces the usual friendly-CITY restriction with friendly
+      // SPACE adjacency. Every other Culture card keeps the printed city gate.
+      const adjacent = humanism
+        ? hexNeighborKeys(h.q, h.r).some((neighborKey) =>
+            isFriendlySpace(st.map.hexes[neighborKey], playerId, st))
+        : adjacentToFriendlyCity(st, h, playerId);
+      if (!adjacent && !chichenAllows(st, playerId, h)) return;
       valid.push(k);
     });
     return new Set(valid);
@@ -6605,9 +7117,11 @@ const Game = (() => {
       tier,
       name,
       standard,
-      sequential: standard && tier >= 3,
+      sequential: (standard && tier >= 3) || name === "Military Engineering",
       engineering: standard && tier === 2,
-      globalization: standard && tier === 4
+      globalization: standard && tier === 4,
+      mysticism: name === "Mysticism",
+      militaryEngineering: name === "Military Engineering"
     };
   }
 
@@ -7047,9 +7561,11 @@ const Game = (() => {
       const owner = getPlayer(st, ownerId);
       return hasLeader(owner, "scythia") && (h.terrain === "grass" || h.terrain === "hill") ? 3 : 0;
     };
+    const siegeReduction = uniqueInPlay(getPlayer(st, attackerId), "georgia") ? 1 : 0;
+    const reinforcedTokenValue = (ownerId) => Math.max(0,
+      (hasLeader(getPlayer(st, ownerId), "china") ? 2 : 1) - siegeReduction);
     const reinforcedValue = (ownerId) => {
-      const owner = getPlayer(st, ownerId);
-      return countAdjacentReinforced(st, hexKey, ownerId) * (hasLeader(owner, "china") ? 2 : 1);
+      return countAdjacentReinforced(st, hexKey, ownerId) * reinforcedTokenValue(ownerId);
     };
     // Terra p16, under Rival Piece: "+2 if there is at least 1 army friendly to
     // the defender (other than the defender itself) also in the space."
@@ -7066,7 +7582,8 @@ const Game = (() => {
       const list = [terrainPart];
       const push = (label, value) => { if (value) list.push({ label, value }); };
       if (!isFigure) {
-        push("reinforced", h.control && h.control.fortified ? 1 : 0);
+        push("reinforced", h.control && h.control.fortified
+          ? reinforcedTokenValue(ownerId) : 0);
         push("adjacent reinforced", reinforcedValue(ownerId));
       }
       push("friendly army in the space", escortBonus(ownerId, defendingUnitId));
@@ -7239,7 +7756,10 @@ const Game = (() => {
     // Great Lighthouse: build on the map's rim as though it were near home.
     if (hasWonder(st, playerId, "Great Lighthouse") && isEdgeSpace(st, hex)) return true;
     const player = getPlayer(st, playerId);
-    const throughWater = hasCityStateDiplomacy(player, "Auckland");
+    const industryName = getCardName(player, "industry");
+    const throughWater = hasCityStateDiplomacy(player, "Auckland") ||
+      industryName === "Nationalism" || industryName === "Urbanization" ||
+      industryName === "Industrialization";
     const targetKey = key(hex.q, hex.r);
     const seen = new Set();
     const queue = [];
@@ -7528,18 +8048,122 @@ const Game = (() => {
     };
   }
 
+  function shipbuildingWaterSpaces(st, fromKey) {
+    if (!st || !st.map || !st.map.hexes || !fromKey) return [];
+    const candidates = hexNeighborKeys(parseQ(fromKey), parseR(fromKey));
+    // Exploration can grow beyond the map's current storage ring. Materialise
+    // the six touching coordinates before the choice is projected to clients,
+    // so a legal water-token space can never disappear merely because that
+    // coordinate had not been needed by an earlier tile.
+    ensureMapHexes(st.map, candidates, 1);
+    return candidates.filter((hexKey) => {
+      const hex = st.map.hexes[hexKey];
+      return !!hex && !hex.active;
+    });
+  }
+
+  function isShipbuildingWaterSpace(st, fromKey, hexKey) {
+    if (!fromKey || !hexKey || !st || !st.map || !st.map.hexes) return false;
+    if (!hexNeighborKeys(parseQ(fromKey), parseR(fromKey)).includes(hexKey)) return false;
+    const hex = st.map.hexes[hexKey];
+    return !!hex && !hex.active;
+  }
+
+  function placeShipbuildingWaterToken(st, player, hexKey) {
+    ensureMapHexes(st.map, [hexKey], 1);
+    const hex = st.map.hexes[hexKey];
+    if (!hex || hex.active) return false;
+    Object.assign(hex, {
+      active: true,
+      revealed: true,
+      terrain: "water",
+      resource: null,
+      naturalWonder: null,
+      cityState: null,
+      barbarian: false,
+      barbarianId: null,
+      barbarianHome: null,
+      control: null,
+      city: null,
+      fortress: false,
+      fortressOwnerId: null,
+      core: false,
+      coreAdjacent: false,
+      tileId: "water-token",
+      tileCell: null,
+      tileSide: null
+    });
+    log(st, `${player.name} placed Shipbuilding's water token at ${hexKey}.`);
+    return true;
+  }
+
+  function continueShipbuildingExploration(st, choice, waterHexKey) {
+    const player = getPlayer(st, choice.playerId);
+    if (!player || !choice.explorationPayload || st.pendingExploration) return false;
+    if (waterHexKey && !isShipbuildingWaterSpace(st, choice.fromKey, waterHexKey)) return false;
+
+    // Reveal first on the same transaction, then commit the optional token.
+    // That keeps a stale/invalid choice from ever leaving a token behind without
+    // the exploration it belongs to. The authoritative snapshot exposes both
+    // changes together, which is still the printed "before exploring" window.
+    beginExploration(st, {
+      ...cloneSerializable(choice.explorationPayload),
+      skipShipbuilding: true
+    });
+    if (!st.pendingExploration || st.pendingExploration.playerId !== player.id) return false;
+
+    const active = activeMovementCard(st, player, "economy",
+      st.pendingExploration.movementContinuation &&
+        st.pendingExploration.movementContinuation.tradePayment);
+    active.shipbuildingWaterOffered = true;
+    if (waterHexKey) {
+      if (!placeShipbuildingWaterToken(st, player, waterHexKey)) return false;
+      active.shipbuildingWaterPlaced = true;
+      st.pendingExploration.shipbuildingWaterKey = waterHexKey;
+    }
+    return true;
+  }
+
   function beginExploration(st, payload) {
     if (st.phase !== "playing" || st.pendingExploration) return st;
     const current = currentPlayer(st);
     if (!current || current.id !== payload.playerId) return st;
     const player = getPlayer(st, payload.playerId);
-    if (!player || !payload.fromKey || !st.tileStack || !st.tileStack.length) return st;
-
     const freeRun = !!(st.freeExplore && st.freeExplore.playerId === player.id &&
       st.freeExplore.fromKey === payload.fromKey);
+    const retainedTile = freeRun && st.freeExplore ? st.freeExplore.tileId || null : null;
+    if (!player || !payload.fromKey || !st.tileStack ||
+        (!st.tileStack.length && !retainedTile)) return st;
+
     if (!freeRun && !isExploreEligible(st, payload.fromKey)) return st;
     const movement = freeRun ? null : prepareExplorationMovement(st, player, payload);
     if (!freeRun && !movement) return st;
+
+    // Indonesia's unique economy card inserts one optional component placement
+    // immediately before one caravan explores. It is a real owned decision, so
+    // the tile is not revealed and the movement point is not committed until
+    // that player either places the token or explicitly skips it.
+    const active = st.activeCard && st.activeCard.playerId === player.id &&
+      st.activeCard.cardType === "economy" ? st.activeCard : null;
+    const shipbuilding = movement && movement.unitType === "caravan" &&
+      uniqueInPlay(player, "indonesia") && !payload.skipShipbuilding &&
+      !(active && active.shipbuildingWaterOffered);
+    if (shipbuilding) {
+      const waterSpaces = shipbuildingWaterSpaces(st, payload.fromKey);
+      if (waterSpaces.length) {
+        queuePendingChoice(st, {
+          kind: "shipbuilding_water",
+          playerId: player.id,
+          title: "Shipbuilding: Place a Water Token?",
+          source: "Shipbuilding",
+          optional: true,
+          fromKey: payload.fromKey,
+          hexKeys: waterSpaces,
+          explorationPayload: cloneSerializable(payload)
+        });
+        return st;
+      }
+    }
 
     if (movement) {
       const list = movement.unitType === "army" ? player.armies : player.caravans;
@@ -7553,18 +8177,13 @@ const Game = (() => {
       explorer.exploredThisMove = true;
       explorer.exploredThisCard = true;
       explorer.moveInProgress = true;
-      st.activeCard = {
-        playerId: player.id,
-        cardType: movement.cardType,
-        tradeSpent: movement.tradeSpent,
-        tradePayment: movement.tradePayment
-      };
+      activeMovementCard(st, player, movement.cardType, movement.tradePayment);
     }
 
     // Draw from the bottom and remove it from the secret sequence immediately.
     // pendingExploration is public, so every reconnected player sees exactly
     // the same revealed tile until it is placed or returned.
-    const tileId = st.tileStack.pop();
+    const tileId = retainedTile || st.tileStack.pop();
     st.tileDeck = st.tileStack.slice();
     st.pendingExploration = {
       playerId: player.id,
@@ -7576,6 +8195,8 @@ const Game = (() => {
       status: "revealed",
       source: freeRun && st.freeExplore ? st.freeExplore.source || null : null,
       followUp: freeRun && st.freeExplore ? st.freeExplore.followUp || null : null,
+      scienceResolutionId: freeRun && st.freeExplore
+        ? st.freeExplore.scienceResolutionId || null : null,
       movementContinuation: movement
     };
     // Materialise every currently legal footprint before the snapshot reaches
@@ -7612,6 +8233,15 @@ const Game = (() => {
         status: "ready"
       };
     }
+  }
+
+  function finishExplorationFollowUp(st, pending) {
+    if (!pending || pending.followUp !== "astronomy_finish") return false;
+    const resolution = st.cardResolution;
+    if (!resolution || resolution.cardType !== "science" ||
+        resolution.cardName !== "Astronomy" ||
+        resolution.id !== pending.scienceResolutionId) return false;
+    return finishScienceResolution(st, resolution);
   }
 
   function apadanaControlSpaces(st, tileId) {
@@ -7655,6 +8285,7 @@ const Game = (() => {
         log(st, `${player.name}'s newly explored tile has no empty non-water space for Apadana.`);
       }
     }
+    finishExplorationFollowUp(st, pending);
     return st;
   }
 
@@ -7673,6 +8304,7 @@ const Game = (() => {
     const player = getPlayer(st, pending.playerId);
     st.pendingExploration = null;
     log(st, `${player ? player.name : "Player"} found nowhere to put the new land; it goes back on the stack.`);
+    finishExplorationFollowUp(st, pending);
     return st;
   }
 
