@@ -4547,19 +4547,25 @@
           // both setup and Terra exploration use.
           const st = rulesState();
           Game.syncBarbarianRegistry(st);
-          const printed = Object.entries(st.map.hexes)
-            .filter(([, h]) => h.barbarianHome)
-            .map(([k, h]) => ({ k, letter: h.barbarianHome,
-              side: h.tileSide, tile: h.tileId, cell: h.tileCell }));
-          assert("the dealt board has printed barbarian spawns", printed.length > 0);
-          const wrong = printed.filter(({ k, letter, tile, side, cell }) => {
-            const def = Game.getTileDef(tile);
-            const face = def && def.sides && def.sides[side || "A"];
-            const printedCell = face && face.cells && face.cells[cell];
-            return !printedCell || printedCell.barbarian !== letter;
-          });
-          assert("every spawn letter comes from its exact printed tile/side/cell",
+          // Compare EVERY placed cell against its printed face, in both
+          // directions: a cell that prints a letter must carry it, and a cell
+          // that prints none must carry none. Counting dealt spawns instead
+          // would depend on which core tiles the shuffle handed out - a 2-player
+          // core is two tiles, and not every tile prints a barbarian.
+          const cells = Object.entries(st.map.hexes)
+            .filter(([, h]) => h.tileId && Number.isInteger(h.tileCell))
+            .map(([k, h]) => {
+              const def = Game.getTileDef(h.tileId);
+              const face = def && def.sides && def.sides[h.tileSide || "A"];
+              const printedCell = face && face.cells && face.cells[h.tileCell];
+              return { k, home: h.barbarianHome || null,
+                printed: (printedCell && printedCell.barbarian) || null };
+            });
+          assert("the dealt board has cells to check", cells.length > 0, cells.length);
+          const wrong = cells.filter((c) => c.home !== c.printed);
+          assert("every spawn matches its exact printed tile/side/cell, both ways",
             wrong.length === 0, JSON.stringify(wrong.slice(0, 3)));
+          const printed = cells.filter((c) => c.printed);
           const standing = Object.entries(st.map.hexes)
             .filter(([, h]) => h.barbarian);
           assert("and a figure stands on each of them, showing that letter",
@@ -4730,6 +4736,96 @@
             whereIs(st, "1,0") === "1,0");
         }
 
+        {
+          // The other two defeat routes go through the same centralised event,
+          // so a figure killed by a caravan or a district keeps its identity
+          // and its home exactly as one killed in a fight does.
+          const currencyKill = () => {
+            const { st, me } = spawnBoard();
+            printSpawn(st, "1,0", "F");
+            // The figure has marched away from home before it is met.
+            st.map.hexes["1,0"].barbarian = false;
+            st.map.hexes["1,0"].barbarianId = null;
+            st.map.hexes["1,0"].barbarianToken = null;
+            st.map.hexes["2,0"].barbarian = true;
+            st.map.hexes["2,0"].barbarianId = "F";
+            st.map.hexes["2,0"].barbarianToken = "1,0";
+            Game.syncBarbarianRegistry(st);
+            me.cardPlayed = false;
+            me.focusRow = ["economy", "science", "growth", "culture", "military", "industry"];
+            me.cardTiers.economy = 2;                  // Currency
+            me.cardLevels.economy = 2;
+            activate(st, "0,0", { city: { ownerId: me.id, isCapital: true,
+              developed: false, hasWonder: false, wonder: null } });
+            st.map.hexes["0,0"].barbarianHome = null;
+            me.caravans = [{ id: "c1", position: "0,0" }];
+            return { st, me };
+          };
+          const { st, me } = currencyKill();
+          const out = Game.tryApplyAction(st, { type: "PLAY_ECONOMY", payload: {
+            playerId: me.id, unitId: "c1", toKey: "2,0", tradeSpent: 0 } },
+            { actorId: me.id, role: "player" });
+          assert("a Currency caravan clears the barbarian", out.accepted, out.code);
+          assert("the figure is off the map", out.state.map.hexes["2,0"].barbarian === false);
+          assert("but it is still F, still bound to its printed spawn",
+            offMap(out.state).join(",") === "F@1,0", JSON.stringify(offMap(out.state)));
+          spawnEvent(out.state);
+          assert("and Currency's kill returns to spawn F like any other",
+            out.state.map.hexes["1,0"].barbarianId === "F" &&
+            out.state.map.hexes["1,0"].barbarianToken === "1,0");
+        }
+        {
+          // An encampment strike, the third route.
+          const { st, me } = spawnBoard();
+          printSpawn(st, "4,0", "F");
+          st.map.hexes["4,0"].barbarian = false;
+          st.map.hexes["4,0"].barbarianId = null;
+          st.map.hexes["4,0"].barbarianToken = null;
+          st.map.hexes["2,0"].barbarian = true;
+          st.map.hexes["2,0"].barbarianId = "F";
+          st.map.hexes["2,0"].barbarianToken = "4,0";
+          Game.syncBarbarianRegistry(st);
+          activate(st, "0,0", { city: { ownerId: me.id, isCapital: true,
+            developed: false, hasWonder: false, wonder: null } });
+          st.map.hexes["1,0"].control =
+            { ownerId: me.id, fortified: false, district: "encampment" };
+          Game.resolveEvent(st, "district_event");
+          const strike = (st.pendingChoices || []).find((c) => c.kind === "encampment_strike");
+          assert("the encampment can reach the barbarian",
+            !!strike && strike.hexKeys.includes("2,0"),
+            strike && strike.hexKeys.join(" "));
+          const hit = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: strike.id, hexKey: "2,0" } });
+          assert("the encampment defeats it", hit.map.hexes["2,0"].barbarian === false);
+          assert("and it waits as F, bound to spawn F",
+            offMap(hit).join(",") === "F@4,0", JSON.stringify(offMap(hit)));
+          spawnEvent(hit);
+          assert("returning to spawn F, not to the encampment's space",
+            hit.map.hexes["4,0"].barbarianId === "F" &&
+            hit.map.hexes["2,0"].barbarian === false);
+        }
+        {
+          // The figures are authoritative state, so every seat is told the same
+          // thing about them - identity included, not just "a barbarian here".
+          const { st } = spawnBoard();
+          printSpawn(st, "2,0", "F");
+          printSpawn(st, "5,0", "B");
+          st.map.hexes["5,0"].barbarian = false;
+          st.map.hexes["5,0"].barbarianId = null;
+          st.map.hexes["5,0"].barbarianToken = null;
+          Game.syncBarbarianRegistry(st);
+          const seen = Game.projectState(st, st.players[1].id);
+          assert("a rival's view carries the figure on the board with its identity",
+            seen.map.hexes["2,0"].barbarian === true &&
+            seen.map.hexes["2,0"].barbarianId === "F" &&
+            seen.map.hexes["2,0"].barbarianToken === "2,0",
+            JSON.stringify(seen.map.hexes["2,0"]));
+          assert("and the printed spawns, which are public",
+            seen.map.hexes["5,0"].barbarianHome === "B");
+          assert("so both seats agree which figures are off the map",
+            JSON.stringify(Game.offMapBarbarians(seen).map((b) => b.letter + "@" + b.homeKey)) ===
+            JSON.stringify(offMap(st)), JSON.stringify(Game.offMapBarbarians(seen)));
+        }
         {
           // MOVEMENT into an army is a different case from SPAWNING onto one.
           // Terra p11: the army is defeated, but it shields its space - the
