@@ -4494,6 +4494,211 @@
       }
 
       {
+        // The four printed culture cards, end to end. Each places control
+        // tokens adjacent to friendly cities and then does something else, and
+        // it is the "something else" that distinguishes them.
+        const cultureBoard = (tier, opts) => {
+          const o = opts || {};
+          const st = rulesState();
+          const me = st.players[0];
+          me.cardPlayed = false;
+          me.cardTiers.culture = tier;
+          me.cardLevels.culture = tier;
+          // Culture in the last place, so its slot is 5 and terrain never
+          // silently decides these tests. The terrain gate has its own case.
+          me.focusRow = ["science", "growth", "economy", "military", "industry", "culture"];
+          Object.values(st.map.hexes).forEach((h) => {
+            h.barbarian = false; h.barbarianId = null; h.barbarianToken = null;
+            h.barbarianHome = null; h.control = null; h.resource = null;
+            h.naturalWonder = null; h.naturalWonderSpace = null; h.cityState = null;
+          });
+          st.naturalWonders = {};
+          for (let q = -2; q <= 6; q++) {
+            activate(st, q + ",0", { terrain: "grass" });
+            activate(st, q + ",1", { terrain: "grass" });
+            activate(st, q + ",-1", { terrain: "grass" });
+          }
+          activate(st, "0,0", { city: { ownerId: me.id, isCapital: true,
+            developed: false, hasWonder: false, wonder: null } });
+          if (o.setUp) o.setUp(st, me);
+          return { st, me };
+        };
+        const play = (st, me, hexKeys) => Game.tryApplyAction(st,
+          { type: "PLAY_CULTURE", payload: { playerId: me.id, hexKeys, tradeSpent: 0 } },
+          { actorId: me.id, role: "player" });
+        const mineAt = (st, k) => st.map.hexes[k].control &&
+          st.map.hexes[k].control.ownerId === st.players[0].id;
+
+        // ── Early Empire ─────────────────────────────────────────────────
+        {
+          // "Place 2 control tokens on EMPTY spaces ... adjacent to a friendly
+          // city. Taking a space with a resource or natural wonder claims that
+          // token."
+          const { st, me } = cultureBoard(1, { setUp: (s2) => {
+            s2.map.hexes["1,0"].resource = "marble";
+            s2.map.hexes["0,1"].resource = null;
+          } });
+          assert("Early Empire is the level-I culture card",
+            Game.getCardName(me, "culture") === "Early Empire",
+            Game.getCardName(me, "culture"));
+          assert("it places two tokens",
+            Game.getCultureMarkers(me, 0, st) === 2,
+            String(Game.getCultureMarkers(me, 0, st)));
+          const before = me.resources.marble;
+          const out = play(st, me, ["1,0", "0,1"]);
+          assert("both go down", out.accepted, out.code);
+          assert("on the two chosen spaces",
+            mineAt(out.state, "1,0") && mineAt(out.state, "0,1"));
+          assert("taking a space with a resource claims that token",
+            out.state.players[0].resources.marble === before + 1,
+            String(out.state.players[0].resources.marble));
+          assert("and the space no longer offers it",
+            out.state.map.hexes["1,0"].resource === null);
+          // A fresh board, and its OWN player object: reusing the one above
+          // would leave this passing for the wrong reason if the ids ever
+          // stopped lining up.
+          const fresh = cultureBoard(1);
+          const three = play(fresh.st, fresh.me, ["1,0", "0,1", "0,-1"]);
+          assert("a third token is refused: the card places two",
+            !three.accepted && three.code === "too_many_control_markers", three.code);
+          assert("and the two it would have placed are not on the board either",
+            !three.state.map.hexes["1,0"].control && !three.state.map.hexes["0,1"].control);
+        }
+        {
+          // "on spaces matching this slot's terrain or lower" - from the first
+          // place in the row that is grassland only.
+          const { st, me } = cultureBoard(1, { setUp: (s2) => {
+            s2.map.hexes["1,0"].terrain = "mountain";
+          } });
+          me.focusRow = ["culture", "science", "growth", "economy", "military", "industry"];
+          const out = play(st, me, ["1,0", "0,1"]);
+          assert("a mountain is out of reach from the first slot",
+            !out.accepted, out.code);
+          assert("and nothing was placed or spent",
+            !out.state.map.hexes["1,0"].control && !out.state.map.hexes["0,1"].control &&
+            out.state.players[0].cardPlayed !== true);
+        }
+        proves("standard.culture.early_empire");
+
+        // ── Drama and Poetry ─────────────────────────────────────────────
+        {
+          // "...Then, you MAY move 1 of your control tokens to an adjacent,
+          // non-water space that is empty."
+          const { st, me } = cultureBoard(2);
+          const out = play(st, me, ["1,0", "0,1"]);
+          assert("Drama and Poetry places its two tokens", out.accepted, out.code);
+          const move = (out.state.pendingChoices || [])
+            .find((c) => c.kind === "move_control_source");
+          assert("then offers to move one of them", !!move,
+            JSON.stringify((out.state.pendingChoices || []).map((c) => c.kind)));
+          assert("and the move is optional, because the card says you may",
+            !!move && move.optional === true);
+          assert("it offers the player's own tokens as sources",
+            !!move && move.hexKeys.includes("1,0"), move && move.hexKeys.join(" "));
+          const picked = Game.applyAction(JSON.parse(JSON.stringify(out.state)),
+            { type: "RESOLVE_PENDING_CHOICE", payload: {
+              playerId: me.id, choiceId: move.id, hexKey: "1,0" } });
+          const dest = (picked.pendingChoices || [])
+            .find((c) => c.kind === "move_control_destination");
+          assert("choosing a source asks where it goes", !!dest,
+            JSON.stringify((picked.pendingChoices || []).map((c) => c.kind)));
+          assert("every destination is adjacent to the source and empty",
+            !!dest && dest.hexKeys.every((k) =>
+              Game.hexNeighborKeys(1, 0).includes(k) &&
+              !picked.map.hexes[k].control && !picked.map.hexes[k].city),
+            dest && dest.hexKeys.join(" "));
+          const moved = Game.applyAction(picked, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: me.id, choiceId: dest.id, hexKey: dest.hexKeys[0] } });
+          assert("the token really moves",
+            !moved.map.hexes["1,0"].control && mineAt(moved, dest.hexKeys[0]),
+            JSON.stringify({ from: moved.map.hexes["1,0"].control,
+              to: moved.map.hexes[dest.hexKeys[0]].control }));
+          assert("and the player still has exactly two tokens out",
+            Game.countControl(moved, me.id) === 2, String(Game.countControl(moved, me.id)));
+          const declined = Game.applyAction(JSON.parse(JSON.stringify(out.state)),
+            { type: "RESOLVE_PENDING_CHOICE", payload: {
+              playerId: me.id, choiceId: move.id, dismiss: true } });
+          assert("declining leaves both tokens where they were",
+            mineAt(declined, "1,0") && mineAt(declined, "0,1"));
+          assert("and finishes the card",
+            !(declined.pendingChoices || []).some((c) => /move_control/.test(c.kind)));
+        }
+        proves("standard.culture.drama_and_poetry");
+
+        // ── Civil Service ────────────────────────────────────────────────
+        {
+          // "...Then, place 1 control token on a space ... adjacent to a
+          // FRIENDLY SPACE." Wider than the first two, which need a city.
+          const { st, me } = cultureBoard(3);
+          const out = play(st, me, ["1,0", "0,1"]);
+          assert("Civil Service places its two tokens", out.accepted, out.code);
+          const third = (out.state.pendingChoices || [])
+            .find((c) => c.kind === "place_control" && c.source === "Civil Service");
+          assert("then offers a third", !!third,
+            JSON.stringify((out.state.pendingChoices || []).map((c) => c.source)));
+          // 2,0 touches 1,0, which is a friendly SPACE but not a city, so it is
+          // reachable by this clause and not by the first one.
+          assert("the third reaches a space next to a friendly token, not only a city",
+            third.hexKeys.includes("2,0"), third.hexKeys.join(" "));
+          assert("and that space is out of reach of the ordinary placement",
+            !Game.validControlHexes(out.state, me.id, 5).has("2,0"));
+          const placed = Game.applyAction(out.state, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: me.id, choiceId: third.id, hexKey: "2,0" } });
+          assert("placing it gives the player three tokens from one card",
+            Game.countControl(placed, me.id) === 3, String(Game.countControl(placed, me.id)));
+        }
+        proves("standard.culture.civil_service");
+
+        // ── Mass Media ───────────────────────────────────────────────────
+        {
+          // "Place 3 control tokens ... Then, choose a rival control token
+          // within 2 spaces of a friendly space. If it is unreinforced, replace
+          // it ... If it is reinforced, flip it."
+          const { st, me } = cultureBoard(4, { setUp: (s2, p2) => {
+            const foe = s2.players[1];
+            s2.map.hexes["2,0"].control =
+              { ownerId: foe.id, fortified: false, district: null };
+          } });
+          assert("Mass Media places three tokens",
+            Game.getCultureMarkers(me, 0, st) === 3,
+            String(Game.getCultureMarkers(me, 0, st)));
+          const out = play(st, me, ["1,0", "0,1", "0,-1"]);
+          assert("all three go down", out.accepted, out.code);
+          assert("and they are on the board",
+            Game.countControl(out.state, me.id) === 3,
+            String(Game.countControl(out.state, me.id)));
+          const target = (out.state.pendingChoices || [])
+            .find((c) => c.kind === "mass_media_target");
+          assert("then it offers a rival token to weaken", !!target,
+            JSON.stringify((out.state.pendingChoices || []).map((c) => c.kind)));
+          assert("the rival's token is within reach", target.hexKeys.includes("2,0"),
+            target.hexKeys.join(" "));
+          const taken = Game.applyAction(out.state, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: me.id, choiceId: target.id, hexKey: "2,0" } });
+          assert("an unreinforced rival token is replaced with one of mine",
+            mineAt(taken, "2,0") && taken.map.hexes["2,0"].control.fortified === false,
+            JSON.stringify(taken.map.hexes["2,0"].control));
+        }
+        {
+          const { st, me } = cultureBoard(4, { setUp: (s2) => {
+            const foe = s2.players[1];
+            s2.map.hexes["2,0"].control =
+              { ownerId: foe.id, fortified: true, district: null };
+          } });
+          const out = play(st, me, ["1,0", "0,1", "0,-1"]);
+          const target = (out.state.pendingChoices || [])
+            .find((c) => c.kind === "mass_media_target");
+          const flipped = Game.applyAction(out.state, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: me.id, choiceId: target.id, hexKey: "2,0" } });
+          assert("a reinforced rival token is flipped, not taken",
+            flipped.map.hexes["2,0"].control.ownerId === flipped.players[1].id &&
+            flipped.map.hexes["2,0"].control.fortified === false,
+            JSON.stringify(flipped.map.hexes["2,0"].control));
+        }
+        proves("standard.culture.mass_media");
+      }
+
+      {
         // Petra: "When defending, +2 combat value. Barbarians cannot move into
         // spaces containing your cities or reinforced control tokens; instead
         // they move in the opposite direction (Errata)."
