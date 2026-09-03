@@ -4494,6 +4494,163 @@
       }
 
       {
+        // The four printed military cards. All four move every army and set a
+        // combat value; the distance, the terrain, what they may pass through
+        // and the bonus are what differ. The combat values are read off a real
+        // fight's breakdown rather than from a getter.
+        const milBoard = (tier, opts) => {
+          const o = opts || {};
+          const st = rulesState();
+          const me = st.players[0];
+          me.cardPlayed = false;
+          me.cardTiers.military = tier;
+          me.cardLevels.military = tier;
+          me.focusRow = ["military", "science", "growth", "economy", "industry", "culture"];
+          Game.FOCUS_TYPES.forEach((t) => { me.trade[t] = 0; });
+          st.turn.index = st.turn.order.indexOf(me.id);
+          Object.values(st.map.hexes).forEach((h) => {
+            h.barbarian = false; h.barbarianId = null; h.barbarianToken = null;
+            h.barbarianHome = null; h.control = null; h.cityState = null;
+            h.resource = null; h.naturalWonder = null; h.naturalWonderSpace = null;
+          });
+          st.naturalWonders = {};
+          for (let q = -2; q <= 9; q++) {
+            activate(st, q + ",0", { terrain: "grass" });
+            // A corridor board leaves the flanks off the map, so a space
+            // "beyond" an obstacle can only be reached by going through it.
+            // Without that, every pass-through test is answered by walking
+            // around and proves nothing.
+            if (!o.corridor) {
+              activate(st, q + ",1", { terrain: "grass" });
+              activate(st, q + ",-1", { terrain: "grass" });
+            } else {
+              [q + ",1", q + ",-1"].forEach((k) => {
+                if (st.map.hexes[k]) st.map.hexes[k].active = false;
+              });
+            }
+          }
+          activate(st, "0,0", { city: { ownerId: me.id, isCapital: true,
+            developed: false, hasWonder: false, wonder: null } });
+          me.armies = [{ id: "a1", position: "0,0" }];
+          if (o.setUp) o.setUp(st, me);
+          return { st, me };
+        };
+        const attack = (st, me, fromKey, toKey, targetType) => Game.applyAction(st,
+          { type: "PLAY_MILITARY_ATTACK", payload: {
+            playerId: me.id, unitId: "a1", fromKey, toKey, targetType } });
+        // The attacker's printed total, straight out of the fight the engine set up.
+        const atkBase = (st) => st.combat && st.combat.atkBase;
+
+        // ── Masonry ──────────────────────────────────────────────────────
+        {
+          const { st, me } = milBoard(1, { corridor: true, setUp: (s2) => {
+            activate(s2, "1,0", { terrain: "grass", barbarian: true,
+              barbarianId: "M", barbarianToken: "1,0", barbarianHome: "M" });
+          } });
+          assert("Masonry is the level-I military card",
+            Game.getCardName(me, "military") === "Masonry", Game.getCardName(me, "military"));
+          assert("it moves an army up to three spaces",
+            Game.getMilitaryMove(me, st) === 3, String(Game.getMilitaryMove(me, st)));
+          assert("and no further",
+            !Game.getReachable(st, "0,0", 3, "army", me.id).has("4,0"));
+          // "When an army enters a space containing a barbarian ... it must end
+          // its movement and perform an attack": the barbarian is a forced stop,
+          // so nothing beyond it is reachable through it.
+          assert("a barbarian in the way stops the march there",
+            Game.getReachable(st, "0,0", 3, "army", me.id).has("1,0") &&
+            !Game.getReachable(st, "0,0", 3, "army", me.id).has("2,0"),
+            [...Game.getReachable(st, "0,0", 3, "army", me.id)].sort().join(" "));
+          const out = attack(st, me, "0,0", "1,0", "barbarian");
+          assert("and entering it is an attack", !!out.combat,
+            JSON.stringify(out.combat && out.combat.target));
+          const slot = Game.getSlotValue(me, "military", st);
+          assert("its combat value is the slot's number, with no bonus",
+            atkBase(out) === slot, `${atkBase(out)} vs slot ${slot}`);
+        }
+        proves("standard.military.masonry");
+
+        // ── Iron Working ─────────────────────────────────────────────────
+        {
+          // "...plus 2 if attacking a barbarian." Both halves, so the +2 cannot
+          // be a permanent bonus wearing a barbarian's name.
+          const { st, me } = milBoard(2, { setUp: (s2) => {
+            activate(s2, "1,0", { terrain: "grass", barbarian: true,
+              barbarianId: "M", barbarianToken: "1,0", barbarianHome: "M" });
+          } });
+          assert("Iron Working moves four spaces",
+            Game.getMilitaryMove(me, st) === 4, String(Game.getMilitaryMove(me, st)));
+          const slot = Game.getSlotValue(me, "military", st);
+          const vsBarb = attack(st, me, "0,0", "1,0", "barbarian");
+          assert("against a barbarian it is the slot's number plus two",
+            atkBase(vsBarb) === slot + 2, `${atkBase(vsBarb)} vs slot ${slot} + 2`);
+          assert("and the breakdown says what earned it",
+            (vsBarb.combat.atkParts || []).some((p) => /barbarian/i.test(p.label) && p.value === 2),
+            JSON.stringify(vsBarb.combat.atkParts));
+        }
+        {
+          const { st, me } = milBoard(2, { setUp: (s2, p2) => {
+            const foe = s2.players[1];
+            s2.map.hexes["1,0"].control = { ownerId: foe.id, fortified: false, district: null };
+          } });
+          const slot = Game.getSlotValue(me, "military", st);
+          const vsToken = attack(st, me, "0,0", "1,0", "control");
+          assert("against anything else it is just the slot's number",
+            atkBase(vsToken) === slot, `${atkBase(vsToken)} vs slot ${slot}`);
+          assert("with no barbarian line in the breakdown",
+            !(vsToken.combat.atkParts || []).some((p) => /barbarian/i.test(p.label)),
+            JSON.stringify(vsToken.combat.atkParts));
+        }
+        proves("standard.military.iron_working");
+
+        // ── Mass Production ──────────────────────────────────────────────
+        {
+          const { st, me } = milBoard(3, { setUp: (s2, p2) => {
+            const foe = s2.players[1];
+            s2.map.hexes["1,0"].control = { ownerId: foe.id, fortified: false, district: null };
+            activate(s2, "0,1", { terrain: "water" });
+          } });
+          assert("Mass Production moves five spaces",
+            Game.getMilitaryMove(me, st) === 5, String(Game.getMilitaryMove(me, st)));
+          assert("and its armies may cross water",
+            Game.getReachable(st, "0,0", 5, "army", me.id).has("0,1"),
+            [...Game.getReachable(st, "0,0", 5, "army", me.id)].sort().join(" "));
+          const slot = Game.getSlotValue(me, "military", st);
+          const out = attack(st, me, "0,0", "1,0", "control");
+          assert("its combat value is the slot's number plus two, unconditionally",
+            atkBase(out) === slot + 2, `${atkBase(out)} vs slot ${slot} + 2`);
+        }
+        proves("standard.military.mass_production");
+
+        // ── Flight ───────────────────────────────────────────────────────
+        {
+          // "They can move THROUGH spaces with unreinforced control tokens,
+          // caravans, barbarians, and city-states." A reinforced token is not
+          // on that list and still stops them dead.
+          const { st, me } = milBoard(4, { corridor: true, setUp: (s2) => {
+            const foe = s2.players[1];
+            activate(s2, "1,0", { terrain: "grass", barbarian: true,
+              barbarianId: "M", barbarianToken: "1,0", barbarianHome: "M" });
+            activate(s2, "3,0", { terrain: "water" });
+            s2.map.hexes["5,0"].control = { ownerId: foe.id, fortified: true, district: null };
+          } });
+          assert("Flight moves six spaces",
+            Game.getMilitaryMove(me, st) === 6, String(Game.getMilitaryMove(me, st)));
+          const reach = Game.getReachable(st, "0,0", 6, "army", me.id);
+          assert("it flies THROUGH a barbarian, reaching the space beyond it",
+            reach.has("2,0"), [...reach].sort().join(" "));
+          assert("and over water further down the lane",
+            reach.has("4,0"), [...reach].sort().join(" "));
+          assert("but a REINFORCED control token is not on the printed list, so it stops there",
+            !reach.has("6,0"), [...reach].sort().join(" "));
+          const slot = Game.getSlotValue(me, "military", st);
+          const out = attack(st, me, "0,0", "1,0", "barbarian");
+          assert("its combat value is the slot's number plus three",
+            atkBase(out) === slot + 3, `${atkBase(out)} vs slot ${slot} + 3`);
+        }
+        proves("standard.military.flight");
+      }
+
+      {
         // The three economy cards other than Currency, which is proven with
         // Sumeria. All four move every caravan; the distance, the terrain they
         // may cross, and what happens at the end are what differ.
