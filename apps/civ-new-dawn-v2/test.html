@@ -1417,6 +1417,130 @@
       }
 
       {
+        // Pyramids: "choose UP TO 3 level-I cards in your focus row. Replace
+        // each with a level-II card of the same type."
+        // Porcelain Tower: "replace UP TO 2 cards in your focus row with cards
+        // of the next highest tech level of the same type."
+        //
+        // Both were implemented as mandatory maximums: the prompt could not be
+        // dismissed, so building either wonder forced every upgrade it could
+        // make. "Up to N" means 0, 1 ... N are all legal answers, so each of
+        // those is driven here.
+        const buildWonder = (name, resources) => {
+          const st = rulesState();
+          const me = st.players[0];
+          me.focusRow = ["growth", "culture", "science", "economy", "military", "industry"];
+          Game.RESOURCES.forEach((r) => { me.resources[r] = 9; });
+          activate(st, "0,0", { city: { ownerId: me.id, isCapital: true,
+            developed: false, hasWonder: false, wonder: null } });
+          const deck = st.wonderDecks.science;
+          deck.deck = [name].concat(deck.deck.filter((n) => n !== name));
+          deck.revealed = name;
+          const built = Game.tryApplyAction(st, { type: "PLAY_INDUSTRY_WONDER", payload: {
+            hexKey: "0,0", wonderName: name, tradeSpent: 0,
+            resources, naturalWonders: []
+          } }, { actorId: me.id, role: "player" });
+          return { built, me };
+        };
+        const upgradePrompt = (st) => (st.pendingChoices || [])
+          .find((c) => c.kind === "science_upgrade");
+        const tierCount = (player, tier) => Game.FOCUS_TYPES
+          .filter((f) => (player.cardTiers[f] || 1) === tier).length;
+
+        {
+          const { built } = buildWonder("Pyramids", { mercury: 5, oil: 4 });
+          assert("Pyramids can be built", built.accepted, built.code);
+          const first = built.accepted && upgradePrompt(built.state);
+          assert("and it asks which level-I card to replace", !!first,
+            JSON.stringify(((built.state || {}).pendingChoices || []).map((c) => c.kind)));
+          assert("only level-I cards are on offer", !!first && first.onlyTier === 1);
+          assert("the prompt can be declined, because the card says up to 3",
+            !!first && first.optional === true);
+
+          // 0 of 3.
+          const none = Game.applyAction(JSON.parse(JSON.stringify(built.state)),
+            { type: "RESOLVE_PENDING_CHOICE", payload: {
+              playerId: built.state.players[0].id, choiceId: first.id, dismiss: true } });
+          assert("taking none upgrades nothing",
+            tierCount(none.players[0], 1) === 6, JSON.stringify(none.players[0].cardTiers));
+          assert("and asks no further question", !upgradePrompt(none),
+            JSON.stringify((none.pendingChoices || []).map((c) => c.kind)));
+
+          // 1 of 3: accept one, then stop.
+          let partial = Game.applyAction(JSON.parse(JSON.stringify(built.state)),
+            { type: "RESOLVE_PENDING_CHOICE", payload: {
+              playerId: built.state.players[0].id, choiceId: first.id, optionId: "culture" } });
+          assert("accepting one upgrades that card",
+            partial.players[0].cardTiers.culture === 2,
+            JSON.stringify(partial.players[0].cardTiers));
+          const second = upgradePrompt(partial);
+          assert("and the wonder offers the next one", !!second);
+          partial = Game.applyAction(partial, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: partial.players[0].id, choiceId: second.id, dismiss: true } });
+          assert("stopping after one leaves the other five alone",
+            tierCount(partial.players[0], 2) === 1 && tierCount(partial.players[0], 1) === 5,
+            JSON.stringify(partial.players[0].cardTiers));
+          assert("and the run is over", !upgradePrompt(partial));
+
+          // 3 of 3.
+          let all = JSON.parse(JSON.stringify(built.state));
+          const taken = ["culture", "growth", "science"];
+          taken.forEach((type) => {
+            const prompt = upgradePrompt(all);
+            assert(`the wonder offers upgrade for ${type}`, !!prompt);
+            all = Game.applyAction(all, { type: "RESOLVE_PENDING_CHOICE", payload: {
+              playerId: all.players[0].id, choiceId: prompt.id, optionId: type } });
+          });
+          assert("taking the maximum upgrades exactly three cards",
+            tierCount(all.players[0], 2) === 3, JSON.stringify(all.players[0].cardTiers));
+          assert("and there is no fourth offer", !upgradePrompt(all),
+            JSON.stringify((all.pendingChoices || []).map((c) => c.kind)));
+          proves("wonder.science.pyramids");
+        }
+
+        {
+          const { built } = buildWonder("Porcelain Tower", { mercury: 5, diamonds: 4 });
+          assert("Porcelain Tower can be built", built.accepted, built.code);
+          const first = built.accepted && upgradePrompt(built.state);
+          assert("it asks which card to replace", !!first);
+          assert("any card qualifies, not only level-I ones", !!first && !first.onlyTier);
+          assert("and the prompt can be declined, because it says up to 2",
+            !!first && first.optional === true);
+
+          const none = Game.applyAction(JSON.parse(JSON.stringify(built.state)),
+            { type: "RESOLVE_PENDING_CHOICE", payload: {
+              playerId: built.state.players[0].id, choiceId: first.id, dismiss: true } });
+          assert("taking none upgrades nothing",
+            tierCount(none.players[0], 1) === 6, JSON.stringify(none.players[0].cardTiers));
+          assert("and asks no further question", !upgradePrompt(none));
+
+          let one = Game.applyAction(JSON.parse(JSON.stringify(built.state)),
+            { type: "RESOLVE_PENDING_CHOICE", payload: {
+              playerId: built.state.players[0].id, choiceId: first.id, optionId: "military" } });
+          assert("the chosen card goes up one tech level",
+            one.players[0].cardTiers.military === 2, JSON.stringify(one.players[0].cardTiers));
+          const second = upgradePrompt(one);
+          assert("and the second of the two is offered", !!second);
+          one = Game.applyAction(one, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: one.players[0].id, choiceId: second.id, dismiss: true } });
+          assert("stopping after one leaves the rest alone",
+            tierCount(one.players[0], 2) === 1, JSON.stringify(one.players[0].cardTiers));
+
+          let both = JSON.parse(JSON.stringify(built.state));
+          ["military", "economy"].forEach((type) => {
+            const prompt = upgradePrompt(both);
+            both = Game.applyAction(both, { type: "RESOLVE_PENDING_CHOICE", payload: {
+              playerId: both.players[0].id, choiceId: prompt.id, optionId: type } });
+          });
+          assert("taking both upgrades exactly two cards",
+            tierCount(both.players[0], 2) === 2, JSON.stringify(both.players[0].cardTiers));
+          assert("and there is no third offer", !upgradePrompt(both),
+            JSON.stringify((both.pendingChoices || []).map((c) => c.kind)));
+          proves("wonder.science.porcelain_tower");
+        }
+      }
+
+      {
         // Non-Aggression Pact: "You cannot attack or destroy the pieces of the
         // player who gave you this card. If that player attacks or destroys any
         // of your pieces, you may return this card to swap your military focus

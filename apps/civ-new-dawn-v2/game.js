@@ -2780,7 +2780,8 @@ const Game = (() => {
       resolveCard(st, player, "industry", payment.tradePayment);
       log(st, `${player.name} built ${wonder.name} with ${payment.production.total} production (cost ${payment.cost.finalCost})! (${wonder.effect})`);
       if (wonder.name === "Pyramids") {
-        queueCardUpgrade(st, player, { onlyTier: 1, remaining: 3, source: "Pyramids", title: "Pyramids: Upgrade a Level-I Card" });
+        queueCardUpgrade(st, player, { onlyTier: 1, remaining: 3, optional: true,
+          source: "Pyramids", title: "Pyramids: Upgrade a Level-I Card (up to 3)" });
       }
       if (wonder.name === "Potala Palace") {
         queuePotalaPicks(st, player, 3);
@@ -2795,7 +2796,8 @@ const Game = (() => {
         queueAmundsenSite(st, player, payload.hexKey);
       }
       if (wonder.name === "Porcelain Tower") {
-        queueCardUpgrade(st, player, { remaining: 2, source: "Porcelain Tower", title: "Porcelain Tower: Upgrade a Card" });
+        queueCardUpgrade(st, player, { remaining: 2, optional: true,
+          source: "Porcelain Tower", title: "Porcelain Tower: Upgrade a Card (up to 2)" });
       }
       // Sumeria's Craftsmanship (unique Industry I): building also teaches.
       if (uniqueInPlay(player, "sumeria")) {
@@ -7065,6 +7067,12 @@ const Game = (() => {
       title: opts.title,
       source: opts.source,
       onlyTier: opts.onlyTier || null,
+      // Pyramids says "choose UP TO 3" and Porcelain Tower "replace UP TO 2",
+      // so 0, 1 and 2 are all legal answers and the player has to be able to
+      // stop. Without this the prompt could not be dismissed and both wonders
+      // forced their maximum. Declining ends the run: the chain is only queued
+      // from the accepting branch below.
+      optional: !!opts.optional,
       chain: opts.remaining > 1 ? Object.assign({}, opts, { remaining: opts.remaining - 1 }) : null,
       options: options
     });
