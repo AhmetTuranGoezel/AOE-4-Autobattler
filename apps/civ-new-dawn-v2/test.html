@@ -4494,6 +4494,134 @@
       }
 
       {
+        // Where a caravan sets off from. Base p8: one still on the economy card
+        // leaves from the capital or a MATURE city. Rome: "When you move a
+        // caravan FROM YOUR ECONOMY CARD, it can move from any of your cities
+        // (even a city that is not mature)."
+        //
+        // Two things were wrong. An undeployed caravan was defaulted to the
+        // capital and a requested start was honoured only for Rome, so nobody
+        // else could leave from a mature city at all. And Rome's wider set was
+        // applied whether or not the caravan was on the card, which let Rome
+        // pick up a caravan standing in the field and set it down in a city.
+        const romeBoard = (leaderId) => {
+          const st = rulesState();
+          const me = st.players[0];
+          me.leaderId = leaderId || "rome";
+          me.cardPlayed = false;
+          me.focusRow = ["economy", "science", "growth", "culture", "military", "industry"];
+          Object.values(st.map.hexes).forEach((h) => {
+            h.barbarian = false; h.barbarianId = null; h.barbarianToken = null;
+            h.barbarianHome = null; h.control = null;
+          });
+          for (let q = -1; q <= 8; q++) {
+            activate(st, q + ",0", { terrain: "grass" });
+            activate(st, q + ",1", { terrain: "grass" });
+            activate(st, q + ",-1", { terrain: "grass" });
+          }
+          // The capital, a MATURE second city, and an immature third one.
+          activate(st, "0,0", { city: { ownerId: me.id, isCapital: true,
+            developed: false, hasWonder: false, wonder: null } });
+          activate(st, "4,0", { city: { ownerId: me.id, isCapital: false,
+            developed: false, hasWonder: false, wonder: null } });
+          Game.hexNeighborKeys(4, 0).forEach((k) => {
+            if (st.map.hexes[k]) activate(st, k, { terrain: "grass",
+              control: { ownerId: me.id, fortified: false, district: null } });
+          });
+          activate(st, "7,0", { city: { ownerId: me.id, isCapital: false,
+            developed: false, hasWonder: false, wonder: null } });
+          me.caravans = [{ id: "c1", position: null }];
+          return { st, me };
+        };
+        const settle = (st) => Game.applyAction(st, { type: "NO_SUCH_ACTION", payload: {} });
+
+        {
+          const { st, me } = romeBoard("greece");
+          const ready = settle(st);
+          assert("(fixture) the second city really is mature",
+            Game.countDeveloped(ready, me.id) === 1,
+            String(Game.countDeveloped(ready, me.id)));
+          const starts = Game.caravanLaunchSpaces(ready, me.id);
+          assert("anyone may launch a caravan from their capital", starts.has("0,0"));
+          assert("and from a mature city, which used to be impossible",
+            starts.has("4,0"), [...starts].sort().join(" "));
+          assert("but not from an immature one", !starts.has("7,0"),
+            [...starts].sort().join(" "));
+          const out = Game.tryApplyAction(ready, { type: "PLAY_ECONOMY", payload: {
+            playerId: me.id, unitId: "c1", startKey: "4,0", toKey: "5,0", tradeSpent: 0 } },
+            { actorId: me.id, role: "player" });
+          assert("so the caravan really can set out from the mature city",
+            out.accepted, out.code);
+          assert("and arrives where it was sent",
+            out.accepted && out.state.players[0].caravans[0].position === "5,0",
+            out.accepted && String(out.state.players[0].caravans[0].position));
+        }
+        {
+          const { st, me } = romeBoard("greece");
+          const ready = settle(st);
+          const out = Game.tryApplyAction(ready, { type: "PLAY_ECONOMY", payload: {
+            playerId: me.id, unitId: "c1", startKey: "7,0", toKey: "6,0", tradeSpent: 0 } },
+            { actorId: me.id, role: "player" });
+          assert("an immature city is refused as a launch space for anyone else",
+            !out.accepted, out.code);
+          assert("and nothing moved",
+            out.state.players[0].caravans[0].position === null,
+            String(out.state.players[0].caravans[0].position));
+        }
+        {
+          const { st, me } = romeBoard("rome");
+          const ready = settle(st);
+          const starts = Game.caravanLaunchSpaces(ready, me.id);
+          assert("Rome may launch from an immature city too", starts.has("7,0"),
+            [...starts].sort().join(" "));
+          const out = Game.tryApplyAction(ready, { type: "PLAY_ECONOMY", payload: {
+            playerId: me.id, unitId: "c1", startKey: "7,0", toKey: "6,0", tradeSpent: 0 } },
+            { actorId: me.id, role: "player" });
+          assert("and the caravan sets out from it", out.accepted, out.code);
+          assert("arriving beside it",
+            out.accepted && out.state.players[0].caravans[0].position === "6,0");
+        }
+        {
+          // The half that was too generous: Rome's cities are where a caravan
+          // ON THE CARD may start, not somewhere a deployed one can be moved to.
+          const { st, me } = romeBoard("rome");
+          me.caravans = [{ id: "c1", position: "1,0" }];
+          const ready = settle(st);
+          const out = Game.tryApplyAction(ready, { type: "PLAY_ECONOMY", payload: {
+            playerId: me.id, unitId: "c1", startKey: "7,0", toKey: "6,0", tradeSpent: 0 } },
+            { actorId: me.id, role: "player" });
+          assert("a caravan already on the map cannot be relaunched from a city",
+            !out.accepted, out.code);
+          assert("it is still standing where it was",
+            out.state.players[0].caravans[0].position === "1,0",
+            String(out.state.players[0].caravans[0].position));
+          const normal = Game.tryApplyAction(ready, { type: "PLAY_ECONOMY", payload: {
+            playerId: me.id, unitId: "c1", toKey: "2,0", tradeSpent: 0 } },
+            { actorId: me.id, role: "player" });
+          assert("it moves normally from where it stands", normal.accepted, normal.code);
+          assert("one space along", normal.accepted &&
+            normal.state.players[0].caravans[0].position === "2,0");
+        }
+        {
+          // The board offers exactly the spaces the engine will accept, so a
+          // green city is never refused and a legal one is never hidden.
+          const { st, me } = romeBoard("rome");
+          const ready = settle(st);
+          const offered = Game.unitStartSpaces(ready, me, "caravan");
+          assert("every city Rome may leave from is offered",
+            offered.has("0,0") && offered.has("4,0") && offered.has("7,0"),
+            [...offered].sort().join(" "));
+          const nonRome = romeBoard("greece");
+          const readyG = settle(nonRome.st);
+          const offeredG = Game.unitStartSpaces(readyG, nonRome.me, "caravan");
+          assert("and a non-Roman is not offered the immature one",
+            offeredG.has("0,0") && offeredG.has("4,0") && !offeredG.has("7,0"),
+            [...offeredG].sort().join(" "));
+        }
+        proves("civ.rome");
+      }
+
+      {
         // America: "When you gain or spend a natural wonder token, place it on
         // any card in your focus row. You can spend a natural wonder token on a
         // focus card either as a trade token on that card or as a resource."

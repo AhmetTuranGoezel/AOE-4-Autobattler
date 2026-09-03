@@ -2326,11 +2326,23 @@ const Game = (() => {
           unit.position !== continuation.fromKey)) return st;
       const ecoHex = st.map.hexes[payload.toKey];
       if (!ecoHex || !ecoHex.active) return st;
-      // Rome: a caravan leaving the economy card may set out from any friendly city.
-      let startKey = continuation ? continuation.fromKey : (unit.position || findCapital(st, payload.playerId));
-      if (!continuation && payload.startKey && payload.startKey !== startKey && hasLeader(player, "rome")) {
-        const sh = st.map.hexes[payload.startKey];
-        if (sh && sh.city && sh.city.ownerId === payload.playerId) startKey = payload.startKey;
+      // Where this caravan sets off from. A continuation resumes where it
+      // stopped; a caravan on the map sets off from where it stands; only one
+      // still on the economy card chooses a city, and that choice is checked
+      // against the printed set rather than taken on trust.
+      //
+      // This used to default an undeployed caravan to the capital and honour a
+      // requested start ONLY for Rome, which got both halves wrong: everyone
+      // may launch from a mature city (base p8), and Rome's wider set is for a
+      // caravan leaving the CARD, not a licence to pick a deployed one up and
+      // put it down in another city.
+      let startKey;
+      if (continuation) startKey = continuation.fromKey;
+      else if (unit.position) startKey = unit.position;
+      else {
+        const wanted = payload.startKey || findCapital(st, payload.playerId);
+        if (!wanted || !caravanLaunchSpaces(st, payload.playerId).has(wanted)) return st;
+        startKey = wanted;
       }
       if (!startKey) return st;
       const tradePayment = continuation
@@ -5051,6 +5063,21 @@ const Game = (() => {
     return out;
   }
 
+  // Where a caravan still on the economy card may set out from. Base p8 is the
+  // capital or a MATURE city, the same set an army uses. Rome: "When you move a
+  // caravan FROM YOUR ECONOMY CARD, it can move from any of your cities (even a
+  // city that is not mature)" - so it widens the set, and only for a caravan
+  // that is on the card. A caravan already standing on the map sets off from
+  // where it stands, Roman or not.
+  function caravanLaunchSpaces(st, playerId) {
+    const out = launchSpaces(st, playerId);
+    if (!hasLeader(getPlayer(st, playerId), "rome")) return out;
+    Object.entries(st.map.hexes).forEach(([k, h]) => {
+      if (h.city && h.city.ownerId === playerId) out.add(k);
+    });
+    return out;
+  }
+
   // Where a figure of this kind may set off from: where it stands, or — if it
   // is still on its card — out of the cities it may launch from.
   function unitStartSpaces(st, player, kind) {
@@ -5058,7 +5085,14 @@ const Game = (() => {
     const out = new Set();
     let anyOnCard = false;
     list.forEach((u) => { if (u.position) out.add(u.position); else anyOnCard = true; });
-    if (anyOnCard) launchSpaces(st, player.id).forEach((k) => out.add(k));
+    // Only a figure still ON ITS CARD can pick a city to leave from, and for a
+    // caravan Rome widens which cities those are. A caravan already on the map
+    // sets off from where it stands.
+    if (anyOnCard) {
+      const from = kind === "caravan"
+        ? caravanLaunchSpaces(st, player.id) : launchSpaces(st, player.id);
+      from.forEach((k) => out.add(k));
+    }
     return out;
   }
 
@@ -9633,7 +9667,7 @@ const Game = (() => {
     industrialZoneCityOption, placementDifficulty,
     combatTotals, combatTokens, combatResources, combatPalenqueResources,
     combatSpendable, combatDefenderRoller,
-    launchSpaces, unitStartSpaces,
+    launchSpaces, caravanLaunchSpaces, unitStartSpaces,
     canCrossWater, computeScore,
     findDefenders, validControlHexes, validDistrictHexes, validReinforceHexes,
     validCityHexes, validWonderHexes, getReachable, findDefender, getUnitsAt,

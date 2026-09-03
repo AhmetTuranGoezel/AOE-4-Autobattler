@@ -6316,14 +6316,13 @@ const UI = (() => {
     if (sub.cardType === "growth") { sub.phase = "growth_choice"; refreshWizard(); return; }
     if (sub.cardType === "economy") {
       sub.phase = "move_caravan"; sub.selectedUnit = null;
-      // Highlight pickable caravans; Trajan may also launch from any friendly city.
-      const starts = Game.unitStartSpaces(state, me, "caravan");
-      if (Game.getLeader(me) && me.leaderId === "rome" && me.caravans.some((u) => u.position)) {
-        Object.entries(state.map.hexes).forEach(([k, h]) => {
-          if (h.city && h.city.ownerId === localPlayerId) starts.add(k);
-        });
-      }
-      sub.validHexes = starts; render(); return;
+      // Highlight pickable caravans and the cities one waiting on the card may
+      // leave from. unitStartSpaces owns that set — including Rome's wider one,
+      // which applies to a caravan on the CARD and not to relocating one that
+      // is already standing somewhere — so the board and the engine cannot
+      // disagree about which cities are green.
+      sub.validHexes = Game.unitStartSpaces(state, me, "caravan");
+      render(); return;
     }
     if (sub.cardType === "military") {
       sub.phase = "move_army"; sub.selectedUnit = null;
@@ -6628,20 +6627,20 @@ const UI = (() => {
         const h = state.map.hexes[hexKey];
         const myCity = h && h.city && h.city.ownerId === localPlayerId;
         if (!unit && myCity) {
-          // A caravan resting on the economy card sets out from a city. Rome may
-          // use any of theirs; everyone else launches from the capital.
-          // Base p8: out of the capital or a MATURE city. Rome may use any.
+          // A caravan resting on the economy card sets out from a city. Base
+          // p8 is the capital or a mature city; Rome may use any of theirs.
+          // The engine owns that set, so ask it rather than restating it here
+          // and letting the two drift apart.
           const onCard = me.caravans.find((u) => !u.position && free(u));
-          if (onCard && (me.leaderId === "rome" || h.city.isCapital || h.city.developed)) {
+          if (onCard && Game.caravanLaunchSpaces(state, localPlayerId).has(hexKey)) {
             unit = onCard;
             romeStart = hexKey;
           }
         }
-        if (!unit && me.leaderId === "rome" && myCity) {
-          // Trajan: clicking a friendly city launches a caravan from there.
-          unit = me.caravans.find((u) => u.position && free(u));
-          if (unit) romeStart = hexKey;
-        }
+        // Rome's wider set is for a caravan leaving the CARD. Clicking a city
+        // must never pick up a caravan that is already standing somewhere else
+        // and set it down there - the card says "when you move a caravan from
+        // your economy card", and the engine refuses it either way.
         if (!unit) return;
         sub.selectedUnit = unit;
         const maxMove = Game.getEconomyMove(me, state) + sub.tradeSpent;
