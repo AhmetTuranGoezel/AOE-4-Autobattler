@@ -290,7 +290,12 @@ const Game = (() => {
       active: false,
       revealed: false,
       resource: null,
+      // `naturalWonder` is the TOKEN, and it sits on the map only until
+      // somebody claims it. `naturalWonderSpace` is the printed space it
+      // started on and never changes, so a card that asks about a natural
+      // wonder SPACE still has something to read once the token has gone.
       naturalWonder: null,
+      naturalWonderSpace: null,
       cityState: null,
       unownedWonder: null,
       barbarian: false,
@@ -486,6 +491,7 @@ const Game = (() => {
       if (cell.naturalWonder) {
         hex.resource = "wonder";
         hex.naturalWonder = cell.naturalWonder;
+        hex.naturalWonderSpace = cell.naturalWonder;
       }
       if (cell.cityState) {
         const cs = CITY_STATE_DATA[cell.cityState] || { type: FOCUS_TYPES[Math.floor(Math.random() * FOCUS_TYPES.length)] };
@@ -788,9 +794,22 @@ const Game = (() => {
       pendingExploration: null,
       movementContinuation: null,
       // A natural-wonder token is reusable on later turns, but a particular
-      // physical token can contribute only once during one turn. Keys are map
-      // coordinates, values are deterministic turn ids.
+      // physical token can contribute only once during one turn. Keys are
+      // natural-wonder names, values are deterministic turn ids.
       naturalWonderUsage: {},
+      // The natural-wonder tokens themselves, by name. Base rules: placing a
+      // control token on a natural wonder space TAKES that token off the board
+      // and onto your leader sheet, and an attacker who defeats the control
+      // token of the player holding one takes it off THEM. Ownership therefore
+      // cannot be read off the map - the token is no longer there - so it
+      // lives here.
+      //   ownerId:           null while the token is still on its space
+      //   homeKey:           the space it started on; a stable token id
+      //   spaceControllerId: who held that space at the last sync, which is
+      //                      what separates a conquest from walking onto a
+      //                      space whose token was taken long ago
+      //   focusCard:         where America has parked it, once that lands
+      naturalWonders: {},
       // Interactive focus cards keep their printed sequence here. This is
       // public, deterministic state (never card text parsing): reconnecting in
       // the middle of "district, then reinforce" resumes the exact next step.
@@ -1033,10 +1052,12 @@ const Game = (() => {
         const printed = face?.cells?.[hex.tileCell];
         if (!printed || !printed.naturalWonder) return;
         hex.naturalWonder = printed.naturalWonder;
+        hex.naturalWonderSpace = printed.naturalWonder;
         hex.resource = "wonder";
       });
     }
     st.rulesVersion = RULE_VERSION;
+    ensureNaturalWonderRegistry(st);
     st.players = (st.players || []).map(migratePlayer);
     if (!projectedView && !Array.isArray(st.tileStack)) {
       if (Array.isArray(st.tileDeck)) st.tileStack = st.tileDeck.slice();
@@ -1759,9 +1780,11 @@ const Game = (() => {
     // dozens of mutation sites to remember, and keeps a rejected action from
     // registering as a change merely because it repaired a stale flag.
     syncCityMaturity(st);
+    syncNaturalWonderTokens(st);
     const before = tracksTurn ? JSON.stringify(stateWithoutUndo(st)) : "";
     const result = applyActionInner(st, action);
     syncCityMaturity(result);
+    syncNaturalWonderTokens(result);
     const changed = tracksTurn && before !== JSON.stringify(stateWithoutUndo(result));
     if (changed) {
       if (type === "END_TURN") {
@@ -4823,7 +4846,7 @@ const Game = (() => {
     if (changes.terrain && TERRAIN[changes.terrain]) hex.terrain = changes.terrain;
     if ("resource" in changes) {
       hex.resource = changes.resource || null;
-      if (hex.resource !== "wonder") hex.naturalWonder = null;
+      if (hex.resource !== "wonder") { hex.naturalWonder = null; hex.naturalWonderSpace = null; }
     }
     if ("barbarian" in changes) {
       hex.barbarian = !!changes.barbarian;
@@ -4869,6 +4892,7 @@ const Game = (() => {
       hex.barbarian = false;
       hex.resource = null;
       hex.naturalWonder = null;
+      hex.naturalWonderSpace = null;
     }
   }
 
@@ -5735,8 +5759,13 @@ const Game = (() => {
     // mountain nobody owns is worth nothing, however close it sits. This one
     // has no second option, so it simply resolves.
     if (kind === "campus") {
+      // "...with a mountain or natural wonder in or adjacent to the campus."
+      // This is the printed SPACE, not the token: a friendly natural wonder
+      // space is by definition one you put a control token on, and doing that
+      // takes the token away, so reading the token would make the clause
+      // impossible to satisfy.
       const featured = (h) => !!h && (districtTerrainMatches(st, h, player.id, "mountain") ||
-        h.resource === "wonder" || !!h.naturalWonder);
+        h.resource === "wonder" || !!h.naturalWonderSpace);
       const paid = [];
       const nearMisses = [];
       keys.forEach((dk) => {
@@ -5960,6 +5989,7 @@ const Game = (() => {
     }
     // A barbarian march destroys control tokens, which can un-mature a city.
     syncCityMaturity(st);
+    syncNaturalWonderTokens(st);
   }
 
   // Terra p14: a trade token goes on every faceup wonder. A wonder that would
@@ -6226,13 +6256,12 @@ const Game = (() => {
     Object.values(st.map.hexes).forEach((h) => { if (h.city && h.city.ownerId === playerId && h.city.wonder) types.add(h.city.wonder.type); });
     return types.size;
   }
+  // Hoarder counts tokens you HAVE and Preservationist natural wonders you
+  // CONTROL; both are the token on your leader sheet, not the space it came
+  // from, so neither is a question about the map any more.
   function countNaturalWonders(st, playerId) {
-    let c = 0;
-    Object.values(st.map.hexes).forEach((h) => {
-      if (h.resource !== "wonder" && !h.naturalWonder) return;
-      if ((h.control && h.control.ownerId === playerId) || (h.city && h.city.ownerId === playerId)) c++;
-    });
-    return c;
+    return Object.values((st && st.naturalWonders) || {})
+      .filter((entry) => entry && entry.ownerId === playerId).length;
   }
   function countCityTiles(st, playerId) {
     const tiles = new Set();
@@ -7288,23 +7317,101 @@ const Game = (() => {
     return `${Number(st.turn.round || 0)}:${Number(st.turn.index || 0)}:${activeId || "none"}`;
   }
 
-  // Natural-wonder ownership is deliberately derived from the physical token
-  // and the control marker in its map space. Replacing/removing that marker
-  // therefore transfers/returns the resource immediately without a second
-  // inventory that can drift out of sync.
+  // Build the registry entry for every natural wonder space the board has, so
+  // a game created before the registry existed, or one whose map has grown by
+  // exploration, still has a token to own.
+  function ensureNaturalWonderRegistry(st) {
+    if (!st || !st.map || !st.map.hexes) return;
+    st.naturalWonders = st.naturalWonders || {};
+    Object.entries(st.map.hexes).forEach(([hexKey, hex]) => {
+      if (!hex) return;
+      // Older states only ever carried the token field.
+      if (!hex.naturalWonderSpace && hex.naturalWonder) {
+        hex.naturalWonderSpace = hex.naturalWonder;
+      }
+      const name = hex.naturalWonderSpace;
+      if (!name || st.naturalWonders[name]) return;
+      st.naturalWonders[name] = {
+        name,
+        resource: NATURAL_WONDER_RESOURCES[name] || null,
+        homeKey: hexKey,
+        // A state written under the old model kept the token on the hex and
+        // read ownership from the control marker there. Carry that reading
+        // over once, so a save in progress does not lose a claimed wonder.
+        ownerId: hex.naturalWonder
+          ? null
+          : ((hex.control && hex.control.ownerId) || (hex.city && hex.city.ownerId) || null),
+        spaceControllerId: (hex.control && hex.control.ownerId) ||
+          (hex.city && hex.city.ownerId) || null,
+        focusCard: null
+      };
+    });
+  }
+
+  // Base rules: "when a player places a control token on a natural wonder
+  // space, that player takes the natural wonder token and places it on their
+  // leader sheet", and an attacker who defeats the control token of the player
+  // holding one takes that token from them.
+  //
+  // Two different events, and the difference matters: taking a space whose
+  // token was carried off several turns ago gains nothing, because there is no
+  // token there to take. `spaceControllerId` is what tells them apart - it
+  // records who held the space last time we looked, so a change of controller
+  // away from the current owner is a conquest and a change from nobody is not.
+  //
+  // Ownership survives losing the space. The token is on a leader sheet, not
+  // on the board, so destroying somebody's control marker does not reach it.
+  function syncNaturalWonderTokens(st) {
+    if (!st || !st.map || !st.map.hexes) return;
+    ensureNaturalWonderRegistry(st);
+    Object.values(st.naturalWonders).forEach((entry) => {
+      const hex = st.map.hexes[entry.homeKey];
+      if (!hex) return;
+      const controllerId = (hex.control && hex.control.ownerId) ||
+        (hex.city && hex.city.ownerId) || null;
+      const previous = entry.spaceControllerId || null;
+      entry.spaceControllerId = controllerId;
+      if (!controllerId || controllerId === entry.ownerId) return;
+      if (entry.ownerId === null) {
+        // The token is still on its space: whoever just took the space takes it.
+        entry.ownerId = controllerId;
+        hex.naturalWonder = null;
+        if (hex.resource === "wonder") hex.resource = null;
+        const taker = getPlayer(st, controllerId);
+        if (taker) log(st, `${taker.name} took the ${entry.name} natural wonder token.`);
+        return;
+      }
+      if (previous === entry.ownerId) {
+        // The holder was driven off the space: the token goes with it.
+        const from = getPlayer(st, entry.ownerId);
+        const to = getPlayer(st, controllerId);
+        entry.ownerId = controllerId;
+        if (from && to) {
+          log(st, `${to.name} took the ${entry.name} natural wonder token from ${from.name}.`);
+        }
+      }
+      // Otherwise the space had been abandoned before this player arrived, and
+      // there was nothing on it to pick up.
+    });
+  }
+
+  // Natural-wonder ownership is explicit: the token is off the map and on a
+  // leader sheet, so this reads the registry rather than the board. `hexKey` is
+  // kept as the token's stable identity (the space it came from) because that
+  // is what the payment payloads and the UI already name it by.
   function getControlledNaturalWonders(st, playerId) {
     const turnId = naturalWonderTurnId(st);
     const usage = st && st.naturalWonderUsage || {};
     const held = [];
-    Object.entries(st && st.map && st.map.hexes || {}).forEach(([hexKey, hex]) => {
-      if (!hex || !hex.naturalWonder || !hex.control || hex.control.ownerId !== playerId) return;
-      const resource = NATURAL_WONDER_RESOURCES[hex.naturalWonder];
-      if (!RESOURCES.includes(resource)) return;
+    Object.values((st && st.naturalWonders) || {}).forEach((entry) => {
+      if (!entry || entry.ownerId !== playerId) return;
+      if (!RESOURCES.includes(entry.resource)) return;
       held.push({
-        hexKey,
-        name: hex.naturalWonder,
-        resource,
-        usedThisTurn: usage[hexKey] === turnId
+        hexKey: entry.homeKey,
+        name: entry.name,
+        resource: entry.resource,
+        focusCard: entry.focusCard || null,
+        usedThisTurn: usage[entry.name] === turnId
       });
     });
     return held.sort((a, b) => a.name.localeCompare(b.name));
@@ -7348,8 +7455,13 @@ const Game = (() => {
     if (new Set(requested).size !== requested.length) {
       return { ok: false, code: "natural_wonder_duplicate", message: "The same natural wonder cannot be used twice." };
     }
-    const controlled = new Map(getControlledNaturalWonders(st, player && player.id)
-      .map((entry) => [entry.hexKey, entry]));
+    // A token is identified by the space it came from or by its own name; it
+    // is no longer on the board, so neither is a lookup into the map.
+    const controlled = new Map();
+    getControlledNaturalWonders(st, player && player.id).forEach((entry) => {
+      controlled.set(entry.hexKey, entry);
+      controlled.set(entry.name, entry);
+    });
     const eligible = wonder && Array.isArray(wonder.eligibleResources)
       ? wonder.eligibleResources : (WONDER_RESOURCE_ELIGIBILITY[wonder && wonder.name] || []);
     const entries = [];
@@ -7381,7 +7493,7 @@ const Game = (() => {
   function markNaturalWondersUsed(st, entries) {
     st.naturalWonderUsage = st.naturalWonderUsage || {};
     const turnId = naturalWonderTurnId(st);
-    (entries || []).forEach((entry) => { st.naturalWonderUsage[entry.hexKey] = turnId; });
+    (entries || []).forEach((entry) => { st.naturalWonderUsage[entry.name] = turnId; });
   }
 
   // All true cost modifiers meet here. Production bonuses are intentionally
@@ -8893,6 +9005,7 @@ const Game = (() => {
       terrain: "water",
       resource: null,
       naturalWonder: null,
+      naturalWonderSpace: null,
       cityState: null,
       barbarian: false,
       barbarianId: null,
@@ -9271,7 +9384,7 @@ const Game = (() => {
     adjacentToCityState, adjacentToFriendlyControl, terrainDifficulty, movementTerrainLimit, isForcedStopHex,
     validateCulturePlacement, validateReinforcePlacement,
     validateIndustryCityAction,
-    countControl, countWonders, countDeveloped, countCities, findCapital,
+    countControl, countWonders, countDeveloped, countCities, countNaturalWonders, findCapital,
     getClaimedAgendaCount,
     amundsenSites, wonderResolutionBlocked,
     getValidFortressHexes, getValidTileAnchors, getTileAnchorsAnyRotation, tilePlacementFor, getTileDef,

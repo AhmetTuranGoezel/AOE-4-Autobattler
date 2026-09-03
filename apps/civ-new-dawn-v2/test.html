@@ -575,7 +575,10 @@
       function activate(st, k, props) {
         Object.assign(st.map.hexes[k], {
           active: true, revealed: true, terrain: "grass", city: null, control: null,
-          barbarian: false, cityState: null, fortress: false, resource: null, naturalWonder: null
+          barbarian: false, cityState: null, fortress: false, resource: null,
+          // Both halves, or a randomly dealt wonder space under a fixture's
+          // capital survives the reset and quietly joins the token registry.
+          naturalWonder: null, naturalWonderSpace: null
         }, props || {});
         return st.map.hexes[k];
       }
@@ -2342,7 +2345,10 @@
           const { st, me } = mk("campus", (s2, p2) => {
             s2.map.hexes["1,0"].terrain = "mountain";                            // its own space
             activate(s2, "2,0",  { terrain: "mountain", control: mine(p2.id) }); // friendly mountain
-            activate(s2, "1,-1", { terrain: "grass", naturalWonder: "Mt Kilimanjaro",
+            // A natural wonder SPACE: the token itself was taken when the
+            // control marker went down, which is exactly the state a friendly
+            // natural wonder space is always in.
+            activate(s2, "1,-1", { terrain: "grass", naturalWonderSpace: "Mt Kilimanjaro",
                                    control: mine(p2.id) });                      // friendly wonder
             activate(s2, "2,-1", { terrain: "mountain" });                       // nobody's
           });
@@ -2865,61 +2871,201 @@
       }
 
       {
-        // Natural wonders are reusable physical resources controlled by their
-        // map space. They are exhausted for this turn, never consumed.
-        const st = rulesState();
-        const me = st.players[0];
-        me.focusRow = ["growth", "culture", "science", "economy", "military", "industry"];
-        activate(st, "0,0", { city: {
-          ownerId: me.id, isCapital: true, developed: false,
-          hasWonder: false, wonder: null
-        } });
-        activate(st, "1,0", {
-          naturalWonder: "Mt Kilimanjaro",
-          control: { ownerId: me.id, fortified: false, district: null }
-        });
-        const deck = st.wonderDecks.military;
-        deck.deck = ["Jebel Barkal"].concat(deck.deck.filter((name) => name !== "Jebel Barkal"));
-        deck.revealed = "Jebel Barkal";
+        // Natural wonder tokens: claiming, spending, and conquest.
+        //
+        // Base rules: placing a control token on a natural wonder space TAKES
+        // that token off the space and onto your leader sheet, and an attacker
+        // who defeats the control token of the player holding one takes the
+        // token from them. Ownership used to be read off the map - the token
+        // stayed on the hex and whoever controlled the hex counted as having it
+        // - which can express neither rule: the token is not on the board any
+        // more, and losing the space is not the same as losing the token.
+        //
+        // Ownership is now explicit in st.naturalWonders, keyed by name, with
+        // the space it came from kept as the token's stable identity.
+        const owns = (st, playerId) => Game.getControlledNaturalWonders(st, playerId)
+          .map((e) => e.name);
 
-        const held = Game.getControlledNaturalWonders(st, me.id);
-        assert("a controlled Natural Wonder exposes its printed resource",
-          held.length === 1 && held[0].hexKey === "1,0" && held[0].resource === "oil" && !held[0].usedThisTurn,
-          JSON.stringify(held));
-        const preview = Game.calculateWonderProduction(st, me, "Jebel Barkal", {
-          tradeSpent: 0, resources: {}, naturalWonders: ["1,0"]
-        });
-        assert("a matching Natural Wonder contributes production",
-          preview.ok && preview.production.naturalWonderResources === 1 &&
-          preview.production.total === 7 && preview.affordable,
-          JSON.stringify(preview));
+        // (A) A claim through a real Culture placement.
+        const claim = () => {
+          const st = rulesState();
+          const me = st.players[0];
+          me.cardPlayed = false;
+          // Culture resolves from the fifth place, so any printed terrain is
+          // within reach and the fixture does not depend on what the space is.
+          me.focusRow = ["science", "growth", "economy", "military", "industry", "culture"];
+          // The map is dealt from the printed tiles, so clear whatever it
+          // happened to deal: this test is about one named token.
+          Object.values(st.map.hexes).forEach((h) => {
+            h.barbarian = false; h.barbarianId = null;
+            h.naturalWonder = null; h.naturalWonderSpace = null;
+            if (h.resource === "wonder") h.resource = null;
+          });
+          st.naturalWonders = {};
+          activate(st, "0,0", { city: { ownerId: me.id, isCapital: true,
+            developed: false, hasWonder: false, wonder: null } });
+          activate(st, "1,0", { terrain: "grass", resource: "wonder",
+            naturalWonder: "Mt Kilimanjaro", naturalWonderSpace: "Mt Kilimanjaro" });
+          return { st, me };
+        };
+        {
+          const { st, me } = claim();
+          assert("the token starts on its space and nobody owns it",
+            st.map.hexes["1,0"].naturalWonder === "Mt Kilimanjaro" &&
+            owns(st, me.id).length === 0, JSON.stringify(owns(st, me.id)));
+          const out = Game.tryApplyAction(st, { type: "PLAY_CULTURE", payload: {
+            playerId: me.id, hexKeys: ["1,0"], tradeSpent: 0 } },
+            { actorId: me.id, role: "player" });
+          assert("a control token can be placed on the natural wonder space",
+            out.accepted, out.code);
+          assert("and the control token is there",
+            out.state.map.hexes["1,0"].control.ownerId === me.id);
+          assert("the token is taken off the map",
+            out.state.map.hexes["1,0"].naturalWonder === null,
+            String(out.state.map.hexes["1,0"].naturalWonder));
+          assert("and its space stops advertising a resource",
+            out.state.map.hexes["1,0"].resource === null,
+            String(out.state.map.hexes["1,0"].resource));
+          assert("but the space is still printed as a natural wonder space",
+            out.state.map.hexes["1,0"].naturalWonderSpace === "Mt Kilimanjaro");
+          assert("the player now owns the token",
+            owns(out.state, me.id).join(",") === "Mt Kilimanjaro",
+            JSON.stringify(owns(out.state, me.id)));
+          assert("and it is recorded as theirs, not as a thing on a hex",
+            out.state.naturalWonders["Mt Kilimanjaro"].ownerId === me.id,
+            JSON.stringify(out.state.naturalWonders["Mt Kilimanjaro"]));
 
-        const built = Game.tryApplyAction(st, { type: "PLAY_INDUSTRY_WONDER", payload: {
-          hexKey: "0,0", wonderName: "Jebel Barkal", tradeSpent: 0,
-          resources: {}, naturalWonders: ["1,0"]
-        }}, { actorId: me.id, role: "player" });
-        assert("Natural Wonder production builds the eligible world wonder",
-          built.accepted && built.state.map.hexes["0,0"].city.wonder.name === "Jebel Barkal",
-          built.code);
-        const afterUse = built.accepted
-          ? Game.getControlledNaturalWonders(built.state, me.id) : [];
-        assert("using a Natural Wonder keeps it on the map but exhausts it this turn",
-          afterUse.length === 1 && afterUse[0].usedThisTurn &&
-          built.state.map.hexes["1,0"].naturalWonder === "Mt Kilimanjaro");
-        const duplicate = built.accepted ? Game.calculateWonderProduction(
-          built.state, built.state.players[0], "Jebel Barkal",
-          { naturalWonders: ["1,0"] }) : { ok: true };
-        assert("the same Natural Wonder cannot be used twice in one turn",
-          !duplicate.ok && duplicate.code === "natural_wonder_already_used", duplicate.code);
+          // Losing the space is not losing the token: it is on a leader sheet.
+          const razed = Game.applyAction(JSON.parse(JSON.stringify(out.state)),
+            { type: "NO_SUCH_ACTION", payload: {} });
+          razed.map.hexes["1,0"].control = null;
+          const after = Game.applyAction(razed, { type: "NO_SUCH_ACTION", payload: {} });
+          assert("destroying the control token does not reach the leader sheet",
+            owns(after, me.id).join(",") === "Mt Kilimanjaro",
+            JSON.stringify(owns(after, me.id)));
 
-        if (built.accepted) {
+          // ...and walking onto the emptied space later gains nobody anything,
+          // because there is no token on it to pick up.
+          after.map.hexes["1,0"].control =
+            { ownerId: after.players[1].id, fortified: false, district: null };
+          const late = Game.applyAction(after, { type: "NO_SUCH_ACTION", payload: {} });
+          assert("taking the vacated space gains no token",
+            owns(late, late.players[1].id).length === 0,
+            JSON.stringify(owns(late, late.players[1].id)));
+          assert("and the original owner still has it",
+            owns(late, me.id).join(",") === "Mt Kilimanjaro");
+        }
+
+        // (C) The token keeps its printed resource identity, and spending it
+        //     exhausts that token for the turn rather than consuming it.
+        {
+          const { st, me } = claim();
+          const claimed = Game.tryApplyAction(st, { type: "PLAY_CULTURE", payload: {
+            playerId: me.id, hexKeys: ["1,0"], tradeSpent: 0 } },
+            { actorId: me.id, role: "player" }).state;
+          const held = Game.getControlledNaturalWonders(claimed, me.id);
+          assert("an owned natural wonder exposes its printed resource",
+            held.length === 1 && held[0].resource === "oil" && !held[0].usedThisTurn,
+            JSON.stringify(held));
+          assert("and is still addressed by the space it came from",
+            held[0].hexKey === "1,0", held[0].hexKey);
+
+          const player = claimed.players[0];
+          player.cardPlayed = false;
+          const deck = claimed.wonderDecks.military;
+          deck.deck = ["Jebel Barkal"].concat(deck.deck.filter((n) => n !== "Jebel Barkal"));
+          deck.revealed = "Jebel Barkal";
+          const preview = Game.calculateWonderProduction(claimed, player, "Jebel Barkal", {
+            tradeSpent: 0, resources: {}, naturalWonders: ["1,0"] });
+          assert("a matching natural wonder contributes production",
+            preview.ok && preview.production.naturalWonderResources === 1 && preview.affordable,
+            JSON.stringify(preview));
+          const byName = Game.calculateWonderProduction(claimed, player, "Jebel Barkal", {
+            tradeSpent: 0, resources: {}, naturalWonders: ["Mt Kilimanjaro"] });
+          assert("and can equally be named by the token itself",
+            byName.ok && byName.production.naturalWonderResources === 1, JSON.stringify(byName));
+
+          const built = Game.tryApplyAction(claimed, { type: "PLAY_INDUSTRY_WONDER", payload: {
+            hexKey: "0,0", wonderName: "Jebel Barkal", tradeSpent: 0,
+            resources: {}, naturalWonders: ["1,0"] } }, { actorId: me.id, role: "player" });
+          assert("natural wonder production builds the eligible world wonder",
+            built.accepted && built.state.map.hexes["0,0"].city.wonder.name === "Jebel Barkal",
+            built.code);
+          const afterUse = Game.getControlledNaturalWonders(built.state, me.id);
+          assert("spending it exhausts the token for the turn without consuming it",
+            afterUse.length === 1 && afterUse[0].usedThisTurn === true,
+            JSON.stringify(afterUse));
+          assert("and it is still off the map, where it has been since the claim",
+            built.state.map.hexes["1,0"].naturalWonder === null);
+          const duplicate = Game.calculateWonderProduction(built.state, built.state.players[0],
+            "Jebel Barkal", { naturalWonders: ["1,0"] });
+          assert("the same token cannot be spent twice in one turn",
+            !duplicate.ok && duplicate.code === "natural_wonder_already_used", duplicate.code);
           built.state.turn.round++;
-          assert("a Natural Wonder refreshes on a later turn",
+          assert("and it refreshes on a later turn",
             !Game.getControlledNaturalWonders(built.state, me.id)[0].usedThisTurn);
-          built.state.map.hexes["1,0"].control.ownerId = built.state.players[1].id;
-          assert("Natural Wonder availability follows control immediately",
-            Game.getControlledNaturalWonders(built.state, me.id).length === 0 &&
-            Game.getControlledNaturalWonders(built.state, built.state.players[1].id).length === 1);
+        }
+
+        // (B) Conquest transfers the token from the defender to the attacker.
+        {
+          const attempt = () => {
+            const { st, me } = claim();
+            const claimed = Game.tryApplyAction(st, { type: "PLAY_CULTURE", payload: {
+              playerId: me.id, hexKeys: ["1,0"], tradeSpent: 0 } },
+              { actorId: me.id, role: "player" }).state;
+            if (owns(claimed, me.id).length !== 1) return { setupFailed: true };
+            // tryApplyAction hands back its own copy of the state, so the rival
+            // has to be reached through THAT copy - editing the player object
+            // the fixture started with would arm an army nobody can see.
+            const foe = claimed.players[1];
+            // The rival marches on the space the token came from.
+            claimed.turn.index = claimed.turn.order.indexOf(foe.id);
+            foe.cardPlayed = false;
+            activate(claimed, "2,0", { terrain: "grass" });
+            foe.armies = [{ id: "f1", position: "2,0" }];
+            let s = Game.applyAction(claimed, { type: "PLAY_MILITARY_ATTACK", payload: {
+              playerId: foe.id, unitId: "f1", fromKey: "2,0", toKey: "1,0",
+              targetType: "control" } });
+            if (!s.combat) return null;
+            s = Game.applyAction(s, { type: "COMBAT_ROLL", payload: { playerId: foe.id, side: "attacker" } });
+            s = Game.applyAction(s, { type: "COMBAT_ROLL", payload: { playerId: foe.id, side: "defender", hostOverride: true } });
+            s = Game.applyAction(s, { type: "COMBAT_PASS", payload: { playerId: foe.id, side: "attacker" } });
+            s = Game.applyAction(s, { type: "COMBAT_PASS", payload: { playerId: claimed.players[0].id, side: "defender", hostOverride: true } });
+            const control = s.map.hexes["1,0"].control;
+            return control && control.ownerId === foe.id ? s : null;
+          };
+          let won = null;
+          for (let i = 0; i < 400 && !won; i++) {
+            const r = attempt();
+            if (r && r.setupFailed) break;
+            won = r;
+          }
+          assert("a rival can take the natural wonder space by force", !!won);
+          if (won) {
+            const meId = won.players[0].id, foeId = won.players[1].id;
+            assert("the control token on the space changed hands",
+              won.map.hexes["1,0"].control.ownerId === foeId,
+              JSON.stringify(won.map.hexes["1,0"].control));
+            assert("the defender no longer holds the natural wonder token",
+              owns(won, meId).length === 0, JSON.stringify(owns(won, meId)));
+            assert("the attacker holds it instead",
+              owns(won, foeId).join(",") === "Mt Kilimanjaro",
+              JSON.stringify(owns(won, foeId)));
+            assert("exactly one player owns it - it was moved, not copied",
+              won.players.filter((p) => owns(won, p.id).length).length === 1,
+              JSON.stringify(won.players.map((p) => [p.id, owns(won, p.id)])));
+            assert("and the registry names the new owner",
+              won.naturalWonders["Mt Kilimanjaro"].ownerId === foeId,
+              JSON.stringify(won.naturalWonders["Mt Kilimanjaro"]));
+            // (C) after the transfer.
+            const held = Game.getControlledNaturalWonders(won, foeId);
+            assert("its printed resource identity survives the transfer",
+              held.length === 1 && held[0].resource === "oil" &&
+              held[0].name === "Mt Kilimanjaro", JSON.stringify(held));
+            assert("and the agenda count follows the token, not the space",
+              Game.countNaturalWonders(won, foeId) === 1 &&
+              Game.countNaturalWonders(won, meId) === 0);
+          }
         }
       }
 
