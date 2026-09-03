@@ -4494,6 +4494,187 @@
       }
 
       {
+        // The four printed science cards. All four end by advancing the tech
+        // dial by the slot's number; what differs is what happens first.
+        const sciBoard = (tier, opts) => {
+          const o = opts || {};
+          const st = rulesState();
+          const me = st.players[0];
+          me.cardPlayed = false;
+          me.cardTiers.science = tier;
+          me.cardLevels.science = tier;
+          // Science first, so its slot is 1 and the dial moves by a known
+          // amount. Nuclear Power needs the fifth slot and says so itself.
+          me.focusRow = ["science", "growth", "economy", "military", "industry", "culture"];
+          Game.FOCUS_TYPES.forEach((t) => { me.trade[t] = 0; });
+          Game.RESOURCES.forEach((r) => { me.resources[r] = 0; });
+          Object.values(st.map.hexes).forEach((h) => {
+            h.barbarian = false; h.barbarianId = null; h.barbarianToken = null;
+            h.barbarianHome = null; h.control = null;
+          });
+          for (let q = -2; q <= 6; q++) {
+            activate(st, q + ",0", { terrain: "grass" });
+            activate(st, q + ",1", { terrain: "grass" });
+            activate(st, q + ",-1", { terrain: "grass" });
+          }
+          activate(st, "0,0", { city: { ownerId: me.id, isCapital: true,
+            developed: false, hasWonder: false, wonder: null } });
+          if (o.setUp) o.setUp(st, me);
+          return { st, me };
+        };
+        const playScience = (st, me, extra) => Game.tryApplyAction(st,
+          { type: "PLAY_SCIENCE", payload: Object.assign(
+            { playerId: me.id, tradeSpent: 0 }, extra || {}) },
+          { actorId: me.id, role: "player" });
+
+        // ── Astrology ────────────────────────────────────────────────────
+        {
+          const { st, me } = sciBoard(1);
+          assert("Astrology is the level-I science card",
+            Game.getCardName(me, "science") === "Astrology", Game.getCardName(me, "science"));
+          const slot = Game.getSlotValue(me, "science", st);
+          const before = me.tech;
+          const out = playScience(st, me);
+          assert("it resolves", out.accepted, out.code);
+          assert("and advances the dial by the slot's number",
+            out.state.players[0].tech === before + slot,
+            `${before} + ${slot} -> ${out.state.players[0].tech}`);
+        }
+        {
+          // "Reaching a tech level lets you swap in a focus card of that level."
+          const { st, me } = sciBoard(1, { setUp: (s2, p2) => {
+            // One space short of the level-II tab, which the dial is printed at.
+            p2.tech = Game.TECH_LEVEL_SPACES
+              ? Number(Object.keys(Game.TECH_LEVEL_SPACES)[0]) - 1 : 2;
+          } });
+          const out = playScience(st, me);
+          assert("crossing a tech tab is accepted", out.accepted, out.code);
+          const upgrade = (out.state.pendingChoices || [])
+            .find((c) => c.kind === "science_upgrade");
+          assert("reaching a tech level offers a card of that level", !!upgrade,
+            JSON.stringify({ tech: out.state.players[0].tech,
+              choices: (out.state.pendingChoices || []).map((c) => c.kind) }));
+          assert("and base p8 makes it optional - you MAY gain one",
+            !!upgrade && upgrade.optional === true);
+          if (upgrade) {
+            // The list also offers "unique_<type>", which is the same upgrade
+            // taken as the civ's own card. Pick a plain one so the assertion is
+            // about the level reached and not about which variant came first.
+            const plain = (upgrade.options || [])
+              .find((o) => Game.FOCUS_TYPES.includes(o.id));
+            assert("a plain card of that level is on offer", !!plain,
+              JSON.stringify((upgrade.options || []).map((o) => o.id)));
+            const took = Game.applyAction(out.state, { type: "RESOLVE_PENDING_CHOICE",
+              payload: { playerId: me.id, choiceId: upgrade.id, optionId: plain.id } });
+            assert("taking it raises that card to the level reached",
+              (took.players[0].cardTiers[plain.id] || 1) >= 2,
+              JSON.stringify({ took: plain.id, tiers: took.players[0].cardTiers }));
+          }
+        }
+        proves("standard.science.astrology");
+
+        // ── Mathematics ──────────────────────────────────────────────────
+        {
+          // "Place 1 trade token from the supply on 1 of YOUR FOCUS CARDS.
+          // Then, advance your tech dial..."
+          const { st, me } = sciBoard(2);
+          const slot = Game.getSlotValue(me, "science", st);
+          const before = me.tech;
+          const out = playScience(st, me);
+          assert("Mathematics resolves", out.accepted, out.code);
+          const pick = (out.state.pendingChoices || [])
+            .find((c) => c.kind === "trade_any");
+          assert("it asks which focus card gets the trade token", !!pick,
+            JSON.stringify((out.state.pendingChoices || []).map((c) => c.kind)));
+          assert("offering every card in the row",
+            !!pick && pick.options.length >= 6, pick && String(pick.options.length));
+          const placed = Game.applyAction(out.state, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: me.id, choiceId: pick.id, optionId: "military" } });
+          assert("the named card gains exactly one",
+            placed.players[0].trade.military === 1,
+            String(placed.players[0].trade.military));
+          assert("and the dial still advanced by the slot's number",
+            placed.players[0].tech === before + slot,
+            `${before} + ${slot} -> ${placed.players[0].tech}`);
+        }
+        proves("standard.science.mathematics");
+
+        // ── Replaceable Parts ────────────────────────────────────────────
+        {
+          // "Gain 1 resource of your choice. You cannot gain a resource of a
+          // type that you already have."
+          const { st, me } = sciBoard(3, { setUp: (s2, p2) => {
+            p2.resources.marble = 1;      // already held, so barred
+          } });
+          const before = me.tech;
+          const slot = Game.getSlotValue(me, "science", st);
+          const out = playScience(st, me);
+          assert("Replaceable Parts resolves", out.accepted, out.code);
+          const gain = (out.state.pendingChoices || [])
+            .find((c) => c.kind === "gain_resource");
+          assert("it asks which resource to gain", !!gain,
+            JSON.stringify((out.state.pendingChoices || []).map((c) => c.kind)));
+          const offered = (gain.options || []).map((o) => o.id);
+          assert("a type already held is not offered",
+            !offered.includes("marble"), offered.join(","));
+          assert("the others are", offered.length === Game.RESOURCES.length - 1,
+            offered.join(","));
+          const took = Game.applyAction(out.state, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: me.id, choiceId: gain.id, optionId: offered[0] } });
+          assert("taking one adds exactly that resource",
+            took.players[0].resources[offered[0]] === 1,
+            JSON.stringify(took.players[0].resources));
+          assert("and the marble it already had is untouched",
+            took.players[0].resources.marble === 1);
+          assert("with the dial advanced by the slot's number",
+            took.players[0].tech === before + slot);
+        }
+        proves("standard.science.replaceable_parts");
+
+        // ── Nuclear Power ────────────────────────────────────────────────
+        {
+          // "IF YOU RESOLVED THIS CARD IN THE FIFTH SLOT, choose 1 space..."
+          const { st, me } = sciBoard(4);
+          const out = playScience(st, me);
+          assert("Nuclear Power resolves from the first slot", out.accepted, out.code);
+          assert("but from there it does nothing but advance the dial",
+            !(out.state.pendingChoices || []).some((c) => c.kind === "nuclear_power_target"),
+            JSON.stringify((out.state.pendingChoices || []).map((c) => c.kind)));
+        }
+        {
+          const { st, me } = sciBoard(4, { setUp: (s2, p2) => {
+            const foe = s2.players[1];
+            s2.map.hexes["2,0"].control = { ownerId: foe.id, fortified: false, district: null };
+            s2.map.hexes["3,0"].control = { ownerId: foe.id, fortified: true, district: null };
+          } });
+          me.focusRow = ["growth", "economy", "military", "industry", "culture", "science"];
+          const slot = Game.getSlotValue(me, "science", st);
+          assert("(fixture) science is now the fifth slot", slot === 5, String(slot));
+          const before = me.tech;
+          const out = playScience(st, me);
+          assert("from the fifth slot it resolves", out.accepted, out.code);
+          const blast = (out.state.pendingChoices || [])
+            .find((c) => c.kind === "nuclear_power_target");
+          assert("and now asks for the centre space", !!blast,
+            JSON.stringify((out.state.pendingChoices || []).map((c) => c.kind)));
+          const fired = Game.applyAction(out.state, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: me.id, choiceId: blast.id, hexKey: "2,0" } });
+          assert("unreinforced tokens in the blast are destroyed",
+            fired.map.hexes["2,0"].control === null,
+            JSON.stringify(fired.map.hexes["2,0"].control));
+          assert("reinforced ones are flipped, not destroyed",
+            !!fired.map.hexes["3,0"].control &&
+            fired.map.hexes["3,0"].control.fortified === false &&
+            fired.map.hexes["3,0"].control.ownerId === fired.players[1].id,
+            JSON.stringify(fired.map.hexes["3,0"].control));
+          assert("and the dial advanced by the slot's number",
+            fired.players[0].tech === before + slot,
+            `${before} + ${slot} -> ${fired.players[0].tech}`);
+        }
+        proves("standard.science.nuclear_power");
+      }
+
+      {
         // The four printed culture cards, end to end. Each places control
         // tokens adjacent to friendly cities and then does something else, and
         // it is the "something else" that distinguishes them.
