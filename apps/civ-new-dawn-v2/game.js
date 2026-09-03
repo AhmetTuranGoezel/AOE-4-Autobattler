@@ -4196,8 +4196,21 @@ const Game = (() => {
           hex.resource = null;
         }
         log(st, `${player.name} placed a${choice.fortified ? " reinforced" : ""} control marker from ${choice.source || "a choice"}.`);
-        // Inca chain: landing on another mountain keeps the expansion rolling.
-        if (choice.source === "inca" && hex.terrain === "mountain") {
+        // Inca: "After you place a control token on a mountain space, you may
+        // place a control token on a space adjacent to that space (which can
+        // trigger this effect again)." This used to read `choice.source ===
+        // "inca"`, so the ability only ever CONTINUED its own chain - it was
+        // started by the Culture card alone. A theater square, Engineering,
+        // Urbanization, Hanging Gardens, Amundsen-Scott or England's expansion
+        // landing on a mountain gave the Inca nothing. Like Stonehenge below,
+        // it now listens to the placement itself rather than to who asked for
+        // it, and the chain falls out of the same rule.
+        //
+        // This is the PLACE path only. Moving a token (Drama, Mysticism),
+        // replacing a rival's (Mass Media, Statue of Liberty, capture), handing
+        // one over (Eiffel Tower) and reinforcing one all have their own
+        // handlers and none of them is a placement.
+        if (hasLeader(player, "inca") && hex.terrain === "mountain") {
           queueIncaChain(st, player, hexKey);
         }
         // Stonehenge listens to every actual placement source (Hanging

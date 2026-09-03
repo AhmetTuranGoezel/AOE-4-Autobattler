@@ -1417,6 +1417,156 @@
       }
 
       {
+        // Inca: "After you place a control token on a mountain space, you may
+        // place a control token on a space adjacent to that space (which can
+        // trigger this effect again)."
+        //
+        // The trigger used to read `choice.source === "inca"`, so the ability
+        // only ever CONTINUED its own chain and was started by the Culture card
+        // alone. Every other way of PLACING a token on a mountain gave the Inca
+        // nothing. It now listens to the placement itself. Moving, replacing,
+        // handing over and reinforcing a token are not placements and must
+        // stay silent, which the last two cases drive.
+        const incaOffer = (st) => (st.pendingChoices || [])
+          .find((ch) => ch.kind === "place_control" && ch.source === "inca");
+
+        // A theater square beside a mountain: a placement source that has
+        // nothing to do with the Culture card.
+        function theaterBoard(leaderId) {
+          const st = rulesState();
+          const me = st.players[0];
+          me.leaderId = leaderId || "inca";
+          Object.values(st.map.hexes).forEach((h) => { h.barbarian = false; h.barbarianId = null; });
+          activate(st, "0,0", { city: { ownerId: me.id, isCapital: true,
+            developed: false, hasWonder: false, wonder: null } });
+          activate(st, "1,0", { terrain: "grass",
+            control: { ownerId: me.id, fortified: false, district: "theater" } });
+          activate(st, "2,0", { terrain: "mountain" });
+          activate(st, "3,0", { terrain: "mountain" });
+          activate(st, "4,0", { terrain: "grass" });   // room for a third link
+          activate(st, "2,-1", { terrain: "grass" });
+          return { st, me };
+        }
+        const theaterPlaces = (st, me, hexKey) => {
+          Game.resolveEvent(st, "district_event");
+          const mode = (st.pendingChoices || []).find((ch) => ch.kind === "district_mode");
+          const chose = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: mode.id, optionId: "near" } });
+          const spots = (chose.pendingChoices || []).find((ch) => ch.kind === "place_control");
+          return { spots, state: Game.applyAction(chose, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: me.id, choiceId: spots.id, hexKey } }) };
+        };
+
+        {
+          const { st, me } = theaterBoard();
+          const { spots, state: placed } = theaterPlaces(st, me, "2,0");
+          assert("the theater square offers the mountain",
+            spots.hexKeys.includes("2,0"), spots.hexKeys.join(" "));
+          assert("and the token lands there", !!placed.map.hexes["2,0"].control);
+          const inca = incaOffer(placed);
+          assert("a placement the Culture card had nothing to do with triggers the Inca",
+            !!inca, JSON.stringify((placed.pendingChoices || []).map((x) => x.source)));
+          assert("the offer is optional, because the card says you may",
+            !!inca && inca.optional === true);
+          assert("and every space it offers is adjacent to that mountain",
+            inca.hexKeys.every((k) => Game.hexNeighborKeys(2, 0).includes(k)),
+            inca.hexKeys.join(" "));
+
+          // "...which can trigger this effect again." applyAction mutates in
+          // place, so each of these three answers starts from its own copy of
+          // the state rather than from a `placed` the previous one has edited.
+          const answer = (extra) => Game.applyAction(
+            JSON.parse(JSON.stringify(placed)),
+            { type: "RESOLVE_PENDING_CHOICE",
+              payload: Object.assign({ playerId: me.id, choiceId: inca.id }, extra) });
+          const chained = answer({ hexKey: "3,0" });
+          assert("the chained token is placed", !!chained.map.hexes["3,0"].control);
+          assert("and landing on a second mountain triggers it again",
+            !!incaOffer(chained),
+            JSON.stringify((chained.pendingChoices || []).map((x) => x.source)));
+          const onGrass = answer({ hexKey: "2,-1" });
+          assert("but landing on grass ends the chain", !incaOffer(onGrass),
+            JSON.stringify((onGrass.pendingChoices || []).map((x) => x.source)));
+          const declined = answer({ dismiss: true });
+          assert("and it can simply be declined", !incaOffer(declined) &&
+            !declined.map.hexes["3,0"].control && !declined.map.hexes["2,-1"].control);
+        }
+        {
+          const { st, me } = theaterBoard("rome");
+          const { state: placed } = theaterPlaces(st, me, "2,0");
+          assert("a player who is not the Inca gains nothing from the same placement",
+            !incaOffer(placed));
+        }
+        {
+          const { st, me } = theaterBoard();
+          st.map.hexes["2,0"].terrain = "hill";
+          const { state: placed } = theaterPlaces(st, me, "2,0");
+          assert("and a hill is not a mountain", !incaOffer(placed));
+        }
+        {
+          // Mass Media REPLACES a rival token. Even on a mountain, replacing is
+          // not placing.
+          const st = rulesState();
+          const me = st.players[0], foe = st.players[1];
+          me.leaderId = "inca";
+          Object.values(st.map.hexes).forEach((h) => { h.barbarian = false; h.barbarianId = null; });
+          activate(st, "0,0", { city: { ownerId: me.id, isCapital: true,
+            developed: false, hasWonder: false, wonder: null } });
+          activate(st, "1,0", { terrain: "mountain",
+            control: { ownerId: foe.id, fortified: false, district: null } });
+          st.pendingChoices.push({ id: "mm1", kind: "mass_media_target", playerId: me.id,
+            hexKeys: ["1,0"], title: "Mass Media", source: "Mass Media" });
+          const out = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: "mm1", hexKey: "1,0" } });
+          assert("Mass Media took the mountain space",
+            out.map.hexes["1,0"].control.ownerId === me.id,
+            JSON.stringify(out.map.hexes["1,0"].control));
+          assert("but replacing a rival token is not placing one", !incaOffer(out),
+            JSON.stringify((out.pendingChoices || []).map((x) => x.source)));
+        }
+        {
+          // Reinforcing flips a token that is already on the board.
+          const st = rulesState();
+          const me = st.players[0];
+          me.leaderId = "inca";
+          Object.values(st.map.hexes).forEach((h) => { h.barbarian = false; h.barbarianId = null; });
+          activate(st, "1,0", { terrain: "mountain",
+            control: { ownerId: me.id, fortified: false, district: null } });
+          st.pendingChoices.push({ id: "rf1", kind: "reinforce", playerId: me.id,
+            hexKeys: ["1,0"], title: "Reinforce", source: "test" });
+          const out = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: "rf1", hexKey: "1,0" } });
+          assert("the token is reinforced", out.map.hexes["1,0"].control.fortified === true);
+          assert("but reinforcing is not placing", !incaOffer(out));
+        }
+        {
+          // The Culture card, the one source that always worked, still does.
+          const st = rulesState();
+          const me = st.players[0];
+          me.leaderId = "inca";
+          me.cardPlayed = false;
+          // A mountain is difficulty 5, so the culture card only reaches one
+          // from the fifth place in the row.
+          me.focusRow = ["science", "growth", "economy", "military", "industry", "culture"];
+          Object.values(st.map.hexes).forEach((h) => { h.barbarian = false; h.barbarianId = null; });
+          activate(st, "0,0", { city: { ownerId: me.id, isCapital: true,
+            developed: false, hasWonder: false, wonder: null } });
+          activate(st, "1,0", { terrain: "mountain" });
+          activate(st, "2,0", { terrain: "grass" });
+          const out = Game.tryApplyAction(st, { type: "PLAY_CULTURE", payload: {
+            playerId: me.id, hexKeys: ["1,0"], tradeSpent: 0 } },
+            { actorId: me.id, role: "player" });
+          if (out.accepted) {
+            assert("the Culture card still starts the chain", !!incaOffer(out.state),
+              JSON.stringify((out.state.pendingChoices || []).map((x) => x.source)));
+          } else {
+            assert("the Culture placement was accepted", false, out.code);
+          }
+          proves("civ.inca");
+        }
+      }
+
+      {
         // England: "When you build a city, if it is the only city on its tile
         // (excluding city-states), you may place 1 of your unused, reinforced
         // control token in a space adjacent to that city."
