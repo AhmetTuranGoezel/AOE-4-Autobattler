@@ -42,7 +42,38 @@
       li.textContent = `${condition ? "PASS" : "FAIL"}: ${name}` +
         (!condition && detail !== undefined ? `  [${detail}]` : "");
       results.appendChild(li);
-      if (condition) passed++; else failed++;
+      if (condition) { passed++; assertionsSinceProof++; } else failed++;
+    }
+
+    // ── Behavioural proof ────────────────────────────────────────────────
+    //
+    // proves("<effect id>") claims that the assertions just made actually
+    // exercised a printed effect and checked the board afterwards. It is the
+    // ONLY thing tools/coverage-matrix.js counts - a card's name appearing in
+    // this file proves nothing and is not looked at.
+    //
+    // Two rules keep the claim honest, both enforced here rather than by
+    // convention:
+    //   * a proof must be backed by assertions made since the previous proof,
+    //     so proves() cannot stand in for testing;
+    //   * a proof made while anything has failed is not recorded, because a red
+    //     suite has not demonstrated anything.
+    // The same id may be declared by several tests when one card needs more
+    // than one scenario to cover its paragraphs; that is recorded, not an error.
+    const PROOFS = [];
+    let assertionsSinceProof = 0;
+    let proofErrors = [];
+    function proves(effectId) {
+      if (typeof effectId !== "string" || !effectId) {
+        proofErrors.push(`proves() called with a non-id: ${String(effectId)}`);
+        return;
+      }
+      if (assertionsSinceProof === 0) {
+        proofErrors.push(`${effectId}: proves() with no assertions since the previous proof`);
+        return;
+      }
+      PROOFS.push({ id: effectId, assertions: assertionsSinceProof, failedSoFar: failed });
+      assertionsSinceProof = 0;
     }
 
     function players(n) {
@@ -1918,6 +1949,10 @@
           controlled.state.map.hexes[controlKey].tileId === pending.tileId &&
           controlled.state.map.hexes[controlKey].control.ownerId === me.id,
           controlled.code);
+        // Both paragraphs: the expedition runs from an edge space on ANY tile,
+        // and the control token lands on the tile that was just placed. The
+        // final assertion is board state, not a queued prompt.
+        proves("wonder.economy.apadana");
       }
 
       {
@@ -3072,6 +3107,10 @@
         assert("Stonehenge may place on more than one hill beside the triggering space",
           st0.map.hexes["1,0"].control.ownerId === me.id &&
           st0.map.hexes["-1,0"].control.ownerId === me.id);
+        // The chain is driven from a real placement and both spilled tokens are
+        // asserted on the board, including the "1 or MORE adjacent hills" part.
+        // Not yet covered: "does not trigger on moved or replaced tokens".
+        proves("wonder.culture.stonehenge");
       }
 
       {
@@ -3368,6 +3407,12 @@
           Game.getPlayer(beyond, bMe2.id).trade.growth);
         assert("and all five markers really are reinforced",
           ["1,0", "0,1", "-1,1", "-1,0", "0,-1"].every((k) => beyond.map.hexes[k].control.fortified));
+        // Both printed paragraphs are driven and the board asserted after each:
+        // the district is placed, the "then reinforce up to this slot's number"
+        // step runs as its own allowance, stopping under the maximum is legal,
+        // the new district is itself a legal target, and trade is charged only
+        // for reinforcements beyond the printed ones.
+        proves("standard.growth.sanitation");
       }
 
       {
@@ -3894,6 +3939,11 @@
               report: st.districtReport, log: st.log.slice(-4) }));
           assert("Dutch district water does not become an ordinary friendly Culture anchor",
             !Game.validControlHexes(st, dutch.id, 5).has("0,1"));
+          // The ability is driven through the real district event and the trade
+          // it produced is asserted, together with its printed limit: the water
+          // counts only while a district ability resolves, not as ordinary
+          // friendly ground.
+          proves("civ.netherlands");
         }
       }
 
@@ -3988,6 +4038,11 @@
           assert("Amundsen: the 2 control tokens follow it",
             (done.pendingChoices || []).some((c) => c.source === AM && c.kind === "place_control"));
         }
+        // The whole card: it founds its own rim city, the wonder ends up in
+        // THAT city and not the one it was bought from, the follow-up tokens
+        // are offered, and a board that cannot host it refuses the purchase
+        // outright rather than half-applying it.
+        proves("wonder.science.amundsen_scott_research_station");
       }
 
       summary.textContent = `${passed} passed, ${failed} failed`;
@@ -3999,6 +4054,14 @@
       results.appendChild(li);
       summary.textContent = `${passed} passed, ${failed} failed`;
     }
+    // Handed to tools/coverage-matrix.js. A proof declared while the suite was
+    // already red is dropped here rather than at declaration time, because a
+    // later failure invalidates an earlier claim just as much.
+    window.__CIV_PROOFS__ = {
+      passed, failed,
+      proofErrors,
+      proofs: failed ? [] : PROOFS
+    };
   </script>
 </body>
 </html>
