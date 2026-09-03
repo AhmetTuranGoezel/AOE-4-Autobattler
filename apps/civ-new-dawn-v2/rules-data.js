@@ -221,7 +221,13 @@
     },
     economy: {
       1: { name: "Foreign Trade", effectText: "Move each of your caravans up to 3 spaces, onto terrain matching this slot or lower. Reaching a city-state or rival city returns the caravan to this card and earns 2 trade tokens and a diplomacy card.", figures: "1 caravan", move: 3, caravans: 1 },
-      2: { name: "Currency", effectText: "Move each of your caravans up to 4 spaces. They can move into spaces matching this slot's terrain or lower. Your caravans can move into a barbarian's space; remove that barbarian without gaining a trade token and end that caravan's movement.", figures: "2 caravans", move: 4, caravans: 2, effect: "remove_barbarian" },
+      // The printed card ends with "and end that caravan's movement". The
+      // official FAQ corrects that: clearing the barbarian does NOT end the
+      // caravan's remaining movement. The text here states the corrected rule
+      // and says so, because it is what the engine does and what the player
+      // will see happen — leaving the printed wording would have the reference
+      // card contradict the board.
+      2: { name: "Currency", effectText: "Move each of your caravans up to 4 spaces. They can move into spaces matching this slot's terrain or lower. Your caravans can move into a barbarian's space; remove that barbarian without gaining a trade token. Per the official FAQ, that caravan keeps whatever movement it has left.", figures: "2 caravans", move: 4, caravans: 2, effect: "remove_barbarian" },
       3: { name: "Steam Power", effectText: "Move each of your caravans up to 6 spaces. They can move into spaces matching this slot's terrain or lower, as well as water. Then, you may exchange 1 of your resource tokens with another resource token of any type from the supply.", figures: "2 caravans", move: 6, caravans: 2, water: true, effect: "exchange_resource" },
       4: { name: "Capitalism", effectText: "Move each of your caravans up to 6 spaces. They can move into spaces matching this slot's terrain or lower, as well as water. Once per turn, after you reset this card, choose another card in your focus row. Resolve that card as though it is in the first slot, but do not reset it.", figures: "3 caravans", move: 6, caravans: 3, water: true, effect: "resolve_extra" }
     },

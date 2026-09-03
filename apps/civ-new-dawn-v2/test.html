@@ -2050,6 +2050,16 @@
           const { st, me } = currencyBoard();
           assert("the level-II economy card is Currency",
             Game.getCardName(me, "economy") === "Currency", Game.getCardName(me, "economy"));
+          // The printed card ends "and end that caravan's movement"; the FAQ
+          // corrects it. The reference text a player reads in the app has to
+          // agree with what the engine does, or the card contradicts the board.
+          const currencyText = Game.getCardEffectText(me, "economy");
+          assert("its reference text does not claim the movement ends",
+            !/end that caravan's movement/.test(currencyText), currencyText);
+          assert("and it states the FAQ rule the engine implements",
+            /keeps whatever movement it has left/.test(currencyText), currencyText);
+          assert("while still printing the no-trade-token clause",
+            /without gaining a trade token/.test(currencyText), currencyText);
           assert("it moves a caravan up to four spaces",
             Game.getEconomyMove(me, st) === 4, String(Game.getEconomyMove(me, st)));
           // The barbarian is a forced stop, so with it standing at 2,0 nothing
