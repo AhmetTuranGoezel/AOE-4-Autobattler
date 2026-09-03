@@ -1417,6 +1417,81 @@
       }
 
       {
+        // Base p13: a city is mature while every active land space around it
+        // holds its owner's control token. Maturity used to be a cached flag
+        // refreshed only by the actions that remembered to ask, so every other
+        // way of losing a ring token left the city "mature" for the rest of the
+        // game. These drive the losses that had no refresh between them.
+        const RING = ["1,0", "-1,0", "0,1", "0,-1", "1,-1", "-1,1"];
+        const ringed = () => {
+          const st = rulesState();
+          const me = st.players[0];
+          activate(st, "0,0", { city: { ownerId: me.id, isCapital: true,
+            developed: false, hasWonder: false, wonder: null } });
+          RING.forEach((k) => activate(st, k, {
+            control: { ownerId: me.id, fortified: false, district: null } }));
+          return { st, me };
+        };
+
+        {
+          const { st, me } = ringed();
+          assert("a fully ringed capital is mature",
+            Game.countDeveloped(st, me.id) === 1, String(Game.countDeveloped(st, me.id)));
+          const scoreWhileMature = Game.computeScore(st, me.id);
+          // Exactly what a barbarian raid leaves behind: one marker gone.
+          st.map.hexes["0,1"].control = null;
+          assert("losing one ring token ends maturity immediately",
+            Game.countDeveloped(st, me.id) === 0, String(Game.countDeveloped(st, me.id)));
+          // Three points: one for the control token itself, two for the
+          // maturity it was holding up. Comparing within one state rather than
+          // against a second generated map, whose terrain would differ.
+          assert("and the city stops scoring as mature",
+            Game.computeScore(st, me.id) === scoreWhileMature - 3,
+            scoreWhileMature + " -> " + Game.computeScore(st, me.id));
+          st.map.hexes["0,1"].control = { ownerId: me.id, fortified: false, district: null };
+          assert("replacing the token makes it mature again",
+            Game.countDeveloped(st, me.id) === 1);
+        }
+        {
+          // A rival taking one ring space is the Forbidden City / Eiffel Tower
+          // shape: the token is still there, but it is no longer yours.
+          const { st, me } = ringed();
+          st.map.hexes["1,-1"].control = {
+            ownerId: st.players[1].id, fortified: false, district: null };
+          assert("a ring space changing hands ends maturity too",
+            Game.countDeveloped(st, me.id) === 0, String(Game.countDeveloped(st, me.id)));
+        }
+        {
+          // A barbarian march is the case that had no refresh at all: the raid
+          // destroys the marker inside resolveEvent, far from any action that
+          // used to call checkDevelopment.
+          const { st, me } = ringed();
+          const raided = "0,-1";
+          st.map.hexes[raided].control = null;
+          Game.resolveEvent(st, "barbarian_move");
+          assert("maturity is recomputed after an event, not only after an action",
+            Game.countDeveloped(st, me.id) === 0, String(Game.countDeveloped(st, me.id)));
+          assert("and the mirror the UI reads agrees with the rule",
+            st.map.hexes["0,0"].city.developed === false,
+            String(st.map.hexes["0,0"].city.developed));
+        }
+        {
+          // The mirror must also be repaired for a state that arrives stale -
+          // an old save, or a peer running an older build.
+          const { st, me } = ringed();
+          st.map.hexes["-1,1"].control = null;
+          st.map.hexes["0,0"].city.developed = true;          // a lie from an old save
+          // Deliberately an action no reducer handles: the repair lives in the
+          // applyAction wrapper, not in any one handler, so even a no-op fixes
+          // it. That is what stops the flag drifting again.
+          const out = Game.applyAction(st, { type: "NO_SUCH_ACTION", payload: {} });
+          assert("a stale developed flag is corrected on the next action",
+            out.map.hexes["0,0"].city.developed === false,
+            String(out.map.hexes["0,0"].city.developed));
+        }
+      }
+
+      {
         // Terra p9, the printed district effects, end to end. Four of the five
         // were wrong: three are a CHOICE of one of two options and were fused
         // into a single always-on effect, the "friendly space" test was

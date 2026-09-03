@@ -28,8 +28,8 @@ Status values:
 | Combat | partial | Dice, bidding and capture are driven in older tests; combat modifiers are mostly asserted through getters, which is not proof. |
 | Barbarian movement / spawning | partial | Identity across moves, printed-letter spawn and return-to-home are proven. Petra's redirect clause is **known-broken** (unimplemented). |
 | City construction | unproven | No test drives a city build through every legal source and asserts the result. |
-| Mature cities | partial | `isCityDeveloped` verified directly; the **Commercial Hub positive case is missing** and is on the fix list. Maturity goes stale after barbarian raids — **known-broken**. |
-| Trade tokens | partial | Industry production arithmetic (slot + trade) is proven; the 3-token cap and per-card trade tracks are not systematically asserted. |
+| Mature cities | proven | Maturity is derived from the current board, not cached: a ringed capital is mature, losing one ring token ends it immediately and costs the score, a ring space changing hands ends it, an event that destroys a marker recomputes it, and a stale flag arriving from an old save is repaired by the next action. The Commercial Hub's mature-city option is driven end to end. |
+| Trade tokens | partial | Industry production arithmetic (slot + trade) is proven, and the 3-token cap is asserted where a district would exceed it; per-card trade tracks are not systematically asserted. |
 | Resources | partial | Wonder-payment eligibility is enforced and tested; gaining/spending elsewhere is not. |
 | Natural wonders | unproven | Token-to-resource mapping is transcribed but no test spends one. |
 | World Wonder deck construction | partial | 36-card pool and the 2/2/3 per-type playable deck are asserted; the removal step is asserted by count only. |
@@ -46,7 +46,3 @@ Status values:
 ## Known-broken, open
 
 1. **Petra** — the barbarian-redirect clause is not implemented at all.
-2. **Mature-city staleness** — barbarians destroying a ring token do not recompute
-   maturity, so `countDeveloped`, agendas and district payouts over-report.
-   Same gap on `remove_control` (Forbidden City) and `eiffel_give`.
-3. **Commercial Hub / mature capital** — positive regression missing.
