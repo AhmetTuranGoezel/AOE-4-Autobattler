@@ -558,6 +558,7 @@
       // --- Rulebook conformance: trade tokens, combat, unit counts ----------
       // A trade token does exactly what its card's trade track says, and
       // nothing else. Rulebook "Handelsmarker" table.
+      const FOCUS_TYPES_FOR_TEST = Game.FOCUS_TYPES;
       function rulesState() {
         const st = Game.createState(players(2));
         st.phase = "playing";
@@ -4490,6 +4491,202 @@
         const forbidden = (st0.pendingChoices || []).find((choice) => choice.source === "Forbidden City");
         assert("Forbidden City recognizes Antananarivo as a friendly adjacent space",
           forbidden && forbidden.hexKeys.includes("1,0"), JSON.stringify(st0.pendingChoices));
+      }
+
+      {
+        // America: "When you gain or spend a natural wonder token, place it on
+        // any card in your focus row. You can spend a natural wonder token on a
+        // focus card either as a trade token on that card or as a resource."
+        //
+        // So an American natural wonder token has a home card, and while it
+        // sits there it pays for that card like a trade token on it. Spending
+        // does not consume it - natural wonder tokens are exhausted for the
+        // turn, never used up - so the card is chosen again afterwards.
+        const cardChoice = (st) => (st.pendingChoices || [])
+          .find((c) => c.kind === "natural_wonder_card");
+        const americaBoard = (leaderId) => {
+          const st = rulesState();
+          const me = st.players[0];
+          me.leaderId = leaderId || "america";
+          me.cardPlayed = false;
+          // A natural wonder space is terrain difficulty 5 whatever it is
+          // printed on, so the culture card only reaches one from the fifth
+          // place in the row. Resolving it moves culture to the front, which
+          // is where the later science tests want the row anyway.
+          me.focusRow = ["science", "growth", "economy", "military", "industry", "culture"];
+          FOCUS_TYPES_FOR_TEST.forEach((t) => { me.trade[t] = 0; });
+          Object.values(st.map.hexes).forEach((h) => {
+            h.barbarian = false; h.barbarianId = null; h.barbarianToken = null;
+            h.barbarianHome = null; h.naturalWonder = null; h.naturalWonderSpace = null;
+            if (h.resource === "wonder") h.resource = null;
+          });
+          st.naturalWonders = {};
+          activate(st, "0,0", { city: { ownerId: me.id, isCapital: true,
+            developed: false, hasWonder: false, wonder: null } });
+          activate(st, "1,0", { terrain: "grass", resource: "wonder",
+            naturalWonder: "Mt Kilimanjaro", naturalWonderSpace: "Mt Kilimanjaro" });
+          activate(st, "0,1", { terrain: "grass" });
+          activate(st, "1,-1", { terrain: "grass" });
+          return { st, me };
+        };
+        // Claim it the real way, then answer the placement prompt.
+        const claimOnto = (st, me, cardType) => {
+          const claimed = Game.tryApplyAction(st, { type: "PLAY_CULTURE", payload: {
+            playerId: me.id, hexKeys: ["1,0"], tradeSpent: 0 } },
+            { actorId: me.id, role: "player" });
+          assert("(fixture) the claim was accepted", claimed.accepted, claimed.code);
+          if (!claimed.accepted) return { state: st, ask: null };
+          const ask = cardChoice(claimed.state);
+          if (!ask) return { state: claimed.state, ask: null };
+          const placed = Game.applyAction(claimed.state, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: me.id, choiceId: ask.id, optionId: cardType } });
+          return { state: placed, ask };
+        };
+
+        {
+          const { st, me } = americaBoard();
+          const claimed = Game.tryApplyAction(st, { type: "PLAY_CULTURE", payload: {
+            playerId: me.id, hexKeys: ["1,0"], tradeSpent: 0 } },
+            { actorId: me.id, role: "player" });
+          assert("America can claim a natural wonder", claimed.accepted, claimed.code);
+          const ask = cardChoice(claimed.state);
+          assert("gaining the token asks which focus card it goes on", !!ask,
+            JSON.stringify((claimed.state.pendingChoices || []).map((c) => c.kind)));
+          assert("and offers every card in the focus row",
+            !!ask && ask.options.length === 6, ask && JSON.stringify(ask.options));
+          assert("it names the token being placed",
+            !!ask && ask.tokenName === "Mt Kilimanjaro", ask && ask.tokenName);
+          const placed = Game.applyAction(claimed.state, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: me.id, choiceId: ask.id, optionId: "military" } });
+          assert("the token records the card it was put on",
+            placed.naturalWonders["Mt Kilimanjaro"].focusCard === "military",
+            JSON.stringify(placed.naturalWonders["Mt Kilimanjaro"]));
+          const held = Game.getControlledNaturalWonders(placed, me.id);
+          assert("and it is still America's token, on their sheet",
+            held.length === 1 && held[0].focusCard === "military", JSON.stringify(held));
+        }
+
+        {
+          // A player who is not America is never asked, and their token has no
+          // home card at all.
+          const { st, me } = americaBoard("rome");
+          const claimed = Game.tryApplyAction(st, { type: "PLAY_CULTURE", payload: {
+            playerId: me.id, hexKeys: ["1,0"], tradeSpent: 0 } },
+            { actorId: me.id, role: "player" });
+          assert("a non-American claim is accepted", claimed.accepted, claimed.code);
+          assert("but nothing asks about a focus card", !cardChoice(claimed.state));
+          assert("and the token sits on no card",
+            claimed.state.naturalWonders["Mt Kilimanjaro"].focusCard === null);
+        }
+
+        {
+          // The token pays for the card it sits on, as a trade token would.
+          const { st, me } = americaBoard();
+          const { state } = claimOnto(st, me, "science");
+          state.players[0].cardPlayed = false;
+          state.players[0].trade.science = 0;
+          assert("the science card has no printed trade on it",
+            state.players[0].trade.science === 0);
+          const paid = Game.tryApplyAction(state, { type: "PLAY_SCIENCE", payload: {
+            playerId: me.id, tradeSpent: 1 } }, { actorId: me.id, role: "player" });
+          assert("a science action can still spend one, paid by the token",
+            paid.accepted, paid.code);
+          assert("the card was not driven negative",
+            paid.state.players[0].trade.science === 0,
+            String(paid.state.players[0].trade.science));
+          const after = Game.getControlledNaturalWonders(paid.state, me.id);
+          assert("the token is exhausted for the turn, not consumed",
+            after.length === 1 && after[0].usedThisTurn === true, JSON.stringify(after));
+          assert("and spending it asks again where it goes",
+            !!cardChoice(paid.state),
+            JSON.stringify((paid.state.pendingChoices || []).map((c) => c.kind)));
+        }
+
+        {
+          // It pays for THAT card, not for any card.
+          const { st, me } = americaBoard();
+          const { state } = claimOnto(st, me, "science");
+          state.players[0].cardPlayed = false;
+          state.players[0].trade.economy = 0;
+          const spend = Game.validateFocusTradeSpend(state, state.players[0], "economy", 1);
+          assert("a token on science does not pay for economy",
+            !spend.ok, JSON.stringify(spend));
+          const own = Game.validateFocusTradeSpend(state, state.players[0], "science", 1);
+          assert("but it does pay for science", own.ok, JSON.stringify(own));
+          assert("and the payment says the card covered none of it",
+            own.ok && own.printedSpent === 0 &&
+            own.naturalWonderTokens.join(",") === "Mt Kilimanjaro",
+            JSON.stringify(own));
+        }
+
+        {
+          // An exhausted token cannot pay a second time in the same turn.
+          const { st, me } = americaBoard();
+          const { state } = claimOnto(st, me, "science");
+          state.players[0].cardPlayed = false;
+          const first = Game.tryApplyAction(state, { type: "PLAY_SCIENCE", payload: {
+            playerId: me.id, tradeSpent: 1 } }, { actorId: me.id, role: "player" });
+          assert("the first spend works", first.accepted, first.code);
+          first.state.players[0].cardPlayed = false;
+          const again = Game.validateFocusTradeSpend(first.state, first.state.players[0], "science", 1);
+          assert("the same token cannot pay twice in one turn", !again.ok, JSON.stringify(again));
+          first.state.turn.round++;
+          const later = Game.validateFocusTradeSpend(first.state, first.state.players[0], "science", 1);
+          assert("but it refreshes on a later turn", later.ok, JSON.stringify(later));
+        }
+
+        {
+          // Printed trade is used before a wonder token, so a token is never
+          // burned while an ordinary token on the same card goes spare.
+          const { st, me } = americaBoard();
+          const { state } = claimOnto(st, me, "science");
+          state.players[0].cardPlayed = false;
+          state.players[0].trade.science = 2;
+          const spend = Game.validateFocusTradeSpend(state, state.players[0], "science", 2);
+          assert("two printed tokens cover a cost of two", spend.ok, JSON.stringify(spend));
+          assert("and the wonder token is left alone",
+            spend.printedSpent === 2 && spend.naturalWonderTokens.length === 0,
+            JSON.stringify(spend));
+          const three = Game.validateFocusTradeSpend(state, state.players[0], "science", 3);
+          assert("a cost of three uses both printed tokens and then the wonder",
+            three.ok && three.printedSpent === 2 &&
+            three.naturalWonderTokens.join(",") === "Mt Kilimanjaro", JSON.stringify(three));
+        }
+
+        {
+          // The other printed half: it can still be spent as a RESOURCE, which
+          // is what every player does with one.
+          const { st, me } = americaBoard();
+          const { state } = claimOnto(st, me, "culture");
+          const player = state.players[0];
+          player.cardPlayed = false;
+          const deck = state.wonderDecks.military;
+          deck.deck = ["Jebel Barkal"].concat(deck.deck.filter((n) => n !== "Jebel Barkal"));
+          deck.revealed = "Jebel Barkal";
+          const preview = Game.calculateWonderProduction(state, player, "Jebel Barkal", {
+            tradeSpent: 0, resources: {}, naturalWonders: ["Mt Kilimanjaro"] });
+          assert("the same token can instead be spent as a resource",
+            preview.ok && preview.production.naturalWonderResources === 1,
+            JSON.stringify(preview));
+        }
+
+        {
+          // A rival taking the space takes the token off the card too.
+          const { st, me } = americaBoard();
+          const { state } = claimOnto(st, me, "culture");
+          assert("the token is on a card", state.naturalWonders["Mt Kilimanjaro"].focusCard === "culture");
+          state.map.hexes["1,0"].control =
+            { ownerId: state.players[1].id, fortified: false, district: null };
+          const taken = Game.applyAction(state, { type: "NO_SUCH_ACTION", payload: {} });
+          assert("conquest moves the token to the new owner",
+            taken.naturalWonders["Mt Kilimanjaro"].ownerId === taken.players[1].id);
+          assert("and it no longer sits on America's focus card",
+            taken.naturalWonders["Mt Kilimanjaro"].focusCard === null,
+            JSON.stringify(taken.naturalWonders["Mt Kilimanjaro"]));
+          assert("so it stops paying for that card",
+            Game.getControlledNaturalWonders(taken, me.id).length === 0);
+        }
+        proves("civ.america");
       }
 
       {

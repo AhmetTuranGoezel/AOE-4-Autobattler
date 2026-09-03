@@ -3688,7 +3688,7 @@ const Game = (() => {
       player.focusRow.splice(idx, 1);
       player.focusRow.unshift(cardType);
     }
-    spendFocusTradePayment(player, cardType, tradePayment);
+    spendFocusTradePayment(player, cardType, tradePayment, st);
     player.cardPlayed = true;
     player.arsenalReplay = null;
     player.capitalismReplay = null;
@@ -4617,6 +4617,15 @@ const Game = (() => {
         player.focusRow[i] = player.focusRow[i + 1];
         player.focusRow[i + 1] = tmp;
         log(st, `${player.name} swapped two adjacent focus cards (${choice.source || "effect"}).`);
+        resolved = true;
+      }
+    } else if (choice.kind === "natural_wonder_card") {
+      // America names the card the token sits on. Any card in the focus row.
+      const cardType = payload.optionId;
+      const entry = (st.naturalWonders || {})[choice.tokenName];
+      if (FOCUS_TYPES.includes(cardType) && entry && entry.ownerId === player.id) {
+        entry.focusCard = cardType;
+        log(st, `${player.name} placed the ${entry.name} token on ${FOCUS_LABELS[cardType]}.`);
         resolved = true;
       }
     } else if (choice.kind === "gain_resource") {
@@ -7410,10 +7419,12 @@ const Game = (() => {
       if (entry.ownerId === null) {
         // The token is still on its space: whoever just took the space takes it.
         entry.ownerId = controllerId;
+        entry.focusCard = null;
         hex.naturalWonder = null;
         if (hex.resource === "wonder") hex.resource = null;
         const taker = getPlayer(st, controllerId);
         if (taker) log(st, `${taker.name} took the ${entry.name} natural wonder token.`);
+        queueAmericaWonderCard(st, controllerId, entry.name, "America: gained");
         return;
       }
       if (previous === entry.ownerId) {
@@ -7421,9 +7432,13 @@ const Game = (() => {
         const from = getPlayer(st, entry.ownerId);
         const to = getPlayer(st, controllerId);
         entry.ownerId = controllerId;
+        // The token leaves whatever card it was on and, for an American new
+        // owner, goes onto one of theirs.
+        entry.focusCard = null;
         if (from && to) {
           log(st, `${to.name} took the ${entry.name} natural wonder token from ${from.name}.`);
         }
+        queueAmericaWonderCard(st, controllerId, entry.name, "America: gained");
       }
       // Otherwise the space had been abandoned before this player arrived, and
       // there was nothing on it to pick up.
@@ -7450,6 +7465,39 @@ const Game = (() => {
       });
     });
     return held.sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  // America: "When you gain or spend a natural wonder token, place it on any
+  // card in your focus row. You can spend a natural wonder token on a focus
+  // card either as a trade token on that card or as a resource."
+  //
+  // So an American natural wonder token has a HOME CARD, and while it sits
+  // there it can pay for that card exactly like a trade token on it. Spending
+  // it does not consume it - natural wonder tokens are never consumed, only
+  // exhausted for the turn - so the card it goes back on is chosen again.
+  const isAmerica = (st, playerId) => hasLeader(getPlayer(st, playerId), "america");
+
+  function americaTokensOnCard(st, playerId, cardType) {
+    if (!isAmerica(st, playerId)) return [];
+    return getControlledNaturalWonders(st, playerId)
+      .filter((entry) => entry.focusCard === cardType && !entry.usedThisTurn);
+  }
+
+  // Ask where a token goes. Raised when one is gained and again when one is
+  // spent, which is what the card prints.
+  function queueAmericaWonderCard(st, playerId, tokenName, reason) {
+    const player = getPlayer(st, playerId);
+    if (!player || !isAmerica(st, playerId)) return;
+    queuePendingChoice(st, {
+      kind: "natural_wonder_card",
+      playerId,
+      tokenName,
+      title: `America: Place ${tokenName} on a Focus Card`,
+      source: reason || "America",
+      options: (player.focusRow || FOCUS_TYPES).map((type) => ({
+        id: type, label: FOCUS_LABELS[type] || type
+      }))
+    });
   }
 
   function validateOrdinaryResourceSpend(player, resources, eligibleResources) {
@@ -7812,7 +7860,12 @@ const Game = (() => {
     }
 
     const focusSpent = spent - resources.count;
-    const available = Number(player && player.trade && player.trade[cardType] || 0);
+    const printedTrade = Number(player && player.trade && player.trade[cardType] || 0);
+    // America's natural wonder tokens sitting on THIS card spend like trade
+    // tokens on it. They are the last thing used, so an ordinary token is never
+    // saved at the cost of exhausting a wonder that could have paid elsewhere.
+    const americaTokens = st ? americaTokensOnCard(st, player && player.id, cardType) : [];
+    const available = printedTrade + americaTokens.length;
     if (focusSpent > available) {
       const substitutes = hasCityStateDiplomacy(player, "Palenque")
         ? Object.values(player && player.resources || {}).reduce((sum, count) => sum + Number(count || 0), 0)
@@ -7823,10 +7876,16 @@ const Game = (() => {
           (substitutes ? ` plus ${substitutes} Palenque resource substitute${substitutes === 1 ? "" : "s"}.` : ".")
       };
     }
+    const fromWonders = Math.max(0, focusSpent - printedTrade);
     return {
       ok: true,
       spent,
       focusSpent,
+      // How much of focusSpent comes off the printed card, and which natural
+      // wonder tokens cover the rest. Kept apart so the deduction cannot take
+      // trade the card never had.
+      printedSpent: focusSpent - fromWonders,
+      naturalWonderTokens: americaTokens.slice(0, fromWonders).map((e) => e.name),
       resources: resources.resources,
       resourceCount: resources.count
     };
@@ -7856,14 +7915,27 @@ const Game = (() => {
     };
   }
 
-  function spendFocusTradePayment(player, cardType, payment) {
+  function spendFocusTradePayment(player, cardType, payment, st) {
     const normalized = payment && typeof payment === "object"
       ? payment
       : { spent: Number(payment || 0), focusSpent: Number(payment || 0), resources: {} };
     const focusSpent = Number(normalized.focusSpent === undefined
       ? normalized.spent || 0 : normalized.focusSpent);
-    if (focusSpent > 0) {
-      player.trade[cardType] = Math.max(0, Number(player.trade[cardType] || 0) - focusSpent);
+    // Only the part the printed card actually covers comes off the card; the
+    // rest was paid by America's natural wonder tokens, which are exhausted
+    // for the turn rather than spent away.
+    const fromCard = normalized.printedSpent === undefined
+      ? focusSpent : Number(normalized.printedSpent || 0);
+    if (fromCard > 0) {
+      player.trade[cardType] = Math.max(0, Number(player.trade[cardType] || 0) - fromCard);
+    }
+    const wonders = normalized.naturalWonderTokens || [];
+    if (st && wonders.length) {
+      markNaturalWondersUsed(st, wonders.map((name) => ({ name })));
+      wonders.forEach((name) => {
+        log(st, `${player.name} spent the ${name} token as ${FOCUS_LABELS[cardType] || cardType} trade.`);
+        queueAmericaWonderCard(st, player.id, name, "America: spent");
+      });
     }
     spendResources(player, normalized.resources);
     return normalized;
