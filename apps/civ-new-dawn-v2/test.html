@@ -1417,6 +1417,151 @@
       }
 
       {
+        // Non-Aggression Pact: "You cannot attack or destroy the pieces of the
+        // player who gave you this card. If that player attacks or destroys any
+        // of your pieces, you may return this card to swap your military focus
+        // card with any other card in your focus row."
+        //
+        // Attacking and destroying are what it names. Flipping a reinforced
+        // control token to its unreinforced side is neither: the piece stays on
+        // the board and stays theirs. Mass Media and Nuclear Power each do both
+        // things in one effect, so the pact has to be decided per token rather
+        // than per card or per space.
+        const pactBoard = () => {
+          const st = rulesState();
+          const me = st.players[0], foe = st.players[1];
+          me.cardPlayed = false;
+          st.turn.index = st.turn.order.indexOf(me.id);
+          Object.values(st.map.hexes).forEach((h) => { h.barbarian = false; h.barbarianId = null; });
+          activate(st, "0,0", { city: { ownerId: me.id, isCapital: true,
+            developed: false, hasWonder: false, wonder: null } });
+          // Two of the rival's tokens in range of my city: one flipped, one not.
+          activate(st, "1,0", { terrain: "grass",
+            control: { ownerId: foe.id, fortified: true, district: null } });
+          activate(st, "2,0", { terrain: "grass",
+            control: { ownerId: foe.id, fortified: false, district: null } });
+          return { st, me, foe };
+        };
+        const massMedia = (st, me, hexKey) => {
+          st.pendingChoices.push({ id: "mm", kind: "mass_media_target", playerId: me.id,
+            title: "Mass Media", source: "Mass Media", hexKeys: ["1,0", "2,0"] });
+          return Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: "mm", hexKey } });
+        };
+        const swapOffered = (st) => (st.pendingChoices || [])
+          .some((c) => c.kind === "non_aggression_swap");
+
+        {
+          // No pact: both halves of Mass Media are available.
+          const { st, me, foe } = pactBoard();
+          const flipped = massMedia(JSON.parse(JSON.stringify(st)), me, "1,0");
+          assert("Mass Media flips a reinforced rival token",
+            flipped.map.hexes["1,0"].control.fortified === false &&
+            flipped.map.hexes["1,0"].control.ownerId === foe.id,
+            JSON.stringify(flipped.map.hexes["1,0"].control));
+          const replaced = massMedia(JSON.parse(JSON.stringify(st)), me, "2,0");
+          assert("and replaces an unreinforced one",
+            replaced.map.hexes["2,0"].control.ownerId === me.id,
+            JSON.stringify(replaced.map.hexes["2,0"].control));
+        }
+        {
+          // With a pact from the rival, the FLIP is still allowed: it is
+          // neither attacking nor destroying their piece.
+          const { st, me, foe } = pactBoard();
+          me.diplomacy = [{ fromId: foe.id, cardId: "non_aggression", name: "Non-Aggression Pact" }];
+          const out = massMedia(st, me, "1,0");
+          assert("a pact does not stop a reinforced token being flipped",
+            out.map.hexes["1,0"].control.fortified === false,
+            JSON.stringify(out.map.hexes["1,0"].control));
+          assert("the token is still the rival's - nothing was destroyed",
+            out.map.hexes["1,0"].control.ownerId === foe.id);
+        }
+        {
+          // ...but replacing their unreinforced token is destroying it.
+          const { st, me, foe } = pactBoard();
+          me.diplomacy = [{ fromId: foe.id, cardId: "non_aggression", name: "Non-Aggression Pact" }];
+          const out = massMedia(st, me, "2,0");
+          assert("a pact does stop an unreinforced token being replaced",
+            out.map.hexes["2,0"].control.ownerId === foe.id,
+            JSON.stringify(out.map.hexes["2,0"].control));
+          assert("and it is still unreinforced, so nothing happened at all",
+            out.map.hexes["2,0"].control.fortified === false);
+        }
+        {
+          // Suffering a flip does not hand the card back: the pact returns on
+          // an attack or a destroyed piece, and a flip is neither.
+          const { st, me, foe } = pactBoard();
+          foe.diplomacy = [{ fromId: me.id, cardId: "non_aggression", name: "Non-Aggression Pact" }];
+          const flipped = massMedia(JSON.parse(JSON.stringify(st)), me, "1,0");
+          assert("being flipped offers the victim no swap", !swapOffered(flipped),
+            JSON.stringify((flipped.pendingChoices || []).map((c) => c.kind)));
+          const replaced = massMedia(JSON.parse(JSON.stringify(st)), me, "2,0");
+          assert("but having a token replaced does", swapOffered(replaced),
+            JSON.stringify((replaced.pendingChoices || []).map((c) => c.kind)));
+        }
+
+        {
+          // Nuclear Power: "destroy all unreinforced control tokens and flip
+          // all reinforced control tokens to their unreinforced side." Under a
+          // pact the destroying is stopped and the flipping is not, so the
+          // blast has to decide token by token rather than skipping the space.
+          const nuke = (st, me, centerKey) => {
+            st.pendingChoices.push({ id: "np", kind: "nuclear_power_target",
+              playerId: me.id, title: "Nuclear Power", source: "Nuclear Power",
+              hexKeys: [centerKey] });
+            return Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {
+              playerId: me.id, choiceId: "np", hexKey: centerKey } });
+          };
+          {
+            const { st, me, foe } = pactBoard();
+            const out = nuke(st, me, "1,0");
+            assert("with no pact the blast flips the reinforced token",
+              out.map.hexes["1,0"].control.fortified === false &&
+              out.map.hexes["1,0"].control.ownerId === foe.id);
+            assert("and destroys the unreinforced one",
+              out.map.hexes["2,0"].control === null,
+              JSON.stringify(out.map.hexes["2,0"].control));
+          }
+          {
+            const { st, me, foe } = pactBoard();
+            me.diplomacy = [{ fromId: foe.id, cardId: "non_aggression", name: "Non-Aggression Pact" }];
+            const out = nuke(st, me, "1,0");
+            assert("under a pact the same blast still flips the reinforced token",
+              !!out.map.hexes["1,0"].control &&
+              out.map.hexes["1,0"].control.fortified === false &&
+              out.map.hexes["1,0"].control.ownerId === foe.id,
+              JSON.stringify(out.map.hexes["1,0"].control));
+            assert("but leaves the unreinforced one standing, undestroyed",
+              !!out.map.hexes["2,0"].control &&
+              out.map.hexes["2,0"].control.ownerId === foe.id,
+              JSON.stringify(out.map.hexes["2,0"].control));
+          }
+          {
+            // A third player with no pact is caught in the same blast, so the
+            // pact protects one player's pieces rather than the whole area.
+            const st = rulesState();
+            const me = st.players[0], foe = st.players[1];
+            me.diplomacy = [{ fromId: foe.id, cardId: "non_aggression", name: "Non-Aggression Pact" }];
+            Object.values(st.map.hexes).forEach((h) => { h.barbarian = false; h.barbarianId = null; });
+            activate(st, "1,0", { terrain: "grass",
+              control: { ownerId: foe.id, fortified: false, district: null } });
+            activate(st, "1,-1", { terrain: "grass",
+              control: { ownerId: me.id, fortified: false, district: null } });
+            st.pendingChoices.push({ id: "np", kind: "nuclear_power_target",
+              playerId: me.id, title: "Nuclear Power", source: "Nuclear Power",
+              hexKeys: ["1,0"] });
+            const out = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {
+              playerId: me.id, choiceId: "np", hexKey: "1,0" } });
+            assert("the pact partner's token survives the blast",
+              !!out.map.hexes["1,0"].control);
+            assert("while the blaster's own unreinforced token is destroyed by it",
+              out.map.hexes["1,-1"].control === null,
+              JSON.stringify(out.map.hexes["1,-1"].control));
+          }
+        }
+      }
+
+      {
         // Inca: "After you place a control token on a mountain space, you may
         // place a control token on a space adjacent to that space (which can
         // trigger this effect again)."

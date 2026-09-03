@@ -3147,7 +3147,10 @@ const Game = (() => {
       isFriendlySpace(hex, playerId) || antananarivoIsFriendlyCity(st, hex, playerId));
     return Object.entries(st.map.hexes).filter(([hexKey, hex]) => {
       if (!hex || !hex.control || hex.control.ownerId === playerId || armyGuards(st, hexKey)) return false;
-      if (nonAggressionWith(st, playerId, hex.control.ownerId)) return false;
+      // A reinforced token would only be flipped, which no pact forbids; an
+      // unreinforced one would be replaced, which is destroying their piece.
+      const interference = hex.control.fortified ? "unreinforce" : "replace";
+      if (pactForbids(st, playerId, hex.control.ownerId, interference)) return false;
       return friendly.some((source) => hexDist(source, hex) <= 2);
     }).map(([hexKey]) => hexKey);
   }
@@ -4627,14 +4630,18 @@ const Game = (() => {
         const affectedOwners = new Set();
         [centerKey].concat(hexNeighborKeys(center.q, center.r)).forEach((hexKey) => {
           const hex = st.map.hexes[hexKey];
-          if (!hex || !hex.control || armyGuards(st, hexKey) ||
-              !canAffectRivalPiece(st, player.id, hex.control.ownerId)) return;
-          affectedOwners.add(hex.control.ownerId);
+          if (!hex || !hex.control || armyGuards(st, hexKey)) return;
+          const ownerId = hex.control.ownerId;
+          // "Destroy all unreinforced control tokens and flip all reinforced
+          // control tokens." A pact stops the destroying, not the flipping, so
+          // it is decided per token rather than by skipping the whole space.
+          const interference = hex.control.fortified ? "unreinforce" : "destroy";
+          if (pactForbids(st, player.id, ownerId, interference)) return;
+          affectedOwners.add(ownerId);
           if (hex.control.fortified) hex.control.fortified = false;
           else {
-            const formerOwner = hex.control.ownerId;
             hex.control = null;
-            queueNonAggressionResponse(st, formerOwner, player.id, "Nuclear Power");
+            queueNonAggressionResponse(st, ownerId, player.id, "Nuclear Power");
           }
         });
         affectedOwners.forEach((ownerId) => checkDevelopment(st, ownerId));
@@ -7101,9 +7108,33 @@ const Game = (() => {
     return heldDiplomacy(player, "non_aggression").some((d) => d.fromId === otherId);
   }
 
+  // Non-Aggression Pact: "You cannot attack or destroy the pieces of the player
+  // who gave you this card." Attacking and destroying are what it names.
+  // Flipping a reinforced control token to its unreinforced side is neither -
+  // the piece stays on the board and stays theirs - so a pact does not forbid
+  // it, and suffering one does not hand back the card.
+  //
+  // Mass Media and Nuclear Power each do BOTH in one effect, which is why the
+  // difference has to be a property of the interference rather than of the
+  // card: Mass Media replaces an unreinforced token but only flips a reinforced
+  // one, and a nuclear blast destroys the unreinforced and flips the rest.
+  const PIECE_INTERFERENCE = {
+    attack: true,        // a fight
+    destroy: true,       // removed from the board
+    replace: true,       // removed, and a rival token takes the space
+    transfer: true,      // taken out of its owner's hands
+    unreinforce: false,  // flipped over; still theirs, still there
+    reinforce: false
+  };
+  function pactForbids(st, actorId, ownerId, interference) {
+    if (!ownerId || actorId === ownerId) return false;
+    if (!PIECE_INTERFERENCE[interference]) return false;
+    return nonAggressionWith(st, actorId, ownerId);
+  }
+  // The shorthand for the aggressive cases, which is what almost every caller
+  // means: may I take this piece off the board or fight it?
   function canAffectRivalPiece(st, actorId, ownerId) {
-    if (!ownerId || actorId === ownerId) return true;
-    return !nonAggressionWith(st, actorId, ownerId);
+    return !pactForbids(st, actorId, ownerId, "destroy");
   }
 
   function queueNonAggressionResponse(st, victimId, aggressorId, source) {
