@@ -20,6 +20,7 @@ const steps = [
   ["sync contract", "sync-contract-test.js"],
   ["state size", "state-size.js"],
   ["art index", "verify-art.js"],
+  ["focus layout", "focus-layout-test.js"],
   // Last because it is the slow one: it starts the dev session server, drives a
   // real Chrome, and plays a turn. Everything above proves the engine agrees
   // with itself; this proves the page a person actually opens still works.
