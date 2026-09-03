@@ -4494,6 +4494,190 @@
       }
 
       {
+        // The four printed industry cards. Each is "build a wonder with this
+        // much production, OR build a city within this far of a friendly
+        // space", and the reach, the production and the extra clauses differ.
+        const indBoard = (tier, opts) => {
+          const o = opts || {};
+          const st = rulesState();
+          const me = st.players[0];
+          me.cardPlayed = false;
+          me.cardTiers.industry = tier;
+          me.cardLevels.industry = tier;
+          me.focusRow = ["industry", "science", "growth", "economy", "military", "culture"];
+          Game.FOCUS_TYPES.forEach((t) => { me.trade[t] = 0; });
+          Game.RESOURCES.forEach((r) => { me.resources[r] = 0; });
+          st.turn.index = st.turn.order.indexOf(me.id);
+          Object.values(st.map.hexes).forEach((h) => {
+            h.barbarian = false; h.barbarianId = null; h.barbarianToken = null;
+            h.barbarianHome = null; h.control = null; h.cityState = null;
+            h.resource = null; h.naturalWonder = null; h.naturalWonderSpace = null;
+          });
+          st.naturalWonders = {};
+          for (let q = -2; q <= 10; q++) {
+            activate(st, q + ",0", { terrain: "grass" });
+            activate(st, q + ",1", { terrain: "grass" });
+            activate(st, q + ",-1", { terrain: "grass" });
+          }
+          activate(st, "0,0", { city: { ownerId: me.id, isCapital: true,
+            developed: false, hasWonder: false, wonder: null } });
+          if (o.setUp) o.setUp(st, me);
+          return { st, me };
+        };
+        const buildCity = (st, me, hexKey, extra) => Game.tryApplyAction(st,
+          { type: "PLAY_INDUSTRY_CITY",
+            payload: Object.assign({ playerId: me.id, hexKey }, extra || {}) },
+          { actorId: me.id, role: "player" });
+        // How far a city may be founded from a friendly space, measured by
+        // asking the engine which spaces it will accept.
+        const cityReach = (st, me) => {
+          const spots = [...Game.validCityHexes(st, me.id, Infinity, Game.getCityRange(me, st))];
+          return spots.reduce((max, k) => Math.max(max,
+            Game.hexDist(st.map.hexes[k], st.map.hexes["0,0"])), 0);
+        };
+
+        // ── Pottery ──────────────────────────────────────────────────────
+        {
+          // "Build 1 world wonder. Your production equals this slot's number.
+          // Or, build 1 city ... within 2 spaces of a friendly space."
+          const { st, me } = indBoard(1);
+          assert("Pottery is the level-I industry card",
+            Game.getCardName(me, "industry") === "Pottery", Game.getCardName(me, "industry"));
+          const slot = Game.getSlotValue(me, "industry", st);
+          assert("a city may be founded two spaces from a friendly space",
+            Game.getCityRange(me, st) === 2, String(Game.getCityRange(me, st)));
+          assert("and no further", cityReach(st, me) <= 2, String(cityReach(st, me)));
+          const out = buildCity(st, me, "2,0");
+          assert("so a city two spaces out is built", out.accepted, out.code);
+          assert("and it is there",
+            !!out.state.map.hexes["2,0"].city &&
+            out.state.map.hexes["2,0"].city.ownerId === me.id);
+          const far = buildCity(indBoard(1).st, me, "4,0");
+          assert("one four spaces out is refused", !far.accepted, far.code);
+          // The wonder half: production is the slot's number.
+          const wonderSt = indBoard(1).st;
+          const wonderMe = wonderSt.players[0];
+          const preview = Game.calculateWonderProduction(wonderSt, wonderMe,
+            wonderSt.wonderDecks.culture.revealed || "Stonehenge",
+            { tradeSpent: 0, resources: {}, naturalWonders: [] });
+          assert("wonder production starts from the slot's number",
+            preview.production && preview.production.base === slot,
+            JSON.stringify(preview.production));
+        }
+        proves("standard.industry.pottery");
+
+        // ── Animal Husbandry ─────────────────────────────────────────────
+        {
+          // "...Or, build 1 city on a legal space containing a friendly caravan
+          // or army, then return that figure to its focus card."
+          const { st, me } = indBoard(2, { setUp: (s2, p2) => {
+            p2.armies = [{ id: "a1", position: "6,0" }];
+          } });
+          assert("Animal Husbandry reaches three spaces",
+            Game.getCityRange(me, st) === 3, String(Game.getCityRange(me, st)));
+          assert("6,0 is out of ordinary reach",
+            !Game.validCityHexes(st, me.id, Infinity, Game.getCityRange(me, st)).has("6,0"));
+          const out = buildCity(st, me, "6,0", { useFigure: true, figureId: "a1" });
+          assert("but a city may be founded on a friendly figure however far out",
+            out.accepted, out.code);
+          assert("the city is built there",
+            !!out.state.map.hexes["6,0"].city &&
+            out.state.map.hexes["6,0"].city.ownerId === me.id);
+          assert("and the figure goes back to its focus card",
+            out.state.players[0].armies[0].position === null,
+            String(out.state.players[0].armies[0].position));
+        }
+        {
+          const { st, me } = indBoard(2);
+          const out = buildCity(st, me, "6,0", { useFigure: true, figureId: "a1" });
+          assert("with no figure there the option is refused",
+            !out.accepted, out.code);
+        }
+        proves("standard.industry.animal_husbandry");
+
+        // ── Nationalism ──────────────────────────────────────────────────
+        {
+          // "...your production equals this slot's number, OR, IF THIS CARD IS
+          // IN THE FIFTH SLOT, your production equals 7." And the city half
+          // reaches four spaces, counting through water.
+          const { st, me } = indBoard(3);
+          assert("Nationalism reaches four spaces",
+            Game.getCityRange(me, st) === 4, String(Game.getCityRange(me, st)));
+          const slot = Game.getSlotValue(me, "industry", st);
+          const name = st.wonderDecks.culture.revealed || "Stonehenge";
+          const low = Game.calculateWonderProduction(st, me, name,
+            { tradeSpent: 0, resources: {}, naturalWonders: [] });
+          assert("from an ordinary slot production is that slot's number",
+            low.production && low.production.base === slot,
+            JSON.stringify(low.production));
+        }
+        {
+          const { st, me } = indBoard(3);
+          me.focusRow = ["science", "growth", "economy", "military", "culture", "industry"];
+          assert("(fixture) industry is now the fifth slot",
+            Game.getSlotValue(me, "industry", st) === 5,
+            String(Game.getSlotValue(me, "industry", st)));
+          const name = st.wonderDecks.culture.revealed || "Stonehenge";
+          const high = Game.calculateWonderProduction(st, me, name,
+            { tradeSpent: 0, resources: {}, naturalWonders: [] });
+          assert("but from the fifth slot it is 7, not 5",
+            high.production && high.production.base === 7 && high.production.slot === 5,
+            JSON.stringify(high.production));
+        }
+        {
+          // "You can count through water."
+          const { st, me } = indBoard(3, { setUp: (s2) => {
+            for (let q = 1; q <= 3; q++) activate(s2, q + ",0", { terrain: "water" });
+          } });
+          assert("a city can still be founded past water",
+            Game.validCityHexes(st, me.id, Infinity, Game.getCityRange(me, st)).has("4,0"),
+            [...Game.validCityHexes(st, me.id, Infinity, Game.getCityRange(me, st))].sort().join(" "));
+        }
+        proves("standard.industry.nationalism");
+
+        // ── Urbanization ─────────────────────────────────────────────────
+        {
+          // "...within 5 spaces ... you can count through water. THEN, if you
+          // built a city, place UP TO 2 control tokens adjacent to that city."
+          const { st, me } = indBoard(4);
+          assert("Urbanization reaches five spaces",
+            Game.getCityRange(me, st) === 5, String(Game.getCityRange(me, st)));
+          const out = buildCity(st, me, "5,0");
+          assert("a city five spaces out is built", out.accepted, out.code);
+          const place = (out.state.pendingChoices || [])
+            .find((c) => c.kind === "place_control" && c.source === "Urbanization");
+          assert("then it offers control tokens beside the new city", !!place,
+            JSON.stringify((out.state.pendingChoices || []).map((c) => c.source)));
+          assert("the offer is optional, because the card says up to 2",
+            place.optional === true);
+          assert("and every space offered touches the new city",
+            place.hexKeys.every((k) => Game.hexNeighborKeys(5, 0).includes(k)),
+            place.hexKeys.join(" "));
+          const first = Game.applyAction(out.state, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: me.id, choiceId: place.id, hexKey: place.hexKeys[0] } });
+          const second = (first.pendingChoices || [])
+            .find((c) => c.kind === "place_control" && c.source === "Urbanization");
+          assert("taking one offers the second", !!second);
+          // Take the copy for the other branch NOW: applyAction edits in place,
+          // so cloning after `both` would clone a state that already has two.
+          const beforeSecond = JSON.parse(JSON.stringify(first));
+          const both = Game.applyAction(first, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: me.id, choiceId: second.id, hexKey: second.hexKeys[0] } });
+          assert("taking both gives exactly two tokens and no third offer",
+            Game.countControl(both, me.id) === 2 &&
+            !(both.pendingChoices || []).some((c) => c.source === "Urbanization"),
+            String(Game.countControl(both, me.id)));
+          const stopped = Game.applyAction(beforeSecond,
+            { type: "RESOLVE_PENDING_CHOICE", payload: {
+              playerId: me.id, choiceId: second.id, dismiss: true } });
+          assert("or stopping after one leaves exactly one",
+            Game.countControl(stopped, me.id) === 1,
+            String(Game.countControl(stopped, me.id)));
+        }
+        proves("standard.industry.urbanization");
+      }
+
+      {
         // The four printed military cards. All four move every army and set a
         // combat value; the distance, the terrain, what they may pass through
         // and the bonus are what differ. The combat values are read off a real
