@@ -300,6 +300,7 @@ const Game = (() => {
       unownedWonder: null,
       barbarian: false,
       barbarianId: null,
+      barbarianToken: null,
       control: null,
       city: null,
       fortress: false,
@@ -477,6 +478,7 @@ const Game = (() => {
       hex.unownedWonder = null;
       hex.barbarian = false;
       hex.barbarianId = null;
+      hex.barbarianToken = null;
       hex.control = null;
       hex.city = null;
       hex.fortress = false;
@@ -498,9 +500,18 @@ const Game = (() => {
         hex.cityState = { name: cell.cityState, type: cs.type, diplomacyCards: 2 };
       }
       if (cell.barbarian) {
+        // STATIC: the printed icon. barbarianHome is the letter printed on this
+        // exact tile/side/cell and never changes, whatever the figure does.
+        hex.barbarianHome = cell.barbarian;
+        // DYNAMIC: the figure standing here right now. barbarianToken is the
+        // token's identity - the space it was printed on - and barbarianId is
+        // the letter it shows. They are separate because the letter is NOT
+        // unique on a board: E is printed on four different tiles and F and B
+        // on two each, so two icons showing the same letter can be in play at
+        // once and the letter alone cannot say which figure is which.
         hex.barbarian = true;
         hex.barbarianId = cell.barbarian;
-        hex.barbarianHome = cell.barbarian;   // printed on the tile; never moves
+        hex.barbarianToken = k;
       }
       if (cell.feature === "capital" && tile.ownerId) {
         hex.terrain = hex.terrain === "water" ? "grass" : hex.terrain;
@@ -1781,10 +1792,12 @@ const Game = (() => {
     // registering as a change merely because it repaired a stale flag.
     syncCityMaturity(st);
     syncNaturalWonderTokens(st);
+    syncBarbarianRegistry(st);
     const before = tracksTurn ? JSON.stringify(stateWithoutUndo(st)) : "";
     const result = applyActionInner(st, action);
     syncCityMaturity(result);
     syncNaturalWonderTokens(result);
+    syncBarbarianRegistry(result);
     const changed = tracksTurn && before !== JSON.stringify(stateWithoutUndo(result));
     if (changed) {
       if (type === "END_TURN") {
@@ -4097,10 +4110,13 @@ const Game = (() => {
         const from = st.map.hexes[option.fromKey];
         const to = st.map.hexes[option.toKey];
         const barbarianId = from.barbarianId || null;
+        const barbarianToken = from.barbarianToken || null;
         from.barbarian = false;
         from.barbarianId = null;
+        from.barbarianToken = null;
         to.barbarian = true;
         to.barbarianId = barbarianId;
+        to.barbarianToken = barbarianToken;
         log(st, `${player.name} moved a barbarian with Seoul (${option.fromKey} → ${option.toKey}).`);
         resolved = true;
       }
@@ -5431,14 +5447,17 @@ const Game = (() => {
     // Where every barbarian ends up. A space may hold more than one for now;
     // the pile is broken up below before anything is written back to the map.
     const landing = new Map();
-    const place = (k, id) => {
+    // A figure is (letter, token): the letter is what is shown, the token is
+    // which printed space it will return to when it is defeated. Both travel.
+    const place = (k, figure) => {
       if (!landing.has(k)) landing.set(k, []);
-      landing.get(k).push(id);
+      landing.get(k).push(figure);
     };
 
     let moved = 0;
     barbs.forEach(([fromKey]) => {
-      const id = st.map.hexes[fromKey].barbarianId || null;
+      const hexNow = st.map.hexes[fromKey];
+      const id = { letter: hexNow.barbarianId || null, token: hexNow.barbarianToken || null };
       const toKey = destination(fromKey);
       const outcome = outcomeAt(toKey);
       if (outcome === "none") { place(fromKey, id); return; }
@@ -5468,7 +5487,7 @@ const Game = (() => {
         return;
       }
 
-      st.barbarianMove.steps.push({ from: fromKey, to: toKey, id });
+      st.barbarianMove.steps.push({ from: fromKey, to: toKey, id: id.letter });
       overrun(toKey);
       place(toKey, id);
       moved++;
@@ -5503,7 +5522,7 @@ const Game = (() => {
         ids.pop();
         overrun(toKey);
         place(toKey, id);
-        st.barbarianMove.steps.push({ from: k, to: toKey, id });
+        st.barbarianMove.steps.push({ from: k, to: toKey, id: id && id.letter });
       } else if (outcome === "army") {
         bounceOffArmy(toKey);
         break;                                   // the pile stands; nothing more to push into
@@ -5523,12 +5542,14 @@ const Game = (() => {
       const h = st.map.hexes[fromKey];
       h.barbarian = false;
       h.barbarianId = null;
+      h.barbarianToken = null;
     });
     landing.forEach((ids, k) => {
       const h = st.map.hexes[k];
       if (!h || !ids.length) return;
       h.barbarian = true;
-      h.barbarianId = ids[0];
+      h.barbarianId = ids[0] && ids[0].letter;
+      h.barbarianToken = ids[0] && ids[0].token;
       if (ids.length > 1) {
         // Should be unreachable: the dispersal loop above only exits with a
         // pile when the board leaves nowhere to push to.
@@ -5922,36 +5943,46 @@ const Game = (() => {
 
   function resolveEvent(st, evt) {
     if (evt === "barbarian_return") {
-      const onBoard = new Set();
-      Object.values(st.map.hexes).forEach((h) => { if (h.barbarian && h.barbarianId) onBoard.add(h.barbarianId); });
-      let back = 0;
-      Object.entries(st.map.hexes).forEach(([k, h]) => {
-        if (!h.barbarianHome || onBoard.has(h.barbarianHome)) return;
-        if (!h.active || h.barbarian || h.terrain === "water") return;
-        // p12: the space has to be empty, or hold nothing but a caravan — and
-        // that caravan is destroyed. Anything else and the barbarian waits
-        // outside the map for its next chance.
-        if (h.city || h.cityState || h.control || (h.fortress && !h.city)) return;
-        // Terra p11: an army on the icon does not hold the barbarian off — it
-        // is simply defeated, the same as a caravan.
+      // p12: each defeated barbarian tries to return to ITS OWN printed space -
+      // not the nearest icon, not a free one, and never to where it died. The
+      // figures are asked one at a time, so a blocked one simply stays off the
+      // map with its identity and its home intact and tries again next time.
+      syncBarbarianRegistry(st);
+      let back = 0, waiting = 0;
+      offMapBarbarians(st).forEach((token) => {
+        const k = token.homeKey;
+        const h = st.map.hexes[k];
+        if (!h || !h.active || h.barbarian || h.terrain === "water") { waiting++; return; }
+        // The space has to be free of the things that actually block a spawn.
+        // A caravan does not, and Terra's additional army rules say an army
+        // does not either - both are simply defeated by the arrival.
+        if (h.city || h.cityState || h.control || (h.fortress && !h.city)) { waiting++; return; }
         st.players.forEach((p) => {
           p.caravans.forEach((u) => {
             if (u.position !== k) return;
-            u.position = null;
-            log(st, `A returning barbarian destroyed ${p.name}'s caravan.`);
+            u.position = null;   // back onto its economy focus card
+            log(st, `Returning barbarian ${token.letter} destroyed ${p.name}'s caravan.`);
           });
+          // Terra, additional army rules: an army standing on the icon does NOT
+          // prevent the spawn. It is defeated and goes back to its owner's
+          // military focus card, and the barbarian takes the space.
           p.armies.forEach((u) => {
             if (u.position !== k) return;
-            u.position = null;
-            log(st, `A barbarian spawned on top of ${p.name}'s army.`);
+            u.position = null;   // back onto its military focus card
+            log(st, `Returning barbarian ${token.letter} defeated ${p.name}'s army at ${k}.`);
           });
         });
         h.barbarian = true;
-        h.barbarianId = h.barbarianHome;
-        onBoard.add(h.barbarianHome);
+        h.barbarianId = token.letter;
+        h.barbarianToken = token.homeKey;
+        token.position = k;
         back++;
       });
-      log(st, back ? `${back} defeated barbarian(s) returned.` : "No barbarians to return.");
+      log(st, back
+        ? `${back} defeated barbarian(s) returned to their printed spaces.` +
+          (waiting ? ` ${waiting} could not and will try again.` : "")
+        : (waiting ? `${waiting} defeated barbarian(s) could not return and will try again.`
+                   : "No barbarians to return."));
     }
     if (evt === "barbarian_move") {
       moveBarbarians(st);
@@ -5990,6 +6021,7 @@ const Game = (() => {
     // A barbarian march destroys control tokens, which can un-mature a city.
     syncCityMaturity(st);
     syncNaturalWonderTokens(st);
+    syncBarbarianRegistry(st);
   }
 
   // Terra p14: a trade token goes on every faceup wonder. A wonder that would
@@ -8268,8 +8300,20 @@ const Game = (() => {
     const hex = st.map.hexes[o.hexKey];
     const player = getPlayer(st, o.playerId);
     if (!hex || !hex.barbarian || !player) return false;
+    const defeatedLetter = hex.barbarianId;
+    const defeatedToken = hex.barbarianToken;
     hex.barbarian = false;
     hex.barbarianId = null;
+    hex.barbarianToken = null;
+    // Off the map, not gone: the registry still holds this figure's letter and
+    // its printed home, and the next spawning event sends it back there.
+    ensureBarbarianRegistry(st);
+    const record = st.barbarians && st.barbarians[defeatedToken];
+    if (record) record.position = null;
+    else if (defeatedToken) {
+      st.barbarians[defeatedToken] =
+        { homeKey: defeatedToken, letter: defeatedLetter || null, position: null };
+    }
     const cardResolutionId = o.cardResolutionId || null;
     if (o.trade !== false) {
       st.pendingBarbReward = { playerId: player.id, cardResolutionId };
@@ -8324,6 +8368,73 @@ const Game = (() => {
       source: o.source ? `england (${o.source})` : "england",
       hexKeys: spots
     });
+  }
+
+  // The barbarian figures themselves, keyed by the printed space each one
+  // belongs to. This is the DYNAMIC half of the model; hex.barbarianHome is the
+  // STATIC half and says only that an icon showing this letter is printed here.
+  //
+  //   homeKey  the printed spawn space: the token's permanent identity
+  //   letter   the letter printed there, for display and for the log
+  //   position the space it stands on, or null while it is off the map
+  //
+  // Keyed by space rather than by letter because a letter is not unique on a
+  // board - E is printed on four different tiles - so two figures showing the
+  // same letter can be in play at once. Keying by letter made one of them
+  // unable to return: the respawn treated "an E is on the board" as "every E
+  // is on the board".
+  function ensureBarbarianRegistry(st) {
+    if (!st || !st.map || !st.map.hexes) return;
+    st.barbarians = st.barbarians || {};
+    Object.entries(st.map.hexes).forEach(([homeKey, hex]) => {
+      if (!hex || !hex.barbarianHome) return;
+      if (st.barbarians[homeKey]) return;
+      st.barbarians[homeKey] = {
+        homeKey,
+        letter: hex.barbarianHome,
+        // A state written before the registry existed carried the figure only
+        // on the map. Adopt it if it is standing on its own printed space;
+        // otherwise the sync below finds it by its token id.
+        position: hex.barbarian ? homeKey : null
+      };
+    });
+  }
+
+  // Read every figure's current position off the board. A figure with no space
+  // carrying its token id is off the map, which is exactly the state a defeated
+  // barbarian is in - it keeps its identity and its home while it waits.
+  function syncBarbarianRegistry(st) {
+    if (!st || !st.map || !st.map.hexes) return;
+    ensureBarbarianRegistry(st);
+    const seen = new Map();
+    Object.entries(st.map.hexes).forEach(([k, hex]) => {
+      if (!hex || !hex.barbarian) return;
+      // Legacy states, and hand-built fixtures, may carry only the letter.
+      // Adopt the figure onto a free token of that letter rather than dropping
+      // it: a barbarian on the board is a barbarian on the board.
+      if (!hex.barbarianToken) {
+        const match = Object.values(st.barbarians).find((b) =>
+          b.letter === hex.barbarianId && !seen.has(b.homeKey));
+        hex.barbarianToken = match ? match.homeKey : k;
+        if (!match) {
+          st.barbarians[k] = st.barbarians[k] ||
+            { homeKey: k, letter: hex.barbarianId || null, position: k };
+        }
+      }
+      seen.set(hex.barbarianToken, k);
+    });
+    Object.values(st.barbarians).forEach((entry) => {
+      entry.position = seen.has(entry.homeKey) ? seen.get(entry.homeKey) : null;
+    });
+  }
+
+  // Every figure that is off the map right now, in printed-space order so the
+  // return event is deterministic.
+  function offMapBarbarians(st) {
+    ensureBarbarianRegistry(st);
+    return Object.values(st.barbarians || {})
+      .filter((b) => !b.position)
+      .sort((a, b) => a.homeKey.localeCompare(b.homeKey));
   }
 
   function caravanCanDefeatBarbarian(player) {
@@ -9009,6 +9120,7 @@ const Game = (() => {
       cityState: null,
       barbarian: false,
       barbarianId: null,
+      barbarianToken: null,
       barbarianHome: null,
       control: null,
       city: null,
@@ -9390,6 +9502,7 @@ const Game = (() => {
     getValidFortressHexes, getValidTileAnchors, getTileAnchorsAnyRotation, tilePlacementFor, getTileDef,
     tileHasCapital,
     getTileHexKeys, validateTilePlacement, ensureMapRadius, ensureMapHexes,
+    offMapBarbarians, syncBarbarianRegistry,
     hexNeighborKeys, parseQ, parseR, key, hexDist, rollDie, rotateAxial,
     isExploreEligible, validateExploration, placeExploredTile,
     getLegalExplorationPlacements, hasLegalExplorationPlacement,

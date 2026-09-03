@@ -4493,6 +4493,281 @@
       }
 
       {
+        // Barbarian lifecycle: identity, permanent printed home, defeat,
+        // respawn, and the two different things that happen when a barbarian
+        // and an army meet.
+        //
+        // A barbarian figure belongs to the printed icon it came from, for the
+        // whole game. It may march anywhere and be defeated anywhere; when the
+        // event dial reaches barbarian spawning it goes back to ITS OWN printed
+        // space, never to where it died, never to a free icon, never to a new
+        // identity. The letter is what the figure shows; the printed space is
+        // what it IS, because a letter is not unique on a board - E is printed
+        // on four different tiles - and two figures showing the same letter can
+        // be in play at once.
+        const spawnBoard = () => {
+          const st = rulesState();
+          const me = st.players[0];
+          // A clean lane. rulesState() deals real tiles, so clear whatever
+          // barbarians they brought and place the ones under test by hand.
+          for (let q = -1; q <= 8; q++) activate(st, q + ",0", { terrain: "grass" });
+          for (let q = -1; q <= 8; q++) {
+            activate(st, q + ",-1", { terrain: "grass" });
+            activate(st, q + ",1", { terrain: "grass" });
+          }
+          Object.values(st.map.hexes).forEach((h) => {
+            h.barbarian = false; h.barbarianId = null;
+            h.barbarianToken = null; h.barbarianHome = null;
+          });
+          st.barbarians = {};
+          return { st, me };
+        };
+        // Put figure `letter` on its printed home at `key`.
+        const printSpawn = (st, key, letter) => {
+          const h = st.map.hexes[key];
+          h.barbarianHome = letter;
+          h.barbarian = true;
+          h.barbarianId = letter;
+          h.barbarianToken = key;
+          Game.syncBarbarianRegistry(st);
+        };
+        const offMap = (st) => Game.offMapBarbarians(st)
+          .map((b) => b.letter + "@" + b.homeKey);
+        const whereIs = (st, token) => {
+          const found = Object.entries(st.map.hexes)
+            .find(([, h]) => h.barbarian && h.barbarianToken === token);
+          return found ? found[0] : null;
+        };
+        // The real event dial, not a helper: this is the action a player takes.
+        const spawnEvent = (st) => Game.resolveEvent(st, "barbarian_return");
+
+        {
+          // Setup reads the printed cell, so a dealt board's figures agree with
+          // the tiles it was dealt from. This is the one population path that
+          // both setup and Terra exploration use.
+          const st = rulesState();
+          Game.syncBarbarianRegistry(st);
+          const printed = Object.entries(st.map.hexes)
+            .filter(([, h]) => h.barbarianHome)
+            .map(([k, h]) => ({ k, letter: h.barbarianHome,
+              side: h.tileSide, tile: h.tileId, cell: h.tileCell }));
+          assert("the dealt board has printed barbarian spawns", printed.length > 0);
+          const wrong = printed.filter(({ k, letter, tile, side, cell }) => {
+            const def = Game.getTileDef(tile);
+            const face = def && def.sides && def.sides[side || "A"];
+            const printedCell = face && face.cells && face.cells[cell];
+            return !printedCell || printedCell.barbarian !== letter;
+          });
+          assert("every spawn letter comes from its exact printed tile/side/cell",
+            wrong.length === 0, JSON.stringify(wrong.slice(0, 3)));
+          const standing = Object.entries(st.map.hexes)
+            .filter(([, h]) => h.barbarian);
+          assert("and a figure stands on each of them, showing that letter",
+            standing.every(([k, h]) => h.barbarianId === h.barbarianHome &&
+              h.barbarianToken === k), JSON.stringify(standing.slice(0, 3).map(([k]) => k)));
+        }
+
+        {
+          // Identity survives marching, and a figure defeated far from home
+          // still returns home.
+          const { st, me } = spawnBoard();
+          printSpawn(st, "1,0", "F");
+          assert("F starts on its printed space", whereIs(st, "1,0") === "1,0");
+          // March it away by hand - where it walked is not the point, only that
+          // it is no longer at home when it dies.
+          st.map.hexes["1,0"].barbarian = false;
+          st.map.hexes["1,0"].barbarianId = null;
+          st.map.hexes["1,0"].barbarianToken = null;
+          activate(st, "6,0", { terrain: "grass" });
+          st.map.hexes["6,0"].barbarian = true;
+          st.map.hexes["6,0"].barbarianId = "F";
+          st.map.hexes["6,0"].barbarianToken = "1,0";
+          Game.syncBarbarianRegistry(st);
+          assert("moving F does not erase the printed spawn F",
+            st.map.hexes["1,0"].barbarianHome === "F");
+          assert("and F is still F, five spaces from home",
+            whereIs(st, "1,0") === "6,0" && st.map.hexes["6,0"].barbarianId === "F");
+
+          // Defeat it there, through the ordinary combat route's own helper -
+          // the same centralised defeat every route uses.
+          const beaten = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {} });
+          beaten.pendingChoices.push({ id: "rb", kind: "remove_barbarian", playerId: me.id,
+            hexKeys: ["6,0"], title: "Remove", source: "test" });
+          const dead = Game.applyAction(beaten, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: "rb", hexKey: "6,0" } });
+          assert("F is off the map after being defeated",
+            dead.map.hexes["6,0"].barbarian === false);
+          assert("but it is still F, and still belongs to spawn F",
+            offMap(dead).join(",") === "F@1,0", JSON.stringify(offMap(dead)));
+          assert("the space it died on is not a spawn",
+            !dead.map.hexes["6,0"].barbarianHome);
+
+          spawnEvent(dead);
+          assert("the spawning event returns F to its OWN printed space",
+            dead.map.hexes["1,0"].barbarian === true &&
+            dead.map.hexes["1,0"].barbarianId === "F" &&
+            dead.map.hexes["1,0"].barbarianToken === "1,0",
+            JSON.stringify({ home: dead.map.hexes["1,0"].barbarian,
+              died: dead.map.hexes["6,0"].barbarian }));
+          assert("and never where it died", dead.map.hexes["6,0"].barbarian === false);
+          assert("nothing is left waiting", offMap(dead).length === 0);
+        }
+
+        {
+          // A caravan on the spawn does not stop it: the caravan is destroyed
+          // and goes back to its economy card.
+          const { st, me } = spawnBoard();
+          printSpawn(st, "2,0", "F");
+          st.map.hexes["2,0"].barbarian = false;
+          st.map.hexes["2,0"].barbarianId = null;
+          st.map.hexes["2,0"].barbarianToken = null;
+          Game.syncBarbarianRegistry(st);
+          me.caravans = [{ id: "c1", position: "2,0" }];
+          assert("F is waiting off the map", offMap(st).join(",") === "F@2,0");
+          spawnEvent(st);
+          assert("a caravan does not block the spawn",
+            st.map.hexes["2,0"].barbarian === true &&
+            st.map.hexes["2,0"].barbarianId === "F");
+          assert("and the caravan is destroyed back onto its card",
+            st.players[0].caravans[0].position === null);
+        }
+
+        {
+          // Terra's additional army rules: an army on the icon does NOT block
+          // the spawn either. It is defeated and returns to its military card.
+          const { st, me } = spawnBoard();
+          printSpawn(st, "2,0", "F");
+          st.map.hexes["2,0"].barbarian = false;
+          st.map.hexes["2,0"].barbarianId = null;
+          st.map.hexes["2,0"].barbarianToken = null;
+          Game.syncBarbarianRegistry(st);
+          me.armies = [{ id: "a1", position: "2,0" }];
+          spawnEvent(st);
+          assert("an army does NOT prevent a barbarian from spawning",
+            st.map.hexes["2,0"].barbarian === true &&
+            st.map.hexes["2,0"].barbarianId === "F",
+            JSON.stringify(st.map.hexes["2,0"]));
+          assert("the army is defeated and returns to its military focus card",
+            st.players[0].armies[0].position === null);
+          assert("and F occupies its spawn", whereIs(st, "2,0") === "2,0");
+        }
+
+        {
+          // A real blocker leaves the figure off the map - not reassigned, not
+          // deleted - and the NEXT event tries again once it is cleared.
+          const { st, me } = spawnBoard();
+          printSpawn(st, "3,0", "F");
+          st.map.hexes["3,0"].barbarian = false;
+          st.map.hexes["3,0"].barbarianId = null;
+          st.map.hexes["3,0"].barbarianToken = null;
+          st.map.hexes["3,0"].control =
+            { ownerId: me.id, fortified: false, district: null };
+          Game.syncBarbarianRegistry(st);
+          spawnEvent(st);
+          assert("a control token on the spawn does prevent it",
+            st.map.hexes["3,0"].barbarian === false);
+          assert("F stays off the map, still F, still bound to spawn F",
+            offMap(st).join(",") === "F@3,0", JSON.stringify(offMap(st)));
+          assert("and it did not take some other icon instead",
+            Object.values(st.map.hexes).filter((h) => h.barbarian).length === 0);
+          // Clear the blocker; the next event is a fresh attempt.
+          st.map.hexes["3,0"].control = null;
+          spawnEvent(st);
+          assert("the next spawning event returns F to spawn F",
+            st.map.hexes["3,0"].barbarian === true &&
+            st.map.hexes["3,0"].barbarianId === "F");
+          assert("with no permanent failure flag left behind", offMap(st).length === 0);
+        }
+
+        {
+          // Two letters at once: one can return, the other cannot, and neither
+          // borrows the other's space.
+          const { st, me } = spawnBoard();
+          printSpawn(st, "2,0", "F");
+          printSpawn(st, "5,0", "B");
+          ["2,0", "5,0"].forEach((k) => {
+            st.map.hexes[k].barbarian = false;
+            st.map.hexes[k].barbarianId = null;
+            st.map.hexes[k].barbarianToken = null;
+          });
+          st.map.hexes["2,0"].control = { ownerId: me.id, fortified: false, district: null };
+          Game.syncBarbarianRegistry(st);
+          assert("both are waiting", offMap(st).sort().join(",") === "B@5,0,F@2,0",
+            JSON.stringify(offMap(st)));
+          spawnEvent(st);
+          assert("B returned to B", st.map.hexes["5,0"].barbarianId === "B" &&
+            st.map.hexes["5,0"].barbarianToken === "5,0");
+          assert("F did not return to B's space", whereIs(st, "2,0") === null);
+          assert("F is still waiting as F", offMap(st).join(",") === "F@2,0");
+          st.map.hexes["2,0"].control = null;
+          spawnEvent(st);
+          assert("and later F returns to F, not to any other icon",
+            st.map.hexes["2,0"].barbarianId === "F" &&
+            st.map.hexes["2,0"].barbarianToken === "2,0");
+          assert("both figures are now on their own printed spaces",
+            whereIs(st, "2,0") === "2,0" && whereIs(st, "5,0") === "5,0");
+        }
+
+        {
+          // Two figures printed with the SAME letter on different tiles. The
+          // letter cannot tell them apart, so a letter-keyed respawn stranded
+          // one of them permanently.
+          const { st, me } = spawnBoard();
+          printSpawn(st, "1,0", "E");
+          printSpawn(st, "6,0", "E");
+          st.map.hexes["6,0"].barbarian = false;
+          st.map.hexes["6,0"].barbarianId = null;
+          st.map.hexes["6,0"].barbarianToken = null;
+          Game.syncBarbarianRegistry(st);
+          assert("one E is on the board and one is off it",
+            whereIs(st, "1,0") === "1,0" && offMap(st).join(",") === "E@6,0");
+          spawnEvent(st);
+          assert("the absent E returns even though another E is in play",
+            st.map.hexes["6,0"].barbarian === true &&
+            st.map.hexes["6,0"].barbarianToken === "6,0",
+            JSON.stringify(offMap(st)));
+          assert("and the one already standing did not move",
+            whereIs(st, "1,0") === "1,0");
+        }
+
+        {
+          // MOVEMENT into an army is a different case from SPAWNING onto one.
+          // Terra p11: the army is defeated, but it shields its space - the
+          // barbarian stays on the last non-water space it occupied, and the
+          // city or control token in the army's space is untouched.
+          const base = spawnBoard().st;
+          const me = base.players[0];
+          printSpawn(base, "2,0", "F");
+          me.armies = [{ id: "a1", position: "3,0" }];
+          base.map.hexes["3,0"].control =
+            { ownerId: me.id, fortified: false, district: null };
+          let out = null;
+          for (let i = 0; i < 500 && !out; i++) {
+            const attempt = JSON.parse(JSON.stringify(base));
+            Game.resolveEvent(attempt, "barbarian_move");
+            if (attempt.barbarianMove && attempt.barbarianMove.roll === 2) out = attempt;
+          }
+          assert("the march rolled east at least once", !!out);
+          if (out) {
+            assert("the army in the way is defeated onto its military card",
+              out.players[0].armies[0].position === null);
+            assert("the barbarian stays on the last space it occupied, not the army's",
+              out.map.hexes["2,0"].barbarian === true &&
+              out.map.hexes["3,0"].barbarian === false,
+              JSON.stringify({ at2: out.map.hexes["2,0"].barbarian,
+                at3: out.map.hexes["3,0"].barbarian }));
+            assert("and it is still F, still bound to spawn F",
+              out.map.hexes["2,0"].barbarianId === "F" &&
+              out.map.hexes["2,0"].barbarianToken === "2,0");
+            assert("the control token sharing the army's space is protected",
+              !!out.map.hexes["3,0"].control &&
+              out.map.hexes["3,0"].control.ownerId === me.id,
+              JSON.stringify(out.map.hexes["3,0"].control));
+          }
+        }
+      }
+
+      {
         // Barbarians, p12. One roll steers all of them, and a reinforced marker
         // turns the raid back without the barbarian disappearing.
         let lost = 0;
