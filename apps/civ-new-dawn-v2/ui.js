@@ -515,7 +515,10 @@ const UI = (() => {
       protocolVersion: PROTOCOL_VERSION,
       saveSchemaVersion: SAVE_SCHEMA_VERSION,
       rulesVersion: fullState.rulesVersion || 0,
-      fullState,
+      // Same trim as the remote backup. The local store hashes this JSON and
+      // has its own byte cap, so shipping the undo snapshot doubled the work of
+      // every checkpoint for something a restore cannot use.
+      fullState: backupPayload(fullState),
       processedActionIds
     });
   }
@@ -619,6 +622,23 @@ const UI = (() => {
     };
   }
 
+  // What actually has to survive to restore a game, which is not the same as
+  // what the table needs while playing.
+  //
+  // turnUndo carries a COMPLETE second copy of the state - measured at 339 KiB
+  // of a 678 KiB late game, i.e. half the payload - purely so the current
+  // player can undo the turn they are in the middle of. That is worthless to a
+  // restore: nobody resumes a saved game in order to undo a turn they were not
+  // present for. Stripping it halves the backup and keeps the live state (and
+  // therefore Undo) exactly as it was, because only the copy on the wire loses
+  // it. getUndoStatus already treats a missing checkpoint as "nothing to undo".
+  function backupPayload(fullState) {
+    if (!fullState || typeof fullState !== "object") return fullState;
+    const trimmed = { ...fullState };
+    delete trimmed.turnUndo;
+    return trimmed;
+  }
+
   async function checkpointCandidate(candidate, actionId, extraSeatTokens) {
     const expectedRevision = Number.isInteger(sessionCredentials.revision)
       ? sessionCredentials.revision
@@ -632,7 +652,7 @@ const UI = (() => {
         hostToken: sessionCredentials.hostToken,
         hostEpoch: sessionCredentials.hostEpoch,
         expectedRevision,
-        fullState: candidate,
+        fullState: backupPayload(candidate),
         processedActionIds: nextIds,
         ...(extraSeatTokens && Object.keys(extraSeatTokens).length ? { seatTokens: extraSeatTokens } : {})
       });
@@ -641,8 +661,14 @@ const UI = (() => {
       sessionCredentials.hostPeerId = saved.hostPeerId;
       sessionCredentials.leaseUntil = saved.leaseUntil;
       rememberProcessed(nextIds);
-      await saveLocalCheckpoint(candidate, saved.revision);
-      await saveSessionCredentials();
+      // The remote CAS has already committed at this point, so the action IS
+      // durable. Local persistence is a convenience on top of that, and it used
+      // to be awaited inside this try - so an IndexedDB failure (private
+      // browsing, quota, a locked store) threw into the catch below and the
+      // committed turn was reported as a failed backup. It is best-effort, and
+      // it no longer holds up the broadcast either.
+      saveLocalCheckpoint(candidate, saved.revision).catch(() => {});
+      saveSessionCredentials().catch(() => {});
       state = candidate;
       Net.setRevision?.(saved.revision);
       backupFailure = null;
@@ -659,17 +685,46 @@ const UI = (() => {
           return { accepted: true, state, revision: recovered.revision, code: "accepted", message: "Recovered confirmed action" };
         }
       } catch { /* retain the original, more useful failure below */ }
-      if (["host_epoch_stale", "host_auth_failed", "session_active_elsewhere"].includes(error.code)) {
-        readOnlySession = true;
-      }
+      // These three mean another host owns the session. Playing on would fork
+      // the game, so they genuinely must stop the action.
+      const ownershipLost = ["host_epoch_stale", "host_auth_failed", "session_active_elsewhere"]
+        .includes(error.code);
       backupFailure = error;
+      if (ownershipLost) {
+        readOnlySession = true;
+        updateNetworkChrome();
+        return {
+          accepted: false,
+          state,
+          revision: expectedRevision,
+          code: error.code || "backup_unavailable",
+          message: error.message || "The backup could not confirm this action"
+        };
+      }
+      // Everything else - the endpoint down, a timeout, a payload over the
+      // 1 MiB cap - is a lost BACKUP, not a lost game. Rejecting here stopped
+      // the whole table: net.js only broadcasts when the action is accepted,
+      // so an oversized save meant the host's every move was refused and no
+      // client ever saw another turn. Degrade to "unbacked" instead: the move
+      // stands, the revision advances, the snapshot goes out, and the banner
+      // says the backup is behind.
+      const localRevision = nextRevision;
+      candidate.revision = localRevision;
+      state = candidate;
+      sessionCredentials.revision = localRevision;
+      rememberProcessed(nextIds);
+      Net.setRevision?.(localRevision);
+      networkStatus = { ...networkStatus, revision: localRevision };
       updateNetworkChrome();
+      // Keep a local copy even when the remote one failed, so a reload after a
+      // backup outage still finds this turn.
+      saveLocalCheckpoint(candidate, localRevision).catch(() => {});
       return {
-        accepted: false,
-        state,
-        revision: expectedRevision,
-        code: error.code || "backup_unavailable",
-        message: error.message || "The backup could not confirm this action"
+        accepted: true,
+        state: candidate,
+        revision: localRevision,
+        code: "accepted_unbacked",
+        message: error.message || "Played without a confirmed backup"
       };
     }
   }
@@ -845,11 +900,21 @@ const UI = (() => {
           pollRecoveryStatus();
         }
         updateNetworkChrome();
+        // Same reason as onRoster: the local seat's own online-ness comes from
+        // this phase, and the lobby gate reads it.
+        if (state && state.phase === "lobby") renderLobby();
       },
       onRoster: (roster) => {
         networkRoster = Array.isArray(roster) ? roster : [];
         updateNetworkChrome();
         if (state) renderPlayers();
+        // The lobby's Start button is computed from presence (offlinePlayers()
+        // reads exactly this array), so a roster that arrives after the lobby
+        // was painted left the button stuck on the state from before the guest
+        // connected: both seats online, netPhase synced, and the host still
+        // reading "Waiting for Guest to reconnect." with Start disabled. The
+        // panel has to be rebuilt when the thing it is derived from changes.
+        if (state && state.phase === "lobby") renderLobby();
       },
       onActionResult: (result) => {
         if (result.status !== "accepted") showToast(result.message || result.code || "Action rejected");
@@ -1089,15 +1154,26 @@ const UI = (() => {
     if (state && Number.isInteger(state.revision) && incomingRevision < state.revision) return;
     state = Game.migrateState ? Game.migrateState(payload) : payload;
     state.revision = incomingRevision;
-    if (sessionCredentials) {
-      sessionCredentials.revision = incomingRevision;
-      await saveSessionCredentials().catch(() => {});
-      await saveLocalCheckpoint(state, incomingRevision).catch(() => {});
-    }
     if (Array.isArray(state.chat)) {
       chatHistory.splice(0, chatHistory.length, ...state.chat.slice(-100));
     }
+    // Paint FIRST. The two persistence calls below are an IndexedDB write of
+    // the whole state plus a SHA-256 of its JSON, queued behind every earlier
+    // write - and they used to be awaited before this render, so the arrival of
+    // "it is your turn now" waited on a disk round-trip that grows with the
+    // game. That is the turn that appeared only after a reload. Nothing in the
+    // render needs the checkpoint to exist, so it no longer waits for it.
     render();
+    if (sessionCredentials) {
+      sessionCredentials.revision = incomingRevision;
+      const snapshot = state;
+      // Deliberately not awaited: a slow or failing local checkpoint must never
+      // hold up the next frame, and both already swallow their own errors.
+      Promise.resolve()
+        .then(() => saveSessionCredentials())
+        .then(() => saveLocalCheckpoint(snapshot, incomingRevision))
+        .catch(() => { /* local persistence is best-effort */ });
+    }
   }
 
   async function authenticateSeatConnection(hello) {
@@ -3873,6 +3949,29 @@ const UI = (() => {
         return;
       }
       const fort = window.CivCardArt && CivCardArt.fort();
+      // Terra deals every player their capital tile BEFORE fortresses go down,
+      // so at the table you are looking at your own hometown tile - both faces
+      // of it - while you decide where the fortress goes. The engine already
+      // deals it here (createSetup fills playerTiles before phase "fortress");
+      // it was simply never shown, which made the choice blind in a way the
+      // physical game never is. The side is still chosen later, when the tile
+      // is actually placed, so both faces are offered and neither is committed.
+      const myCapital = (setupHand(state, localPlayerId) || [])[0];
+      // Styled inline rather than in style.css: that file is being worked on
+      // elsewhere for focus-row sizing, and this panel is small and local.
+      const faceStyle = "flex:1 1 0;min-width:0;margin:0;text-align:center";
+      const capStyle = "font-size:10px;opacity:0.75;margin-top:2px";
+      const capitalPanel = myCapital ? `
+        <div style="margin-top:10px;border-top:1px solid rgba(255,255,255,0.12);padding-top:8px">
+          <div class="wiz-hint">Your capital tile — <strong>${escapeHtml(myCapital)}</strong>.
+            You place it after the fortress, and you choose which face goes up then.</div>
+          <div style="display:flex;gap:8px;align-items:flex-start;margin-top:6px">
+            <figure style="${faceStyle}">${renderTileCard(myCapital, { side: "A", rotation: 0 })}
+              <figcaption style="${capStyle}">Side A</figcaption></figure>
+            <figure style="${faceStyle}">${renderTileCard(myCapital, { side: "B", rotation: 0 })}
+              <figcaption style="${capStyle}">Side B</figcaption></figure>
+          </div>
+        </div>` : "";
       dom.wizard.innerHTML = `
         <div class="wiz-title">Place Your Fortress</div>
         <div class="wiz-body">
@@ -3880,6 +3979,7 @@ const UI = (() => {
           Click an <strong>inactive hex</strong> bordering at least 2 active hexes.<br>
           This is a neutral defensive hex (defense ${Game.CFG.fortressDefense}). Your capital will go on your hometown tile next.<br>
           Read the board and choose; legal spaces are deliberately not highlighted.
+          ${capitalPanel}
         </div>`;
       return;
     }
@@ -3934,14 +4034,20 @@ const UI = (() => {
   // You cannot plan a placement off that. It now draws the face at the side and
   // angle you have it turned to — the same geometry the ghost uses on the board
   // — with the real tokens on the spaces, and names everything underneath.
-  function renderTileCard(tileId) {
+  // `opts` lets a caller draw a specific face at a specific angle instead of
+  // the one the player is currently holding. Setup needs that to show BOTH
+  // sides of a dealt capital tile at once; every existing call passes nothing
+  // and keeps reading sub.tileSide / sub.tileRotation exactly as before.
+  function renderTileCard(tileId, opts) {
     const def = tileId && Game.getTileDef ? Game.getTileDef(tileId) : null;
     if (!def || !def.sides) return "";
-    const side = sub.tileSide === "B" ? "B" : "A";
+    const wantSide = opts && opts.side ? opts.side : sub.tileSide;
+    const rotation = opts && Number.isInteger(opts.rotation) ? opts.rotation : sub.tileRotation;
+    const side = wantSide === "B" ? "B" : "A";
     const face = def.sides[side] || def.sides.A;
     const cells = face.cells || [];
 
-    const offs = Game.TILE_OFFSETS.map((o) => Game.rotateAxial(o, sub.tileRotation));
+    const offs = Game.TILE_OFFSETS.map((o) => Game.rotateAxial(o, rotation));
     const pts = offs.map((o) => ({ x: Math.sqrt(3) * (o.q + o.r / 2), y: 1.5 * o.r }));
     const minX = Math.min(...pts.map((p) => p.x)) - 1.08;
     const minY = Math.min(...pts.map((p) => p.y)) - 1.08;

@@ -3185,22 +3185,56 @@
           assert(`and the breakdown attributes ${spend} of it to trade`,
             preview.ok && preview.production.base === 4 && preview.production.trade === spend);
         });
-        const short = Game.calculateWonderProduction(iSt, iMe, "Terracotta Army", { tradeSpent: 2 });
-        assert("2 trade is one short of a cost-7 wonder", short.ok && !short.affordable && short.shortfall === 1);
-        const full = Game.calculateWonderProduction(iSt, iMe, "Terracotta Army", { tradeSpent: 3 });
-        assert("3 trade affords it", full.ok && full.affordable);
+        // Affordability is derived from whatever the card actually costs, not
+        // from a number written here: the printed costs are audited separately
+        // and this test is about the production ARITHMETIC. Hard-coding 7 made
+        // these fail the moment Terracotta Army was corrected to 8.
+        // Pick a wonder that slot 4 plus at most 3 trade can actually reach, so
+        // the affordability boundary is testable whatever the printed costs are.
+        const reachable = Game.ALL_WONDERS
+          .map((w) => ({ name: w.name, cost: Game.calculateWonderCost(w.name, iMe, iSt).finalCost }))
+          .filter((w) => w.cost > 4 && w.cost <= 7)
+          .sort((a, b) => a.cost - b.cost)[0];
+        assert("a wonder exists that 4 + up to 3 trade can buy", !!reachable,
+          JSON.stringify(Game.ALL_WONDERS.map((w) => w.cost).sort((a, b) => a - b).slice(0, 4)));
+        if (reachable) {
+          const need = reachable.cost - 4;
+          const under = Game.calculateWonderProduction(iSt, iMe, reachable.name, { tradeSpent: need - 1 });
+          assert("one trade short of the cost is not affordable",
+            under.ok && !under.affordable && under.shortfall === 1,
+            JSON.stringify({ wonder: reachable.name, cost: reachable.cost, shortfall: under.shortfall }));
+          const exact = Game.calculateWonderProduction(iSt, iMe, reachable.name, { tradeSpent: need });
+          assert("spending exactly enough affords it", exact.ok && exact.affordable,
+            JSON.stringify({ wonder: reachable.name, cost: reachable.cost, total: exact.ok && exact.production.total }));
+        }
         assert("spending more trade than the card holds is refused",
           !Game.calculateWonderProduction(industryAt(2).st, industryAt(2).me, "Terracotta Army", { tradeSpent: 3 }).ok);
 
-        // The FINAL payment, not just the preview.
+        // The FINAL payment, not just the preview. Slot 4 plus 3 trade is 7
+        // production, so this needs a wonder that 7 actually buys - picked from
+        // the data rather than named, so an audited cost change cannot turn a
+        // payment test into a failure about affordability.
         const { st: bSt, me: bMe } = industryAt(3);
-        const built = Game.applyAction(bSt, { type: "PLAY_INDUSTRY_WONDER", payload: {
-          playerId: bMe.id, hexKey: "0,0", wonderName: "Terracotta Army", tradeSpent: 3 } });
-        assert("the wonder is actually built with all 3 tokens",
-          built.map.hexes["0,0"].city.wonder && built.map.hexes["0,0"].city.wonder.name === "Terracotta Army");
-        assert("and all 3 industry trade tokens were really removed",
-          Game.getPlayer(built, bMe.id).trade.industry === 0,
-          Game.getPlayer(built, bMe.id).trade.industry);
+        const affordable = Game.ALL_WONDERS
+          .filter((w) => Game.calculateWonderCost(w.name, bMe, bSt).finalCost <= 7)
+          .sort((a, b) => Game.calculateWonderCost(a.name, bMe, bSt).finalCost -
+            Game.calculateWonderCost(b.name, bMe, bSt).finalCost)[0];
+        assert("some wonder is buildable with 7 production", !!affordable);
+        if (affordable) {
+          const deck = bSt.wonderDecks[affordable.type];
+          deck.deck = [affordable.name].concat(deck.deck.filter((n) => n !== affordable.name));
+          deck.revealed = affordable.name;
+          deck.token = 0;
+          const built = Game.applyAction(bSt, { type: "PLAY_INDUSTRY_WONDER", payload: {
+            playerId: bMe.id, hexKey: "0,0", wonderName: affordable.name, tradeSpent: 3 } });
+          assert("the wonder is actually built with all 3 tokens",
+            built.map.hexes["0,0"].city.wonder &&
+            built.map.hexes["0,0"].city.wonder.name === affordable.name,
+            { wonder: affordable.name, cost: Game.calculateWonderCost(affordable.name, bMe, bSt).finalCost });
+          assert("and all 3 industry trade tokens were really removed",
+            Game.getPlayer(built, bMe.id).trade.industry === 0,
+            Game.getPlayer(built, bMe.id).trade.industry);
+        }
 
         // A world wonder needs a friendly city WITHOUT a wonder. Maturity is
         // not part of that test and must never become one.

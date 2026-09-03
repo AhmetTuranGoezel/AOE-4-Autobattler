@@ -127,9 +127,15 @@ const CivCardArt = (() => {
     const table = group("barbarian");
     const keys = Object.keys(table).sort();
     if (!keys.length) return "";
-    let h = 0;
-    String(hexKey || "").split("").forEach((ch) => { h = (h * 31 + ch.charCodeAt(0)) | 0; });
-    return at(table[keys[Math.abs(h) % keys.length]]);
+    // The fallback used to hash the HEX KEY. That is stable across clients,
+    // which is what it was written for, but it is not stable across MOVEMENT:
+    // a barbarian with no recorded letter changed token every time it stepped,
+    // which is the "letters unrelated to the printed symbols" report. Identity
+    // must never be derived from where a piece currently stands. The engine now
+    // backfills the printed letter, so this is only reached when it is truly
+    // unknown - and then every client shows the same one marker rather than a
+    // different one per space.
+    return at(table[keys[0]]);
   }
 
   const styleFor = (url) => (url ? `background-image:url("${url}");` : "");

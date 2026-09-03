@@ -1066,6 +1066,13 @@ const Game = (() => {
       if (h.city && h.city.wonder) h.city.hasWonder = true;
       if (h.city && h.city.hasWonder && !h.city.wonder) h.city.wonder = { name: "Unknown", era: "ancient", type: "military", effect: "" };
       if (h.cityState && h.cityState.diplomacyCards === undefined) h.cityState.diplomacyCards = 2;
+      // A barbarian on the board is a physical lettered marker, and that letter
+      // comes from the space it was printed on. A save that carries the figure
+      // without its letter leaves the renderer nothing to identify it by, and
+      // the renderer's fallback picks a token from the HEX KEY - so the marker
+      // silently became a different barbarian every time it moved. Put the
+      // printed identity back where it is still known.
+      if (h.barbarian && !h.barbarianId && h.barbarianHome) h.barbarianId = h.barbarianHome;
     });
     st.saveSchemaVersion = SAVE_SCHEMA_VERSION;
     if (issues.size) {

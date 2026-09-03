@@ -17,6 +17,8 @@ const steps = [
   ["authorization", "authorization-test.js"],
   ["net protocol", "net-protocol-test.js"],
   ["lobby contract", "lobby-contract-test.js"],
+  ["sync contract", "sync-contract-test.js"],
+  ["state size", "state-size.js"],
   ["art index", "verify-art.js"],
   // Last because it is the slow one: it starts the dev session server, drives a
   // real Chrome, and plays a turn. Everything above proves the engine agrees
