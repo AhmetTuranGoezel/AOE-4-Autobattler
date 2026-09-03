@@ -3958,6 +3958,83 @@
         }
       }
 
+      // ── Setup gives information before it asks for decisions ────────────
+      //
+      // Civilization, colour, focus row and the player's own capital tile are
+      // all dealt BEFORE fortress placement, so the fortress is an informed
+      // choice. The tile's FACE is a separate decision made later, when the
+      // tile is actually laid: knowing both possibilities is not the same as
+      // having committed to one. tools/browser-smoke.js asserts that the panel
+      // actually shows all of this and leaks none of the undrawn stack.
+      {
+        const twoPlayerSetup = () => {
+          let st = Game.createLobbyState([Game.createPlayer("s1", "A", "#169eae")], {});
+          st = Game.applyAction(st, { type: "ADD_PLAYER", payload: Game.createPlayer("s2", "B", "#d94747") });
+          return Game.applyAction(st, { type: "START_GAME", payload: {} });
+        };
+        const st = twoPlayerSetup();
+        assert("setup opens on fortress placement", st.setup.phase === "fortress", st.setup.phase);
+        assert("every player already holds exactly one capital tile, and it is a capital tile",
+          st.players.every((p) => {
+            const hand = st.setup.playerTiles[p.id] || [];
+            const def = hand.length === 1 && Game.getTileDef(hand[0]);
+            return def && def.kind === "capital";
+          }));
+        assert("no two players were dealt the same capital tile",
+          new Set(st.players.map((p) => (st.setup.playerTiles[p.id] || [])[0])).size === st.players.length);
+        assert("every player already has a colour and a six-card focus row",
+          st.players.every((p) => !!p.color && (p.focusRow || []).length === 6));
+        assert("the core is already on the board to read",
+          Object.values(st.map.hexes).filter((h) => h.active).length > 0);
+        assert("and the undrawn tiles are still in the stack, not on the board",
+          (st.setup.tileStack || []).length > 0);
+        const dealt = (st.setup.playerTiles["s1"] || [])[0];
+        assert("the dealt capital tile is not placed and has no side committed",
+          st.setup.tiles[dealt].placed === false && st.setup.tiles[dealt].anchorKey === null);
+        const def = Game.getTileDef(dealt);
+        assert("both of its faces are real and different",
+          def.sides.A.cells.length === 10 && def.sides.B.cells.length === 10 &&
+          JSON.stringify(def.sides.A.cells) !== JSON.stringify(def.sides.B.cells));
+
+        // Place the fortresses, then lay the capital tile - the face is chosen
+        // here, and the capital lands on the star printed on THAT face.
+        let run = twoPlayerSetup();
+        for (let i = 0; i < 4 && run.setup.phase === "fortress"; i++) {
+          const who = run.setup.order[run.setup.turnIndex];
+          run = Game.applyAction(run, { type: "PLACE_FORTRESS",
+            payload: { playerId: who, hexKey: [...Game.getValidFortressHexes(run)][0] } });
+        }
+        assert("after the fortresses, setup asks for the capital tile",
+          run.setup.phase === "capital_tile", run.setup.phase);
+        const actor = run.setup.order[run.setup.turnIndex];
+        const tileId = (run.setup.playerTiles[actor] || [])[0];
+        const layOn = (side) => {
+          for (let rot = 0; rot < 6; rot++) {
+            for (const anchorKey of [...(Game.getValidTileAnchors(run, tileId, rot) || [])]) {
+              const out = Game.applyAction(JSON.parse(JSON.stringify(run)), { type: "PLACE_TILE",
+                payload: { playerId: actor, tileId, anchorKey, rotation: rot, side } });
+              if (out.setup.tiles[tileId].placed) return out;
+            }
+          }
+          return null;
+        };
+        const onA = layOn("A");
+        const onB = layOn("B");
+        assert("the capital tile can be laid either face up", !!onA && !!onB);
+        assert("and the chosen face is what gets recorded",
+          onA.setup.tiles[tileId].side === "A" && onB.setup.tiles[tileId].side === "B");
+        const capitalOn = (out, side) => {
+          const cells = Object.values(out.map.hexes).filter((h) => h.tileId === tileId);
+          const capital = cells.find((h) => h.city && h.city.isCapital);
+          const printed = Game.getTileDef(tileId).sides[side].cells
+            .findIndex((cell) => cell.feature === "capital");
+          return { cells: cells.length, ok: !!capital && capital.tileCell === printed, printed };
+        };
+        const a = capitalOn(onA, "A"), b = capitalOn(onB, "B");
+        assert("each face puts the capital on the star printed on that face",
+          a.cells === 10 && b.cells === 10 && a.ok && b.ok, JSON.stringify({ a, b }));
+      }
+
       // ── The host administers the lobby ──────────────────────────────────
       //
       // Removing a seat is only safe BEFORE the board exists. Once setup has

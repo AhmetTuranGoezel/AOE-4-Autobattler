@@ -259,6 +259,55 @@ async function waitFor(cdp, expr, label, timeoutMs = 8000) {
     })()`);
     results.push(["INFO", "phase after Begin", String(phaseText)]);
 
+    // ---- what a player knows when placing the fortress -------------------
+    // Terra deals civilization, focus row and personal capital tile BEFORE
+    // fortress placement, so the decision is informed. This asserts the real
+    // panel, and that no information the player has NOT yet learned leaks.
+    const known = await cdp.eval(`(() => {
+      const s = UI.debugState();
+      if (!s || s.phase !== "setup" || s.setup.phase !== "fortress") return { wrongPhase: s && s.setup && s.setup.phase };
+      const me = Game.getPlayer(s, UI.debugInfo().localPlayerId);
+      const leader = Game.getLeader ? Game.getLeader(me) : null;
+      const panel = document.getElementById("wizard") || document.body;
+      const text = panel.innerText || "";
+      const hand = (s.setup.playerTiles[me.id] || []);
+      const tileCards = panel.querySelectorAll(".tile-card, svg").length;
+      return {
+        phase: s.setup.phase,
+        civ: leader && leader.civ,
+        abilityShown: !!(leader && leader.ability && text.includes(leader.ability.text.slice(0, 40))),
+        uniqueShown: !!(leader && leader.unique && text.includes(leader.unique.name)),
+        rowShown: (me.focusRow || []).every((t) => text.includes(Game.FOCUS_LABELS[t])),
+        rowLength: (me.focusRow || []).length,
+        handSize: hand.length,
+        capitalTileId: hand[0] || null,
+        tileIdShown: !!(hand[0] && text.includes(hand[0])),
+        bothFacesShown: /Side A/.test(text) && /Side B/.test(text),
+        sideCommitted: !!(s.setup.tiles[hand[0]] && s.setup.tiles[hand[0]].placed),
+        boardVisible: !!document.querySelector("canvas"),
+        activeHexes: Object.values(s.map.hexes).filter((h) => h.active).length,
+        stackSize: (s.setup.tileStack || []).length,
+        stackLeaked: (s.setup.tileStack || []).some((id) => text.includes(String(id))),
+        tileCards
+      };
+    })()`);
+    ok("fortress placement happens while the civilization is known",
+      !!known.civ, JSON.stringify(known));
+    ok("the leader ability is inspectable before the fortress", known.abilityShown === true, JSON.stringify(known));
+    ok("the unique focus card is inspectable before the fortress", known.uniqueShown === true, JSON.stringify(known));
+    ok("all six starting focus cards are inspectable before the fortress",
+      known.rowShown === true && known.rowLength === 6, JSON.stringify(known));
+    ok("exactly one personal capital tile has been dealt before the fortress",
+      known.handSize === 1 && !!known.capitalTileId, JSON.stringify(known));
+    ok("its identity is shown", known.tileIdShown === true, JSON.stringify(known));
+    ok("both faces of it are shown", known.bothFacesShown === true, JSON.stringify(known));
+    ok("neither face is committed yet", known.sideCommitted === false, JSON.stringify(known));
+    ok("the core board is visible while choosing", known.boardVisible === true && known.activeHexes > 0,
+      JSON.stringify({ boardVisible: known.boardVisible, activeHexes: known.activeHexes }));
+    ok("the undrawn tile stack is NOT leaked into the panel",
+      known.stackSize > 0 && known.stackLeaked === false,
+      JSON.stringify({ stackSize: known.stackSize, leaked: known.stackLeaked }));
+
     // ---- play through setup --------------------------------------------
     // Setup is fortress then tile placement, both canvas hit-testing. Those go
     // through UI.dispatch - the same call the click handler makes, so the

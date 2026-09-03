@@ -18,10 +18,10 @@ Status values:
 
 | System | Status | Evidence / gap |
 |---|---|---|
-| Setup: order and dealing | partial | Capital tiles are dealt before fortress placement and both faces are shown; the full ordering (leader → colour → focus row → capital tile → core → sides → fortress → capital) is not asserted end to end. |
+| Setup: order and dealing | proven | Asserted end to end. Engine: setup opens on fortress; every player already holds exactly one capital tile (and it is a capital tile, and no two are the same), a colour and a six-card focus row; the core is on the board; undrawn tiles stay in the stack; the dealt tile has no side or anchor committed; after the fortresses the capital tile is laid on EITHER face, the chosen face is recorded, and the capital lands on the star printed on that face. Browser: the fortress panel shows civilization, leader ability, unique card, all six focus cards, the dealt tile's identity and both of its faces, the board stays visible, and the undrawn stack does not leak into the panel. |
 | Map generation / core tiles | partial | `two-client-test.js` and `browser-smoke.js` drive a real setup to `playing`. Core composition rules (4 tiles, 2 at 2–3 players) are not asserted. |
-| Fortress placement | partial | Driven in both browser tests; legality rules (inactive hex bordering ≥2 active) are not asserted directly. |
-| Capital tile placement | partial | Driven in both browser tests. Side/rotation choice at placement is supported but not asserted. |
+| Fortress placement | partial | Driven in both browser tests and in the setup regression, and the panel now carries the information the choice needs. The legality rule itself (inactive hex bordering at least 2 active hexes) is still not asserted directly. |
+| Capital tile placement | proven | The face is chosen at placement, not before: the same dealt tile is laid A-up and B-up from the same position, the chosen side is recorded, all ten spaces reach the board, and the capital appears on the star printed on the chosen face. |
 | Map population from tiles | partial | Barbarian letters verified against every printed cell; terrain audited by `audit-tile-terrain.py`; resources/city-states/natural wonders not asserted per cell. |
 | Exploration | partial | Apadana's expedition is proven. Ordinary exploration, tile-stack exhaustion and abandon paths are not. |
 | Movement | unproven | No behavioural test drives caravan/army movement limits, terrain gates or forced stops. |

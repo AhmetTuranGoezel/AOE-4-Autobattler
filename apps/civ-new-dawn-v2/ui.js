@@ -3860,6 +3860,46 @@ const UI = (() => {
     decorateWizard();
   }
 
+  // Everything the rules have ALREADY given this player, gathered where the
+  // setup decision is actually made.
+  //
+  // By the time a fortress goes down the player knows their civilization, its
+  // ability, its unique card and the exact starting focus row - all of it is
+  // dealt before this phase. Making them place the fortress without it is blind
+  // in a way the physical game never is. This shows only what is already known:
+  // nothing here reads the tile stack, the wonder decks or another player's
+  // hand, so no future randomness leaks.
+  function setupKnownInformation(me) {
+    if (!me) return "";
+    const leader = Game.getLeader ? Game.getLeader(me) : null;
+    const tierRoman = ["I", "II", "III", "IV"];
+    const row = (me.focusRow || []).map((type, index) => {
+      const slot = Game.FOCUS_SLOTS[index];
+      const unique = Game.getActiveUniqueCard ? Game.getActiveUniqueCard(me, type) : null;
+      const name = Game.getCardName ? Game.getCardName(me, type) : type;
+      const tier = Game.getCardTier ? Game.getCardTier(me, type) : 1;
+      return `<li style="margin:1px 0">
+        <span style="opacity:0.6">slot ${slot}</span>
+        <strong>${escapeHtml(Game.FOCUS_LABELS[type] || type)}</strong>
+        — ${escapeHtml(name)} ${escapeHtml(tierRoman[tier - 1] || "")}${
+          unique ? ` <span style="color:#e8c46a">(unique)</span>` : ""}</li>`;
+    }).join("");
+    const uniqueCard = leader && leader.unique;
+    return `
+      <details open style="margin-top:10px;border-top:1px solid rgba(255,255,255,0.12);padding-top:8px">
+        <summary style="cursor:pointer;font-size:11px;opacity:0.85">What you already know</summary>
+        ${leader ? `<div style="margin-top:6px;font-size:11px">
+          <div><strong>${escapeHtml(leader.civ)}</strong>${leader.name && leader.name !== leader.civ ? ` — ${escapeHtml(leader.name)}` : ""}</div>
+          <div style="opacity:0.85;margin-top:2px">${escapeHtml(leader.ability ? leader.ability.text : "")}</div>
+          ${uniqueCard ? `<div style="margin-top:4px"><strong>Unique card:</strong> ${escapeHtml(uniqueCard.name)}
+            (${escapeHtml(Game.FOCUS_LABELS[uniqueCard.type] || uniqueCard.type)} ${escapeHtml(tierRoman[uniqueCard.tier - 1] || "")})</div>
+            <div style="opacity:0.85">${escapeHtml(uniqueCard.text || "")}</div>` : ""}
+        </div>` : `<div style="font-size:11px;opacity:0.8;margin-top:6px">Your civilization is drawn at random when the game begins.</div>`}
+        <div style="margin-top:6px;font-size:11px"><strong>Your starting focus row</strong>
+          <ul style="margin:4px 0 0;padding-left:14px;list-style:none">${row}</ul></div>
+      </details>`;
+  }
+
   // The five component sets, showing which are already sitting on the table.
   // A colour someone else holds is disabled rather than merely refused on
   // click, so the lobby shows what is actually available; the engine still
@@ -4125,6 +4165,7 @@ const UI = (() => {
           Click an <strong>inactive hex</strong> bordering at least 2 active hexes.<br>
           This is a neutral defensive hex (defense ${Game.CFG.fortressDefense}). Your capital will go on your hometown tile next.<br>
           Read the board and choose; legal spaces are deliberately not highlighted.
+          ${setupKnownInformation(Game.getPlayer(state, localPlayerId))}
           ${capitalPanel}
         </div>`;
       return;
