@@ -22,6 +22,10 @@
                asset already existed, so the fifth player simply could not be
                chosen. -->
           <select id="inp-color">
+            <!-- Default. An untouched picker means "any free set", so joining
+                 never fails just because two people left it alone; naming a
+                 colour is a real claim and is refused if it is already held. -->
+            <option value="">Auto (first free)</option>
             <option value="#169eae">Blue</option>
             <option value="#d94747">Red</option>
             <option value="#e88b24">Orange</option>

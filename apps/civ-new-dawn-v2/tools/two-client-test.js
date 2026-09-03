@@ -182,6 +182,117 @@ async function waitUntil(fn, ms, step = 150) {
     })()`);
     ok("guest joined the room", joined.seats === 2, JSON.stringify(joined));
 
+    // ---- colour ownership is visible and enforced ------------------------
+    // Two seats are now sitting on two component sets. Each client must SEE
+    // the other's colour as unavailable, not merely be refused on click.
+    const swatchState = async (tab) => tab.eval(`(() => {
+      const btns = [...document.querySelectorAll(".lobby-swatch")];
+      return btns.map((b) => ({ color: b.dataset.color, disabled: b.disabled,
+        mine: b.classList.contains("mine") }));
+    })()`);
+    const hostSwatches = await swatchState(host);
+    const guestSwatches = await swatchState(guest);
+    ok("the lobby shows all five component colours",
+      hostSwatches.length === 5, JSON.stringify(hostSwatches));
+    ok("each client sees exactly one colour as its own",
+      hostSwatches.filter((s) => s.mine).length === 1 &&
+      guestSwatches.filter((s) => s.mine).length === 1,
+      JSON.stringify({ hostSwatches, guestSwatches }));
+    ok("a colour held by the other seat is DISABLED, not merely refused",
+      hostSwatches.some((s) => s.disabled) && guestSwatches.some((s) => s.disabled),
+      JSON.stringify({ hostSwatches, guestSwatches }));
+    ok("the two seats never claim the same colour",
+      hostSwatches.find((s) => s.mine).color !== guestSwatches.find((s) => s.mine).color,
+      JSON.stringify({ host: hostSwatches.find((s) => s.mine), guest: guestSwatches.find((s) => s.mine) }));
+
+    // The guest takes a free colour; the host must see the change and the
+    // released colour becoming available again, with no reload.
+    const freeForGuest = guestSwatches.find((s) => !s.disabled && !s.mine);
+    if (freeForGuest) {
+      const previous = guestSwatches.find((s) => s.mine).color;
+      await guest.eval(`(() => {
+        const b = [...document.querySelectorAll(".lobby-swatch")]
+          .find((x) => x.dataset.color === ${JSON.stringify(freeForGuest.color)});
+        if (b) b.click(); return true;
+      })()`);
+      const moved = await waitUntil(async () => {
+        const s = await swatchState(guest);
+        const mine = s.find((x) => x.mine);
+        return mine && mine.color === freeForGuest.color;
+      }, 12000);
+      ok("a seat can move to a free colour", moved >= 0, freeForGuest.color);
+      const released = await waitUntil(async () => {
+        const s = await swatchState(host);
+        const old = s.find((x) => x.color === previous);
+        return old && !old.disabled;
+      }, 12000);
+      ok("the colour it left becomes available to the other seat with no reload",
+        released >= 0, { previous, after: await swatchState(host) });
+      if (released >= 0) info("colour release seen after", released + " ms");
+    }
+
+    // ---- host administration: click a name, then confirm -----------------
+    // Two deliberate steps. A single click on a name must never empty a seat.
+    const guestSeat = await guest.eval("Net.getCredentials().seatId");
+    const menuOpened = await host.eval(`(() => {
+      const btn = document.querySelector('[data-player-menu=${JSON.stringify(guestSeat)}]');
+      if (!btn) return { found: false };
+      btn.click();
+      return { found: true,
+        kick: !!document.querySelector("[data-kick-ask]"),
+        removedImmediately: !UI.debugState().players.some((p) => p.id === ${JSON.stringify(guestSeat)}) };
+    })()`);
+    ok("the host can open player actions by clicking a guest's name",
+      menuOpened.found === true, JSON.stringify(menuOpened));
+    ok("the menu offers Kick player", menuOpened.kick === true, JSON.stringify(menuOpened));
+    ok("opening the menu does NOT remove anyone",
+      menuOpened.removedImmediately === false, JSON.stringify(menuOpened));
+
+    const guestHasNoAdmin = await guest.eval(`document.querySelectorAll("[data-player-menu]").length`);
+    ok("a guest is offered no admin controls", guestHasNoAdmin === 0, guestHasNoAdmin);
+    const guestKickRefused = await guest.eval(`(async () => {
+      const r = await UI.dispatch({ type: "KICK_PLAYER", payload: { targetId: "anything" } });
+      return { status: r && r.status, code: r && r.code };
+    })()`);
+    ok("and a guest's kick is refused by the authority, not just hidden",
+      guestKickRefused.status !== "accepted", JSON.stringify(guestKickRefused));
+
+    // Ask, then confirm.
+    await host.eval(`(() => { const b = document.querySelector("[data-kick-ask]"); if (b) b.click(); return true; })()`);
+    const confirmShown = await host.eval(`!!document.querySelector("[data-kick-confirm]")`);
+    ok("a confirmation step is required before removal", confirmShown === true);
+    await host.eval(`(() => { const b = document.querySelector("[data-kick-confirm]"); if (b) b.click(); return true; })()`);
+
+    const gone = await waitUntil(async () =>
+      !(await host.eval(`UI.debugState().players.some((p) => p.id === ${JSON.stringify(guestSeat)})`)), 15000);
+    ok("the host's confirmed kick removes the seat", gone >= 0);
+    const guestReturned = await waitUntil(async () => await guest.eval(`(() => {
+      const lobbyVisible = !document.getElementById("lobby-screen") ||
+        !document.getElementById("lobby-screen").classList.contains("hidden");
+      return !UI.debugState() && lobbyVisible;
+    })()`), 15000);
+    ok("the kicked client is returned to the join screen with no reload",
+      guestReturned >= 0, await guest.eval(`({ hasState: !!UI.debugState(),
+        status: (document.getElementById("lobby-status")||{}).textContent })`));
+    const told = await guest.eval(`((document.getElementById("lobby-status")||{}).textContent || "")`);
+    ok("and is told why", /removed .*by the host/i.test(told), told);
+
+    // Re-join so the rest of the run still has two seats.
+    await guest.eval(`(async () => {
+      document.getElementById("inp-name").value = "Guest";
+      document.getElementById("inp-join").value = ${JSON.stringify(room.code.trim())};
+      document.getElementById("btn-join").click();
+      for (let i = 0; i < 240; i++) {
+        const s = UI.debugState();
+        if (s && s.players && s.players.length >= 2) break;
+        await new Promise((r) => setTimeout(r, 250));
+      }
+      return true;
+    })()`);
+    const rejoined = await waitUntil(async () =>
+      (await host.eval("(UI.debugState()?.players || []).length")) === 2, 25000);
+    ok("a removed player can join again afterwards", rejoined >= 0);
+
     const hostSees = await waitUntil(async () =>
       (await host.eval("(UI.debugState()?.players || []).length")) === 2, 15000);
     ok("host sees the second seat", hostSees >= 0);

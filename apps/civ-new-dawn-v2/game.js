@@ -901,6 +901,20 @@ const Game = (() => {
     return free.find((c) => c === want) || free[0];
   }
 
+  // Which of the five component sets nobody is sitting on. `exceptPlayerId`
+  // lets a player's own current colour count as available to them, so changing
+  // to a colour and back is not a false clash.
+  function availableColors(st, exceptPlayerId) {
+    const taken = (st.players || [])
+      .filter((p) => p.id !== exceptPlayerId)
+      .map((p) => String(p.color || "").toLowerCase());
+    return SEAT_COLORS.filter((c) => !taken.includes(c));
+  }
+  function colorIsFree(st, color, exceptPlayerId) {
+    const want = String(color || "").toLowerCase();
+    return SEAT_COLORS.includes(want) && availableColors(st, exceptPlayerId).includes(want);
+  }
+
   // Give everyone in a list a distinct seat colour, keeping what they asked
   // for where it is still free.
   function seatPlayers(list) {
@@ -1112,7 +1126,7 @@ const Game = (() => {
 
   const HOST_ACTIONS = new Set([
     "ADD_PLAYER", "START_GAME", "HOST_EDIT_HEX", "HOST_ADJUST_PLAYER",
-    "FORCE_EVENT", "CHECK_AGENDAS"
+    "FORCE_EVENT", "CHECK_AGENDAS", "KICK_PLAYER"
   ]);
   const SETUP_ACTIONS = new Set(["PLACE_FORTRESS", "PLACE_TILE"]);
   const CURRENT_PLAYER_ACTIONS = new Set([
@@ -1134,7 +1148,7 @@ const Game = (() => {
   ]);
   const KNOWN_ACTIONS = new Set([
     ...HOST_ACTIONS, ...SETUP_ACTIONS, ...CURRENT_PLAYER_ACTIONS,
-    ...COMBAT_ACTIONS, "SET_LEADER", "SET_READY", "RESOLVE_PENDING_CHOICE", "ADD_TRADE",
+    ...COMBAT_ACTIONS, "SET_LEADER", "SET_READY", "SET_COLOR", "RESOLVE_PENDING_CHOICE", "ADD_TRADE",
     "EXPLORE_TILE"
   ]);
 
@@ -1161,14 +1175,59 @@ const Game = (() => {
       // A role bit is supplied by the trusted transport, but it is not itself
       // a seat. Requiring the authenticated host to own a seat closes the last
       // path by which a caller outside the game could invoke correction tools.
-      return actor ? { ok: true } :
-        denied("unknown_actor", "The authenticated host seat is not part of this game.");
+      if (!actor) return denied("unknown_actor", "The authenticated host seat is not part of this game.");
+      if (type === "ADD_PLAYER") {
+        // A named component colour that is already held is refused with a
+        // reason, so the joining client can say which colour is gone instead of
+        // the join simply not happening.
+        const wanted = String((payload && payload.color) || "").toLowerCase();
+        if (SEAT_COLORS.includes(wanted) && !colorIsFree(st, wanted, payload && payload.id)) {
+          return denied("color_taken", `${colorName(wanted)} is already taken.`);
+        }
+      }
+      if (type === "KICK_PLAYER") {
+        // Removing a seat is only safe before the board exists. Once setup has
+        // dealt tiles and figures, deleting a civilization would orphan its
+        // cities, control tokens, districts, diplomacy and turn slot; there is
+        // no printed rule for an abandoned civilization, so this refuses rather
+        // than inventing one. Revoking the CONNECTION mid-game is a transport
+        // concern and is left to the existing disconnect handling.
+        if (st.phase !== "lobby") {
+          return denied("kick_requires_lobby",
+            "A player can only be removed before the game starts.");
+        }
+        // The target is carried as targetId: bindActionActor strips playerId
+        // from host actions, so a client cannot smuggle a victim in that field.
+        const targetId = String(payload.targetId || "");
+        if (!targetId) return denied("kick_target_missing", "Name the player to remove.");
+        if (targetId === actorId) return denied("kick_self", "The host cannot remove themselves.");
+        if (!getPlayer(st, targetId)) {
+          return denied("kick_target_unknown", "That player is not in this lobby.");
+        }
+      }
+      return { ok: true };
     }
     if (!actor) return denied("unknown_actor", "The authenticated seat is not part of this game.");
 
-    if (type === "SET_LEADER" || type === "SET_READY") {
-      return st.phase === "lobby" ? { ok: true } :
-        denied("wrong_phase", "Lobby choices can only be changed before setup.");
+    if (type === "SET_LEADER" || type === "SET_READY" || type === "SET_COLOR") {
+      if (st.phase !== "lobby") {
+        return denied("wrong_phase", "Lobby choices can only be changed before setup.");
+      }
+      if (type === "SET_COLOR") {
+        // bindActionActor stamps playerId from the authenticated seat, so this
+        // can only ever be the caller's own colour. What still has to be
+        // checked is that the component set is actually free: two clients can
+        // click the same swatch at the same moment, and the loser must be told
+        // rather than seated somewhere else.
+        const wanted = String(payload.color || "").toLowerCase();
+        if (!SEAT_COLORS.includes(wanted)) {
+          return denied("unknown_color", "That is not one of the five component colours.");
+        }
+        if (!colorIsFree(st, wanted, actorId)) {
+          return denied("color_taken", `${colorName(wanted)} is already taken.`);
+        }
+      }
+      return { ok: true };
     }
 
     if (SETUP_ACTIONS.has(type)) {
@@ -1769,18 +1828,54 @@ const Game = (() => {
       if (st.phase !== "lobby") return st;
       if (st.players.length >= CFG.maxPlayers) return st;
       migratePlayer(payload);
-      // Two players cannot share a physical component set, so a colour already
-      // in use is reassigned. Say so rather than quietly handing back a
-      // different one: a player who picked purple and silently became green has
-      // no way to tell whether the choice was ignored or the game is broken.
+      // Two players cannot share a physical component set. A player who NAMED a
+      // colour that has since been taken is refused rather than quietly seated
+      // in a different one - a stale client should be told its pick is gone, not
+      // discover later that it is playing green. Joining with no preference
+      // still auto-assigns, which is what the five-players-pick-nothing case
+      // needs.
       const requested = String(payload.color || "").toLowerCase();
+      // Only a NAMED component colour can clash. A legacy or unrecognised value
+      // is not a request for a particular seat, so it still auto-assigns
+      // instead of failing the join.
+      if (SEAT_COLORS.includes(requested) && !colorIsFree(st, requested, payload.id)) return st;
       payload.color = seatColor(st.players.map((p) => p.color), payload.color);
       st.players.push(payload);
       st.turn.order.push(payload.id);
-      log(st, `${payload.name} joined the lobby. (${st.players.length}/${CFG.maxPlayers})`);
-      if (requested && requested !== String(payload.color).toLowerCase()) {
-        log(st, `${payload.name} asked for a colour already in use and was seated as ${colorName(payload.color)}.`);
-      }
+      log(st, `${payload.name} joined the lobby as ${colorName(payload.color)}. (${st.players.length}/${CFG.maxPlayers})`);
+      return st;
+    }
+
+    if (type === "KICK_PLAYER") {
+      // Lobby only; authorizeAction refuses everything else, including the host
+      // removing itself. The seat's colour and civilization are released simply
+      // by ceasing to be in st.players, because availability is derived from
+      // who is seated rather than from a separate reservation list.
+      if (st.phase !== "lobby") return st;
+      const targetId = String(payload.targetId || "");
+      const target = getPlayer(st, targetId);
+      if (!target) return st;
+      st.players = st.players.filter((p) => p.id !== targetId);
+      st.turn.order = (st.turn.order || []).filter((id) => id !== targetId);
+      if (st.turn.index >= st.turn.order.length) st.turn.index = 0;
+      st.kicked = (st.kicked || []).filter((id) => id !== targetId).concat([targetId]).slice(-16);
+      log(st, `${target.name} was removed from the lobby by the host.`);
+      return st;
+    }
+
+    if (type === "SET_COLOR") {
+      // Changing seats in the lobby. The colour being left behind is released
+      // by the same assignment, because availability is derived from who is
+      // sitting on what rather than from a separate reservation list.
+      if (st.phase !== "lobby") return st;
+      const player = getPlayer(st, payload.playerId);
+      if (!player) return st;
+      const wanted = String(payload.color || "").toLowerCase();
+      if (!SEAT_COLORS.includes(wanted)) return st;
+      if (!colorIsFree(st, wanted, player.id)) return st;
+      if (String(player.color || "").toLowerCase() === wanted) return st;
+      player.color = wanted;
+      log(st, `${player.name} took ${colorName(wanted)}.`);
       return st;
     }
 
@@ -8932,7 +9027,7 @@ const Game = (() => {
     SAVE_SCHEMA_VERSION, MAX_LOG_ENTRIES, MAX_CHAT_ENTRIES,
     createState, createLobbyState, createPlayer, migrateState, finalizeSetup,
     applyAction, tryApplyAction, getActionPermission, projectState, currentPlayer, getPlayer, getUndoStatus,
-    SEAT_COLORS, seatColor, colorName,
+    SEAT_COLORS, seatColor, colorName, availableColors, colorIsFree,
     getDiplomacyAttackBonus, getDiplomacyDefenseBonus, nonAggressionWith, openBordersWith,
     isCityDeveloped,
     getSlotValue, getSlotIndex, getCardTier, getCardTierValue: getCardTier,

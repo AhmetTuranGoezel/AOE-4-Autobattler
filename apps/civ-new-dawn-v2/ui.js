@@ -5,6 +5,11 @@ const UI = (() => {
   let localPlayerId = null;
   let roomCode = null;
   let lobbyPreviewLeaderId = null;
+  // Which player's admin menu is open, and whether it is asking to confirm a
+  // removal. Two separate steps on purpose: clicking a name must never be
+  // enough to empty a seat.
+  let lobbyMenuFor = null;
+  let lobbyKickConfirm = null;
   let wizardCollapsed = false;
   let dismissedCombatKey = null;
   let sessionCredentials = null;
@@ -890,9 +895,10 @@ const UI = (() => {
     // markup still listed four, which is why the fifth seat was unreachable.
     if (window.CivCardArt && CivCardArt.colors && dom.inpColor) {
       const wanted = dom.inpColor.value;
-      dom.inpColor.innerHTML = CivCardArt.colors
-        .map((c) => `<option value="${escapeHtml(c.value)}">${escapeHtml(c.label)}</option>`)
-        .join("");
+      dom.inpColor.innerHTML = `<option value="">Auto (first free)</option>` +
+        CivCardArt.colors
+          .map((c) => `<option value="${escapeHtml(c.value)}">${escapeHtml(c.label)}</option>`)
+          .join("");
       if (CivCardArt.colors.some((c) => c.value === wanted)) dom.inpColor.value = wanted;
     }
 
@@ -1174,6 +1180,25 @@ const UI = (() => {
     return result;
   }
 
+  // Tear the session down and show the join/create screen again with a reason.
+  // Used when this client no longer has a seat to act on.
+  function returnToJoinScreen(reason) {
+    stopSessionTimers();
+    Net.leaveRoom?.();
+    state = null;
+    localPlayerId = null;
+    roomCode = null;
+    sessionCredentials = null;
+    networkRoster = [];
+    processedActionIds = [];
+    resetSub();
+    try { localStorage.removeItem("civ-nd-save"); } catch (e) { /* optional */ }
+    dom.game.classList.add("hidden");
+    dom.lobby.classList.remove("hidden");
+    if (dom.lobbyStatus) dom.lobbyStatus.textContent = reason || "";
+    showToast(reason || "You left the game.");
+  }
+
   async function receiveNetworkState(payload, meta = {}) {
     if (!payload || typeof payload !== "object") return;
     const incomingRevision = Number.isInteger(meta.revision) ? meta.revision : (payload.revision || 0);
@@ -1182,6 +1207,13 @@ const UI = (() => {
     state.revision = incomingRevision;
     if (Array.isArray(state.chat)) {
       chatHistory.splice(0, chatHistory.length, ...state.chat.slice(-100));
+    }
+    // The host removed this seat. Say so and hand the client back to the join
+    // screen rather than leaving it looking at a lobby it is no longer in.
+    if (localPlayerId && !Game.getPlayer(state, localPlayerId) &&
+        Array.isArray(state.kicked) && state.kicked.includes(localPlayerId)) {
+      returnToJoinScreen("You were removed from the game by the host.");
+      return;
     }
     // Paint FIRST. The two persistence calls below are an IndexedDB write of
     // the whole state plus a SHA-256 of its JSON, queued behind every earlier
@@ -3828,6 +3860,30 @@ const UI = (() => {
     decorateWizard();
   }
 
+  // The five component sets, showing which are already sitting on the table.
+  // A colour someone else holds is disabled rather than merely refused on
+  // click, so the lobby shows what is actually available; the engine still
+  // refuses a stale request, because two clients can press at the same moment.
+  function colorSwatches(me) {
+    if (!state || state.phase !== "lobby" || !me) return "";
+    const list = (window.CivCardArt && CivCardArt.colors) ||
+      (Game.SEAT_COLORS || []).map((v) => ({ value: v, label: Game.colorName ? Game.colorName(v) : v }));
+    const mine = String(me.color || "").toLowerCase();
+    const swatches = list.map((c) => {
+      const value = String(c.value).toLowerCase();
+      const holder = state.players.find((p) => String(p.color || "").toLowerCase() === value);
+      const isMine = value === mine;
+      const taken = !!holder && !isMine;
+      const title = isMine ? `${c.label} — yours`
+        : taken ? `${c.label} — taken by ${holder.name}` : `Take ${c.label}`;
+      return `<button class="lobby-swatch${isMine ? " mine" : ""}" data-color="${escapeHtml(value)}"
+        ${taken ? "disabled" : ""} title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}"
+        style="background:${escapeHtml(c.value)}${taken ? ";opacity:0.28" : ""}${isMine ? ";outline:2px solid #fff;outline-offset:1px" : ""}"></button>`;
+    }).join("");
+    return `<div class="lobby-colors" style="display:flex;gap:6px;align-items:center;margin-top:8px">
+      <span style="font-size:10px;opacity:0.7">Colour</span>${swatches}</div>`;
+  }
+
   function renderLobby() {
     const isHost = Net.getIsHost();
     const code = roomCode || Net.getLocalId() || "";
@@ -3842,12 +3898,32 @@ const UI = (() => {
     const leaderById = Object.fromEntries((Game.LEADERS || []).map((l) => [l.id, l]));
     const playerList = state.players.map((p, i) => {
       const lead = leaderById[p.leaderId];
+      // The host administers the room by clicking a name. A single click only
+      // OPENS the menu - removing somebody is two deliberate steps, because an
+      // accidental click on a name must never empty a seat.
+      const administrable = isHost && p.id !== localPlayerId && state.phase === "lobby";
+      const open = lobbyMenuFor === p.id;
+      const nameCell = administrable
+        ? `<button class="lp-name lp-name-btn" data-player-menu="${escapeHtml(p.id)}"
+             title="Player actions" aria-haspopup="true" aria-expanded="${open ? "true" : "false"}">${
+             escapeHtml(p.name)}${lead ? ` <span class="lp-civ">${escapeHtml(lead.civ)}</span>` : ` <span class="lp-civ dim">Random civ</span>`}</button>`
+        : `<span class="lp-name">${escapeHtml(p.name)}${lead ? ` <span class="lp-civ">${escapeHtml(lead.civ)}</span>` : ` <span class="lp-civ dim">Random civ</span>`}</span>`;
+      const menu = open ? `
+        <div class="lp-menu" role="menu" style="flex:1 0 100%;margin:4px 0 2px;padding:6px;border:1px solid rgba(255,255,255,0.18);border-radius:4px">
+          ${lobbyKickConfirm === p.id
+            ? `<div style="font-size:11px;margin-bottom:4px">Remove <strong>${escapeHtml(p.name)}</strong> from the lobby?</div>
+               <button class="sm danger" data-kick-confirm="${escapeHtml(p.id)}">Yes, remove</button>
+               <button class="sm ghost" data-menu-close="1">Cancel</button>`
+            : `<button class="sm" data-kick-ask="${escapeHtml(p.id)}">Kick player</button>
+               <button class="sm ghost" data-menu-close="1">Close</button>`}
+        </div>` : "";
       return `
-      <div class="lobby-player">
+      <div class="lobby-player" style="flex-wrap:wrap">
         <span class="dot" style="background:${safeColor(p.color)}"></span>
-        <span class="lp-name">${escapeHtml(p.name)}${lead ? ` <span class="lp-civ">${escapeHtml(lead.civ)}</span>` : ` <span class="lp-civ dim">Random civ</span>`}</span>
+        ${nameCell}
         ${i === 0 ? '<span class="lp-tag">Host</span>' : ""}
         ${p.id === localPlayerId ? '<span class="lp-tag you">You</span>' : ""}
+        ${menu}
       </div>`;
     }).join("");
 
@@ -3919,7 +3995,8 @@ const UI = (() => {
         <div><div class="wiz-title">${solo ? "Solo Game" : "Game Lobby"}</div>
           <div class="wiz-hint">Inspect the complete printed sheet before choosing.</div></div>
         ${solo ? "" : `<div class="lobby-code-row"><span>Room</span><code id="lobby-code-val">${escapeHtml(code)}</code><button id="lobby-copy" class="sm">Copy</button></div>`}
-        <div class="lobby-players compact"><div class="lobby-players-head">Players (${n}/${max})</div>${playerList}</div>
+        <div class="lobby-players compact"><div class="lobby-players-head">Players (${n}/${max})</div>${playerList}
+          ${solo ? "" : colorSwatches(me)}</div>
       </div>
       ${leaderSection}
       <div class="lobby-footer">${startBlocker && isHost ? `<span>${escapeHtml(startBlocker)}</span>` : "<span></span>"}
@@ -3941,6 +4018,49 @@ const UI = (() => {
     });
     document.getElementById("leader-confirm")?.addEventListener("click", () => {
       dispatch({ type: "SET_LEADER", payload: { playerId: localPlayerId, leaderId: preview ? preview.id : "random" } });
+    });
+
+    dom.wizard.querySelectorAll("[data-player-menu]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = btn.dataset.playerMenu;
+        lobbyMenuFor = lobbyMenuFor === id ? null : id;
+        lobbyKickConfirm = null;
+        renderLobby();
+      });
+    });
+    dom.wizard.querySelectorAll("[data-menu-close]").forEach((btn) => {
+      btn.addEventListener("click", () => { lobbyMenuFor = null; lobbyKickConfirm = null; renderLobby(); });
+    });
+    dom.wizard.querySelectorAll("[data-kick-ask]").forEach((btn) => {
+      btn.addEventListener("click", () => { lobbyKickConfirm = btn.dataset.kickAsk; renderLobby(); });
+    });
+    dom.wizard.querySelectorAll("[data-kick-confirm]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const targetId = btn.dataset.kickConfirm;
+        const who = Game.getPlayer(state, targetId);
+        const result = await dispatch({ type: "KICK_PLAYER", payload: { targetId } });
+        lobbyMenuFor = null;
+        lobbyKickConfirm = null;
+        if (result && result.status !== "accepted") {
+          showToast(result.message || "That player could not be removed.");
+        } else if (who) {
+          showToast(`${who.name} was removed from the lobby.`);
+        }
+        render();
+      });
+    });
+
+    dom.wizard.querySelectorAll(".lobby-swatch:not([disabled])").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const result = await dispatch({ type: "SET_COLOR",
+          payload: { playerId: localPlayerId, color: btn.dataset.color } });
+        // A refusal here is the honest outcome of two clients racing for the
+        // same set, so say which colour is gone rather than moving them.
+        if (result && result.status !== "accepted") {
+          showToast(result.message || "That colour is taken.");
+        }
+        renderLobby();
+      });
     });
 
     const copyBtn = document.getElementById("lobby-copy");

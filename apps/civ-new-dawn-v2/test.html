@@ -181,10 +181,21 @@
       assert("five seats, five different printed colours",
         new Set(lob.players.map((p) => p.color)).size === 5 &&
         lob.players.every((p) => Game.SEAT_COLORS.includes(p.color)));
+      // A NAMED component colour that is already in use is refused outright.
+      // Seating the newcomer somewhere else instead would mean a stale client
+      // silently ends up playing a colour it never chose.
       let dup = Game.createLobbyState([Game.createPlayer("d1", "D1", "#169eae")]);
       dup = Game.applyAction(dup, { type: "ADD_PLAYER", payload: Game.createPlayer("d2", "D2", "#169eae") });
-      assert("asking for a taken colour gets the next free one",
-        dup.players[0].color === "#169eae" && dup.players[1].color !== "#169eae");
+      assert("a taken component colour is refused, not silently swapped",
+        dup.players.length === 1 && dup.players[0].color === "#169eae",
+        JSON.stringify(dup.players.map((p) => p.color)));
+      // An unrecognised or legacy colour is not a request for a seat, so it
+      // still auto-assigns rather than failing the join.
+      let legacy = Game.createLobbyState([Game.createPlayer("l1", "L1", "#169eae")]);
+      legacy = Game.applyAction(legacy, { type: "ADD_PLAYER", payload: Game.createPlayer("l2", "L2", "#e63946") });
+      assert("an unrecognised colour still joins and is seated",
+        legacy.players.length === 2 && Game.SEAT_COLORS.includes(legacy.players[1].color),
+        JSON.stringify(legacy.players.map((p) => p.color)));
       assert("new multiplayer seats begin with a false legacy ready flag", lob.players.every((player) => !player.ready));
       lob = Game.applyAction(lob, { type: "START_GAME", payload: { playerId: lob.players[0].id } });
       assert("START_GAME builds a five-player setup without a ready ceremony", lob.phase === "setup" && lob.setup.phase === "fortress" && lob.setup.order.length === 5);
@@ -3947,6 +3958,74 @@
         }
       }
 
+      // ── The host administers the lobby ──────────────────────────────────
+      //
+      // Removing a seat is only safe BEFORE the board exists. Once setup has
+      // dealt tiles and figures, deleting a civilization would orphan its
+      // cities, control tokens, districts, diplomacy and turn slot, and there
+      // is no printed rule for an abandoned civilization - so this refuses
+      // rather than inventing one.
+      {
+        const PURPLE = "#8b62b5";
+        const room = () => {
+          let st = Game.createLobbyState([Game.createPlayer("host", "Host", "#169eae")], {});
+          st = Game.applyAction(st, { type: "ADD_PLAYER", payload: Game.createPlayer("g1", "Guest1", "#d94747") });
+          st = Game.applyAction(st, { type: "ADD_PLAYER", payload: Game.createPlayer("g2", "Guest2", PURPLE) });
+          return Game.applyAction(st, { type: "SET_LEADER", payload: { playerId: "g1", leaderId: "rome" } });
+        };
+        const may = (st, target, ctx) =>
+          Game.getActionPermission(st, { type: "KICK_PLAYER", payload: { targetId: target } }, ctx);
+
+        const st = room();
+        assert("host may remove another lobby player",
+          may(st, "g1", { actorId: "host", role: "host" }).ok);
+        assert("a guest may not remove anyone",
+          may(st, "g2", { actorId: "g1", role: "player" }).code === "host_only");
+        assert("a guest may not remove the host",
+          !may(st, "host", { actorId: "g1", role: "player" }).ok);
+        assert("a caller claiming host without a seat is refused",
+          may(st, "g1", { actorId: "nobody", role: "host" }).code === "unknown_actor");
+        assert("the host may not remove itself",
+          may(st, "host", { actorId: "host", role: "host" }).code === "kick_self");
+        assert("an unknown target is refused",
+          may(st, "ghost", { actorId: "host", role: "host" }).code === "kick_target_unknown");
+
+        // A guest cannot smuggle a victim through playerId: host actions have
+        // that field stripped, and the target travels as targetId.
+        const smuggle = Game.tryApplyAction(room(),
+          { type: "KICK_PLAYER", payload: { playerId: "g2", targetId: "g2" } },
+          { actorId: "g1", role: "player" });
+        assert("a guest's forged kick changes nothing",
+          smuggle.accepted === false && smuggle.state.players.length === 3, smuggle.code);
+
+        const kicked = Game.tryApplyAction(room(), { type: "KICK_PLAYER", payload: { targetId: "g2" } },
+          { actorId: "host", role: "host" });
+        assert("the host's kick is accepted", kicked.accepted === true, JSON.stringify(kicked.code));
+        assert("the seat leaves the authoritative state and the turn order",
+          kicked.state.players.length === 2 && !Game.getPlayer(kicked.state, "g2") &&
+          !kicked.state.turn.order.includes("g2"));
+        assert("the removed seat's colour is free again",
+          Game.colorIsFree(kicked.state, PURPLE), JSON.stringify(Game.availableColors(kicked.state)));
+        assert("the removal is recorded so the client can be told",
+          Array.isArray(kicked.state.kicked) && kicked.state.kicked.includes("g2"));
+        assert("the removed seat can no longer act",
+          Game.getActionPermission(kicked.state,
+            { type: "SET_LEADER", payload: { leaderId: "aztec" } }, { actorId: "g2" }).code === "unknown_actor");
+
+        // The civilization the kicked player held becomes available again.
+        const freed = Game.tryApplyAction(room(), { type: "KICK_PLAYER", payload: { targetId: "g1" } },
+          { actorId: "host", role: "host" });
+        const retaken = Game.applyAction(freed.state,
+          { type: "SET_LEADER", payload: { playerId: "g2", leaderId: "rome" } });
+        assert("the removed player's civilization can be taken by someone else",
+          Game.getPlayer(retaken, "g2").leaderId === "rome");
+
+        const started = Game.applyAction(room(), { type: "START_GAME", payload: {} });
+        assert("a seat cannot be deleted once the game has started",
+          may(started, "g1", { actorId: "host", role: "host" }).code === "kick_requires_lobby");
+        assert("and that seat is still on the board", !!Game.getPlayer(started, "g1"));
+      }
+
       // ── Terra seats five, and the fifth is purple ───────────────────────
       //
       // Purple was present in the engine, in SEAT_COLORS and as a complete set
@@ -3981,13 +4060,31 @@
         assert("a player who asks for purple receives purple",
           picked.players[1].color === PURPLE, picked.players[1].color);
 
+        // A component colour already in use is REFUSED. Seating the newcomer in
+        // a different colour would mean a stale client silently plays a seat it
+        // never chose, which is the behaviour this replaced.
         const clash = fill([PURPLE, PURPLE]);
-        assert("a colour already in use is reassigned rather than shared",
-          clash.players[1].color !== PURPLE && FIVE.includes(clash.players[1].color),
-          clash.players[1].color);
-        assert("and the reassignment is announced instead of silent",
-          clash.log.some((e) => /already in use/i.test(e.text || e)),
-          JSON.stringify(clash.log.slice(-2)));
+        assert("a component colour already in use is refused, not shared or swapped",
+          clash.players.length === 1 && clash.players[0].color === PURPLE,
+          JSON.stringify(clash.players.map((p) => p.color)));
+
+        // Changing seats in the lobby releases the colour being left behind.
+        let swap = fill(["#169eae", "#d94747"]);
+        const taken = Game.getActionPermission(swap,
+          { type: "SET_COLOR", payload: { color: "#169eae" } }, { actorId: "p2" });
+        assert("a seat cannot move onto an occupied colour",
+          !taken.ok && taken.code === "color_taken", JSON.stringify(taken));
+        swap = Game.applyAction(swap, { type: "SET_COLOR", payload: { playerId: "p2", color: PURPLE } });
+        assert("a seat can move to a free colour",
+          swap.players[1].color === PURPLE, swap.players[1].color);
+        assert("and the colour it left is free again",
+          Game.colorIsFree(swap, "#d94747"), Game.availableColors(swap));
+        const nowFree = Game.applyAction(swap,
+          { type: "SET_COLOR", payload: { playerId: "p1", color: "#d94747" } });
+        assert("another seat can then take the released colour",
+          nowFree.players[0].color === "#d94747", nowFree.players[0].color);
+        assert("no two seats ever share a colour",
+          new Set(nowFree.players.map((p) => p.color)).size === nowFree.players.length);
 
         const sixth = fill(["", "", "", "", "", ""]);
         assert("a sixth seat is refused", sixth.players.length === 5, sixth.players.length);
