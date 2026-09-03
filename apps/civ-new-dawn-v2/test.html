@@ -1417,6 +1417,230 @@
       }
 
       {
+        // Currency (economy II) and Sumeria's civilization ability, which meet
+        // over the same event: a defeated barbarian.
+        //
+        // Defeating a barbarian used to be four unrelated pieces of code -
+        // combat, a card effect's remove_barbarian choice, an encampment strike
+        // and Currency - and only the combat one knew about Sumeria. The engine
+        // now raises one onBarbarianDefeated event and the ability listens to
+        // it, so these drive all four routes and count the reward each time.
+        const act = (st, type, payload) => Game.tryApplyAction(st, { type, payload },
+          { actorId: payload.playerId || st.players[0].id, role: "player" });
+        const resourceChoices = (st) =>
+          (st.pendingChoices || []).filter((c) => c.kind === "gain_resource");
+
+        // A clear lane east from the caravan's home city, with one barbarian
+        // standing two spaces along it and no other barbarian anywhere: the map
+        // is dealt from the printed tiles, and a stray one wandering into the
+        // lane would decide the outcome instead of the rule.
+        function currencyBoard(leaderId) {
+          const st = rulesState();
+          const me = st.players[0];
+          if (leaderId) me.leaderId = leaderId;
+          me.focusRow = ["economy", "science", "growth", "culture", "military", "industry"];
+          me.cardTiers.economy = 2;                 // the level-II economy card is Currency
+          me.cardLevels.economy = 2;
+          me.cardPlayed = false;
+          for (let q = 0; q <= 6; q++) activate(st, q + ",0", { terrain: "grass" });
+          activate(st, "0,0", { city: { ownerId: me.id, isCapital: true,
+            developed: false, hasWonder: false, wonder: null } });
+          Object.values(st.map.hexes).forEach((h) => { h.barbarian = false; h.barbarianId = null; });
+          activate(st, "2,0", { terrain: "grass", barbarian: true, barbarianId: "B1" });
+          me.caravans = [{ id: "c1", position: "0,0" }];
+          return { st, me };
+        }
+
+        {
+          const { st, me } = currencyBoard();
+          assert("the level-II economy card is Currency",
+            Game.getCardName(me, "economy") === "Currency", Game.getCardName(me, "economy"));
+          assert("it moves a caravan up to four spaces",
+            Game.getEconomyMove(me, st) === 4, String(Game.getEconomyMove(me, st)));
+          // The barbarian is a forced stop, so with it standing at 2,0 nothing
+          // beyond it is reachable in one hop. That is the situation the FAQ
+          // clause is about.
+          const reach = Game.getReachable(st, "0,0", 4, "caravan", me.id);
+          assert("a barbarian two spaces off blocks the lane beyond it",
+            reach.has("2,0") && !reach.has("3,0"), [...reach].sort().join(" "));
+        }
+        {
+          // A caravan whose economy card is NOT Currency cannot enter at all.
+          const { st, me } = currencyBoard();
+          me.cardTiers.economy = 1;
+          me.cardLevels.economy = 1;
+          assert("without Currency a caravan cannot enter a barbarian's space",
+            !Game.getReachable(st, "0,0", Game.getEconomyMove(me, st), "caravan", me.id).has("2,0"));
+        }
+
+        {
+          // The printed clause, and the FAQ's correction to it: the barbarian
+          // is removed, no trade token is gained, and the caravan's REMAINING
+          // movement is not thrown away.
+          const { st, me } = currencyBoard();
+          const tradeBefore = JSON.stringify(me.trade);
+          const hit = act(st, "PLAY_ECONOMY", { playerId: me.id, unitId: "c1",
+            toKey: "2,0", tradeSpent: 0 });
+          assert("the caravan may move onto the barbarian", hit.accepted, hit.code);
+          const s1 = hit.state;
+          assert("the barbarian is removed", s1.map.hexes["2,0"].barbarian === false);
+          assert("and its identity goes with it, so it can return later",
+            !s1.map.hexes["2,0"].barbarianId, String(s1.map.hexes["2,0"].barbarianId));
+          assert("Currency owes no trade token", !s1.pendingBarbReward);
+          assert("and none was gained anywhere",
+            JSON.stringify(s1.players[0].trade) === tradeBefore,
+            JSON.stringify(s1.players[0].trade));
+          assert("the caravan stands on the space it cleared",
+            s1.players[0].caravans[0].position === "2,0");
+          assert("its movement did not end there",
+            !!s1.movementContinuation, JSON.stringify(s1.movementContinuation));
+          assert("two of its four spaces are still to spend",
+            s1.movementContinuation.remaining === 2,
+            String(s1.movementContinuation.remaining));
+          assert("and the figure is not marked finished for this card",
+            s1.players[0].caravans[0].movedThisCard !== true);
+
+          // The point of retaining it: the caravan really can move again.
+          const on = act(s1, "PLAY_ECONOMY", { playerId: me.id, unitId: "c1",
+            toKey: "4,0", tradeSpent: 0 });
+          assert("so the caravan performs another legal movement", on.accepted, on.code);
+          assert("and ends two spaces further along the lane",
+            on.state.players[0].caravans[0].position === "4,0",
+            String(on.state.players[0].caravans[0].position));
+          assert("with the continuation closed behind it",
+            !on.state.movementContinuation);
+          const more = act(on.state, "PLAY_ECONOMY", { playerId: me.id, unitId: "c1",
+            toKey: "5,0", tradeSpent: 0 });
+          assert("a fifth space is refused: four is four", !more.accepted, more.code);
+        }
+        {
+          // Retaining movement is an offer, not an obligation.
+          const { st, me } = currencyBoard();
+          const s1 = act(st, "PLAY_ECONOMY", { playerId: me.id, unitId: "c1",
+            toKey: "2,0", tradeSpent: 0 }).state;
+          const stop = act(s1, "END_UNIT_MOVE", { playerId: me.id, unitId: "c1" });
+          assert("the caravan may simply stop where it is", stop.accepted, stop.code);
+          assert("staying on the space it cleared",
+            stop.state.players[0].caravans[0].position === "2,0");
+          assert("and the continuation closes", !stop.state.movementContinuation);
+        }
+        {
+          // "Preserve any arrival interaction that happens after continuing."
+          const { st, me } = currencyBoard();
+          activate(st, "4,0", { terrain: "grass",
+            cityState: { name: "Test State", type: "science" } });
+          const s1 = act(st, "PLAY_ECONOMY", { playerId: me.id, unitId: "c1",
+            toKey: "2,0", tradeSpent: 0 }).state;
+          const on = act(s1, "PLAY_ECONOMY", { playerId: me.id, unitId: "c1",
+            toKey: "4,0", tradeSpent: 0 });
+          assert("a continued caravan can still reach a city-state", on.accepted, on.code);
+          assert("and trades there normally",
+            on.state.players[0].trade.science === 2,
+            String(on.state.players[0].trade.science));
+          assert("returning to the economy card as any trade run does",
+            on.state.players[0].caravans[0].position === null);
+        }
+        {
+          // "Move EACH of your caravans": clearing a barbarian with one does not
+          // end the other's move.
+          const { st, me } = currencyBoard();
+          me.caravans = [{ id: "c1", position: "0,0" }, { id: "c2", position: "0,0" }];
+          const s1 = act(st, "PLAY_ECONOMY", { playerId: me.id, unitId: "c1",
+            toKey: "2,0", tradeSpent: 0 }).state;
+          const stopped = act(s1, "END_UNIT_MOVE", { playerId: me.id, unitId: "c1" }).state;
+          const second = act(stopped, "PLAY_ECONOMY", { playerId: me.id, unitId: "c2",
+            toKey: "1,0", tradeSpent: 0 });
+          assert("the second caravan still gets its own move", second.accepted, second.code);
+          assert("and moves", second.state.players[0].caravans[1].position === "1,0");
+          proves("standard.economy.currency");
+        }
+
+        // ── Sumeria: one resource per defeated barbarian, by every route ──
+        {
+          const { st, me } = currencyBoard("sumeria");
+          const out = act(st, "PLAY_ECONOMY", { playerId: me.id, unitId: "c1",
+            toKey: "2,0", tradeSpent: 0 });
+          assert("Currency resolves for Sumeria", out.accepted, out.code);
+          const gains = resourceChoices(out.state);
+          assert("defeating a barbarian with Currency pays Sumeria its resource",
+            gains.length === 1,
+            JSON.stringify((out.state.pendingChoices || []).map((c) => c.kind)));
+          assert("Currency still owes no trade token, because the card denies it",
+            !out.state.pendingBarbReward);
+          const took = Game.applyAction(out.state, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: me.id, choiceId: gains[0].id, optionId: "marble" } });
+          assert("and the chosen resource really arrives",
+            took.players[0].resources.marble === 1, String(took.players[0].resources.marble));
+          assert("exactly once - the offer is gone", resourceChoices(took).length === 0);
+        }
+        {
+          const { st, me } = currencyBoard();
+          const out = act(st, "PLAY_ECONOMY", { playerId: me.id, unitId: "c1",
+            toKey: "2,0", tradeSpent: 0 });
+          assert("a player who is not Sumeria gains nothing from the same defeat",
+            resourceChoices(out.state).length === 0);
+        }
+        {
+          // Combat, the route that always worked - it must still pay once, and
+          // must still pay the trade token as well ("in addition to").
+          const attempt = () => {
+            const st = rulesState();
+            const me = st.players[0];
+            me.leaderId = "sumeria";
+            me.cardPlayed = false;
+            st.turn.index = st.turn.order.indexOf(me.id);
+            activate(st, "0,0", { city: { ownerId: me.id, isCapital: true,
+              developed: false, hasWonder: false, wonder: null } });
+            Object.values(st.map.hexes).forEach((h) => { h.barbarian = false; h.barbarianId = null; });
+            activate(st, "1,0", { terrain: "grass", barbarian: true, barbarianId: "B1" });
+            me.armies = [{ id: "a1", position: "0,0" }];
+            let s = Game.applyAction(st, { type: "PLAY_MILITARY_ATTACK", payload: {
+              playerId: me.id, unitId: "a1", fromKey: "0,0", toKey: "1,0",
+              targetType: "barbarian" } });
+            if (!s.combat) return null;
+            s = Game.applyAction(s, { type: "COMBAT_ROLL", payload: { playerId: me.id, side: "attacker" } });
+            s = Game.applyAction(s, { type: "COMBAT_ROLL", payload: { playerId: me.id, side: "defender", hostOverride: true } });
+            s = Game.applyAction(s, { type: "COMBAT_PASS", payload: { playerId: me.id, side: "attacker" } });
+            s = Game.applyAction(s, { type: "COMBAT_PASS", payload: { playerId: me.id, side: "defender", hostOverride: true } });
+            return s.map.hexes["1,0"].barbarian === false ? s : null;
+          };
+          // The dice decide who wins, so this retries until the attacker does.
+          // What is under test is the reward, not the roll.
+          let won = null;
+          for (let i = 0; i < 400 && !won; i++) won = attempt();
+          assert("an army can win a fight against a barbarian", !!won);
+          if (won) {
+            assert("winning it pays Sumeria one resource, exactly once",
+              resourceChoices(won).length === 1,
+              JSON.stringify((won.pendingChoices || []).map((c) => c.kind)));
+            assert("and the trade token as well - Sumeria gains it IN ADDITION",
+              !!won.pendingBarbReward && won.pendingBarbReward.playerId === won.players[0].id);
+          }
+        }
+        {
+          // The encampment strike, the third route.
+          const st = rulesState();
+          const me = st.players[0];
+          me.leaderId = "sumeria";
+          activate(st, "0,0", { city: { ownerId: me.id, isCapital: true,
+            developed: false, hasWonder: false, wonder: null } });
+          activate(st, "1,0", { terrain: "grass",
+            control: { ownerId: me.id, fortified: false, district: "encampment" } });
+          Object.values(st.map.hexes).forEach((h) => { h.barbarian = false; h.barbarianId = null; });
+          activate(st, "2,0", { terrain: "grass", barbarian: true, barbarianId: "B1" });
+          Game.resolveEvent(st, "district_event");
+          const strike = (st.pendingChoices || []).find((c) => c.kind === "encampment_strike");
+          const out = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: strike.id, hexKey: "2,0" } });
+          assert("an encampment defeating a barbarian pays Sumeria too",
+            resourceChoices(out).length === 1,
+            JSON.stringify((out.pendingChoices || []).map((c) => c.kind)));
+          assert("with the trade token alongside it", !!out.pendingBarbReward);
+          proves("civ.sumeria");
+        }
+      }
+
+      {
         // Base p13: a city is mature while every active land space around it
         // holds its owner's control token. Maturity used to be a cached flag
         // refreshed only by the actions that remembered to ask, so every other

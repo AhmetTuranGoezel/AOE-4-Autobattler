@@ -1256,10 +1256,17 @@ const Game = (() => {
       const allowed = continuation.unitType === "caravan"
         ? new Set(["PLAY_ECONOMY", "END_UNIT_MOVE"])
         : new Set(["PLAY_MILITARY_MOVE", "PLAY_MILITARY_ATTACK", "END_UNIT_MOVE"]);
-      if (!allowed.has(type)) {
-        return denied("movement_continuation_pending", "Finish the explored unit's remaining movement first.");
+      // A decision can be open at the same time as a continuation - Currency
+      // defeating a barbarian for Sumeria leaves exactly that state - and the
+      // decision gate below is what orders the two. Refusing decisions here
+      // would deadlock: the choice cannot be answered and the movement cannot
+      // proceed until it is.
+      const decision = PLAYER_DECISION_ACTIONS.has(type);
+      if (!allowed.has(type) && !decision) {
+        return denied("movement_continuation_pending", "Finish the unit's remaining movement first.");
       }
-      if (continuation.playerId !== actorId || payload.unitId !== continuation.unitId) {
+      if (!decision &&
+          (continuation.playerId !== actorId || payload.unitId !== continuation.unitId)) {
         return denied("movement_continuation_mismatch", "This remaining movement belongs to another unit.");
       }
     }
@@ -2296,6 +2303,11 @@ const Game = (() => {
         ? continuation.remaining : getEconomyMove(player, st) + tradeSpent;
       const reachable = getReachable(st, startKey, moveLimit, "caravan", payload.playerId);
       if (payload.toKey !== startKey && !reachable.has(payload.toKey)) return st;
+      // How far this hop actually goes, measured before anything on the board
+      // moves. Currency needs it to know what movement is left over.
+      const stepsUsed = payload.toKey === startKey ? 0
+        : (getReachableWithDist(st, startKey, moveLimit, "caravan", payload.playerId)
+            .get(payload.toKey) || moveLimit);
       const hex = st.map.hexes[payload.toKey];
       // Base p9: "The player cannot move more than one caravan to the same city
       // or city-state during the same turn."
@@ -2332,9 +2344,14 @@ const Game = (() => {
         player.citiesTradedThisTurn.push(arrival);
       }
       if (defeatedBarbarian) {
-        hex.barbarian = false;
-        hex.barbarianId = null;
-        log(st, `${player.name}'s caravan removed a barbarian with Currency and ended its movement (no trade reward).`);
+        log(st, `${player.name}'s caravan removed a barbarian with Currency (no trade reward).`);
+        // Currency prints "without gaining a trade token", so the token is
+        // denied - but it is still a defeat, and an ability that keys off
+        // defeating a barbarian is paid.
+        onBarbarianDefeated(st, {
+          playerId: player.id, hexKey: payload.toKey,
+          source: "Currency", trade: false
+        });
       } else if (hex && hex.cityState && !antananarivoIsFriendlyCity(st, hex, player.id)) {
         const tradeType = hex.cityState.type;
         if (player.trade[tradeType] !== undefined) {
@@ -2433,8 +2450,34 @@ const Game = (() => {
       } else {
         log(st, `${player.name} moved caravan.`);
       }
-      completeFigureMove(unit);
-      if (continuation) st.movementContinuation = null;
+      // FAQ: clearing a barbarian with Currency does NOT end the caravan's
+      // remaining movement. Whatever is left is handed back as an ordinary
+      // continuation - the same machinery an interrupted exploration uses - so
+      // the caravan can move on instead of being stranded on the space it just
+      // cleared. Everything else still finishes the figure here.
+      const movementLeft = defeatedBarbarian
+        ? Math.max(0, moveLimit - stepsUsed) : 0;
+      st.movementContinuation = null;
+      if (movementLeft > 0 && unit.position === payload.toKey) {
+        unit.moveInProgress = true;
+        st.movementContinuation = {
+          kind: "currency_barbarian_movement",
+          playerId: player.id,
+          unitType: "caravan",
+          unitId: unit.id,
+          cardType: "economy",
+          startKey,
+          fromKey: payload.toKey,
+          maxMove: moveLimit,
+          remaining: movementLeft,
+          tradeSpent: tradePayment.spent,
+          tradePayment,
+          status: "ready"
+        };
+        log(st, `${player.name}'s caravan has ${movementLeft} movement left.`);
+      } else {
+        completeFigureMove(unit);
+      }
       activeMovementCard(st, player, "economy", tradePayment);
       if (!unitsLeftToMove(player, "economy")) finishActiveCard(st);
       return st;
@@ -3057,7 +3100,7 @@ const Game = (() => {
     activeMovementCard(st, player, continuation.cardType,
       continuation.tradePayment || continuation.tradeSpent);
     if (redeploying) consumeMassProductionRedeploy(st, player, unit);
-    log(st, `${player.name} ended ${continuation.unitType} movement after exploring.`);
+    log(st, `${player.name} ended ${continuation.unitType} movement.`);
     if (!unitsLeftToMove(player, continuation.cardType)) finishActiveCard(st);
     return st;
   }
@@ -4658,15 +4701,14 @@ const Game = (() => {
       const hexKey = payload.hexKey;
       const hex = st.map.hexes[hexKey];
       if ((choice.hexKeys || []).includes(hexKey) && hex && hex.barbarian) {
-        hex.barbarian = false;
         log(st, `${player.name} removed a barbarian from ${choice.source || "a choice"}.`);
         // A defeated barbarian pays a trade token wherever it was defeated
         // (Terra p9: "as normal"), not only when an army did the killing.
-        st.pendingBarbReward = {
-          playerId: player.id,
+        resolved = onBarbarianDefeated(st, {
+          playerId: player.id, hexKey,
+          source: choice.source || "a choice",
           cardResolutionId: choice.cardResolutionId || null
-        };
-        resolved = true;
+        });
       }
     } else if (choice.kind === "encampment_strike") {
       // Terra p9: "Defeat a barbarian OR RIVAL ARMY within two spaces of your
@@ -5113,17 +5155,10 @@ const Game = (() => {
         log(st, `${player.name} captured the fortress!`);
       }
       if (target === "barbarian" && hex.barbarian) {
-        hex.barbarian = false;
-        st.pendingBarbReward = { playerId: c.attackerId };
         log(st, `${player.name} defeated a barbarian! Choose a focus card for +1 trade.`);
-        if (hasLeader(player, "sumeria")) {
-          // Sumeria: a defeated barbarian also yields a resource of choice.
-          queuePendingChoice(st, {
-            kind: "gain_resource", playerId: player.id,
-            title: "Sumeria: Gain a Resource",
-            options: RESOURCES.map((r) => ({ id: r, label: r }))
-          });
-        }
+        onBarbarianDefeated(st, {
+          playerId: c.attackerId, hexKey: c.toKey, source: "combat"
+        });
       }
       if (target === "citystate" && hex.cityState) {
         const csType = hex.cityState.type;
@@ -5650,16 +5685,13 @@ const Game = (() => {
     if (!hex) return false;
     if (target.kind === "barbarian") {
       if (!hex.barbarian) return false;
-      hex.barbarian = false;
-      hex.barbarianId = null;
       log(st, `${player.name}'s encampment defeated a barbarian at ${target.hexKey}.`);
       // Terra p9: a defeated BARBARIAN pays one trade token on any focus card,
       // exactly as combat does. A rival army pays nothing.
-      st.pendingBarbReward = {
-        playerId: player.id,
+      return onBarbarianDefeated(st, {
+        playerId: player.id, hexKey: target.hexKey, source: "encampment",
         cardResolutionId: (choice && choice.cardResolutionId) || null
-      };
-      return true;
+      });
     }
     const owner = getPlayer(st, target.ownerId);
     const unit = owner && (owner.armies || []).find((u) => u.id === target.unitId);
@@ -8070,6 +8102,43 @@ const Game = (() => {
 
   function armyCannotEndHere(st, h, playerId) {
     return antananarivoIsFriendlyCity(st, h, playerId);
+  }
+
+  // Base p12 and Terra p9: defeating a barbarian is ONE event, however it
+  // happened - an army winning a combat, a card effect removing one, an
+  // encampment striking one, a Currency caravan clearing its path. The reward
+  // and any ability that keys off it belong here once, so that adding a new way
+  // to defeat one cannot quietly miss them. Sumeria used to be checked inside
+  // the combat resolver alone, so three of the four ways paid it nothing.
+  //
+  //   source: where the defeat came from, for the log and for the choice
+  //   trade:  false only where the printed effect denies the trade token,
+  //           which today is Currency and nothing else
+  function onBarbarianDefeated(st, opts) {
+    const o = opts || {};
+    const hex = st.map.hexes[o.hexKey];
+    const player = getPlayer(st, o.playerId);
+    if (!hex || !hex.barbarian || !player) return false;
+    hex.barbarian = false;
+    hex.barbarianId = null;
+    const cardResolutionId = o.cardResolutionId || null;
+    if (o.trade !== false) {
+      st.pendingBarbReward = { playerId: player.id, cardResolutionId };
+    }
+    // Sumeria: "When you defeat a barbarian, gain 1 resource of your choice
+    // from the supply (in addition to a trade token)." It is the DEFEAT that
+    // pays, not the combat, so it fires wherever one happens.
+    if (hasLeader(player, "sumeria")) {
+      queuePendingChoice(st, {
+        kind: "gain_resource",
+        playerId: player.id,
+        title: "Sumeria: Gain a Resource",
+        source: o.source || "barbarian",
+        cardResolutionId,
+        options: RESOURCES.map((r) => ({ id: r, label: r }))
+      });
+    }
+    return true;
   }
 
   function caravanCanDefeatBarbarian(player) {
