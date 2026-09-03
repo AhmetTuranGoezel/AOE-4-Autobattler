@@ -4676,27 +4676,30 @@ const Game = (() => {
       const hexKey = payload.hexKey;
       const hex = st.map.hexes[hexKey];
       if ((choice.hexKeys || []).includes(hexKey) && hex) {
-        if (hex.barbarian) {
-          hex.barbarian = false;
-          hex.barbarianId = null;
-          log(st, `${player.name}'s encampment defeated a barbarian at ${hexKey}.`);
-          st.pendingBarbReward = {
+        // ONE barbarian or ONE rival army. A space can hold several pieces, so
+        // the target has to be a specific piece rather than a space: this used
+        // to null every army the first matching player had standing there,
+        // defeating two or three figures for a single district effect.
+        const targets = encampmentTargetsAt(st, hexKey, player.id);
+        if (targets.length === 1) {
+          resolved = resolveEncampmentStrike(st, player, targets[0], choice);
+        } else if (targets.length > 1) {
+          queuePendingChoice(st, {
+            kind: "encampment_pick",
             playerId: player.id,
-            cardResolutionId: choice.cardResolutionId || null
-          };
+            title: "Encampment: Which Piece?",
+            source: "encampment",
+            cardResolutionId: choice.cardResolutionId || null,
+            hexKey,
+            options: targets.map((t) => ({ id: encampmentTargetId(t), label: t.label }))
+          });
           resolved = true;
-        } else {
-          const beaten = st.players.find((p) => p.id !== player.id &&
-            canAffectRivalPiece(st, player.id, p.id) &&
-            (p.armies || []).some((u) => u.position === hexKey));
-          if (beaten) {
-            beaten.armies.filter((u) => u.position === hexKey).forEach((u) => { u.position = null; });
-            queueNonAggressionResponse(st, beaten.id, player.id, "Encampment");
-            log(st, `${player.name}'s encampment defeated ${beaten.name}'s army at ${hexKey}.`);
-            resolved = true;
-          }
         }
       }
+    } else if (choice.kind === "encampment_pick") {
+      const targets = encampmentTargetsAt(st, choice.hexKey, player.id);
+      const picked = targets.find((t) => encampmentTargetId(t) === payload.optionId);
+      if (picked) resolved = resolveEncampmentStrike(st, player, picked, choice);
     } else if (choice.kind === "build_city") {
       const hexKey = payload.hexKey;
       const hex = st.map.hexes[hexKey];
@@ -5617,6 +5620,54 @@ const Game = (() => {
       return nh && nh.active && nh.terrain !== "water" && !nh.city && !nh.control &&
         !nh.barbarian && !nh.cityState && !(nh.fortress && !nh.city);
     });
+  }
+
+  // Every individual piece an encampment could defeat on one space. The rule
+  // defeats ONE barbarian or ONE rival army, and a space can hold several
+  // figures, so identity is (ownerId, unitId) rather than the space.
+  function encampmentTargetsAt(st, hexKey, playerId) {
+    const hex = st && st.map && st.map.hexes[hexKey];
+    if (!hex) return [];
+    const out = [];
+    if (hex.barbarian) out.push({ kind: "barbarian", hexKey });
+    st.players.forEach((p) => {
+      if (p.id === playerId || !canAffectRivalPiece(st, playerId, p.id)) return;
+      (p.armies || []).forEach((unit) => {
+        if (unit.position !== hexKey) return;
+        out.push({ kind: "army", hexKey, ownerId: p.id, unitId: unit.id,
+          label: `${p.name}'s army` });
+      });
+    });
+    return out.map((t) => t.kind === "barbarian"
+      ? { ...t, label: "Barbarian" } : t);
+  }
+  const encampmentTargetId = (t) =>
+    t.kind === "barbarian" ? "barbarian" : `army:${t.ownerId}:${t.unitId}`;
+
+  // Defeat exactly one named piece. Only a barbarian pays the trade token.
+  function resolveEncampmentStrike(st, player, target, choice) {
+    const hex = st.map.hexes[target.hexKey];
+    if (!hex) return false;
+    if (target.kind === "barbarian") {
+      if (!hex.barbarian) return false;
+      hex.barbarian = false;
+      hex.barbarianId = null;
+      log(st, `${player.name}'s encampment defeated a barbarian at ${target.hexKey}.`);
+      // Terra p9: a defeated BARBARIAN pays one trade token on any focus card,
+      // exactly as combat does. A rival army pays nothing.
+      st.pendingBarbReward = {
+        playerId: player.id,
+        cardResolutionId: (choice && choice.cardResolutionId) || null
+      };
+      return true;
+    }
+    const owner = getPlayer(st, target.ownerId);
+    const unit = owner && (owner.armies || []).find((u) => u.id === target.unitId);
+    if (!unit || unit.position !== target.hexKey) return false;
+    unit.position = null;
+    queueNonAggressionResponse(st, owner.id, player.id, "Encampment");
+    log(st, `${player.name}'s encampment defeated one of ${owner.name}'s armies at ${target.hexKey}.`);
+    return true;
   }
 
   // Terra p9: "Defeat a barbarian or rival army within two spaces of your
@@ -8406,12 +8457,23 @@ const Game = (() => {
     return count;
   }
 
+  // "Within N spaces" includes the space itself: distance 0 is within 2. This
+  // excluded the origin, and the consequence was a rule, not a rounding error -
+  // a district IS a control token, so an unreinforced Encampment is a friendly
+  // control token at distance 0 from itself and must be a legal target for its
+  // own reinforcement option. Excluding the origin made that impossible.
+  //
+  // Every caller filters afterwards, so including it changes nothing else: the
+  // theater and wonder-city placements require an EMPTY space and a district's
+  // own hex is occupied, and an encampment strike requires a barbarian or a
+  // rival army standing there - which, if one is standing on your district, is
+  // a legal target anyway.
   function hexesWithinRange(map, hexKey, range) {
     const h = map.hexes[hexKey];
     if (!h) return [];
     const result = [];
     Object.entries(map.hexes).forEach(([k, hex]) => {
-      if (k !== hexKey && hexDist(h, hex) <= range) result.push(k);
+      if (hexDist(h, hex) <= range) result.push(k);
     });
     return result;
   }

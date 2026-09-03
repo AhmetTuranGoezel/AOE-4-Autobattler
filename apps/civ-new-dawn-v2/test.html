@@ -1417,11 +1417,17 @@
       }
 
       {
-        // Terra p9, the printed district effects. Four of the five were wrong:
-        // three are a CHOICE of one of two options and were fused into a single
-        // always-on effect, the "friendly space" test was missing, the counts
-        // left out the district's own space, and the industrial zone carried an
-        // invented cap of 3.
+        // Terra p9, the printed district effects, end to end. Four of the five
+        // were wrong: three are a CHOICE of one of two options and were fused
+        // into a single always-on effect, the "friendly space" test was
+        // missing, the counts left out the district's own space, and the
+        // industrial zone carried an invented cap of 3.
+        //
+        // Each district's scenarios are kept together and the proof is claimed
+        // once, at the end, so that proves("district.x") stands for every
+        // printed option of that card rather than for whichever half happened
+        // to be tested last.
+        //
         // `setUp` runs with the state already built, so fixtures can name the
         // owning player without referring to a binding that does not exist yet.
         const mk = (kind, setUp) => {
@@ -1433,12 +1439,200 @@
           return { st, me };
         };
         const mine = (id) => ({ ownerId: id, fortified: false, district: null });
-        const mode = (st) => (st.pendingChoices || []).find((c) => c.kind === "district_mode");
+        const pick = (st, kind) => (st.pendingChoices || []).find((c) => c.kind === kind);
+        const mode = (st) => pick(st, "district_mode");
+        // The capital at 0,0 is ringed by these; 1,0 is the district itself.
+        const RING = ["1,0", "-1,0", "0,1", "0,-1", "1,-1", "-1,1"];
 
+        // -- Campus ------------------------------------------------------
         {
-          // "...for each FRIENDLY space with a forest that is IN OR ADJACENT to
-          // your industrial zone's space." Four friendly forests, one of them
-          // the district's own space, and one unowned forest that must not pay.
+          // "...one science trade token for each FRIENDLY space with a mountain
+          // or natural wonder that is IN OR ADJACENT to your campus."
+          const { st, me } = mk("campus", (s2, p2) => {
+            s2.map.hexes["1,0"].terrain = "mountain";                            // its own space
+            activate(s2, "2,0",  { terrain: "mountain", control: mine(p2.id) }); // friendly mountain
+            activate(s2, "1,-1", { terrain: "grass", naturalWonder: "Mt Kilimanjaro",
+                                   control: mine(p2.id) });                      // friendly wonder
+            activate(s2, "2,-1", { terrain: "mountain" });                       // nobody's
+          });
+          assert("the campus starts with no science trade", me.trade.science === 0);
+          Game.resolveEvent(st, "district_event");
+          assert("the campus asks nothing: it has one printed effect, not a choice",
+            !(st.pendingChoices || []).some((c) => c.districtKind === "campus"));
+          assert("it pays for its own space, a friendly mountain and a friendly natural wonder",
+            st.players[0].trade.science === 3, String(st.players[0].trade.science));
+          const report = (st.districtReport || []).find((r) => r.district === "campus");
+          assert("and it names the three spaces that paid",
+            !!report && report.paid.slice().sort().join(" ") === "1,-1 1,0 2,0",
+            report && report.paid.join(" "));
+          assert("a mountain nobody owns pays nothing, however close it sits",
+            !!report && report.paid.indexOf("2,-1") === -1 &&
+            report.nearMisses.indexOf("2,-1") !== -1, report && JSON.stringify(report));
+          proves("district.campus");
+        }
+
+        // -- Commercial Hub ----------------------------------------------
+        {
+          // Option one: "...for each of your MATURE cities", and the tokens go
+          // on ANY card in your focus row, so the player picks.
+          const { st, me } = mk("trade", (s2, p2) => {
+            RING.filter((k) => k !== "1,0").forEach((k) => activate(s2, k, { control: mine(p2.id) }));
+          });
+          me.focusRow = ["culture", "science", "growth", "economy", "military", "industry"];
+          assert("the fixture capital really is mature", Game.countDeveloped(st, me.id) === 1,
+            String(Game.countDeveloped(st, me.id)));
+          Game.resolveEvent(st, "district_event");
+          const m = mode(st);
+          assert("the commercial hub offers both printed options",
+            !!m && m.options.map((o) => o.id).sort().join(",") === "cities,desert",
+            m && m.options.map((o) => o.id).join(","));
+          const out = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: m.id, optionId: "cities" } });
+          const any = pick(out, "trade_any");
+          assert("it owes one trade token per mature city", !!any && any.amount === 1,
+            any && String(any.amount));
+          assert("and the token may go on ANY focus card", !!any && any.options.length >= 6,
+            any && String(any.options.length));
+          const before = out.players[0].trade.military;
+          const paid = Game.applyAction(out, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: any.id, optionId: "military" } });
+          assert("the card the player names gains the token",
+            paid.players[0].trade.military === before + 1,
+            String(paid.players[0].trade.military));
+        }
+        {
+          // Option two: "...on your ECONOMY focus card for each friendly space
+          // with a desert that is in or adjacent to" - a fixed card, no prompt.
+          const { st, me } = mk("trade", (s2, p2) => {
+            s2.map.hexes["1,0"].terrain = "desert";                            // its own space
+            activate(s2, "2,0",  { terrain: "desert", control: mine(p2.id) }); // friendly
+            activate(s2, "1,-1", { terrain: "desert" });                       // nobody's
+          });
+          assert("the hub starts with no economy trade", me.trade.economy === 0);
+          Game.resolveEvent(st, "district_event");
+          const out = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: mode(st).id, optionId: "desert" } });
+          assert("its own space and the friendly desert each pay one economy trade",
+            out.players[0].trade.economy === 2, String(out.players[0].trade.economy));
+          assert("so the desert nobody owns paid nothing",
+            out.players[0].trade.economy === 2);
+          assert("and this option names the card, so nothing is asked",
+            !pick(out, "trade_any"));
+          proves("district.trade");
+        }
+
+        // -- Encampment --------------------------------------------------
+        {
+          // Terra p9: "Defeat a barbarian OR RIVAL ARMY within two spaces of
+          // your encampment." The rival-army half was missing entirely.
+          const { st, me } = mk("encampment");
+          const foe = st.players[1];
+          activate(st, "2,0", { terrain: "grass" });
+          foe.armies = [{ id: "e1", position: "2,0" }];
+          Game.resolveEvent(st, "district_event");
+          const strike = pick(st, "encampment_strike");
+          assert("an encampment can strike a rival army", !!strike && strike.hexKeys.includes("2,0"),
+            JSON.stringify((st.pendingChoices || []).map((c) => c.kind)));
+          const hit = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: strike.id, hexKey: "2,0" } });
+          assert("and the army is defeated back onto its card",
+            hit.players[1].armies[0].position === null);
+          assert("a defeated ARMY pays no barbarian trade token", !hit.pendingBarbReward);
+        }
+        {
+          // "Defeat A barbarian or A rival army" is one piece. A space can hold
+          // several figures, and the old code nulled every army the first
+          // matching player had standing there - three figures for one district.
+          const { st, me } = mk("encampment");
+          const foe = st.players[1];
+          activate(st, "2,0", { terrain: "grass" });
+          foe.armies = [{ id: "e1", position: "2,0" }, { id: "e2", position: "2,0" }];
+          Game.resolveEvent(st, "district_event");
+          const step = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: pick(st, "encampment_strike").id, hexKey: "2,0" } });
+          const which = pick(step, "encampment_pick");
+          assert("two armies on one space make the encampment name its target",
+            !!which && which.options.length === 2, which && JSON.stringify(which.options));
+          const out = Game.applyAction(step, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: which.id, optionId: which.options[0].id } });
+          assert("exactly one army is defeated",
+            out.players[1].armies.filter((u) => u.position === "2,0").length === 1,
+            JSON.stringify(out.players[1].armies));
+          assert("and it is the one that was named",
+            out.players[1].armies.find((u) => u.id === "e1").position === null);
+        }
+        {
+          // "If a barbarian is defeated, place one trade token on any card in
+          // your focus row" - a trade token, not a resource.
+          const { st, me } = mk("encampment");
+          me.focusRow = ["culture", "science", "growth", "economy", "military", "industry"];
+          activate(st, "2,0", { terrain: "grass", barbarian: true, barbarianId: "Z" });
+          const resourcesBefore = JSON.stringify(me.resources);
+          Game.resolveEvent(st, "district_event");
+          const out = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: pick(st, "encampment_strike").id, hexKey: "2,0" } });
+          assert("an encampment can defeat a barbarian", out.map.hexes["2,0"].barbarian === false);
+          assert("and that owes a trade token",
+            !!out.pendingBarbReward && out.pendingBarbReward.playerId === me.id);
+          const paid = Game.applyAction(out, { type: "ADD_TRADE", payload: {
+            playerId: me.id, cardType: "culture" } });
+          assert("which goes on any card in the focus row",
+            paid.players[0].trade.culture === 1, String(paid.players[0].trade.culture));
+          assert("and is a trade token, not a resource",
+            JSON.stringify(paid.players[0].resources) === resourcesBefore,
+            JSON.stringify(paid.players[0].resources));
+        }
+        {
+          // The second half: "reinforce a control token within two spaces." A
+          // district IS a control token, so an unreinforced encampment is
+          // within two spaces of itself and may flip its own token. That falls
+          // out of the range being inclusive; it is not a special case.
+          const { st, me } = mk("encampment");
+          Game.resolveEvent(st, "district_event");
+          const rf = (st.pendingChoices || []).find((c) =>
+            c.kind === "reinforce" && c.source === "encampment");
+          assert("an unreinforced encampment is a legal target for its own reinforcement",
+            !!rf && rf.hexKeys.includes("1,0"), rf && rf.hexKeys.join(" "));
+          const out = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: rf.id, hexKey: "1,0" } });
+          assert("and reinforcing it flips its own token",
+            out.map.hexes["1,0"].control.fortified === true);
+          assert("without ceasing to be a district",
+            out.map.hexes["1,0"].control.district === "encampment");
+        }
+        {
+          // Terra p9: "resolve EITHER OR BOTH" - so both are offered, neither
+          // is compulsory, and declining one leaves the other standing.
+          const { st, me } = mk("encampment");
+          const foe = st.players[1];
+          activate(st, "2,0", { terrain: "grass" });
+          foe.armies = [{ id: "e1", position: "2,0" }];
+          Game.resolveEvent(st, "district_event");
+          const offered = (st.pendingChoices || []).filter((c) => c.source === "encampment");
+          assert("both halves are offered at once", offered.length === 2,
+            JSON.stringify(offered.map((c) => c.kind)));
+          assert("and neither is compulsory", offered.every((c) => c.optional === true));
+          const afterSkip = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: pick(st, "encampment_strike").id, dismiss: true } });
+          assert("declining the strike spares the army",
+            afterSkip.players[1].armies[0].position === "2,0");
+          const rf = (afterSkip.pendingChoices || []).find((c) =>
+            c.kind === "reinforce" && c.source === "encampment");
+          assert("and the reinforcement is still on offer", !!rf);
+          const only = Game.applyAction(afterSkip, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: rf.id, hexKey: "1,0" } });
+          assert("so one half can be taken without the other",
+            only.map.hexes["1,0"].control.fortified === true &&
+            only.players[1].armies[0].position === "2,0");
+          proves("district.encampment");
+        }
+
+        // -- Industrial Zone ---------------------------------------------
+        {
+          // Option one: "...for each FRIENDLY space with a forest that is IN OR
+          // ADJACENT to your industrial zone's space." Four friendly forests,
+          // one of them the district's own space, and one unowned forest that
+          // must not pay.
           const { st, me } = mk("industrial", (s2, p2) => {
             activate(s2, "1,-1", { terrain: "forest", control: mine(p2.id) });
             activate(s2, "2,0",  { terrain: "forest", control: mine(p2.id) });
@@ -1462,40 +1656,65 @@
           assert("and the card itself still stops at three tokens (base p13)",
             out.players[0].trade.industry === 3, String(out.players[0].trade.industry));
         }
-
         {
-          // The unowned desert must not pay either.
-          const { st, me } = mk("trade", (s2) => activate(s2, "2,0", { terrain: "desert" }));
-          const before = me.trade.economy;
+          // Option two: "Discard three trade tokens from your industry focus
+          // card to build a city..." - three exactly, and not on credit.
+          const { st, me } = mk("industrial");
+          me.trade.industry = 2;
+          Game.resolveEvent(st, "district_event");
+          const low = mode(st).options.find((o) => o.id === "city");
+          assert("with two industry trade the build option is refused",
+            !!low && low.disabled, JSON.stringify(mode(st).options));
+        }
+        {
+          const { st, me } = mk("industrial");
+          me.trade.industry = 3;
           Game.resolveEvent(st, "district_event");
           const m = mode(st);
+          const cityOpt = m.options.find((o) => o.id === "city");
+          assert("with three industry trade the build option is available",
+            !!cityOpt && !cityOpt.disabled, JSON.stringify(m.options));
           const out = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {
-            playerId: me.id, choiceId: m.id, optionId: "desert" } });
-          assert("a desert nobody owns pays the commercial hub nothing",
-            out.players[0].trade.economy === before,
-            "gained " + (out.players[0].trade.economy - before));
+            playerId: me.id, choiceId: m.id, optionId: "city" } });
+          assert("it discards exactly three industry trade tokens",
+            out.players[0].trade.industry === 0, String(out.players[0].trade.industry));
+          const build = pick(out, "build_city");
+          assert("and asks where the city goes", !!build && build.hexKeys.length > 0);
+          const spot = build.hexKeys[0];
+          const built = Game.applyAction(out, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: build.id, hexKey: spot } });
+          assert("a city really is built there",
+            !!built.map.hexes[spot].city && built.map.hexes[spot].city.ownerId === me.id,
+            JSON.stringify(built.map.hexes[spot].city));
+          proves("district.industrial");
         }
 
+        // -- Theater Square ----------------------------------------------
         {
-          // Terra p9: "Defeat a barbarian OR RIVAL ARMY within two spaces."
-          const { st, me } = mk("encampment");
-          const foe = st.players[1];
+          // Option one: "Place one control token in a space within two spaces
+          // of this district."
+          const { st, me } = mk("theater");
           activate(st, "2,0", { terrain: "grass" });
-          foe.armies = [{ id: "e1", position: "2,0" }];
           Game.resolveEvent(st, "district_event");
-          const strike = (st.pendingChoices || []).find((c) => c.kind === "encampment_strike");
-          assert("an encampment can strike a rival army", !!strike && strike.hexKeys.includes("2,0"),
-            JSON.stringify((st.pendingChoices || []).map((c) => c.kind)));
-          const hit = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {
-            playerId: me.id, choiceId: strike.id, hexKey: "2,0" } });
-          assert("and the army is defeated back onto its card",
-            hit.players[1].armies[0].position === null);
-          assert("a defeated ARMY pays no barbarian trade token", !hit.pendingBarbReward);
+          const out = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: mode(st).id, optionId: "near" } });
+          const spots = pick(out, "place_control");
+          assert("the near option reaches spaces within two of the district",
+            !!spots && spots.hexKeys.includes("2,0"), spots && spots.hexKeys.join(" "));
+          const placed = Game.applyAction(out, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: spots.id, hexKey: "2,0" } });
+          const token = placed.map.hexes["2,0"].control;
+          assert("and a control token is placed there",
+            !!token && token.ownerId === me.id, JSON.stringify(token));
+          // A district is a control token, but a control token is not a
+          // district: the theater places the plain side of one.
+          assert("placing a control token does NOT create a district",
+            !!token && !token.district, JSON.stringify(token));
+          assert("and the new token is unreinforced", !!token && token.fortified === false);
         }
-
         {
-          // "Place one control token in a space within two spaces of a friendly
-          // city that has a wonder" - the second theater option, missing entirely.
+          // Option two: "Place one control token in a space within two spaces
+          // of a friendly city that has a wonder" - missing entirely.
           const { st, me } = mk("theater");
           activate(st, "4,0", { terrain: "grass", city: {
             ownerId: me.id, isCapital: false, developed: false, hasWonder: true, wonder: { name: "Stonehenge" } } });
@@ -1507,10 +1726,54 @@
             m && m.options.map((o) => o.id).join(","));
           const out = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {
             playerId: me.id, choiceId: m.id, optionId: "wonder" } });
-          const spots = (out.pendingChoices || []).find((c) => c.kind === "place_control");
+          const spots = pick(out, "place_control");
           assert("and the wonder option reaches spaces near the wonder city",
             !!spots && spots.hexKeys.includes("5,0"),
             spots ? spots.hexKeys.join(" ") : "none");
+          const placed = Game.applyAction(out, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: spots.id, hexKey: "5,0" } });
+          assert("and the token is placed there",
+            !!placed.map.hexes["5,0"].control &&
+            placed.map.hexes["5,0"].control.ownerId === me.id);
+          proves("district.theater");
+        }
+
+        // -- The token itself --------------------------------------------
+        {
+          // Terra p9: one physical token of each district type per player.
+          // Board state is the source of truth, so destroying a district
+          // returns its type to the supply with no second inventory to drift.
+          const { st, me } = mk("encampment");
+          const free = Game.availableDistrictTypes(st, me.id);
+          assert("the encampment on the board is out of that player's supply",
+            free.indexOf("encampment") === -1, free.join(" "));
+          assert("and the other four are still available", free.length === 4, free.join(" "));
+          st.map.hexes["1,0"].control = null;
+          assert("destroying it returns the token to the supply",
+            Game.availableDistrictTypes(st, me.id).length === 5);
+        }
+        {
+          // Terra p9: a district goes down on its UNREINFORCED side even when
+          // it replaces a reinforced control token of yours.
+          const { st, me } = mk("campus", (s2, p2) => {
+            activate(s2, "0,1", { terrain: "grass",
+              control: { ownerId: p2.id, fortified: true, district: null } });
+          });
+          me.focusRow = ["growth", "science", "culture", "economy", "military", "industry"];
+          me.cardPlayed = false;
+          assert("the space really does hold a reinforced token first",
+            st.map.hexes["0,1"].control.fortified === true);
+          const out = Game.tryApplyAction(st, { type: "PLAY_GROWTH_DISTRICT", payload: {
+            playerId: me.id, district: "trade", hexKey: "0,1", tradeSpent: 0
+          } }, { actorId: me.id, role: "player" });
+          assert("a district can be built over it", out.accepted, out.code);
+          if (out.accepted) {
+            const token = out.state.map.hexes["0,1"].control;
+            assert("the district token is on the space", !!token && token.district === "trade",
+              JSON.stringify(token));
+            assert("and it lands unreinforced, discarding the flipped side underneath",
+              token.fortified === false, JSON.stringify(token));
+          }
         }
       }
 
