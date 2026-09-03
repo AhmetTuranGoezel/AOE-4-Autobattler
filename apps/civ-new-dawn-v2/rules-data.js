@@ -307,8 +307,9 @@
   // World wonders. `effect` is the printed card text (from the Terra Incognita
   // player reference). `auto: true` marks the ones the engine enforces on its
   // own; the rest are shown to players to resolve at the table.
-  // Pentagon and Machu Picchu are deliberately absent — Terra Incognita removes
-  // them from the base game.
+  // Terra Incognita removes the BASE Pentagon and Machu Picchu cards, then
+  // supplies replacement cards for those same wonder tokens. The replacement
+  // versions below are therefore part of the playable 36-card pool.
   const WONDER_DECKS = {
     military: [
       { name: "Jebel Barkal", era: "ancient", cost: 7, auto: true,
@@ -325,6 +326,8 @@
         effect: "When attacking or defending, increase your combat value by 2." },
       { name: "Ruhr Valley", era: "modern", cost: 11, auto: true,
         effect: "When defending, increase your combat value by 5." },
+      { name: "Pentagon", era: "modern", cost: 12, auto: true,
+        effect: "When attacking, increase your combat value by 2. Your armies can move any number of spaces. (They must still obey all other movement rules.)" },
       { name: "Statue of Liberty", era: "modern", cost: 12, auto: true,
         effect: "Before you replace a rival city with 1 of your cities, replace all rival control tokens that are adjacent to that rival city with your unused, unreinforced control tokens." }
     ],
@@ -363,6 +366,8 @@
         effect: "When you move a caravan to a city-state, place 1 additional trade token from the supply on any 1 of your focus cards." },
       { name: "Great Zimbabwe", era: "medieval", cost: 9, auto: true,
         effect: "You can place trade tokens on this card instead of on your focus cards, up to a limit of 4. At the start of your turn, you may move trade tokens from this card to cards in your focus row." },
+      { name: "Machu Picchu", era: "medieval", cost: 10, auto: true,
+        effect: "When you resolve the card in the first or second slot of your focus row, resolve it as though it is 2 slots farther to the right." },
       { name: "Big Ben", era: "modern", cost: 10, auto: true,
         effect: "When attacking or defending, increase your combat value by +2 for each of your caravans adjacent to the defending space." },
       { name: "Estadio Do Maracana", era: "modern", cost: 10, auto: true,

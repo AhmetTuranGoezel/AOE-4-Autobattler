@@ -79,13 +79,10 @@
       assert("and its neighbours on that face are unchanged",
         cellTerrain("04", "B", 6) === "forest" && cellTerrain("04", "B", 7) === "mountain" &&
         cellTerrain("04", "B", 8) === "grass" && cellTerrain("04", "B", 4) === "hill");
-      // The playable wonder deck is base + expansion MINUS the two Terra takes
-      // out by name. Terra p2 step 5: "Remove the base game 'Pentagon' and
-      // 'Machu Picchu' wonders, and then combine the expansion wonder cards
-      // with the remaining base game wonder cards." That is a removal from the
-      // pool, before setup, and it is why the piles are not all equal.
-      assert("the printed deck is 34 after Terra removes two by name",
-        Object.values(data.WONDER_DECKS).reduce((n, d) => n + d.length, 0) === 34);
+      // Terra removes the two BASE cards by name, but its replacement Pentagon
+      // and Machu Picchu cards reuse the original tokens and remain playable.
+      assert("the printed Terra wonder pool contains 36 replacement-aware cards",
+        Object.values(data.WONDER_DECKS).reduce((n, d) => n + d.length, 0) === 36);
 
       const s2 = Game.createState(players(2));
       // Terra setup 3d: four core tiles, but only two at 2-3 players, drawn off
@@ -185,46 +182,46 @@
       assert("Egypt builds wonders for 1 less", Game.getWonderCost(Game.ALL_WONDERS[0].name, egy) === Game.getWonderCost(Game.ALL_WONDERS[0].name, plain) - 1);
       // ── World wonders ──
       const wonderNames = Game.ALL_WONDERS.map((w) => w.name);
-      // Terra p6 step 7b does not name the cards it takes out: "Divide each
-      // wonder pile by era into three facedown piles. Randomize each era pile
-      // and remove one card at random from each ancient and medieval era pile."
-      // makeWonderDecks does the setup removal; the by-name removal is already
-      // reflected in the data.
-      assert("34 world wonders after the two Terra removes", wonderNames.length === 34);
-      assert("Pentagon and Machu Picchu are gone (Terra p2 step 5)",
-        !wonderNames.includes("Pentagon") && !wonderNames.includes("Machu Picchu"));
-      // Every type is three per era EXCEPT the two the removal touched:
-      // Pentagon was the third modern military, Machu Picchu the third
-      // medieval economy. Asserting a flat 3/3/3 would be asserting the
-      // pre-removal box, not the game being played.
+      // Terra removes the base versions of Pentagon and Machu Picchu, then adds
+      // replacement versions for their existing tokens. The component pool is
+      // therefore 9 per type and 3 per era before game setup.
+      assert("36 playable world wonders include both Terra replacements", wonderNames.length === 36 &&
+        wonderNames.includes("Pentagon") && wonderNames.includes("Machu Picchu"));
+      const wonderTypes = ["military", "culture", "economy", "science"];
+      const definitionCounts = Object.fromEntries(wonderTypes.map((type) =>
+        [type, Game.ALL_WONDERS.filter((w) => w.type === type).length]));
+      assert("the component pool has exactly nine wonders of every type",
+        wonderTypes.every((type) => definitionCounts[type] === 9), JSON.stringify(definitionCounts));
       const eraCount = (type) => {
         const eras = { ancient: 0, medieval: 0, modern: 0 };
         Game.ALL_WONDERS.filter((w) => w.type === type).forEach((w) => { eras[w.era]++; });
         return eras;
       };
-      assert("culture and science keep three of every era",
-        ["culture", "science"].every((t) => {
+      assert("every component pool has three Ancient, Medieval and Modern wonders",
+        wonderTypes.every((t) => {
           const e = eraCount(t);
           return e.ancient === 3 && e.medieval === 3 && e.modern === 3;
-        }));
-      assert("military is short one modern, where Pentagon was",
-        JSON.stringify(eraCount("military")) === JSON.stringify({ ancient: 3, medieval: 3, modern: 2 }),
-        JSON.stringify(eraCount("military")));
-      assert("economy is short one medieval, where Machu Picchu was",
-        JSON.stringify(eraCount("economy")) === JSON.stringify({ ancient: 3, medieval: 2, modern: 3 }),
-        JSON.stringify(eraCount("economy")));
-      // Terra p6 7b is unconditional: remove one random card from EACH ancient
-      // and medieval pile. Economy therefore loses one of its two remaining
-      // medieval cards even though Machu Picchu was already removed by name.
-      const dealt = Game.createState(players(2)).wonderDecks;
-      const dealtCounts = Object.fromEntries(
-        Object.entries(dealt).map(([type, d]) => [type, d.deck.length]));
-      assert("setup deals seven culture and science wonders",
-        ["culture", "science"].every((t) => dealtCounts[t] === 7),
-        JSON.stringify(dealtCounts));
-      assert("setup deals six military and economy wonders after all removals",
-        ["military", "economy"].every((t) => dealtCounts[t] === 6),
-        JSON.stringify(dealtCounts));
+        }), JSON.stringify(Object.fromEntries(wonderTypes.map((t) => [t, eraCount(t)]))));
+
+      // Verify generated game decks, not just source definitions: setup removes
+      // one random Ancient and one random Medieval card from every type.
+      const wonderByName = Object.fromEntries(Game.ALL_WONDERS.map((w) => [w.name, w]));
+      const modernNames = Object.fromEntries(wonderTypes.map((type) => [type,
+        Game.ALL_WONDERS.filter((w) => w.type === type && w.era === "modern").map((w) => w.name)]));
+      const generatedDecks = Array.from({ length: 32 }, () => Game.createState(players(2)).wonderDecks);
+      const generatedDecksAreValid = generatedDecks.every((decks) => wonderTypes.every((type) => {
+        const names = decks[type].deck;
+        const eras = { ancient: 0, medieval: 0, modern: 0 };
+        names.forEach((name) => { eras[wonderByName[name].era]++; });
+        return names.length === 7 && new Set(names).size === 7 &&
+          eras.ancient === 2 && eras.medieval === 2 && eras.modern === 3 &&
+          modernNames[type].every((name) => names.includes(name));
+      }));
+      assert("every generated Wonder deck is 7 cards, split 2/2/3, with all Modern wonders",
+        generatedDecksAreValid);
+      assert("Pentagon and Orszaghaz remain in every generated game",
+        generatedDecks.every((decks) => decks.military.deck.includes("Pentagon") &&
+          decks.economy.deck.includes("Orszaghaz")));
       assert("every wonder has era, cost and printed effect text", Game.ALL_WONDERS.every((w) =>
         ["ancient", "medieval", "modern"].includes(w.era) && w.cost >= 7 && w.cost <= 12 && (w.effect || "").length > 20));
       let wst = Game.createState(players(2));
@@ -243,9 +240,18 @@
       const ecoBefore = Game.getEconomyMove(ecoP, wst);
       giveWonder(wa, "0,-2", "Colossus", "economy");
       assert("Colossus adds 6 caravan movement", Game.getEconomyMove(ecoP, wst) === ecoBefore + 6);
+      giveWonder(wa, "0,0", "Pentagon", "military");
+      assert("Terra Pentagon adds +2 attack", Game.getWonderAttackBonus(wst, wa, "1,0", wb) === 2);
+      assert("Terra Pentagon removes the army movement-distance limit", Game.getMilitaryMove(ecoP, wst) === 99);
+      giveWonder(wa, "0,0", "Machu Picchu", "economy");
+      ecoP.focusRow = ["military", "culture", "science", "economy", "industry", "growth"];
+      assert("Terra Machu Picchu shifts cards in slots 1 and 2 by two",
+        Game.getSlotValue(ecoP, "military", wst) === 2 && Game.getSlotValue(ecoP, "culture", wst) === 3);
+      assert("Terra Machu Picchu does not shift the third slot",
+        Game.getSlotValue(ecoP, "science", wst) === 2);
       // Wonders that shape where you may place, not just how hard you hit
       const autoCount = Game.ALL_WONDERS.filter((w) => w.auto).length;
-      assert("all but one of the 34 wonders are engine-enforced",
+      assert("all but one of the 36 wonders are engine-enforced",
         autoCount === Game.ALL_WONDERS.length - 1, String(autoCount));
       // The one left is a table reminder; naming it keeps the list honest.
       const manual = Game.ALL_WONDERS.filter((w) => !w.auto).map((w) => w.name).sort().join(", ");
@@ -3888,6 +3894,99 @@
               report: st.districtReport, log: st.log.slice(-4) }));
           assert("Dutch district water does not become an ordinary friendly Culture anchor",
             !Game.validControlHexes(st, dutch.id, 5).has("0,1"));
+        }
+      }
+
+      // ── Amundsen-Scott is all-or-nothing ────────────────────────────────
+      //
+      // The printed card does not put this wonder in a city you already hold:
+      // "build a city on any legal space on the edge of the map and place this
+      // wonder in that city". A board with no legal rim space therefore cannot
+      // resolve it at all - which makes a legal site a precondition of BUYING
+      // it, not a follow-up that may quietly fizzle. It used to fizzle: the
+      // production was spent, the deck advanced to the next card, and the
+      // station stayed in the ordinary city it was bought from, a board state
+      // the printed card cannot produce.
+      {
+        const AM = "Amundsen-Scott Research Station";
+        const amundsenBoard = (rimAvailable) => {
+          const st = rulesState();
+          const me = st.players[0];
+          me.cardPlayed = false;
+          me.focusRow = ["growth", "science", "economy", "culture", "industry", "military"];
+          me.trade.industry = 3;
+          Object.keys(st.map.hexes).forEach((k) => activate(st, k));
+          activate(st, "0,0", { city: { ownerId: me.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
+          const deck = st.wonderDecks.science;
+          deck.deck = [AM].concat(deck.deck.filter((n) => n !== AM));
+          deck.revealed = AM;
+          deck.token = 0;
+          if (!rimAvailable) {
+            // A rival token on every other space leaves no legal city site.
+            Object.entries(st.map.hexes).forEach(([k, h]) => {
+              if (k === "0,0") return;
+              h.control = { ownerId: st.players[1].id, fortified: false, district: null };
+            });
+          }
+          // Afford it whatever the printed cost, using its own printed icons.
+          me.resources.mercury = 9;
+          me.resources.diamonds = 9;
+          return { st, me };
+        };
+        const pay = { wonderName: AM, tradeSpent: 3, resources: { mercury: 2, diamonds: 2 } };
+
+        const openBoard = amundsenBoard(true);
+        assert("Amundsen: a rim site exists on an open board",
+          Game.amundsenSites(openBoard.st, openBoard.me.id).length > 0);
+        assert("Amundsen: the build is permitted when it can be resolved",
+          Game.getActionPermission(openBoard.st,
+            { type: "PLAY_INDUSTRY_WONDER", payload: { hexKey: "0,0", ...pay } },
+            { actorId: openBoard.me.id }).ok);
+
+        const closedBoard = amundsenBoard(false);
+        assert("Amundsen: no rim site means no rim site",
+          Game.amundsenSites(closedBoard.st, closedBoard.me.id).length === 0);
+        const refusal = Game.getActionPermission(closedBoard.st,
+          { type: "PLAY_INDUSTRY_WONDER", payload: { hexKey: "0,0", ...pay } },
+          { actorId: closedBoard.me.id });
+        assert("Amundsen: the build is REFUSED when it cannot be resolved",
+          !refusal.ok && refusal.code === "amundsen_no_rim_city", JSON.stringify(refusal));
+
+        // Nothing irreversible may happen on the impossible board.
+        const before = {
+          trade: closedBoard.me.trade.industry,
+          mercury: closedBoard.me.resources.mercury,
+          revealed: closedBoard.st.wonderDecks.science.revealed,
+          deckLen: closedBoard.st.wonderDecks.science.deck.length
+        };
+        const tried = Game.tryApplyAction(closedBoard.st,
+          { type: "PLAY_INDUSTRY_WONDER", payload: { hexKey: "0,0", ...pay } },
+          { actorId: closedBoard.me.id, role: "player" });
+        assert("Amundsen: the transaction is refused rather than half-applied",
+          tried.accepted === false && tried.code === "amundsen_no_rim_city", JSON.stringify(tried.code));
+        assert("Amundsen: no production, no reveal, no placement",
+          Game.getPlayer(tried.state, closedBoard.me.id).trade.industry === before.trade &&
+          Game.getPlayer(tried.state, closedBoard.me.id).resources.mercury === before.mercury &&
+          tried.state.wonderDecks.science.revealed === before.revealed &&
+          tried.state.wonderDecks.science.deck.length === before.deckLen &&
+          !tried.state.map.hexes["0,0"].city.hasWonder);
+
+        // And the resolvable board still works all the way through.
+        const built = Game.applyAction(openBoard.st, { type: "PLAY_INDUSTRY_WONDER",
+          payload: { playerId: openBoard.me.id, hexKey: "0,0", ...pay } });
+        const site = (built.pendingChoices || []).find((c) => c.kind === "amundsen_site");
+        assert("Amundsen: building it asks where its own city goes", !!site);
+        if (site) {
+          const target = site.hexKeys[0];
+          const done = Game.applyAction(built, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: openBoard.me.id, choiceId: site.id, hexKey: target } });
+          assert("Amundsen: a city is founded on the rim and holds the wonder",
+            done.map.hexes[target].city && done.map.hexes[target].city.wonder &&
+            done.map.hexes[target].city.wonder.name === AM, target);
+          assert("Amundsen: it no longer sits in the city it was bought from",
+            !done.map.hexes["0,0"].city.wonder && !done.map.hexes["0,0"].city.hasWonder);
+          assert("Amundsen: the 2 control tokens follow it",
+            (done.pendingChoices || []).some((c) => c.source === AM && c.kind === "place_control"));
         }
       }
 

@@ -35,12 +35,12 @@ const slug = (s) => s.toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g, "-")
 const PRINTED_WONDER_COSTS = {
   "Jebel Barkal": 7, Petra: 7, "Terracotta Army": 8,
   "Huey Teocalli": 9, "Venetian Arsenal": 10, Alhambra: 10,
-  "Ruhr Valley": 11, "Statue of Liberty": 12,
+  "Ruhr Valley": 11, Pentagon: 12, "Statue of Liberty": 12,
   Stonehenge: 7, "Hanging Gardens": 8, Colosseum: 9, "Taj Mahal": 9,
   "Forbidden City": 9, "Chichen Itza": 10, "Sydney Opera House": 10,
   "Cristo Redentor": 11, "Eiffel Tower": 12,
   Colossus: 7, "Great Lighthouse": 8, Apadana: 8, "Kilwa Kisiwani": 9,
-  "Great Zimbabwe": 9, "Big Ben": 10, "Estadio Do Maracana": 10, Orszaghaz: 11,
+  "Great Zimbabwe": 9, "Machu Picchu": 10, "Big Ben": 10, "Estadio Do Maracana": 10, Orszaghaz: 11,
   Oracle: 8, "Great Library": 8, Pyramids: 9, "University of Sankore": 9,
   "Porcelain Tower": 9, "Potala Palace": 10, "Oxford University": 10,
   "Amundsen-Scott Research Station": 10, Kremlin: 11
@@ -72,8 +72,8 @@ const PRINTED_BARBARIANS = {
   const unexpected = Object.keys(actual).filter((name) => !(name in PRINTED_WONDER_COSTS));
   check("Terracotta Army has its printed production cost of 8",
     actual["Terracotta Army"] === 8);
-  check("all 34 playable wonder costs match the printed cards",
-    wonders.length === 34 && mismatches.length === 0 && unexpected.length === 0);
+  check("all 36 playable wonder costs match the printed cards",
+    wonders.length === 36 && mismatches.length === 0 && unexpected.length === 0);
   if (mismatches.length || unexpected.length) {
     console.log("  wonder cost mismatch:", mismatches.concat(unexpected.map((name) => `${name}: unexpected`)));
   }

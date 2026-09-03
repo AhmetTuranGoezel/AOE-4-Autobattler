@@ -185,7 +185,7 @@ async function waitFor(cdp, expr, label, timeoutMs = 8000) {
     // ---- load ----------------------------------------------------------
     ok("page loads and the app object exists",
       await waitFor(cdp, "typeof UI === 'object' && typeof Game === 'object'", "boot"));
-    ok("rules data reached the browser", (await cdp.eval("Game.ALL_WONDERS.length")) === 34);
+    ok("rules data reached the browser", (await cdp.eval("Game.ALL_WONDERS.length")) === 36);
     ok("no uncaught exception during boot", cdp.errors.length === 0, cdp.errors[0]);
 
     // ---- Local Solo ----------------------------------------------------

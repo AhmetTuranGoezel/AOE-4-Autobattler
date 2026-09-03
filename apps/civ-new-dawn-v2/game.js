@@ -702,8 +702,8 @@ const Game = (() => {
       });
       Object.values(byEra).forEach(shuffle);
       // Terra setup step 7b removes one random card from EACH ancient and
-      // medieval pile. This still applies to Economy after Machu Picchu was
-      // removed during setup step 5; the rule prints no two-card exception.
+      // medieval pile. Each type begins 3/3/3 (including Terra's replacement
+      // Pentagon and Machu Picchu cards), so the playable deck is 2/2/3.
       if (byEra.ancient.length) byEra.ancient.pop();
       if (byEra.medieval.length) byEra.medieval.pop();
       const deck = [...byEra.ancient, ...byEra.medieval, ...byEra.modern].map((w) => w.name);
@@ -1392,6 +1392,10 @@ const Game = (() => {
           return denied("insufficient_wonder_production",
             `${wonder.name} costs ${payment.cost.finalCost}; this payment produces ${payment.production.total}.`);
         }
+        // Refuse a wonder whose printed effect the board cannot carry out,
+        // before anything is paid or revealed.
+        const blocked = wonderResolutionBlocked(st, actorId, wonder.name);
+        if (blocked) return denied(blocked.code, blocked.message);
       }
       if (type === "PLAY_ECONOMY") {
         const actor = getPlayer(st, actorId);
@@ -2615,6 +2619,10 @@ const Game = (() => {
         naturalWonders: payload.naturalWonders
       });
       if (!payment.ok || !payment.affordable) return st;
+      // The same precondition the permission table checks, enforced here too:
+      // applyAction is reachable offline and from a save, and this is the last
+      // point at which nothing has been spent, built or revealed yet.
+      if (wonderResolutionBlocked(st, payload.playerId, wonder.name)) return st;
 
       spendResources(player, payment.resources);
       markNaturalWondersUsed(st, payment.naturalWonders);
@@ -6368,10 +6376,33 @@ const Game = (() => {
   // Amundsen-Scott Research Station does not go into a city you already hold — it founds one
   // on any legal edge space and stands in that. Then up to 2 control tokens
   // land next to it.
-  function queueAmundsenSite(st, player, builtAtKey) {
-    const spots = Object.entries(st.map.hexes)
-      .filter(([k, h]) => isEdgeSpace(st, h) && isLegalCitySpace(st, h, k, player.id))
+  // Amundsen-Scott does not go into a city you already hold: the card says
+  // "build a city on any legal space on the edge of the map and place this
+  // wonder in that city". No legal rim space means the card cannot be resolved
+  // at all - so this is a precondition of BUYING it, not a follow-up that may
+  // quietly fizzle. It used to fizzle: the payment was spent, the deck advanced
+  // to the next card, and the station stayed in the ordinary city it was bought
+  // from, which is a board state the printed card cannot produce.
+  function amundsenSites(st, playerId) {
+    return Object.entries(st.map.hexes)
+      .filter(([k, h]) => isEdgeSpace(st, h) && isLegalCitySpace(st, h, k, playerId))
       .map(([k]) => k);
+  }
+
+  // Every wonder whose printed text REQUIRES something the board may not be
+  // able to provide. Checked before any irreversible step.
+  function wonderResolutionBlocked(st, playerId, wonderName) {
+    if (wonderName === "Amundsen-Scott Research Station" && !amundsenSites(st, playerId).length) {
+      return {
+        code: "amundsen_no_rim_city",
+        message: "Amundsen-Scott Research Station must found its own city on a legal space at the edge of the map, and there is none."
+      };
+    }
+    return null;
+  }
+
+  function queueAmundsenSite(st, player, builtAtKey) {
+    const spots = amundsenSites(st, player.id);
     if (!spots.length) return;
     queuePendingChoice(st, {
       kind: "amundsen_site", playerId: player.id, fromKey: builtAtKey,
@@ -8904,6 +8935,7 @@ const Game = (() => {
     validateIndustryCityAction,
     countControl, countWonders, countDeveloped, countCities, findCapital,
     getClaimedAgendaCount,
+    amundsenSites, wonderResolutionBlocked,
     getValidFortressHexes, getValidTileAnchors, getTileAnchorsAnyRotation, tilePlacementFor, getTileDef,
     tileHasCapital,
     getTileHexKeys, validateTilePlacement, ensureMapRadius, ensureMapHexes,

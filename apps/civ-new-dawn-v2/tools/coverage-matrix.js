@@ -82,13 +82,13 @@ const groups = [];
   groups.push({ name: "Civilization abilities", expect: 18, rows: abilities });
 }
 
-// 34 world wonders ---------------------------------------------------------
+// 36 world wonders ---------------------------------------------------------
 {
   const rows = [];
   Object.values(RULES.WONDER_DECKS || {}).forEach((deck) => deck.forEach((w) => {
     rows.push({ id: w.name, label: w.name, manual: !w.auto, tested: mentioned(w.name) });
   }));
-  groups.push({ name: "World wonders", expect: 34, rows });
+  groups.push({ name: "World wonders", expect: 36, rows });
 }
 
 // 5 player diplomacy cards -------------------------------------------------
@@ -129,12 +129,12 @@ const groups = [];
 }
 
 // ---------------------------------------------------------------------------
-// The gate is a RATCHET, not a cliff. 57 of the 122 effects have no behavioural
+// The gate is a RATCHET, not a cliff. 56 of the 124 effects have no behavioural
 // proof yet; failing on all of them would just leave the suite permanently red
 // and tell nobody anything new. Instead the proven count may never fall, the
 // group sizes must stay exact, and KNOWN_GAPS may never go stale. Raise this
 // number whenever tests are added — that is the whole point of it.
-const PROVEN_BASELINE = 65;
+const PROVEN_BASELINE = 68;
 
 const verbose = process.argv.includes("--list");
 const failures = [];

@@ -464,8 +464,8 @@ Added in this pass, all of them from the English card text:
 
 ## 2. Implemented, but approximated
 
-- **1 of the 34 world wonders is a table reminder.** Its printed text is shown on
-  the card, but the effect is not automated. The other 33 resolve themselves.
+- **1 of the 36 world wonders is a table reminder.** Its printed text is shown on
+  the card, but the effect is not automated. The other 35 resolve themselves.
   The one is **Oxford University**: "when you replace a focus card other than a
   science card, you do not have to replace it with a card of the same type." The
   row here is six card *types* with a tier each, so there is no way to hold two
@@ -562,13 +562,12 @@ they looked like, and two were mistakes in the *tests*, not in the game.
 
 ### Two things that were not bugs
 
-- **The wonder deck is 34, not 36.** Terra p2 step 5: *"Remove the base game
-  'Pentagon' and 'Machu Picchu' wonders."* Tests here asserted the pre-removal
-  box — 36 cards, nine of each type, three of every era, seven dealt each. After
-  the removal, military is short one modern (Pentagon) and economy short one
-  medieval (Machu Picchu), so setup deals seven of three types and six military.
-  The art pack corroborates it exactly: 36 card images, being the 34 plus the
-  two removed.
+- **The full Terra wonder pool is 36.** Terra removes the base-game Pentagon
+  and Machu Picchu cards, but supplies replacement cards for those same tokens.
+  The pool therefore has nine wonders of each type and three of each era. Setup
+  removes one random Ancient and one random Medieval card per type, leaving
+  seven cards per deck (2 Ancient, 2 Medieval, 3 Modern). All Modern wonders
+  remain, so Pentagon and Orszaghaz are present in every generated game.
 
 - **Science stopped trusting the client's `amount`.** The dial moves by the
   card's printed slot (base p7). A test asserting `tech === 1` from `amount: 1`
