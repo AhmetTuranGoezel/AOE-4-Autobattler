@@ -32,14 +32,22 @@ function scope(over) {
     PROTOCOL_VERSION: 2, SAVE_SCHEMA_VERSION: 2,
     localPlayerId: "p1",
     savedLocally: [], sentToRemote: [], renders: 0, netRevisions: [],
-    Game: { migrateState: (x) => x },
+    // The real lookup, because receiveNetworkState uses it to notice that the
+    // host has removed this seat. A stub that always found a player would have
+    // hidden that path instead of testing it.
+    Game: {
+      migrateState: (x) => x,
+      getPlayer: (st, id) => (st && st.players || []).find((pl) => pl.id === id) || null
+    },
+    kickedTo: [],
     CivSessionStore: { saveCheckpoint: async (rec) => { s.savedLocally.push(rec); } },
     updateNetworkChrome: () => {},
     rememberProcessed: (ids) => { s.processedActionIds = ids; },
     recoverAuthoritativeState: async () => ({ committed: false }),
     render: () => { s.renders++; },
     Net: { setRevision: (r) => { s.netRevisions.push(r); } },
-    localStorage: { setItem() {}, getItem: () => null }
+    localStorage: { setItem() {}, getItem: () => null },
+    returnToJoinScreen: (reason) => { s.kickedTo.push(reason); }
   };
   s.CivSessionApi = {
     checkpoint: async (gameId, body) => { s.sentToRemote.push(body); return { revision: 8, hostEpoch: 1, hostPeerId: "h", leaseUntil: 0 }; }
@@ -119,6 +127,26 @@ const run = (s, code) => vm.runInContext(code, s);
     ok("and the new state was adopted", s.state.revision === 9, s.state.revision);
     if (resolveWrite) resolveWrite();
     await p;
+  }
+
+  console.log("\n[6] a removed seat is handed back to the join screen");
+  {
+    const s = scope({ localPlayerId: "p2" });
+    await run(s, "receiveNetworkState({revision:10, phase:'lobby', players:[{id:'p1'}], " +
+      "kicked:['p2'], turn:{index:0,round:1}, chat:[]}, {revision:10})");
+    ok("the kicked client is sent back to the join screen", s.kickedTo.length === 1,
+      JSON.stringify(s.kickedTo));
+    ok("and it is told why", /removed/i.test(s.kickedTo[0] || ""), s.kickedTo[0]);
+    ok("it does not paint the lobby it is no longer in", s.renders === 0, s.renders);
+  }
+  {
+    // The seat that is still there must be unaffected by someone else's kick.
+    const s = scope({ localPlayerId: "p1" });
+    await run(s, "receiveNetworkState({revision:10, phase:'lobby', players:[{id:'p1'}], " +
+      "kicked:['p2'], turn:{index:0,round:1}, chat:[]}, {revision:10})");
+    ok("a seat that was NOT kicked stays in the game", s.kickedTo.length === 0,
+      JSON.stringify(s.kickedTo));
+    ok("and it repaints normally", s.renders === 1, s.renders);
   }
 
   console.log("\n=== " + pass + " passed, " + fail + " failed ===");

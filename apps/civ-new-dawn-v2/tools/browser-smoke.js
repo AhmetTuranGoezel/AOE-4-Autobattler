@@ -199,14 +199,21 @@ async function waitFor(cdp, expr, label, timeoutMs = 8000) {
       sel.value = "#8b62b5";
       return { opts, purpleSticks: sel.value.toLowerCase() === "#8b62b5" };
     })()`);
+    // Five printed colours, plus a leading "auto" entry. That entry is not
+    // decoration: every client used to default to Blue, so with colours now
+    // owned exclusively the second player to join was refused their own seat.
+    const colorOpts = (colorPicker.opts || []).filter((o) => o.value);
     ok("the colour picker offers five colours",
-      colorPicker.opts && colorPicker.opts.length === 5, JSON.stringify(colorPicker.opts));
+      colorOpts.length === 5, JSON.stringify(colorPicker.opts));
+    ok("and leads with an auto entry, so a joiner does not collide on Blue",
+      (colorPicker.opts || []).length === 6 && colorPicker.opts[0].value === "",
+      JSON.stringify(colorPicker.opts));
     ok("Purple appears in colour selection",
       !!(colorPicker.opts || []).find((o) => /purple/i.test(o.label)), JSON.stringify(colorPicker.opts));
     ok("Purple can actually be selected in the real control", colorPicker.purpleSticks === true);
     ok("every printed component colour is offered", (() => {
       const want = ["#169eae", "#d94747", "#e88b24", "#76a94f", "#8b62b5"];
-      const have = (colorPicker.opts || []).map((o) => o.value);
+      const have = colorOpts.map((o) => o.value);
       return want.every((v) => have.includes(v));
     })(), JSON.stringify(colorPicker.opts));
     ok("purple resolves to its own components, not another colour's",
