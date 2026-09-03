@@ -4494,6 +4494,147 @@
       }
 
       {
+        // The three economy cards other than Currency, which is proven with
+        // Sumeria. All four move every caravan; the distance, the terrain they
+        // may cross, and what happens at the end are what differ.
+        const ecoBoard = (tier, opts) => {
+          const o = opts || {};
+          const st = rulesState();
+          const me = st.players[0];
+          me.cardPlayed = false;
+          me.cardTiers.economy = tier;
+          me.cardLevels.economy = tier;
+          me.focusRow = ["economy", "science", "growth", "military", "industry", "culture"];
+          Game.FOCUS_TYPES.forEach((t) => { me.trade[t] = 0; });
+          Game.RESOURCES.forEach((r) => { me.resources[r] = 0; });
+          Object.values(st.map.hexes).forEach((h) => {
+            h.barbarian = false; h.barbarianId = null; h.barbarianToken = null;
+            h.barbarianHome = null; h.control = null; h.cityState = null;
+            h.resource = null; h.naturalWonder = null; h.naturalWonderSpace = null;
+          });
+          st.naturalWonders = {};
+          for (let q = -2; q <= 9; q++) {
+            activate(st, q + ",0", { terrain: "grass" });
+            activate(st, q + ",1", { terrain: "grass" });
+            activate(st, q + ",-1", { terrain: "grass" });
+          }
+          activate(st, "0,0", { city: { ownerId: me.id, isCapital: true,
+            developed: false, hasWonder: false, wonder: null } });
+          me.caravans = [{ id: "c1", position: "0,0" }];
+          if (o.setUp) o.setUp(st, me);
+          return { st, me };
+        };
+        const moveCaravan = (st, me, toKey) => Game.tryApplyAction(st,
+          { type: "PLAY_ECONOMY", payload: {
+            playerId: me.id, unitId: "c1", toKey, tradeSpent: 0 } },
+          { actorId: me.id, role: "player" });
+
+        // ── Foreign Trade ────────────────────────────────────────────────
+        {
+          // "Move each of your caravans up to 3 spaces ... Reaching a
+          // city-state or rival city returns the caravan to this card and
+          // earns 2 trade tokens and a diplomacy card."
+          const { st, me } = ecoBoard(1, { setUp: (s2) => {
+            activate(s2, "3,0", { terrain: "grass",
+              cityState: { name: "Test State", type: "science", diplomacyCards: 2 } });
+          } });
+          assert("Foreign Trade is the level-I economy card",
+            Game.getCardName(me, "economy") === "Foreign Trade",
+            Game.getCardName(me, "economy"));
+          assert("it moves a caravan up to three spaces",
+            Game.getEconomyMove(me, st) === 3, String(Game.getEconomyMove(me, st)));
+          assert("four spaces is out of reach",
+            !Game.getReachable(st, "0,0", 3, "caravan", me.id).has("4,0"));
+          const dipBefore = (me.diplomacy || []).length;
+          const out = moveCaravan(st, me, "3,0");
+          assert("the caravan reaches the city-state", out.accepted, out.code);
+          assert("it earns two trade tokens of that state's type",
+            out.state.players[0].trade.science === 2,
+            String(out.state.players[0].trade.science));
+          assert("and a diplomacy card",
+            (out.state.players[0].diplomacy || []).length === dipBefore + 1,
+            JSON.stringify(out.state.players[0].diplomacy));
+          assert("returning the caravan to its card",
+            out.state.players[0].caravans[0].position === null,
+            String(out.state.players[0].caravans[0].position));
+        }
+        proves("standard.economy.foreign_trade");
+
+        // ── Steam Power ──────────────────────────────────────────────────
+        {
+          // "Move each of your caravans up to 6 spaces ... as well as WATER.
+          // Then, you may exchange 1 of your resource tokens with another
+          // resource token of any type from the supply."
+          const { st, me } = ecoBoard(3, { setUp: (s2, p2) => {
+            activate(s2, "1,0", { terrain: "water" });
+            p2.resources.marble = 1;
+          } });
+          assert("Steam Power moves six spaces",
+            Game.getEconomyMove(me, st) === 6, String(Game.getEconomyMove(me, st)));
+          assert("and its caravans may cross water",
+            Game.getReachable(st, "0,0", 6, "caravan", me.id).has("1,0"),
+            [...Game.getReachable(st, "0,0", 6, "caravan", me.id)].sort().join(" "));
+          const out = moveCaravan(st, me, "2,0");
+          assert("the caravan moves through the water", out.accepted, out.code);
+          const swap = (out.state.pendingChoices || [])
+            .find((c) => c.kind === "resource_exchange_source");
+          assert("then it offers the resource exchange", !!swap,
+            JSON.stringify((out.state.pendingChoices || [])
+              .map((c) => c.kind + "/" + c.source)));
+          assert("and the exchange is optional, because the card says you may",
+            !!swap && swap.optional === true, JSON.stringify(swap && swap.optional));
+        }
+        {
+          // A caravan without Steam Power cannot cross water, so the ability is
+          // the card's and not something every caravan does.
+          const { st, me } = ecoBoard(1, { setUp: (s2) => {
+            activate(s2, "1,0", { terrain: "water" });
+          } });
+          assert("a Foreign Trade caravan cannot enter water",
+            !Game.getReachable(st, "0,0", 3, "caravan", me.id).has("1,0"));
+        }
+        proves("standard.economy.steam_power");
+
+        // ── Capitalism ───────────────────────────────────────────────────
+        {
+          // "...Once per turn, after you reset this card, choose another card
+          // in your focus row. Resolve that card as though it is in the first
+          // slot, but do not reset it."
+          const { st, me } = ecoBoard(4);
+          assert("Capitalism moves six spaces",
+            Game.getEconomyMove(me, st) === 6, String(Game.getEconomyMove(me, st)));
+          const out = moveCaravan(st, me, "2,0");
+          assert("the caravan moves", out.accepted, out.code);
+          const replay = (out.state.pendingChoices || [])
+            .find((c) => c.kind === "capitalism_card");
+          assert("then Capitalism offers a second card to resolve", !!replay,
+            JSON.stringify((out.state.pendingChoices || [])
+              .map((c) => c.kind + "/" + c.source)));
+          // Unlike Steam Power's "you MAY exchange", this card prints no "may":
+          // "choose another card in your focus row". So it is not declinable,
+          // and that difference between the two cards is deliberate.
+          assert("and it is not optional, because the card does not say may",
+            !replay.optional, JSON.stringify(replay.optional));
+          assert("the economy card itself is not on offer again",
+            !!replay && !(replay.options || []).some((o) => o.id === "economy"),
+            replay && JSON.stringify((replay.options || []).map((o) => o.id)));
+          const chosen = Game.applyAction(out.state, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: me.id, choiceId: replay.id,
+              optionId: (replay.options || [])[0].id } });
+          const type = (replay.options || [])[0].id;
+          assert("choosing one lets it be resolved again this turn",
+            chosen.players[0].cardPlayed === false,
+            JSON.stringify({ played: chosen.players[0].cardPlayed }));
+          assert("and it is resolved as a slot-1 card without being reset",
+            chosen.players[0].capitalismReplay === type &&
+            chosen.players[0].capitalismNoReset === true,
+            JSON.stringify({ replay: chosen.players[0].capitalismReplay,
+              noReset: chosen.players[0].capitalismNoReset }));
+        }
+        proves("standard.economy.capitalism");
+      }
+
+      {
         // The growth ladder. Every card can place a district next to a friendly
         // city; the first two print that as an alternative to reinforcing ("Or,
         // reinforce..."), while the last two do both in sequence. Sanitation is
