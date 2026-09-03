@@ -741,12 +741,25 @@ const UI = (() => {
     if (!result.accepted) return { ...result, state, revision: state?.revision || 0 };
 
     if (isNetworkGame() && sessionCredentials.role === "host") {
-      return checkpointCandidate(result.state, actionId, context.extraSeatTokens);
+      const outcome = await checkpointCandidate(result.state, actionId, context.extraSeatTokens);
+      // The host applies EVERY seat's action, including the ones that arrive
+      // over the wire from a client. Those come in through Net's handleAction,
+      // which broadcasts the new snapshot to the clients and acknowledges the
+      // sender - and then returns. Nothing on the host's own page repaints:
+      // receiveNetworkState only ever runs on a CLIENT, because the host does
+      // not receive its own broadcast, and dispatch()'s render only covers
+      // actions the host itself started. So the host committed the guest's turn
+      // and kept showing the board from before it: an empty focus row on its own
+      // turn, and a reload as the only way out. That is the reported bug seen
+      // from the host's side. Repaint whenever the authoritative state moved.
+      if (outcome && outcome.accepted) render();
+      return outcome;
     }
     const revision = (Number.isInteger(state?.revision) ? state.revision : 0) + 1;
     result.state.revision = revision;
     state = result.state;
     networkStatus = { ...networkStatus, revision };
+    render();
     return { ...result, state, revision };
   }
 
@@ -7012,5 +7025,21 @@ const UI = (() => {
   // what the board actually became. It hands back the live object rather than a
   // copy on purpose - nothing in the app reads it, and a copy of a full game
   // state on every call would be the more surprising thing to leave behind.
-  return { render, dispatch, renderCardFace, hexPoint, debugState: () => state };
+  // debugInfo answers "who does this tab think it is, and what is it in the
+  // middle of" - the two things that decide whether the focus row is alive and
+  // that nothing else exposes. A disabled row is otherwise indistinguishable
+  // from a lost seat.
+  return {
+    render, dispatch, renderCardFace, hexPoint,
+    debugState: () => state,
+    debugInfo: () => ({
+      localPlayerId,
+      seatInState: !!(state && state.players && state.players.some((p) => p.id === localPlayerId)),
+      credentialSeat: sessionCredentials ? sessionCredentials.seatId : null,
+      subPhase: sub.phase,
+      actionPending,
+      readOnlySession,
+      backupFailure: backupFailure ? (backupFailure.code || String(backupFailure.message || "")) : null
+    })
+  };
 })();

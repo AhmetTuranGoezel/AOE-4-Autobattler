@@ -23,7 +23,10 @@ const steps = [
   // Last because it is the slow one: it starts the dev session server, drives a
   // real Chrome, and plays a turn. Everything above proves the engine agrees
   // with itself; this proves the page a person actually opens still works.
-  ["browser smoke", "browser-smoke.js"]
+  ["browser smoke", "browser-smoke.js"],
+  // Slowest of all: two browsers, one room, turns passed both ways. It is the
+  // only thing here that can catch a client not being told the turn changed.
+  ["two clients", "two-client-test.js"]
 ];
 
 const SOURCES = ["game.js", "ui.js", "rules-data.js", "card-art.js", "tile-art.js",

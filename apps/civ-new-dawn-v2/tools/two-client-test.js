@@ -139,7 +139,10 @@ async function waitUntil(fn, ms, step = 150) {
     }
 
     // ---- host creates ----------------------------------------------------
-    const room = await host.eval(`(async () => {
+    // Creating a room needs the public PeerJS broker, which is outside this
+    // repo and does throttle. A broker hiccup is not a finding about the game,
+    // so try again on a fresh page rather than reporting a false failure.
+    const createRoom = () => host.eval(`(async () => {
       document.getElementById("inp-name").value = "Host";
       document.getElementById("btn-create").click();
       for (let i = 0; i < 160; i++) {
@@ -152,6 +155,13 @@ async function waitUntil(fn, ms, step = 150) {
       return { lobby: !!(s && s.phase === "lobby"), code: code.trim(),
                status: (document.getElementById("lobby-status") || {}).textContent || "" };
     })()`);
+    let room = await createRoom();
+    for (let attempt = 0; attempt < 2 && !(room.lobby && room.code); attempt++) {
+      info("room creation retry", JSON.stringify(room));
+      await host.cdp.send("Page.reload");
+      await waitUntil(async () => await host.eval("typeof UI === 'object'"), 15000);
+      room = await createRoom();
+    }
     ok("host created a room", room.lobby && !!room.code, JSON.stringify(room));
     info("room code", room.code);
     if (!room.code) throw new Error("no room code; cannot continue");
@@ -251,7 +261,40 @@ async function waitUntil(fn, ms, step = 150) {
       ok("guest reached play without reloading", guestPlaying >= 0);
 
       // ---- pass turns back and forth --------------------------------------
+      // A leader or start-of-turn effect can queue a decision the moment play
+      // begins, and an open decision correctly disables the focus row for
+      // everyone (game.js denies with decision_pending, and renderFocusRow
+      // mirrors it). A player answers it before choosing a card, so the harness
+      // does too - otherwise the row is dead and it looks like a sync failure.
+      const drainChoices = async () => {
+        const answered = [];
+        for (let i = 0; i < 20; i++) {
+          const open = await host.eval("((UI.debugState().pendingChoices || []).length)");
+          if (!open) break;
+          let progressed = false;
+          for (const t of [host, guest]) {
+            const r = await t.eval(`(async () => {
+              const s = UI.debugState();
+              const seat = Net.getCredentials ? Net.getCredentials().seatId : null;
+              const c = (s.pendingChoices || []).find((x) => x.playerId === seat);
+              if (!c) return null;
+              const p = { playerId: seat, choiceId: c.id };
+              if (c.options && c.options.length) p.optionId = c.options[0].id;
+              else if (c.hexKeys && c.hexKeys.length) p.hexKey = c.hexKeys[0];
+              const res = await UI.dispatch({ type: "RESOLVE_PENDING_CHOICE", payload: p });
+              return c.kind + ":" + (res && res.status);
+            })()`);
+            if (r) { answered.push(r); if (/accepted/.test(r)) progressed = true; }
+          }
+          if (!progressed) break;
+        }
+        return answered;
+      };
+      const preAnswered = await drainChoices();
+      if (preAnswered.length) info("decisions open at game start", preAnswered.join(", "));
+
       for (let round = 0; round < 4; round++) {
+        await drainChoices();
         const cur = await host.eval("(() => { const s = UI.debugState(); return { id: Game.currentPlayer(s).id, idx: s.turn.index, round: s.turn.round }; })()");
         // Neither tab is asked which seat it owns; both attempt the turn and
         // the permission table refuses the one that has no business playing it.
@@ -259,14 +302,65 @@ async function waitUntil(fn, ms, step = 150) {
         // would be broken.
         const attempts = [];
         for (const t of [host, guest]) {
+          // Stop at the first acceptance. Both tabs are offered the turn so the
+          // one with no right to it is seen being refused, but once a turn has
+          // actually been played it PASSES to the other seat - so letting the
+          // second tab go on would just be it legitimately playing the next
+          // turn, which is not what this assertion is about.
+          if (attempts.some((a) => a.res && a.res.status === "accepted")) break;
           attempts.push({ tab: t, res: await t.eval(`(async () => {
           const s = UI.debugState();
           const me = Game.currentPlayer(s).id;
-          const el = document.querySelector('.fcard:not(.disabled)');
-          if (el) el.click();
-          await new Promise((r) => setTimeout(r, 250));
-          const b = document.getElementById('wiz-start'); if (b) b.click();
-          await new Promise((r) => setTimeout(r, 400));
+          // Science resolves entirely in the panel; every other card wants the
+          // board. Prefer it so a normal turn completes the normal way.
+          const playable = [...document.querySelectorAll('.fcard:not(.disabled)')];
+          const el = playable.find((e) => e.dataset.card === 'science') || playable[0];
+          if (!el) {
+            // Report exactly what renderFocusRow's canPlay is made of, so a
+            // dead row says WHY instead of just "no card".
+            const cp = Game.currentPlayer(s);
+            const mine = Game.getPlayer(s, me);
+            return { status: "rejected", why: "no playable card in this tab",
+              cards: 0, cardPlayed: mine && mine.cardPlayed, pending: (s.pendingChoices || []).length,
+              canPlayInputs: {
+                currentPlayer: cp && cp.id,
+                phase: s.phase,
+                combat: !!s.combat,
+                activeCard: s.activeCard ? s.activeCard.playerId : null,
+                pendingExploration: !!s.pendingExploration,
+                movementContinuation: !!s.movementContinuation,
+                pendingBarbReward: !!s.pendingBarbReward,
+                choiceOwners: (s.pendingChoices || []).map((c) => c.playerId),
+                totalFcards: document.querySelectorAll('.fcard').length,
+                who: UI.debugInfo ? UI.debugInfo() : null
+              } };
+          }
+          el.click();
+          // Over the network a card resolution is a round trip through the host
+          // and its checkpoint, so wait for the card to actually be spent
+          // instead of guessing a delay. END_TURN is refused until it is.
+          for (let i = 0; i < 40; i++) {
+            const b = document.getElementById('wiz-start');
+            if (b) b.click();
+            const p = Game.getPlayer(UI.debugState(), me);
+            if (p && p.cardPlayed) break;
+            await new Promise((r) => setTimeout(r, 150));
+          }
+          // Culture, military and economy all hand control to the BOARD - place
+          // markers, move figures - which this harness cannot do, so the card
+          // sits half-resolved and the row stays disabled. Base p16 allows
+          // resolving a card for no effect, and the panel offers exactly that
+          // (it asks once, then commits). Use it to finish the turn honestly
+          // rather than leaving the seat stuck.
+          if (!Game.getPlayer(UI.debugState(), me).cardPlayed) {
+            for (let i = 0; i < 30; i++) {
+              const n = document.getElementById('wiz-nothing');
+              if (n) n.click();
+              const p = Game.getPlayer(UI.debugState(), me);
+              if (p && p.cardPlayed) break;
+              await new Promise((r) => setTimeout(r, 150));
+            }
+          }
           for (let i = 0; i < 10; i++) {
             const st = UI.debugState();
             const mineChoice = (st.pendingChoices || []).find((c) => c.playerId === me);
