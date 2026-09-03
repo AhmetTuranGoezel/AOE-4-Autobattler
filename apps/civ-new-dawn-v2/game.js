@@ -884,6 +884,16 @@ const Game = (() => {
   // the five physical colours so no two players share the same board pieces.
   const SEAT_COLORS = ["#169eae", "#d94747", "#e88b24", "#76a94f", "#8b62b5"];
 
+  // The five printed component colours, by name, for anything that has to say
+  // which one a player ended up with.
+  const SEAT_COLOR_NAMES = {
+    "#169eae": "Blue", "#d94747": "Red", "#e88b24": "Orange",
+    "#76a94f": "Green", "#8b62b5": "Purple"
+  };
+  function colorName(value) {
+    return SEAT_COLOR_NAMES[String(value || "").toLowerCase()] || String(value || "a colour");
+  }
+
   function seatColor(taken, wanted) {
     const free = SEAT_COLORS.filter((c) => !taken.includes(c));
     if (!free.length) return SEAT_COLORS[taken.length % SEAT_COLORS.length];
@@ -1759,10 +1769,18 @@ const Game = (() => {
       if (st.phase !== "lobby") return st;
       if (st.players.length >= CFG.maxPlayers) return st;
       migratePlayer(payload);
+      // Two players cannot share a physical component set, so a colour already
+      // in use is reassigned. Say so rather than quietly handing back a
+      // different one: a player who picked purple and silently became green has
+      // no way to tell whether the choice was ignored or the game is broken.
+      const requested = String(payload.color || "").toLowerCase();
       payload.color = seatColor(st.players.map((p) => p.color), payload.color);
       st.players.push(payload);
       st.turn.order.push(payload.id);
       log(st, `${payload.name} joined the lobby. (${st.players.length}/${CFG.maxPlayers})`);
+      if (requested && requested !== String(payload.color).toLowerCase()) {
+        log(st, `${payload.name} asked for a colour already in use and was seated as ${colorName(payload.color)}.`);
+      }
       return st;
     }
 
@@ -8914,7 +8932,7 @@ const Game = (() => {
     SAVE_SCHEMA_VERSION, MAX_LOG_ENTRIES, MAX_CHAT_ENTRIES,
     createState, createLobbyState, createPlayer, migrateState, finalizeSetup,
     applyAction, tryApplyAction, getActionPermission, projectState, currentPlayer, getPlayer, getUndoStatus,
-    SEAT_COLORS, seatColor,
+    SEAT_COLORS, seatColor, colorName,
     getDiplomacyAttackBonus, getDiplomacyDefenseBonus, nonAggressionWith, openBordersWith,
     isCityDeveloped,
     getSlotValue, getSlotIndex, getCardTier, getCardTierValue: getCardTier,

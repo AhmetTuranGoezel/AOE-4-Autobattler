@@ -3947,6 +3947,65 @@
         }
       }
 
+      // ── Terra seats five, and the fifth is purple ───────────────────────
+      //
+      // Purple was present in the engine, in SEAT_COLORS and as a complete set
+      // of printed assets while the lobby markup listed four colours, so the
+      // fifth player could not be chosen at all. These assert the seating
+      // rules; tools/browser-smoke.js asserts the picker itself.
+      {
+        const PURPLE = "#8b62b5";
+        const FIVE = ["#169eae", "#d94747", "#e88b24", "#76a94f", PURPLE];
+        assert("five printed component colours are seatable",
+          Game.SEAT_COLORS.length === 5 && FIVE.every((c) => Game.SEAT_COLORS.includes(c)),
+          JSON.stringify(Game.SEAT_COLORS));
+        assert("the table seats five", Game.CFG.maxPlayers === 5, Game.CFG.maxPlayers);
+
+        const fill = (wanted) => {
+          let lob = Game.createLobbyState([Game.createPlayer("p1", "Host", wanted[0] || "")], {});
+          for (let i = 2; i <= wanted.length; i++) {
+            lob = Game.applyAction(lob, { type: "ADD_PLAYER",
+              payload: Game.createPlayer("p" + i, "P" + i, wanted[i - 1] || "") });
+          }
+          return lob;
+        };
+
+        const auto = fill(["", "", "", "", ""]);
+        const autoColors = auto.players.map((p) => p.color);
+        assert("five players who choose nothing all get a distinct colour",
+          auto.players.length === 5 && new Set(autoColors).size === 5, JSON.stringify(autoColors));
+        assert("and the set is exactly the five printed colours, purple included",
+          FIVE.every((c) => autoColors.includes(c)), JSON.stringify(autoColors));
+
+        const picked = fill(["#169eae", PURPLE]);
+        assert("a player who asks for purple receives purple",
+          picked.players[1].color === PURPLE, picked.players[1].color);
+
+        const clash = fill([PURPLE, PURPLE]);
+        assert("a colour already in use is reassigned rather than shared",
+          clash.players[1].color !== PURPLE && FIVE.includes(clash.players[1].color),
+          clash.players[1].color);
+        assert("and the reassignment is announced instead of silent",
+          clash.log.some((e) => /already in use/i.test(e.text || e)),
+          JSON.stringify(clash.log.slice(-2)));
+
+        const sixth = fill(["", "", "", "", "", ""]);
+        assert("a sixth seat is refused", sixth.players.length === 5, sixth.players.length);
+
+        const started = Game.applyAction(fill(["", "", "", "", ""]),
+          { type: "START_GAME", payload: {} });
+        assert("a five-player game leaves the lobby",
+          started.phase !== "lobby" && started.players.length === 5,
+          JSON.stringify({ phase: started.phase, n: started.players.length }));
+        assert("turn order contains all five seats",
+          new Set(started.turn.order).size === 5, JSON.stringify(started.turn.order));
+        const violet = started.players.find((p) => p.color === PURPLE);
+        assert("the purple seat exists, is in the turn order and has its own pieces",
+          violet && started.turn.order.includes(violet.id) &&
+          violet.focusRow.length === 6 && Array.isArray(violet.armies) &&
+          Array.isArray(violet.caravans));
+      }
+
       // ── Amundsen-Scott is all-or-nothing ────────────────────────────────
       //
       // The printed card does not put this wonder in a city you already hold:

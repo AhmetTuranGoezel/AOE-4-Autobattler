@@ -188,6 +188,38 @@ async function waitFor(cdp, expr, label, timeoutMs = 8000) {
     ok("rules data reached the browser", (await cdp.eval("Game.ALL_WONDERS.length")) === 36);
     ok("no uncaught exception during boot", cdp.errors.length === 0, cdp.errors[0]);
 
+    // ---- the fifth seat's colour is actually selectable -----------------
+    // Terra seats five. Purple existed in the engine, in SEAT_COLORS and as a
+    // full set of assets while the markup listed four, so the fifth player
+    // could not be chosen at all. This asserts the real <select>, not the data.
+    const colorPicker = await cdp.eval(`(() => {
+      const sel = document.getElementById("inp-color");
+      if (!sel) return { missing: true };
+      const opts = [...sel.options].map((o) => ({ value: o.value.toLowerCase(), label: o.textContent.trim() }));
+      sel.value = "#8b62b5";
+      return { opts, purpleSticks: sel.value.toLowerCase() === "#8b62b5" };
+    })()`);
+    ok("the colour picker offers five colours",
+      colorPicker.opts && colorPicker.opts.length === 5, JSON.stringify(colorPicker.opts));
+    ok("Purple appears in colour selection",
+      !!(colorPicker.opts || []).find((o) => /purple/i.test(o.label)), JSON.stringify(colorPicker.opts));
+    ok("Purple can actually be selected in the real control", colorPicker.purpleSticks === true);
+    ok("every printed component colour is offered", (() => {
+      const want = ["#169eae", "#d94747", "#e88b24", "#76a94f", "#8b62b5"];
+      const have = (colorPicker.opts || []).map((o) => o.value);
+      return want.every((v) => have.includes(v));
+    })(), JSON.stringify(colorPicker.opts));
+    ok("purple resolves to its own components, not another colour's",
+      await cdp.eval(`(() => {
+        const p = "#8b62b5", b = "#169eae";
+        if (!window.CivCardArt) return false;
+        return CivCardArt.colorId(p) === "purple" &&
+          !!CivCardArt.control(p, false) &&
+          CivCardArt.control(p, false) !== CivCardArt.control(b, false) &&
+          !!CivCardArt.piece("city", p) &&
+          CivCardArt.piece("city", p) !== CivCardArt.piece("city", b);
+      })()`));
+
     // ---- Local Solo ----------------------------------------------------
     const soloBtn = await cdp.eval(`(() => {
       const b = [...document.querySelectorAll('button')].find((x) => /solo/i.test(x.textContent));

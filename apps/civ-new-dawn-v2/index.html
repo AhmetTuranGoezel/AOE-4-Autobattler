@@ -15,11 +15,18 @@
       <div class="lobby-form">
         <label>Name <input type="text" id="inp-name" value="Player" maxlength="16"></label>
         <label>Color
+          <!-- Terra Incognita seats five. These are the five printed component
+               colours; ui.js rebuilds this list from CivCardArt.colors at boot
+               so it can never fall behind the components again - purple was
+               missing here while the engine, the seat table and every purple
+               asset already existed, so the fifth player simply could not be
+               chosen. -->
           <select id="inp-color">
             <option value="#169eae">Blue</option>
             <option value="#d94747">Red</option>
             <option value="#e88b24">Orange</option>
             <option value="#76a94f">Green</option>
+            <option value="#8b62b5">Purple</option>
           </select>
         </label>
         <div class="lobby-actions">

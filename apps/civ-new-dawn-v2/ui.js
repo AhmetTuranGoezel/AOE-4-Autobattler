@@ -883,6 +883,19 @@ const UI = (() => {
       if (e.key === "Escape") drawer?.classList.add("hidden");
     });
 
+    // The colour list is the five printed component colours, taken from the art
+    // manifest rather than typed into the markup, so adding or renaming a
+    // component colour cannot leave a player unable to pick it. Purple existed
+    // in the engine, in SEAT_COLORS and as a complete set of assets while the
+    // markup still listed four, which is why the fifth seat was unreachable.
+    if (window.CivCardArt && CivCardArt.colors && dom.inpColor) {
+      const wanted = dom.inpColor.value;
+      dom.inpColor.innerHTML = CivCardArt.colors
+        .map((c) => `<option value="${escapeHtml(c.value)}">${escapeHtml(c.label)}</option>`)
+        .join("");
+      if (CivCardArt.colors.some((c) => c.value === wanted)) dom.inpColor.value = wanted;
+    }
+
     initReference();
     if (window.CivCardArt) {
       CivCardArt.load().then((usable) => { if (usable && state) render(); });
