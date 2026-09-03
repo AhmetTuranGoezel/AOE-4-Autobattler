@@ -1417,6 +1417,179 @@
       }
 
       {
+        // England: "When you build a city, if it is the only city on its tile
+        // (excluding city-states), you may place 1 of your unused, reinforced
+        // control token in a space adjacent to that city."
+        //
+        // The ability was checked inside the industry action alone, so the
+        // three other ways to BUILD a city - an Industrial Zone, Cartography,
+        // the Amundsen-Scott rim city - gave England nothing. It now listens to
+        // one onCityBuilt event, which capture and conquest deliberately do not
+        // raise. The offer is also optional now: the card says "you may".
+        //
+        // Note: the engine models no control-token supply for anyone, so the
+        // printed word "unused" has nothing to bite on here. That is a
+        // board-wide simplification, not an England one; see
+        // tools/generic-rules-checklist.md.
+        const act = (st, type, payload) => Game.tryApplyAction(st, { type, payload },
+          { actorId: payload.playerId || st.players[0].id, role: "player" });
+        const englandChoice = (st) => (st.pendingChoices || [])
+          .find((ch) => ch.kind === "place_control" && /england/.test(ch.source || ""));
+
+        // A board with two named tiles: the capital sits on tile A, and the new city
+        // goes on tile B, which holds no other city. tileId is what England's clause
+        // reads, so the fixture sets it rather than depending on which core tiles were
+        // dealt.
+        const TILE_A = ["0,0", "1,0", "-1,0", "0,1", "0,-1", "1,-1", "-1,1"];
+        const TILE_B = ["3,0", "4,0", "5,0", "4,1", "4,-1", "5,-1", "3,1", "6,0", "6,-1", "6,1"];
+        function englandBoard(opts) {
+          const o = opts || {};
+          const st = rulesState();
+          const me = st.players[0];
+          if (o.leader !== false) me.leaderId = "england";
+          me.cardPlayed = false;
+          Object.values(st.map.hexes).forEach((h) => { h.barbarian = false; h.barbarianId = null; });
+          TILE_A.forEach((k) => activate(st, k, { terrain: "grass", tileId: "A" }));
+          TILE_B.forEach((k) => activate(st, k, { terrain: "grass", tileId: "B" }));
+          activate(st, "0,0", { terrain: "grass", tileId: "A", city: {
+            ownerId: me.id, isCapital: true, developed: false, hasWonder: false, wonder: null } });
+          // A bridge of friendly control so tile B is within range of a friendly space.
+          ["1,0", "2,0"].forEach((k) => activate(st, k, { terrain: "grass",
+            tileId: k === "1,0" ? "A" : null,
+            control: { ownerId: me.id, fortified: false, district: null } }));
+          activate(st, "3,0", { terrain: "grass", tileId: "B",
+            control: { ownerId: me.id, fortified: false, district: null } });
+          return { st, me };
+        }
+
+        {
+          const { st, me } = englandBoard();
+          assert("4,0 is a legal city space for the industry card",
+            Game.validCityHexes(st, me.id, Infinity, 2).has("4,0"),
+            [...Game.validCityHexes(st, me.id, Infinity, 2)].join(" "));
+          const out = act(st, "PLAY_INDUSTRY_CITY", { playerId: me.id, hexKey: "4,0" });
+          assert("the industry card builds the city", out.accepted, out.code);
+          assert("and the city is there",
+            out.accepted && out.state.map.hexes["4,0"].city.ownerId === me.id);
+          const ch = out.accepted && englandChoice(out.state);
+          assert("England is offered its reinforced token", !!ch,
+            JSON.stringify(((out.state || {}).pendingChoices || []).map((x) => x.source)));
+          if (ch) {
+            assert("the offer is optional, because the card says 'you may'", ch.optional === true);
+            assert("it offers the reinforced side of the token", ch.fortified === true);
+            assert("every space it offers is adjacent to the new city",
+              ch.hexKeys.every((k) => Game.hexNeighborKeys(4, 0).includes(k)), ch.hexKeys.join(" "));
+            assert("and none of them already holds something",
+              ch.hexKeys.every((k) => !out.state.map.hexes[k].control && !out.state.map.hexes[k].city));
+            const placed = Game.applyAction(out.state, { type: "RESOLVE_PENDING_CHOICE", payload: {
+              playerId: me.id, choiceId: ch.id, hexKey: "5,0" } });
+            const tok = placed.map.hexes["5,0"].control;
+            assert("placing it puts a REINFORCED token on the board",
+              !!tok && tok.ownerId === me.id && tok.fortified === true, JSON.stringify(tok));
+            assert("which is a plain control token, not a district", !!tok && !tok.district);
+            assert("and the offer does not repeat", !englandChoice(placed));
+          }
+        }
+
+        {
+          const { st, me } = englandBoard();
+          const out = act(st, "PLAY_INDUSTRY_CITY", { playerId: me.id, hexKey: "4,0" });
+          const ch = englandChoice(out.state);
+          const declined = Game.applyAction(out.state, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: ch.id, dismiss: true } });
+          assert("declining is accepted", !englandChoice(declined));
+          assert("and no token was placed",
+            Game.hexNeighborKeys(4, 0).every((k) => !declined.map.hexes[k].control ||
+              declined.map.hexes[k].control.fortified === false));
+        }
+
+        {
+          const { st, me } = englandBoard();
+          // A rival city elsewhere on tile B - not adjacent, so the build is still legal.
+          activate(st, "6,0", { terrain: "grass", tileId: "B", city: {
+            ownerId: st.players[1].id, isCapital: false, developed: false, hasWonder: false, wonder: null } });
+          const out = act(st, "PLAY_INDUSTRY_CITY", { playerId: me.id, hexKey: "4,0" });
+          assert("the city is still built", out.accepted, out.code);
+          assert("but England gets nothing: the tile already had a city",
+            out.accepted && !englandChoice(out.state));
+        }
+        {
+          const { st, me } = englandBoard();
+          // A city-state on the same tile is explicitly excluded by the wording.
+          activate(st, "6,0", { terrain: "grass", tileId: "B",
+            cityState: { name: "Test State", type: "culture" } });
+          const out = act(st, "PLAY_INDUSTRY_CITY", { playerId: me.id, hexKey: "4,0" });
+          assert("a build beside a city-state on the tile still works", out.accepted, out.code);
+          assert("and a CITY-STATE on the tile does not disqualify it",
+            out.accepted && !!englandChoice(out.state));
+        }
+
+        {
+          const { st, me } = englandBoard({ leader: false });
+          me.leaderId = "rome";
+          const out = act(st, "PLAY_INDUSTRY_CITY", { playerId: me.id, hexKey: "4,0" });
+          assert("the city is built", out.accepted, out.code);
+          assert("with no expansion offer", out.accepted && !englandChoice(out.state));
+        }
+
+        {
+          const { st, me } = englandBoard();
+          // An Industrial Zone builds the city instead of the industry card.
+          activate(st, "1,0", { terrain: "grass", tileId: "A",
+            control: { ownerId: me.id, fortified: false, district: "industrial" } });
+          me.trade.industry = 3;
+          Game.resolveEvent(st, "district_event");
+          const mode = (st.pendingChoices || []).find((ch) => ch.kind === "district_mode");
+          const chose = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: mode.id, optionId: "city" } });
+          const build = (chose.pendingChoices || []).find((ch) => ch.kind === "build_city");
+          assert("the industrial zone offers to build", !!build && build.hexKeys.includes("4,0"),
+            build && build.hexKeys.join(" "));
+          const built = Game.applyAction(chose, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: build.id, hexKey: "4,0" } });
+          assert("the city is built by the district", !!built.map.hexes["4,0"].city);
+          assert("and England is offered its token from THAT build too",
+            !!englandChoice(built),
+            JSON.stringify((built.pendingChoices || []).map((x) => x.source)));
+        }
+
+        {
+          // England's wording is "when you BUILD a city". Taking one off a rival is
+          // not building it, so the offer must not appear - and the captured city sits
+          // alone on its own tile, which is exactly the shape that would qualify if
+          // the trigger were wrongly keyed to "a city became mine".
+          const attempt = () => {
+            const { st, me } = englandBoard();
+            st.turn.index = st.turn.order.indexOf(me.id);
+            activate(st, "6,0", { terrain: "grass", tileId: "C", city: {
+              ownerId: st.players[1].id, isCapital: false, developed: false,
+              hasWonder: false, wonder: null } });
+            me.armies = [{ id: "a1", position: "5,0" }];
+            let s2 = Game.applyAction(st, { type: "PLAY_MILITARY_ATTACK", payload: {
+              playerId: me.id, unitId: "a1", fromKey: "5,0", toKey: "6,0", targetType: "city" } });
+            if (!s2.combat) return null;
+            s2 = Game.applyAction(s2, { type: "COMBAT_ROLL", payload: { playerId: me.id, side: "attacker" } });
+            s2 = Game.applyAction(s2, { type: "COMBAT_ROLL", payload: { playerId: me.id, side: "defender", hostOverride: true } });
+            s2 = Game.applyAction(s2, { type: "COMBAT_PASS", payload: { playerId: me.id, side: "attacker" } });
+            s2 = Game.applyAction(s2, { type: "COMBAT_PASS", payload: { playerId: st.players[1].id, side: "defender", hostOverride: true } });
+            const city = s2.map.hexes["6,0"].city;
+            return city && city.ownerId === me.id ? s2 : null;
+          };
+          let taken = null;
+          for (let i = 0; i < 400 && !taken; i++) taken = attempt();
+          assert("a rival city can be captured", !!taken);
+          if (taken) {
+            assert("the city really changed hands",
+              taken.map.hexes["6,0"].city.ownerId === taken.players[0].id);
+            assert("and England is NOT offered a token: capturing is not building",
+              !englandChoice(taken),
+              JSON.stringify((taken.pendingChoices || []).map((x) => x.source)));
+          }
+        }
+        proves("civ.england");
+      }
+
+      {
         // Currency (economy II) and Sumeria's civilization ability, which meet
         // over the same event: a defeated barbarian.
         //

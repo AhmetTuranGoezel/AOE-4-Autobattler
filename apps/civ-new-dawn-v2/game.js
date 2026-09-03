@@ -2732,25 +2732,7 @@ const Game = (() => {
       }
       resolveCard(st, player, "industry", payment.tradePayment);
       log(st, `${player.name} built a new city.`);
-      // England: the first city on a tile may plant a reinforced token beside it.
-      if (hasLeader(player, "england") && hex.tileId) {
-        const onlyCityOnTile = !Object.values(st.map.hexes).some((h2) =>
-          h2 !== hex && h2.tileId === hex.tileId && h2.city);
-        if (onlyCityOnTile) {
-          const spots = hexNeighborKeys(hex.q, hex.r).filter((nk) => {
-            const nh = st.map.hexes[nk];
-            return nh && nh.active && nh.terrain !== "water" && !nh.city && !nh.control &&
-              !nh.barbarian && !nh.cityState && !(nh.fortress && !nh.city);
-          });
-          if (spots.length) {
-            queuePendingChoice(st, {
-              kind: "place_control", playerId: player.id, fortified: true,
-              title: "England: Reinforced Expansion",
-              source: "england", hexKeys: spots
-            });
-          }
-        }
-      }
+      onCityBuilt(st, { playerId: payload.playerId, hexKey: payload.hexKey, source: "industry" });
       if (getCardName(player, "industry") === "Urbanization" &&
           !getActiveUniqueCard(player, "industry")) {
         queueUrbanizationTokens(st, player, payload.hexKey, 2,
@@ -4359,6 +4341,7 @@ const Game = (() => {
           hasWonder: true, wonder };
         checkDevelopment(st, player.id);
         log(st, `${player.name} founded a city on the rim for Amundsen-Scott Research Station.`);
+        onCityBuilt(st, { playerId: player.id, hexKey, source: "Amundsen-Scott" });
         queueAmundsenTokens(st, player, hexKey, 2);
         resolved = true;
       }
@@ -4750,6 +4733,7 @@ const Game = (() => {
         hex.city = { ownerId: player.id, isCapital: false, developed: false, hasWonder: false, wonder: null };
         log(st, `${player.name} built a city at ${hexKey} (${choice.source || "a district"}).`);
         checkDevelopment(st, player.id);
+        onCityBuilt(st, { playerId: player.id, hexKey, source: choice.source || "a district" });
         resolved = true;
       }
     } else if (choice.kind === "cartography_city") {
@@ -4765,6 +4749,7 @@ const Game = (() => {
         player.cartographyUsedThisTurn = true;
         checkDevelopment(st, player.id);
         log(st, `${player.name} built a distant city with Cartography.`);
+        onCityBuilt(st, { playerId: player.id, hexKey, source: "Cartography" });
         resolved = true;
       }
     } else if (choice.kind === "district_mode") {
@@ -8139,6 +8124,42 @@ const Game = (() => {
       });
     }
     return true;
+  }
+
+  // Building a city is one event however it was paid for: the industry card,
+  // an Industrial Zone, Cartography, the Amundsen-Scott rim city. England used
+  // to be checked inside the industry action alone, so three of the four build
+  // paths gave it nothing.
+  //
+  // This is deliberately NOT raised by capturing, conquering or replacing a
+  // city, nor by the capital going down at setup. England's wording is "when
+  // you BUILD a city", and taking one off a rival is not building it.
+  function onCityBuilt(st, opts) {
+    const o = opts || {};
+    const player = getPlayer(st, o.playerId);
+    const hex = st.map.hexes[o.hexKey];
+    if (!player || !hex || !hex.city) return;
+    // England: "When you build a city, if it is the only city on its tile
+    // (excluding city-states), you MAY place 1 of your unused, reinforced
+    // control tokens in a space adjacent to that city."
+    if (!hasLeader(player, "england") || !hex.tileId) return;
+    const onlyCityOnTile = !Object.values(st.map.hexes).some((h2) =>
+      h2 !== hex && h2.tileId === hex.tileId && h2.city);
+    if (!onlyCityOnTile) return;
+    const spots = hexNeighborKeys(hex.q, hex.r).filter((nk) => {
+      const nh = st.map.hexes[nk];
+      return nh && nh.active && nh.terrain !== "water" && !nh.city && !nh.control &&
+        !nh.barbarian && !nh.cityState && !(nh.fortress && !nh.city);
+    });
+    if (!spots.length) return;
+    queuePendingChoice(st, {
+      kind: "place_control", playerId: player.id, fortified: true,
+      title: "England: Reinforced Expansion",
+      // "you may" - declining is part of the printed card, not a way out of it.
+      optional: true,
+      source: o.source ? `england (${o.source})` : "england",
+      hexKeys: spots
+    });
   }
 
   function caravanCanDefeatBarbarian(player) {

@@ -30,6 +30,7 @@ Status values:
 | City construction | unproven | No test drives a city build through every legal source and asserts the result. |
 | Mature cities | proven | Maturity is derived from the current board, not cached: a ringed capital is mature, losing one ring token ends it immediately and costs the score, a ring space changing hands ends it, an event that destroys a marker recomputes it, and a stale flag arriving from an old save is repaired by the next action. The Commercial Hub's mature-city option is driven end to end. |
 | Trade tokens | partial | Industry production arithmetic (slot + trade) is proven, and the 3-token cap is asserted where a district would exceed it; per-card trade tracks are not systematically asserted. |
+| Component supply | unproven | The engine models no finite supply of control tokens: nothing counts how many a player has left, so a card printing "1 of your **unused** control tokens" (England) or any placement effect can never run out. This is board-wide, not specific to one card, and would have to be introduced once for every placement path at the same time. |
 | Resources | partial | Wonder-payment eligibility is enforced and tested; gaining/spending elsewhere is not. |
 | Natural wonders | unproven | Token-to-resource mapping is transcribed but no test spends one. |
 | World Wonder deck construction | partial | 36-card pool and the 2/2/3 per-type playable deck are asserted; the removal step is asserted by count only. |
