@@ -4494,6 +4494,160 @@
       }
 
       {
+        // The growth ladder. Every card can place a district next to a friendly
+        // city; the first two print that as an alternative to reinforcing ("Or,
+        // reinforce..."), while the last two do both in sequence. Sanitation is
+        // proven elsewhere; these are the other three.
+        const growthBoard = (tier, opts) => {
+          const o = opts || {};
+          const st = rulesState();
+          const me = st.players[0];
+          me.cardPlayed = false;
+          me.cardTiers.growth = tier;
+          me.cardLevels.growth = tier;
+          me.focusRow = ["growth", "science", "economy", "military", "industry", "culture"];
+          Game.FOCUS_TYPES.forEach((t) => { me.trade[t] = 0; });
+          Object.values(st.map.hexes).forEach((h) => {
+            h.barbarian = false; h.barbarianId = null; h.barbarianToken = null;
+            h.barbarianHome = null; h.control = null; h.resource = null;
+            h.naturalWonder = null; h.naturalWonderSpace = null; h.cityState = null;
+          });
+          st.naturalWonders = {};
+          for (let q = -2; q <= 6; q++) {
+            activate(st, q + ",0", { terrain: "grass" });
+            activate(st, q + ",1", { terrain: "grass" });
+            activate(st, q + ",-1", { terrain: "grass" });
+          }
+          activate(st, "0,0", { city: { ownerId: me.id, isCapital: true,
+            developed: false, hasWonder: false, wonder: null } });
+          if (o.setUp) o.setUp(st, me);
+          return { st, me };
+        };
+        const buildDistrict = (st, me, district, hexKey) => Game.tryApplyAction(st,
+          { type: "PLAY_GROWTH_DISTRICT",
+            payload: { playerId: me.id, district, hexKey, tradeSpent: 0 } },
+          { actorId: me.id, role: "player" });
+        const reinforce = (st, me, hexKeys) => Game.tryApplyAction(st,
+          { type: "PLAY_GROWTH_REINFORCE",
+            payload: { playerId: me.id, hexKeys, tradeSpent: 0 } },
+          { actorId: me.id, role: "player" });
+
+        // ── Irrigation ───────────────────────────────────────────────────
+        {
+          // "Place a district ... OR, reinforce a number of your control tokens
+          // up to this slot's number." Two alternatives, and the district half
+          // must NOT then also reinforce.
+          const { st, me } = growthBoard(1);
+          assert("Irrigation is the level-I growth card",
+            Game.getCardName(me, "growth") === "Irrigation", Game.getCardName(me, "growth"));
+          const out = buildDistrict(st, me, "campus", "1,0");
+          assert("it can place a district next to a friendly city", out.accepted, out.code);
+          assert("and the district is there",
+            out.state.map.hexes["1,0"].control.district === "campus",
+            JSON.stringify(out.state.map.hexes["1,0"].control));
+          assert("the card is finished: this branch does not also reinforce",
+            !out.state.cardResolution && out.state.players[0].cardPlayed === true,
+            JSON.stringify({ res: out.state.cardResolution,
+              played: out.state.players[0].cardPlayed }));
+        }
+        {
+          const { st, me } = growthBoard(1, { setUp: (s2, p2) => {
+            ["1,0", "2,0", "0,1"].forEach((k) => {
+              s2.map.hexes[k].control = { ownerId: p2.id, fortified: false, district: null };
+            });
+          } });
+          const slot = Game.getSlotValue(me, "growth", st);
+          const out = reinforce(st, me, ["1,0"]);
+          assert("or it can reinforce instead, with no district placed",
+            out.accepted, out.code);
+          assert("the chosen token is flipped",
+            out.state.map.hexes["1,0"].control.fortified === true);
+          assert("and nothing became a district",
+            !Object.values(out.state.map.hexes).some((h) => h.control && h.control.district));
+          // "up to this slot's number" is a cap, so one more than it is refused.
+          assert("(fixture) the level-I growth card resolves from slot 1",
+            slot === 1, String(slot));
+          const fresh = growthBoard(1, { setUp: (s2, p2) => {
+            ["1,0", "2,0", "0,1"].forEach((k) => {
+              s2.map.hexes[k].control = { ownerId: p2.id, fortified: false, district: null };
+            });
+          } });
+          const tooMany = reinforce(fresh.st, fresh.me, ["1,0", "2,0"]);
+          assert("more than the slot's number is refused", !tooMany.accepted, tooMany.code);
+          assert("and neither token was flipped",
+            tooMany.state.map.hexes["1,0"].control.fortified === false &&
+            tooMany.state.map.hexes["2,0"].control.fortified === false);
+        }
+        proves("standard.growth.irrigation");
+
+        // ── Engineering ──────────────────────────────────────────────────
+        {
+          // "Place a district ... THEN, place 1 control token on a space ...
+          // adjacent to a FRIENDLY DISTRICT. Or, reinforce..."
+          const { st, me } = growthBoard(2);
+          const out = buildDistrict(st, me, "campus", "1,0");
+          assert("Engineering places its district", out.accepted, out.code);
+          const follow = (out.state.pendingChoices || [])
+            .find((c) => c.kind === "place_control");
+          assert("then offers a control token beside it", !!follow,
+            JSON.stringify((out.state.pendingChoices || []).map((c) => c.kind)));
+          assert("every space offered touches the district",
+            follow.hexKeys.every((k) => Game.hexNeighborKeys(1, 0).includes(k)),
+            follow.hexKeys.join(" "));
+          const placed = Game.applyAction(out.state, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: me.id, choiceId: follow.id, hexKey: follow.hexKeys[0] } });
+          const token = placed.map.hexes[follow.hexKeys[0]].control;
+          assert("and placing it puts a plain token there",
+            !!token && token.ownerId === me.id && !token.district,
+            JSON.stringify(token));
+        }
+        {
+          const { st, me } = growthBoard(2, { setUp: (s2, p2) => {
+            s2.map.hexes["1,0"].control = { ownerId: p2.id, fortified: false, district: null };
+          } });
+          const out = reinforce(st, me, ["1,0"]);
+          assert("Engineering can reinforce instead", out.accepted, out.code);
+          assert("flipping the token", out.state.map.hexes["1,0"].control.fortified === true);
+          assert("with no district and no follow-up",
+            !Object.values(out.state.map.hexes).some((h) => h.control && h.control.district) &&
+            !(out.state.pendingChoices || []).some((c) => c.kind === "place_control"));
+        }
+        proves("standard.growth.engineering");
+
+        // ── Globalization ────────────────────────────────────────────────
+        {
+          // "Place a district ... THEN, choose a type of district. EACH PLAYER
+          // that has a district of that type on the map resolves its effect.
+          // Then, reinforce..."
+          const { st, me } = growthBoard(4, { setUp: (s2, p2) => {
+            const foe = s2.players[1];
+            // A rival campus with a friendly mountain beside it, so its effect
+            // is visible when it resolves.
+            activate(s2, "4,0", { terrain: "grass",
+              control: { ownerId: foe.id, fortified: false, district: "campus" } });
+            activate(s2, "5,0", { terrain: "mountain",
+              control: { ownerId: foe.id, fortified: false, district: null } });
+            foe.trade.science = 0;
+          } });
+          const out = buildDistrict(st, me, "campus", "1,0");
+          assert("Globalization places its district", out.accepted, out.code);
+          const typeChoice = (out.state.pendingChoices || [])
+            .find((c) => c.kind === "district_type" ||
+              (c.options || []).some((o) => Game.DISTRICTS.includes(o.id)));
+          assert("then asks for a district TYPE", !!typeChoice,
+            JSON.stringify((out.state.pendingChoices || [])
+              .map((c) => c.kind + ":" + (c.options || []).map((o) => o.id).join("/"))));
+          const chosen = Game.applyAction(out.state, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: me.id, choiceId: typeChoice.id, optionId: "campus" } });
+          assert("the RIVAL's campus of that type resolved too",
+            chosen.players[1].trade.science > 0,
+            JSON.stringify({ mine: chosen.players[0].trade.science,
+              theirs: chosen.players[1].trade.science }));
+        }
+        proves("standard.growth.globalization");
+      }
+
+      {
         // The four printed science cards. All four end by advancing the tech
         // dial by the slot's number; what differs is what happens first.
         const sciBoard = (tier, opts) => {
