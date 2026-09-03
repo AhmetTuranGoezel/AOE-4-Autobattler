@@ -26,7 +26,7 @@ Status values:
 | Exploration | partial | Apadana's expedition is proven. Ordinary exploration, tile-stack exhaustion and abandon paths are not. |
 | Movement | unproven | No behavioural test drives caravan/army movement limits, terrain gates or forced stops. |
 | Combat | partial | Dice, bidding and capture are driven in older tests; combat modifiers are mostly asserted through getters, which is not proof. |
-| Barbarian movement / spawning | partial | Identity across moves, printed-letter spawn and return-to-home are proven. Petra's redirect clause is **known-broken** (unimplemented). |
+| Barbarian movement / spawning | proven | A figure belongs to its printed spawn, not its letter, so two icons showing one letter both work. Driven: printed tile/side/cell agreement for every placed cell; identity and home surviving a march; defeat by combat, Currency and an encampment each keeping both; return to the figure's OWN space and never to where it died; caravan and army each failing to block a spawn and each being defeated by it; a real blocker leaving the figure off-map with no failure flag and the next event retrying; and the march-into-army case with its protected control token. Petra's redirect is implemented and driven, including reinforced-vs-unreinforced and a rival's city. |
 | City construction | unproven | No test drives a city build through every legal source and asserts the result. |
 | Mature cities | proven | Maturity is derived from the current board, not cached: a ringed capital is mature, losing one ring token ends it immediately and costs the score, a ring space changing hands ends it, an event that destroys a marker recomputes it, and a stale flag arriving from an old save is repaired by the next action. The Commercial Hub's mature-city option is driven end to end. |
 | Trade tokens | partial | Industry production arithmetic (slot + trade) is proven, and the 3-token cap is asserted where a district would exceed it; per-card trade tracks are not systematically asserted. |
@@ -46,4 +46,7 @@ Status values:
 
 ## Known-broken, open
 
-1. **Petra** — the barbarian-redirect clause is not implemented at all.
+Nothing is currently on this list. Two items are BLOCKED on component counts
+rather than broken — the control-token supply number and whether the physical
+game ships one barbarian figure per letter or per printed icon — and both are
+described in their rows above and in `OVERNIGHT_PROGRESS.md`.

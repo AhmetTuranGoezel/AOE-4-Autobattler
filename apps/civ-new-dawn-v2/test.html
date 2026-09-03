@@ -4494,6 +4494,151 @@
       }
 
       {
+        // Petra: "When defending, +2 combat value. Barbarians cannot move into
+        // spaces containing your cities or reinforced control tokens; instead
+        // they move in the opposite direction (Errata)."
+        //
+        // The redirect is the half that was recorded as unimplemented. It is
+        // implemented; these drive it, so the record can say so on evidence
+        // rather than on a reading of the code.
+        const petraBoard = (withPetra) => {
+          const st = rulesState();
+          const me = st.players[0];
+          for (let q = -2; q <= 8; q++) {
+            activate(st, q + ",0", { terrain: "grass" });
+            activate(st, q + ",1", { terrain: "grass" });
+            activate(st, q + ",-1", { terrain: "grass" });
+          }
+          Object.values(st.map.hexes).forEach((h) => {
+            h.barbarian = false; h.barbarianId = null;
+            h.barbarianToken = null; h.barbarianHome = null;
+          });
+          st.barbarians = {};
+          // The wonder lives in a city far from the lane, so what is being
+          // tested is the protection, not the city that happens to hold it.
+          activate(st, "0,1", { city: { ownerId: me.id, isCapital: true,
+            developed: false, hasWonder: !!withPetra,
+            wonder: withPetra ? { name: "Petra" } : null } });
+          activate(st, "3,0", { terrain: "grass", barbarian: true,
+            barbarianId: "P", barbarianToken: "3,0", barbarianHome: "P" });
+          Game.syncBarbarianRegistry(st);
+          return { st, me };
+        };
+        // The march is one die for every barbarian, so roll until it goes east.
+        const marchEast = (base) => {
+          for (let i = 0; i < 500; i++) {
+            const attempt = JSON.parse(JSON.stringify(base));
+            Game.resolveEvent(attempt, "barbarian_move");
+            if (attempt.barbarianMove && attempt.barbarianMove.roll === 2) return attempt;
+          }
+          return null;
+        };
+
+        {
+          // A city in the way, held by the Petra owner.
+          const { st, me } = petraBoard(true);
+          activate(st, "4,0", { city: { ownerId: me.id, isCapital: false,
+            developed: false, hasWonder: false, wonder: null } });
+          const out = marchEast(st);
+          assert("the march rolled east", !!out);
+          if (out) {
+            assert("the barbarian did not enter the protected city",
+              out.map.hexes["4,0"].barbarian === false &&
+              !!out.map.hexes["4,0"].city, JSON.stringify(out.map.hexes["4,0"].city));
+            assert("it went the opposite way instead",
+              out.map.hexes["2,0"].barbarian === true,
+              JSON.stringify(Object.entries(out.map.hexes)
+                .filter(([, h]) => h.barbarian).map(([k]) => k)));
+            assert("and it is still the same figure",
+              out.map.hexes["2,0"].barbarianId === "P" &&
+              out.map.hexes["2,0"].barbarianToken === "3,0");
+            assert("the log says Petra turned it away",
+              out.log.some((line) => /Petra turned a barbarian away/.test(line)),
+              JSON.stringify(out.log.slice(-4)));
+          }
+        }
+        {
+          // A REINFORCED control token is protected the same way.
+          const { st, me } = petraBoard(true);
+          activate(st, "4,0", { terrain: "grass",
+            control: { ownerId: me.id, fortified: true, district: null } });
+          const out = marchEast(st);
+          assert("(reinforced) the march rolled east", !!out);
+          if (out) {
+            assert("the barbarian did not reach the reinforced token",
+              out.map.hexes["4,0"].barbarian === false);
+            assert("and the token was not even battered - it was never entered",
+              !!out.map.hexes["4,0"].control &&
+              out.map.hexes["4,0"].control.fortified === true,
+              JSON.stringify(out.map.hexes["4,0"].control));
+            assert("the barbarian turned back instead",
+              out.map.hexes["2,0"].barbarian === true);
+          }
+        }
+        {
+          // An UNREINFORCED token is not protected: Petra names cities and
+          // reinforced tokens, and this is neither.
+          const { st, me } = petraBoard(true);
+          activate(st, "4,0", { terrain: "grass",
+            control: { ownerId: me.id, fortified: false, district: null } });
+          const out = marchEast(st);
+          assert("(unreinforced) the march rolled east", !!out);
+          if (out) {
+            assert("the barbarian advances onto it as normal",
+              out.map.hexes["4,0"].barbarian === true,
+              JSON.stringify(Object.entries(out.map.hexes)
+                .filter(([, h]) => h.barbarian).map(([k]) => k)));
+            assert("destroying the marker",
+              out.map.hexes["4,0"].control === null);
+          }
+        }
+        {
+          // Without the wonder the same city is razed, so the protection is
+          // Petra's and not something the board does anyway.
+          const { st, me } = petraBoard(false);
+          activate(st, "4,0", { city: { ownerId: me.id, isCapital: false,
+            developed: false, hasWonder: false, wonder: null } });
+          const out = marchEast(st);
+          assert("(no Petra) the march rolled east", !!out);
+          if (out) {
+            assert("the barbarian walks in", out.map.hexes["4,0"].barbarian === true);
+            assert("and razes the city", out.map.hexes["4,0"].city === null);
+            assert("with no mention of Petra",
+              !out.log.some((line) => /Petra/.test(line)));
+          }
+        }
+        {
+          // A rival's city is not protected by MY Petra.
+          const { st, me } = petraBoard(true);
+          const foe = st.players[1];
+          activate(st, "4,0", { city: { ownerId: foe.id, isCapital: false,
+            developed: false, hasWonder: false, wonder: null } });
+          const out = marchEast(st);
+          assert("(rival city) the march rolled east", !!out);
+          if (out) {
+            assert("Petra protects its owner's cities, not everyone's",
+              out.map.hexes["4,0"].city === null &&
+              out.map.hexes["4,0"].barbarian === true);
+          }
+        }
+        {
+          // The other printed half, which the combat code already carried.
+          const st = rulesState();
+          const me = st.players[0];
+          activate(st, "0,0", { city: { ownerId: me.id, isCapital: true,
+            developed: false, hasWonder: true, wonder: { name: "Petra" } } });
+          // The bonus is asked for a space, because several defence wonders
+          // depend on what is around the one being defended.
+          assert("Petra is +2 when defending",
+            Game.getWonderDefenseBonus(st, me.id, "0,0") === 2,
+            String(Game.getWonderDefenseBonus(st, me.id, "0,0")));
+          assert("and a player without it gets nothing",
+            Game.getWonderDefenseBonus(st, st.players[1].id, "0,0") === 0);
+        }
+        proves("wonder.military.petra");
+      }
+
+      {
         // Where a caravan sets off from. Base p8: one still on the economy card
         // leaves from the capital or a MATURE city. Rome: "When you move a
         // caravan FROM YOUR ECONOMY CARD, it can move from any of your cities
