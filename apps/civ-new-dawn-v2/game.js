@@ -1746,8 +1746,15 @@ const Game = (() => {
     const logBefore = st.log ? st.log.length : 0;
     const tracksTurn = st.phase === "playing" && TURN_ACTIONS.has(type) && type !== "UNDO_TURN";
     if (tracksTurn) ensureTurnUndo(st);
+    // Maturity is derived, and every action can change it — placing or losing a
+    // ring token, razing a city, capturing one. Refreshing the display mirror
+    // on both sides of the action keeps it honest without asking each of the
+    // dozens of mutation sites to remember, and keeps a rejected action from
+    // registering as a change merely because it repaired a stale flag.
+    syncCityMaturity(st);
     const before = tracksTurn ? JSON.stringify(stateWithoutUndo(st)) : "";
     const result = applyActionInner(st, action);
+    syncCityMaturity(result);
     const changed = tracksTurn && before !== JSON.stringify(stateWithoutUndo(result));
     if (changed) {
       if (type === "END_TURN") {
@@ -4434,7 +4441,6 @@ const Game = (() => {
           const capturedWonderName = hex.city.wonder && hex.city.wonder.name;
           replaceAdjacentControlsForStatue(st, player, choice.hexKey);
           hex.city.ownerId = player.id;
-          hex.city.developed = false;
           sweepFigures(st, choice.hexKey, player.id);
           const army = (player.armies || []).find((unit) => unit.id === choice.unitId);
           if (army && canOccupyAfterCombat(st, choice.hexKey, player.id)) {
@@ -4936,7 +4942,7 @@ const Game = (() => {
     const out = new Set();
     Object.entries(st.map.hexes).forEach(([k, h]) => {
       if (!h.city || h.city.ownerId !== playerId) return;
-      if (h.city.isCapital || h.city.developed) out.add(k);
+      if (h.city.isCapital || isCityDeveloped(st, h)) out.add(k);
     });
     return out;
   }
@@ -5170,7 +5176,6 @@ const Game = (() => {
         }
         if (!conqueredCityState) {
           hex.city.ownerId = c.attackerId;
-          hex.city.developed = false;
           sweepFigures(st, c.toKey, c.attackerId);
           triggerCapturedWonder(st, player, c.toKey, capturedWonderName);
         }
@@ -5340,7 +5345,6 @@ const Game = (() => {
       if (target.city && !target.city.isCapital) {
         // A wonder marker stays on the space when its city falls (p13).
         target.city = null;
-        target.developed = false;
         log(st, `Barbarians razed a city at ${toKey}.`);
       }
     }
@@ -5864,6 +5868,8 @@ const Game = (() => {
     if (evt === "wonder_tokens") {
       resolveWonderTokens(st);
     }
+    // A barbarian march destroys control tokens, which can un-mature a city.
+    syncCityMaturity(st);
   }
 
   // Terra p14: a trade token goes on every faceup wonder. A wonder that would
@@ -5904,20 +5910,35 @@ const Game = (() => {
 
   // --- Victory & Scoring ---
 
-  function checkDevelopment(st, playerId) {
+  // Base p13: a city is mature while every active land space around it holds
+  // its owner's control token. That is a property of the CURRENT board, not an
+  // event that happens once — a barbarian raid, a Forbidden City removal or an
+  // Eiffel Tower gift can end it again. Maturity was cached in
+  // `hex.city.developed` and refreshed only by the handful of actions that
+  // remembered to ask, so every other way of losing a ring token left cities
+  // permanently "mature": agendas, scores and the Commercial Hub all
+  // over-reported. Every rule now reads isCityDeveloped() directly and this
+  // flag is only a mirror, kept in step for display and for saved games.
+  function syncCityMaturity(st) {
+    if (!st || !st.map || !st.map.hexes) return;
     Object.values(st.map.hexes).forEach((hex) => {
-      if (!hex.city || hex.city.ownerId !== playerId) return;
-      const wasDeveloped = hex.city.developed;
+      if (!hex.city) return;
+      const wasDeveloped = !!hex.city.developed;
       hex.city.developed = isCityDeveloped(st, hex);
       // Maturity itself grants no trade token. Terra Incognita's Commercial
       // Hub can award Economy trade based on mature cities during the district
       // event, but that is a separate printed effect.
       if (!wasDeveloped && hex.city.developed) {
-        const player = getPlayer(st, playerId);
+        const player = getPlayer(st, hex.city.ownerId);
         if (player) log(st, `${player.name}'s city matured.`);
       }
     });
   }
+
+  // Maturity is a board-wide property, so the player argument no longer
+  // selects anything. The call sites are kept because they mark the moments a
+  // rule expects the mirror to be up to date before it logs.
+  function checkDevelopment(st) { syncCityMaturity(st); }
 
   function isCityDeveloped(st, hex) {
     if (!hex.city) return false;
@@ -6036,7 +6057,7 @@ const Game = (() => {
   function computeScore(st, playerId) {
     let score = 0;
     Object.values(st.map.hexes).forEach((h) => {
-      if (h.city && h.city.ownerId === playerId) { score += 3; if (h.city.developed) score += 2; if (h.city.hasWonder) score += 4; }
+      if (h.city && h.city.ownerId === playerId) { score += 3; if (isCityDeveloped(st, h)) score += 2; if (h.city.hasWonder) score += 4; }
       if (h.control && h.control.ownerId === playerId) { score++; if (h.control.district) score++; }
     });
     const p = getPlayer(st, playerId);
@@ -6053,7 +6074,7 @@ const Game = (() => {
     let c = 0; Object.values(st.map.hexes).forEach((h) => { if (h.city && h.city.ownerId === playerId && h.city.hasWonder) c++; }); return c;
   }
   function countDeveloped(st, playerId) {
-    let c = 0; Object.values(st.map.hexes).forEach((h) => { if (h.city && h.city.ownerId === playerId && h.city.developed) c++; }); return c;
+    let c = 0; Object.values(st.map.hexes).forEach((h) => { if (h.city && h.city.ownerId === playerId && isCityDeveloped(st, h)) c++; }); return c;
   }
   function countCities(st, playerId) {
     let c = 0; Object.values(st.map.hexes).forEach((h) => { if (h.city && h.city.ownerId === playerId) c++; }); return c;
@@ -6106,7 +6127,7 @@ const Game = (() => {
   function countMatureCityTiles(st, playerId) {
     const tiles = new Set();
     Object.values(st.map.hexes).forEach((h) => {
-      if (h.city && h.city.ownerId === playerId && h.city.developed) tiles.add(h.tileId || `${Math.floor(h.q / 4)},${Math.floor(h.r / 4)}`);
+      if (h.city && h.city.ownerId === playerId && isCityDeveloped(st, h)) tiles.add(h.tileId || `${Math.floor(h.q / 4)},${Math.floor(h.r / 4)}`);
     });
     return tiles.size;
   }
