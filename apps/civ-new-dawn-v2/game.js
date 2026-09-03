@@ -152,6 +152,9 @@ const Game = (() => {
   const CFG = {
     mapRadius: 9,
     maxTrade: 3,
+    // BLOCKED on an English component count; Infinity is the long-standing
+    // behaviour. See placeControlToken.
+    controlTokens: Infinity,
     maxArmies: 3,
     maxCaravans: 1,
     maxGovMarkers: 2,
@@ -2190,7 +2193,7 @@ const Game = (() => {
           if (player.resources[hx.resource] !== undefined) player.resources[hx.resource]++;
           hx.resource = null;
         }
-        hx.control = { ownerId: payload.playerId, fortified: false, district: null };
+        placeControlToken(st, k, payload.playerId, { fortified: false });
         if (hx.terrain === "mountain") placedMountains.push(k);
         if (hx.terrain === "hill") placedHills.push(k);
       }
@@ -2236,7 +2239,7 @@ const Game = (() => {
       // Terra p9: the district goes down on its UNREINFORCED side even when it
       // replaces a reinforced control token of yours. That is printed, not a
       // bug — do not "fix" the discarded `fortified` flag here.
-      hex.control = { ownerId: payload.playerId, fortified: false, district: payload.district };
+      placeControlToken(st, payload.hexKey, payload.playerId, { district: payload.district });
       // "...whether or not the card's effect was used to reinforce control
       // tokens" — so the tokens still buy reinforcements after a district.
       log(st, `${player.name} placed a ${payload.district} district.`);
@@ -4234,7 +4237,7 @@ const Game = (() => {
       const hex = st.map.hexes[hexKey];
       const allowed = (choice.hexKeys || []).includes(hexKey);
       if (allowed && hex && hex.active && hex.terrain !== "water" && !hex.city && !hex.control && !hex.barbarian && !hex.cityState && !(hex.fortress && !hex.city)) {
-        hex.control = { ownerId: player.id, fortified: !!choice.fortified, district: null };
+        placeControlToken(st, hexKey, player.id, { fortified: !!choice.fortified });
         if (hex.resource && hex.resource !== "wonder" && player.resources[hex.resource] !== undefined) {
           player.resources[hex.resource]++;
           hex.resource = null;
@@ -4366,7 +4369,7 @@ const Game = (() => {
           hex.control.fortified = false;
           log(st, `${player.name} flipped a rival reinforced control token with Mass Media.`);
         } else {
-          hex.control = { ownerId: player.id, fortified: false, district: null };
+          placeControlToken(st, hexKey, player.id, { fortified: false });
           queueNonAggressionResponse(st, formerOwner, player.id, "Mass Media");
           log(st, `${player.name} replaced a rival control token with Mass Media.`);
         }
@@ -4478,7 +4481,7 @@ const Game = (() => {
           canAffectRivalPiece(st, taker.id, hex.control.ownerId)) {
         // "Unused, unreinforced" — the token that arrives is a plain one.
         const formerOwner = hex.control.ownerId;
-        hex.control = { ownerId: taker.id, fortified: false, district: null };
+        placeControlToken(st, hexKey, taker.id, { fortified: false });
         queueNonAggressionResponse(st, formerOwner, taker.id, "Eiffel Tower");
         checkDevelopment(st, taker.id);
         log(st, `${player.name} gave up a control token to ${taker.name} (Eiffel Tower).`);
@@ -5225,7 +5228,7 @@ const Game = (() => {
       if (target === "control" && hex.control && hex.control.ownerId !== c.attackerId) {
         // Terra p10: beating a district replaces it with your own unreinforced,
         // NON-district token — the district itself is destroyed, not captured.
-        hex.control = { ownerId: c.attackerId, fortified: false, district: null };
+        placeControlToken(st, c.toKey, c.attackerId, { fortified: false });
         sweepFigures(st, c.toKey, c.attackerId);
         if (uniqueInPlay(player, "zulu") && !player.scorchedEarthUsedThisTurn) {
           scorchedOffer = { hexKey: c.toKey, unitId: unit.id };
@@ -6579,7 +6582,7 @@ const Game = (() => {
       if (!canAffectRivalPiece(st, player.id, neighbor.control.ownerId)) return;
       if (armyGuards(st, neighborKey)) return;
       const formerOwner = neighbor.control.ownerId;
-      neighbor.control = { ownerId: player.id, fortified: false, district: null };
+      placeControlToken(st, neighborKey, player.id, { fortified: false });
       queueNonAggressionResponse(st, formerOwner, player.id, "Statue of Liberty");
       replaced++;
     });
@@ -8437,6 +8440,75 @@ const Game = (() => {
       .sort((a, b) => a.homeKey.localeCompare(b.homeKey));
   }
 
+  // Control tokens are a finite physical supply. Every placement goes through
+  // here so that the supply has ONE place to be counted and ONE place to be
+  // spent, rather than seven independent assignments each of which would have
+  // to remember. A district is deliberately not counted: it is placed with the
+  // district piece, and Terra gives each player one of each type, tracked
+  // separately by availableDistrictTypes.
+  //
+  // BLOCKED: the number of control tokens an English base set gives a player,
+  // and how many Terra Incognita adds, is a component count and not something
+  // that can be derived from the rules text or the tile data. Until it is
+  // verified CFG.controlTokens is Infinity, which is the behaviour this engine
+  // has always had; everything else about the supply is implemented and driven,
+  // so setting the number is the only thing left. See OVERNIGHT_PROGRESS.md.
+  function controlTokensOnMap(st, playerId) {
+    let n = 0;
+    Object.values(st.map.hexes).forEach((h) => {
+      if (h.control && h.control.ownerId === playerId && !h.control.district) n++;
+    });
+    return n;
+  }
+  function controlTokenLimit(st, playerId) {
+    const player = getPlayer(st, playerId);
+    if (!player) return 0;
+    const configured = Number(CFG.controlTokens);
+    return Number.isFinite(configured) ? configured : Infinity;
+  }
+  function controlTokensInSupply(st, playerId) {
+    const limit = controlTokenLimit(st, playerId);
+    if (!Number.isFinite(limit)) return Infinity;
+    return Math.max(0, limit - controlTokensOnMap(st, playerId));
+  }
+  // Base rules: a player who may place a control token but has none left in
+  // supply first removes one of their own from the map, and places that one.
+  // So an exhausted supply never makes a placement illegal - it makes it cost
+  // a token you already have somewhere else.
+  function reclaimableControlHexes(st, playerId, exceptKey) {
+    return Object.entries(st.map.hexes)
+      .filter(([k, h]) => k !== exceptKey && h.control &&
+        h.control.ownerId === playerId && !h.control.district)
+      .map(([k]) => k);
+  }
+
+  // Put one of `playerId`'s control tokens on `hexKey`. Returns false only when
+  // the space cannot take it at all; an empty supply is handled, not refused.
+  function placeControlToken(st, hexKey, playerId, opts) {
+    const o = opts || {};
+    const hex = st.map.hexes[hexKey];
+    const player = getPlayer(st, playerId);
+    if (!hex || !player) return false;
+    if (!Number.isFinite(controlTokenLimit(st, playerId)) ||
+        controlTokensInSupply(st, playerId) > 0 ||
+        // Replacing your own token on this space frees the very one being spent.
+        (hex.control && hex.control.ownerId === playerId && !hex.control.district)) {
+      // nothing to reclaim
+    } else {
+      const spare = reclaimableControlHexes(st, playerId, hexKey);
+      if (!spare.length) return false;             // nothing on the map either
+      const giveUp = o.reclaimKey && spare.includes(o.reclaimKey) ? o.reclaimKey : spare[0];
+      st.map.hexes[giveUp].control = null;
+      log(st, `${player.name} took a control token back from ${giveUp} to place one at ${hexKey}.`);
+    }
+    hex.control = {
+      ownerId: playerId,
+      fortified: !!o.fortified,
+      district: o.district || null
+    };
+    return true;
+  }
+
   function caravanCanDefeatBarbarian(player) {
     return !!player && getCardName(player, "economy") === "Currency" &&
       !getActiveUniqueCard(player, "economy");
@@ -9503,6 +9575,8 @@ const Game = (() => {
     tileHasCapital,
     getTileHexKeys, validateTilePlacement, ensureMapRadius, ensureMapHexes,
     offMapBarbarians, syncBarbarianRegistry,
+    controlTokensOnMap, controlTokensInSupply, reclaimableControlHexes,
+    placeControlToken,
     hexNeighborKeys, parseQ, parseR, key, hexDist, rollDie, rotateAxial,
     isExploreEligible, validateExploration, placeExploredTile,
     getLegalExplorationPlacements, hasLegalExplorationPlacement,

@@ -4493,6 +4493,167 @@
       }
 
       {
+        // Control tokens are a finite physical supply, and every placement in
+        // the engine now spends from it through one function rather than seven
+        // independent assignments.
+        //
+        // The NUMBER is blocked: how many control tokens an English base set
+        // gives a player, and how many Terra adds, is a component count and not
+        // something the rules text or the tile data can settle. CFG.controlTokens
+        // is therefore Infinity, which is the behaviour this engine has always
+        // had. Everything else about the supply is implemented, so these drive
+        // it with the limit set explicitly - which is also how a fixture would
+        // have to work even once the real number is known.
+        const withLimit = (n) => {
+          const st = rulesState();
+          const me = st.players[0];
+          Object.values(st.map.hexes).forEach((h) => {
+            h.barbarian = false; h.barbarianId = null; h.barbarianToken = null;
+            h.barbarianHome = null; h.control = null;
+          });
+          for (let q = 0; q <= 6; q++) {
+            activate(st, q + ",0", { terrain: "grass" });
+            activate(st, q + ",1", { terrain: "grass" });
+          }
+          activate(st, "0,0", { city: { ownerId: me.id, isCapital: true,
+            developed: false, hasWonder: false, wonder: null } });
+          Game.CFG.controlTokens = n;
+          return { st, me };
+        };
+        const restore = () => { Game.CFG.controlTokens = Infinity; };
+        const controlAt = (st, k) => st.map.hexes[k].control;
+        const placeChoice = (st, me, hexKeys) => {
+          st.pendingChoices.push({ id: "pc", kind: "place_control", playerId: me.id,
+            title: "Place", source: "test", hexKeys });
+          return st;
+        };
+
+        try {
+          {
+            const { st, me } = withLimit(2);
+            assert("an untouched player has their whole supply",
+              Game.controlTokensInSupply(st, me.id) === 2,
+              String(Game.controlTokensInSupply(st, me.id)));
+            const first = Game.applyAction(placeChoice(st, me, ["1,0"]),
+              { type: "RESOLVE_PENDING_CHOICE", payload: {
+                playerId: me.id, choiceId: "pc", hexKey: "1,0" } });
+            assert("placing one spends one",
+              !!controlAt(first, "1,0") &&
+              Game.controlTokensInSupply(first, me.id) === 1,
+              String(Game.controlTokensInSupply(first, me.id)));
+            const second = Game.applyAction(placeChoice(first, me, ["2,0"]),
+              { type: "RESOLVE_PENDING_CHOICE", payload: {
+                playerId: me.id, choiceId: "pc", hexKey: "2,0" } });
+            assert("placing the second empties the supply",
+              Game.controlTokensInSupply(second, me.id) === 0);
+            assert("and both are on the board",
+              !!controlAt(second, "1,0") && !!controlAt(second, "2,0"));
+          }
+          {
+            // The rule that makes an empty supply a cost rather than a wall:
+            // you take one of your own back off the map and place that one.
+            const { st, me } = withLimit(2);
+            let s2 = Game.applyAction(placeChoice(st, me, ["1,0"]),
+              { type: "RESOLVE_PENDING_CHOICE", payload: {
+                playerId: me.id, choiceId: "pc", hexKey: "1,0" } });
+            s2 = Game.applyAction(placeChoice(s2, me, ["2,0"]),
+              { type: "RESOLVE_PENDING_CHOICE", payload: {
+                playerId: me.id, choiceId: "pc", hexKey: "2,0" } });
+            assert("the supply is empty before the third placement",
+              Game.controlTokensInSupply(s2, me.id) === 0);
+            assert("but two of their tokens are on the map to take back",
+              Game.reclaimableControlHexes(s2, me.id).sort().join(",") === "1,0,2,0",
+              JSON.stringify(Game.reclaimableControlHexes(s2, me.id)));
+            const third = Game.applyAction(placeChoice(s2, me, ["3,0"]),
+              { type: "RESOLVE_PENDING_CHOICE", payload: {
+                playerId: me.id, choiceId: "pc", hexKey: "3,0" } });
+            assert("an empty supply does NOT make the placement illegal",
+              !!controlAt(third, "3,0"), JSON.stringify(controlAt(third, "3,0")));
+            const onMap = Game.controlTokensOnMap(third, me.id);
+            assert("the player still has exactly their two tokens on the board",
+              onMap === 2, String(onMap));
+            assert("because one was taken back off the map to pay for it",
+              [controlAt(third, "1,0"), controlAt(third, "2,0")].filter(Boolean).length === 1,
+              JSON.stringify([controlAt(third, "1,0"), controlAt(third, "2,0")]));
+            assert("and the supply is still empty, not negative",
+              Game.controlTokensInSupply(third, me.id) === 0);
+          }
+          {
+            // A district is placed with the district piece, so it must not eat
+            // a control token - and the token it replaces comes back.
+            const { st, me } = withLimit(3);
+            me.focusRow = ["growth", "science", "culture", "economy", "military", "industry"];
+            me.cardPlayed = false;
+            const seeded = Game.applyAction(placeChoice(st, me, ["1,0"]),
+              { type: "RESOLVE_PENDING_CHOICE", payload: {
+                playerId: me.id, choiceId: "pc", hexKey: "1,0" } });
+            assert("one plain token is out", Game.controlTokensInSupply(seeded, me.id) === 2);
+            const built = Game.tryApplyAction(seeded, { type: "PLAY_GROWTH_DISTRICT",
+              payload: { playerId: me.id, district: "campus", hexKey: "1,0", tradeSpent: 0 } },
+              { actorId: me.id, role: "player" });
+            assert("a district can be built over that token", built.accepted, built.code);
+            assert("the space now holds the district piece",
+              built.state.map.hexes["1,0"].control.district === "campus");
+            assert("and the control token it replaced is back in supply",
+              Game.controlTokensInSupply(built.state, me.id) === 3,
+              String(Game.controlTokensInSupply(built.state, me.id)));
+            assert("a district is not counted as a control token in hand",
+              Game.controlTokensOnMap(built.state, me.id) === 0);
+          }
+          {
+            // Losing a token returns it, whoever took it.
+            const { st, me } = withLimit(2);
+            const s2 = Game.applyAction(placeChoice(st, me, ["1,0"]),
+              { type: "RESOLVE_PENDING_CHOICE", payload: {
+                playerId: me.id, choiceId: "pc", hexKey: "1,0" } });
+            assert("one is spent", Game.controlTokensInSupply(s2, me.id) === 1);
+            s2.map.hexes["1,0"].control = null;                 // destroyed
+            const after = Game.applyAction(s2, { type: "NO_SUCH_ACTION", payload: {} });
+            assert("a destroyed token returns to its owner's supply",
+              Game.controlTokensInSupply(after, me.id) === 2);
+          }
+          {
+            // The supply is per player, and taking a rival's space spends YOUR
+            // token while returning THEIRS.
+            const { st, me } = withLimit(2);
+            const foe = st.players[1];
+            st.map.hexes["1,0"].control =
+              { ownerId: foe.id, fortified: false, district: null };
+            assert("the rival has one out", Game.controlTokensInSupply(st, foe.id) === 1);
+            assert("and it costs me nothing", Game.controlTokensInSupply(st, me.id) === 2);
+            const taken = Game.applyAction(placeChoice(st, me, ["1,0"]),
+              { type: "RESOLVE_PENDING_CHOICE", payload: {
+                playerId: me.id, choiceId: "pc", hexKey: "1,0" } });
+            // The generic place_control refuses an occupied space, so take it
+            // the way an effect that replaces one does.
+            if (!taken.map.hexes["1,0"].control ||
+                taken.map.hexes["1,0"].control.ownerId !== me.id) {
+              Game.placeControlToken(taken, "1,0", me.id, { fortified: false });
+            }
+            assert("the space is mine", taken.map.hexes["1,0"].control.ownerId === me.id);
+            const settled = Game.applyAction(taken, { type: "NO_SUCH_ACTION", payload: {} });
+            assert("it came out of my supply",
+              Game.controlTokensInSupply(settled, me.id) === 1,
+              String(Game.controlTokensInSupply(settled, me.id)));
+            assert("and went back into theirs",
+              Game.controlTokensInSupply(settled, foe.id) === 2,
+              String(Game.controlTokensInSupply(settled, foe.id)));
+          }
+          {
+            // The shipped default is unbounded, which is the behaviour the
+            // engine has always had and what it keeps until the count is known.
+            restore();
+            const { st, me } = withLimit(Infinity);
+            assert("with no configured limit the supply is unbounded",
+              Game.controlTokensInSupply(st, me.id) === Infinity);
+            assert("and Game.CFG says so by default", Game.CFG.controlTokens === Infinity);
+          }
+        } finally {
+          restore();
+        }
+      }
+
+      {
         // Barbarian lifecycle: identity, permanent printed home, defeat,
         // respawn, and the two different things that happen when a barbarian
         // and an army meet.
