@@ -28,6 +28,76 @@ const check = (name, cond) => { if (cond) pass++; else { fails.push(name); conso
 const exists = (rel) => rel && fs.existsSync(path.join(PACK, manifest.base.replace(/^assets\//, ""), rel));
 const slug = (s) => s.toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
+// Static values transcribed directly from the tracked printed components.
+// These deliberately live in the verifier rather than sharing the production
+// constants: otherwise changing a bad value in both places would make the
+// regression test agree with itself.
+const PRINTED_WONDER_COSTS = {
+  "Jebel Barkal": 7, Petra: 7, "Terracotta Army": 8,
+  "Huey Teocalli": 9, "Venetian Arsenal": 10, Alhambra: 10,
+  "Ruhr Valley": 11, "Statue of Liberty": 12,
+  Stonehenge: 7, "Hanging Gardens": 8, Colosseum: 9, "Taj Mahal": 9,
+  "Forbidden City": 9, "Chichen Itza": 10, "Sydney Opera House": 10,
+  "Cristo Redentor": 11, "Eiffel Tower": 12,
+  Colossus: 7, "Great Lighthouse": 8, Apadana: 8, "Kilwa Kisiwani": 9,
+  "Great Zimbabwe": 9, "Big Ben": 10, "Estadio Do Maracana": 10, Orszaghaz: 11,
+  Oracle: 8, "Great Library": 8, Pyramids: 9, "University of Sankore": 9,
+  "Porcelain Tower": 9, "Potala Palace": 10, "Oxford University": 10,
+  "Amundsen-Scott Research Station": 10, Kremlin: 11
+};
+
+// key = rules tile id + side; value = printed spawn cell and helm letter.
+// Physical tile numbers are listed beside each pair for quick visual re-checks.
+const PRINTED_BARBARIANS = {
+  "03A": { cell: 0, letter: "G" },                                  // physical 11A
+  "07B": { cell: 0, letter: "B" },                                  // physical 12B
+  "08A": { cell: 1, letter: "H" }, "08B": { cell: 2, letter: "E" }, // physical 15A/B
+  "10A": { cell: 8, letter: "K" }, "10B": { cell: 0, letter: "K" }, // physical 20A/B
+  "11A": { cell: 4, letter: "D" }, "11B": { cell: 0, letter: "D" }, // physical 4A/B
+  "12A": { cell: 9, letter: "F" }, "12B": { cell: 5, letter: "E" }, // physical 18A/B
+  "14A": { cell: 1, letter: "C" }, "14B": { cell: 6, letter: "C" }, // physical 3A/B
+  "15B": { cell: 1, letter: "E" },                                  // physical 5B
+  "16A": { cell: 2, letter: "A" }, "16B": { cell: 7, letter: "A" }, // physical 1A/B
+  "TI04A": { cell: 1, letter: "F" }, "TI04B": { cell: 6, letter: "E" }, // physical 10A/B
+  "TI05A": { cell: 4, letter: "B" }                                 // physical 2A
+};
+
+// --- printed static component data --------------------------------------
+{
+  const wonders = Object.values(RULES.WONDER_DECKS).flat();
+  const actual = Object.fromEntries(wonders.map((wonder) => [wonder.name, wonder.cost]));
+  const mismatches = Object.entries(PRINTED_WONDER_COSTS)
+    .filter(([name, cost]) => actual[name] !== cost)
+    .map(([name, cost]) => `${name}: data ${actual[name]}, printed ${cost}`);
+  const unexpected = Object.keys(actual).filter((name) => !(name in PRINTED_WONDER_COSTS));
+  check("Terracotta Army has its printed production cost of 8",
+    actual["Terracotta Army"] === 8);
+  check("all 34 playable wonder costs match the printed cards",
+    wonders.length === 34 && mismatches.length === 0 && unexpected.length === 0);
+  if (mismatches.length || unexpected.length) {
+    console.log("  wonder cost mismatch:", mismatches.concat(unexpected.map((name) => `${name}: unexpected`)));
+  }
+}
+
+{
+  const actual = {};
+  RULES.TILES.forEach((tile) => Object.entries(tile.sides).forEach(([side, face]) => {
+    face.cells.forEach((cell, index) => {
+      if (cell.barbarian) actual[tile.id + side] = { cell: index, letter: String(cell.barbarian) };
+    });
+  }));
+  const mismatches = Object.entries(PRINTED_BARBARIANS).filter(([key, expected]) => {
+    const found = actual[key];
+    return !found || found.cell !== expected.cell || found.letter !== expected.letter;
+  });
+  const unexpected = Object.keys(actual).filter((key) => !(key in PRINTED_BARBARIANS));
+  check("all 18 printed barbarian spawn cells and letters match tile metadata",
+    Object.keys(actual).length === 18 && mismatches.length === 0 && unexpected.length === 0);
+  if (mismatches.length || unexpected.length) {
+    console.log("  barbarian metadata mismatch:", mismatches.map(([key]) => key).concat(unexpected));
+  }
+}
+
 // --- every path in the manifest resolves ---------------------------------
 {
   let checked = 0, missing = [];

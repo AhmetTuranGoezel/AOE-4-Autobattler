@@ -2399,7 +2399,12 @@ kbd {
    faces, leader sheets, and science dials. These rules deliberately sit last:
    the hand-drawn UI remains the fallback, while real components take over when
    card-art.js supplies a path. */
-:root { --focus-height: clamp(278px, 33vh, 330px); }
+:root {
+  /* Keep the hand useful without letting it consume half of a short screen.
+     The cards still scale from both available height and row width below. */
+  --focus-height: clamp(250px, 30vh, 330px);
+  --focus-top-reserve: clamp(50px, 7vh, 70px);
+}
 
 #focus-bar {
   position: relative;
@@ -2415,7 +2420,7 @@ kbd {
 #focus-row {
   --focus-gap: clamp(4px, 0.65vw, 10px);
   position: relative;
-  width: min(1024px, 100%, calc((var(--focus-height) - 78px) * 4.2));
+  width: min(1024px, 100%, calc((var(--focus-height) - var(--focus-top-reserve)) * 4.2));
   height: 100%;
   gap: var(--focus-gap);
   justify-content: center;
@@ -2448,7 +2453,7 @@ kbd {
   width: min(
     158px,
     calc((100% - (5 * var(--focus-gap))) / 6),
-    calc((var(--focus-height) - 78px) * 0.643)
+    calc((var(--focus-height) - var(--focus-top-reserve)) * 0.643)
   );
   height: auto;
   aspect-ratio: 649 / 1009;
@@ -2855,12 +2860,16 @@ kbd {
 
 #inp-color option { background: #182036; color: #f4ead0; }
 
-@media (max-width: 900px), (max-height: 740px) {
-  :root { --focus-height: clamp(248px, 33vw, 300px); }
+@media (max-width: 900px) {
+  :root { --focus-height: clamp(238px, 28vh, 280px); }
   #focus-row { max-width: 900px; }
   .tech-panel { grid-template-columns: 1fr; }
   .tech-dial { width: 118px; height: 118px; margin: auto; }
   .tech-needle { height: 44px; margin-top: -44px; }
+}
+
+@media (max-height: 740px) and (min-width: 901px) {
+  :root { --focus-height: 250px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

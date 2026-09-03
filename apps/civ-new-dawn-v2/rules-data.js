@@ -315,7 +315,7 @@
         effect: "When attacking or defending, you can spend resource tokens (not natural wonder tokens) to increase your combat value by +2 for each token spent." },
       { name: "Petra", era: "ancient", cost: 7, auto: true,
         effect: "When defending, +2 combat value. Barbarians cannot move into spaces containing your cities or reinforced control tokens; instead they move in the opposite direction (Errata)." },
-      { name: "Terracotta Army", era: "ancient", cost: 7, auto: true,
+      { name: "Terracotta Army", era: "ancient", cost: 8, auto: true,
         effect: "When attacking, +2 combat value." },
       { name: "Huey Teocalli", era: "medieval", cost: 9, auto: true,
         effect: "When defending, increase your combat value by 1 for each water space that is adjacent to the defending space." },
