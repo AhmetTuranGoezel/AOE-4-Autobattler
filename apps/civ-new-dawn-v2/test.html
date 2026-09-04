@@ -11416,6 +11416,146 @@
       }
 
 
+
+      {
+        // THE EVENT DIAL, as a system. The wheel turns once per ROUND, not
+        // once per turn; it turns after the last seat has played, in printed
+        // order, and it resolves the icons of the space it lands on, in the
+        // order that space lists them.
+        const dialBoard = () => {
+          const st = rulesState();
+          st.turn.order = st.players.map((p) => p.id);
+          st.turn.index = 0;
+          st.players.forEach((p) => { p.cardPlayed = false; });
+          Object.values(st.map.hexes).forEach((h) => {
+            h.barbarian = false; h.barbarianId = null; h.barbarianToken = null;
+          });
+          return st;
+        };
+        // A whole round: every seat plays a card and ends, answering only its
+        // own decisions, because an unanswered one blocks the board for all.
+        const playRound = (st) => {
+          let s = st;
+          for (let seat = 0; seat < s.turn.order.length; seat++) {
+            const cur = Game.currentPlayer(s).id;
+            s = Game.applyAction(s, { type: "PLAY_SCIENCE",
+              payload: { playerId: cur, tradeSpent: 0 } });
+            for (let i = 0; i < 30; i++) {
+              const open = (s.pendingChoices || [])[0];
+              if (!open) break;
+              const payload = { playerId: open.playerId, choiceId: open.id };
+              if (open.options && open.options.length) payload.optionId = open.options[0].id;
+              else if (open.hexKeys && open.hexKeys.length) payload.hexKey = open.hexKeys[0];
+              else if (open.optional) payload.dismiss = true;
+              else break;
+              const next = Game.applyAction(s, { type: "RESOLVE_PENDING_CHOICE", payload });
+              if (next === s) break;
+              s = next;
+            }
+            s = Game.applyAction(s, { type: "END_TURN", payload: { playerId: cur } });
+          }
+          return s;
+        };
+
+        {
+          const st = dialBoard();
+          assert("the dial starts on its first space",
+            st.eventWheel.position === 0, String(st.eventWheel.position));
+          assert("and carries the printed sequence of spaces",
+            st.eventWheel.events.length === Game.EVENTS.length &&
+            JSON.stringify(st.eventWheel.events) === JSON.stringify(Game.EVENTS),
+            JSON.stringify(st.eventWheel.events));
+
+          const roundBefore = st.turn.round;
+          // One seat ending its turn is not a round.
+          const cur = Game.currentPlayer(st).id;
+          let s = Game.applyAction(st, { type: "PLAY_SCIENCE",
+            payload: { playerId: cur, tradeSpent: 0 } });
+          for (let i = 0; i < 30; i++) {
+            const open = (s.pendingChoices || [])[0];
+            if (!open) break;
+            const payload = { playerId: open.playerId, choiceId: open.id };
+            if (open.options && open.options.length) payload.optionId = open.options[0].id;
+            else if (open.hexKeys && open.hexKeys.length) payload.hexKey = open.hexKeys[0];
+            else if (open.optional) payload.dismiss = true;
+            else break;
+            const next = Game.applyAction(s, { type: "RESOLVE_PENDING_CHOICE", payload });
+            if (next === s) break;
+            s = next;
+          }
+          s = Game.applyAction(s, { type: "END_TURN", payload: { playerId: cur } });
+          assert("one seat ending its turn does not turn the dial",
+            s.eventWheel.position === 0 && s.turn.round === roundBefore,
+            JSON.stringify({ pos: s.eventWheel.position, round: s.turn.round }));
+        }
+
+        {
+          // A full round turns it exactly one space, and the round counter
+          // moves with it.
+          let s = dialBoard();
+          const before = { pos: s.eventWheel.position, round: s.turn.round };
+          s = playRound(s);
+          assert("a full round turns the dial exactly one space",
+            s.eventWheel.position === before.pos + 1,
+            JSON.stringify({ before, after: s.eventWheel.position }));
+          assert("and advances the round counter with it",
+            s.turn.round === before.round + 1,
+            JSON.stringify({ before, after: s.turn.round }));
+          assert("the seat to move is the first one again",
+            s.turn.index === 0, String(s.turn.index));
+        }
+
+        {
+          // It walks the printed spaces in order and wraps back to the start.
+          let s = dialBoard();
+          const seen = [];
+          for (let round = 0; round < Game.EVENTS.length + 1; round++) {
+            s = playRound(s);
+            seen.push(s.eventWheel.position);
+            if (s.phase === "gameover") break;
+          }
+          const expected = [];
+          for (let i = 0; i < seen.length; i++) expected.push((i + 1) % Game.EVENTS.length);
+          assert("the dial walks its spaces in printed order and wraps round",
+            JSON.stringify(seen) === JSON.stringify(expected),
+            JSON.stringify({ seen, expected }));
+        }
+
+        {
+          // Landing on a space resolves that space's icons. The dial's second
+          // space is the barbarian march, so a round taken with a barbarian on
+          // the board must record a march.
+          let s = dialBoard();
+          const target = Game.EVENTS.findIndex((sec) => sec.includes("barbarian_move"));
+          assert("the printed dial has a barbarian march on it", target > 0, String(target));
+          // Put one barbarian somewhere it can walk.
+          for (let q = -3; q <= 3; q++) {
+            for (let r = -3; r <= 3; r++) activate(s, q + "," + r, { terrain: "grass" });
+          }
+          activate(s, "0,0", { terrain: "grass", barbarian: true, barbarianId: "Z" });
+          for (let i = 0; i < target; i++) s = playRound(s);
+          assert("the dial reached the barbarian space",
+            s.eventWheel.position === target, String(s.eventWheel.position));
+          assert("and landing on it marched the barbarians",
+            !!s.barbarianMove && Number.isInteger(s.barbarianMove.roll),
+            JSON.stringify(s.barbarianMove));
+          assert("recording the die that steered them, so every seat sees the cause",
+            s.barbarianMove.roll >= 1 && s.barbarianMove.roll <= 6,
+            String(s.barbarianMove.roll));
+        }
+
+        {
+          // A space that lists two icons resolves BOTH, in the order printed —
+          // Terra p14 puts the wonder icon last in its space.
+          const multi = Game.EVENTS.filter((sec) => sec.length > 1);
+          assert("the printed dial has spaces carrying two icons",
+            multi.length > 0, JSON.stringify(Game.EVENTS));
+          assert("and the wonder icon is last wherever it shares a space",
+            multi.every((sec) => !sec.includes("wonder_tokens") ||
+              sec[sec.length - 1] === "wonder_tokens"),
+            JSON.stringify(multi));
+        }
+      }
       {
         // VICTORY AND AGENDAS, as a generic system. An agenda is claimed by
         // reaching a board state, kept once claimed unless it is a fortress
