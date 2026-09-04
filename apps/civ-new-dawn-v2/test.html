@@ -4494,6 +4494,234 @@
       }
 
       {
+        // The five player-diplomacy cards. Each of them turns on WHO gave it to
+        // you, so every one is driven both ways: against the giver and against
+        // somebody else.
+        const dipBoard = (opts) => {
+          const o = opts || {};
+          const st = Game.createState(players(3));
+          st.phase = "playing"; st.setup.phase = "done";
+          st.turn.order = st.players.map((p) => p.id);
+          st.turn.index = 0;
+          const me = st.players[0];
+          me.cardPlayed = false;
+          Game.FOCUS_TYPES.forEach((t) => { me.trade[t] = 0; });
+          Game.RESOURCES.forEach((r) => { me.resources[r] = 0; });
+          st.players.forEach((p) => { p.diplomacy = []; });
+          Object.values(st.map.hexes).forEach((h) => {
+            h.barbarian = false; h.barbarianId = null; h.barbarianToken = null;
+            h.barbarianHome = null; h.control = null; h.cityState = null;
+            h.resource = null; h.naturalWonder = null; h.naturalWonderSpace = null;
+          });
+          st.naturalWonders = {};
+          for (let q = -2; q <= 8; q++) {
+            activate(st, q + ",0", { terrain: "grass" });
+            activate(st, q + ",1", { terrain: "grass" });
+            activate(st, q + ",-1", { terrain: "grass" });
+          }
+          activate(st, "0,0", { city: { ownerId: me.id, isCapital: true,
+            developed: false, hasWonder: false, wonder: null } });
+          if (o.setUp) o.setUp(st, me);
+          return { st, me, giver: st.players[1], third: st.players[2] };
+        };
+        const give = (player, cardId, fromId) => {
+          player.diplomacy = (player.diplomacy || [])
+            .concat([{ fromId, cardId, name: cardId }]);
+        };
+
+        // ── Joint War ────────────────────────────────────────────────────
+        {
+          // "When attacking, increase your combat value by 2 UNLESS you are
+          // attacking the player who gave you this card."
+          const board = (targetIsGiver) => {
+            const { st, me, giver, third } = dipBoard();
+            const target = targetIsGiver ? giver : third;
+            st.map.hexes["1,0"].control =
+              { ownerId: target.id, fortified: false, district: null };
+            me.armies = [{ id: "a1", position: "0,0" }];
+            return { st, me, target };
+          };
+          const fight = (st, me) => Game.applyAction(st, { type: "PLAY_MILITARY_ATTACK",
+            payload: { playerId: me.id, unitId: "a1", fromKey: "0,0",
+              toKey: "1,0", targetType: "control" } });
+
+          const plain = board(false);
+          const plainOut = fight(plain.st, plain.me);
+          assert("a plain attack opens", !!plainOut.combat);
+          const base = plainOut.combat.atkBase;
+
+          const armed = board(false);
+          give(armed.me, "joint_war", armed.st.players[1].id);
+          const armedOut = fight(armed.st, armed.me);
+          assert("Joint War adds 2 when attacking a third player",
+            armedOut.combat.atkBase === base + 2,
+            `${base} -> ${armedOut.combat.atkBase}`);
+          assert("and the breakdown names it",
+            (armedOut.combat.atkParts || []).some((p) => /joint war/i.test(p.label)),
+            JSON.stringify(armedOut.combat.atkParts));
+
+          const vsGiver = board(true);
+          give(vsGiver.me, "joint_war", vsGiver.st.players[1].id);
+          const giverOut = fight(vsGiver.st, vsGiver.me);
+          assert("but not when attacking the player who gave it",
+            giverOut.combat.atkBase === base,
+            `${base} -> ${giverOut.combat.atkBase}`);
+          proves("diplomacy.joint_war");
+        }
+
+        // ── Defensive Pact ───────────────────────────────────────────────
+        {
+          // "When defending, increase your combat value by 2 UNLESS the player
+          // who gave you this card is attacking."
+          const { st, me, giver, third } = dipBoard();
+          give(me, "defensive_pact", giver.id);
+          assert("Defensive Pact adds 2 against a third player",
+            Game.getDiplomacyDefenseBonus(st, me.id, third.id) === 2,
+            String(Game.getDiplomacyDefenseBonus(st, me.id, third.id)));
+          assert("and nothing against the player who gave it",
+            Game.getDiplomacyDefenseBonus(st, me.id, giver.id) === 0,
+            String(Game.getDiplomacyDefenseBonus(st, me.id, giver.id)));
+          // And it reaches a real fight: the third player attacks my token.
+          const board = dipBoard();
+          give(board.me, "defensive_pact", board.giver.id);
+          board.st.map.hexes["1,0"].control =
+            { ownerId: board.me.id, fortified: false, district: null };
+          board.third.armies = [{ id: "t1", position: "2,0" }];
+          board.third.cardPlayed = false;
+          board.st.turn.index = board.st.turn.order.indexOf(board.third.id);
+          const out = Game.applyAction(board.st, { type: "PLAY_MILITARY_ATTACK",
+            payload: { playerId: board.third.id, unitId: "t1", fromKey: "2,0",
+              toKey: "1,0", targetType: "control" } });
+          assert("the attack on the defended token opens", !!out.combat);
+          assert("and the defence includes the pact",
+            (out.combat.defParts || []).some((p) => /defensive pact/i.test(p.label)),
+            JSON.stringify(out.combat.defParts));
+          proves("diplomacy.defensive_pact");
+        }
+
+        // ── Non-Aggression Pact ──────────────────────────────────────────
+        {
+          // The restriction and the return are both driven in the Mass Media /
+          // Nuclear Power block; this covers the attack half, which is what the
+          // card names first.
+          const { st, me, giver, third } = dipBoard();
+          give(me, "non_aggression", giver.id);
+          assert("a pact forbids attacking the giver's pieces",
+            !Game.nonAggressionWith(st, me.id, third.id) &&
+            Game.nonAggressionWith(st, me.id, giver.id));
+          const board = dipBoard();
+          give(board.me, "non_aggression", board.giver.id);
+          board.st.map.hexes["1,0"].control =
+            { ownerId: board.giver.id, fortified: false, district: null };
+          board.me.armies = [{ id: "a1", position: "0,0" }];
+          const blocked = Game.tryApplyAction(board.st, { type: "PLAY_MILITARY_ATTACK",
+            payload: { playerId: board.me.id, unitId: "a1", fromKey: "0,0",
+              toKey: "1,0", targetType: "control" } },
+            { actorId: board.me.id, role: "player" });
+          assert("so the attack itself is refused", !blocked.accepted, blocked.code);
+          assert("and no fight was opened", !blocked.state.combat);
+
+          const other = dipBoard();
+          give(other.me, "non_aggression", other.giver.id);
+          other.st.map.hexes["1,0"].control =
+            { ownerId: other.third.id, fortified: false, district: null };
+          other.me.armies = [{ id: "a1", position: "0,0" }];
+          const allowed = Game.tryApplyAction(other.st, { type: "PLAY_MILITARY_ATTACK",
+            payload: { playerId: other.me.id, unitId: "a1", fromKey: "0,0",
+              toKey: "1,0", targetType: "control" } },
+            { actorId: other.me.id, role: "player" });
+          assert("while a third player may still be attacked",
+            allowed.accepted, allowed.code);
+          assert("and that fight did open", !!allowed.state.combat);
+          proves("diplomacy.non_aggression");
+        }
+
+        // ── Embassy ──────────────────────────────────────────────────────
+        {
+          // "When you move a caravan to the capital of the player who gave you
+          // this card ... place 1 trade token on a card in THAT PLAYER'S focus
+          // row. Then, gain 1 resource of your choice."
+          const { st, me, giver } = dipBoard({ setUp: (s2, p2) => {
+            p2.caravans = [{ id: "c1", position: "0,0" }];
+            p2.focusRow = ["economy", "science", "growth", "culture", "military", "industry"];
+          } });
+          give(me, "embassy", giver.id);
+          activate(st, "2,0", { city: { ownerId: giver.id, isCapital: true,
+            developed: false, hasWonder: false, wonder: null } });
+          const out = Game.tryApplyAction(st, { type: "PLAY_ECONOMY",
+            payload: { playerId: me.id, unitId: "c1", toKey: "2,0", tradeSpent: 0 } },
+            { actorId: me.id, role: "player" });
+          assert("the caravan reaches the giver's capital", out.accepted, out.code);
+          const grant = (out.state.pendingChoices || [])
+            .find((c) => /embassy/i.test(c.source || ""));
+          assert("Embassy queues its trade grant", !!grant,
+            JSON.stringify((out.state.pendingChoices || [])
+              .map((c) => c.kind + "/" + c.source)));
+          assert("and the token is placed by the GIVER, on their own row",
+            grant.playerId === giver.id, `${grant.playerId} vs giver ${giver.id}`);
+          const placed = Game.applyAction(out.state, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: giver.id, choiceId: grant.id,
+              optionId: (grant.options || [])[0].id } });
+          const givenTo = (grant.options || [])[0].id;
+          assert("the giver's card really gains it",
+            placed.players[1].trade[givenTo] >= 1,
+            JSON.stringify(placed.players[1].trade));
+          const gain = (placed.pendingChoices || [])
+            .find((c) => c.kind === "gain_resource" && c.playerId === me.id);
+          assert("then the visitor is offered a resource", !!gain,
+            JSON.stringify((placed.pendingChoices || [])
+              .map((c) => c.kind + ":" + c.playerId)));
+          const took = Game.applyAction(placed, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: me.id, choiceId: gain.id,
+              optionId: (gain.options || [])[0].id } });
+          const res = (gain.options || [])[0].id;
+          assert("and gains it", took.players[0].resources[res] === 1,
+            JSON.stringify(took.players[0].resources));
+          proves("diplomacy.embassy");
+        }
+
+        // ── Open Borders ─────────────────────────────────────────────────
+        {
+          // "The cities and control tokens of the player who gave you this card
+          // are friendly to you for the purposes of your districts' effects and
+          // your cities' maturity."
+          const { st, me, giver, third } = dipBoard();
+          give(me, "open_borders", giver.id);
+          // A campus with the giver's control token on a mountain beside it.
+          st.map.hexes["1,0"].control =
+            { ownerId: me.id, fortified: false, district: "campus" };
+          activate(st, "2,0", { terrain: "mountain",
+            control: { ownerId: giver.id, fortified: false, district: null } });
+          activate(st, "1,1", { terrain: "mountain",
+            control: { ownerId: third.id, fortified: false, district: null } });
+          Game.resolveEvent(st, "district_event");
+          assert("the giver's mountain counts for my campus, a third player's does not",
+            st.players[0].trade.science === 1,
+            String(st.players[0].trade.science));
+
+          // Maturity: the giver's token on a ring space counts.
+          const board = dipBoard();
+          give(board.me, "open_borders", board.giver.id);
+          Game.hexNeighborKeys(0, 0).forEach((k) => {
+            if (board.st.map.hexes[k]) activate(board.st, k, { terrain: "grass",
+              control: { ownerId: board.me.id, fortified: false, district: null } });
+          });
+          board.st.map.hexes["1,0"].control =
+            { ownerId: board.giver.id, fortified: false, district: null };
+          const settled = Game.applyAction(board.st, { type: "NO_SUCH_ACTION", payload: {} });
+          assert("and the giver's ring token keeps my city mature",
+            Game.countDeveloped(settled, board.me.id) === 1,
+            String(Game.countDeveloped(settled, board.me.id)));
+          settled.players[0].diplomacy = [];
+          const without = Game.applyAction(settled, { type: "NO_SUCH_ACTION", payload: {} });
+          assert("without the card the same token does not",
+            Game.countDeveloped(without, board.me.id) === 0,
+            String(Game.countDeveloped(without, board.me.id)));
+          proves("diplomacy.open_borders");
+        }
+      }
+
+      {
         // The six government markers. A marker on a focus type makes THAT card
         // resolve a printed number of places further right, and the number is
         // not the same for all six: Communism and Democracy print one arrow,
