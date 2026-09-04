@@ -9,11 +9,11 @@ Everything below refers to `apps/civ-new-dawn-v2`.
 ## Where things stand
 
 - Branch: `main`, not pushed.
-- Head at last update: `028c5b6`.
-- Rule harness: **1664 passed, 0 failed** (`node tools/rule-test-runner.js`).
-- `node tools/check-all.js`: **all checks green** (13 gates, including three
-  real-browser runs: smoke 37, two clients 35, five clients 39).
-- Behavioural proof of printed effects: **123/124**.
+- Head at last update: `7011d02`.
+- Rule harness: **1715 passed, 0 failed** (`node tools/rule-test-runner.js`).
+- `node tools/check-all.js`: **all checks green** (14 gates, including four
+  real-browser runs: smoke 37, two clients 35, five clients 39, Oxford 23).
+- Behavioural proof of printed effects: **124/124**.
   Generic rule systems are tracked separately in
   `tools/generic-rules-checklist.md` and never count toward the 124.
 
@@ -24,21 +24,20 @@ Proof by category (from `tools/coverage-matrix.js`):
 | Standard Focus | 24/24 |
 | Unique Focus | 18/18 |
 | Civilization abilities | 18/18 |
-| World Wonders | 35/36 |
+| World Wonders | 36/36 |
 | Player Diplomacy | 5/5 |
 | City States | 12/12 |
 | Governments | 6/6 |
 | Districts | 5/5 |
 
-The single unproven effect is **Oxford University**, which is BLOCKED — see
-below. It is not a missing test; it is a rule that cannot be settled from the
-sources available.
+Every printed effect now has a behavioural proof. Oxford University, the last
+one, is implemented rather than stubbed: it required the focus row to be able
+to hold two cards of one type.
 
 ## Generic rule systems
 
 `tools/generic-rules-checklist.md` is the honest status list. **Every row is
-now `proven` except one**: Component supply, which is `partial` because its
-NUMBER is blocked. Nothing is on the known-broken list.
+`proven`.** Nothing is on the known-broken list, and nothing is partial.
 
 The two systems every card runs on — the focus row and the tech dial — were
 added as rows of their own in `028c5b6`; they had been carrying the whole game
@@ -81,38 +80,53 @@ behavioural regression that fails without the fix.
 
 ## Remaining, in priority order
 
-There is no unblocked rule work left on the list that produced this file.
-What remains is either blocked (below) or needs new input:
-
-1. **Oxford University** — blocked, see below.
-2. **Component counts** — two blocked items, see below.
-3. Anything new the user raises.
+No unblocked rule work is outstanding on the lists that produced this file.
 
 ## Blocked
 
-These are recorded rather than guessed. Each needs a source this session does
-not have; none is a missing test.
+One narrow question remains, and it changes no behaviour.
 
-- **Oxford University.** "When you replace (tech upgrade) a focus card other
-  than a science focus card, you do not have to replace it with a card of the
-  same type." The effect is defined entirely against a restriction on which
-  card a tech upgrade may replace — and this engine's upgrade step already lets
-  the player pick any eligible type, so there is no restriction for Oxford to
-  lift and the wonder would be a no-op. Settling it needs the English
-  rulebook's exact wording for the tech-upgrade step. Not implemented; not
-  faked. This is the 124th effect.
+- **Seven barbarian helm letters.** The tile faces were audited at 8x in three
+  renderings. All eighteen printed spawn cells are right, and A, B, C, D, G and
+  K read unambiguously. 07B was transcribed "B" and is H; that is corrected.
+  The E/F cluster — 08A, 08B, 12A, 12B, 15B, TI04A, TI04B — cannot be separated
+  with confidence at this scan resolution, where the helm silhouette merges
+  with the glyph. A higher-resolution photograph of those seven faces, or the
+  physical tiles, would settle it. Nothing in the rules engine reads a letter:
+  a figure is identified by its printed SPAWN (tile, side, cell), because
+  letters genuinely repeat across tiles that can be on the board together.
 
-- **Control-token component count.** Modelling a finite supply needs the exact
-  number of control tokens per player in the ENGLISH base game and the number
-  Terra Incognita adds. That is a component list, not a rule derivable from the
-  code or the tile data. The *semantics* are built and proven; only the count
-  is blocked, and `CFG.controlTokens` is Infinity until it is verified.
+Previously blocked and now resolved from the English sources:
 
-- **Duplicate printed barbarian letters.** The tiles print E on four different
-  tiles and F and B on two each. The engine places a figure on every printed
-  icon, which the identity model assumes. Whether the physical game ships one
-  figure per LETTER cannot be settled without the English component list. The
-  identity model is correct under either reading.
+- **Oxford University** — implemented; see below.
+- **Control-token count** — 34 per player under Terra (124 base at 31 each,
+  plus Terra's 12, plus purple's 34 in the fifth-player set).
+- **Barbarian figure count** — 11 (9 base + 2 Terra), now a finite pool.
+
+## The focus row can hold two cards of one type
+
+This is the one architectural change worth knowing about before touching
+anything.
+
+The row was six type NAMES, and a type was a card's identity everywhere:
+`cardTiers[type]`, `trade[type]`, `focusRow.indexOf(type)`. Base p8 makes that
+safe, because a gained card replaces the card of the same type.
+
+Oxford lifts exactly that for non-science cards, so a row can hold Military II
+and Military I at once and no Culture card at all.
+
+The model: a row entry is a bare type string for the card that OWNS its type
+key, and any further card of that type is an instance `{type, tier, trade}`
+carrying its own level and its own trade tokens. Only Oxford creates the second
+form, so every game without it is unchanged.
+
+What is card-aware rather than type-aware: `resolveCard` (the card played is
+the card that resets), `getSlotValue` and the science prelude (a card resolves
+at its own level from its own place), `spendFocusTradePayment` (tokens come off
+the card that paid), `cardNameAt` (a card is named from its own level, so a
+unique card cannot be claimed by its twin), and `getActiveUniqueCard` (a type
+Oxford pushed out of the row is not in play). In the UI, `rowCardsOf` is the one
+place that turns a row into cards, and a clicked card sends its index.
 
 ## Notes for whoever picks this up
 
