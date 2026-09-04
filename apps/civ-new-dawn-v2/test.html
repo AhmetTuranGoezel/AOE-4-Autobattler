@@ -11415,6 +11415,478 @@
         proves("wonder.economy.estadio_do_maracana");
       }
 
+
+      {
+        // VICTORY AND AGENDAS, as a generic system. An agenda is claimed by
+        // reaching a board state, kept once claimed unless it is a fortress
+        // agenda, counted per victory CARD rather than per agenda, and four
+        // cards end the game.
+        const vBoard = (setUp) => {
+          const st = rulesState();
+          const me = st.players[0], foe = st.players[1];
+          st.turn.index = st.turn.order.indexOf(me.id);
+          Object.values(st.map.hexes).forEach((h) => {
+            h.barbarian = false; h.barbarianId = null; h.barbarianToken = null;
+            h.control = null; h.city = null; h.cityState = null; h.fortress = false;
+            h.resource = null; h.naturalWonder = null; h.naturalWonderSpace = null;
+          });
+          st.naturalWonders = {};
+          st.claimedAgendas = {};
+          // The victory cards are dealt at random, so a fixture that hopes the
+          // agenda it drives was dealt is a flake. Name them here instead.
+          st.agendaCards = [
+            { id: "vc-a", agendas: ["industrious", "populous"] },
+            { id: "vc-b", agendas: ["aesthetic", "scholarly"] },
+            { id: "vc-c", agendas: ["paranoid", "money_grubber"] },
+            { id: "vc-d", agendas: ["diversified", "progressive"] },
+            { id: "vc-e", agendas: ["technophile", "diplomatic"] }
+          ];
+          for (let q = -4; q <= 9; q++) {
+            for (let r = -3; r <= 3; r++) activate(st, q + "," + r, { terrain: "grass" });
+          }
+          if (setUp) setUp(st, me, foe);
+          return { st, me, foe };
+        };
+        // CHECK_AGENDAS is the action that evaluates claims against the board.
+        // Driving it, rather than calling the scorer, is what makes these
+        // assertions about the game rather than about a helper.
+        const settle = (st) => Game.applyAction(st, { type: "CHECK_AGENDAS", payload: {} });
+        const claimsOf = (st, id) =>
+          (st.claimedAgendas && st.claimedAgendas[id]) || {};
+
+        {
+          // "Industrious": five districts on the map. Terra p16 says five
+          // districts, not one of each kind — and a player only has five kinds,
+          // so this is the whole supply out at once.
+          const kinds = Game.DISTRICTS.slice(0, 5);
+          const four = vBoard((st, me) => {
+            kinds.slice(0, 4).forEach((kind, i) => activate(st, (i + 1) + ",0", {
+              control: { ownerId: me.id, fortified: false, district: kind } }));
+          });
+          const s4 = settle(four.st);
+          assert("four districts do not claim the industrious agenda",
+            !claimsOf(s4, four.me.id).industrious,
+            JSON.stringify(claimsOf(s4, four.me.id)));
+          const five = vBoard((st, me) => {
+            kinds.forEach((kind, i) => activate(st, (i + 1) + ",0", {
+              control: { ownerId: me.id, fortified: false, district: kind } }));
+          });
+          const s5 = settle(five.st);
+          assert("the fifth claims it", !!claimsOf(s5, five.me.id).industrious,
+            JSON.stringify(claimsOf(s5, five.me.id)));
+          assert("and it is a consequence of the board, not of who asked",
+            !claimsOf(s5, five.foe.id).industrious);
+        }
+
+        {
+          // "Populous": five MATURE cities. This is the agenda that used to
+          // over-report when maturity was cached, so it is driven both ways.
+          const ringed = (st, ownerId, centres) => centres.forEach((c) => {
+            const [q, r] = c.split(",").map(Number);
+            st.map.hexes[c].city = { ownerId, isCapital: false, developed: false,
+              hasWonder: false, wonder: null };
+            Game.hexNeighborKeys(q, r).forEach((nk) => {
+              const h = st.map.hexes[nk];
+              if (h && h.active && !h.city) {
+                h.control = { ownerId, fortified: false, district: null };
+              }
+            });
+          });
+          // Five cities two apart so their rings do not overlap onto a city.
+          const centres = ["0,0", "3,0", "6,0", "0,3", "3,3"];
+          const b = vBoard((st, me) => ringed(st, me.id, centres));
+          const s = settle(b.st);
+          assert("the fixture really has five mature cities",
+            Game.countDeveloped(s, b.me.id) === 5,
+            String(Game.countDeveloped(s, b.me.id)));
+          assert("which claims the populous agenda",
+            !!claimsOf(s, b.me.id).populous, JSON.stringify(claimsOf(s, b.me.id)));
+
+          const broken = vBoard((st, me) => ringed(st, me.id, centres));
+          // Break one ring: a barbarian raid on a single token is enough.
+          const anyRing = Game.hexNeighborKeys(0, 0)
+            .find((k) => broken.st.map.hexes[k] && broken.st.map.hexes[k].control);
+          broken.st.map.hexes[anyRing].control = null;
+          const s2 = settle(broken.st);
+          assert("losing one ring token drops it to four mature cities",
+            Game.countDeveloped(s2, broken.me.id) === 4,
+            String(Game.countDeveloped(s2, broken.me.id)));
+          assert("so the agenda is not claimed",
+            !claimsOf(s2, broken.me.id).populous,
+            JSON.stringify(claimsOf(s2, broken.me.id)));
+        }
+
+        {
+          // A claim is KEPT once made, even if the board later stops meeting
+          // it — except a fortress agenda, which the code tracks live.
+          const kinds = Game.DISTRICTS.slice(0, 5);
+          const b = vBoard((st, me) => {
+            kinds.forEach((kind, i) => activate(st, (i + 1) + ",0", {
+              control: { ownerId: me.id, fortified: false, district: kind } }));
+          });
+          const claimed = settle(b.st);
+          assert("the agenda is claimed", !!claimsOf(claimed, b.me.id).industrious);
+          claimed.map.hexes["1,0"].control = null;   // a district is destroyed
+          const later = settle(claimed);
+          assert("and losing a district afterwards does not take the claim back",
+            !!claimsOf(later, b.me.id).industrious,
+            JSON.stringify(claimsOf(later, b.me.id)));
+        }
+
+        {
+          // The game ends when a player has claimed FOUR victory cards. The
+          // count is per CARD, and each card carries two agendas, so meeting
+          // both halves of one card is still one card.
+          const b = vBoard(() => {});
+          const s = settle(b.st);
+          // The cards have to come from THIS state: victoryCards deals from the
+          // board, so a set read off a second fixture would carry other ids.
+          const cards = Game.victoryCards(s);
+          assert("the board deals victory cards", cards.length >= 4, String(cards.length));
+          assert("nobody has claimed anything on an empty board",
+            Game.getClaimedAgendaCount(s, b.me.id) === 0,
+            String(Game.getClaimedAgendaCount(s, b.me.id)));
+          // Claim the halves of ONE card and check the count is one, not two.
+          const card = cards[0];
+          s.claimedAgendas[b.me.id] = {};
+          card.agendas.forEach((id) => { s.claimedAgendas[b.me.id][id] = true; });
+          s.claimedAgendas[b.me.id][card.id] = true;
+          assert("both halves of one card still count as one card",
+            Game.getClaimedAgendaCount(s, b.me.id) === 1,
+            String(Game.getClaimedAgendaCount(s, b.me.id)));
+          cards.slice(1, 4).forEach((c) => { s.claimedAgendas[b.me.id][c.id] = true; });
+          assert("four cards is four", Game.getClaimedAgendaCount(s, b.me.id) === 4,
+            String(Game.getClaimedAgendaCount(s, b.me.id)));
+        }
+      }
+
+      {
+        // CITY CONSTRUCTION, as a generic system: the legality rule is one
+        // function, and every source that builds a city goes through it.
+        const cBoard = (setUp) => {
+          const st = rulesState();
+          const me = st.players[0], foe = st.players[1];
+          me.cardPlayed = false;
+          st.turn.index = st.turn.order.indexOf(me.id);
+          Object.values(st.map.hexes).forEach((h) => {
+            h.barbarian = false; h.barbarianId = null; h.barbarianToken = null;
+            h.control = null; h.city = null; h.cityState = null; h.fortress = false;
+            h.resource = null; h.naturalWonder = null; h.naturalWonderSpace = null;
+          });
+          st.naturalWonders = {};
+          for (let q = -2; q <= 8; q++) {
+            for (let r = -2; r <= 2; r++) activate(st, q + "," + r, { terrain: "grass" });
+          }
+          st.map.hexes["0,0"].city = { ownerId: me.id, isCapital: true,
+            developed: false, hasWonder: false, wonder: null };
+          me.focusRow = ["industry", "economy", "science", "growth", "culture", "military"];
+          if (setUp) setUp(st, me, foe);
+          return { st, me, foe };
+        };
+        const legal = (b, key) => Game.validCityHexes(b.me
+          ? b.st : b, b.me.id, Infinity, 2).has(key);
+
+        {
+          const b = cBoard();
+          assert("a space two away from the capital is legal", legal(b, "2,0"));
+          assert("a space ADJACENT to a city is not: cities may not touch",
+            !legal(b, "1,0"));
+          assert("and one out of range of any friendly space is not",
+            !legal(b, "8,0"));
+        }
+        {
+          const b = cBoard((st) => {
+            activate(st, "2,0", { cityState: { name: "S", type: "science", diplomacyCards: 2 } });
+          });
+          assert("a space holding a city-state is not legal", !legal(b, "2,0"));
+          assert("nor is one adjacent to it", !legal(b, "2,1"));
+        }
+        {
+          const b = cBoard((st) => { activate(st, "2,0", { resource: "marble" }); });
+          assert("a space with a resource token on it is not legal", !legal(b, "2,0"));
+        }
+        {
+          const b = cBoard((st) => {
+            activate(st, "2,0", { naturalWonder: "Mt Kilimanjaro",
+              naturalWonderSpace: "Mt Kilimanjaro", resource: "wonder" });
+          });
+          assert("nor is a natural wonder space while its token is on it",
+            !legal(b, "2,0"));
+        }
+        {
+          const b = cBoard((st) => { activate(st, "2,0", { barbarian: true }); });
+          assert("nor one holding a barbarian", !legal(b, "2,0"));
+        }
+        {
+          const b = cBoard((st) => { activate(st, "2,0", { fortress: true }); });
+          assert("nor a fort", !legal(b, "2,0"));
+        }
+        {
+          const b = cBoard((st, me, foe) => {
+            activate(st, "2,0", { control: { ownerId: foe.id, fortified: false, district: null } });
+          });
+          assert("nor a space held by a rival's control token", !legal(b, "2,0"));
+        }
+        {
+          const b = cBoard((st, me) => {
+            activate(st, "2,0", { control: { ownerId: me.id, fortified: false, district: null } });
+          });
+          assert("but your OWN control token does not block a city", legal(b, "2,0"));
+        }
+        {
+          const b = cBoard((st, me, foe) => { foe.armies = [{ id: "f1", position: "2,0" }]; });
+          assert("a rival ARMY in the space blocks it", !legal(b, "2,0"));
+          const mine = cBoard((st, me) => { me.armies = [{ id: "a1", position: "2,0" }]; });
+          assert("your own army does not", legal(mine, "2,0"));
+        }
+        {
+          const b = cBoard((st, me, foe) => { foe.caravans = [{ id: "f1", position: "2,0" }]; });
+          assert("and a caravan never blocks, whoever owns it", legal(b, "2,0"));
+        }
+        {
+          // Every source that builds a city ends up on the same rule. The
+          // industry card is one; the Industrial Zone's option is another; both
+          // are refused on an illegal space and accepted on a legal one.
+          const b = cBoard();
+          const bad = Game.tryApplyAction(b.st, { type: "PLAY_INDUSTRY_CITY",
+            payload: { playerId: b.me.id, hexKey: "1,0" } },
+            { actorId: b.me.id, role: "player" });
+          assert("the industry card refuses a space adjacent to a city",
+            !bad.accepted, bad.code);
+          const good = Game.tryApplyAction(b.st, { type: "PLAY_INDUSTRY_CITY",
+            payload: { playerId: b.me.id, hexKey: "2,0" } },
+            { actorId: b.me.id, role: "player" });
+          assert("and builds on a legal one", good.accepted, good.code);
+          assert("with the city really there",
+            good.accepted && good.state.map.hexes["2,0"].city.ownerId === b.me.id);
+          assert("as a plain city, not a capital",
+            good.accepted && good.state.map.hexes["2,0"].city.isCapital === false);
+          // And the space it took is no longer legal for the next one.
+          assert("the new city then blocks its own neighbours",
+            good.accepted && !Game.validCityHexes(good.state, b.me.id, Infinity, 2).has("2,1"));
+        }
+      }
+      {
+        // MOVEMENT, as a generic system rather than through any one card.
+        // Four separate rules govern where a figure may go: how far the card
+        // carries it, what terrain the card's slot lets it enter, water, and
+        // the pieces that stop it dead. Each is driven on its own here, and
+        // then a real move is dispatched so the limits are shown refusing and
+        // allowing actual actions rather than only shaping a reachable set.
+        const moveBoard = (setUp) => {
+          const st = rulesState();
+          const me = st.players[0], foe = st.players[1];
+          me.cardPlayed = false;
+          st.turn.index = st.turn.order.indexOf(me.id);
+          Game.FOCUS_TYPES.forEach((t) => { me.trade[t] = 0; });
+          Object.values(st.map.hexes).forEach((h) => {
+            h.barbarian = false; h.barbarianId = null; h.barbarianToken = null;
+            h.control = null; h.city = null; h.cityState = null; h.fortress = false;
+            h.resource = null; h.naturalWonder = null; h.naturalWonderSpace = null;
+          });
+          st.naturalWonders = {};
+          for (let q = -1; q <= 9; q++) activate(st, q + ",0", { terrain: "grass" });
+          for (let q = -1; q <= 9; q++) {
+            activate(st, q + ",1", { terrain: "grass" });
+            activate(st, q + ",-1", { terrain: "grass" });
+          }
+          st.map.hexes["0,0"].city = { ownerId: me.id, isCapital: true,
+            developed: false, hasWonder: false, wonder: null };
+          me.focusRow = ["military", "economy", "science", "growth", "culture", "industry"];
+          if (setUp) setUp(st, me, foe);
+          return { st, me, foe };
+        };
+
+        // ── How far the card carries a figure ────────────────────────────
+        {
+          const b = moveBoard();
+          const limit = Game.getMilitaryMove(b.me, b.st);
+          const reach = Game.getReachable(b.st, "0,0", limit, "army", b.me.id);
+          assert("an army reaches exactly as far as its card allows",
+            reach.has(limit + ",0") && !reach.has((limit + 1) + ",0"),
+            `limit ${limit}; ${[...reach].sort().join(" ")}`);
+          b.me.armies = [{ id: "a1", position: "0,0" }];
+          const tooFar = Game.tryApplyAction(b.st, { type: "PLAY_MILITARY_MOVE", payload: {
+            playerId: b.me.id, unitId: "a1", fromKey: "0,0", toKey: (limit + 1) + ",0" } },
+            { actorId: b.me.id, role: "player" });
+          assert("and a move one space beyond it is refused by the engine",
+            !tooFar.accepted, tooFar.code);
+          const ok = Game.tryApplyAction(b.st, { type: "PLAY_MILITARY_MOVE", payload: {
+            playerId: b.me.id, unitId: "a1", fromKey: "0,0", toKey: limit + ",0" } },
+            { actorId: b.me.id, role: "player" });
+          assert("while a move to the limit is accepted", ok.accepted, ok.code);
+          assert("and the figure is really there",
+            ok.accepted && ok.state.players[0].armies[0].position === limit + ",0");
+        }
+
+        // ── The terrain the card's slot opens ────────────────────────────
+        {
+          // movementTerrainLimit is the card's SLOT number, and terrain runs
+          // grass 1, hill 2, forest 3, desert 4, mountain 5.
+          const b = moveBoard((st) => {
+            activate(st, "1,0", { terrain: "hill" });
+            activate(st, "2,0", { terrain: "mountain" });
+          });
+          const slot = Game.getSlotValue(b.me, "military", b.st);
+          assert("the fixture's military card sits in a low slot", slot < 5, String(slot));
+          const reach = Game.getReachable(b.st, "0,0", 6, "army", b.me.id);
+          assert("terrain at or below the slot is open",
+            reach.has("1,0") === (Game.TERRAIN.hill <= slot),
+            JSON.stringify({ slot, hill: Game.TERRAIN.hill, has: reach.has("1,0") }));
+          assert("a mountain above the slot is closed",
+            !reach.has("2,0"), [...reach].sort().join(" "));
+          // Raising the slot opens it, which is what makes this the card's
+          // number and not a property of the space.
+          const high = moveBoard((st, me) => {
+            activate(st, "1,0", { terrain: "hill" });
+            activate(st, "2,0", { terrain: "mountain" });
+            me.focusRow = ["culture", "economy", "science", "growth", "industry", "military"];
+          });
+          assert("the same mountain opens when the card resolves further right",
+            Game.getSlotValue(high.me, "military", high.st) === 5 &&
+            Game.getReachable(high.st, "0,0", 6, "army", high.me.id).has("2,0"),
+            String(Game.getSlotValue(high.me, "military", high.st)));
+        }
+
+        // ── Water ────────────────────────────────────────────────────────
+        {
+          const b = moveBoard((st) => activate(st, "1,0", { terrain: "water" }));
+          assert("a low-tier army cannot enter water",
+            !Game.canCrossWater(b.me, "army") &&
+            !Game.getReachable(b.st, "0,0", 6, "army", b.me.id).has("1,0"));
+          const sailor = moveBoard((st, me) => {
+            activate(st, "1,0", { terrain: "water" });
+            me.cardTiers.military = 3;
+            me.cardLevels.military = 3;
+          });
+          assert("a card at the printed water tier can",
+            Game.canCrossWater(sailor.me, "army") &&
+            Game.getReachable(sailor.st, "0,0", 6, "army", sailor.me.id).has("1,0"),
+            String(Game.getCardTier(sailor.me, "military")));
+        }
+
+        // ── The pieces that stop a figure dead ───────────────────────────
+        {
+          // "When an army enters a space containing a barbarian, city-state or
+          // rival piece, it must end its movement." Each of those is driven as
+          // a separate board: the space itself stays reachable, the space
+          // BEYOND it does not.
+          // A single-file corridor. With the parallel lanes open the army
+          // simply walks around a blocker, which would make every one of these
+          // assertions pass for the wrong reason.
+          const corridor = (st) => {
+            for (let q = -1; q <= 9; q++) {
+              st.map.hexes[q + ",1"].active = false;
+              st.map.hexes[q + ",-1"].active = false;
+            }
+          };
+          const stoppedBy = (place) => {
+            const b = moveBoard((st, me, foe) => { corridor(st); place(st, me, foe); });
+            const reach = Game.getReachable(b.st, "0,0", 6, "army", b.me.id);
+            return { entersIt: reach.has("2,0"), passesIt: reach.has("3,0") };
+          };
+          const open = stoppedBy(() => {});
+          assert("with nothing in the way the army passes straight through",
+            open.entersIt && open.passesIt);
+
+          const barb = stoppedBy((st) => {
+            st.map.hexes["2,0"].barbarian = true;
+            st.map.hexes["2,0"].barbarianId = "X";
+          });
+          assert("a barbarian stops it: the space is reachable, beyond it is not",
+            barb.entersIt && !barb.passesIt, JSON.stringify(barb));
+
+          const cs = stoppedBy((st) => {
+            st.map.hexes["2,0"].cityState = { name: "Test State", type: "science", diplomacyCards: 2 };
+          });
+          assert("so does a city-state", cs.entersIt && !cs.passesIt, JSON.stringify(cs));
+
+          const rivalArmy = stoppedBy((st, me, foe) => {
+            foe.armies = [{ id: "f1", position: "2,0" }];
+          });
+          assert("so does a rival army", rivalArmy.entersIt && !rivalArmy.passesIt,
+            JSON.stringify(rivalArmy));
+
+          const rivalCity = stoppedBy((st, me, foe) => {
+            st.map.hexes["2,0"].city = { ownerId: foe.id, isCapital: false,
+              developed: false, hasWonder: false, wonder: null };
+          });
+          assert("so does a rival city", rivalCity.entersIt && !rivalCity.passesIt,
+            JSON.stringify(rivalCity));
+
+          const fort = stoppedBy((st) => { st.map.hexes["2,0"].fortress = true; });
+          assert("so does an uncontrolled fort", fort.entersIt && !fort.passesIt,
+            JSON.stringify(fort));
+
+          const rivalToken = stoppedBy((st, me, foe) => {
+            st.map.hexes["2,0"].control = { ownerId: foe.id, fortified: false, district: null };
+          });
+          assert("and so does a rival control token", rivalToken.entersIt && !rivalToken.passesIt,
+            JSON.stringify(rivalToken));
+
+          const ownToken = stoppedBy((st, me) => {
+            st.map.hexes["2,0"].control = { ownerId: me.id, fortified: true, district: null };
+          });
+          assert("but your OWN token does not stop you, however it is standing",
+            ownToken.entersIt && ownToken.passesIt, JSON.stringify(ownToken));
+
+          // A stop is not the same as a wall: the engine must refuse ENDING on
+          // a defended space with a plain move, because that is an attack.
+          const b = moveBoard((st, me, foe) => {
+            corridor(st);
+            st.map.hexes["2,0"].control = { ownerId: foe.id, fortified: false, district: null };
+          });
+          b.me.armies = [{ id: "a1", position: "0,0" }];
+          const walkOn = Game.tryApplyAction(b.st, { type: "PLAY_MILITARY_MOVE", payload: {
+            playerId: b.me.id, unitId: "a1", fromKey: "0,0", toKey: "2,0" } },
+            { actorId: b.me.id, role: "player" });
+          assert("moving onto a defended space is refused: that is an attack",
+            !walkOn.accepted, walkOn.code);
+          const attack = Game.tryApplyAction(b.st, { type: "PLAY_MILITARY_ATTACK", payload: {
+            playerId: b.me.id, unitId: "a1", fromKey: "0,0", toKey: "2,0",
+            targetType: "control" } }, { actorId: b.me.id, role: "player" });
+          assert("and the attack action is the one that reaches it",
+            attack.accepted && !!attack.state.combat, attack.code);
+        }
+
+        // ── A caravan is governed by its own card ────────────────────────
+        {
+          const b = moveBoard((st, me) => {
+            me.caravans = [{ id: "c1", position: "0,0" }];
+          });
+          const limit = Game.getEconomyMove(b.me, b.st);
+          const reach = Game.getReachable(b.st, "0,0", limit, "caravan", b.me.id);
+          assert("a caravan reaches exactly its economy card's distance",
+            reach.has(limit + ",0") && !reach.has((limit + 1) + ",0"),
+            `limit ${limit}; ${[...reach].sort().join(" ")}`);
+          const tooFar = Game.tryApplyAction(b.st, { type: "PLAY_ECONOMY", payload: {
+            playerId: b.me.id, unitId: "c1", toKey: (limit + 1) + ",0", tradeSpent: 0 } },
+            { actorId: b.me.id, role: "player" });
+          assert("and a longer move is refused", !tooFar.accepted, tooFar.code);
+          const ok = Game.tryApplyAction(b.st, { type: "PLAY_ECONOMY", payload: {
+            playerId: b.me.id, unitId: "c1", toKey: limit + ",0", tradeSpent: 0 } },
+            { actorId: b.me.id, role: "player" });
+          assert("while the exact distance is allowed and moves the figure",
+            ok.accepted && ok.state.players[0].caravans[0].position === limit + ",0",
+            ok.code);
+          // Trade tokens buy distance, which is the printed way to go further.
+          const paid = moveBoard((st, me) => {
+            me.caravans = [{ id: "c1", position: "0,0" }];
+            me.trade.economy = 2;
+          });
+          const boughtLimit = Game.getEconomyMove(paid.me, paid.st) + 2;
+          const far = Game.tryApplyAction(paid.st, { type: "PLAY_ECONOMY", payload: {
+            playerId: paid.me.id, unitId: "c1", toKey: boughtLimit + ",0", tradeSpent: 2 } },
+            { actorId: paid.me.id, role: "player" });
+          assert("spending two trade tokens buys exactly two more spaces",
+            far.accepted && far.state.players[0].caravans[0].position === boughtLimit + ",0",
+            far.code);
+          assert("and the tokens are really spent",
+            far.accepted && far.state.players[0].trade.economy === 0,
+            far.accepted && String(far.state.players[0].trade.economy));
+        }
+      }
+
       summary.textContent = `${passed} passed, ${failed} failed`;
     } catch (err) {
       failed++;
