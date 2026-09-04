@@ -11320,6 +11320,101 @@
         }
       }
 
+      {
+        // Estadio Do Maracana: "You MAY resolve and reset your economy card
+        // BEFORE you resolve a non-economy focus card (Errata)."
+        //
+        // A turn is normally one card. This wonder lets the economy card be
+        // taken without spending that, so a non-economy card can still follow —
+        // which is what the regression drives, rather than the offer appearing.
+        const estBoard = (withWonder) => {
+          const st = rulesState();
+          const me = st.players[0];
+          me.cardPlayed = false;
+          me.estadioUsed = false;
+          st.turn.index = st.turn.order.indexOf(me.id);
+          Game.FOCUS_TYPES.forEach((t) => { me.trade[t] = 0; });
+          Object.values(st.map.hexes).forEach((h) => {
+            h.barbarian = false; h.barbarianId = null; h.barbarianToken = null;
+            h.control = null; h.city = null; h.cityState = null;
+            h.resource = null; h.naturalWonder = null; h.naturalWonderSpace = null;
+          });
+          st.naturalWonders = {};
+          for (let q = -2; q <= 4; q++) {
+            for (let r = -2; r <= 2; r++) activate(st, q + "," + r, { terrain: "grass" });
+          }
+          st.map.hexes["0,0"].city = { ownerId: me.id, isCapital: true,
+            developed: false, hasWonder: !!withWonder,
+            wonder: withWonder
+              ? { name: "Estadio Do Maracana", type: "economy", era: "modern" } : null };
+          me.caravans = [{ id: "c1", position: "0,0" }];
+          me.focusRow = ["economy", "science", "growth", "culture", "military", "industry"];
+          return { st, me };
+        };
+        const moveCaravan = (b, toKey) => Game.tryApplyAction(b.st, { type: "PLAY_ECONOMY",
+          payload: { playerId: b.me.id, unitId: "c1", toKey, tradeSpent: 0 } },
+          { actorId: b.me.id, role: "player" });
+
+        {
+          const plain = estBoard(false);
+          const run = moveCaravan(plain, "1,0");
+          assert("an ordinary economy card resolves", run.accepted, run.code);
+          assert("and that was this turn's card",
+            Game.getPlayer(run.state, plain.me.id).cardPlayed === true);
+          const second = Game.applyAction(run.state, { type: "PLAY_SCIENCE",
+            payload: { playerId: plain.me.id, tradeSpent: 0 } });
+          assert("so a second, non-economy card is refused",
+            Game.getPlayer(second, plain.me.id).tech ===
+              Game.getPlayer(run.state, plain.me.id).tech,
+            `${Game.getPlayer(run.state, plain.me.id).tech} -> ${Game.getPlayer(second, plain.me.id).tech}`);
+          assert("and no offer was made", !(run.state.pendingChoices || [])
+            .some((c) => c.kind === "estadio_free"));
+        }
+        {
+          const b = estBoard(true);
+          const run = moveCaravan(b, "1,0");
+          assert("with the wonder the economy card resolves too", run.accepted, run.code);
+          const offer = (run.state.pendingChoices || [])
+            .find((c) => c.kind === "estadio_free");
+          assert("and Estadio offers to keep the card", !!offer,
+            JSON.stringify((run.state.pendingChoices || []).map((c) => c.kind)));
+          assert("which is optional, because the card says you may",
+            !!offer && offer.optional === true);
+
+          // Declining spends the turn's card, exactly as without the wonder.
+          const declined = Game.applyAction(JSON.parse(JSON.stringify(run.state)),
+            { type: "RESOLVE_PENDING_CHOICE",
+              payload: { playerId: b.me.id, choiceId: offer.id, dismiss: true } });
+          assert("declining leaves the card spent",
+            Game.getPlayer(declined, b.me.id).cardPlayed === true);
+
+          const kept = Game.applyAction(JSON.parse(JSON.stringify(run.state)),
+            { type: "RESOLVE_PENDING_CHOICE",
+              payload: { playerId: b.me.id, choiceId: offer.id, optionId: "yes" } });
+          assert("taking it gives the card back",
+            Game.getPlayer(kept, b.me.id).cardPlayed === false,
+            String(Game.getPlayer(kept, b.me.id).cardPlayed));
+          assert("and the caravan still made its move",
+            Game.getPlayer(kept, b.me.id).caravans[0].position === "1,0",
+            String(Game.getPlayer(kept, b.me.id).caravans[0].position));
+
+          const techBefore = Game.getPlayer(kept, b.me.id).tech;
+          const after = Game.applyAction(kept, { type: "PLAY_SCIENCE",
+            payload: { playerId: b.me.id, tradeSpent: 0 } });
+          assert("so a NON-ECONOMY card can still be resolved this turn",
+            Game.getPlayer(after, b.me.id).tech > techBefore,
+            `${techBefore} -> ${Game.getPlayer(after, b.me.id).tech}`);
+
+          // "Once" is the shape of the offer: it does not come round again.
+          assert("and the wonder is spent for the turn",
+            Game.getPlayer(kept, b.me.id).estadioUsed === true);
+          assert("so a second economy card gets no second free ride",
+            !(after.pendingChoices || []).some((c) => c.kind === "estadio_free"),
+            JSON.stringify((after.pendingChoices || []).map((c) => c.kind)));
+        }
+        proves("wonder.economy.estadio_do_maracana");
+      }
+
       summary.textContent = `${passed} passed, ${failed} failed`;
     } catch (err) {
       failed++;
