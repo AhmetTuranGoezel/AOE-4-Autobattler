@@ -10352,6 +10352,279 @@
         }
       }
 
+      {
+        // The "at the start of your turn" wonders. Each is reached by ENDING
+        // the previous player's turn, so the offer arrives the way it does in
+        // play rather than by calling the queue directly — and each is checked
+        // to be optional, because every one of them prints "you may".
+        const turnBoard = (setUp) => {
+          const st = rulesState();
+          const me = st.players[0], foe = st.players[1];
+          // players[1] moves first, so ending their turn starts ours.
+          st.turn.order = [foe.id, me.id];
+          st.turn.index = 0;
+          st.players.forEach((p) => {
+            p.cardPlayed = false;
+            Game.FOCUS_TYPES.forEach((t) => { p.trade[t] = 0; });
+          });
+          Object.values(st.map.hexes).forEach((h) => {
+            h.barbarian = false; h.barbarianId = null; h.barbarianToken = null;
+            h.control = null; h.city = null; h.cityState = null;
+            h.resource = null; h.naturalWonder = null; h.naturalWonderSpace = null;
+          });
+          st.naturalWonders = {};
+          for (let q = -2; q <= 5; q++) {
+            for (let r = -2; r <= 2; r++) activate(st, q + "," + r, { terrain: "grass" });
+          }
+          if (setUp) setUp(st, me, foe);
+          return { st, me, foe };
+        };
+        const giveCityWonder = (st, playerId, key, name, type) => {
+          st.map.hexes[key].city = { ownerId: playerId, isCapital: key === "0,0",
+            developed: false, hasWonder: true,
+            wonder: { name, type: type || "culture", era: "ancient" } };
+        };
+        // End the FIRST player's turn so the wonder owner's turn begins, and
+        // hand back whatever the start of that turn queued for them.
+        const beginOwnersTurn = (b) => {
+          let s = Game.applyAction(b.st, { type: "PLAY_SCIENCE",
+            payload: { playerId: b.foe.id, tradeSpent: 0 } });
+          for (let i = 0; i < 12; i++) {
+            const open = (s.pendingChoices || []).find((c) => c.playerId === b.foe.id);
+            if (!open) break;
+            const payload = { playerId: open.playerId, choiceId: open.id };
+            if (open.options && open.options.length) payload.optionId = open.options[0].id;
+            else if (open.hexKeys && open.hexKeys.length) payload.hexKey = open.hexKeys[0];
+            else if (open.optional) payload.dismiss = true;
+            else break;
+            const next = Game.applyAction(s, { type: "RESOLVE_PENDING_CHOICE", payload });
+            if (next === s) break;
+            s = next;
+          }
+          return Game.applyAction(s, { type: "END_TURN", payload: { playerId: b.foe.id } });
+        };
+        const offerFrom = (s, source) => (s.pendingChoices || [])
+          .find((c) => c.source === source);
+
+        // ── Hanging Gardens ──────────────────────────────────────────────
+        {
+          // "At the start of your turn, you MAY place 1 control token on a
+          // space of terrain difficulty 4 (DESERT) OR LESS that is ADJACENT TO
+          // A FRIENDLY CITY."
+          const b = turnBoard((st, me) => {
+            giveCityWonder(st, me.id, "0,0", "Hanging Gardens");
+            activate(st, "1,0", { terrain: "desert" });     // difficulty 4: allowed
+            activate(st, "0,1", { terrain: "mountain" });   // difficulty 5: not
+            activate(st, "4,0", { terrain: "grass" });      // no friendly city near
+          });
+          const s = beginOwnersTurn(b);
+          assert("it is now the wonder owner's turn",
+            Game.currentPlayer(s).id === b.me.id);
+          const offer = offerFrom(s, "Hanging Gardens");
+          assert("Hanging Gardens offers a control token at the start of the turn",
+            !!offer, JSON.stringify((s.pendingChoices || []).map((c) => c.source)));
+          assert("and it is optional", !!offer && offer.optional === true);
+          assert("a desert beside the city is offered",
+            offer.hexKeys.includes("1,0"), offer.hexKeys.join(" "));
+          assert("a mountain is not: the card stops at difficulty 4",
+            !offer.hexKeys.includes("0,1"), offer.hexKeys.join(" "));
+          assert("and a space away from any friendly city is not offered",
+            !offer.hexKeys.includes("4,0"), offer.hexKeys.join(" "));
+          const placed = Game.applyAction(s, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: b.me.id, choiceId: offer.id, hexKey: "1,0" } });
+          assert("taking it puts a token on the board",
+            !!placed.map.hexes["1,0"].control &&
+            placed.map.hexes["1,0"].control.ownerId === b.me.id,
+            JSON.stringify(placed.map.hexes["1,0"].control));
+          proves("wonder.culture.hanging_gardens");
+        }
+
+        // ── Colosseum ────────────────────────────────────────────────────
+        {
+          // "At the start of your turn, you MAY reinforce 1 of your control
+          // tokens that is ADJACENT TO A FRIENDLY CITY."
+          const b = turnBoard((st, me) => {
+            giveCityWonder(st, me.id, "0,0", "Colosseum");
+            activate(st, "1,0", { control: { ownerId: me.id, fortified: false, district: null } });
+            activate(st, "4,0", { control: { ownerId: me.id, fortified: false, district: null } });
+            activate(st, "0,1", { control: { ownerId: me.id, fortified: true, district: null } });
+          });
+          const s = beginOwnersTurn(b);
+          const offer = offerFrom(s, "Colosseum");
+          assert("Colosseum offers a reinforcement", !!offer,
+            JSON.stringify((s.pendingChoices || []).map((c) => c.source)));
+          assert("which is optional", !!offer && offer.optional === true);
+          assert("the token beside the city is offered",
+            offer.hexKeys.includes("1,0"), offer.hexKeys.join(" "));
+          assert("one far from any city is not",
+            !offer.hexKeys.includes("4,0"), offer.hexKeys.join(" "));
+          assert("and one already reinforced is not offered again",
+            !offer.hexKeys.includes("0,1"), offer.hexKeys.join(" "));
+          const done = Game.applyAction(s, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: b.me.id, choiceId: offer.id, hexKey: "1,0" } });
+          assert("taking it flips the token",
+            done.map.hexes["1,0"].control.fortified === true);
+          proves("wonder.culture.colosseum");
+        }
+
+        // ── Forbidden City ───────────────────────────────────────────────
+        {
+          // "At the start of your turn, you MAY remove 1 RIVAL control token
+          // that is adjacent to a friendly space."
+          const b = turnBoard((st, me, foe) => {
+            giveCityWonder(st, me.id, "0,0", "Forbidden City");
+            activate(st, "1,0", { control: { ownerId: foe.id, fortified: false, district: null } });
+            activate(st, "4,0", { control: { ownerId: foe.id, fortified: false, district: null } });
+            activate(st, "0,1", { control: { ownerId: me.id, fortified: false, district: null } });
+          });
+          const s = beginOwnersTurn(b);
+          const offer = offerFrom(s, "Forbidden City");
+          assert("Forbidden City offers a removal", !!offer,
+            JSON.stringify((s.pendingChoices || []).map((c) => c.source)));
+          assert("which is optional", !!offer && offer.optional === true);
+          assert("the rival token beside a friendly space is offered",
+            offer.hexKeys.includes("1,0"), offer.hexKeys.join(" "));
+          assert("a rival token nowhere near one is not",
+            !offer.hexKeys.includes("4,0"), offer.hexKeys.join(" "));
+          assert("and your OWN token is never offered",
+            !offer.hexKeys.includes("0,1"), offer.hexKeys.join(" "));
+          const done = Game.applyAction(s, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: b.me.id, choiceId: offer.id, hexKey: "1,0" } });
+          assert("taking it removes the token from the board",
+            done.map.hexes["1,0"].control === null,
+            JSON.stringify(done.map.hexes["1,0"].control));
+          assert("and it is removed, not captured",
+            !done.map.hexes["1,0"].control);
+          proves("wonder.culture.forbidden_city");
+        }
+
+        // ── Eiffel Tower ─────────────────────────────────────────────────
+        {
+          // "At the start of your turn, you may choose 2 rival control tokens
+          // ON THE MAP BELONGING TO THE SAME PLAYER. THAT PLAYER replaces 1 of
+          // those tokens with 1 of your unused, unreinforced control tokens."
+          // The choice of which of the two goes is the victim's, not yours.
+          const b = turnBoard((st, me, foe) => {
+            giveCityWonder(st, me.id, "0,0", "Eiffel Tower");
+            activate(st, "3,0", { control: { ownerId: foe.id, fortified: false, district: null } });
+            activate(st, "3,1", { control: { ownerId: foe.id, fortified: true, district: null } });
+          });
+          const s = beginOwnersTurn(b);
+          const pickRival = offerFrom(s, "Eiffel Tower");
+          assert("Eiffel Tower asks which rival to name", !!pickRival &&
+            pickRival.kind === "eiffel_target",
+            JSON.stringify((s.pendingChoices || []).map((c) => c.kind)));
+          assert("which is optional", !!pickRival && pickRival.optional === true);
+          const s1 = Game.applyAction(s, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: b.me.id, choiceId: pickRival.id, optionId: b.foe.id } });
+          const first = offerFrom(s1, "Eiffel Tower");
+          assert("then two of that rival's tokens are named", !!first &&
+            first.hexKeys.length >= 2, first && first.hexKeys.join(" "));
+          const s2 = Game.applyAction(s1, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: b.me.id, choiceId: first.id, hexKey: "3,0" } });
+          const second = offerFrom(s2, "Eiffel Tower");
+          const s3 = Game.applyAction(s2, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: b.me.id, choiceId: second.id, hexKey: "3,1" } });
+          const give = offerFrom(s3, "Eiffel Tower");
+          assert("and the VICTIM chooses which of the two to give up",
+            !!give && give.playerId === b.foe.id,
+            give && JSON.stringify({ owner: give.playerId, me: b.me.id, foe: b.foe.id }));
+          assert("from exactly the two that were named",
+            !!give && give.hexKeys.slice().sort().join(" ") === "3,0 3,1",
+            give && give.hexKeys.join(" "));
+          const done = Game.applyAction(s3, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: b.foe.id, choiceId: give.id, hexKey: "3,1" } });
+          assert("the named token changes hands",
+            done.map.hexes["3,1"].control.ownerId === b.me.id,
+            JSON.stringify(done.map.hexes["3,1"].control));
+          assert("and arrives UNREINFORCED, however it was standing before",
+            done.map.hexes["3,1"].control.fortified === false,
+            JSON.stringify(done.map.hexes["3,1"].control));
+          assert("while the other one stays with its owner",
+            done.map.hexes["3,0"].control.ownerId === b.foe.id);
+          proves("wonder.culture.eiffel_tower");
+        }
+
+        // ── Oracle ───────────────────────────────────────────────────────
+        {
+          // "At the start of your turn, you may swap 2 ADJACENT cards in your
+          // focus row."
+          const b = turnBoard((st, me) => {
+            giveCityWonder(st, me.id, "0,0", "Oracle", "science");
+            me.focusRow = ["culture", "growth", "science", "economy", "military", "industry"];
+          });
+          const s = beginOwnersTurn(b);
+          const offer = offerFrom(s, "Oracle");
+          assert("Oracle offers a swap at the start of the turn", !!offer,
+            JSON.stringify((s.pendingChoices || []).map((c) => c.source)));
+          assert("which is optional", !!offer && offer.optional === true);
+          assert("it offers one option per ADJACENT pair, and no others",
+            offer.options.length === 5, JSON.stringify(offer.options.map((o) => o.id)));
+          const rowBefore = Game.getPlayer(s, b.me.id).focusRow.slice();
+          const done = Game.applyAction(s, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: b.me.id, choiceId: offer.id, optionId: "0" } });
+          const rowAfter = Game.getPlayer(done, b.me.id).focusRow;
+          assert("taking the first option swaps exactly the first two cards",
+            rowAfter[0] === rowBefore[1] && rowAfter[1] === rowBefore[0],
+            JSON.stringify({ rowBefore, rowAfter }));
+          assert("and leaves the rest of the row alone",
+            rowAfter.slice(2).join(",") === rowBefore.slice(2).join(","),
+            JSON.stringify({ rowBefore, rowAfter }));
+          proves("wonder.science.oracle");
+        }
+
+        // ── Great Zimbabwe ───────────────────────────────────────────────
+        {
+          // "You can place trade tokens on THIS CARD instead of on your focus
+          // cards, UP TO A LIMIT OF 4. At the start of your turn, you may move
+          // trade tokens from this card to cards in your focus row."
+          const b = turnBoard((st, me) => {
+            giveCityWonder(st, me.id, "0,0", "Great Zimbabwe", "economy");
+            me.zimbabwe = 2;
+          });
+          const s = beginOwnersTurn(b);
+          const offer = (s.pendingChoices || []).find((c) => c.kind === "zimbabwe_move");
+          assert("banked tokens are offered back at the start of the turn", !!offer,
+            JSON.stringify((s.pendingChoices || []).map((c) => c.kind)));
+          assert("which is optional", !!offer && offer.optional === true);
+          const before = Game.getPlayer(s, b.me.id).trade.military;
+          const moved = Game.applyAction(s, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: b.me.id, choiceId: offer.id, optionId: "military" } });
+          const after = Game.getPlayer(moved, b.me.id);
+          assert("moving one puts it on the named focus card",
+            after.trade.military === before + 1, String(after.trade.military));
+          assert("and takes it off the wonder", after.zimbabwe === 1,
+            String(after.zimbabwe));
+
+          // The banking half: a gained trade token may go on the wonder.
+          const bank = turnBoard((st, me) => {
+            giveCityWonder(st, me.id, "0,0", "Great Zimbabwe", "economy");
+            me.zimbabwe = 0;
+          });
+          bank.st.pendingBarbReward = { playerId: bank.me.id, cardResolutionId: null };
+          bank.st.pendingChoices = [{ id: "bank1", kind: "trade_any", playerId: bank.me.id,
+            amount: 1, title: "test", options: [{ id: "zimbabwe", label: "Great Zimbabwe" }] }];
+          const banked = Game.applyAction(bank.st, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: bank.me.id, choiceId: "bank1", optionId: "zimbabwe" } });
+          assert("a trade token can be banked on the wonder instead of the row",
+            Game.getPlayer(banked, bank.me.id).zimbabwe === 1,
+            String(Game.getPlayer(banked, bank.me.id).zimbabwe));
+
+          const full = turnBoard((st, me) => {
+            giveCityWonder(st, me.id, "0,0", "Great Zimbabwe", "economy");
+            me.zimbabwe = 4;
+          });
+          full.st.pendingChoices = [{ id: "bank2", kind: "trade_any", playerId: full.me.id,
+            amount: 1, title: "test", options: [{ id: "zimbabwe", label: "Great Zimbabwe" }] }];
+          const refused = Game.applyAction(full.st, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: full.me.id, choiceId: "bank2", optionId: "zimbabwe" } });
+          assert("and the wonder stops at its printed limit of 4",
+            Game.getPlayer(refused, full.me.id).zimbabwe === 4,
+            String(Game.getPlayer(refused, full.me.id).zimbabwe));
+          proves("wonder.economy.great_zimbabwe");
+        }
+      }
+
       summary.textContent = `${passed} passed, ${failed} failed`;
     } catch (err) {
       failed++;
