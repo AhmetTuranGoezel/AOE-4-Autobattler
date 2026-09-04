@@ -10891,6 +10891,435 @@
         }
       }
 
+      {
+        // The last of the wonders that act on a card, a caravan or a city.
+        const wb = (setUp) => {
+          const st = rulesState();
+          const me = st.players[0], foe = st.players[1];
+          me.cardPlayed = false;
+          st.turn.index = st.turn.order.indexOf(me.id);
+          Game.FOCUS_TYPES.forEach((t) => { me.trade[t] = 0; });
+          st.players.forEach((p) => { p.diplomacy = []; });
+          Object.values(st.map.hexes).forEach((h) => {
+            h.barbarian = false; h.barbarianId = null; h.barbarianToken = null;
+            h.control = null; h.city = null; h.cityState = null;
+            h.resource = null; h.naturalWonder = null; h.naturalWonderSpace = null;
+          });
+          st.naturalWonders = {};
+          for (let q = -2; q <= 6; q++) {
+            for (let r = -2; r <= 2; r++) activate(st, q + "," + r, { terrain: "grass" });
+          }
+          st.map.hexes["0,0"].city = { ownerId: me.id, isCapital: true,
+            developed: false, hasWonder: false, wonder: null };
+          if (setUp) setUp(st, me, foe);
+          return { st, me, foe };
+        };
+        const wonderIn = (st, playerId, key, name, type) => {
+          const hex = st.map.hexes[key];
+          hex.city = hex.city || { ownerId: playerId, isCapital: key === "0,0",
+            developed: false, hasWonder: false, wonder: null };
+          hex.city.hasWonder = true;
+          hex.city.wonder = { name, type, era: "modern" };
+        };
+        const cityAt = (st, playerId, key, isCapital) => {
+          st.map.hexes[key].city = { ownerId: playerId, isCapital: !!isCapital,
+            developed: false, hasWonder: false, wonder: null };
+        };
+        const from = (s, source) => (s.pendingChoices || []).find((c) => c.source === source);
+
+        // ── Venetian Arsenal ─────────────────────────────────────────────
+        {
+          // "ONCE PER TURN, after you resolve the card in the FIFTH SLOT of
+          // your focus row, you MAY resolve it again, treating it as if it was
+          // in the first slot."
+          const build = (withWonder) => {
+            const b = wb((st, me) => {
+              if (withWonder) wonderIn(st, me.id, "0,0", "Venetian Arsenal", "military");
+              // Science in the sixth place, which is printed slot 5.
+              me.focusRow = ["culture", "growth", "economy", "military", "industry", "science"];
+            });
+            return b;
+          };
+          const b = build(true);
+          assert("the card under test resolves from printed slot 5",
+            Game.getSlotValue(b.me, "science", b.st) === 5,
+            String(Game.getSlotValue(b.me, "science", b.st)));
+          const out = Game.applyAction(b.st, { type: "PLAY_SCIENCE",
+            payload: { playerId: b.me.id, tradeSpent: 0 } });
+          const offer = from(out, "Venetian Arsenal");
+          assert("Venetian Arsenal offers the card again", !!offer,
+            JSON.stringify((out.pendingChoices || []).map((c) => c.source)));
+          assert("which is optional", !!offer && offer.optional === true);
+          const techAfterFirst = Game.getPlayer(out, b.me.id).tech;
+          const again = Game.applyAction(out, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: b.me.id, choiceId: offer.id, optionId: "yes" } });
+          assert("accepting lets the card be resolved a second time",
+            Game.getPlayer(again, b.me.id).arsenalReplay === "science",
+            String(Game.getPlayer(again, b.me.id).arsenalReplay));
+          const second = Game.applyAction(again, { type: "PLAY_SCIENCE",
+            payload: { playerId: b.me.id, tradeSpent: 0 } });
+          const techAfterSecond = Game.getPlayer(second, b.me.id).tech;
+          assert("and the second resolution really happens",
+            techAfterSecond > techAfterFirst, `${techAfterFirst} -> ${techAfterSecond}`);
+          assert("once per turn: no third offer",
+            !from(second, "Venetian Arsenal"),
+            JSON.stringify((second.pendingChoices || []).map((c) => c.source)));
+
+          const plain = build(false);
+          const outPlain = Game.applyAction(plain.st, { type: "PLAY_SCIENCE",
+            payload: { playerId: plain.me.id, tradeSpent: 0 } });
+          assert("without the wonder there is no replay",
+            !from(outPlain, "Venetian Arsenal"));
+
+          const lowSlot = wb((st, me) => {
+            wonderIn(st, me.id, "0,0", "Venetian Arsenal", "military");
+            me.focusRow = ["science", "culture", "growth", "economy", "military", "industry"];
+          });
+          const outLow = Game.applyAction(lowSlot.st, { type: "PLAY_SCIENCE",
+            payload: { playerId: lowSlot.me.id, tradeSpent: 0 } });
+          assert("and a card resolved from any other slot is not offered again",
+            !from(outLow, "Venetian Arsenal"));
+          proves("wonder.military.venetian_arsenal");
+        }
+
+        // ── Statue of Liberty ────────────────────────────────────────────
+        {
+          // "BEFORE you replace a rival city with 1 of your cities, replace ALL
+          // rival control tokens that are ADJACENT TO THAT RIVAL CITY with your
+          // unused, UNREINFORCED control tokens."
+          const build = (withWonder) => wb((st, me, foe) => {
+            if (withWonder) wonderIn(st, me.id, "0,0", "Statue of Liberty", "military");
+            cityAt(st, foe.id, "3,0");
+            activate(st, "3,1", { control: { ownerId: foe.id, fortified: true, district: null } });
+            activate(st, "4,0", { control: { ownerId: foe.id, fortified: false, district: "campus" } });
+            activate(st, "6,0", { control: { ownerId: foe.id, fortified: false, district: null } });
+          });
+          const seize = (b) => {
+            b.st.pendingChoices = [{ id: "sz", kind: "seize_city", playerId: b.me.id,
+              title: "test", source: "test", hexKeys: ["3,0"] }];
+            return Game.applyAction(b.st, { type: "RESOLVE_PENDING_CHOICE",
+              payload: { playerId: b.me.id, choiceId: "sz", hexKey: "3,0" } });
+          };
+          const plain = seize(build(false));
+          assert("without the wonder the city changes hands",
+            plain.map.hexes["3,0"].city.ownerId === plain.players[0].id);
+          assert("and the rival's neighbouring tokens are untouched",
+            plain.map.hexes["3,1"].control.ownerId === plain.players[1].id &&
+            plain.map.hexes["4,0"].control.ownerId === plain.players[1].id,
+            JSON.stringify([plain.map.hexes["3,1"].control, plain.map.hexes["4,0"].control]));
+
+          const liberty = seize(build(true));
+          const me = liberty.players[0].id, foe = liberty.players[1].id;
+          assert("with it the adjacent rival tokens are replaced",
+            liberty.map.hexes["3,1"].control.ownerId === me &&
+            liberty.map.hexes["4,0"].control.ownerId === me,
+            JSON.stringify([liberty.map.hexes["3,1"].control, liberty.map.hexes["4,0"].control]));
+          assert("they arrive UNREINFORCED, whatever they were before",
+            liberty.map.hexes["3,1"].control.fortified === false,
+            JSON.stringify(liberty.map.hexes["3,1"].control));
+          assert("and as plain tokens, so a district is not copied",
+            liberty.map.hexes["4,0"].control.district === null,
+            JSON.stringify(liberty.map.hexes["4,0"].control));
+          assert("a rival token NOT adjacent to that city is left alone",
+            liberty.map.hexes["6,0"].control.ownerId === foe,
+            JSON.stringify(liberty.map.hexes["6,0"].control));
+          assert("and the city itself still changes hands",
+            liberty.map.hexes["3,0"].city.ownerId === me);
+          proves("wonder.military.statue_of_liberty");
+        }
+
+        // ── Cristo Redentor ──────────────────────────────────────────────
+        {
+          // "When you BUILD OR CAPTURE this wonder, choose a rival non-capital
+          // city (WITHOUT AN ARMY IN ITS SPACE) WITHIN 3 SPACES OF THIS WONDER.
+          // Replace that city with 1 of your unused cities."
+          const build = (opts) => {
+            const o = opts || {};
+            const b = wb((st, me, foe) => {
+              Game.RESOURCES.forEach((r) => { me.resources[r] = 9; });
+              cityAt(st, foe.id, o.far ? "6,0" : "3,0");
+              if (o.capital) st.map.hexes[o.far ? "6,0" : "3,0"].city.isCapital = true;
+              if (o.guard) foe.armies = [{ id: "g1", position: o.far ? "6,0" : "3,0" }];
+              const deck = st.wonderDecks.culture;
+              deck.deck = ["Cristo Redentor"].concat(
+                deck.deck.filter((n) => n !== "Cristo Redentor"));
+              deck.revealed = "Cristo Redentor";
+            });
+            return Game.tryApplyAction(b.st, { type: "PLAY_INDUSTRY_WONDER", payload: {
+              hexKey: "0,0", wonderName: "Cristo Redentor", tradeSpent: 0,
+              resources: { mercury: 6, marble: 5 }, naturalWonders: [] } },
+              { actorId: b.me.id, role: "player" });
+          };
+          const out = build({});
+          assert("Cristo Redentor can be built", out.accepted, out.code);
+          const offer = (out.state.pendingChoices || []).find((c) => c.kind === "seize_city");
+          assert("building it offers a rival city to replace", !!offer,
+            JSON.stringify((out.state.pendingChoices || []).map((c) => c.kind)));
+          assert("the nearby rival city is the offer",
+            !!offer && offer.hexKeys.includes("3,0"), offer && offer.hexKeys.join(" "));
+          const taken = Game.applyAction(out.state, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: out.state.players[0].id, choiceId: offer.id, hexKey: "3,0" } });
+          assert("taking it replaces the city",
+            taken.map.hexes["3,0"].city.ownerId === taken.players[0].id,
+            JSON.stringify(taken.map.hexes["3,0"].city));
+
+          const far = build({ far: true });
+          assert("a rival city more than 3 spaces from the wonder is not offered",
+            far.accepted && !(far.state.pendingChoices || [])
+              .some((c) => c.kind === "seize_city"),
+            JSON.stringify((far.state.pendingChoices || []).map((c) => c.kind)));
+          const capital = build({ capital: true });
+          assert("a rival CAPITAL is not offered",
+            capital.accepted && !(capital.state.pendingChoices || [])
+              .some((c) => c.kind === "seize_city"));
+          const guarded = build({ guard: true });
+          assert("and a city with an army in its space is not offered",
+            guarded.accepted && !(guarded.state.pendingChoices || [])
+              .some((c) => c.kind === "seize_city"));
+          proves("wonder.culture.cristo_redentor");
+        }
+
+        // ── Kilwa Kisiwani and Orszaghaz ─────────────────────────────────
+        {
+          // Kilwa: "When you move a caravan to a city-state, place 1 ADDITIONAL
+          // trade token from the supply on ANY 1 of your focus cards."
+          // Orszaghaz: "AFTER you move a caravan to a city-state, you MAY
+          // conquer it."
+          const build = (wonders) => wb((st, me) => {
+            (wonders || []).forEach((w, i) =>
+              wonderIn(st, me.id, i === 0 ? "0,0" : "5,0", w, "economy"));
+            activate(st, "1,0", { terrain: "grass",
+              cityState: { name: "Test State", type: "science", diplomacyCards: 2 } });
+            me.caravans = [{ id: "c1", position: "0,0" }];
+            me.focusRow = ["economy", "science", "growth", "culture", "military", "industry"];
+          });
+          const trade = (b) => Game.tryApplyAction(b.st, { type: "PLAY_ECONOMY", payload: {
+            playerId: b.me.id, unitId: "c1", toKey: "1,0", tradeSpent: 0 } },
+            { actorId: b.me.id, role: "player" });
+
+          const plain = trade(build([]));
+          assert("an ordinary caravan trades with the city-state", plain.accepted, plain.code);
+          const plainExtra = (plain.state.pendingChoices || [])
+            .filter((c) => c.kind === "trade_any" && /Kilwa/.test(c.title || ""));
+          assert("and gets no extra token", plainExtra.length === 0);
+
+          const kilwa = trade(build(["Kilwa Kisiwani"]));
+          assert("with Kilwa Kisiwani the same run adds one more token", kilwa.accepted, kilwa.code);
+          const extra = (kilwa.state.pendingChoices || [])
+            .find((c) => c.kind === "trade_any" && /Kilwa/.test(c.title || ""));
+          assert("offered on ANY of your focus cards", !!extra &&
+            (extra.options || []).length >= 6,
+            extra && JSON.stringify((extra.options || []).map((o) => o.id)));
+          const before = Game.getPlayer(kilwa.state, kilwa.state.players[0].id).trade.military;
+          const paid = Game.applyAction(kilwa.state, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: kilwa.state.players[0].id, choiceId: extra.id, optionId: "military" } });
+          assert("and it lands where the player says",
+            Game.getPlayer(paid, paid.players[0].id).trade.military === before + 1,
+            String(Game.getPlayer(paid, paid.players[0].id).trade.military));
+          proves("wonder.economy.kilwa_kisiwani");
+
+          const orsz = trade(build(["Orszaghaz"]));
+          assert("with Orszaghaz the trade run offers a conquest", orsz.accepted, orsz.code);
+          const conquer = (orsz.state.pendingChoices || [])
+            .find((c) => c.kind === "conquer_city_state");
+          assert("which is offered after the trade", !!conquer,
+            JSON.stringify((orsz.state.pendingChoices || []).map((c) => c.kind)));
+          assert("and is optional, because the card says you may",
+            !!conquer && conquer.optional === true);
+          // applyAction mutates in place, so the two answers each need their
+          // own copy of the state the offer was made in.
+          const orszSnapshot = JSON.parse(JSON.stringify(orsz.state));
+          const took = Game.applyAction(JSON.parse(JSON.stringify(orszSnapshot)),
+            { type: "RESOLVE_PENDING_CHOICE", payload: {
+              playerId: orsz.state.players[0].id, choiceId: conquer.id, optionId: "yes" } });
+          assert("taking it turns the city-state into one of your cities",
+            !!took.map.hexes["1,0"].city &&
+            took.map.hexes["1,0"].city.ownerId === took.players[0].id &&
+            !took.map.hexes["1,0"].cityState,
+            JSON.stringify({ city: took.map.hexes["1,0"].city,
+              cityState: took.map.hexes["1,0"].cityState }));
+          const declined = Game.applyAction(JSON.parse(JSON.stringify(orszSnapshot)),
+            { type: "RESOLVE_PENDING_CHOICE", payload: {
+              playerId: orszSnapshot.players[0].id, choiceId: conquer.id, dismiss: true } });
+          assert("and declining leaves the city-state standing",
+            !!declined.map.hexes["1,0"].cityState && !declined.map.hexes["1,0"].city,
+            JSON.stringify(declined.map.hexes["1,0"]));
+          const plainRun = trade(build([]));
+          assert("without the wonder no conquest is offered",
+            !(plainRun.state.pendingChoices || [])
+              .some((c) => c.kind === "conquer_city_state"));
+          proves("wonder.economy.orszaghaz");
+        }
+
+        // ── Great Library ────────────────────────────────────────────────
+        {
+          // "When your caravan moves to ANOTHER PLAYER'S CITY, you MAY gain a
+          // focus card of the same type and tech level as a card in THAT
+          // PLAYER'S focus row, replacing your card of the same type."
+          const build = (withWonder) => wb((st, me, foe) => {
+            if (withWonder) wonderIn(st, me.id, "0,0", "Great Library", "science");
+            cityAt(st, foe.id, "1,0");
+            me.caravans = [{ id: "c1", position: "0,0" }];
+            me.focusRow = ["economy", "science", "growth", "culture", "military", "industry"];
+            foe.cardTiers.military = 3;
+            foe.cardLevels.military = 3;
+          });
+          const run = (b) => Game.tryApplyAction(b.st, { type: "PLAY_ECONOMY", payload: {
+            playerId: b.me.id, unitId: "c1", toKey: "1,0", tradeSpent: 0 } },
+            { actorId: b.me.id, role: "player" });
+          const plain = run(build(false));
+          assert("a caravan can reach a rival city", plain.accepted, plain.code);
+          assert("and without the wonder no card is offered",
+            !(plain.state.pendingChoices || []).some((c) => /Library/.test(c.title || "")),
+            JSON.stringify((plain.state.pendingChoices || []).map((c) => c.title)));
+
+          const lib = run(build(true));
+          assert("with the Great Library the run offers a card", lib.accepted, lib.code);
+          const offer = (lib.state.pendingChoices || [])
+            .find((c) => /Library/.test(c.title || "") || c.source === "Great Library");
+          assert("the offer is made", !!offer,
+            JSON.stringify((lib.state.pendingChoices || []).map((c) => c.title)));
+          assert("and it is optional, because the card says you may",
+            !!offer && offer.optional === true);
+          const beforeTier = Game.getPlayer(lib.state, lib.state.players[0].id).cardTiers.military;
+          const taken = Game.applyAction(lib.state, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: lib.state.players[0].id, choiceId: offer.id,
+            optionId: (offer.options || [{}])[0].id } });
+          const afterTier = Game.getPlayer(taken, taken.players[0].id).cardTiers.military;
+          assert("taking it raises your card to the rival's level",
+            afterTier === 3 && afterTier > beforeTier, `${beforeTier} -> ${afterTier}`);
+          proves("wonder.science.great_library");
+        }
+
+        // ── University of Sankore ────────────────────────────────────────
+        {
+          // "At the END of your turn, IF YOU REPLACED (tech upgrade) 1 OR MORE
+          // of your focus cards THIS TURN, you may swap any 2 NON-SCIENCE cards
+          // in your focus row."
+          const build = (withWonder, upgraded) => {
+            const b = wb((st, me) => {
+              if (withWonder) wonderIn(st, me.id, "0,0", "University of Sankore", "science");
+              me.focusRow = ["culture", "growth", "economy", "military", "industry", "science"];
+            });
+            let s = Game.applyAction(b.st, { type: "PLAY_SCIENCE",
+              payload: { playerId: b.me.id, tradeSpent: 0 } });
+            for (let i = 0; i < 12; i++) {
+              const open = (s.pendingChoices || []).find((c) => c.playerId === b.me.id);
+              if (!open) break;
+              const payload = { playerId: b.me.id, choiceId: open.id };
+              if (open.options && open.options.length) payload.optionId = open.options[0].id;
+              else if (open.hexKeys && open.hexKeys.length) payload.hexKey = open.hexKeys[0];
+              else if (open.optional) payload.dismiss = true;
+              else break;
+              const next = Game.applyAction(s, { type: "RESOLVE_PENDING_CHOICE", payload });
+              if (next === s) break;
+              s = next;
+            }
+            Game.getPlayer(s, b.me.id).upgradedThisTurn = !!upgraded;
+            return { b, end: Game.applyAction(s, { type: "END_TURN",
+              payload: { playerId: b.me.id } }) };
+          };
+          const yes = build(true, true);
+          const offer = (yes.end.pendingChoices || [])
+            .find((c) => c.source === "University of Sankore");
+          assert("having upgraded a card, Sankore offers a swap at the end of the turn",
+            !!offer, JSON.stringify((yes.end.pendingChoices || []).map((c) => c.source)));
+          assert("which is optional", !!offer && offer.optional === true);
+          assert("and no pairing involves the science card",
+            !!offer && (offer.options || []).every((o) => !/science/.test(o.id)),
+            offer && JSON.stringify((offer.options || []).map((o) => o.id)));
+          const rowBefore = Game.getPlayer(yes.end, yes.b.me.id).focusRow.slice();
+          const swapped = Game.applyAction(yes.end, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: yes.b.me.id, choiceId: offer.id, optionId: offer.options[0].id } });
+          const rowAfter = Game.getPlayer(swapped, yes.b.me.id).focusRow;
+          assert("taking it really moves two cards",
+            rowAfter.join(",") !== rowBefore.join(","),
+            JSON.stringify({ rowBefore, rowAfter }));
+          assert("and leaves science where it was",
+            rowAfter.indexOf("science") === rowBefore.indexOf("science"),
+            JSON.stringify({ rowBefore, rowAfter }));
+
+          const noUpgrade = build(true, false);
+          assert("with no upgrade this turn there is no offer",
+            !(noUpgrade.end.pendingChoices || [])
+              .some((c) => c.source === "University of Sankore"));
+          const noWonder = build(false, true);
+          assert("and without the wonder there is none either",
+            !(noWonder.end.pendingChoices || [])
+              .some((c) => c.source === "University of Sankore"));
+          proves("wonder.science.university_of_sankore");
+        }
+
+        // ── Potala Palace ────────────────────────────────────────────────
+        {
+          // "You can have 4 diplomacy cards FROM EACH OTHER PLAYER. When you
+          // BUILD this wonder, you may take A TOTAL OF 3 diplomacy cards of
+          // your choice from other players."
+          const b = wb((st, me, foe) => {
+            Game.RESOURCES.forEach((r) => { me.resources[r] = 9; });
+            foe.diplomacy = [];
+            const deck = st.wonderDecks.science;
+            deck.deck = ["Potala Palace"].concat(
+              deck.deck.filter((n) => n !== "Potala Palace"));
+            deck.revealed = "Potala Palace";
+          });
+          const out = Game.tryApplyAction(b.st, { type: "PLAY_INDUSTRY_WONDER", payload: {
+            hexKey: "0,0", wonderName: "Potala Palace", tradeSpent: 0,
+            resources: { mercury: 6, marble: 4 }, naturalWonders: [] } },
+            { actorId: b.me.id, role: "player" });
+          assert("Potala Palace can be built", out.accepted, out.code);
+          const pick = (out.state.pendingChoices || []).find((c) => c.kind === "potala_pick");
+          assert("building it offers diplomacy cards to take", !!pick,
+            JSON.stringify((out.state.pendingChoices || []).map((c) => c.kind)));
+          assert("three of them", !!pick && pick.remaining === 3, pick && String(pick.remaining));
+          assert("and it is optional", !!pick && pick.optional === true);
+          const declined = Game.applyAction(out.state, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: b.me.id, choiceId: pick.id, dismiss: true } });
+          assert("declining takes none",
+            (Game.getPlayer(declined, b.me.id).diplomacy || []).length === 0);
+
+          // The other half: normally a second card from the same rival SWAPS
+          // the one you hold back to them. Potala Palace keeps the whole hand.
+          const handAfterSecond = (withWonder) => {
+            const b2 = wb((st, me, foe) => {
+              if (withWonder) wonderIn(st, me.id, "0,0", "Potala Palace", "science");
+              me.diplomacy = [{ fromId: foe.id, cardId: "embassy", name: "Embassy" }];
+            });
+            const offer2 = Game.queueDiplomacyOffer ? null : null;
+            // Reach the offer the way the game does: a caravan trade run at the
+            // rival's city is what hands a diplomacy card over.
+            cityAt(b2.st, b2.foe.id, "1,0");
+            b2.me.caravans = [{ id: "c1", position: "0,0" }];
+            b2.me.focusRow = ["economy", "science", "growth", "culture", "military", "industry"];
+            const run = Game.tryApplyAction(b2.st, { type: "PLAY_ECONOMY", payload: {
+              playerId: b2.me.id, unitId: "c1", toKey: "1,0", tradeSpent: 0 } },
+              { actorId: b2.me.id, role: "player" });
+            if (!run.accepted) return { failed: run.code };
+            const take = (run.state.pendingChoices || [])
+              .find((c) => c.kind === "take_diplomacy");
+            if (!take) return { failed: "no offer" };
+            const pick = (take.options || []).find((o) => o.id !== "embassy");
+            if (!pick) return { failed: "no second card" };
+            const after = Game.applyAction(run.state, { type: "RESOLVE_PENDING_CHOICE",
+              payload: { playerId: b2.me.id, choiceId: take.id, optionId: pick.id } });
+            const meId = after.players[0].id, foeId2 = after.players[1].id;
+            return { keepHeld: take.keepHeld,
+              held: (Game.getPlayer(after, meId).diplomacy || [])
+                .filter((d) => d.fromId === foeId2).length };
+          };
+          const plainHand = handAfterSecond(false);
+          const potalaHand = handAfterSecond(true);
+          assert("without the wonder a second card from the same rival is a swap",
+            plainHand.held === 1, JSON.stringify(plainHand));
+          assert("with Potala Palace the hand grows instead",
+            potalaHand.held === 2, JSON.stringify(potalaHand));
+          assert("and the offer says so, so the UI shows a keep rather than a swap",
+            potalaHand.keepHeld === true && plainHand.keepHeld !== true,
+            JSON.stringify({ plainHand, potalaHand }));
+          proves("wonder.science.potala_palace");
+        }
+      }
+
       summary.textContent = `${passed} passed, ${failed} failed`;
     } catch (err) {
       failed++;
