@@ -4494,6 +4494,327 @@
       }
 
       {
+        // The six government markers. A marker on a focus type makes THAT card
+        // resolve a printed number of places further right, and the number is
+        // not the same for all six: Communism and Democracy print one arrow,
+        // the other four print two.
+        //
+        // The shift is only worth anything because a card resolving further
+        // right actually does more, so each government is driven to a real
+        // consequence rather than to getSlotValue: how far the tech dial moves,
+        // how much production a wonder gets, what an army's combat value is,
+        // and which terrain a placement or a caravan can reach.
+        const govBoard = (opts) => {
+          const o = opts || {};
+          const st = rulesState();
+          const me = st.players[0];
+          me.cardPlayed = false;
+          me.government = null;
+          st.turn.index = st.turn.order.indexOf(me.id);
+          Game.FOCUS_TYPES.forEach((t) => { me.trade[t] = 0; });
+          Game.RESOURCES.forEach((r) => { me.resources[r] = 0; });
+          Object.values(st.map.hexes).forEach((h) => {
+            h.barbarian = false; h.barbarianId = null; h.barbarianToken = null;
+            h.barbarianHome = null; h.control = null; h.cityState = null;
+            h.resource = null; h.naturalWonder = null; h.naturalWonderSpace = null;
+          });
+          st.naturalWonders = {};
+          for (let q = -2; q <= 8; q++) {
+            activate(st, q + ",0", { terrain: "grass" });
+            activate(st, q + ",1", { terrain: "grass" });
+            activate(st, q + ",-1", { terrain: "grass" });
+          }
+          activate(st, "0,0", { city: { ownerId: me.id, isCapital: true,
+            developed: false, hasWonder: false, wonder: null } });
+          if (o.setUp) o.setUp(st, me);
+          return { st, me };
+        };
+        // Adopt a government the way the dial does it: the real event, then the
+        // real choice. The card has to be in one of the two "1" places to be
+        // eligible, which is itself part of the rule.
+        const adopt = (st, me, type) => {
+          const row = me.focusRow.filter((t) => t !== type);
+          me.focusRow = [type].concat(row);          // into the first "1" place
+          Game.resolveEvent(st, "gov_change");
+          const choice = (st.pendingChoices || [])
+            .find((c) => c.kind === "choose_government" && c.playerId === me.id);
+          if (!choice) return { st, choice: null };
+          let out = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: me.id, choiceId: choice.id, optionId: type } });
+          // The dial asks EVERY player, and an unanswered decision blocks the
+          // board for everyone. The rivals are not what these tests are about,
+          // so answer theirs too rather than leaving the turn jammed.
+          for (let i = 0; i < 8; i++) {
+            const other = (out.pendingChoices || [])
+              .find((c) => c.kind === "choose_government");
+            if (!other) break;
+            out = Game.applyAction(out, { type: "RESOLVE_PENDING_CHOICE",
+              payload: { playerId: other.playerId, choiceId: other.id,
+                optionId: (other.options || [])[0].id } });
+          }
+          return { st: out, choice };
+        };
+        // Put a card at a chosen place in the row afterwards, so the shift has
+        // somewhere to move it to.
+        const placeAt = (player, type, index) => {
+          const row = player.focusRow.filter((t) => t !== type);
+          row.splice(index, 0, type);
+          player.focusRow = row;
+        };
+
+        // ── The shared mechanics, asserted once ──────────────────────────
+        {
+          const { st, me } = govBoard();
+          me.focusRow = ["culture", "growth", "science", "economy", "military", "industry"];
+          Game.resolveEvent(st, "gov_change");
+          const choice = (st.pendingChoices || [])
+            .find((c) => c.kind === "choose_government");
+          assert("the dial offers a government", !!choice,
+            JSON.stringify((st.pendingChoices || []).map((c) => c.kind)));
+          const offered = (choice.options || []).map((o) => o.id);
+          assert("only the two cards in the '1' places are eligible",
+            offered.sort().join(",") === "culture,growth", offered.join(","));
+          let taken = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: me.id, choiceId: choice.id, optionId: "culture" } });
+          assert("adopting one records it", taken.players[0].government === "culture");
+          for (let i = 0; i < 8; i++) {
+            const other = (taken.pendingChoices || [])
+              .find((c) => c.kind === "choose_government");
+            if (!other) break;
+            taken = Game.applyAction(taken, { type: "RESOLVE_PENDING_CHOICE",
+              payload: { playerId: other.playerId, choiceId: other.id,
+                optionId: (other.options || [])[0].id } });
+          }
+          // One marker at a time.
+          taken.players[0].cardPlayed = false;
+          placeAt(taken.players[0], "growth", 0);
+          Game.resolveEvent(taken, "gov_change");
+          const second = (taken.pendingChoices || [])
+            .find((c) => c.kind === "choose_government");
+          assert("a later dial turn offers a change", !!second);
+          assert("and offers to keep the current one",
+            (second.options || []).some((o) => o.id === "keep"),
+            JSON.stringify((second.options || []).map((o) => o.id)));
+          let moved = Game.applyAction(taken, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: me.id, choiceId: second.id, optionId: "growth" } });
+          for (let i = 0; i < 8; i++) {
+            const other = (moved.pendingChoices || [])
+              .find((c) => c.kind === "choose_government");
+            if (!other) break;
+            moved = Game.applyAction(moved, { type: "RESOLVE_PENDING_CHOICE",
+              payload: { playerId: other.playerId, choiceId: other.id,
+                optionId: (other.options || [])[0].id } });
+          }
+          assert("choosing again moves the one marker rather than adding a second",
+            moved.players[0].government === "growth",
+            String(moved.players[0].government));
+          assert("so the old card is no longer shifted",
+            Game.getSlotValue(moved.players[0], "culture", moved) ===
+            Game.FOCUS_SLOTS[moved.players[0].focusRow.indexOf("culture")],
+            String(Game.getSlotValue(moved.players[0], "culture", moved)));
+        }
+        {
+          // Terra p13: the shift is capped at the "5" place.
+          const { st, me } = govBoard();
+          const { st: gov } = adopt(st, me, "culture");
+          placeAt(gov.players[0], "culture", 5);
+          assert("a card already in the last place cannot be shifted past it",
+            Game.getSlotValue(gov.players[0], "culture", gov) === 5,
+            String(Game.getSlotValue(gov.players[0], "culture", gov)));
+        }
+
+        // ── Democracy: science, one arrow ────────────────────────────────
+        {
+          // The dial moves by the slot's number, so a shifted science card
+          // moves it further. Two runs from the same starting place.
+          const plain = govBoard();
+          placeAt(plain.me, "science", 2);
+          const beforeSlot = Game.getSlotValue(plain.me, "science", plain.st);
+          const plainOut = Game.tryApplyAction(plain.st, { type: "PLAY_SCIENCE",
+            payload: { playerId: plain.me.id, tradeSpent: 0 } },
+            { actorId: plain.me.id, role: "player" });
+          assert("science resolves with no government", plainOut.accepted, plainOut.code);
+          const plainMoved = plainOut.state.players[0].tech;
+
+          const demo = govBoard();
+          const { st: gov } = adopt(demo.st, demo.me, "science");
+          placeAt(gov.players[0], "science", 2);
+          gov.players[0].cardPlayed = false;
+          const shiftedSlot = Game.getSlotValue(gov.players[0], "science", gov);
+          assert("Democracy shifts the science card one place right",
+            shiftedSlot === Game.FOCUS_SLOTS[3] && beforeSlot === Game.FOCUS_SLOTS[2],
+            `${beforeSlot} -> ${shiftedSlot}`);
+          const demoOut = Game.tryApplyAction(gov, { type: "PLAY_SCIENCE",
+            payload: { playerId: demo.me.id, tradeSpent: 0 } },
+            { actorId: demo.me.id, role: "player" });
+          assert("science resolves under Democracy", demoOut.accepted, demoOut.code);
+          assert("and the tech dial moves further than it did without it",
+            demoOut.state.players[0].tech > plainMoved,
+            `${plainMoved} vs ${demoOut.state.players[0].tech}`);
+          assert("by exactly the difference between the two slots",
+            demoOut.state.players[0].tech - plainMoved === shiftedSlot - beforeSlot,
+            `${plainMoved} -> ${demoOut.state.players[0].tech}`);
+          proves("government.science");
+        }
+
+        // ── Communism: industry, one arrow ───────────────────────────────
+        {
+          // Wonder production equals the slot's number.
+          const plain = govBoard();
+          placeAt(plain.me, "industry", 2);
+          const name = plain.st.wonderDecks.culture.revealed || "Stonehenge";
+          const plainProd = Game.calculateWonderProduction(plain.st, plain.me, name,
+            { tradeSpent: 0, resources: {}, naturalWonders: [] });
+
+          const comm = govBoard();
+          const { st: gov } = adopt(comm.st, comm.me, "industry");
+          placeAt(gov.players[0], "industry", 2);
+          const govProd = Game.calculateWonderProduction(gov, gov.players[0], name,
+            { tradeSpent: 0, resources: {}, naturalWonders: [] });
+          assert("Communism raises the industry card's production",
+            govProd.production.base > plainProd.production.base,
+            `${plainProd.production.base} -> ${govProd.production.base}`);
+          assert("by exactly one place on the row",
+            govProd.production.base === Game.FOCUS_SLOTS[3] &&
+            plainProd.production.base === Game.FOCUS_SLOTS[2],
+            JSON.stringify({ plain: plainProd.production.base, gov: govProd.production.base }));
+          proves("government.industry");
+        }
+
+        // ── Autocracy: military, two arrows ──────────────────────────────
+        {
+          // An army's combat value is the slot's number plus the card's bonus,
+          // so the shift shows up in a real fight's breakdown.
+          const setUpFoe = (s2, p2) => {
+            const foe = s2.players[1];
+            s2.map.hexes["1,0"].control =
+              { ownerId: foe.id, fortified: false, district: null };
+            p2.armies = [{ id: "a1", position: "0,0" }];
+          };
+          const fight = (st, me) => Game.applyAction(st, { type: "PLAY_MILITARY_ATTACK",
+            payload: { playerId: me.id, unitId: "a1", fromKey: "0,0",
+              toKey: "1,0", targetType: "control" } });
+
+          const plain = govBoard({ setUp: setUpFoe });
+          placeAt(plain.me, "military", 2);
+          const plainFight = fight(plain.st, plain.me);
+          assert("the plain attack opened", !!plainFight.combat);
+          const plainBase = plainFight.combat.atkBase;
+
+          const auto = govBoard({ setUp: setUpFoe });
+          const { st: gov } = adopt(auto.st, auto.me, "military");
+          placeAt(gov.players[0], "military", 2);
+          gov.players[0].cardPlayed = false;
+          const govFight = fight(gov, auto.me);
+          assert("the Autocracy attack opened", !!govFight.combat);
+          assert("Autocracy raises the army's combat value",
+            govFight.combat.atkBase > plainBase,
+            `${plainBase} -> ${govFight.combat.atkBase}`);
+          assert("by two places on the row",
+            govFight.combat.atkBase - plainBase ===
+            Game.FOCUS_SLOTS[4] - Game.FOCUS_SLOTS[2],
+            `${plainBase} -> ${govFight.combat.atkBase}`);
+          proves("government.military");
+        }
+
+        // ── Republic: culture, two arrows ────────────────────────────────
+        {
+          // A control marker may only go on terrain up to the slot's number, so
+          // the shift is what reaches a harder space.
+          const hard = (s2) => {
+            activate(s2, "1,0", { terrain: "forest" });   // difficulty 3
+          };
+          const plain = govBoard({ setUp: hard });
+          placeAt(plain.me, "culture", 2);
+          const plainSlot = Game.getSlotValue(plain.me, "culture", plain.st);
+          assert("without a government the forest is out of reach",
+            !Game.validControlHexes(plain.st, plain.me.id, plainSlot).has("1,0"),
+            String(plainSlot));
+
+          const rep = govBoard({ setUp: hard });
+          const { st: gov } = adopt(rep.st, rep.me, "culture");
+          placeAt(gov.players[0], "culture", 2);
+          gov.players[0].cardPlayed = false;
+          const govSlot = Game.getSlotValue(gov.players[0], "culture", gov);
+          assert("Republic shifts the culture card two places right",
+            govSlot === Game.FOCUS_SLOTS[4], `${plainSlot} -> ${govSlot}`);
+          assert("which brings the forest into reach",
+            Game.validControlHexes(gov, rep.me.id, govSlot).has("1,0"));
+          const out = Game.tryApplyAction(gov, { type: "PLAY_CULTURE",
+            payload: { playerId: rep.me.id, hexKeys: ["1,0"], tradeSpent: 0 } },
+            { actorId: rep.me.id, role: "player" });
+          assert("and the token really goes down on it", out.accepted, out.code);
+          assert("on the forest space itself",
+            out.state.map.hexes["1,0"].control.ownerId === rep.me.id);
+          proves("government.culture");
+        }
+
+        // ── Monarchy: growth, two arrows ─────────────────────────────────
+        {
+          const hard = (s2) => {
+            activate(s2, "1,0", { terrain: "forest" });
+          };
+          const plain = govBoard({ setUp: hard });
+          placeAt(plain.me, "growth", 2);
+          const plainSlot = Game.getSlotValue(plain.me, "growth", plain.st);
+          assert("without a government a district cannot reach the forest",
+            !Game.validDistrictHexes(plain.st, plain.me.id, plainSlot).has("1,0"),
+            String(plainSlot));
+
+          const mon = govBoard({ setUp: hard });
+          const { st: gov } = adopt(mon.st, mon.me, "growth");
+          placeAt(gov.players[0], "growth", 2);
+          gov.players[0].cardPlayed = false;
+          const govSlot = Game.getSlotValue(gov.players[0], "growth", gov);
+          assert("Monarchy shifts the growth card two places right",
+            govSlot === Game.FOCUS_SLOTS[4], `${plainSlot} -> ${govSlot}`);
+          const out = Game.tryApplyAction(gov, { type: "PLAY_GROWTH_DISTRICT",
+            payload: { playerId: mon.me.id, district: "campus",
+              hexKey: "1,0", tradeSpent: 0 } },
+            { actorId: mon.me.id, role: "player" });
+          assert("so the district can be placed on the forest", out.accepted, out.code);
+          assert("and it is there",
+            out.state.map.hexes["1,0"].control.district === "campus");
+          proves("government.growth");
+        }
+
+        // ── Oligarchy: economy, two arrows ───────────────────────────────
+        {
+          // A caravan may cross terrain up to the economy card's slot number.
+          const hard = (s2, p2) => {
+            activate(s2, "1,0", { terrain: "forest" });
+            p2.caravans = [{ id: "c1", position: "0,0" }];
+          };
+          const plain = govBoard({ setUp: hard });
+          placeAt(plain.me, "economy", 2);
+          assert("without a government the caravan cannot enter the forest",
+            !Game.getReachable(plain.st, "0,0",
+              Game.getEconomyMove(plain.me, plain.st), "caravan", plain.me.id).has("1,0"),
+            String(Game.getSlotValue(plain.me, "economy", plain.st)));
+
+          const olig = govBoard({ setUp: hard });
+          const { st: gov } = adopt(olig.st, olig.me, "economy");
+          placeAt(gov.players[0], "economy", 2);
+          gov.players[0].cardPlayed = false;
+          assert("Oligarchy shifts the economy card two places right",
+            Game.getSlotValue(gov.players[0], "economy", gov) === Game.FOCUS_SLOTS[4],
+            String(Game.getSlotValue(gov.players[0], "economy", gov)));
+          assert("which lets the caravan into the forest",
+            Game.getReachable(gov, "0,0",
+              Game.getEconomyMove(gov.players[0], gov), "caravan", olig.me.id).has("1,0"));
+          const out = Game.tryApplyAction(gov, { type: "PLAY_ECONOMY",
+            payload: { playerId: olig.me.id, unitId: "c1",
+              toKey: "1,0", tradeSpent: 0 } },
+            { actorId: olig.me.id, role: "player" });
+          assert("and it really moves there", out.accepted, out.code);
+          assert("standing on the forest",
+            out.state.players[0].caravans[0].position === "1,0",
+            String(out.state.players[0].caravans[0].position));
+          proves("government.economy");
+        }
+      }
+
+      {
         // The four printed industry cards. Each is "build a wonder with this
         // much production, OR build a city within this far of a friendly
         // space", and the reach, the production and the extra clauses differ.
