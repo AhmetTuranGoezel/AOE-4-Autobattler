@@ -311,10 +311,29 @@ async function drainOwnChoices(tab) {
             await nextTab.eval("({ active: Game.currentPlayer(UI.debugState()).id })"));
           R.info("next seat saw it after", noticed + " ms");
           // Not just the state object: the page has to have repainted for it.
-          const painted = await waitUntil(async () => await nextTab.eval(
-            "[...document.querySelectorAll('.fcard:not(.disabled)')].length > 0"), 15000);
+          // A start-of-turn decision correctly disables the row until it is
+          // answered, so report which of the two it is rather than calling a
+          // legitimately-blocked row a sync failure.
+          const rowState = async () => nextTab.eval(`(() => {
+            const s = UI.debugState();
+            const seat = Net.getCredentials ? Net.getCredentials().seatId : null;
+            return {
+              cards: document.querySelectorAll('.fcard').length,
+              live: document.querySelectorAll('.fcard:not(.disabled)').length,
+              mine: (s.pendingChoices || []).filter((c) => c.playerId === seat)
+                .map((c) => c.kind)
+            };
+          })()`);
+          let painted = await waitUntil(async () =>
+            (await rowState()).live > 0, 8000);
+          const blocked = await rowState();
+          if (painted < 0 && blocked.mine.length) {
+            R.info("next seat's row is held by a decision", blocked.mine.join(", "));
+            await drainOwnChoices(nextTab);
+            painted = await waitUntil(async () => (await rowState()).live > 0, 8000);
+          }
           R.ok("and its focus row became live without a reload", painted >= 0,
-            await nextTab.eval("[...document.querySelectorAll('.fcard')].length"));
+            JSON.stringify(await rowState()));
         }
 
         // Every other tab must have followed along too.

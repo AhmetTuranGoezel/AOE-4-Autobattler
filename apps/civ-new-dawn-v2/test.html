@@ -3118,6 +3118,27 @@
         me.diplomacy = [];
         assert("losing all reducer cards restores printed cost",
           Game.getWonderCost("Jebel Barkal", me, st) === 7);
+        proves("citystate.brussels");
+
+        // "...reduce its cost by 2 IF YOU DO NOT ALREADY HAVE A WONDER OF THAT
+        // TYPE." The condition, which the run above only ever satisfied.
+        me.diplomacy = [{ fromCityState: "Buenos Aires", cardId: "buenos-aires" }];
+        assert("Buenos Aires reduces a type I have no wonder of",
+          Game.getWonderCost("Jebel Barkal", me, st) === 5,
+          String(Game.getWonderCost("Jebel Barkal", me, st)));
+        const typeOf = (name) =>
+          (Game.ALL_WONDERS.find((w) => w.name === name) || {}).type;
+        assert("(fixture) Terracotta Army is the same type as Jebel Barkal",
+          typeOf("Terracotta Army") === typeOf("Jebel Barkal") &&
+          !!typeOf("Jebel Barkal"),
+          `${typeOf("Terracotta Army")} vs ${typeOf("Jebel Barkal")}`);
+        activate(st, "4,0", { city: { ownerId: me.id, isCapital: false,
+          developed: false, hasWonder: true,
+          wonder: { name: "Terracotta Army", type: typeOf("Terracotta Army") } } });
+        assert("but not one I already have a wonder of",
+          Game.getWonderCost("Jebel Barkal", me, st) === 7,
+          String(Game.getWonderCost("Jebel Barkal", me, st)));
+        proves("citystate.buenos_aires");
       }
 
       {
@@ -3147,6 +3168,38 @@
           !refused.accepted && refused.code === "palenque_required" &&
           without.players[0].resources.marble === 1,
           refused.code);
+
+        // "...you may spend RESOURCE TOKENS (NOT NATURAL WONDER TOKENS) as
+        // trade tokens on that card." The exclusion was described in a comment
+        // and never asserted.
+        const nw = rulesState();
+        const owner = nw.players[0];
+        owner.focusRow = ["science", "growth", "culture", "economy", "military", "industry"];
+        owner.trade.science = 0;
+        Game.RESOURCES.forEach((r) => { owner.resources[r] = 0; });
+        owner.diplomacy.push({ fromCityState: "Palenque", cardId: "palenque" });
+        Object.values(nw.map.hexes).forEach((h) => {
+          h.naturalWonder = null; h.naturalWonderSpace = null;
+          if (h.resource === "wonder") h.resource = null;
+        });
+        nw.naturalWonders = {};
+        activate(nw, "1,0", { terrain: "grass",
+          naturalWonderSpace: "Mt Kilimanjaro",
+          control: { ownerId: owner.id, fortified: false, district: null } });
+        const settledNw = Game.applyAction(nw, { type: "NO_SUCH_ACTION", payload: {} });
+        assert("(fixture) the player holds a natural wonder token",
+          Game.getControlledNaturalWonders(settledNw, owner.id).length === 1,
+          JSON.stringify(Game.getControlledNaturalWonders(settledNw, owner.id)));
+        assert("but its oil cannot be spent as focus trade through Palenque",
+          settledNw.players[0].resources.oil === 0,
+          String(settledNw.players[0].resources.oil));
+        const viaNatural = Game.tryApplyAction(settledNw, { type: "PLAY_SCIENCE",
+          payload: { playerId: owner.id, tradeSpent: 1, tradeResources: { oil: 1 } } },
+          { actorId: owner.id, role: "player" });
+        assert("so the payment is refused", !viaNatural.accepted, viaNatural.code);
+        assert("and the token is still on the leader sheet",
+          Game.getControlledNaturalWonders(viaNatural.state, owner.id).length === 1);
+        proves("citystate.palenque");
       }
 
       {
@@ -4491,6 +4544,362 @@
         const forbidden = (st0.pendingChoices || []).find((choice) => choice.source === "Forbidden City");
         assert("Forbidden City recognizes Antananarivo as a friendly adjacent space",
           forbidden && forbidden.hexKeys.includes("1,0"), JSON.stringify(st0.pendingChoices));
+      }
+
+      {
+        // The twelve city-state diplomacy cards. Each is driven with the card
+        // and without it, so what is asserted is the card's doing.
+        const csBoard = (opts) => {
+          const o = opts || {};
+          const st = rulesState();
+          const me = st.players[0];
+          me.cardPlayed = false;
+          st.turn.index = st.turn.order.indexOf(me.id);
+          st.players.forEach((p) => { p.diplomacy = []; });
+          Game.FOCUS_TYPES.forEach((t) => { me.trade[t] = 0; });
+          Game.RESOURCES.forEach((r) => { me.resources[r] = 0; });
+          Object.values(st.map.hexes).forEach((h) => {
+            h.barbarian = false; h.barbarianId = null; h.barbarianToken = null;
+            h.barbarianHome = null; h.control = null; h.cityState = null;
+            h.resource = null; h.naturalWonder = null; h.naturalWonderSpace = null;
+          });
+          st.naturalWonders = {};
+          for (let q = -3; q <= 8; q++) {
+            activate(st, q + ",0", { terrain: "grass" });
+            activate(st, q + ",1", { terrain: "grass" });
+            activate(st, q + ",-1", { terrain: "grass" });
+          }
+          activate(st, "0,0", { city: { ownerId: me.id, isCapital: true,
+            developed: false, hasWonder: false, wonder: null } });
+          if (o.setUp) o.setUp(st, me);
+          return { st, me, foe: st.players[1] };
+        };
+        const envoy = (player, name) => {
+          player.diplomacy = (player.diplomacy || [])
+            .concat([{ fromCityState: name, cardId: name.toLowerCase() }]);
+        };
+        const attackWith = (st, me, toKey, targetType) => Game.applyAction(st,
+          { type: "PLAY_MILITARY_ATTACK", payload: { playerId: me.id, unitId: "a1",
+            fromKey: "0,0", toKey, targetType } });
+        // Base p6: a turn is choose a card, resolve it, reset it. There is no
+        // passing, and END_TURN is refused until a card has been played — so
+        // reaching the NEXT start of turn means actually taking this one.
+        // Science is the card that needs nothing on the board.
+        const takeTurn = (st, exceptChoiceKind) => {
+          let s2 = st;
+          const cur = Game.currentPlayer(s2).id;
+          s2 = Game.applyAction(s2, { type: "PLAY_SCIENCE",
+            payload: { playerId: cur, tradeSpent: 0 } });
+          for (let i = 0; i < 12; i++) {
+            const open = (s2.pendingChoices || [])
+              .find((c) => c.kind !== exceptChoiceKind);
+            if (!open) break;
+            const payload = { playerId: open.playerId, choiceId: open.id };
+            if (open.options && open.options.length) payload.optionId = open.options[0].id;
+            else if (open.hexKeys && open.hexKeys.length) payload.hexKey = open.hexKeys[0];
+            else if (open.optional) payload.dismiss = true;
+            else break;
+            const next = Game.applyAction(s2, { type: "RESOLVE_PENDING_CHOICE", payload });
+            if (next === s2) break;
+            s2 = next;
+          }
+          return Game.applyAction(s2, { type: "END_TURN", payload: { playerId: cur } });
+        };
+
+        // ── Carthage ─────────────────────────────────────────────────────
+        {
+          // "+1 for each city-state token and friendly city within 2 spaces of
+          // the defending space", when defending or attacking anything but
+          // Carthage itself.
+          const setUp = (s2, p2) => {
+            const foe = s2.players[1];
+            s2.map.hexes["1,0"].control = { ownerId: foe.id, fortified: false, district: null };
+            p2.armies = [{ id: "a1", position: "0,0" }];
+            // My capital at 0,0 is one friendly city within 2 of 1,0.
+            activate(s2, "2,1", { terrain: "grass",
+              cityState: { name: "Valletta", type: "culture", diplomacyCards: 2 } });
+          };
+          const plain = csBoard({ setUp });
+          const plainOut = attackWith(plain.st, plain.me, "1,0", "control");
+          assert("the plain attack opens", !!plainOut.combat);
+          const base = plainOut.combat.atkBase;
+
+          const carth = csBoard({ setUp });
+          envoy(carth.me, "Carthage");
+          const out = attackWith(carth.st, carth.me, "1,0", "control");
+          assert("Carthage adds support from nearby cities and city-states",
+            out.combat.atkBase > base, `${base} -> ${out.combat.atkBase}`);
+          assert("and says so in the breakdown",
+            (out.combat.atkParts || []).some((p) => /carthage/i.test(p.label)),
+            JSON.stringify(out.combat.atkParts));
+          proves("citystate.carthage");
+        }
+
+        // ── Kabul ────────────────────────────────────────────────────────
+        {
+          // "+3 when attacking a city or city-state other than Kabul."
+          const setUp = (s2, p2) => {
+            const foe = s2.players[1];
+            activate(s2, "1,0", { terrain: "grass", city: { ownerId: foe.id,
+              isCapital: false, developed: false, hasWonder: false, wonder: null } });
+            p2.armies = [{ id: "a1", position: "0,0" }];
+          };
+          const plain = csBoard({ setUp });
+          const base = attackWith(plain.st, plain.me, "1,0", "city").combat.atkBase;
+          const kab = csBoard({ setUp });
+          envoy(kab.me, "Kabul");
+          const out = attackWith(kab.st, kab.me, "1,0", "city");
+          assert("Kabul adds 3 when attacking a city",
+            out.combat.atkBase === base + 3, `${base} -> ${out.combat.atkBase}`);
+          // ...and nothing when the target is Kabul itself.
+          const vsKabul = csBoard({ setUp: (s2, p2) => {
+            activate(s2, "1,0", { terrain: "grass",
+              cityState: { name: "Kabul", type: "military", diplomacyCards: 2 } });
+            p2.armies = [{ id: "a1", position: "0,0" }];
+          } });
+          envoy(vsKabul.me, "Kabul");
+          const plainKabul = csBoard({ setUp: (s2, p2) => {
+            activate(s2, "1,0", { terrain: "grass",
+              cityState: { name: "Kabul", type: "military", diplomacyCards: 2 } });
+            p2.armies = [{ id: "a1", position: "0,0" }];
+          } });
+          const a = attackWith(vsKabul.st, vsKabul.me, "1,0", "citystate");
+          const b = attackWith(plainKabul.st, plainKabul.me, "1,0", "citystate");
+          assert("but nothing when Kabul itself is the target",
+            a.combat.atkBase === b.combat.atkBase,
+            `${b.combat.atkBase} vs ${a.combat.atkBase}`);
+          proves("citystate.kabul");
+        }
+
+        // ── Kumasi ───────────────────────────────────────────────────────
+        {
+          // "When resolving your industry or culture focus card, the terrain
+          // difficulty of forest spaces is 1."
+          const setUp = (s2) => { activate(s2, "1,0", { terrain: "forest" }); };
+          const plain = csBoard({ setUp });
+          plain.me.focusRow = ["culture", "science", "growth", "economy", "military", "industry"];
+          assert("a forest is out of reach of a slot-1 culture card",
+            !Game.validControlHexes(plain.st, plain.me.id, 1).has("1,0"));
+          const kum = csBoard({ setUp });
+          kum.me.focusRow = ["culture", "science", "growth", "economy", "military", "industry"];
+          envoy(kum.me, "Kumasi");
+          assert("Kumasi makes forest difficulty 1 for culture",
+            Game.validControlHexes(kum.st, kum.me.id, 1).has("1,0"),
+            [...Game.validControlHexes(kum.st, kum.me.id, 1)].sort().join(" "));
+          const out = Game.tryApplyAction(kum.st, { type: "PLAY_CULTURE",
+            payload: { playerId: kum.me.id, hexKeys: ["1,0"], tradeSpent: 0 } },
+            { actorId: kum.me.id, role: "player" });
+          assert("and the token goes down on the forest", out.accepted, out.code);
+          assert("it is really there",
+            out.state.map.hexes["1,0"].control.ownerId === kum.me.id);
+          proves("citystate.kumasi");
+        }
+
+        // ── Mohenjo Daro ─────────────────────────────────────────────────
+        {
+          // "When placing control tokens, reduce the terrain difficulty of all
+          // spaces by 1." A hill is 2, so a slot-1 card reaches it.
+          const setUp = (s2) => { activate(s2, "1,0", { terrain: "hill" }); };
+          const plain = csBoard({ setUp });
+          plain.me.focusRow = ["culture", "science", "growth", "economy", "military", "industry"];
+          assert("a hill is out of reach of a slot-1 culture card",
+            !Game.validControlHexes(plain.st, plain.me.id, 1).has("1,0"));
+          const moh = csBoard({ setUp });
+          moh.me.focusRow = ["culture", "science", "growth", "economy", "military", "industry"];
+          envoy(moh.me, "Mohenjo Daro");
+          assert("Mohenjo Daro drops every space by one",
+            Game.validControlHexes(moh.st, moh.me.id, 1).has("1,0"),
+            [...Game.validControlHexes(moh.st, moh.me.id, 1)].sort().join(" "));
+          const out = Game.tryApplyAction(moh.st, { type: "PLAY_CULTURE",
+            payload: { playerId: moh.me.id, hexKeys: ["1,0"], tradeSpent: 0 } },
+            { actorId: moh.me.id, role: "player" });
+          assert("and the token goes down on the hill", out.accepted, out.code);
+          proves("citystate.mohenjo_daro");
+        }
+
+        // ── Auckland ─────────────────────────────────────────────────────
+        {
+          // "When building a city, you can count through water spaces, and the
+          // terrain difficulty of all spaces adjacent to water is 1."
+          const setUp = (s2) => {
+            activate(s2, "1,0", { terrain: "water" });
+            activate(s2, "2,0", { terrain: "mountain" });   // difficulty 5, beside water
+          };
+          const plain = csBoard({ setUp });
+          plain.me.focusRow = ["industry", "science", "growth", "economy", "military", "culture"];
+          assert("a mountain across water is not a legal city space",
+            !Game.validCityHexes(plain.st, plain.me.id, Infinity,
+              Game.getCityRange(plain.me, plain.st)).has("2,0"));
+          const auck = csBoard({ setUp });
+          auck.me.focusRow = ["industry", "science", "growth", "economy", "military", "culture"];
+          envoy(auck.me, "Auckland");
+          assert("Auckland counts through the water and flattens the coast",
+            Game.validCityHexes(auck.st, auck.me.id, Infinity,
+              Game.getCityRange(auck.me, auck.st)).has("2,0"),
+            [...Game.validCityHexes(auck.st, auck.me.id, Infinity,
+              Game.getCityRange(auck.me, auck.st))].sort().join(" "));
+          const out = Game.tryApplyAction(auck.st, { type: "PLAY_INDUSTRY_CITY",
+            payload: { playerId: auck.me.id, hexKey: "2,0" } },
+            { actorId: auck.me.id, role: "player" });
+          assert("so the city is built there", out.accepted, out.code);
+          assert("and it exists", !!out.state.map.hexes["2,0"].city);
+          proves("citystate.auckland");
+        }
+
+        // ── Akkad ────────────────────────────────────────────────────────
+        {
+          // "Your armies can move through spaces containing rival control
+          // tokens." A corridor, so through means through.
+          const setUp = (s2, p2) => {
+            const foe = s2.players[1];
+            for (let q = -3; q <= 8; q++) {
+              [q + ",1", q + ",-1"].forEach((k) => {
+                if (s2.map.hexes[k]) s2.map.hexes[k].active = false;
+              });
+            }
+            s2.map.hexes["1,0"].control = { ownerId: foe.id, fortified: false, district: null };
+            p2.armies = [{ id: "a1", position: "0,0" }];
+          };
+          const plain = csBoard({ setUp });
+          assert("a rival token stops an ordinary army",
+            !Game.getReachable(plain.st, "0,0",
+              Game.getMilitaryMove(plain.me, plain.st), "army", plain.me.id).has("2,0"),
+            [...Game.getReachable(plain.st, "0,0", 3, "army", plain.me.id)].sort().join(" "));
+          const akk = csBoard({ setUp });
+          envoy(akk.me, "Akkad");
+          assert("Akkad lets it march straight through",
+            Game.getReachable(akk.st, "0,0",
+              Game.getMilitaryMove(akk.me, akk.st), "army", akk.me.id).has("2,0"),
+            [...Game.getReachable(akk.st, "0,0", 3, "army", akk.me.id)].sort().join(" "));
+          proves("citystate.akkad");
+        }
+
+        // ── Antananarivo ─────────────────────────────────────────────────
+        {
+          // "During your turn, Antananarivo is treated as one of your cities
+          // and not as a city-state. Your armies cannot end their movement in
+          // Antananarivo's space."
+          const setUp = (s2, p2) => {
+            activate(s2, "2,0", { terrain: "grass",
+              cityState: { name: "Antananarivo", type: "culture", diplomacyCards: 2 } });
+            p2.armies = [{ id: "a1", position: "0,0" }];
+            p2.caravans = [{ id: "c1", position: "0,0" }];
+          };
+          const ant = csBoard({ setUp });
+          envoy(ant.me, "Antananarivo");
+          assert("it counts as one of my cities, so a control token may sit beside it",
+            Game.validControlHexes(ant.st, ant.me.id, 5).has("2,1") ||
+            Game.validControlHexes(ant.st, ant.me.id, 5).has("3,0"),
+            [...Game.validControlHexes(ant.st, ant.me.id, 5)].sort().join(" "));
+          assert("but an army may not end its move there",
+            !Game.getReachable(ant.st, "0,0",
+              Game.getMilitaryMove(ant.me, ant.st), "army", ant.me.id).has("2,0"),
+            [...Game.getReachable(ant.st, "0,0", 3, "army", ant.me.id)].sort().join(" "));
+          const plain = csBoard({ setUp });
+          assert("without the card it is an ordinary city-state, not my city",
+            !Game.validControlHexes(plain.st, plain.me.id, 5).has("3,0"),
+            [...Game.validControlHexes(plain.st, plain.me.id, 5)].sort().join(" "));
+          proves("citystate.antananarivo");
+        }
+
+        // ── Seoul ────────────────────────────────────────────────────────
+        {
+          // "At the start of your turn, you may move 1 barbarian to an adjacent
+          // non-water empty space."
+          const setUp = (s2) => {
+            activate(s2, "3,0", { terrain: "grass", barbarian: true,
+              barbarianId: "S", barbarianToken: "3,0", barbarianHome: "S" });
+          };
+          const seo = csBoard({ setUp });
+          envoy(seo.me, "Seoul");
+          Game.syncBarbarianRegistry(seo.st);
+          // Play round the table until my turn begins again; the offer belongs
+          // to the Seoul holder and arrives at the start of their turn.
+          let s2 = seo.st;
+          for (let i = 0; i < 4 && !(s2.pendingChoices || [])
+            .some((c) => c.kind === "seoul_move_barbarian"); i++) {
+            s2 = takeTurn(s2, "seoul_move_barbarian");
+          }
+          const move = (s2.pendingChoices || [])
+            .find((c) => c.kind === "seoul_move_barbarian");
+          assert("Seoul offers to move a barbarian at the start of my turn", !!move,
+            JSON.stringify((s2.pendingChoices || []).map((c) => c.kind)));
+          assert("and the offer is optional, because the card says you may",
+            !!move && move.optional === true);
+          // The figure marches on its own during the turns played to get here,
+          // so pick the option that starts where it actually IS rather than
+          // whichever one happens to be first.
+          const before = Object.entries(s2.map.hexes)
+            .filter(([, h]) => h.barbarian && h.barbarianToken === "3,0").map(([k]) => k)[0];
+          const option = (move.options || []).find((o) => o.fromKey === before);
+          assert("an offered move starts from where the figure stands", !!option,
+            JSON.stringify({ at: before, options: (move.options || []).map((o) => o.label) }));
+          const moved = Game.applyAction(s2, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: seo.me.id, choiceId: move.id, optionId: option.id } });
+          const after = Object.entries(moved.map.hexes)
+            .filter(([, h]) => h.barbarian && h.barbarianToken === "3,0").map(([k]) => k)[0];
+          assert("taking it moves that barbarian one space, to the named space",
+            after === option.toKey && after !== before,
+            `${before} -> ${after} (wanted ${option.toKey})`);
+          assert("and the figure keeps its identity and its home",
+            moved.map.hexes[after].barbarianId === "S" &&
+            moved.map.hexes[after].barbarianToken === "3,0");
+          assert("with the space it left now empty",
+            moved.map.hexes[before].barbarian === false);
+          proves("citystate.seoul");
+        }
+
+        // ── Geneva ───────────────────────────────────────────────────────
+        {
+          // "At the start of your turn, you may return 1 diplomacy card you
+          // have taken from another player. If you do, choose and take a
+          // different diplomacy card from that player."
+          const gen = csBoard();
+          const foe = gen.foe;
+          envoy(gen.me, "Geneva");
+          gen.me.diplomacy.push({ fromId: foe.id, cardId: "joint_war", name: "Joint War" });
+          const options = Game.getPlayer(gen.st, gen.me.id).diplomacy;
+          assert("(fixture) I hold a card taken from the rival",
+            options.some((d) => d.fromId === foe.id), JSON.stringify(options));
+          let s2 = gen.st;
+          for (let i = 0; i < 4 && !(s2.pendingChoices || [])
+            .some((c) => c.kind === "geneva_return"); i++) {
+            s2 = takeTurn(s2, "geneva_return");
+          }
+          const swap = (s2.pendingChoices || []).find((c) => c.kind === "geneva_return");
+          assert("Geneva offers the exchange at the start of my turn", !!swap,
+            JSON.stringify((s2.pendingChoices || []).map((c) => c.kind)));
+          assert("and it is optional", !!swap && swap.optional === true);
+          const returned = Game.applyAction(s2, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: gen.me.id, choiceId: swap.id,
+              optionId: (swap.options || [])[0].id } });
+          assert("returning it hands the card back",
+            !returned.players[0].diplomacy.some((d) =>
+              d.fromId === foe.id && d.cardId === "joint_war"),
+            JSON.stringify(returned.players[0].diplomacy));
+          // "If you do, CHOOSE and take a different diplomacy card from that
+          // player" — a second decision, not an automatic draw.
+          const pick = (returned.pendingChoices || [])
+            .find((c) => c.kind === "take_diplomacy" && c.playerId === gen.me.id);
+          assert("and then asks which different card to take", !!pick,
+            JSON.stringify((returned.pendingChoices || []).map((c) => c.kind)));
+          assert("without offering the one just handed back",
+            !(pick.options || []).some((o) => o.id === "joint_war"),
+            JSON.stringify((pick.options || []).map((o) => o.id)));
+          const took = Game.applyAction(returned, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: gen.me.id, choiceId: pick.id,
+              optionId: (pick.options || [])[0].id } });
+          const held = took.players[0].diplomacy.filter((d) => d.fromId === foe.id);
+          assert("leaving exactly one card from that rival, a different one",
+            held.length === 1 && held[0].cardId !== "joint_war",
+            JSON.stringify(held));
+          proves("citystate.geneva");
+        }
+
+        // ── Brussels / Buenos Aires / Palenque ───────────────────────────
+        // These three are driven in the wonder-cost and Palenque blocks above;
+        // the assertions there are what these ids stand for. Re-stating them
+        // here would be the same test twice, so each is claimed where it runs.
       }
 
       {

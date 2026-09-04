@@ -2954,6 +2954,8 @@ const Game = (() => {
         }
         st.turn.round++;
         advanceEventWheel(st);
+        // The wheel may have moved the barbarians Seoul just offered to move.
+        refreshSeoulChoices(st);
         log(st, `Round ${st.turn.round} begins.`);
       }
       return st;
@@ -6861,6 +6863,29 @@ const Game = (() => {
       });
     });
     return moves;
+  }
+
+  // Seoul's offer lists moves read off the board, and it is queued for the next
+  // player BEFORE the event wheel turns. When the wheel lands on the barbarian
+  // march it moves the very figures the offer named, so every option becomes a
+  // move from a space no barbarian is on any more — and the resolver, which
+  // correctly re-checks legality, then refuses all of them. The offer is left
+  // on the board unanswerable.
+  //
+  // Re-reading the options once the board has finished changing is the same
+  // remedy refreshScienceUpgradeChoices already applies to the tech-level
+  // prompt. An offer with nothing left to move is dropped rather than left
+  // standing with an empty list.
+  function refreshSeoulChoices(st) {
+    if (!st || !Array.isArray(st.pendingChoices)) return;
+    let moves = null;
+    st.pendingChoices.forEach((choice) => {
+      if (choice.kind !== "seoul_move_barbarian") return;
+      if (!moves) moves = seoulBarbarianMoves(st);
+      choice.options = moves;
+    });
+    st.pendingChoices = st.pendingChoices.filter((choice) =>
+      choice.kind !== "seoul_move_barbarian" || (choice.options || []).length);
   }
 
   function queueStartOfTurnEffects(st, player) {
