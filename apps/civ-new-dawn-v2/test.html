@@ -4547,6 +4547,297 @@
       }
 
       {
+        // tryApplyAction answers "accepted" by comparing the state before and
+        // after, which is what lets the UI tell a player their move was
+        // refused. City maturity, natural wonder ownership and the barbarian
+        // registry are DERIVED and get repaired on the way through — so on the
+        // first action against a freshly built state, building a registry moved
+        // the state and an illegal move was reported as having succeeded. The
+        // mirrors are settled before the baseline now.
+        const fresh = rulesState();
+        const player = fresh.players[0];
+        player.cardPlayed = false;
+        fresh.turn.index = fresh.turn.order.indexOf(player.id);
+        activate(fresh, "0,0", { city: { ownerId: player.id, isCapital: true,
+          developed: false, hasWonder: false, wonder: null } });
+        player.armies = [{ id: "a1", position: "0,0" }];
+        // Far out of any army's reach on any card.
+        activate(fresh, "8,0", { terrain: "grass" });
+        const illegal = Game.tryApplyAction(fresh, { type: "PLAY_MILITARY_MOVE",
+          payload: { playerId: player.id, unitId: "a1", toKey: "8,0", tradeSpent: 0 } },
+          { actorId: player.id, role: "player" });
+        assert("an impossible move on a freshly built state is refused",
+          !illegal.accepted, illegal.code);
+        assert("and the army did not move",
+          illegal.state.players[0].armies[0].position === "0,0",
+          String(illegal.state.players[0].armies[0].position));
+      }
+
+      {
+        // Unique focus cards. A civilization's own card REPLACES the standard
+        // card of its type at its printed tier, so each of these is checked
+        // against the same board running the standard card instead.
+        const uniqBoard = (leaderId, opts) => {
+          const o = opts || {};
+          const st = rulesState();
+          const me = st.players[0];
+          me.leaderId = leaderId || null;
+          me.cardPlayed = false;
+          st.turn.index = st.turn.order.indexOf(me.id);
+          Game.FOCUS_TYPES.forEach((t) => { me.trade[t] = 0; });
+          Game.RESOURCES.forEach((r) => { me.resources[r] = 0; });
+          st.players.forEach((p) => { p.diplomacy = []; });
+          Object.values(st.map.hexes).forEach((h) => {
+            h.barbarian = false; h.barbarianId = null; h.barbarianToken = null;
+            h.barbarianHome = null; h.control = null; h.cityState = null;
+            h.resource = null; h.naturalWonder = null; h.naturalWonderSpace = null;
+          });
+          st.naturalWonders = {};
+          for (let q = -3; q <= 9; q++) {
+            for (let r = -2; r <= 2; r++) activate(st, q + "," + r, { terrain: "grass" });
+          }
+          activate(st, "0,0", { city: { ownerId: me.id, isCapital: true,
+            developed: false, hasWonder: false, wonder: null } });
+          if (o.setUp) o.setUp(st, me);
+          return { st, me, foe: st.players[1] };
+        };
+        // Put the player's card of `type` at `tier`, which is what brings a
+        // civilization's own card into play in place of the standard one.
+        const atTier = (player, type, tier) => {
+          player.cardTiers[type] = tier;
+          player.cardLevels[type] = tier;
+          // A level-I unique sits in the starting row; a level II+ one is only
+          // yours once you have TAKEN it at a tech level, which is what
+          // uniqueTaken records. Setting the tier alone leaves the standard
+          // card in play, so the fixture has to say the card was taken.
+          if (tier > 1) player.uniqueTaken = true;
+        };
+        const uniqueOf = (leaderId) => {
+          const leader = Game.LEADERS.find((l) => l.id === leaderId);
+          return leader && leader.unique;
+        };
+
+        // ── China: Writing ───────────────────────────────────────────────
+        {
+          // "Advance your tech dial ... Then, IF YOU CONTROL A WORLD WONDER,
+          // advance your tech dial 1 ADDITIONAL space."
+          const u = uniqueOf("china");
+          const run = (leaderId, hasWonder) => {
+            const b = uniqBoard(leaderId, { setUp: (s2) => {
+              if (hasWonder) {
+                s2.map.hexes["0,0"].city.hasWonder = true;
+                s2.map.hexes["0,0"].city.wonder = { name: "Stonehenge", type: "culture" };
+              }
+            } });
+            atTier(b.me, u.type, u.tier);
+            b.me.focusRow = ["science", "growth", "economy", "military", "industry", "culture"];
+            const before = b.me.tech;
+            const out = Game.tryApplyAction(b.st, { type: "PLAY_SCIENCE",
+              payload: { playerId: b.me.id, tradeSpent: 0 } },
+              { actorId: b.me.id, role: "player" });
+            return { out, gained: out.accepted ? out.state.players[0].tech - before : -1 };
+          };
+          assert("Writing is China's science card at its tier",
+            Game.getCardName(uniqBoard("china", {}).me, "science") !== undefined);
+          const plainNoWonder = run(null, false);
+          const chinaNoWonder = run("china", false);
+          assert("with no wonder China's card moves the dial like the standard one",
+            chinaNoWonder.gained === plainNoWonder.gained,
+            `${plainNoWonder.gained} vs ${chinaNoWonder.gained}`);
+          const chinaWonder = run("china", true);
+          assert("controlling a wonder adds one more space",
+            chinaWonder.gained === chinaNoWonder.gained + 1,
+            `${chinaNoWonder.gained} -> ${chinaWonder.gained}`);
+          const plainWonder = run(null, true);
+          assert("and the standard card gains nothing from the same wonder",
+            plainWonder.gained === plainNoWonder.gained,
+            `${plainNoWonder.gained} vs ${plainWonder.gained}`);
+          proves("unique.china.writing");
+        }
+
+        // ── England: Natural History ─────────────────────────────────────
+        {
+          // "Advance your tech dial ... plus 1 for each TYPE of resource you
+          // have (including resources on natural wonder tokens)."
+          const u = uniqueOf("england");
+          const run = (leaderId, setUp) => {
+            const b = uniqBoard(leaderId, { setUp });
+            atTier(b.me, u.type, u.tier);
+            b.me.focusRow = ["science", "growth", "economy", "military", "industry", "culture"];
+            const before = b.st.players[0].tech;
+            const out = Game.tryApplyAction(b.st, { type: "PLAY_SCIENCE",
+              payload: { playerId: b.me.id, tradeSpent: 0 } },
+              { actorId: b.me.id, role: "player" });
+            if (!out.accepted) return -1;
+            // The standard level-III card asks for a resource FIRST and only
+            // then advances the dial, so both cards have to be seen through to
+            // the end before the two are compared.
+            let s3 = out.state;
+            for (let i = 0; i < 8; i++) {
+              const open = (s3.pendingChoices || [])
+                .find((c) => c.playerId === b.me.id);
+              if (!open) break;
+              const payload = { playerId: b.me.id, choiceId: open.id };
+              if (open.options && open.options.length) payload.optionId = open.options[0].id;
+              else if (open.hexKeys && open.hexKeys.length) payload.hexKey = open.hexKeys[0];
+              else if (open.optional) payload.dismiss = true;
+              else break;
+              const next = Game.applyAction(s3, { type: "RESOLVE_PENDING_CHOICE", payload });
+              if (next === s3) break;
+              s3 = next;
+            }
+            return s3.players[0].tech - before;
+          };
+          const none = run("england", null);
+          const twoTypes = run("england", (s2, p2) => {
+            p2.resources.marble = 3;      // three tokens, ONE type
+            p2.resources.oil = 1;
+          });
+          assert("Natural History counts resource TYPES, not tokens",
+            twoTypes === none + 2, `${none} -> ${twoTypes}`);
+          const oneType = run("england", (s2, p2) => { p2.resources.marble = 3; });
+          assert("so three of one type is worth one",
+            oneType === none + 1, `${none} -> ${oneType}`);
+          // "...including resources on natural wonder tokens."
+          const withNatural = run("england", (s2, p2) => {
+            activate(s2, "1,0", { terrain: "grass",
+              naturalWonderSpace: "Mt Kilimanjaro",
+              control: { ownerId: p2.id, fortified: false, district: null } });
+          });
+          assert("a natural wonder token counts as its own type",
+            withNatural === none + 1, `${none} -> ${withNatural}`);
+          const plain = run(null, (s2, p2) => {
+            p2.resources.marble = 3; p2.resources.oil = 1;
+          });
+          assert("and the standard card counts none of it",
+            plain === none, `${none} vs ${plain}`);
+          proves("unique.england.natural_history");
+        }
+
+        // ── Scythia: Horseback Riding ────────────────────────────────────
+        {
+          // "Move each of your armies up to 6 spaces" — the level-I military
+          // card ordinarily moves 3.
+          const u = uniqueOf("scythia");
+          const b = uniqBoard("scythia");
+          atTier(b.me, u.type, u.tier);
+          const plain = uniqBoard(null);
+          atTier(plain.me, u.type, u.tier);
+          assert("the standard level-I military card moves three",
+            Game.getMilitaryMove(plain.me, plain.st) === 3,
+            String(Game.getMilitaryMove(plain.me, plain.st)));
+          assert("Horseback Riding moves six",
+            Game.getMilitaryMove(b.me, b.st) === 6,
+            String(Game.getMilitaryMove(b.me, b.st)));
+          b.me.armies = [{ id: "a1", position: "0,0" }];
+          const far = Game.tryApplyAction(b.st, { type: "PLAY_MILITARY_MOVE",
+            payload: { playerId: b.me.id, unitId: "a1", toKey: "6,0", tradeSpent: 0 } },
+            { actorId: b.me.id, role: "player" });
+          assert("so an army really rides six spaces", far.accepted, far.code);
+          assert("arriving there",
+            far.state.players[0].armies[0].position === "6,0",
+            String(far.state.players[0].armies[0].position));
+          plain.me.armies = [{ id: "a1", position: "0,0" }];
+          const short = Game.tryApplyAction(plain.st, { type: "PLAY_MILITARY_MOVE",
+            payload: { playerId: plain.me.id, unitId: "a1", toKey: "6,0", tradeSpent: 0 } },
+            { actorId: plain.me.id, role: "player" });
+          assert("which the standard card cannot", !short.accepted, short.code);
+          proves("unique.scythia.horseback_riding");
+        }
+
+        // ── Sumeria: Craftsmanship ───────────────────────────────────────
+        {
+          // "Build 1 world wonder ... THEN, ADVANCE YOUR TECH DIAL 1 SPACE."
+          const u = uniqueOf("sumeria");
+          const build = (leaderId) => {
+            const b = uniqBoard(leaderId);
+            atTier(b.me, u.type, u.tier);
+            b.me.focusRow = ["industry", "science", "growth", "economy", "military", "culture"];
+            Game.RESOURCES.forEach((r) => { b.me.resources[r] = 4; });
+            const deck = b.st.wonderDecks.military;
+            deck.deck = ["Jebel Barkal"].concat(deck.deck.filter((n) => n !== "Jebel Barkal"));
+            deck.revealed = "Jebel Barkal";
+            const before = b.st.players[0].tech;
+            const out = Game.tryApplyAction(b.st, { type: "PLAY_INDUSTRY_WONDER",
+              payload: { hexKey: "0,0", wonderName: "Jebel Barkal", tradeSpent: 0,
+                resources: { oil: 3 }, naturalWonders: [] } },
+              { actorId: b.me.id, role: "player" });
+            return { out, gained: out.accepted ? out.state.players[0].tech - before : -1 };
+          };
+          const plain = build(null);
+          assert("the standard level-I industry card builds the wonder",
+            plain.out.accepted, plain.out.code);
+          assert("and moves the tech dial not at all",
+            plain.gained === 0, String(plain.gained));
+          const sum = build("sumeria");
+          assert("Craftsmanship builds it too", sum.out.accepted, sum.out.code);
+          assert("and then advances the dial one space",
+            sum.gained === 1, String(sum.gained));
+          proves("unique.sumeria.craftsmanship");
+        }
+
+        // ── Nubia: Construction ──────────────────────────────────────────
+        {
+          // "Your production equals this slot's number. EACH RESOURCE SPENT to
+          // build this wonder increases production by AN ADDITIONAL 1."
+          const u = uniqueOf("nubia");
+          const preview = (leaderId, resources) => {
+            const b = uniqBoard(leaderId);
+            atTier(b.me, u.type, u.tier);
+            b.me.focusRow = ["industry", "science", "growth", "economy", "military", "culture"];
+            Game.RESOURCES.forEach((r) => { b.me.resources[r] = 4; });
+            return Game.calculateWonderProduction(b.st, b.me, "Jebel Barkal",
+              { tradeSpent: 0, resources, naturalWonders: [] });
+          };
+          const plainNone = preview(null, {});
+          const plainTwo = preview(null, { oil: 2 });
+          assert("an ordinary resource is worth 2 production",
+            plainTwo.production.total === plainNone.production.total + 4,
+            `${plainNone.production.total} -> ${plainTwo.production.total}`);
+          const nubNone = preview("nubia", {});
+          const nubTwo = preview("nubia", { oil: 2 });
+          assert("under Construction each one is worth an additional 1",
+            nubTwo.production.total === nubNone.production.total + 6,
+            `${nubNone.production.total} -> ${nubTwo.production.total}`);
+          assert("and with no resources spent the two are the same",
+            nubNone.production.total === plainNone.production.total,
+            `${plainNone.production.total} vs ${nubNone.production.total}`);
+          proves("unique.nubia.construction");
+        }
+
+        // ── Japan: Industrialization ─────────────────────────────────────
+        {
+          // "Your production equals this slot's number, PLUS 1 FOR EACH OF YOUR
+          // DISTRICTS ON THE MAP."
+          const u = uniqueOf("japan");
+          const preview = (leaderId, districts) => {
+            const b = uniqBoard(leaderId, { setUp: (s2, p2) => {
+              const kinds = ["campus", "trade", "encampment"];
+              districts.forEach((k, i) => {
+                s2.map.hexes[k].control =
+                  { ownerId: p2.id, fortified: false, district: kinds[i] };
+              });
+            } });
+            atTier(b.me, u.type, u.tier);
+            b.me.focusRow = ["industry", "science", "growth", "economy", "military", "culture"];
+            return Game.calculateWonderProduction(b.st, b.me, "Jebel Barkal",
+              { tradeSpent: 0, resources: {}, naturalWonders: [] });
+          };
+          const none = preview("japan", []);
+          const two = preview("japan", ["1,0", "0,1"]);
+          assert("Industrialization adds one production per district",
+            two.production.total === none.production.total + 2,
+            `${none.production.total} -> ${two.production.total}`);
+          const plain = preview(null, ["1,0", "0,1"]);
+          const plainNone = preview(null, []);
+          assert("while the standard card counts none of them",
+            plain.production.total === plainNone.production.total,
+            `${plainNone.production.total} vs ${plain.production.total}`);
+          proves("unique.japan.industrialization");
+        }
+      }
+
+      {
         // Six civilization abilities, each driven to the state it changes and
         // each checked against the same board without the leader, so what is
         // asserted is the ability and not the fixture.

@@ -1593,6 +1593,10 @@ const Game = (() => {
       if (candidate.phase === "playing" && TURN_ACTIONS.has(bound.type) && bound.type !== "UNDO_TURN") {
         ensureTurnUndo(candidate);
       }
+      // Settle the derived mirrors before the baseline, for the reason given on
+      // normalizeDerivedState: otherwise building a registry counts as the
+      // action having changed something.
+      normalizeDerivedState(candidate);
       const before = JSON.stringify(candidate);
       const result = applyAction(candidate, bound);
       if (JSON.stringify(result) === before) {
@@ -1781,6 +1785,19 @@ const Game = (() => {
 
   // --- Actions ---
 
+  // City maturity, natural wonder ownership and the barbarian registry are all
+  // derived: they are repairs to the state, not the doing of whatever action is
+  // being applied. They therefore have to settle BEFORE any before/after
+  // comparison is taken, or the first action against a freshly loaded state
+  // looks like it did something merely because a registry got built — and
+  // tryApplyAction decides "accepted" by exactly that comparison, so an ILLEGAL
+  // move was being reported to the player as having succeeded.
+  function normalizeDerivedState(st) {
+    syncCityMaturity(st);
+    syncNaturalWonderTokens(st);
+    syncBarbarianRegistry(st);
+  }
+
   function applyAction(st, action) {
     migrateState(st);
     if (st.migrationStatus && st.migrationStatus.readOnly) return st;
@@ -1793,14 +1810,10 @@ const Game = (() => {
     // on both sides of the action keeps it honest without asking each of the
     // dozens of mutation sites to remember, and keeps a rejected action from
     // registering as a change merely because it repaired a stale flag.
-    syncCityMaturity(st);
-    syncNaturalWonderTokens(st);
-    syncBarbarianRegistry(st);
+    normalizeDerivedState(st);
     const before = tracksTurn ? JSON.stringify(stateWithoutUndo(st)) : "";
     const result = applyActionInner(st, action);
-    syncCityMaturity(result);
-    syncNaturalWonderTokens(result);
-    syncBarbarianRegistry(result);
+    normalizeDerivedState(result);
     const changed = tracksTurn && before !== JSON.stringify(stateWithoutUndo(result));
     if (changed) {
       if (type === "END_TURN") {
