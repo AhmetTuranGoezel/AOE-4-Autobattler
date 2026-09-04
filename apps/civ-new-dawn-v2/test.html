@@ -10625,6 +10625,272 @@
         }
       }
 
+      {
+        // Wonders that change what a card or a placement is allowed to reach.
+        // Each is measured against the identical board without the wonder.
+        const wBoard = (setUp) => {
+          const st = rulesState();
+          const me = st.players[0], foe = st.players[1];
+          me.cardPlayed = false;
+          st.turn.index = st.turn.order.indexOf(me.id);
+          Game.FOCUS_TYPES.forEach((t) => { me.trade[t] = 0; });
+          Object.values(st.map.hexes).forEach((h) => {
+            h.barbarian = false; h.barbarianId = null; h.barbarianToken = null;
+            h.control = null; h.city = null; h.cityState = null;
+            h.resource = null; h.naturalWonder = null; h.naturalWonderSpace = null;
+          });
+          st.naturalWonders = {};
+          for (let q = -2; q <= 6; q++) {
+            for (let r = -2; r <= 2; r++) activate(st, q + "," + r, { terrain: "grass" });
+          }
+          st.map.hexes["0,0"].city = { ownerId: me.id, isCapital: true,
+            developed: false, hasWonder: false, wonder: null };
+          if (setUp) setUp(st, me, foe);
+          return { st, me, foe };
+        };
+        // A wonder needs a city to sit in, and a city of its own changes what
+        // the board allows. The two are therefore separate: `placeCity` is
+        // called on BOTH sides of a comparison so the boards differ by the
+        // wonder and by nothing else, and `attachWonder` only adds the wonder.
+        const placeCity = (st, playerId, key) => {
+          const hex = st.map.hexes[key];
+          hex.city = hex.city || { ownerId: playerId, isCapital: key === "0,0",
+            developed: false, hasWonder: false, wonder: null };
+          return hex.city;
+        };
+        const attachWonder = (st, playerId, name, type, key) => {
+          const city = placeCity(st, playerId, key || "0,0");
+          city.hasWonder = true;
+          city.wonder = { name, type, era: "ancient" };
+        };
+        const addWonder = attachWonder;
+
+        // ── Taj Mahal ────────────────────────────────────────────────────
+        {
+          // "When you resolve a focus card, resolve it as though it is 1 slot
+          // farther to the right FOR EACH WORLD WONDER YOU CONTROL MATCHING
+          // THE FOCUS CARD'S TYPE."
+          const slotOf = (b, type) => Game.getSlotValue(b.me, type, b.st);
+          const plain = wBoard((st, me) => {
+            // FOCUS_SLOTS is [1,1,2,3,4,5]. Places 0 and 1 both print 1, so
+            // the card under test starts at place 1 where a one-place shift
+            // actually changes the number.
+            me.focusRow = ["culture", "science", "growth", "economy", "military", "industry"];
+          });
+          const base = slotOf(plain, "science");
+          const one = wBoard((st, me) => {
+            // FOCUS_SLOTS is [1,1,2,3,4,5]. Places 0 and 1 both print 1, so
+            // the card under test starts at place 1 where a one-place shift
+            // actually changes the number.
+            me.focusRow = ["culture", "science", "growth", "economy", "military", "industry"];
+            addWonder(st, me.id, "Taj Mahal", "culture");
+            addWonder(st, me.id, "Oracle", "science", "2,0");
+          });
+          assert("one science wonder shifts a science card one place",
+            slotOf(one, "science") > base, `${base} -> ${slotOf(one, "science")}`);
+          const two = wBoard((st, me) => {
+            // FOCUS_SLOTS is [1,1,2,3,4,5]. Places 0 and 1 both print 1, so
+            // the card under test starts at place 1 where a one-place shift
+            // actually changes the number.
+            me.focusRow = ["culture", "science", "growth", "economy", "military", "industry"];
+            addWonder(st, me.id, "Taj Mahal", "culture");
+            addWonder(st, me.id, "Oracle", "science", "2,0");
+            addWonder(st, me.id, "Great Library", "science", "3,0");
+          });
+          assert("two shift it further still: it counts wonders",
+            slotOf(two, "science") > slotOf(one, "science"),
+            `${slotOf(one, "science")} -> ${slotOf(two, "science")}`);
+          const wrongType = wBoard((st, me) => {
+            // FOCUS_SLOTS is [1,1,2,3,4,5]. Places 0 and 1 both print 1, so
+            // the card under test starts at place 1 where a one-place shift
+            // actually changes the number.
+            me.focusRow = ["culture", "science", "growth", "economy", "military", "industry"];
+            addWonder(st, me.id, "Taj Mahal", "culture");
+            addWonder(st, me.id, "Colossus", "economy", "2,0");
+          });
+          assert("a wonder of another type does nothing for this card",
+            slotOf(wrongType, "science") === base,
+            `${base} -> ${slotOf(wrongType, "science")}`);
+          const noTaj = wBoard((st, me) => {
+            // FOCUS_SLOTS is [1,1,2,3,4,5]. Places 0 and 1 both print 1, so
+            // the card under test starts at place 1 where a one-place shift
+            // actually changes the number.
+            me.focusRow = ["culture", "science", "growth", "economy", "military", "industry"];
+            addWonder(st, me.id, "Oracle", "science", "2,0");
+          });
+          assert("and without Taj Mahal the same science wonder shifts nothing",
+            slotOf(noTaj, "science") === base, `${base} -> ${slotOf(noTaj, "science")}`);
+          proves("wonder.culture.taj_mahal");
+        }
+
+        // ── Machu Picchu ─────────────────────────────────────────────────
+        {
+          // "When you resolve the card in the FIRST OR SECOND slot of your
+          // focus row, resolve it as though it is 2 SLOTS FARTHER TO THE
+          // RIGHT."
+          const row = ["science", "culture", "growth", "economy", "military", "industry"];
+          const at = (idx, withWonder) => {
+            const b = wBoard((st, me) => {
+              me.focusRow = row.slice();
+              // Move the card under test into place idx.
+              const type = me.focusRow[idx];
+              if (withWonder) addWonder(st, me.id, "Machu Picchu", "economy", "2,0");
+              me.__type = type;
+            });
+            return { slot: Game.getSlotValue(b.me, b.me.focusRow[idx], b.st),
+                     type: b.me.focusRow[idx] };
+          };
+          const first = at(0, false), firstW = at(0, true);
+          const second = at(1, false), secondW = at(1, true);
+          const third = at(2, false), thirdW = at(2, true);
+          assert("a card in the first place resolves two slots further right",
+            firstW.slot > first.slot, `${first.slot} -> ${firstW.slot}`);
+          assert("so does one in the second place",
+            secondW.slot > second.slot, `${second.slot} -> ${secondW.slot}`);
+          assert("but a card in the third place is untouched: the card says first or second",
+            thirdW.slot === third.slot, `${third.slot} -> ${thirdW.slot}`);
+          // FOCUS_SLOTS is [1,1,2,3,4,5]: two places right of the first is
+          // printed slot 2, which is the number that has to come out.
+          assert("and the shift is by PLACES, landing on the printed number there",
+            firstW.slot === Game.FOCUS_SLOTS[2] && secondW.slot === Game.FOCUS_SLOTS[3],
+            JSON.stringify({ firstW: firstW.slot, secondW: secondW.slot,
+              slots: Game.FOCUS_SLOTS }));
+          proves("wonder.economy.machu_picchu");
+        }
+
+        // ── Chichen Itza ─────────────────────────────────────────────────
+        {
+          // "When placing control tokens, you can place them on EMPTY FOREST
+          // spaces that are NOT ADJACENT TO A FRIENDLY CITY."
+          const build = (withWonder) => wBoard((st, me) => {
+            placeCity(st, me.id, "2,0");                  // on both boards
+            if (withWonder) attachWonder(st, me.id, "Chichen Itza", "culture", "2,0");
+            activate(st, "5,0", { terrain: "forest" });   // far from any city
+            activate(st, "5,1", { terrain: "grass" });    // far, and not forest
+          });
+          const plain = build(false), chichen = build(true);
+          assert("an ordinary culture card cannot reach a distant forest",
+            !Game.validControlHexes(plain.st, plain.me.id, 5).has("5,0"));
+          assert("Chichen Itza can",
+            Game.validControlHexes(chichen.st, chichen.me.id, 5).has("5,0"));
+          assert("but only a FOREST: a distant grass space is still out of reach",
+            !Game.validControlHexes(chichen.st, chichen.me.id, 5).has("5,1"));
+          const occupied = wBoard((st, me, foe) => {
+            addWonder(st, me.id, "Chichen Itza", "culture", "2,0");
+            activate(st, "5,0", { terrain: "forest",
+              control: { ownerId: foe.id, fortified: false, district: null } });
+          });
+          assert("and only an EMPTY one: a forest holding a token is not offered",
+            !Game.validControlHexes(occupied.st, occupied.me.id, 5).has("5,0"));
+          proves("wonder.culture.chichen_itza");
+        }
+
+        // ── Sydney Opera House ───────────────────────────────────────────
+        {
+          // "RIVAL control tokens contribute toward YOUR cities' maturity."
+          const ring = ["1,0", "-1,0", "0,1", "0,-1", "1,-1", "-1,1"];
+          const build = (withWonder) => wBoard((st, me, foe) => {
+            ring.forEach((k, i) => activate(st, k, { terrain: "grass",
+              control: { ownerId: i === 0 ? foe.id : me.id, fortified: false, district: null } }));
+            placeCity(st, me.id, "3,0");                 // on both boards
+            if (withWonder) attachWonder(st, me.id, "Sydney Opera House", "culture", "3,0");
+          });
+          const plain = build(false);
+          assert("a ring with one RIVAL token in it leaves the city immature",
+            Game.countDeveloped(plain.st, plain.me.id) === 0,
+            String(Game.countDeveloped(plain.st, plain.me.id)));
+          const sydney = build(true);
+          assert("Sydney Opera House makes that rival token count",
+            Game.countDeveloped(sydney.st, sydney.me.id) === 1,
+            String(Game.countDeveloped(sydney.st, sydney.me.id)));
+          const gap = wBoard((st, me, foe) => {
+            ring.forEach((k, i) => { if (i > 0) activate(st, k, { terrain: "grass",
+              control: { ownerId: me.id, fortified: false, district: null } }); });
+            addWonder(st, me.id, "Sydney Opera House", "culture", "3,0");
+          });
+          assert("but an EMPTY space in the ring still does not, so it is tokens it counts",
+            Game.countDeveloped(gap.st, gap.me.id) === 0,
+            String(Game.countDeveloped(gap.st, gap.me.id)));
+          proves("wonder.culture.sydney_opera_house");
+        }
+
+        // ── Colossus ─────────────────────────────────────────────────────
+        {
+          // "When resolving your economy focus card, your caravans can move a
+          // TOTAL OF 6 ADDITIONAL SPACES, divided as you choose."
+          const build = (withWonder) => {
+            const b = wBoard((st, me) => {
+              placeCity(st, me.id, "2,0");                // on both boards
+              if (withWonder) attachWonder(st, me.id, "Colossus", "economy", "2,0");
+              me.caravans = [{ id: "c1", position: "0,0" }];
+            });
+            return b;
+          };
+          const plain = build(false), colossus = build(true);
+          const plainMove = Game.getEconomyMove(plain.me, plain.st);
+          const withMove = Game.getEconomyMove(colossus.me, colossus.st);
+          assert("Colossus adds exactly six spaces of caravan movement",
+            withMove === plainMove + 6, `${plainMove} -> ${withMove}`);
+          const plainReach = Game.getReachable(plain.st, "0,0", plainMove, "caravan", plain.me.id);
+          const wideReach = Game.getReachable(colossus.st, "0,0", withMove, "caravan", colossus.me.id);
+          assert("so a caravan really does reach further on the board",
+            wideReach.size > plainReach.size,
+            `${plainReach.size} -> ${wideReach.size}`);
+          const far = "6,0";
+          assert("a space beyond the ordinary range is out of reach without it",
+            !plainReach.has(far), [...plainReach].sort().join(" "));
+          assert("and within reach with it", wideReach.has(far));
+          const out = Game.tryApplyAction(colossus.st, { type: "PLAY_ECONOMY", payload: {
+            playerId: colossus.me.id, unitId: "c1", toKey: far, tradeSpent: 0 } },
+            { actorId: colossus.me.id, role: "player" });
+          assert("and the caravan actually makes the journey", out.accepted, out.code);
+          assert("arriving there", out.accepted &&
+            out.state.players[0].caravans[0].position === far);
+          proves("wonder.economy.colossus");
+        }
+
+        // ── Great Lighthouse ─────────────────────────────────────────────
+        {
+          // "When building cities, you can build in EMPTY SPACES ON THE EDGE
+          // OF THE MAP as if they were within 2 spaces of a friendly space."
+          const build = (withWonder) => wBoard((st, me) => {
+            if (withWonder) attachWonder(st, me.id, "Great Lighthouse", "economy", "0,0");
+          });
+          const plain = build(false), lighthouse = build(true);
+          const rim = Object.entries(plain.st.map.hexes)
+            .filter(([k, h]) => h.active && h.terrain !== "water" && !h.city &&
+              !h.control && !h.cityState && !h.barbarian &&
+              Game.hexDist(plain.st.map.hexes["0,0"], h) > 3)
+            .map(([k]) => k);
+          const plainSpots = Game.validCityHexes(plain.st, plain.me.id, Infinity, 2);
+          const lightSpots = Game.validCityHexes(lighthouse.st, lighthouse.me.id, Infinity, 2);
+          assert("the fixture has spaces well beyond the ordinary build range",
+            rim.length > 0, String(rim.length));
+          assert("Great Lighthouse widens where a city may be built",
+            lightSpots.size > plainSpots.size,
+            `${plainSpots.size} -> ${lightSpots.size}`);
+          const gained = [...lightSpots].filter((k) => !plainSpots.has(k));
+          assert("it adds spaces the ordinary rule refused", gained.length > 0,
+            JSON.stringify(gained.slice(0, 6)));
+          // The discriminator is the rim, not the distance. 4,0 is four spaces
+          // from home and surrounded on all six sides, so it is out of range
+          // either way; the spaces the wonder adds are the ones on the border.
+          const interiorFar = "4,0";
+          assert("the fixture's interior space really is surrounded",
+            Game.hexNeighborKeys(4, 0).every((nk) => {
+              const h = lighthouse.st.map.hexes[nk];
+              return h && h.active;
+            }), Game.hexNeighborKeys(4, 0).join(" "));
+          assert("a far space in the MIDDLE of the map stays out of reach",
+            !plainSpots.has(interiorFar) && !lightSpots.has(interiorFar));
+          assert("while a far space on the border becomes buildable",
+            gained.some((k) => Game.hexNeighborKeys(Game.parseQ(k), Game.parseR(k))
+              .some((nk) => !lighthouse.st.map.hexes[nk] || !lighthouse.st.map.hexes[nk].active)),
+            JSON.stringify(gained.slice(0, 6)));
+          proves("wonder.economy.great_lighthouse");
+        }
+      }
+
       summary.textContent = `${passed} passed, ${failed} failed`;
     } catch (err) {
       failed++;
