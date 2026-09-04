@@ -237,9 +237,18 @@ const Game = (() => {
   const CFG = {
     mapRadius: 9,
     maxTrade: 3,
-    // BLOCKED on an English component count; Infinity is the long-standing
-    // behaviour. See placeControlToken.
-    controlTokens: Infinity,
+    // ENGLISH component lists: the base game ships 124 control tokens, 31 per
+    // player; Terra Incognita adds 12, which are the extra tokens for the four
+    // original colours, taking each to 34; and Terra's fifth-player components
+    // ship 34 for purple already. So a Terra game is 34 per player, which is
+    // the configuration this engine runs. See placeControlToken.
+    controlTokens: 34,
+    // ENGLISH component lists: the base game ships 9 barbarian tokens and Terra
+    // Incognita adds 2, so eleven figures exist. The printed tiles carry 18
+    // spawn icons between them, which is more than the box holds - so a spawn
+    // icon on a tile laid after the pool is exhausted simply has no figure to
+    // put on it.
+    barbarianTokens: 11,
     maxArmies: 3,
     maxCaravans: 1,
     maxGovMarkers: 2,
@@ -8765,9 +8774,20 @@ const Game = (() => {
   function ensureBarbarianRegistry(st) {
     if (!st || !st.map || !st.map.hexes) return;
     st.barbarians = st.barbarians || {};
+    const pool = Number(CFG.barbarianTokens);
     Object.entries(st.map.hexes).forEach(([homeKey, hex]) => {
       if (!hex || !hex.barbarianHome) return;
       if (st.barbarians[homeKey]) return;
+      // There are only so many figures in the box. A printed spawn icon on a
+      // tile laid after the pool is spent gets none, and the space is simply a
+      // space - it does not silently manufacture a twelfth barbarian.
+      if (Number.isFinite(pool) && Object.keys(st.barbarians).length >= pool) {
+        if (hex.barbarian && !hex.barbarianToken) {
+          hex.barbarian = false;
+          hex.barbarianId = null;
+        }
+        return;
+      }
       st.barbarians[homeKey] = {
         homeKey,
         letter: hex.barbarianHome,
@@ -8823,12 +8843,10 @@ const Game = (() => {
   // district piece, and Terra gives each player one of each type, tracked
   // separately by availableDistrictTypes.
   //
-  // BLOCKED: the number of control tokens an English base set gives a player,
-  // and how many Terra Incognita adds, is a component count and not something
-  // that can be derived from the rules text or the tile data. Until it is
-  // verified CFG.controlTokens is Infinity, which is the behaviour this engine
-  // has always had; everything else about the supply is implemented and driven,
-  // so setting the number is the only thing left. See OVERNIGHT_PROGRESS.md.
+  // The number comes from the ENGLISH component lists: 124 base control tokens
+  // at 31 per player, plus Terra's 12 (three more for each of the four original
+  // colours) makes 34, and Terra's fifth-player set ships purple 34 to match.
+  // A Terra game therefore gives every player the same 34, which is CFG.
   function controlTokensOnMap(st, playerId) {
     let n = 0;
     Object.values(st.map.hexes).forEach((h) => {

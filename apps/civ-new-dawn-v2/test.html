@@ -8459,13 +8459,11 @@
         // the engine now spends from it through one function rather than seven
         // independent assignments.
         //
-        // The NUMBER is blocked: how many control tokens an English base set
-        // gives a player, and how many Terra adds, is a component count and not
-        // something the rules text or the tile data can settle. CFG.controlTokens
-        // is therefore Infinity, which is the behaviour this engine has always
-        // had. Everything else about the supply is implemented, so these drive
-        // it with the limit set explicitly - which is also how a fixture would
-        // have to work even once the real number is known.
+        // These drive the supply MECHANICS with the limit set explicitly to a
+        // small number, so the boundary is reachable in a fixture. The real
+        // shipped number is asserted separately against CFG; setting it here
+        // would need thirty-four placements to reach an edge and would prove
+        // nothing extra about the mechanism.
         const withLimit = (n) => {
           const st = rulesState();
           const me = st.players[0];
@@ -8482,7 +8480,11 @@
           Game.CFG.controlTokens = n;
           return { st, me };
         };
-        const restore = () => { Game.CFG.controlTokens = Infinity; };
+        // Put back the SHIPPED number, not the value that was the default when
+        // this block was written: leaving Infinity behind made every later test
+        // of the real supply read an unbounded one.
+        const shippedLimit = Game.CFG.controlTokens;
+        const restore = () => { Game.CFG.controlTokens = shippedLimit; };
         const controlAt = (st, k) => st.map.hexes[k].control;
         const placeChoice = (st, me, hexKeys) => {
           st.pendingChoices.push({ id: "pc", kind: "place_control", playerId: me.id,
@@ -8602,13 +8604,15 @@
               String(Game.controlTokensInSupply(settled, foe.id)));
           }
           {
-            // The shipped default is unbounded, which is the behaviour the
-            // engine has always had and what it keeps until the count is known.
-            restore();
+            // An unbounded supply is still expressible, and is what an engine
+            // configured without a count would do.
             const { st, me } = withLimit(Infinity);
             assert("with no configured limit the supply is unbounded",
               Game.controlTokensInSupply(st, me.id) === Infinity);
-            assert("and Game.CFG says so by default", Game.CFG.controlTokens === Infinity);
+            restore();
+            assert("but the shipped configuration is a real, finite number",
+              Number.isFinite(Game.CFG.controlTokens) && Game.CFG.controlTokens === 34,
+              String(Game.CFG.controlTokens));
           }
         } finally {
           restore();
@@ -11421,6 +11425,141 @@
 
 
 
+
+      {
+        // THE PHYSICAL COMPONENT COUNTS, from the ENGLISH component lists.
+        //
+        // Control tokens: the base game ships 124 at 31 per player; Terra adds
+        // 12, which are three more for each of the four original colours,
+        // making 34; and Terra's fifth-player set ships purple 34 to match. A
+        // Terra game is therefore 34 each.
+        //
+        // Barbarians: 9 in the base game, 2 more in Terra, so eleven figures.
+        {
+          assert("a Terra game gives each player 34 control tokens",
+            Game.CFG.controlTokens === 34, String(Game.CFG.controlTokens));
+          assert("which is a real number, not an unlimited supply",
+            Number.isFinite(Game.CFG.controlTokens));
+          assert("and the barbarian pool is the eleven figures in the box",
+            Game.CFG.barbarianTokens === 11, String(Game.CFG.barbarianTokens));
+        }
+
+        // ── The supply is real, and it is per player ─────────────────────
+        {
+          const st = rulesState();
+          const me = st.players[0], foe = st.players[1];
+          Object.values(st.map.hexes).forEach((h) => {
+            h.control = null; h.city = null; h.barbarian = false;
+            h.barbarianId = null; h.barbarianToken = null;
+          });
+          for (let q = -5; q <= 9; q++) {
+            for (let r = -4; r <= 4; r++) activate(st, q + "," + r, { terrain: "grass" });
+          }
+          assert("a fresh player has the whole supply unspent",
+            Game.controlTokensInSupply(st, me.id) === 34,
+            String(Game.controlTokensInSupply(st, me.id)));
+          // Spend it down.
+          const keys = Object.keys(st.map.hexes).filter((k) => st.map.hexes[k].active);
+          keys.slice(0, 34).forEach((k) => {
+            st.map.hexes[k].control = { ownerId: me.id, fortified: false, district: null };
+          });
+          assert("thirty-four on the map leaves nothing in the supply",
+            Game.controlTokensOnMap(st, me.id) === 34 &&
+            Game.controlTokensInSupply(st, me.id) === 0,
+            `${Game.controlTokensOnMap(st, me.id)} on map`);
+          assert("and the rival's supply is untouched by any of it",
+            Game.controlTokensInSupply(st, foe.id) === 34,
+            String(Game.controlTokensInSupply(st, foe.id)));
+          // A district uses the district piece, so it is not one of the 34.
+          st.map.hexes[keys[40]].control =
+            { ownerId: me.id, fortified: false, district: "campus" };
+          assert("a district does not come out of the control-token supply",
+            Game.controlTokensOnMap(st, me.id) === 34,
+            String(Game.controlTokensOnMap(st, me.id)));
+          // Losing one returns it.
+          st.map.hexes[keys[0]].control = null;
+          assert("a destroyed token returns to its owner's supply",
+            Game.controlTokensInSupply(st, me.id) === 1,
+            String(Game.controlTokensInSupply(st, me.id)));
+        }
+
+        // ── An empty supply costs a token off the map, not the placement ──
+        {
+          const st = rulesState();
+          const me = st.players[0];
+          Object.values(st.map.hexes).forEach((h) => {
+            h.control = null; h.city = null; h.barbarian = false;
+            h.barbarianId = null; h.barbarianToken = null;
+          });
+          for (let q = -5; q <= 9; q++) {
+            for (let r = -4; r <= 4; r++) activate(st, q + "," + r, { terrain: "grass" });
+          }
+          const keys = Object.keys(st.map.hexes).filter((k) => st.map.hexes[k].active);
+          const spent = keys.slice(0, 34);
+          spent.forEach((k) => {
+            st.map.hexes[k].control = { ownerId: me.id, fortified: false, district: null };
+          });
+          const target = keys[50];
+          assert("the supply is empty", Game.controlTokensInSupply(st, me.id) === 0);
+          const spare = Game.reclaimableControlHexes(st, me.id, target);
+          assert("but there are tokens on the map to take back",
+            spare.length === 34, String(spare.length));
+          const placed = Game.placeControlToken(st, target, me.id, { reclaimKey: spent[0] });
+          assert("so the placement still happens", placed === true);
+          assert("the new token is on the chosen space",
+            !!st.map.hexes[target].control &&
+            st.map.hexes[target].control.ownerId === me.id);
+          assert("and the one it cost came off the map",
+            st.map.hexes[spent[0]].control === null,
+            JSON.stringify(st.map.hexes[spent[0]].control));
+          assert("so the count on the map is still thirty-four, not thirty-five",
+            Game.controlTokensOnMap(st, me.id) === 34,
+            String(Game.controlTokensOnMap(st, me.id)));
+        }
+
+        // ── The barbarian pool is finite ─────────────────────────────────
+        {
+          // The printed tiles carry more spawn icons than the box has figures,
+          // so the pool is what decides how many are ever on the board.
+          const data = window.CivRulesData;
+          let icons = 0;
+          data.TILES.forEach((t) => ["A", "B"].forEach((side) => {
+            (t.sides[side].cells || []).forEach((cell) => {
+              if (cell && cell.barbarian) icons++;
+            });
+          }));
+          assert("the printed tiles carry eighteen barbarian spawn icons",
+            icons === 18, String(icons));
+          assert("which is more than the eleven figures the box holds",
+            icons > Game.CFG.barbarianTokens);
+
+          const st = rulesState();
+          // Print a spawn on far more spaces than there are figures.
+          for (let q = -5; q <= 9; q++) activate(st, q + ",0", { terrain: "grass" });
+          Object.values(st.map.hexes).forEach((h) => {
+            h.barbarian = false; h.barbarianId = null; h.barbarianToken = null;
+            h.barbarianHome = null;
+          });
+          st.barbarians = {};
+          const spawnKeys = [];
+          for (let q = -5; q <= 9; q++) {
+            const k = q + ",0";
+            st.map.hexes[k].barbarianHome = "X";
+            st.map.hexes[k].barbarian = true;
+            st.map.hexes[k].barbarianId = "X";
+            spawnKeys.push(k);
+          }
+          assert("the fixture prints more spawns than the pool",
+            spawnKeys.length > Game.CFG.barbarianTokens, String(spawnKeys.length));
+          Game.syncBarbarianRegistry(st);
+          const figures = Object.keys(st.barbarians).length;
+          assert("only as many figures exist as the box holds",
+            figures === Game.CFG.barbarianTokens, String(figures));
+          const onBoard = Object.values(st.map.hexes).filter((h) => h.barbarian).length;
+          assert("and no more than that stand on the board",
+            onBoard <= Game.CFG.barbarianTokens, String(onBoard));
+        }
+      }
       {
         // OXFORD UNIVERSITY, and the rule it modifies.
         //

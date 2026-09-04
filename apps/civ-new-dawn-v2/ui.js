@@ -3464,12 +3464,12 @@ const UI = (() => {
 
   function renderOpponentFocusRow(player) {
     if (!player || player.id === localPlayerId || !Array.isArray(player.focusRow)) return "";
-    const cards = player.focusRow.map((type) => {
-      const tier = Game.getCardTier(player, type);
-      const slot = Game.getSlotValue(player, type, state);
-      const trade = Number((player.trade || {})[type] || 0);
-      const name = Game.getCardName ? Game.getCardName(player, type)
-        : ((Game.CARD_NAMES[type] || [])[tier - 1] || type);
+    const cards = rowCardsOf(player).map((card) => {
+      const type = card.type;
+      const tier = card.tier;
+      const slot = Game.getSlotValue(player, type, state, card.index);
+      const trade = card.trade;
+      const name = rowCardName(player, card);
       const effect = Game.getCardEffectText ? Game.getCardEffectText(player, type) : "";
       const government = player.government === type ? (Game.GOVERNMENTS || {})[type] : null;
       const unique = Game.getActiveUniqueCard ? Game.getActiveUniqueCard(player, type) : null;
@@ -3873,11 +3873,15 @@ const UI = (() => {
     if (!me) return "";
     const leader = Game.getLeader ? Game.getLeader(me) : null;
     const tierRoman = ["I", "II", "III", "IV"];
-    const row = (me.focusRow || []).map((type, index) => {
+    const row = rowCardsOf(me).map((card) => {
+      const type = card.type;
+      const index = card.index;
       const slot = Game.FOCUS_SLOTS[index];
-      const unique = Game.getActiveUniqueCard ? Game.getActiveUniqueCard(me, type) : null;
-      const name = Game.getCardName ? Game.getCardName(me, type) : type;
-      const tier = Game.getCardTier ? Game.getCardTier(me, type) : 1;
+      const name = rowCardName(me, card);
+      const tier = card.tier;
+      const leaderUnique = Game.getActiveUniqueCard
+        ? Game.getActiveUniqueCard(me, type) : null;
+      const unique = leaderUnique && leaderUnique.name === name ? leaderUnique : null;
       return `<li style="margin:1px 0">
         <span style="opacity:0.6">slot ${slot}</span>
         <strong>${escapeHtml(Game.FOCUS_LABELS[type] || type)}</strong>
@@ -4975,7 +4979,8 @@ const UI = (() => {
     document.getElementById("wiz-nothing").addEventListener("click", async () => {
       if (!sub.confirmNothing) { sub.confirmNothing = true; refreshWizard(); return; }
       const result = await dispatch({ type: "END_FOCUS_CARD", payload: {
-        playerId: localPlayerId, cardType: sub.cardType, tradeSpent: 0 } });
+        playerId: localPlayerId, cardType: sub.cardType,
+        cardIndex: sub.cardIndex, tradeSpent: 0 } });
       if (result && result.status !== "accepted") { sub.confirmNothing = false; refreshWizard(); return; }
       resetSub();
     });
@@ -5902,12 +5907,13 @@ const UI = (() => {
         <div class="pl-row">`;
 
       // The row in play order, each card at its effective slot.
-      p.focusRow.forEach((type) => {
-        const slot = Game.getSlotValue(p, type, state);
-        const tier = Game.getCardTier(p, type);
-        const name = Game.getCardName ? Game.getCardName(p, type) : type;
+      rowCardsOf(p).forEach((card) => {
+        const type = card.type;
+        const slot = Game.getSlotValue(p, type, state, card.index);
+        const tier = card.tier;
+        const name = rowCardName(p, card);
         const gov = p.government === type ? (Game.GOVERNMENTS || {})[type] : null;
-        const trade = (p.trade || {})[type] || 0;
+        const trade = card.trade;
         return html += `<div class="pl-card type-${type}${gov ? " has-gov" : ""}" title="${escapeHtml(name)}">
           <span class="pl-slot">${slot}</span>
           <span class="pl-ico">${focusMark(type, "focus-mark-sm")}</span>
@@ -6302,7 +6308,8 @@ const UI = (() => {
     const slot = Game.getSlotValue(me, sub.cardType, state);
 
     if (sub.cardType === "science") {
-      dispatch({ type: "PLAY_SCIENCE", payload: { playerId: localPlayerId, amount: slot + sub.tradeSpent, tradeSpent: sub.tradeSpent } });
+      dispatch({ type: "PLAY_SCIENCE", payload: { playerId: localPlayerId,
+        amount: slot + sub.tradeSpent, cardIndex: sub.cardIndex, tradeSpent: sub.tradeSpent } });
       resetSub(); return;
     }
     if (sub.cardType === "culture") {
@@ -6421,7 +6428,8 @@ const UI = (() => {
     // with nowhere legal to go leaves you owing a turn you cannot take.
     if (placedNothing && sub.cardType) {
       result = await dispatch({ type: "END_FOCUS_CARD", payload: {
-        playerId: localPlayerId, cardType: sub.cardType, tradeSpent: 0 } });
+        playerId: localPlayerId, cardType: sub.cardType,
+        cardIndex: sub.cardIndex, tradeSpent: 0 } });
     }
     if (result && result.status === "accepted") resetSub();
   }
@@ -6970,6 +6978,23 @@ const UI = (() => {
 
   let prevFocusOrder = [];
 
+  // Oxford University can put two cards of one type in a row, so a row entry is
+  // not always a bare type name. This is the one place that turns a row into
+  // cards; every renderer below reads tier, trade and name off the CARD.
+  function rowCardsOf(player) {
+    if (!player || !Array.isArray(player.focusRow)) return [];
+    if (Game.getRowCards) return Game.getRowCards(player);
+    return player.focusRow.map((entry, index) => {
+      const type = (entry && typeof entry === "object") ? entry.type : entry;
+      return { index, type,
+        tier: (player.cardTiers || {})[type] || 1,
+        trade: Number((player.trade || {})[type] || 0) };
+    });
+  }
+  const rowCardName = (player, card) => (Game.getCardNameAt
+    ? Game.getCardNameAt(player, card.index)
+    : ((Game.CARD_NAMES[card.type] || [])[card.tier - 1] || card.type));
+
   function renderFocusRow() {
     if (!state || state.phase !== "playing") return;
     const me = Game.getPlayer(state, localPlayerId);
@@ -7001,15 +7026,21 @@ const UI = (() => {
 
     const owed = pendingCardAnim && performance.now() < pendingCardAnim.until
       ? pendingCardAnim.type : null;
-    dom.focusRow.innerHTML = me.focusRow.map((cardType, idx) => {
-      const effective = Game.getSlotValue(me, cardType, state);
+    dom.focusRow.innerHTML = rowCardsOf(me).map((card) => {
+      const cardType = card.type;
+      const idx = card.index;
+      const effective = Game.getSlotValue(me, cardType, state, idx);
       const govt = me.government === cardType ? (Game.GOVERNMENTS || {})[cardType] : null;
       const govtArt = govt && window.CivCardArt ? CivCardArt.gov(cardType) : "";
-      const tier = Game.getCardTier(me, cardType);
-      const uniqueCard = Game.getActiveUniqueCard ? Game.getActiveUniqueCard(me, cardType) : null;
-      const cardName = uniqueCard ? uniqueCard.name : Game.CARD_NAMES[cardType][tier - 1];
+      const tier = card.tier;
+      const cardName = rowCardName(me, card);
+      // The unique card is a CARD, so a twin of the same type at another level
+      // is not it, however the type-keyed lookup would answer.
+      const leaderUnique = Game.getActiveUniqueCard
+        ? Game.getActiveUniqueCard(me, cardType) : null;
+      const uniqueCard = leaderUnique && leaderUnique.name === cardName ? leaderUnique : null;
       const maxT = Game.CFG.maxTrade;
-      const filled = me.trade[cardType];
+      const filled = card.trade;
       let tradeDots = "";
       for (let i = 0; i < maxT; i++) {
         tradeDots += i < filled
@@ -7022,7 +7053,8 @@ const UI = (() => {
 
       // Laid out like the printed card: type band across the top, the name and
       // its tier, what it actually does, and the trade track along the bottom.
-      const printed = Game.getCardEffectText ? Game.getCardEffectText(me, cardType) : "";
+      const printed = uniqueCard ? (uniqueCard.text || "")
+        : (((Game.CARD_DEFS[cardType] || {})[tier] || {}).effectText || "");
       const cardArt = window.CivCardArt
         ? (uniqueCard ? CivCardArt.unique(me.leaderId) : CivCardArt.focus(cardType, tier, me.color))
         : "";
@@ -7137,6 +7169,9 @@ const UI = (() => {
           setTimeout(() => { pendingCardAnim = null; renderFocusRow(); }, 440);
           sub.phase = "card_selected";
           sub.cardType = el.dataset.card;
+          // WHICH card was clicked. Oxford can put two cards of one type in the
+          // row, and the type alone would always send the leftmost.
+          sub.cardIndex = Number(el.dataset.idx);
           // sub.tradeSpent is DERIVED (syncFocusTradeTotal recomputes it from
           // focusTradeSpent + Palenque substitutes). Zeroing only the derived
           // value let the previous card's selection survive: pick Culture, take
@@ -7205,6 +7240,11 @@ const UI = (() => {
   return {
     render, dispatch, renderCardFace, hexPoint,
     debugState: () => state,
+    // debugState hands back the LIVE object, so a test that edits it has
+    // already changed what this client holds; this only asks for the repaint.
+    // Used by tools/oxford-browser-test.js to seat a board that would otherwise
+    // take a dozen real turns to reach.
+    debugSetState: (next) => { if (next) state = next; render(); return true; },
     debugInfo: () => ({
       localPlayerId,
       seatInState: !!(state && state.players && state.players.some((p) => p.id === localPlayerId)),

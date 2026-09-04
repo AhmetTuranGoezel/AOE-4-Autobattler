@@ -48,9 +48,19 @@ const PRINTED_WONDER_COSTS = {
 
 // key = rules tile id + side; value = printed spawn cell and helm letter.
 // Physical tile numbers are listed beside each pair for quick visual re-checks.
+//
+// Re-audited against the tile photographs at 8x, in three renderings (plain
+// crop, four rotations, and a brightness mask that separates the glyph from the
+// helm silhouette). All eighteen cells do carry a printed helm and every cell
+// index here is right. A, B, C, D, G and K read unambiguously and are unchanged.
+// 07B was "B" and is H: the glyph is two uprights joined by a crossbar, and B
+// would show closed counters. The E/F cluster - 08A, 08B, 12A, 12B, 15B, TI04A,
+// TI04B - cannot be separated with confidence at this scan resolution and is
+// left as transcribed; nothing in the rules engine reads a letter, because a
+// figure is identified by its printed SPAWN, not by its letter.
 const PRINTED_BARBARIANS = {
   "03A": { cell: 0, letter: "G" },                                  // physical 11A
-  "07B": { cell: 0, letter: "B" },                                  // physical 12B
+  "07B": { cell: 0, letter: "H" },                                  // physical 12B
   "08A": { cell: 1, letter: "H" }, "08B": { cell: 2, letter: "E" }, // physical 15A/B
   "10A": { cell: 8, letter: "K" }, "10B": { cell: 0, letter: "K" }, // physical 20A/B
   "11A": { cell: 4, letter: "D" }, "11B": { cell: 0, letter: "D" }, // physical 4A/B

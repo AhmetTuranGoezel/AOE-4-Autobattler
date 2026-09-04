@@ -37,11 +37,21 @@
   // the printed star sits on all five capital tiles.
   //
   // The barbarian letters are the ones printed inside the helm on the tile,
-  // matching the lettered barbarian tokens. They repeat across tiles and they
-  // are decoration — nothing reads them but the tile inspector and the token
-  // drawn on the space. They came off a 635x990 scan where the helm is about
-  // forty pixels across, so E, F and H are the ones to re-check first if one
-  // ever looks wrong.
+  // matching the lettered barbarian tokens. They repeat across tiles.
+  //
+  // A figure's identity in the engine is its PRINTED SPAWN (tile, side, cell),
+  // not its letter, because letters genuinely repeat across tiles that can be
+  // on the board together — so a letter cannot route a respawn on its own. The
+  // letter is carried alongside and shown on the token.
+  //
+  // All 18 of these cells were re-audited against the tile photographs: every
+  // one of them does carry a printed helm, and the cell indices are right. The
+  // letters were read at 8x in three renderings. A, B, C, D, G and K are
+  // unambiguous. 07B#0 was "B" and is H (corrected below). The E/F group -
+  // 08A#1, 08B#2, 12A#9, 12B#5, 15B#1, TI04A#1, TI04B#6 - cannot be separated
+  // with confidence at this scan resolution, where the helm silhouette merges
+  // with the glyph; that narrow question is open, and nothing in the rules
+  // engine depends on it.
   const TILES = [
     // Printed tile 7
     tile("01", "capital",
@@ -102,7 +112,10 @@
       ["desert","mountain","hill","hill","desert","hill","grass","hill","hill","hill"],
       ["grass","forest","water","grass","desert","water","grass","hill","hill","forest"],
       { 1: { resource: "mercury" }, 6: { cityState: "Brussels" } },
-      { 0: { barbarian: "B" }, 3: { cityState: "Seoul" }, 9: { resource: "mercury" } }),
+      // Cell 0 read as "B" and is H: at 8x the helm shows two uprights joined
+      // by a crossbar, in three separate renderings (plain crop, rotated, and
+      // a brightness mask). B has closed counters and this has none.
+      { 0: { barbarian: "H" }, 3: { cityState: "Seoul" }, 9: { resource: "mercury" } }),
     // Printed tile 15 — Kabul / Buenos Aires
     tile("08", "citystate",
       ["mountain","forest","mountain","water","grass","mountain","grass","water","water","water"],

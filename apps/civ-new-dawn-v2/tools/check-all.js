@@ -28,7 +28,8 @@ const steps = [
   // Slowest of all: two browsers, one room, turns passed both ways. It is the
   // only thing here that can catch a client not being told the turn changed.
   ["two clients", "two-client-test.js"],
-  ["five clients", "five-client-test.js"]
+  ["five clients", "five-client-test.js"],
+  ["oxford browser", "oxford-browser-test.js"]
 ];
 
 const SOURCES = ["game.js", "ui.js", "rules-data.js", "card-art.js", "tile-art.js",
