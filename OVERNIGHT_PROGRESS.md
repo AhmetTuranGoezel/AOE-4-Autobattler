@@ -63,17 +63,20 @@ behavioural regression that fails without the fix.
 - **Natural wonder tokens** — a claim takes the token off the map; conquest
   transfers it; losing the space does not.
 - **Barbarian lifecycle** — a figure belongs to its printed spawn, not its
-  letter. Defeated figures keep identity and home, and retry.
+  letter. Defeated figures keep identity and home, and retry. The pool is the
+  printed 11 figures, so a spawn icon on a tile laid after it is spent gets none.
 - **Five-player browser proof** — `tools/five-client-test.js`, in check-all.
-- **Control-token supply** — finite, one placement function, empty supply costs
-  a token off the map rather than blocking. NUMBER blocked.
+- **Control-token supply** — finite at the printed 34 per player under Terra,
+  one placement function, empty supply costs a token off the map rather than
+  blocking. Districts use the district piece and do not spend a control token.
 - **America**, **Rome caravan launch**, **Petra**, **Standard focus 24/24**,
   **Governments 6/6**, **Player diplomacy 5/5**, **City states 12/12**.
 - **Unique focus 18/18** — the last six were Humanism, State Workforce, Radio,
   Mysticism, Military Engineering and Astronomy.
-- **World wonders 35/36** — the combat wonders read off real attacks; the
+- **World wonders 36/36** — the combat wonders read off real attacks; the
   start-of-turn wonders reached by ending a turn; the reach-changing wonders
-  measured against boards that differ by the wonder ALONE.
+  measured against boards that differ by the wonder ALONE; Oxford University
+  implemented and driven in the engine and in two browsers.
 - **Generic systems** — movement, city construction, victory/agendas, the event
   dial, core composition, fortress legality, the trade-token cap, resources,
   exploration, map population, the wonder deck, the focus row, the tech dial.
