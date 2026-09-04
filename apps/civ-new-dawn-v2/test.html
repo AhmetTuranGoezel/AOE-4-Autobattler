@@ -5110,6 +5110,369 @@
             plain && plain.s.map.hexes["1,0"].control.ownerId === plain.b.me.id);
           proves("unique.zulu.scorched_earth");
         }
+
+        // ── France: Humanism ─────────────────────────────────────────────
+        {
+          // "Place 2 control tokens on spaces matching this slot's terrain or
+          // lower that are adjacent to FRIENDLY SPACES. Then, for each of your
+          // mature cities, place 1 trade token from the supply on 1 of your
+          // focus cards."
+          //
+          // Every other culture card says "adjacent to friendly CITIES", so the
+          // whole of the first sentence is the difference: a lone control token
+          // out in the field is enough for France and for nobody else.
+          const ring = ["1,0", "-1,0", "0,1", "0,-1", "1,-1", "-1,1"];
+          const board = (leaderId) => {
+            const b = uniqBoard(leaderId, { setUp: (s2, p2) => {
+              // Ring the capital so it is mature, and put one isolated token
+              // far from any city with an empty space beside it.
+              ring.forEach((k) => activate(s2, k, { terrain: "grass",
+                control: { ownerId: p2.id, fortified: false, district: null } }));
+              activate(s2, "6,0", { terrain: "grass",
+                control: { ownerId: p2.id, fortified: false, district: null } });
+            } });
+            atTier(b.me, "culture", 3);
+            b.me.focusRow = ["culture", "science", "growth", "economy", "military", "industry"];
+            return b;
+          };
+          const france = board("france");
+          assert("Humanism is France's culture card at tier 3",
+            Game.getCardName(france.me, "culture") === "Humanism",
+            Game.getCardName(france.me, "culture"));
+          assert("it places two control tokens",
+            Game.getCultureMarkers(france.me, 0, france.st) === 2,
+            String(Game.getCultureMarkers(france.me, 0, france.st)));
+          assert("the fixture capital is mature",
+            Game.countDeveloped(france.st, france.me.id) === 1);
+
+          const plain = board(null);
+          const isolated = "7,0";
+          assert("an ordinary culture card cannot reach a space that only touches a control token",
+            !Game.validControlHexes(plain.st, plain.me.id, 5).has(isolated));
+          assert("but Humanism can",
+            Game.validControlHexes(france.st, france.me.id, 5).has(isolated));
+
+          const out = Game.tryApplyAction(france.st, { type: "PLAY_CULTURE", payload: {
+            playerId: france.me.id, hexKeys: [isolated, "5,0"], tradeSpent: 0 } },
+            { actorId: france.me.id, role: "player" });
+          assert("Humanism places both tokens beside friendly spaces", out.accepted, out.code);
+          assert("and they are on the board",
+            out.accepted && !!out.state.map.hexes[isolated].control &&
+            !!out.state.map.hexes["5,0"].control);
+          const trade = (out.state.pendingChoices || [])
+            .filter((c) => c.kind === "trade_any" && /Humanism/.test(c.title || ""));
+          assert("then one trade token is offered per mature city",
+            trade.length === 1, JSON.stringify((out.state.pendingChoices || []).map((c) => c.title)));
+          const before = out.state.players[0].trade.military;
+          const paid = Game.applyAction(out.state, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: france.me.id, choiceId: trade[0].id, optionId: "military" } });
+          assert("and it lands on the card the player names",
+            paid.players[0].trade.military === before + 1,
+            String(paid.players[0].trade.military));
+
+          const noCities = board("france");
+          noCities.st.map.hexes["0,0"].city = null;
+          const out2 = Game.tryApplyAction(noCities.st, { type: "PLAY_CULTURE", payload: {
+            playerId: noCities.me.id, hexKeys: [isolated], tradeSpent: 0 } },
+            { actorId: noCities.me.id, role: "player" });
+          assert("with no mature city the second sentence pays nothing",
+            out2.accepted && !(out2.state.pendingChoices || [])
+              .some((c) => /Humanism/.test(c.title || "")), out2.code);
+          proves("unique.france.humanism");
+        }
+
+        // ── Inca: State Workforce ────────────────────────────────────────
+        {
+          // "Place 2 control tokens on spaces matching this slot's terrain or
+          // lower that are adjacent to friendly cities. Then, IF YOU RESOLVED
+          // THIS CARD IN THE FIFTH SLOT, place 1 control token on a MOUNTAIN
+          // space adjacent to a friendly space."
+          const board = (leaderId, slotFive) => {
+            const b = uniqBoard(leaderId, { setUp: (s2) => {
+              activate(s2, "2,0", { terrain: "mountain" });
+              activate(s2, "1,0", { terrain: "grass" });
+            } });
+            atTier(b.me, "culture", 2);
+            // FOCUS_SLOTS is [1,1,2,3,4,5]: the sixth place is printed slot 5.
+            b.me.focusRow = slotFive
+              ? ["science", "growth", "economy", "military", "industry", "culture"]
+              : ["culture", "science", "growth", "economy", "military", "industry"];
+            return b;
+          };
+          const inca = board("inca", true);
+          assert("State Workforce is the Inca culture card at tier 2",
+            Game.getCardName(inca.me, "culture") === "State Workforce",
+            Game.getCardName(inca.me, "culture"));
+          assert("resolved from the sixth place, which is printed slot 5",
+            Game.getSlotValue(inca.me, "culture", inca.st) === 5,
+            String(Game.getSlotValue(inca.me, "culture", inca.st)));
+          assert("it places two control tokens",
+            Game.getCultureMarkers(inca.me, 0, inca.st) === 2,
+            String(Game.getCultureMarkers(inca.me, 0, inca.st)));
+
+          const out = Game.tryApplyAction(inca.st, { type: "PLAY_CULTURE", payload: {
+            playerId: inca.me.id, hexKeys: ["1,0", "0,1"], tradeSpent: 0 } },
+            { actorId: inca.me.id, role: "player" });
+          assert("the two tokens are placed", out.accepted, out.code);
+          const mountain = (out.state.pendingChoices || [])
+            .find((c) => c.kind === "place_control" && /mountain/i.test(c.title || ""));
+          assert("and from the fifth slot a mountain placement is offered",
+            !!mountain, JSON.stringify((out.state.pendingChoices || []).map((c) => c.title)));
+          assert("the offer names only mountain spaces beside a friendly space",
+            !!mountain && mountain.hexKeys.length > 0 &&
+            mountain.hexKeys.every((k) => out.state.map.hexes[k].terrain === "mountain"),
+            mountain && mountain.hexKeys.join(" "));
+          const placed = Game.applyAction(out.state, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: inca.me.id, choiceId: mountain.id, hexKey: "2,0" } });
+          assert("taking it puts a control token on the mountain",
+            !!placed.map.hexes["2,0"].control &&
+            placed.map.hexes["2,0"].control.ownerId === inca.me.id,
+            JSON.stringify(placed.map.hexes["2,0"].control));
+
+          const low = board("inca", false);
+          assert("from any other slot the card is only its first sentence",
+            Game.getSlotValue(low.me, "culture", low.st) !== 5);
+          const out2 = Game.tryApplyAction(low.st, { type: "PLAY_CULTURE", payload: {
+            playerId: low.me.id, hexKeys: ["1,0", "0,1"], tradeSpent: 0 } },
+            { actorId: low.me.id, role: "player" });
+          assert("so no mountain placement is offered", out2.accepted &&
+            !(out2.state.pendingChoices || [])
+              .some((c) => /mountain/i.test(c.title || "")), out2.code);
+          proves("unique.inca.state_workforce");
+        }
+
+        // ── America: Radio ───────────────────────────────────────────────
+        {
+          // "Place 3 control tokens ... Then, IF YOU RESOLVED THIS CARD IN THE
+          // FIFTH SLOT, choose a rival non-capital city within 4 spaces of a
+          // friendly city (WITHOUT AN ARMY IN ITS SPACE) and replace it with 1
+          // of your unused cities."
+          const board = (leaderId, slotFive, opts) => {
+            const o = opts || {};
+            const b = uniqBoard(leaderId, { setUp: (s2, p2) => {
+              activate(s2, "3,0", { terrain: "grass", city: { ownerId: s2.players[1].id,
+                isCapital: false, developed: false, hasWonder: false, wonder: null } });
+              if (o.capital) {
+                activate(s2, "4,0", { terrain: "grass", city: { ownerId: s2.players[1].id,
+                  isCapital: true, developed: false, hasWonder: false, wonder: null } });
+              }
+              if (o.guard) s2.players[1].armies = [{ id: "g1", position: "3,0" }];
+            } });
+            atTier(b.me, "culture", 4);
+            b.me.focusRow = slotFive
+              ? ["science", "growth", "economy", "military", "industry", "culture"]
+              : ["culture", "science", "growth", "economy", "military", "industry"];
+            return b;
+          };
+          const usa = board("america", true);
+          assert("Radio is America's culture card at tier 4",
+            Game.getCardName(usa.me, "culture") === "Radio",
+            Game.getCardName(usa.me, "culture"));
+          assert("it places three control tokens",
+            Game.getCultureMarkers(usa.me, 0, usa.st) === 3,
+            String(Game.getCultureMarkers(usa.me, 0, usa.st)));
+
+          const out = Game.tryApplyAction(usa.st, { type: "PLAY_CULTURE", payload: {
+            playerId: usa.me.id, hexKeys: ["1,0", "0,1", "0,-1"], tradeSpent: 0 } },
+            { actorId: usa.me.id, role: "player" });
+          assert("the three tokens are placed", out.accepted, out.code);
+          const seize = (out.state.pendingChoices || []).find((c) => c.kind === "seize_city");
+          assert("and from the fifth slot a rival city may be replaced", !!seize,
+            JSON.stringify((out.state.pendingChoices || []).map((c) => c.kind)));
+          assert("the rival's non-capital city is the offer",
+            !!seize && seize.hexKeys.includes("3,0"), seize && seize.hexKeys.join(" "));
+          const taken = Game.applyAction(out.state, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: usa.me.id, choiceId: seize.id, hexKey: "3,0" } });
+          assert("taking it replaces the city with one of yours",
+            taken.map.hexes["3,0"].city.ownerId === usa.me.id,
+            JSON.stringify(taken.map.hexes["3,0"].city));
+
+          const capitals = board("america", true, { capital: true });
+          const out2 = Game.tryApplyAction(capitals.st, { type: "PLAY_CULTURE", payload: {
+            playerId: capitals.me.id, hexKeys: ["1,0", "0,1", "0,-1"], tradeSpent: 0 } },
+            { actorId: capitals.me.id, role: "player" });
+          const seize2 = (out2.state.pendingChoices || []).find((c) => c.kind === "seize_city");
+          assert("a rival CAPITAL is never offered",
+            !!seize2 && !seize2.hexKeys.includes("4,0"), seize2 && seize2.hexKeys.join(" "));
+
+          const guarded = board("america", true, { guard: true });
+          const out3 = Game.tryApplyAction(guarded.st, { type: "PLAY_CULTURE", payload: {
+            playerId: guarded.me.id, hexKeys: ["1,0", "0,1", "0,-1"], tradeSpent: 0 } },
+            { actorId: guarded.me.id, role: "player" });
+          assert("a city with an army in its space is not offered either",
+            !(out3.state.pendingChoices || []).some((c) => c.kind === "seize_city"),
+            JSON.stringify((out3.state.pendingChoices || []).map((c) => c.kind)));
+
+          const low = board("america", false);
+          const out4 = Game.tryApplyAction(low.st, { type: "PLAY_CULTURE", payload: {
+            playerId: low.me.id, hexKeys: ["1,0", "0,1", "0,-1"], tradeSpent: 0 } },
+            { actorId: low.me.id, role: "player" });
+          assert("and from any other slot the second sentence does not happen",
+            out4.accepted && !(out4.state.pendingChoices || [])
+              .some((c) => c.kind === "seize_city"), out4.code);
+          proves("unique.america.radio");
+        }
+
+        // ── Aztec: Mysticism ─────────────────────────────────────────────
+        {
+          // "Place a district on a space matching this slot's terrain or lower
+          // that is adjacent to a friendly city. If you place this district on
+          // a space with 1 OF YOUR CONTROL TOKENS, you may place that token on
+          // a space adjacent to this district. OR, reinforce a number of your
+          // control tokens up to this slot's number."
+          const board = (leaderId, withToken) => {
+            const b = uniqBoard(leaderId, { setUp: (s2, p2) => {
+              if (withToken) {
+                activate(s2, "1,0", { terrain: "grass",
+                  control: { ownerId: p2.id, fortified: false, district: null } });
+              }
+              activate(s2, "0,1", { terrain: "grass",
+                control: { ownerId: p2.id, fortified: false, district: null } });
+            } });
+            atTier(b.me, "growth", 1);
+            b.me.focusRow = ["growth", "science", "culture", "economy", "military", "industry"];
+            return b;
+          };
+          const aztec = board("aztec", true);
+          assert("Mysticism is the Aztec growth card at tier 1",
+            Game.getCardName(aztec.me, "growth") === "Mysticism",
+            Game.getCardName(aztec.me, "growth"));
+          const out = Game.tryApplyAction(aztec.st, { type: "PLAY_GROWTH_DISTRICT", payload: {
+            playerId: aztec.me.id, district: "campus", hexKey: "1,0", tradeSpent: 0 } },
+            { actorId: aztec.me.id, role: "player" });
+          assert("the district goes down on the space holding your token",
+            out.accepted && out.state.map.hexes["1,0"].control.district === "campus",
+            out.code);
+          const move = (out.state.pendingChoices || [])
+            .find((c) => c.kind === "mysticism_control_destination");
+          assert("and the replaced token may be moved to an adjacent space",
+            !!move, JSON.stringify((out.state.pendingChoices || []).map((c) => c.kind)));
+          assert("which is optional, because the card says you may",
+            !!move && move.optional === true);
+          assert("every offered space touches the district",
+            !!move && move.hexKeys.length > 0 &&
+            move.hexKeys.every((k) => Game.hexNeighborKeys(1, 0).includes(k)),
+            move && move.hexKeys.join(" "));
+          const moved = Game.applyAction(out.state, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: aztec.me.id, choiceId: move.id, hexKey: move.hexKeys[0] } });
+          assert("moving it puts the token on the chosen space",
+            !!moved.map.hexes[move.hexKeys[0]].control &&
+            moved.map.hexes[move.hexKeys[0]].control.ownerId === aztec.me.id,
+            JSON.stringify(moved.map.hexes[move.hexKeys[0]].control));
+          assert("and the district is still a district, not a plain token",
+            moved.map.hexes["1,0"].control.district === "campus");
+
+          const bare = board("aztec", false);
+          const out2 = Game.tryApplyAction(bare.st, { type: "PLAY_GROWTH_DISTRICT", payload: {
+            playerId: bare.me.id, district: "campus", hexKey: "1,0", tradeSpent: 0 } },
+            { actorId: bare.me.id, role: "player" });
+          assert("placing on an empty space offers no relocation: there was no token",
+            out2.accepted && !(out2.state.pendingChoices || [])
+              .some((c) => c.kind === "mysticism_control_destination"), out2.code);
+          proves("unique.aztec.mysticism");
+        }
+
+        // ── Rome: Military Engineering ───────────────────────────────────
+        {
+          // "Place a district ... Then, for each army ON YOUR MILITARY CARD,
+          // you may place that army in a space containing one of your cities.
+          // Then reinforce each of your control tokens that is in or adjacent
+          // to a space containing a friendly army."
+          const b = uniqBoard("rome", { setUp: (s2, p2) => {
+            activate(s2, "0,1", { terrain: "grass",
+              control: { ownerId: p2.id, fortified: false, district: null } });
+            activate(s2, "5,0", { terrain: "grass",
+              control: { ownerId: p2.id, fortified: false, district: null } });
+          } });
+          atTier(b.me, "growth", 2);
+          b.me.focusRow = ["growth", "science", "culture", "economy", "military", "industry"];
+          b.me.armies = [{ id: "a1", position: null }];
+          assert("Military Engineering is the Rome growth card at tier 2",
+            Game.getCardName(b.me, "growth") === "Military Engineering",
+            Game.getCardName(b.me, "growth"));
+          const out = Game.tryApplyAction(b.st, { type: "PLAY_GROWTH_DISTRICT", payload: {
+            playerId: b.me.id, district: "campus", hexKey: "1,0", tradeSpent: 0 } },
+            { actorId: b.me.id, role: "player" });
+          assert("the district is placed", out.accepted &&
+            out.state.map.hexes["1,0"].control.district === "campus", out.code);
+          const deploy = (out.state.pendingChoices || [])
+            .find((c) => c.kind === "military_engineering_army");
+          assert("then each army still on the military card is offered a city",
+            !!deploy, JSON.stringify((out.state.pendingChoices || []).map((c) => c.kind)));
+          assert("which is optional, because the card says you may",
+            !!deploy && deploy.optional === true);
+          assert("and the offer is a space holding one of your cities",
+            !!deploy && deploy.hexKeys.includes("0,0"), deploy && deploy.hexKeys.join(" "));
+          const placed = Game.applyAction(out.state, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: b.me.id, choiceId: deploy.id, hexKey: "0,0" } });
+          assert("the army arrives in the city",
+            placed.players[0].armies[0].position === "0,0",
+            String(placed.players[0].armies[0].position));
+          assert("a control token beside that army is reinforced",
+            placed.map.hexes["0,1"].control.fortified === true,
+            JSON.stringify(placed.map.hexes["0,1"].control));
+          assert("and one nowhere near an army is left alone",
+            placed.map.hexes["5,0"].control.fortified === false,
+            JSON.stringify(placed.map.hexes["5,0"].control));
+          proves("unique.rome.military_engineering");
+        }
+
+        // ── Poland: Astronomy ────────────────────────────────────────────
+        {
+          // "Look at UP TO 2 map tiles FROM THE BOTTOM of the map tile stack.
+          // You may place 1 as though you are exploring from any edge space of
+          // your capital tile. Return any remaining tiles to the top or bottom
+          // of the stack in any order. Then, advance your tech dial a number of
+          // spaces equal to this slot's number."
+          const b = uniqBoard("poland", {});
+          atTier(b.me, "science", 2);
+          b.me.focusRow = ["science", "growth", "culture", "economy", "military", "industry"];
+          assert("Astronomy is the Poland science card at tier 2",
+            Game.getCardName(b.me, "science") === "Astronomy",
+            Game.getCardName(b.me, "science"));
+          // The tile stack is materialised by migrateState on the first action,
+          // so take the reading through one rather than off a fresh fixture.
+          Game.applyAction(b.st, { type: "NO_SUCH_ACTION", payload: {} });
+          const stackBefore = (b.st.tileStack || []).slice();
+          assert("there are undrawn tiles to look at", stackBefore.length >= 2,
+            String(stackBefore.length));
+          const bottomTwo = stackBefore.slice(-2);
+          const techBefore = b.me.tech;
+          const slot = Game.getSlotValue(b.me, "science", b.st);
+
+          const out = Game.tryApplyAction(b.st, { type: "PLAY_SCIENCE",
+            payload: { playerId: b.me.id, tradeSpent: 0 } },
+            { actorId: b.me.id, role: "player" });
+          assert("resolving Astronomy opens the inspection", out.accepted, out.code);
+          const look = (out.state.pendingChoices || [])
+            .find((c) => c.kind === "astronomy_tiles");
+          assert("and it shows two tiles", !!look && (look.tileIds || []).length === 2,
+            look && JSON.stringify(look.tileIds));
+          assert("which are the two from the BOTTOM of the stack",
+            !!look && JSON.stringify(look.tileIds) === JSON.stringify(bottomTwo),
+            JSON.stringify({ offered: look && look.tileIds, bottomTwo }));
+          assert("the dial has not moved yet: it advances after the tiles",
+            out.state.players[0].tech === techBefore,
+            String(out.state.players[0].tech));
+
+          // Decline both and send them back to the top, in the order shown.
+          const declineId = `none|top|forward`;
+          assert("declining both is one of the printed options",
+            look.options.some((o) => o.id === declineId),
+            JSON.stringify(look.options.map((o) => o.id)));
+          const done = Game.applyAction(out.state, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: b.me.id, choiceId: look.id, optionId: declineId } });
+          assert("the stack keeps every tile it had",
+            (done.tileStack || []).length === stackBefore.length,
+            `${stackBefore.length} -> ${(done.tileStack || []).length}`);
+          assert("and the two inspected tiles are now on the top",
+            JSON.stringify((done.tileStack || []).slice(0, 2)) === JSON.stringify(bottomTwo),
+            JSON.stringify({ top: (done.tileStack || []).slice(0, 2), bottomTwo }));
+          assert("then the dial advances by this slot's number",
+            done.players[0].tech === techBefore + slot,
+            `${techBefore} + ${slot} -> ${done.players[0].tech}`);
+          proves("unique.poland.astronomy");
+        }
       }
 
       {
