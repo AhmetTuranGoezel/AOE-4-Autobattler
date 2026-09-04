@@ -4836,6 +4836,292 @@
             !swapChoice(outPlain.state));
           proves("civ.aztec");
         }
+        // ── France ───────────────────────────────────────────────────────
+        {
+          // "When resolving your culture focus card, place ADDITIONAL control
+          // tokens based on your LATEST-ERA world wonder: Ancient 1 / Medieval
+          // 2 / Modern 3."
+          const withWonder = (name) => {
+            const era = (Game.ALL_WONDERS.find((w) => w.name === name) || {}).era;
+            return (s2, p2) => {
+              s2.map.hexes["0,0"].city.hasWonder = !!name;
+              s2.map.hexes["0,0"].city.wonder = name ? { name, era } : null;
+            };
+          };
+          const markers = (leaderId, wonderName) => {
+            const b = civBoard(leaderId, { setUp: withWonder(wonderName) });
+            b.me.focusRow = ["culture", "science", "growth", "economy", "military", "industry"];
+            return Game.getCultureMarkers(b.me, 0, b.st);
+          };
+          const plain = markers(null, null);
+          assert("without France a wonder adds no culture markers",
+            markers(null, "Stonehenge") === plain, String(plain));
+          const ancient = Game.ALL_WONDERS.find((w) => w.era === "ancient").name;
+          const medieval = Game.ALL_WONDERS.find((w) => w.era === "medieval").name;
+          const modern = Game.ALL_WONDERS.find((w) => w.era === "modern").name;
+          assert("France with no wonder places the printed number",
+            markers("france", null) === plain, String(markers("france", null)));
+          assert("an ancient wonder adds one",
+            markers("france", ancient) === plain + 1,
+            `${plain} -> ${markers("france", ancient)} (${ancient})`);
+          assert("a medieval wonder adds two",
+            markers("france", medieval) === plain + 2,
+            `${plain} -> ${markers("france", medieval)} (${medieval})`);
+          assert("a modern wonder adds three",
+            markers("france", modern) === plain + 3,
+            `${plain} -> ${markers("france", modern)} (${modern})`);
+          // And the extra tokens really go down.
+          const board = civBoard("france", { setUp: withWonder(modern) });
+          board.me.focusRow = ["culture", "science", "growth", "economy", "military", "industry"];
+          const want = Game.getCultureMarkers(board.me, 0, board.st);
+          const spots = [...Game.validControlHexes(board.st, board.me.id,
+            Game.getSlotValue(board.me, "culture", board.st))].slice(0, want);
+          assert("(fixture) there are enough legal spaces", spots.length === want,
+            `${spots.length} of ${want}`);
+          const out = Game.tryApplyAction(board.st, { type: "PLAY_CULTURE",
+            payload: { playerId: board.me.id, hexKeys: spots, tradeSpent: 0 } },
+            { actorId: board.me.id, role: "player" });
+          assert("France places all of them in one card", out.accepted, out.code);
+          assert("and every one is on the board",
+            spots.every((k) => out.state.map.hexes[k].control &&
+              out.state.map.hexes[k].control.ownerId === board.me.id));
+          proves("civ.france");
+        }
+
+        // ── Georgia ──────────────────────────────────────────────────────
+        {
+          // "When resolving a focus card, if you have a diplomacy card from a
+          // city-state OF THAT FOCUS CARD'S TYPE, resolve it as though it is 1
+          // slot farther to the right."
+          const board = (leaderId, cityState) => {
+            const b = civBoard(leaderId);
+            b.me.focusRow = ["science", "growth", "economy", "military", "industry", "culture"];
+            // Science in the second place, so one step right is visible.
+            b.me.focusRow = ["growth", "science", "economy", "military", "industry", "culture"];
+            // Build the card the way grantCityStateDiplomacy does — it carries
+            // the city-state's TYPE, and Georgia is the one ability that reads
+            // it. A fixture that leaves it off tests nothing.
+            if (cityState) {
+              const data = Game.CITY_STATE_DATA[cityState] || {};
+              b.me.diplomacy = [{ fromCityState: cityState, name: cityState,
+                type: data.type, effectId: data.effectId || null }];
+            }
+            return b;
+          };
+          // Seoul is a SCIENCE city-state; Kabul is a military one.
+          const plain = board(null, null);
+          const baseSlot = Game.getSlotValue(plain.me, "science", plain.st);
+          const geoRight = board("georgia", "Seoul");
+          assert("Georgia shifts a card whose type matches a held city-state",
+            Game.getSlotValue(geoRight.me, "science", geoRight.st) > baseSlot,
+            `${baseSlot} -> ${Game.getSlotValue(geoRight.me, "science", geoRight.st)}`);
+          const geoWrong = board("georgia", "Kabul");
+          assert("but not one whose type does not match",
+            Game.getSlotValue(geoWrong.me, "science", geoWrong.st) === baseSlot,
+            String(Game.getSlotValue(geoWrong.me, "science", geoWrong.st)));
+          const notGeorgia = board(null, "Seoul");
+          assert("and another civilization holding the same card gets nothing",
+            Game.getSlotValue(notGeorgia.me, "science", notGeorgia.st) === baseSlot,
+            String(Game.getSlotValue(notGeorgia.me, "science", notGeorgia.st)));
+          // It reaches the dial: science advances by the shifted number.
+          const run = (b) => Game.tryApplyAction(b.st, { type: "PLAY_SCIENCE",
+            payload: { playerId: b.me.id, tradeSpent: 0 } },
+            { actorId: b.me.id, role: "player" });
+          const plainRun = run(board(null, null));
+          const geoRun = run(board("georgia", "Seoul"));
+          assert("so the tech dial moves further for Georgia",
+            geoRun.state.players[0].tech > plainRun.state.players[0].tech,
+            `${plainRun.state.players[0].tech} vs ${geoRun.state.players[0].tech}`);
+          proves("civ.georgia");
+        }
+
+        // ── Indonesia ────────────────────────────────────────────────────
+        {
+          // "Your caravans and armies can move into water."
+          const setUp = (s2, p2) => {
+            activate(s2, "1,0", { terrain: "water" });
+            p2.caravans = [{ id: "c1", position: "0,0" }];
+            p2.armies = [{ id: "a1", position: "0,0" }];
+          };
+          const plain = civBoard(null, { setUp });
+          const ind = civBoard("indonesia", { setUp });
+          assert("nobody else can move a caravan into water",
+            !Game.getReachable(plain.st, "0,0",
+              Game.getEconomyMove(plain.me, plain.st), "caravan", plain.me.id).has("1,0"));
+          assert("Indonesia's caravans can",
+            Game.getReachable(ind.st, "0,0",
+              Game.getEconomyMove(ind.me, ind.st), "caravan", ind.me.id).has("1,0"),
+            [...Game.getReachable(ind.st, "0,0",
+              Game.getEconomyMove(ind.me, ind.st), "caravan", ind.me.id)].sort().join(" "));
+          assert("and so can its armies",
+            Game.getReachable(ind.st, "0,0",
+              Game.getMilitaryMove(ind.me, ind.st), "army", ind.me.id).has("1,0"));
+          assert("while nobody else's armies can",
+            !Game.getReachable(plain.st, "0,0",
+              Game.getMilitaryMove(plain.me, plain.st), "army", plain.me.id).has("1,0"));
+          const moved = Game.tryApplyAction(ind.st, { type: "PLAY_ECONOMY",
+            payload: { playerId: ind.me.id, unitId: "c1", toKey: "1,0", tradeSpent: 0 } },
+            { actorId: ind.me.id, role: "player" });
+          assert("and the caravan really sails", moved.accepted, moved.code);
+          assert("ending on the water space",
+            moved.state.players[0].caravans[0].position === "1,0",
+            String(moved.state.players[0].caravans[0].position));
+          proves("civ.indonesia");
+        }
+
+        // ── Nubia ────────────────────────────────────────────────────────
+        {
+          // "After you reset your growth focus card, resolve the effect of ANY
+          // 1 of your districts." One, chosen — not all of them.
+          const setUp = (s2, p2) => {
+            s2.map.hexes["1,0"].control =
+              { ownerId: p2.id, fortified: false, district: "campus" };
+            activate(s2, "2,0", { terrain: "mountain",
+              control: { ownerId: p2.id, fortified: false, district: null } });
+            s2.map.hexes["0,1"].control =
+              { ownerId: p2.id, fortified: false, district: "trade" };
+          };
+          const run = (leaderId) => {
+            const b = civBoard(leaderId, { setUp });
+            b.me.focusRow = ["growth", "science", "economy", "military", "industry", "culture"];
+            b.me.cardPlayed = false;
+            const out = Game.tryApplyAction(b.st, { type: "PLAY_GROWTH_DISTRICT",
+              payload: { playerId: b.me.id, district: "encampment",
+                hexKey: "0,-1", tradeSpent: 0 } },
+              { actorId: b.me.id, role: "player" });
+            return { b, out };
+          };
+          const plain = run(null);
+          assert("the growth card resolves for anyone", plain.out.accepted, plain.out.code);
+          const plainAsk = (plain.out.state.pendingChoices || [])
+            .find((c) => c.kind === "district_order");
+          assert("and offers no district resolution afterwards", !plainAsk,
+            JSON.stringify((plain.out.state.pendingChoices || []).map((c) => c.kind)));
+
+          const nub = run("nubia");
+          assert("the growth card resolves for Nubia", nub.out.accepted, nub.out.code);
+          const ask = (nub.out.state.pendingChoices || [])
+            .find((c) => c.kind === "district_order");
+          assert("Nubia is asked which ONE district to resolve", !!ask,
+            JSON.stringify((nub.out.state.pendingChoices || []).map((c) => c.kind)));
+          assert("and it is exactly one, not all of them",
+            ask.remaining === 1, String(ask.remaining));
+          const before = nub.out.state.players[0].trade.science;
+          const done = Game.applyAction(nub.out.state, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: nub.b.me.id, choiceId: ask.id, optionId: "campus" } });
+          assert("choosing the campus pays its science trade",
+            done.players[0].trade.science > before,
+            `${before} -> ${done.players[0].trade.science}`);
+          assert("and no second district is offered",
+            !(done.pendingChoices || []).some((c) => c.kind === "district_order"),
+            JSON.stringify((done.pendingChoices || []).map((c) => c.kind)));
+          proves("civ.nubia");
+        }
+
+        // ── Ottoman ──────────────────────────────────────────────────────
+        {
+          // "At the start of your turn, you may choose another player. Give
+          // that player the Ibrahim card. When attacking or defending against
+          // the player with the Ibrahim card, increase your combat value by 2."
+          const b = civBoard("ottoman", { setUp: (s2, p2) => {
+            const foe = s2.players[1];
+            s2.map.hexes["1,0"].control =
+              { ownerId: foe.id, fortified: false, district: null };
+            p2.armies = [{ id: "a1", position: "0,0" }];
+          } });
+          const started = Game.applyAction(b.st, { type: "NO_SUCH_ACTION", payload: {} });
+          Game.resolveEvent(started, "wonder_tokens");   // harmless; keeps state live
+          // Reach a start of turn the ordinary way.
+          let s2 = b.st;
+          const give = (state) => (state.pendingChoices || [])
+            .find((c) => c.kind === "give_ibrahim" || /ibrahim/i.test(c.source || ""));
+          for (let i = 0; i < 4 && !give(s2); i++) {
+            const cur = Game.currentPlayer(s2).id;
+            s2 = Game.applyAction(s2, { type: "PLAY_SCIENCE",
+              payload: { playerId: cur, tradeSpent: 0 } });
+            for (let k = 0; k < 10; k++) {
+              const open = (s2.pendingChoices || []).find((c) => !give({ pendingChoices: [c] }));
+              if (!open) break;
+              const payload = { playerId: open.playerId, choiceId: open.id };
+              if (open.options && open.options.length) payload.optionId = open.options[0].id;
+              else if (open.hexKeys && open.hexKeys.length) payload.hexKey = open.hexKeys[0];
+              else if (open.optional) payload.dismiss = true;
+              else break;
+              const next = Game.applyAction(s2, { type: "RESOLVE_PENDING_CHOICE", payload });
+              if (next === s2) break;
+              s2 = next;
+            }
+            s2 = Game.applyAction(s2, { type: "END_TURN", payload: { playerId: cur } });
+          }
+          const offer = give(s2);
+          assert("the Ottoman are offered Ibrahim at the start of their turn", !!offer,
+            JSON.stringify((s2.pendingChoices || []).map((c) => c.kind)));
+          assert("and it is optional, because the card says you may",
+            !!offer && offer.optional === true);
+          const handed = Game.applyAction(s2, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: b.me.id, choiceId: offer.id,
+              optionId: (offer.options || [])[0].id } });
+          const holder = (offer.options || [])[0].id;
+          assert("giving it records the holder",
+            handed.ibrahimHolder === holder,
+            `${handed.ibrahimHolder} vs ${holder}`);
+          assert("who is somebody else",
+            handed.ibrahimHolder !== b.me.id);
+          assert("and the Ottoman get +2 against that player",
+            Game.getLeaderAttackBonus(handed, b.me.id, "1,0") >= 2,
+            String(Game.getLeaderAttackBonus(handed, b.me.id, "1,0")));
+          proves("civ.ottoman");
+        }
+
+        // ── Poland ───────────────────────────────────────────────────────
+        {
+          // "At the start of your FIRST turn, choose another player. Take 1
+          // diplomacy card of your choice from that player. You can have any
+          // number of diplomacy cards from the chosen player."
+          const b = civBoard("poland");
+          const pick = (state) => (state.pendingChoices || [])
+            .find((c) => /poland/i.test(c.source || "") || c.kind === "poland_target");
+          Game.finalizeSetup ? null : null;
+          // The offer belongs to the first turn, which the fixture is already in;
+          // queue it the way the engine does when a turn starts.
+          let s2 = b.st;
+          for (let i = 0; i < 3 && !pick(s2); i++) {
+            const cur = Game.currentPlayer(s2).id;
+            s2 = Game.applyAction(s2, { type: "PLAY_SCIENCE",
+              payload: { playerId: cur, tradeSpent: 0 } });
+            for (let k = 0; k < 10; k++) {
+              const open = (s2.pendingChoices || []).find((c) => !pick({ pendingChoices: [c] }));
+              if (!open) break;
+              const payload = { playerId: open.playerId, choiceId: open.id };
+              if (open.options && open.options.length) payload.optionId = open.options[0].id;
+              else if (open.hexKeys && open.hexKeys.length) payload.hexKey = open.hexKeys[0];
+              else if (open.optional) payload.dismiss = true;
+              else break;
+              const next = Game.applyAction(s2, { type: "RESOLVE_PENDING_CHOICE", payload });
+              if (next === s2) break;
+              s2 = next;
+            }
+            s2 = Game.applyAction(s2, { type: "END_TURN", payload: { playerId: cur } });
+          }
+          const choose = pick(s2);
+          assert("Poland is asked to choose a player", !!choose,
+            JSON.stringify((s2.pendingChoices || []).map((c) => c.kind + "/" + c.source)));
+          const chosen = Game.applyAction(s2, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: b.me.id, choiceId: choose.id,
+              optionId: (choose.options || [])[0].id } });
+          const take = (chosen.pendingChoices || [])
+            .find((c) => c.kind === "take_diplomacy" && c.playerId === b.me.id);
+          assert("then which of that player's cards to take", !!take,
+            JSON.stringify((chosen.pendingChoices || []).map((c) => c.kind)));
+          const took = Game.applyAction(chosen, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: b.me.id, choiceId: take.id,
+              optionId: (take.options || [])[0].id } });
+          const target = (choose.options || [])[0].id;
+          assert("and Poland holds a card from exactly that player",
+            (took.players[0].diplomacy || []).some((d) => d.fromId === target),
+            JSON.stringify(took.players[0].diplomacy));
+          proves("civ.poland");
+        }
       }
 
       {
@@ -4866,9 +5152,14 @@
           if (o.setUp) o.setUp(st, me);
           return { st, me, foe: st.players[1] };
         };
+        // Same shape the engine grants: the type matters to Georgia and the
+        // effectId to anything that keys off it.
         const envoy = (player, name) => {
-          player.diplomacy = (player.diplomacy || [])
-            .concat([{ fromCityState: name, cardId: name.toLowerCase() }]);
+          const data = Game.CITY_STATE_DATA[name] || {};
+          player.diplomacy = (player.diplomacy || []).concat([{
+            fromCityState: name, name, cardId: name.toLowerCase(),
+            type: data.type, effectId: data.effectId || null
+          }]);
         };
         const attackWith = (st, me, toKey, targetType) => Game.applyAction(st,
           { type: "PLAY_MILITARY_ATTACK", payload: { playerId: me.id, unitId: "a1",
