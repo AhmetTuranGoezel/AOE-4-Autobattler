@@ -9,10 +9,10 @@ Everything below refers to `apps/civ-new-dawn-v2`.
 ## Where things stand
 
 - Branch: `main`, not pushed.
-- Head at last update: `0408e34` plus the growth proofs about to land.
-- Rule harness: **994 passed, 0 failed** (`node tools/rule-test-runner.js`).
+- Head at last update: `0270594`.
+- Rule harness: **1155 passed, 0 failed** (`node tools/rule-test-runner.js`).
 - `node tools/check-all.js`: **all checks green**.
-- Behavioural proof of printed effects: **30/124**.
+- Behavioural proof of printed effects: **64/124**.
   Generic rule systems are tracked separately in
   `tools/generic-rules-checklist.md` and never count toward the 124.
 
@@ -20,13 +20,13 @@ Proof by category (from `tools/coverage-matrix.js`):
 
 | Category | Proven |
 |---|---|
-| Standard Focus | 13/24 |
+| Standard Focus | 24/24 |
 | Unique Focus | 0/18 |
 | Civilization abilities | 6/18 |
 | World Wonders | 6/36 |
-| Player Diplomacy | 0/5 |
-| City States | 0/12 |
-| Governments | 0/6 |
+| Player Diplomacy | 5/5 |
+| City States | 12/12 |
+| Governments | 6/6 |
 | Districts | 5/5 |
 
 ## Done
@@ -67,18 +67,20 @@ that fails without the fix.
   cities, but only for a caravan still on the economy card.
 - **Petra** — the redirect was already implemented; now driven, and the stale
   known-broken entry is gone.
-- **Standard focus** — culture ×4, science ×4, growth ×4 driven end to end.
+- **Standard focus** — all 24 driven end to end.
+- **Governments** — all six, each driven to a real consequence of the shift.
+- **Player diplomacy** — all five, each against the giver and a third player.
+- **City states** — all twelve. Found and fixed: Seoul's start-of-turn offer went
+  stale because the wheel turns AFTER the offer is queued.
 
 ## Remaining, in priority order
 
-1. **Standard Focus to an honest 24/24** — 13 done (culture ×4, science ×4,
-   growth ×4, economy Currency). Left: the three other economy cards, the four
-   military cards, the four industry cards.
-2. **The other categories** — Unique Focus 0/18, City States 0/12, Player
-   Diplomacy 0/5, Governments 0/6, and 30 of the 36 wonders.
-3. **Generic rule systems** — `tools/generic-rules-checklist.md` is the honest
-   status list; movement, combat modifiers, city construction, city states,
-   victory/agendas and the event wheel are still `unproven` or `partial`.
+1. **Civilization abilities** — 6/18. Twelve left.
+2. **Unique focus cards** — 0/18. One per civilization.
+3. **World wonders** — 6/36. Thirty left.
+4. **Generic rule systems** — `tools/generic-rules-checklist.md` is the honest
+   status list; movement, combat modifiers, city construction, victory/agendas
+   and the event wheel are still `unproven` or `partial`.
 
 ## Blocked
 
@@ -115,3 +117,11 @@ that fails without the fix.
   new hex fields or a dealt feature leaks into a fixture.
 - Do not add `proves()` for an effect until every printed option of that card is
   driven. An honest low number is the point.
+- `END_TURN` is refused until a card has been resolved (base p6: no passing), so
+  a fixture that wants to reach the NEXT start of turn has to play a card first.
+  `takeTurn()` in the city-state block does this.
+- The event dial asks EVERY player for a government; one unanswered decision
+  blocks the board for everyone, so a fixture must answer the rivals' too.
+- browser-smoke occasionally fails at "Create Room" with the status stuck on
+  "Creating room..." — that is the public PeerJS broker throttling, not a
+  regression. It passes on a re-run; the test already retries twice.
