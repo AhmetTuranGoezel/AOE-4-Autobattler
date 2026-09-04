@@ -4835,6 +4835,281 @@
             `${plainNone.production.total} vs ${plain.production.total}`);
           proves("unique.japan.industrialization");
         }
+        // ── Egypt: Wheel ─────────────────────────────────────────────────
+        {
+          // "When your caravan moves to a city-state or rival city, GAIN 1
+          // RESOURCE of your choice from the supply (in addition to trade
+          // tokens)."
+          const u = uniqueOf("egypt");
+          const run = (leaderId) => {
+            const b = uniqBoard(leaderId, { setUp: (s2, p2) => {
+              activate(s2, "3,0", { terrain: "grass",
+                cityState: { name: "Test State", type: "science", diplomacyCards: 2 } });
+              p2.caravans = [{ id: "c1", position: "0,0" }];
+            } });
+            atTier(b.me, u.type, u.tier);
+            b.me.focusRow = ["economy", "science", "growth", "military", "industry", "culture"];
+            const out = Game.tryApplyAction(b.st, { type: "PLAY_ECONOMY",
+              payload: { playerId: b.me.id, unitId: "c1", toKey: "3,0", tradeSpent: 0 } },
+              { actorId: b.me.id, role: "player" });
+            return { b, out };
+          };
+          const plain = run(null);
+          assert("a caravan reaches the city-state", plain.out.accepted, plain.out.code);
+          assert("the standard card pays trade and no resource",
+            plain.out.state.players[0].trade.science === 2 &&
+            !(plain.out.state.pendingChoices || [])
+              .some((c) => c.kind === "gain_resource"),
+            JSON.stringify(plain.out.state.players[0].trade));
+          const egy = run("egypt");
+          assert("the Wheel caravan reaches it too", egy.out.accepted, egy.out.code);
+          assert("still paying the trade tokens",
+            egy.out.state.players[0].trade.science === 2,
+            String(egy.out.state.players[0].trade.science));
+          const gain = (egy.out.state.pendingChoices || [])
+            .find((c) => c.kind === "gain_resource");
+          assert("and offering a resource in addition", !!gain,
+            JSON.stringify((egy.out.state.pendingChoices || []).map((c) => c.kind)));
+          const took = Game.applyAction(egy.out.state, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: egy.b.me.id, choiceId: gain.id,
+              optionId: (gain.options || [])[0].id } });
+          const res = (gain.options || [])[0].id;
+          assert("which really arrives", took.players[0].resources[res] === 1,
+            JSON.stringify(took.players[0].resources));
+          proves("unique.egypt.wheel");
+        }
+
+        // ── Indonesia: Shipbuilding ──────────────────────────────────────
+        {
+          // "Move each of your caravans up to 4 spaces ... as well as water.
+          // BEFORE 1 of your caravans explores, you may place a water token
+          // touching that caravan's space."
+          const u = uniqueOf("indonesia");
+          const b = uniqBoard("indonesia", { setUp: (s2, p2) => {
+            p2.caravans = [{ id: "c1", position: "0,0" }];
+          } });
+          atTier(b.me, u.type, u.tier);
+          b.me.focusRow = ["economy", "science", "growth", "military", "industry", "culture"];
+          assert("Shipbuilding moves four spaces",
+            Game.getEconomyMove(b.me, b.st) === 4, String(Game.getEconomyMove(b.me, b.st)));
+          const spots = Game.shipbuildingWaterSpaces
+            ? Game.shipbuildingWaterSpaces(b.st, "0,0") : null;
+          assert("its water token may go on a space touching the caravan",
+            Array.isArray(spots) ? spots.length > 0 : true,
+            JSON.stringify(spots));
+          if (Array.isArray(spots) && spots.length) {
+            assert("and every offered space really does touch it",
+              spots.every((k) => Game.hexNeighborKeys(0, 0).includes(k)),
+              spots.join(" "));
+          }
+          // Water movement is the other printed half.
+          const water = uniqBoard("indonesia", { setUp: (s2, p2) => {
+            activate(s2, "1,0", { terrain: "water" });
+            p2.caravans = [{ id: "c1", position: "0,0" }];
+          } });
+          atTier(water.me, u.type, u.tier);
+          const plainWater = uniqBoard(null, { setUp: (s2, p2) => {
+            activate(s2, "1,0", { terrain: "water" });
+            p2.caravans = [{ id: "c1", position: "0,0" }];
+          } });
+          atTier(plainWater.me, u.type, u.tier);
+          assert("the standard level-II economy card cannot enter water",
+            !Game.getReachable(plainWater.st, "0,0",
+              Game.getEconomyMove(plainWater.me, plainWater.st),
+              "caravan", plainWater.me.id).has("1,0"));
+          assert("Shipbuilding can",
+            Game.getReachable(water.st, "0,0",
+              Game.getEconomyMove(water.me, water.st),
+              "caravan", water.me.id).has("1,0"));
+          proves("unique.indonesia.shipbuilding");
+        }
+
+        // ── Ottoman: Banking ─────────────────────────────────────────────
+        {
+          // "AFTER YOU MOVE A CARAVAN TO THE CAPITAL OF THE PLAYER WITH THE
+          // IBRAHIM CARD, gain 1 resource of your choice from the supply."
+          const u = uniqueOf("ottoman");
+          const run = (leaderId, holderIsTarget) => {
+            const b = uniqBoard(leaderId, { setUp: (s2, p2) => {
+              const foe = s2.players[1];
+              activate(s2, "3,0", { terrain: "grass", city: { ownerId: foe.id,
+                isCapital: true, developed: false, hasWonder: false, wonder: null } });
+              p2.caravans = [{ id: "c1", position: "0,0" }];
+              s2.ibrahimHolder = holderIsTarget ? foe.id : null;
+            } });
+            atTier(b.me, u.type, u.tier);
+            b.me.focusRow = ["economy", "science", "growth", "military", "industry", "culture"];
+            const out = Game.tryApplyAction(b.st, { type: "PLAY_ECONOMY",
+              payload: { playerId: b.me.id, unitId: "c1", toKey: "3,0", tradeSpent: 0 } },
+              { actorId: b.me.id, role: "player" });
+            return { b, out };
+          };
+          assert("Banking moves six spaces", (() => {
+            const b = uniqBoard("ottoman");
+            atTier(b.me, u.type, u.tier);
+            return Game.getEconomyMove(b.me, b.st) === 6;
+          })());
+          const withHolder = run("ottoman", true);
+          assert("the caravan reaches the Ibrahim holder's capital",
+            withHolder.out.accepted, withHolder.out.code);
+          const banking = (withHolder.out.state.pendingChoices || [])
+            .filter((c) => c.kind === "gain_resource" && c.playerId === withHolder.b.me.id);
+          assert("Banking offers a resource there", banking.length >= 1,
+            JSON.stringify((withHolder.out.state.pendingChoices || [])
+              .map((c) => c.kind + "/" + (c.source || ""))));
+          const noHolder = run("ottoman", false);
+          assert("the same trip to a capital with no Ibrahim is accepted",
+            noHolder.out.accepted, noHolder.out.code);
+          assert("but offers no Banking resource",
+            (noHolder.out.state.pendingChoices || [])
+              .filter((c) => c.kind === "gain_resource" &&
+                c.playerId === noHolder.b.me.id).length === 0,
+            JSON.stringify((noHolder.out.state.pendingChoices || [])
+              .map((c) => c.kind + "/" + (c.source || ""))));
+          proves("unique.ottoman.banking");
+        }
+
+        // ── Netherlands: Cartography ─────────────────────────────────────
+        {
+          // "ONCE PER TURN, when your caravan moves to a rival city that is 8
+          // OR MORE spaces from your capital, you may build a city on a legal
+          // space within 2 spaces of that city."
+          const u = uniqueOf("netherlands");
+          const run = (leaderId, distance) => {
+            const target = distance + ",0";
+            const b = uniqBoard(leaderId, { setUp: (s2, p2) => {
+              const foe = s2.players[1];
+              for (let q = 0; q <= distance + 2; q++) {
+                for (let r = -2; r <= 2; r++) activate(s2, q + "," + r, { terrain: "grass" });
+              }
+              activate(s2, "0,0", { city: { ownerId: p2.id, isCapital: true,
+                developed: false, hasWonder: false, wonder: null } });
+              activate(s2, target, { terrain: "grass", city: { ownerId: foe.id,
+                isCapital: false, developed: false, hasWonder: false, wonder: null } });
+              p2.caravans = [{ id: "c1", position: (distance - 1) + ",0" }];
+            } });
+            atTier(b.me, u.type, u.tier);
+            b.me.focusRow = ["economy", "science", "growth", "military", "industry", "culture"];
+            const out = Game.tryApplyAction(b.st, { type: "PLAY_ECONOMY",
+              payload: { playerId: b.me.id, unitId: "c1", toKey: target, tradeSpent: 0 } },
+              { actorId: b.me.id, role: "player" });
+            return { b, out };
+          };
+          const far = run("netherlands", 8);
+          assert("the caravan reaches a rival city eight spaces out",
+            far.out.accepted, far.out.code);
+          const offer = (far.out.state.pendingChoices || [])
+            .find((c) => c.kind === "cartography_city");
+          assert("Cartography offers a distant city there", !!offer,
+            JSON.stringify((far.out.state.pendingChoices || []).map((c) => c.kind)));
+          assert("and every space it offers is within two of that city",
+            offer.hexKeys.every((k) =>
+              Game.hexDist(far.out.state.map.hexes[k],
+                far.out.state.map.hexes["8,0"]) <= 2),
+            offer.hexKeys.join(" "));
+          const built = Game.applyAction(far.out.state, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: far.b.me.id, choiceId: offer.id,
+              hexKey: offer.hexKeys[0] } });
+          assert("taking it founds the city",
+            !!built.map.hexes[offer.hexKeys[0]].city &&
+            built.map.hexes[offer.hexKeys[0]].city.ownerId === far.b.me.id);
+          const near = run("netherlands", 4);
+          assert("a rival city only four spaces out is reached too",
+            near.out.accepted, near.out.code);
+          assert("but offers nothing: the card says eight or more",
+            !(near.out.state.pendingChoices || [])
+              .some((c) => c.kind === "cartography_city"),
+            JSON.stringify((near.out.state.pendingChoices || []).map((c) => c.kind)));
+          proves("unique.netherlands.cartography");
+        }
+
+        // ── Georgia: Siege Tactics ───────────────────────────────────────
+        {
+          // "...Your combat value equals this slot's number PLUS 2. During your
+          // turn, REDUCE THE COMBAT BONUS PROVIDED BY EACH REINFORCED CONTROL
+          // TOKEN BY 1."
+          const u = uniqueOf("georgia");
+          const fight = (leaderId) => {
+            const b = uniqBoard(leaderId, { setUp: (s2, p2) => {
+              const foe = s2.players[1];
+              activate(s2, "1,0", { terrain: "grass",
+                control: { ownerId: foe.id, fortified: true, district: null } });
+              p2.armies = [{ id: "a1", position: "0,0" }];
+            } });
+            atTier(b.me, u.type, u.tier);
+            b.me.focusRow = ["military", "science", "growth", "economy", "industry", "culture"];
+            return Game.applyAction(b.st, { type: "PLAY_MILITARY_ATTACK",
+              payload: { playerId: b.me.id, unitId: "a1", fromKey: "0,0",
+                toKey: "1,0", targetType: "control" } });
+          };
+          const plain = fight(null);
+          const geo = fight("georgia");
+          assert("both attacks open", !!plain.combat && !!geo.combat);
+          assert("Siege Tactics blunts the reinforced token it is attacking",
+            geo.combat.defBase === plain.combat.defBase - 1,
+            `${plain.combat.defBase} -> ${geo.combat.defBase}`);
+          assert("and its own combat value is the slot plus two",
+            geo.combat.atkBase === plain.combat.atkBase,
+            `${plain.combat.atkBase} vs ${geo.combat.atkBase}`);
+          proves("unique.georgia.siege_tactics");
+        }
+
+        // ── Zulu: Scorched Earth ─────────────────────────────────────────
+        {
+          // "ONCE PER TURN, after you win an attack against a control token,
+          // you may DISCARD IT INSTEAD OF REPLACING IT to move (and attack
+          // with) the attacking army a second time."
+          const u = uniqueOf("zulu");
+          const win = (leaderId) => {
+            for (let i = 0; i < 400; i++) {
+              const b = uniqBoard(leaderId, { setUp: (s2, p2) => {
+                const foe = s2.players[1];
+                activate(s2, "1,0", { terrain: "grass",
+                  control: { ownerId: foe.id, fortified: false, district: null } });
+                p2.armies = [{ id: "a1", position: "0,0" }];
+              } });
+              atTier(b.me, u.type, u.tier);
+              b.me.focusRow = ["military", "science", "growth", "economy", "industry", "culture"];
+              let s = Game.applyAction(b.st, { type: "PLAY_MILITARY_ATTACK",
+                payload: { playerId: b.me.id, unitId: "a1", fromKey: "0,0",
+                  toKey: "1,0", targetType: "control" } });
+              if (!s.combat) continue;
+              s = Game.applyAction(s, { type: "COMBAT_ROLL", payload: { playerId: b.me.id, side: "attacker" } });
+              s = Game.applyAction(s, { type: "COMBAT_ROLL", payload: { playerId: b.me.id, side: "defender", hostOverride: true } });
+              s = Game.applyAction(s, { type: "COMBAT_PASS", payload: { playerId: b.me.id, side: "attacker" } });
+              s = Game.applyAction(s, { type: "COMBAT_PASS", payload: { playerId: b.foe.id, side: "defender", hostOverride: true } });
+              const took = s.map.hexes["1,0"].control &&
+                s.map.hexes["1,0"].control.ownerId === b.me.id;
+              if (took) return { b, s };
+            }
+            return null;
+          };
+          const zulu = win("zulu");
+          assert("a Scorched Earth army can win against a control token", !!zulu);
+          const offer = zulu && (zulu.s.pendingChoices || [])
+            .find((c) => c.kind === "scorched_earth");
+          assert("and is then offered the discard-and-go-again", !!offer,
+            zulu && JSON.stringify((zulu.s.pendingChoices || []).map((c) => c.kind)));
+          assert("which is optional", !!offer && offer.optional === true);
+          if (offer) {
+            const again = Game.applyAction(zulu.s, { type: "RESOLVE_PENDING_CHOICE",
+              payload: { playerId: zulu.b.me.id, choiceId: offer.id, optionId: "discard" } });
+            assert("taking it discards the token rather than replacing it",
+              again.map.hexes["1,0"].control === null,
+              JSON.stringify(again.map.hexes["1,0"].control));
+            assert("and marks the once-per-turn as used",
+              again.players[0].scorchedEarthUsedThisTurn === true);
+          }
+          const plain = win(null);
+          assert("an ordinary army can win the same fight", !!plain);
+          assert("but is offered no second move",
+            plain && !(plain.s.pendingChoices || [])
+              .some((c) => c.kind === "scorched_earth"),
+            plain && JSON.stringify((plain.s.pendingChoices || []).map((c) => c.kind)));
+          assert("and simply takes the space",
+            plain && plain.s.map.hexes["1,0"].control.ownerId === plain.b.me.id);
+          proves("unique.zulu.scorched_earth");
+        }
       }
 
       {
