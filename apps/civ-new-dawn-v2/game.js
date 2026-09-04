@@ -39,7 +39,11 @@ const Game = (() => {
     if (!leader || !leader.unique) return null;
     const u = leader.unique;
     if (u.type !== cardType) return null;
-    const tier = (player.cardTiers && player.cardTiers[cardType]) || 1;
+    // The unique card is a card in the ROW. Oxford can replace the last card of
+    // a type, and a type with no card cannot be the one you are running.
+    if (Array.isArray(player.focusRow) && player.focusRow.length &&
+        focusIndexOf(player, cardType) < 0) return null;
+    const tier = getCardTier(player, cardType);
     if (tier !== u.tier) return null;
     return u.tier === 1 || player.uniqueTaken ? u : null;
   }
@@ -73,6 +77,87 @@ const Game = (() => {
     const tier = (player.cardTiers && player.cardTiers[cardType]) || 1;
     const def = (CARD_DEFS[cardType] || {})[tier];
     return (def && def.effectText) || "";
+  }
+
+  // ── The focus row holds CARDS, not types ─────────────────────────────
+  //
+  // A row normally holds one card of each of the six types, so a type is a
+  // sufficient name for a card and the whole engine keys off it:
+  // `cardTiers[type]`, `trade[type]`, `focusRow.indexOf(type)`.
+  //
+  // Oxford University breaks that. It lets a tech upgrade replace a NON-SCIENCE
+  // card with a card of a different type, so a row can hold Military II and
+  // Military I at once and no Culture card at all. Type then names two cards.
+  //
+  // The smallest model that tells the truth: a row entry stays a bare type
+  // string for the card that OWNS its type key, and any further card of that
+  // type is an instance object carrying its own tier and its own trade tokens.
+  // Nothing but Oxford ever creates the object form, so every game without it,
+  // and every save written before it, is byte-for-byte what it was.
+  const rowEntryType = (entry) =>
+    (entry && typeof entry === "object") ? entry.type : entry;
+
+  // The card in a given place, whichever form the entry takes.
+  function rowCardAt(player, index) {
+    const entry = (player.focusRow || [])[index];
+    if (entry === undefined) return null;
+    if (entry && typeof entry === "object") {
+      return { index, type: entry.type, tier: entry.tier || 1,
+        trade: entry.trade || 0, owns: false, entry };
+    }
+    return { index, type: entry, tier: (player.cardTiers && player.cardTiers[entry]) || 1,
+      trade: (player.trade && player.trade[entry]) || 0, owns: true, entry };
+  }
+  const rowCards = (player) =>
+    (player.focusRow || []).map((_, i) => rowCardAt(player, i)).filter(Boolean);
+
+  // The place a card of this type sits in. With no duplicate this is the only
+  // card of that type; with one, it is the leftmost, which is what every
+  // existing caller has always meant.
+  function focusIndexOf(player, cardType) {
+    return (player.focusRow || []).findIndex((e) => rowEntryType(e) === cardType);
+  }
+  const rowHasDuplicateTypes = (player) => {
+    const seen = new Set();
+    return (player.focusRow || []).some((e) => {
+      const t = rowEntryType(e);
+      if (seen.has(t)) return true;
+      seen.add(t);
+      return false;
+    });
+  };
+
+  // Tier and trade of one exact card, rather than of whatever card happens to
+  // be leftmost of its type.
+  function cardTierAt(player, index) {
+    const card = rowCardAt(player, index);
+    return card ? card.tier : 1;
+  }
+  function cardTradeAt(player, index) {
+    const card = rowCardAt(player, index);
+    return card ? card.trade : 0;
+  }
+  function setCardTradeAt(player, index, amount) {
+    const card = rowCardAt(player, index);
+    if (!card) return;
+    const value = Math.max(0, Math.min(CFG.maxTrade, amount));
+    if (card.owns) player.trade[card.type] = value;
+    else card.entry.trade = value;
+  }
+  // The printed name of one exact card. A civ's unique card replaces the
+  // standard card at its tier, and that is a property of the CARD, so a
+  // duplicate of the same type at another tier is a different card.
+  function cardNameAt(player, index) {
+    const card = rowCardAt(player, index);
+    if (!card) return "";
+    // From the card's OWN level. Delegating to getCardName would ask about the
+    // leftmost card of the type, which with a duplicate is a different card and
+    // would hand this one the other's name.
+    const leader = getLeader(player);
+    const u = leader && leader.unique;
+    if (u && u.type === card.type && u.tier === card.tier &&
+        (u.tier === 1 || player.uniqueTaken)) return u.name;
+    return (CARD_NAMES[card.type] || [])[card.tier - 1] || card.type;
   }
 
   function getCardName(player, cardType) {
@@ -2320,10 +2405,15 @@ const Game = (() => {
       // from the authoritative slot and validated payment. Standard upgraded
       // science cards resolve their printed first paragraph before this dial
       // movement, so an interactive prelude keeps the same transaction open.
-      const advanceAmount = getSlotValue(player, "science", st) + trade.spent + bonus;
-      if (!queueSciencePrelude(st, player, trade, advanceAmount)) {
+      // WHICH science card. With two cards of one type in the row (Oxford) the
+      // player names the place; with one, this is the only card of that type
+      // and the answer is what it always was.
+      const scienceIndex = resolveCardIndex(player, "science", payload.cardIndex);
+      const advanceAmount = getSlotValue(player, "science", st, scienceIndex) +
+        trade.spent + bonus;
+      if (!queueSciencePrelude(st, player, trade, advanceAmount, scienceIndex)) {
         advanceTech(st, player, advanceAmount);
-        resolveCard(st, player, "science", trade);
+        resolveCard(st, player, "science", trade, scienceIndex);
       }
       return st;
     }
@@ -3363,7 +3453,7 @@ const Game = (() => {
     return true;
   }
 
-  function beginScienceResolution(st, player, tradePayment, advanceAmount, cardName, step) {
+  function beginScienceResolution(st, player, tradePayment, advanceAmount, cardName, step, cardIndex) {
     const resolution = {
       id: makeChoiceId("science-resolution"),
       kind: "focus_sequence",
@@ -3373,19 +3463,26 @@ const Game = (() => {
       tradeSpent: Number(tradePayment && tradePayment.spent || 0),
       tradePayment: cloneSerializable(tradePayment),
       advanceAmount: Number(advanceAmount || 0),
+      // WHICH science card is mid-resolution. Without it, finishing the
+      // sequence resets whichever card of that type is leftmost, which with a
+      // duplicate is not the one that was played.
+      cardIndex: Number.isInteger(cardIndex) ? cardIndex : null,
       step
     };
     st.cardResolution = resolution;
     return resolution;
   }
 
-  function queueSciencePrelude(st, player, tradePayment, advanceAmount) {
+  function queueSciencePrelude(st, player, tradePayment, advanceAmount, cardIndex) {
+    // Every branch below belongs to the CARD that was played, so which card
+    // that is has to be settled before any of them.
+    const idx = resolveCardIndex(player, "science", cardIndex);
     // Unique science cards replace, rather than supplement, the standard card
     // at their tier. Their own handlers decide whether they need a sequence.
     const unique = getActiveUniqueCard(player, "science");
     if (unique && unique.name === "Astronomy") {
       const resolution = beginScienceResolution(st, player, tradePayment,
-        advanceAmount, "Astronomy", "astronomy_tiles");
+        advanceAmount, "Astronomy", "astronomy_tiles", idx);
       const visible = (st.tileStack || []).slice(-2);
       if (!visible.length) {
         finishScienceResolution(st, resolution);
@@ -3427,10 +3524,11 @@ const Game = (() => {
       return true;
     }
     if (unique) return false;
-    const tier = getCardTier(player, "science");
+    const tier = idx >= 0 ? cardTierAt(player, idx) : getCardTier(player, "science");
+    const slotHere = getSlotValue(player, "science", st, idx);
     if (tier === 2) {
       const resolution = beginScienceResolution(st, player, tradePayment,
-        advanceAmount, "Mathematics", "mathematics_trade");
+        advanceAmount, "Mathematics", "mathematics_trade", idx);
       queuePendingChoice(st, {
         kind: "trade_any",
         playerId: player.id,
@@ -3449,7 +3547,7 @@ const Game = (() => {
         Number(player.resources[resource] || 0) === 0);
       if (!options.length) return false;
       const resolution = beginScienceResolution(st, player, tradePayment,
-        advanceAmount, "Replaceable Parts", "replaceable_parts_resource");
+        advanceAmount, "Replaceable Parts", "replaceable_parts_resource", idx);
       queuePendingChoice(st, {
         kind: "gain_resource",
         playerId: player.id,
@@ -3460,13 +3558,13 @@ const Game = (() => {
       });
       return true;
     }
-    if (tier === 4 && getSlotValue(player, "science", st) === 5) {
+    if (tier === 4 && slotHere === 5) {
       const spaces = Object.entries(st.map.hexes)
         .filter(([, hex]) => hex && hex.active)
         .map(([hexKey]) => hexKey);
       if (!spaces.length) return false;
       const resolution = beginScienceResolution(st, player, tradePayment,
-        advanceAmount, "Nuclear Power", "nuclear_power_target");
+        advanceAmount, "Nuclear Power", "nuclear_power_target", idx);
       queuePendingChoice(st, {
         kind: "nuclear_power_target",
         playerId: player.id,
@@ -3487,7 +3585,7 @@ const Game = (() => {
     const payment = resolution.tradePayment || resolution.tradeSpent || 0;
     st.cardResolution = null;
     advanceTech(st, player, Number(resolution.advanceAmount || 0));
-    resolveCard(st, player, "science", payment);
+    resolveCard(st, player, "science", payment, resolution.cardIndex);
     return true;
   }
 
@@ -3702,10 +3800,25 @@ const Game = (() => {
     }
   }
 
-  function resolveCard(st, player, cardType, tradePayment) {
+  // Which card of this type the player meant. A payload may name the place; if
+  // it does not, or names one that does not hold a card of that type, it is the
+  // leftmost card of that type, which is the only one there is unless Oxford
+  // has been at work.
+  function resolveCardIndex(player, cardType, wanted) {
+    if (Number.isInteger(wanted) && rowEntryType((player.focusRow || [])[wanted]) === cardType) {
+      return wanted;
+    }
+    return focusIndexOf(player, cardType);
+  }
+
+  function resolveCard(st, player, cardType, tradePayment, cardIndex) {
     const capitalismReplay = player.capitalismReplay === cardType &&
       !!player.capitalismNoReset;
-    const idx = player.focusRow.indexOf(cardType);
+    // Which CARD was resolved, not which type. With two cards of one type in
+    // the row (Oxford), resetting "the military card" would always grab the
+    // leftmost and leave the one actually played where it stood.
+    const idx = Number.isInteger(cardIndex) && rowEntryType(player.focusRow[cardIndex]) === cardType
+      ? cardIndex : focusIndexOf(player, cardType);
     // Terra p13: "For any ability that depends on a focus card being resolved
     // in a specific slot, the card is treated as though it is in the
     // farther-right slot." So a card shifted into the 5 slot counts as a 5.
@@ -3715,7 +3828,7 @@ const Game = (() => {
       player.focusRow.splice(idx, 1);
       player.focusRow.unshift(cardType);
     }
-    spendFocusTradePayment(player, cardType, tradePayment, st);
+    spendFocusTradePayment(player, cardType, tradePayment, st, idx);
     player.cardPlayed = true;
     player.arsenalReplay = null;
     player.capitalismReplay = null;
@@ -3833,14 +3946,94 @@ const Game = (() => {
   // passing each tab is a separate opportunity to gain that exact-level card.
   const TECH_LEVEL_SPACES = { 3: 2, 6: 2, 10: 3, 14: 3, 19: 4, 24: 4 };
 
+  // Base p8: a gained focus card REPLACES the card of the same type in the row.
+  // Oxford University lifts exactly that restriction for a non-science card, so
+  // the place the new card takes is a parameter here rather than an assumption.
+  //
+  // Base clarification: trade tokens on the card that leaves go onto the card
+  // that takes its place. They belong to the PLACE, not to the type, which is
+  // the whole reason this cannot be done by writing `trade[type]`.
+  function replaceRowCard(player, targetIndex, gainedType, tier) {
+    const target = rowCardAt(player, targetIndex);
+    if (!target) return false;
+    const carriedTrade = target.trade;
+    if (target.type === gainedType) {
+      // The ordinary case: the same card, a higher level, where it stands.
+      if (target.owns) {
+        player.cardTiers[gainedType] = tier;
+        player.cardLevels[gainedType] = tier;
+      } else {
+        target.entry.tier = tier;
+      }
+      return true;
+    }
+    // Oxford: a card of another type takes that place and the card that was
+    // there leaves the row.
+    if (target.owns) player.trade[target.type] = 0;
+    const twin = (player.focusRow || [])
+      .some((e, i) => i !== targetIndex && rowEntryType(e) === gainedType);
+    if (twin) {
+      // The type already has a card owning its key, so this one carries its
+      // own level and its own tokens.
+      player.focusRow[targetIndex] = { type: gainedType, tier, trade: carriedTrade };
+    } else {
+      player.focusRow[targetIndex] = gainedType;
+      player.cardTiers[gainedType] = tier;
+      player.cardLevels[gainedType] = tier;
+      player.trade[gainedType] = carriedTrade;
+    }
+    return true;
+  }
+
+  // Oxford University: "When you replace a focus card OTHER THAN A SCIENCE
+  // focus card, you do not have to replace it with a card of the same type."
+  // The restriction is on the card being REPLACED, not on the card gained.
+  const hasOxford = (st, player) =>
+    !!(st && player && hasWonder(st, player.id, "Oxford University"));
+  function oxfordTargets(player, gainedType) {
+    const out = [];
+    rowCards(player).forEach((card) => {
+      // The same-type card is always a legal target: that is the normal rule.
+      if (card.type === gainedType) { out.push(card.index); return; }
+      // Every other card may be replaced except a science card.
+      if (card.type !== "science") out.push(card.index);
+    });
+    return out;
+  }
+
   function scienceUpgradeOptions(player, level) {
     const opts = [];
-    FOCUS_TYPES.filter((f) => (player.cardTiers[f] || 1) < level).forEach((f) => {
+    FOCUS_TYPES.filter((f) => getCardTier(player, f) < level).forEach((f) => {
       opts.push({ id: f, label: `${FOCUS_LABELS[f]} \u2192 tier ${level}` });
       const uniq = uniqueUpgradeOption(player, f, level);
       if (uniq) opts.push(uniq);
     });
     return opts;
+  }
+
+  // Putting a gained focus card into the row, from either route.
+  function applyGainedCard(st, player, targetIndex, gainedType, gainedTier, takeUnique, chain) {
+    if (targetIndex < 0) return false;
+    const replacedName = cardNameAt(player, targetIndex);
+    const replacedType = rowEntryType(player.focusRow[targetIndex]);
+    replaceRowCard(player, targetIndex, gainedType, gainedTier);
+    if (takeUnique) player.uniqueTaken = true;
+    player.upgradedThisTurn = true;   // University of Sankore looks at this
+    if (gainedType === "military" || gainedType === "economy" ||
+        replacedType === "military" || replacedType === "economy") {
+      syncUnitCounts(st, player);
+    }
+    // Crossing more than one printed tab creates more than one prompt. Once a
+    // card is taken, later prompts must stop offering it at a level it has
+    // already reached.
+    refreshScienceUpgradeChoices(st, player);
+    log(st, replacedType === gainedType
+      ? `${player.name} upgraded ${FOCUS_LABELS[gainedType]} to tier ${gainedTier}.`
+      : `${player.name} replaced ${replacedName} with ${FOCUS_LABELS[gainedType]} tier ${gainedTier} (Oxford University).`);
+    // Multi-card wonders queue their next prompt only now, so it lists the
+    // tiers as they stand after this upgrade.
+    if (chain) queueCardUpgrade(st, player, chain);
+    return true;
   }
 
   function refreshScienceUpgradeChoices(st, player) {
@@ -3945,6 +4138,7 @@ const Game = (() => {
     if (!player) return st;
 
     let resolved = false;
+    let asked = false;
     if (choice.kind === "science_upgrade") {
       // "unique_<type>" is the same upgrade, except the card you end up with is
       // your civ's own — you can only take it on the level it is printed at.
@@ -3960,23 +4154,51 @@ const Game = (() => {
           (!choice.onlyTier || curTier === choice.onlyTier)) {
         // A tech level hands you a card of exactly that level, not the next one
         // up (p8). Wonder-driven upgrades carry no level, so they step by one.
-        player.cardTiers[cardType] = choice.techLevel
+        const gainedTier = choice.techLevel
           ? Math.max(curTier, Math.min(4, choice.techLevel))
           : curTier + 1;
-        player.cardLevels[cardType] = player.cardTiers[cardType];
-        if (takeUnique) player.uniqueTaken = true;
-        player.upgradedThisTurn = true;   // University of Sankore looks at this
-        if (cardType === "military" || cardType === "economy") syncUnitCounts(st, player);
-        // Crossing more than one printed tab creates more than one prompt. Once
-        // a card is taken, later prompts must stop offering that same card at a
-        // level it has already reached.
-        refreshScienceUpgradeChoices(st, player);
-        log(st, takeUnique
-          ? `${player.name} took their unique card ${getCardName(player, cardType)} at tier ${player.cardTiers[cardType]}.`
-          : `${player.name} upgraded ${FOCUS_LABELS[cardType]} to tier ${player.cardTiers[cardType]}.`);
-        // Multi-card wonders queue their next prompt only now, so it lists the
-        // tiers as they stand after this upgrade.
-        if (choice.chain) queueCardUpgrade(st, player, choice.chain);
+        // Oxford University: the card being REPLACED is now a choice, so ask
+        // before anything moves. Without it the gained card replaces the card
+        // of its own type, which is base p8 and needs no question.
+        if (hasOxford(st, player) && !choice.oxfordTarget) {
+          const targets = oxfordTargets(player, cardType);
+          if (targets.length > 1) {
+            queuePendingChoice(st, {
+              kind: "oxford_replace",
+              playerId: player.id,
+              title: `Oxford University: Which Card Does ${FOCUS_LABELS[cardType]} ${gainedTier} Replace?`,
+              source: "Oxford University",
+              gainedType: cardType,
+              gainedTier,
+              takeUnique,
+              chain: choice.chain || null,
+              techLevel: choice.techLevel || null,
+              options: targets.map((i) => {
+                const card = rowCardAt(player, i);
+                return { id: String(i),
+                  label: `${cardNameAt(player, i)} (${FOCUS_LABELS[card.type]}, place ${i + 1})` +
+                    (card.type === cardType ? " — the usual replacement" : "") };
+              })
+            });
+            asked = true;
+            resolved = true;
+          }
+        }
+        if (!asked) {
+          applyGainedCard(st, player, focusIndexOf(player, cardType), cardType,
+            gainedTier, takeUnique, choice.chain);
+        }
+        resolved = true;
+      }
+    } else if (choice.kind === "oxford_replace") {
+      // Oxford's second question: which card in the row the gained card takes
+      // the place of. The options were built from the legal targets, so the
+      // only thing to check is that the answer is one of them.
+      const index = Number(payload.optionId);
+      const legal = (choice.options || []).some((o) => o.id === String(index));
+      if (legal && oxfordTargets(player, choice.gainedType).includes(index)) {
+        applyGainedCard(st, player, index, choice.gainedType, choice.gainedTier,
+          choice.takeUnique, choice.chain);
         resolved = true;
       }
     } else if (choice.kind === "astronomy_tiles") {
@@ -6385,6 +6607,11 @@ const Game = (() => {
   }
   function getPlayer(st, id) { return st.players.find((p) => p.id === id) || null; }
   function getCardTier(player, cardType) {
+    // The level of the card of this type that is actually in the row. With no
+    // duplicate this reads the type key exactly as it always did; with one, it
+    // is the leftmost card of that type, which is what every caller means.
+    const i = focusIndexOf(player, cardType);
+    if (i >= 0) return cardTierAt(player, i);
     return player.cardTiers ? (player.cardTiers[cardType] || 1) : 1;
   }
 
@@ -6405,11 +6632,12 @@ const Game = (() => {
   // effect that says so, capped at the "5" slot (Terra p13). Reaching a tech
   // level on the dial does NOT add to this — the dial hands you better cards
   // (base p8), it does not make the row itself stronger.
-  function getSlotValue(player, cardType, st) {
+  function getSlotValue(player, cardType, st, atIndex) {
     if (player && player.capitalismReplay === cardType && player.capitalismNoReset) {
       return 1;
     }
-    const idx = player.focusRow.indexOf(cardType);
+    const idx = Number.isInteger(atIndex) && rowEntryType(player.focusRow[atIndex]) === cardType
+      ? atIndex : focusIndexOf(player, cardType);
     if (idx < 0) return 1;
     // Georgia: a diplomacy card from a city-state of this card's type resolves
     // the card as though it sat 1 place farther to the right.
@@ -7817,7 +8045,7 @@ const Game = (() => {
     deckState.revealed = deckState.deck[0] || null;
     deckState.token = 0;   // the token on a built wonder goes back to the supply
   }
-  function getSlotIndex(player, cardType) { return player.focusRow.indexOf(cardType); }
+  function getSlotIndex(player, cardType) { return focusIndexOf(player, cardType); }
 
   function terrainDifficulty(h) {
     if (h.resource === "wonder") return 5;
@@ -7987,7 +8215,7 @@ const Game = (() => {
     };
   }
 
-  function spendFocusTradePayment(player, cardType, payment, st) {
+  function spendFocusTradePayment(player, cardType, payment, st, cardIndex) {
     const normalized = payment && typeof payment === "object"
       ? payment
       : { spent: Number(payment || 0), focusSpent: Number(payment || 0), resources: {} };
@@ -7999,7 +8227,11 @@ const Game = (() => {
     const fromCard = normalized.printedSpent === undefined
       ? focusSpent : Number(normalized.printedSpent || 0);
     if (fromCard > 0) {
-      player.trade[cardType] = Math.max(0, Number(player.trade[cardType] || 0) - fromCard);
+      // Off the card that was played. With one card of a type this is the type
+      // key exactly as before; with two (Oxford) it is the one resolved.
+      const i = resolveCardIndex(player, cardType, cardIndex);
+      if (i >= 0) setCardTradeAt(player, i, cardTradeAt(player, i) - fromCard);
+      else player.trade[cardType] = Math.max(0, Number(player.trade[cardType] || 0) - fromCard);
     }
     const wonders = normalized.naturalWonderTokens || [];
     if (st && wonders.length) {
@@ -9697,6 +9929,8 @@ const Game = (() => {
     getDiplomacyAttackBonus, getDiplomacyDefenseBonus, nonAggressionWith, openBordersWith,
     isCityDeveloped,
     getSlotValue, getSlotIndex, getCardTier, getCardTierValue: getCardTier,
+    getRowCards: rowCards, getCardNameAt: cardNameAt, getActiveUniqueCard,
+    focusIndexOf, rowHasDuplicateTypes,
     getMilitaryMove, getEconomyMove, getCultureMarkers, getMilitaryCombatBonus,
     getCityRange, getWonderCost, getWonderToken, getVisibleWonders,
     getControlledNaturalWonders, calculateWonderCost, calculateWonderProduction,

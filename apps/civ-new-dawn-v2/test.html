@@ -11420,6 +11420,248 @@
 
 
 
+
+      {
+        // OXFORD UNIVERSITY, and the rule it modifies.
+        //
+        // Base p8: a gained focus card REPLACES THE CARD OF THE SAME TYPE in
+        // the row. Oxford: "When you replace a focus card OTHER THAN A SCIENCE
+        // focus card, you do not have to replace it with a card of the same
+        // type." The restriction is on the card being REPLACED, not on the card
+        // gained — so a Science card may be gained, but a Science card may not
+        // be the one replaced.
+        //
+        // That breaks type uniqueness: a row can hold Military II and Military
+        // I at once and no Culture card at all, which is why a row entry can be
+        // a card instance rather than a bare type name.
+        const oxBoard = (withOxford) => {
+          const st = rulesState();
+          const me = st.players[0];
+          me.cardPlayed = false;
+          st.turn.index = st.turn.order.indexOf(me.id);
+          Game.FOCUS_TYPES.forEach((t) => { me.trade[t] = 0; me.cardTiers[t] = 1; me.cardLevels[t] = 1; });
+          me.focusRow = ["culture", "growth", "science", "economy", "military", "industry"];
+          Object.values(st.map.hexes).forEach((h) => {
+            h.barbarian = false; h.barbarianId = null; h.barbarianToken = null;
+            h.control = null; h.city = null; h.cityState = null;
+            h.resource = null; h.naturalWonder = null; h.naturalWonderSpace = null;
+          });
+          st.naturalWonders = {};
+          for (let q = -2; q <= 4; q++) {
+            for (let r = -2; r <= 2; r++) activate(st, q + "," + r, { terrain: "grass" });
+          }
+          st.map.hexes["0,0"].city = { ownerId: me.id, isCapital: true,
+            developed: false, hasWonder: !!withOxford,
+            wonder: withOxford
+              ? { name: "Oxford University", type: "science", era: "modern" } : null };
+          return { st, me };
+        };
+        const reachTechII = (b) => {
+          Game.advanceTech(b.st, Game.getPlayer(b.st, b.me.id), 3);
+          return (b.st.pendingChoices || []).find((c) => c.kind === "science_upgrade");
+        };
+        const rowTypes = (st, id) => (Game.getPlayer(st, id).focusRow || [])
+          .map((e) => (e && typeof e === "object") ? e.type : e);
+        const rowTiers = (st, id) => Game.getRowCards(Game.getPlayer(st, id))
+          .map((c) => c.type + " " + c.tier);
+
+        // ── The normal rule, pinned first ────────────────────────────────
+        {
+          const b = oxBoard(false);
+          const offer = reachTechII(b);
+          assert("reaching tech II offers a card", !!offer);
+          const out = Game.applyAction(b.st, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: b.me.id, choiceId: offer.id, optionId: "military" } });
+          assert("without Oxford the gained card is simply taken",
+            !(out.pendingChoices || []).some((c) => c.kind === "oxford_replace"),
+            JSON.stringify((out.pendingChoices || []).map((c) => c.kind)));
+          assert("and it replaced the card of its OWN type",
+            rowTiers(out, b.me.id).join(", ") ===
+              "culture 1, growth 1, science 1, economy 1, military 2, industry 1",
+            rowTiers(out, b.me.id).join(", "));
+          assert("the row still holds one card of each type",
+            new Set(rowTypes(out, b.me.id)).size === 6,
+            JSON.stringify(rowTypes(out, b.me.id)));
+          assert("so there is no way to put Military II onto the Culture place",
+            rowTypes(out, b.me.id)[0] === "culture");
+        }
+
+        // ── Oxford asks which card is replaced ───────────────────────────
+        {
+          const b = oxBoard(true);
+          const offer = reachTechII(b);
+          const out = Game.applyAction(b.st, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: b.me.id, choiceId: offer.id, optionId: "military" } });
+          const ask = (out.pendingChoices || []).find((c) => c.kind === "oxford_replace");
+          assert("with Oxford the player is asked which card it replaces", !!ask,
+            JSON.stringify((out.pendingChoices || []).map((c) => c.kind)));
+          assert("nothing has moved yet",
+            rowTiers(out, b.me.id).join(", ") ===
+              "culture 1, growth 1, science 1, economy 1, military 1, industry 1",
+            rowTiers(out, b.me.id).join(", "));
+
+          // Section 7: the SCIENCE card may not be the one replaced.
+          const offered = (ask.options || []).map((o) => Number(o.id));
+          const row = rowTypes(out, b.me.id);
+          assert("culture, growth, economy and industry may all be replaced",
+            ["culture", "growth", "economy", "industry"]
+              .every((t) => offered.includes(row.indexOf(t))),
+            JSON.stringify({ offered, row }));
+          assert("the same-type military card may be replaced, as normal",
+            offered.includes(row.indexOf("military")), JSON.stringify({ offered, row }));
+          assert("but the SCIENCE card may NOT be replaced",
+            !offered.includes(row.indexOf("science")), JSON.stringify({ offered, row }));
+          assert("which is five legal targets out of six cards",
+            offered.length === 5, JSON.stringify(offered));
+        }
+
+        // ── The cross-type replacement actually happens ──────────────────
+        {
+          const b = oxBoard(true);
+          const offer = reachTechII(b);
+          let s = Game.applyAction(b.st, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: b.me.id, choiceId: offer.id, optionId: "military" } });
+          const ask = (s.pendingChoices || []).find((c) => c.kind === "oxford_replace");
+          const cultureIndex = rowTypes(s, b.me.id).indexOf("culture");
+          s = Game.applyAction(s, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: b.me.id, choiceId: ask.id, optionId: String(cultureIndex) } });
+          const types = rowTypes(s, b.me.id);
+          const tiers = rowTiers(s, b.me.id);
+          assert("Military II sits in the place the Culture card held",
+            types[cultureIndex] === "military" &&
+            Game.getRowCards(Game.getPlayer(s, b.me.id))[cultureIndex].tier === 2,
+            JSON.stringify(tiers));
+          assert("the Culture card has left the row entirely",
+            !types.includes("culture"), JSON.stringify(types));
+          assert("the original Military card is still where it was, still level I",
+            tiers.filter((t) => t === "military 1").length === 1, JSON.stringify(tiers));
+          assert("so the row holds BOTH military cards",
+            types.filter((t) => t === "military").length === 2, JSON.stringify(types));
+          assert("the row still holds six cards",
+            types.length === 6, JSON.stringify(types));
+          assert("and type uniqueness is genuinely broken, not patched back up",
+            new Set(types).size === 5, JSON.stringify(types));
+          assert("every card still names a real focus type",
+            types.every((t) => Game.FOCUS_TYPES.includes(t)), JSON.stringify(types));
+        }
+
+        // ── Trade tokens belong to the PLACE, not to the type ────────────
+        {
+          const b = oxBoard(true);
+          b.me.trade.culture = 2;
+          b.me.trade.military = 1;
+          const offer = reachTechII(b);
+          let s = Game.applyAction(b.st, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: b.me.id, choiceId: offer.id, optionId: "military" } });
+          const ask = (s.pendingChoices || []).find((c) => c.kind === "oxford_replace");
+          const cultureIndex = rowTypes(s, b.me.id).indexOf("culture");
+          s = Game.applyAction(s, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: b.me.id, choiceId: ask.id, optionId: String(cultureIndex) } });
+          const cards = Game.getRowCards(Game.getPlayer(s, b.me.id));
+          assert("the two tokens on the Culture card move to the card replacing it",
+            cards[cultureIndex].trade === 2,
+            JSON.stringify(cards.map((c) => c.type + ":" + c.trade)));
+          assert("and NOT to the other military card merely for sharing a type",
+            cards.filter((c) => c.type === "military" && c.tier === 1)[0].trade === 1,
+            JSON.stringify(cards.map((c) => c.type + " " + c.tier + ":" + c.trade)));
+          assert("so the two military cards carry different token counts",
+            cards.filter((c) => c.type === "military").map((c) => c.trade).sort().join(",")
+              === "1,2",
+            JSON.stringify(cards.map((c) => c.type + " " + c.tier + ":" + c.trade)));
+        }
+
+        // ── Resolving one of two same-type cards ─────────────────────────
+        {
+          const b = oxBoard(true);
+          const offer = reachTechII(b);
+          let s = Game.applyAction(b.st, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: b.me.id, choiceId: offer.id, optionId: "science" } });
+          const ask = (s.pendingChoices || []).find((c) => c.kind === "oxford_replace");
+          const cultureIndex = rowTypes(s, b.me.id).indexOf("culture");
+          s = Game.applyAction(s, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: b.me.id, choiceId: ask.id, optionId: String(cultureIndex) } });
+          const before = rowTypes(s, b.me.id);
+          assert("a Science card may be GAINED onto a non-science place",
+            before.filter((t) => t === "science").length === 2, JSON.stringify(before));
+          const cards = Game.getRowCards(Game.getPlayer(s, b.me.id));
+          const gainedIndex = cards.findIndex((c) => c.type === "science" && c.tier === 2);
+          const oldIndex = cards.findIndex((c) => c.type === "science" && c.tier === 1);
+          assert("the two science cards are at different levels",
+            gainedIndex >= 0 && oldIndex >= 0 && gainedIndex !== oldIndex,
+            JSON.stringify(cards.map((c) => c.type + " " + c.tier)));
+
+          // Resolve the one NOT leftmost and check it is the one that moves.
+          const target = Math.max(gainedIndex, oldIndex);
+          const targetTier = Game.getRowCards(Game.getPlayer(s, b.me.id))[target].tier;
+          const otherTier = Game.getRowCards(Game.getPlayer(s, b.me.id))[Math.min(gainedIndex, oldIndex)].tier;
+          Game.getPlayer(s, b.me.id).cardPlayed = false;
+          s.turn.index = s.turn.order.indexOf(b.me.id);
+          const played = Game.applyAction(s, { type: "PLAY_SCIENCE",
+            payload: { playerId: b.me.id, tradeSpent: 0, cardIndex: target } });
+          const after = Game.getRowCards(Game.getPlayer(played, b.me.id));
+          assert("the card that was played is the one now at the front",
+            after[0].type === "science" && after[0].tier === targetTier,
+            JSON.stringify(after.map((c) => c.type + " " + c.tier)));
+          assert("and the other science card did NOT move to the front",
+            after.filter((c) => c.type === "science" && c.tier === otherTier).length === 1 &&
+            !(after[0].tier === otherTier),
+            JSON.stringify(after.map((c) => c.type + " " + c.tier)));
+          assert("the row still holds six cards after the reset",
+            after.length === 6, String(after.length));
+        }
+
+        // ── A unique focus card keeps its own identity ───────────────────
+        {
+          // Sumeria's unique is Craftsmanship, industry tier 1. If Oxford puts
+          // a second industry card in the row at another level, the unique must
+          // not be claimed by the wrong card.
+          const b = oxBoard(true);
+          b.me.leaderId = "sumeria";
+          const offer = reachTechII(b);
+          let s = Game.applyAction(b.st, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: b.me.id, choiceId: offer.id, optionId: "industry" } });
+          const ask = (s.pendingChoices || []).find((c) => c.kind === "oxford_replace");
+          const cultureIndex = rowTypes(s, b.me.id).indexOf("culture");
+          s = Game.applyAction(s, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: b.me.id, choiceId: ask.id, optionId: String(cultureIndex) } });
+          const cards = Game.getRowCards(Game.getPlayer(s, b.me.id));
+          const one = cards.find((c) => c.type === "industry" && c.tier === 1);
+          const two = cards.find((c) => c.type === "industry" && c.tier === 2);
+          assert("both industry cards are in the row at their own levels",
+            !!one && !!two, JSON.stringify(cards.map((c) => c.type + " " + c.tier)));
+          assert("the level-I card is still the civ's unique card by name",
+            Game.getCardNameAt(Game.getPlayer(s, b.me.id), one.index) === "Craftsmanship",
+            Game.getCardNameAt(Game.getPlayer(s, b.me.id), one.index));
+          assert("and the level-II card is the printed standard card, not the unique",
+            Game.getCardNameAt(Game.getPlayer(s, b.me.id), two.index) !== "Craftsmanship",
+            Game.getCardNameAt(Game.getPlayer(s, b.me.id), two.index));
+        }
+
+        // ── Replacing the last card of a type removes that type ──────────
+        {
+          const b = oxBoard(true);
+          b.me.leaderId = "sumeria";
+          const offer = reachTechII(b);
+          let s = Game.applyAction(b.st, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: b.me.id, choiceId: offer.id, optionId: "military" } });
+          const ask = (s.pendingChoices || []).find((c) => c.kind === "oxford_replace");
+          const industryIndex = rowTypes(s, b.me.id).indexOf("industry");
+          s = Game.applyAction(s, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: b.me.id, choiceId: ask.id, optionId: String(industryIndex) } });
+          assert("the industry card is gone from the row",
+            !rowTypes(s, b.me.id).includes("industry"),
+            JSON.stringify(rowTypes(s, b.me.id)));
+          const player = Game.getPlayer(s, b.me.id);
+          assert("and the civ's unique industry card is no longer in play with it",
+            !Game.getActiveUniqueCard(player, "industry"),
+            String(Game.getCardName(player, "industry")));
+          assert("the row is still six cards, now with two military",
+            Game.getRowCards(player).length === 6 &&
+            Game.getRowCards(player).filter((c) => c.type === "military").length === 2,
+            JSON.stringify(Game.getRowCards(player).map((c) => c.type + " " + c.tier)));
+          proves("wonder.science.oxford_university");
+        }
+      }
       {
         // THE FOCUS ROW AND THE TECH DIAL — the two systems every card in the
         // game runs on, and neither had a row on the checklist.
