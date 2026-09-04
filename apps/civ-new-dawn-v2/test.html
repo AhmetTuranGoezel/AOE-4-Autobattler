@@ -10091,6 +10091,267 @@
         proves("wonder.science.amundsen_scott_research_station");
       }
 
+      {
+        // The combat wonders, each driven through a REAL attack action and
+        // read off the combat state that action produced, against the same
+        // board without the wonder. A getter returning the right number is not
+        // the claim; the claim is that a fight on this board is worth more.
+        const combatBoard = (opts) => {
+          const o = opts || {};
+          const st = rulesState();
+          const me = st.players[0], foe = st.players[1];
+          me.cardPlayed = false;
+          st.turn.index = st.turn.order.indexOf(me.id);
+          Object.values(st.map.hexes).forEach((h) => {
+            h.barbarian = false; h.barbarianId = null; h.barbarianToken = null;
+            h.control = null; h.city = null; h.cityState = null;
+            h.resource = null; h.naturalWonder = null; h.naturalWonderSpace = null;
+          });
+          st.naturalWonders = {};
+          for (let q = -2; q <= 5; q++) {
+            for (let r = -2; r <= 2; r++) activate(st, q + "," + r, { terrain: "grass" });
+          }
+          activate(st, "0,0", { city: { ownerId: me.id, isCapital: true,
+            developed: false, hasWonder: false, wonder: null } });
+          activate(st, "2,0", { terrain: "grass",
+            control: { ownerId: foe.id, fortified: false, district: null } });
+          me.armies = [{ id: "a1", position: "1,0" }];
+          if (o.setUp) o.setUp(st, me, foe);
+          return { st, me, foe };
+        };
+        // Give a player a wonder by putting it in a city they own. `city` lets
+        // a defender's wonder sit somewhere other than the attacker's capital.
+        const giveWonder = (st, playerId, name, type, cityKey) => {
+          const key = cityKey || "0,0";
+          const hex = st.map.hexes[key];
+          hex.city = { ownerId: playerId, isCapital: !cityKey, developed: false,
+            hasWonder: true, wonder: { name, type: type || "military", era: "ancient" } };
+        };
+        // Drive the attack and hand back the authoritative combat numbers.
+        const fight = (b) => {
+          const out = Game.tryApplyAction(b.st, { type: "PLAY_MILITARY_ATTACK", payload: {
+            playerId: b.me.id, unitId: "a1", fromKey: "1,0", toKey: "2,0",
+            targetType: "control" } }, { actorId: b.me.id, role: "player" });
+          if (!out.accepted || !out.state.combat) return { ok: false, code: out.code };
+          const c = out.state.combat;
+          return { ok: true, state: out.state, combat: c,
+            atk: c.atkBase, def: c.defBase, parts: c.atkParts || [] };
+        };
+
+        // ── Terracotta Army: "When attacking, +2 combat value." ──────────
+        {
+          const plain = fight(combatBoard());
+          const withIt = fight(combatBoard({ setUp: (s2, me2) =>
+            giveWonder(s2, me2.id, "Terracotta Army") }));
+          assert("a plain attack resolves", plain.ok, plain.code);
+          assert("Terracotta Army is worth exactly +2 on the attack",
+            withIt.ok && withIt.atk === plain.atk + 2, `${plain.atk} -> ${withIt.atk}`);
+          assert("and the breakdown carries it as a wonder line worth 2",
+            withIt.parts.some((p) => /wonder/i.test(p.label) && p.value === 2),
+            JSON.stringify(withIt.parts));
+          const defending = fight(combatBoard({ setUp: (s2, me2, foe2) =>
+            giveWonder(s2, foe2.id, "Terracotta Army", "military", "4,0") }));
+          assert("it does nothing for the defender: the card says when ATTACKING",
+            defending.ok && defending.def === plain.def, `${plain.def} -> ${defending.def}`);
+          proves("wonder.military.terracotta_army");
+        }
+
+        // ── Alhambra: "attacking OR defending, +2." ──────────────────────
+        {
+          const plain = fight(combatBoard());
+          const attacking = fight(combatBoard({ setUp: (s2, me2) =>
+            giveWonder(s2, me2.id, "Alhambra") }));
+          assert("Alhambra adds 2 when attacking",
+            attacking.ok && attacking.atk === plain.atk + 2,
+            `${plain.atk} -> ${attacking.atk}`);
+          const defending = fight(combatBoard({ setUp: (s2, me2, foe2) =>
+            giveWonder(s2, foe2.id, "Alhambra", "military", "4,0") }));
+          assert("and 2 when defending, which Terracotta does not",
+            defending.ok && defending.def === plain.def + 2,
+            `${plain.def} -> ${defending.def}`);
+          proves("wonder.military.alhambra");
+        }
+
+        // ── Ruhr Valley: "When defending, +5." ───────────────────────────
+        {
+          const plain = fight(combatBoard());
+          const defending = fight(combatBoard({ setUp: (s2, me2, foe2) =>
+            giveWonder(s2, foe2.id, "Ruhr Valley", "military", "4,0") }));
+          assert("Ruhr Valley is worth 5 to the defender",
+            defending.ok && defending.def === plain.def + 5,
+            `${plain.def} -> ${defending.def}`);
+          const attacking = fight(combatBoard({ setUp: (s2, me2) =>
+            giveWonder(s2, me2.id, "Ruhr Valley") }));
+          assert("and nothing to the attacker",
+            attacking.ok && attacking.atk === plain.atk,
+            `${plain.atk} -> ${attacking.atk}`);
+          proves("wonder.military.ruhr_valley");
+        }
+
+        // ── Huey Teocalli: "+1 per WATER SPACE ADJACENT TO THE DEFENDING
+        //    SPACE, when defending." ────────────────────────────────────
+        {
+          const plain = fight(combatBoard());
+          const dry = fight(combatBoard({ setUp: (s2, me2, foe2) =>
+            giveWonder(s2, foe2.id, "Huey Teocalli", "military", "4,0") }));
+          assert("with no water beside the defending space it is worth nothing",
+            dry.ok && dry.def === plain.def, `${plain.def} -> ${dry.def}`);
+          const wet = fight(combatBoard({ setUp: (s2, me2, foe2) => {
+            giveWonder(s2, foe2.id, "Huey Teocalli", "military", "4,0");
+            // Two of the defending space's six neighbours are water.
+            activate(s2, "2,1", { terrain: "water" });
+            activate(s2, "2,-1", { terrain: "water" });
+          } }));
+          assert("two adjacent water spaces are worth exactly 2",
+            wet.ok && wet.def === plain.def + 2, `${plain.def} -> ${wet.def}`);
+          const oneWet = fight(combatBoard({ setUp: (s2, me2, foe2) => {
+            giveWonder(s2, foe2.id, "Huey Teocalli", "military", "4,0");
+            activate(s2, "2,1", { terrain: "water" });
+          } }));
+          assert("and one is worth exactly 1, so it counts spaces rather than a flat bonus",
+            oneWet.ok && oneWet.def === plain.def + 1, `${plain.def} -> ${oneWet.def}`);
+          proves("wonder.military.huey_teocalli");
+        }
+
+        // ── Big Ben: "+2 for each of your CARAVANS ADJACENT TO THE
+        //    DEFENDING SPACE, attacking or defending." ──────────────────
+        {
+          const plain = fight(combatBoard());
+          const none = fight(combatBoard({ setUp: (s2, me2) =>
+            giveWonder(s2, me2.id, "Big Ben", "economy") }));
+          assert("with no caravan near the fight Big Ben is worth nothing",
+            none.ok && none.atk === plain.atk, `${plain.atk} -> ${none.atk}`);
+          const one = fight(combatBoard({ setUp: (s2, me2) => {
+            giveWonder(s2, me2.id, "Big Ben", "economy");
+            me2.caravans = [{ id: "c1", position: "2,1" }];   // beside 2,0
+          } }));
+          assert("one adjacent caravan is worth 2",
+            one.ok && one.atk === plain.atk + 2, `${plain.atk} -> ${one.atk}`);
+          const two = fight(combatBoard({ setUp: (s2, me2) => {
+            giveWonder(s2, me2.id, "Big Ben", "economy");
+            me2.caravans = [{ id: "c1", position: "2,1" }, { id: "c2", position: "2,-1" }];
+          } }));
+          assert("two are worth 4, so it counts caravans",
+            two.ok && two.atk === plain.atk + 4, `${plain.atk} -> ${two.atk}`);
+          const far = fight(combatBoard({ setUp: (s2, me2) => {
+            giveWonder(s2, me2.id, "Big Ben", "economy");
+            me2.caravans = [{ id: "c1", position: "5,0" }];   // nowhere near
+          } }));
+          assert("a caravan away from the defending space counts for nothing",
+            far.ok && far.atk === plain.atk, `${plain.atk} -> ${far.atk}`);
+          proves("wonder.economy.big_ben");
+        }
+
+        // ── Kremlin: "+4 when attacking a rival space (NOT CITY-STATE) if you
+        //    have MORE reinforced control tokens on the map than the
+        //    defending player." ────────────────────────────────────────
+        {
+          const plain = fight(combatBoard());
+          const behind = fight(combatBoard({ setUp: (s2, me2, foe2) => {
+            giveWonder(s2, me2.id, "Kremlin");
+            activate(s2, "3,0", { control: { ownerId: foe2.id, fortified: true, district: null } });
+          } }));
+          assert("with fewer reinforced tokens than the defender it adds nothing",
+            behind.ok && behind.atk === plain.atk, `${plain.atk} -> ${behind.atk}`);
+          const level = fight(combatBoard({ setUp: (s2, me2, foe2) => {
+            giveWonder(s2, me2.id, "Kremlin");
+            activate(s2, "3,0", { control: { ownerId: foe2.id, fortified: true, district: null } });
+            activate(s2, "0,1", { control: { ownerId: me2.id, fortified: true, district: null } });
+          } }));
+          assert("level pegging is not MORE, so it still adds nothing",
+            level.ok && level.atk === plain.atk, `${plain.atk} -> ${level.atk}`);
+          const ahead = fight(combatBoard({ setUp: (s2, me2, foe2) => {
+            giveWonder(s2, me2.id, "Kremlin");
+            activate(s2, "3,0", { control: { ownerId: foe2.id, fortified: true, district: null } });
+            activate(s2, "0,1", { control: { ownerId: me2.id, fortified: true, district: null } });
+            activate(s2, "0,-1", { control: { ownerId: me2.id, fortified: true, district: null } });
+          } }));
+          assert("being ahead on reinforced tokens is worth 4",
+            ahead.ok && ahead.atk === plain.atk + 4, `${plain.atk} -> ${ahead.atk}`);
+          proves("wonder.science.kremlin");
+        }
+
+        // ── Pentagon: "+2 attacking. Your armies can move ANY NUMBER of
+        //    spaces (still obeying all other movement rules)." ──────────
+        {
+          const plain = fight(combatBoard());
+          const withIt = fight(combatBoard({ setUp: (s2, me2) =>
+            giveWonder(s2, me2.id, "Pentagon") }));
+          assert("Pentagon adds 2 to an attack",
+            withIt.ok && withIt.atk === plain.atk + 2, `${plain.atk} -> ${withIt.atk}`);
+
+          // The movement half: the same army, the same board, one wonder apart.
+          const reach = (hasPentagon) => {
+            const b = combatBoard({ setUp: (s2, me2) => {
+              // Lay the lane FIRST: activate() resets a hex, and clearing the
+              // capital would take the wonder with it.
+              for (let q = -2; q <= 5; q++) activate(s2, q + ",0", { terrain: "grass" });
+              activate(s2, "3,1", { terrain: "water" });
+              if (hasPentagon) giveWonder(s2, me2.id, "Pentagon");
+            } });
+            b.me.armies = [{ id: "a1", position: "-2,0" }];
+            return Game.getReachable(b.st, "-2,0", Game.getMilitaryMove(b.me, b.st),
+              "army", b.me.id);
+          };
+          const without = reach(false);
+          const withP = reach(true);
+          assert("without Pentagon the far end of the lane is out of reach",
+            !without.has("5,0"), [...without].sort().join(" "));
+          assert("with it the army can cross the whole lane",
+            withP.has("5,0"), [...withP].sort().join(" "));
+          assert("but the other movement rules still hold: water is still closed",
+            !withP.has("3,1"), [...withP].sort().join(" "));
+          proves("wonder.military.pentagon");
+        }
+
+        // ── Jebel Barkal: "you can spend RESOURCE tokens (NOT NATURAL WONDER
+        //    tokens) to increase your combat value by +2 for each." ─────
+        {
+          const b = combatBoard({ setUp: (s2, me2) => {
+            giveWonder(s2, me2.id, "Jebel Barkal");
+            Game.RESOURCES.forEach((r) => { me2.resources[r] = 2; });
+            // A natural wonder token of the player's own, which must NOT be
+            // spendable here even though it is a resource icon.
+            activate(s2, "0,1", { terrain: "grass",
+              naturalWonderSpace: "Mt Kilimanjaro",
+              control: { ownerId: me2.id, fortified: false, district: null } });
+            s2.naturalWonders = { "Mt Kilimanjaro": { name: "Mt Kilimanjaro",
+              resource: "oil", homeKey: "0,1", ownerId: me2.id,
+              spaceControllerId: me2.id, focusCard: null } };
+          } });
+          const started = fight(b);
+          assert("the fight starts", started.ok, started.code);
+          let s = Game.applyAction(started.state, { type: "COMBAT_ROLL",
+            payload: { playerId: b.me.id, side: "attacker" } });
+          s = Game.applyAction(s, { type: "COMBAT_ROLL",
+            payload: { playerId: b.me.id, side: "defender", hostOverride: true } });
+          const burnable = Game.combatResources(s, s.combat, "attacker");
+          assert("Jebel Barkal offers ordinary resources to burn",
+            burnable.length > 0, JSON.stringify(burnable));
+          const totalBefore = s.combat.atkRoll + s.combat.atkBase +
+            s.combat.atkTrade + (s.combat.atkResource || 0);
+          const resBefore = s.players[0].resources[burnable[0]];
+          const burned = Game.applyAction(s, { type: "COMBAT_SPEND", payload: {
+            playerId: b.me.id, side: "attacker", mode: "resource", resource: burnable[0] } });
+          const totalAfter = burned.combat.atkRoll + burned.combat.atkBase +
+            burned.combat.atkTrade + (burned.combat.atkResource || 0);
+          assert("burning one resource is worth exactly +2",
+            totalAfter === totalBefore + 2, `${totalBefore} -> ${totalAfter}`);
+          assert("and the token is really gone",
+            burned.players[0].resources[burnable[0]] === resBefore - 1,
+            `${resBefore} -> ${burned.players[0].resources[burnable[0]]}`);
+          assert("a natural wonder token is NOT among the things it may burn",
+            !Game.combatResources(s, s.combat, "attacker")
+              .some((r) => r === "Mt Kilimanjaro"),
+            JSON.stringify(Game.combatResources(s, s.combat, "attacker")));
+          assert("and the player still holds it afterwards",
+            Game.getControlledNaturalWonders(burned, b.me.id)
+              .some((e) => e.name === "Mt Kilimanjaro"),
+            JSON.stringify(Game.getControlledNaturalWonders(burned, b.me.id)));
+          proves("wonder.military.jebel_barkal");
+        }
+      }
+
       summary.textContent = `${passed} passed, ${failed} failed`;
     } catch (err) {
       failed++;
