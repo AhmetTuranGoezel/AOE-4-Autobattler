@@ -11419,6 +11419,182 @@
 
 
 
+
+      {
+        // THE FOCUS ROW AND THE TECH DIAL — the two systems every card in the
+        // game runs on, and neither had a row on the checklist.
+        const rowBoard = () => {
+          const st = rulesState();
+          const me = st.players[0];
+          me.cardPlayed = false;
+          st.turn.index = st.turn.order.indexOf(me.id);
+          Game.FOCUS_TYPES.forEach((t) => { me.trade[t] = 0; });
+          me.focusRow = ["culture", "growth", "science", "economy", "military", "industry"];
+          return { st, me };
+        };
+
+        // ── Resolving a card resets it to the front ─────────────────────
+        {
+          const { st, me } = rowBoard();
+          const before = me.focusRow.slice();
+          assert("the row holds each of the six types exactly once",
+            before.length === 6 && new Set(before).size === 6, JSON.stringify(before));
+          const out = Game.applyAction(st, { type: "PLAY_SCIENCE",
+            payload: { playerId: me.id, tradeSpent: 0 } });
+          const after = Game.getPlayer(out, me.id).focusRow;
+          assert("the resolved card goes to the FRONT of the row",
+            after[0] === "science", JSON.stringify(after));
+          assert("and the cards that were ahead of it shift one place right",
+            after[1] === before[0] && after[2] === before[1],
+            JSON.stringify({ before, after }));
+          assert("the cards behind it do not move",
+            after.slice(3).join(",") === before.slice(3).join(","),
+            JSON.stringify({ before, after }));
+          assert("the row still holds each type exactly once",
+            after.length === 6 && new Set(after).size === 6, JSON.stringify(after));
+          assert("and the turn's card is spent",
+            Game.getPlayer(out, me.id).cardPlayed === true);
+        }
+
+        // ── A card's number is the place it sits in ──────────────────────
+        {
+          const { st, me } = rowBoard();
+          // FOCUS_SLOTS is [1,1,2,3,4,5]: six places, five printed numbers.
+          assert("the printed places read 1,1,2,3,4,5",
+            JSON.stringify(Game.FOCUS_SLOTS) === JSON.stringify([1, 1, 2, 3, 4, 5]),
+            JSON.stringify(Game.FOCUS_SLOTS));
+          me.focusRow.forEach((type, idx) => {
+            assert(`the card in place ${idx} resolves as slot ${Game.FOCUS_SLOTS[idx]}`,
+              Game.getSlotValue(me, type, st) === Game.FOCUS_SLOTS[idx],
+              `${type}: ${Game.getSlotValue(me, type, st)}`);
+          });
+          // ...and after resetting, the card that moved has the front number.
+          const out = Game.applyAction(st, { type: "PLAY_SCIENCE",
+            payload: { playerId: me.id, tradeSpent: 0 } });
+          const p = Game.getPlayer(out, me.id);
+          assert("a card just reset is worth the front number again",
+            Game.getSlotValue(p, "science", out) === Game.FOCUS_SLOTS[0],
+            String(Game.getSlotValue(p, "science", out)));
+        }
+
+        // ── One card per turn, and no passing ────────────────────────────
+        {
+          const { st, me } = rowBoard();
+          const first = Game.applyAction(st, { type: "PLAY_SCIENCE",
+            payload: { playerId: me.id, tradeSpent: 0 } });
+          const techAfterFirst = Game.getPlayer(first, me.id).tech;
+          const second = Game.applyAction(first, { type: "PLAY_SCIENCE",
+            payload: { playerId: me.id, tradeSpent: 0 } });
+          assert("a second card in the same turn does nothing",
+            Game.getPlayer(second, me.id).tech === techAfterFirst,
+            `${techAfterFirst} -> ${Game.getPlayer(second, me.id).tech}`);
+
+          const fresh = rowBoard();
+          const passed = Game.tryApplyAction(fresh.st, { type: "END_TURN",
+            payload: { playerId: fresh.me.id } },
+            { actorId: fresh.me.id, role: "player" });
+          assert("and a turn cannot be ended before a card is resolved: no passing",
+            !passed.accepted, passed.code);
+        }
+
+        // ── The tech dial and its printed tabs ───────────────────────────
+        {
+          assert("the printed tabs are II at 3 and 6, III at 10 and 14, IV at 19 and 24",
+            JSON.stringify(Game.TECH_LEVEL_SPACES) ===
+              JSON.stringify({ 3: 2, 6: 2, 10: 3, 14: 3, 19: 4, 24: 4 }),
+            JSON.stringify(Game.TECH_LEVEL_SPACES));
+
+          const dialTo = (start, amount) => {
+            const { st, me } = rowBoard();
+            me.tech = start;
+            Game.advanceTech(st, Game.getPlayer(st, me.id), amount);
+            return { st, me: Game.getPlayer(st, me.id) };
+          };
+          {
+            const d = dialTo(0, 2);
+            assert("moving short of a tab just moves the dial",
+              d.me.tech === 2 && !(d.st.pendingChoices || [])
+                .some((c) => c.kind === "science_upgrade"),
+              JSON.stringify({ tech: d.me.tech,
+                choices: (d.st.pendingChoices || []).map((c) => c.kind) }));
+          }
+          {
+            const d = dialTo(0, 3);
+            const offers = (d.st.pendingChoices || [])
+              .filter((c) => c.kind === "science_upgrade");
+            assert("reaching a tab offers a card of exactly that level",
+              offers.length === 1 && offers[0].techLevel === 2,
+              JSON.stringify(offers.map((c) => c.techLevel)));
+            assert("and the offer is optional, as base p8 prints it",
+              offers[0].optional === true);
+          }
+          {
+            // "Crossing more than one printed tab creates more than one prompt."
+            const d = dialTo(2, 5);      // 2 -> 7, crossing 3 and 6
+            const offers = (d.st.pendingChoices || [])
+              .filter((c) => c.kind === "science_upgrade");
+            assert("crossing two tabs in one move offers two cards",
+              offers.length === 2, JSON.stringify(offers.map((c) => c.techLevel)));
+            assert("and the dial ends where it was sent",
+              d.me.tech === 7, String(d.me.tech));
+          }
+          {
+            // The dial does not wrap by the overshoot: it returns to 15, so the
+            // 15-24 stretch can be run again for further level IV cards.
+            const d = dialTo(23, 4);     // would be 27
+            assert("overshooting the end of the dial returns it to 15",
+              d.me.tech === Game.CFG.techResetAt && d.me.tech === 15,
+              String(d.me.tech));
+            const offers = (d.st.pendingChoices || [])
+              .filter((c) => c.kind === "science_upgrade");
+            assert("and the tab it passed on the way still pays",
+              offers.some((c) => c.techLevel === 4),
+              JSON.stringify(offers.map((c) => c.techLevel)));
+          }
+          {
+            // Taking the offer really upgrades the card, to the tab's level.
+            const d = dialTo(0, 3);
+            const offer = (d.st.pendingChoices || [])
+              .find((c) => c.kind === "science_upgrade");
+            const before = d.me.cardTiers.military;
+            const taken = Game.applyAction(d.st, { type: "RESOLVE_PENDING_CHOICE",
+              payload: { playerId: d.me.id, choiceId: offer.id, optionId: "military" } });
+            const after = Game.getPlayer(taken, d.me.id).cardTiers.military;
+            assert("taking a level-II tab gives a level-II card",
+              after === 2 && after > before, `${before} -> ${after}`);
+            assert("and it is recorded as an upgrade this turn, which Sankore reads",
+              Game.getPlayer(taken, d.me.id).upgradedThisTurn === true);
+          }
+          {
+            // Declining leaves the card alone: the dial still moved.
+            const d = dialTo(0, 3);
+            const offer = (d.st.pendingChoices || [])
+              .find((c) => c.kind === "science_upgrade");
+            const before = JSON.stringify(d.me.cardTiers);
+            const declined = Game.applyAction(d.st, { type: "RESOLVE_PENDING_CHOICE",
+              payload: { playerId: d.me.id, choiceId: offer.id, dismiss: true } });
+            assert("declining a tab leaves every card where it was",
+              JSON.stringify(Game.getPlayer(declined, d.me.id).cardTiers) === before,
+              JSON.stringify(Game.getPlayer(declined, d.me.id).cardTiers));
+            assert("but the dial keeps the space it moved",
+              Game.getPlayer(declined, d.me.id).tech === 3,
+              String(Game.getPlayer(declined, d.me.id).tech));
+          }
+          {
+            // A card already at level IV is the top of its ladder.
+            const { st, me } = rowBoard();
+            Game.FOCUS_TYPES.forEach((t) => { me.cardTiers[t] = 4; me.cardLevels[t] = 4; });
+            me.tech = 0;
+            Game.advanceTech(st, Game.getPlayer(st, me.id), 3);
+            assert("with every card at level IV a tab offers nothing",
+              !(st.pendingChoices || []).some((c) => c.kind === "science_upgrade"),
+              JSON.stringify((st.pendingChoices || []).map((c) => c.kind)));
+            assert("and the dial still moves",
+              Game.getPlayer(st, me.id).tech === 3,
+              String(Game.getPlayer(st, me.id).tech));
+          }
+        }
+      }
       {
         // EXPLORATION and MAP POPULATION, the two halves of how the board grows.
 
