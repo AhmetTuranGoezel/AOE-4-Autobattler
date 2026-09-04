@@ -11417,6 +11417,202 @@
 
 
 
+
+      {
+        // MAP GENERATION, FORTRESS LEGALITY AND THE TRADE-TOKEN CAP. Three
+        // small systems the checklist still called partial.
+
+        // ── The core, and how many tiles it is ───────────────────────────
+        {
+          const coreFor = (n) => {
+            const seats = Array.from({ length: n }, (_, i) =>
+              Game.createPlayer("c" + i, "C" + i,
+                ["#e63946", "#457b9d", "#2a9d8f", "#e9c46a", "#9b5de5"][i]));
+            const st = Game.createState(seats);
+            const tiles = new Set();
+            Object.values(st.map.hexes).forEach((h) => {
+              if (h.active && h.tileId) tiles.add(h.tileId);
+            });
+            return { st, tiles: [...tiles] };
+          };
+          [2, 3].forEach((n) => {
+            const c = coreFor(n);
+            assert(`a ${n}-player core is two tiles`, c.tiles.length === 2,
+              `${n}: ${c.tiles.join(" ")}`);
+            assert(`and ${n} players get ${n * 10} core spaces on the board`,
+              Object.values(c.st.map.hexes).filter((h) => h.active).length === 20,
+              String(Object.values(c.st.map.hexes).filter((h) => h.active).length));
+          });
+          [4, 5].forEach((n) => {
+            const c = coreFor(n);
+            assert(`a ${n}-player core is four tiles`, c.tiles.length === 4,
+              `${n}: ${c.tiles.join(" ")}`);
+            assert(`laying forty core spaces for ${n} players`,
+              Object.values(c.st.map.hexes).filter((h) => h.active).length === 40,
+              String(Object.values(c.st.map.hexes).filter((h) => h.active).length));
+          });
+          assert("the anchor table says the same thing",
+            Game.getCoreAnchors(2).length === 2 && Game.getCoreAnchors(3).length === 2 &&
+            Game.getCoreAnchors(4).length === 4 && Game.getCoreAnchors(5).length === 4);
+          const c5 = coreFor(5);
+          assert("no core tile is laid twice",
+            new Set(c5.tiles).size === c5.tiles.length, c5.tiles.join(" "));
+          assert("and every core tile is a non-capital tile",
+            c5.tiles.every((id) => {
+              const def = Game.getTileDef(id);
+              return def && def.kind !== "capital";
+            }), c5.tiles.join(" "));
+        }
+
+        // ── Fortress placement legality ──────────────────────────────────
+        {
+          // "An inactive space bordering at least two active spaces", and not
+          // beside a fort already placed or a city-state.
+          const st = rulesState();
+          const valid = Game.getValidFortressHexes(st);
+          assert("there are legal fortress spaces on a fresh board",
+            valid.size > 0, String(valid.size));
+          const activeCount = (key) => Game.hexNeighborKeys(Game.parseQ(key), Game.parseR(key))
+            .filter((nk) => st.map.hexes[nk] && st.map.hexes[nk].active).length;
+          assert("every legal space is INACTIVE",
+            [...valid].every((k) => !st.map.hexes[k].active));
+          assert("and borders at least two active spaces",
+            [...valid].every((k) => activeCount(k) >= 2),
+            JSON.stringify([...valid].slice(0, 4).map((k) => [k, activeCount(k)])));
+          const oneNeighbour = Object.keys(st.map.hexes).find((k) =>
+            !st.map.hexes[k].active && activeCount(k) === 1);
+          assert("a space touching only ONE active space is not legal",
+            !oneNeighbour || !valid.has(oneNeighbour), String(oneNeighbour));
+
+          // Placing one closes its neighbours to a second. PLACE_FORTRESS is a
+          // setup action, so this half runs on a state still IN setup rather
+          // than on the playing fixture above.
+          const setupState = Game.createState(players(2));
+          const setupValid = Game.getValidFortressHexes(setupState);
+          const first = [...setupValid][0];
+          assert("the fortress step is open at setup",
+            setupState.setup.phase === "fortress", setupState.setup.phase);
+          const placed = Game.applyAction(setupState, { type: "PLACE_FORTRESS", payload: {
+            playerId: setupState.setup.order[setupState.setup.turnIndex], hexKey: first } });
+          assert("placing a fortress puts it on the board",
+            placed.map.hexes[first].fortress === true);
+          const after = Game.getValidFortressHexes(placed);
+          assert("and no space beside it is legal any more",
+            Game.hexNeighborKeys(Game.parseQ(first), Game.parseR(first))
+              .every((nk) => !after.has(nk)),
+            Game.hexNeighborKeys(Game.parseQ(first), Game.parseR(first))
+              .filter((nk) => after.has(nk)).join(" "));
+          assert("nor is the space it now occupies",
+            !after.has(first));
+
+          // A city-state next door closes a space too.
+          const csBoard = rulesState();
+          const spot = [...Game.getValidFortressHexes(csBoard)][0];
+          const neighbour = Game.hexNeighborKeys(Game.parseQ(spot), Game.parseR(spot))
+            .find((nk) => csBoard.map.hexes[nk] && csBoard.map.hexes[nk].active);
+          csBoard.map.hexes[neighbour].cityState =
+            { name: "Test State", type: "science", diplomacyCards: 2 };
+          assert("a space beside a city-state is not a legal fortress space",
+            !Game.getValidFortressHexes(csBoard).has(spot), spot);
+        }
+
+        // ── The three-token cap on a focus card ──────────────────────────
+        {
+          // Base p13: a focus card holds at most three trade tokens. The cap is
+          // per CARD, so filling one leaves the others untouched.
+          const st = rulesState();
+          const me = st.players[0];
+          st.turn.index = st.turn.order.indexOf(me.id);
+          Game.FOCUS_TYPES.forEach((t) => { me.trade[t] = 0; });
+          me.focusRow = ["culture", "science", "growth", "economy", "military", "industry"];
+          const addOne = (s, type) => {
+            s.pendingBarbReward = { playerId: me.id, cardResolutionId: null };
+            return Game.applyAction(s, { type: "ADD_TRADE",
+              payload: { playerId: me.id, cardType: type } });
+          };
+          let s = st;
+          for (let i = 0; i < 3; i++) s = addOne(s, "military");
+          assert("three tokens go onto a card",
+            Game.getPlayer(s, me.id).trade.military === 3,
+            String(Game.getPlayer(s, me.id).trade.military));
+          s = addOne(s, "military");
+          assert("and a fourth does not: the card is full",
+            Game.getPlayer(s, me.id).trade.military === 3,
+            String(Game.getPlayer(s, me.id).trade.military));
+          assert("the cap is per card, so the others are untouched",
+            Game.FOCUS_TYPES.filter((t) => t !== "military")
+              .every((t) => Game.getPlayer(s, me.id).trade[t] === 0),
+            JSON.stringify(Game.getPlayer(s, me.id).trade));
+          s = addOne(s, "culture");
+          assert("and a different card still takes one",
+            Game.getPlayer(s, me.id).trade.culture === 1,
+            String(Game.getPlayer(s, me.id).trade.culture));
+          assert("each type keeps its own track",
+            Game.getPlayer(s, me.id).trade.military === 3 &&
+            Game.getPlayer(s, me.id).trade.culture === 1,
+            JSON.stringify(Game.getPlayer(s, me.id).trade));
+        }
+
+        // ── Resources: gained from the map, spent on a wonder ────────────
+        {
+          // A control token placed on a resource space COLLECTS that token and
+          // clears the space; spending it on a wonder consumes it.
+          const st = rulesState();
+          const me = st.players[0];
+          me.cardPlayed = false;
+          st.turn.index = st.turn.order.indexOf(me.id);
+          Game.RESOURCES.forEach((r) => { me.resources[r] = 0; });
+          Object.values(st.map.hexes).forEach((h) => {
+            h.barbarian = false; h.barbarianId = null; h.control = null; h.city = null;
+            h.cityState = null; h.resource = null;
+            h.naturalWonder = null; h.naturalWonderSpace = null;
+          });
+          st.naturalWonders = {};
+          for (let q = -2; q <= 4; q++) {
+            for (let r = -2; r <= 2; r++) activate(st, q + "," + r, { terrain: "grass" });
+          }
+          st.map.hexes["0,0"].city = { ownerId: me.id, isCapital: true,
+            developed: false, hasWonder: false, wonder: null };
+          activate(st, "1,0", { terrain: "grass", resource: "marble" });
+          me.focusRow = ["culture", "science", "growth", "economy", "military", "industry"];
+          const out = Game.tryApplyAction(st, { type: "PLAY_CULTURE", payload: {
+            playerId: me.id, hexKeys: ["1,0"], tradeSpent: 0 } },
+            { actorId: me.id, role: "player" });
+          assert("a control token can be placed on a resource space", out.accepted, out.code);
+          assert("placing it collects the resource",
+            out.state.players[0].resources.marble === 1,
+            String(out.state.players[0].resources.marble));
+          assert("and the space no longer carries one",
+            out.state.map.hexes["1,0"].resource === null,
+            String(out.state.map.hexes["1,0"].resource));
+          assert("the token is on the board",
+            out.state.map.hexes["1,0"].control.ownerId === me.id);
+
+          // Spending it: a wonder that prints marble consumes the token.
+          const s2 = out.state;
+          const player = s2.players[0];
+          player.cardPlayed = false;
+          Game.RESOURCES.forEach((r) => { player.resources[r] = 0; });
+          player.resources.marble = 9;
+          const deck = s2.wonderDecks.culture;
+          deck.deck = ["Cristo Redentor"].concat(
+            deck.deck.filter((n) => n !== "Cristo Redentor"));
+          deck.revealed = "Cristo Redentor";
+          const before = player.resources.marble;
+          const built = Game.tryApplyAction(s2, { type: "PLAY_INDUSTRY_WONDER", payload: {
+            hexKey: "0,0", wonderName: "Cristo Redentor", tradeSpent: 0,
+            resources: { marble: 9 }, naturalWonders: [] } },
+            { actorId: player.id, role: "player" });
+          assert("the wonder is bought with them", built.accepted, built.code);
+          assert("and the tokens are really spent",
+            built.accepted && built.state.players[0].resources.marble < before,
+            built.accepted && `${before} -> ${built.state.players[0].resources.marble}`);
+          const ineligible = Game.calculateWonderProduction(s2, player, "Cristo Redentor",
+            { tradeSpent: 0, resources: { oil: 1 }, naturalWonders: [] });
+          assert("a resource the wonder does not print is refused",
+            !ineligible.ok, JSON.stringify(ineligible));
+        }
+      }
       {
         // THE EVENT DIAL, as a system. The wheel turns once per ROUND, not
         // once per turn; it turns after the last seat has played, in printed
