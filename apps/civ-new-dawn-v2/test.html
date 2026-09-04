@@ -11418,6 +11418,228 @@
 
 
 
+
+      {
+        // EXPLORATION and MAP POPULATION, the two halves of how the board grows.
+
+        // Exploration sets out from the edge of a tile that HOLDS A CAPITAL,
+        // and rulesState() skips the setup step that lays one, so every board
+        // in this section plants a capital on a core tile first.
+        const exploreState = () => {
+          const st = rulesState();
+          const me = st.players[0];
+          me.cardPlayed = false;
+          st.turn.index = st.turn.order.indexOf(me.id);
+          const homeKey = Object.keys(st.map.hexes).find((k) => {
+            const h = st.map.hexes[k];
+            return h.active && h.tileId && !h.city && !h.cityState && h.terrain !== "water";
+          });
+          st.map.hexes[homeKey].city = { ownerId: me.id, isCapital: true,
+            developed: false, hasWonder: false, wonder: null };
+          st.map.hexes[homeKey].resource = null;
+          st.map.hexes[homeKey].barbarian = false;
+          // The tile stack is materialised by migrateState, and exploration is
+          // closed while it looks empty, so normalise the state first.
+          Game.applyAction(st, { type: "NO_SUCH_ACTION", payload: {} });
+          return { st, me, homeKey };
+        };
+
+        // ── Where an expedition may set out from ─────────────────────────
+        {
+          const st = exploreState().st;
+          const edgeKeys = Object.keys(st.map.hexes).filter((k) =>
+            Game.isExploreEligible(st, k));
+          assert("a fresh board offers somewhere to explore from",
+            edgeKeys.length > 0, String(edgeKeys.length));
+          assert("every one of them is an ACTIVE space",
+            edgeKeys.every((k) => st.map.hexes[k].active));
+          assert("every one is on the edge, with a neighbour off the board",
+            edgeKeys.every((k) => Game.hexNeighborKeys(Game.parseQ(k), Game.parseR(k))
+              .some((nk) => !st.map.hexes[nk] || !st.map.hexes[nk].active)));
+          const interior = Object.keys(st.map.hexes).find((k) =>
+            st.map.hexes[k].active &&
+            Game.hexNeighborKeys(Game.parseQ(k), Game.parseR(k))
+              .every((nk) => st.map.hexes[nk] && st.map.hexes[nk].active));
+          if (interior) {
+            assert("and a space ringed by board on all six sides is not offered",
+              !Game.isExploreEligible(st, interior), interior);
+          }
+          assert("and they all sit on a tile that holds a capital",
+            edgeKeys.every((k) => Game.tileHasCapital(st, st.map.hexes[k].tileId)));
+          // The stack running out closes exploration altogether.
+          const empty = exploreState().st;
+          Game.applyAction(empty, { type: "NO_SUCH_ACTION", payload: {} });
+          empty.tileStack = [];
+          assert("with no tiles left nothing is explorable",
+            Object.keys(empty.map.hexes).every((k) => !Game.isExploreEligible(empty, k)));
+        }
+
+        // ── A real expedition places a real tile ─────────────────────────
+        {
+          const { st, me } = exploreState();
+          Game.applyAction(st, { type: "NO_SUCH_ACTION", payload: {} });
+          const stackBefore = (st.tileStack || []).length;
+          const activeBefore = Object.values(st.map.hexes).filter((h) => h.active).length;
+          const fromKey = Object.keys(st.map.hexes).find((k) => Game.isExploreEligible(st, k));
+          assert("there is an edge space to set out from", !!fromKey, fromKey);
+          // Terra p12: a FIGURE explores, once per move, so one has to be
+          // standing on the space the expedition sets out from.
+          me.armies = [{ id: "a1", position: fromKey }];
+          const begun = Game.tryApplyAction(st, { type: "BEGIN_EXPLORATION",
+            payload: { playerId: me.id, fromKey } }, { actorId: me.id, role: "player" });
+          assert("an expedition can begin", begun.accepted, begun.code);
+          const pending = begun.accepted && begun.state.pendingExploration;
+          assert("and a tile is revealed and held", !!pending && !!pending.tileId,
+            JSON.stringify(pending));
+          assert("taken off the stack",
+            (begun.state.tileStack || []).length === stackBefore - 1,
+            `${stackBefore} -> ${(begun.state.tileStack || []).length}`);
+          const places = Game.getLegalExplorationPlacements(begun.state, pending);
+          assert("the revealed tile has somewhere legal to go",
+            places.length > 0, String(places.length));
+          const placed = Game.tryApplyAction(begun.state, { type: "PLACE_EXPLORED_TILE",
+            payload: { playerId: me.id, anchorKey: places[0].anchorKey,
+              rotation: places[0].rotation, side: places[0].side } },
+            { actorId: me.id, role: "player" });
+          assert("placing it is accepted", placed.accepted, placed.code);
+          assert("the exploration is finished", placed.accepted &&
+            !placed.state.pendingExploration);
+          const activeAfter = Object.values(placed.state.map.hexes)
+            .filter((h) => h.active).length;
+          assert("and the board grew by the tile's ten spaces",
+            activeAfter === activeBefore + 10, `${activeBefore} -> ${activeAfter}`);
+          assert("every one of them carries the tile it came from",
+            Object.values(placed.state.map.hexes)
+              .filter((h) => h.tileId === pending.tileId).length === 10,
+            String(Object.values(placed.state.map.hexes)
+              .filter((h) => h.tileId === pending.tileId).length));
+        }
+
+        // ── Abandoning ───────────────────────────────────────────────────
+        {
+          const { st, me } = exploreState();
+          Game.applyAction(st, { type: "NO_SUCH_ACTION", payload: {} });
+          const fromKey = Object.keys(st.map.hexes).find((k) => Game.isExploreEligible(st, k));
+          me.armies = [{ id: "a1", position: fromKey }];
+          const begun = Game.tryApplyAction(st, { type: "BEGIN_EXPLORATION",
+            payload: { playerId: me.id, fromKey } }, { actorId: me.id, role: "player" });
+          const pending = begun.state.pendingExploration;
+          const canAbandon = Game.canAbandonExploration(begun.state, me.id);
+          assert("a tile that still fits may not be abandoned",
+            !canAbandon.ok && canAbandon.code === "tile_still_fits",
+            JSON.stringify(canAbandon));
+          const wrongSeat = Game.canAbandonExploration(begun.state, begun.state.players[1].id);
+          assert("and the expedition belongs to the seat that began it",
+            !wrongSeat.ok && wrongSeat.code === "exploration_owner_mismatch",
+            JSON.stringify(wrongSeat));
+          assert("the held tile keeps its identity while the choice is open",
+            begun.state.pendingExploration.tileId === pending.tileId);
+        }
+
+        // ── Map population: every printed cell reaches the board ─────────
+        {
+          // The tiles are the authority for what stands on the board. Every
+          // active space is checked back against the exact printed cell of the
+          // exact side that was laid.
+          const st = rulesState();
+          const data = window.CivRulesData;
+          let cells = 0, resources = 0, cityStates = 0, wonders = 0, barbs = 0;
+          const wrong = [];
+          Object.entries(st.map.hexes).forEach(([k, h]) => {
+            if (!h.active || !h.tileId || !Number.isInteger(h.tileCell)) return;
+            const def = data.TILES.find((t) => t.id === h.tileId);
+            const side = def && def.sides[h.tileSide || "A"];
+            const printed = side && side.cells[h.tileCell];
+            if (!printed) return;
+            cells++;
+            if (printed.resource) {
+              resources++;
+              // A capital tile overwrites its own star space, and a claimed
+              // natural wonder clears its token; anything else must match.
+              if (!h.city && h.resource !== printed.resource &&
+                  !(printed.naturalWonder && h.resource === "wonder")) {
+                wrong.push([k, "resource", printed.resource, h.resource]);
+              }
+            }
+            if (printed.cityState) {
+              cityStates++;
+              if (!h.cityState || h.cityState.name !== printed.cityState) {
+                wrong.push([k, "cityState", printed.cityState,
+                  h.cityState && h.cityState.name]);
+              }
+            }
+            if (printed.naturalWonder) {
+              wonders++;
+              if (h.naturalWonderSpace !== printed.naturalWonder) {
+                wrong.push([k, "naturalWonder", printed.naturalWonder, h.naturalWonderSpace]);
+              }
+            }
+            if (printed.barbarian) barbs++;
+          });
+          assert("the core laid real printed cells on the board", cells >= 20, String(cells));
+          assert("every printed resource, city-state and natural wonder on those cells is on the board",
+            wrong.length === 0, JSON.stringify(wrong.slice(0, 5)));
+          assert("and the core carried at least one of each kind of feature between them",
+            resources + cityStates + wonders + barbs > 0,
+            JSON.stringify({ resources, cityStates, wonders, barbs }));
+          // A natural wonder space also carries the "wonder" resource sentinel,
+          // which is what marks the token as still standing there.
+          const nwKeys = Object.entries(st.map.hexes)
+            .filter(([, h]) => h.active && h.naturalWonderSpace && h.naturalWonder)
+            .map(([k]) => k);
+          assert("an unclaimed natural wonder space advertises its token",
+            nwKeys.every((k) => st.map.hexes[k].resource === "wonder"),
+            JSON.stringify(nwKeys.slice(0, 4).map((k) => [k, st.map.hexes[k].resource])));
+          assert("and every natural wonder on the board has a known resource",
+            nwKeys.every((k) =>
+              !!Game.NATURAL_WONDER_RESOURCES[st.map.hexes[k].naturalWonderSpace]),
+            JSON.stringify(nwKeys.map((k) => st.map.hexes[k].naturalWonderSpace)));
+        }
+
+        // ── The world wonder deck, including the removal step ────────────
+        {
+          const st = rulesState();
+          assert("the pool is the full 36 printed wonders",
+            Game.ALL_WONDERS.length === 36, String(Game.ALL_WONDERS.length));
+          const byType = {};
+          Game.ALL_WONDERS.forEach((w) => { byType[w.type] = (byType[w.type] || 0) + 1; });
+          assert("nine of each of the four types",
+            Object.keys(byType).length === 4 &&
+            Object.values(byType).every((n) => n === 9), JSON.stringify(byType));
+          Object.entries(st.wonderDecks).forEach(([type, deck]) => {
+            // `revealed` is the TOP of the deck, not a card beside it, so the
+            // deck itself is the whole set in play.
+            const all = deck.deck;
+            assert(`the ${type} deck's face-up card is its top card`,
+              deck.revealed === deck.deck[0], `${type}: ${deck.revealed} vs ${deck.deck[0]}`);
+            assert(`the ${type} deck in play is seven cards`, all.length === 7,
+              `${type}: ${all.length}`);
+            const eras = { ancient: 0, medieval: 0, modern: 0 };
+            all.forEach((name) => {
+              const w = Game.ALL_WONDERS.find((x) => x.name === name);
+              if (w) eras[w.era]++;
+            });
+            assert(`and it is 2 ancient, 2 medieval, 3 modern for ${type}`,
+              eras.ancient === 2 && eras.medieval === 2 && eras.modern === 3,
+              `${type}: ${JSON.stringify(eras)}`);
+            // The removal step: the two cards of each type left out are named,
+            // not merely counted.
+            const printed = Game.ALL_WONDERS.filter((w) => w.type === type).map((w) => w.name);
+            const removed = printed.filter((n) => !all.includes(n));
+            assert(`exactly two ${type} wonders were removed`, removed.length === 2,
+              `${type}: ${removed.join(", ")}`);
+            assert(`and every ${type} card in play is a printed one of that type`,
+              all.every((n) => printed.includes(n)), `${type}: ${all.join(", ")}`);
+          });
+          const inPlay = Object.values(st.wonderDecks)
+            .reduce((n, d) => n + d.deck.length, 0);
+          assert("so twenty-eight wonders are in play across the four decks",
+            inPlay === 28, String(inPlay));
+          assert("and eight were removed from the thirty-six printed",
+            Game.ALL_WONDERS.length - inPlay === 8,
+            String(Game.ALL_WONDERS.length - inPlay));
+        }
+      }
       {
         // MAP GENERATION, FORTRESS LEGALITY AND THE TRADE-TOKEN CAP. Three
         // small systems the checklist still called partial.
