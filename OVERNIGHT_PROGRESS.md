@@ -9,10 +9,11 @@ Everything below refers to `apps/civ-new-dawn-v2`.
 ## Where things stand
 
 - Branch: `main`, not pushed.
-- Head at last update: `0270594`.
-- Rule harness: **1155 passed, 0 failed** (`node tools/rule-test-runner.js`).
-- `node tools/check-all.js`: **all checks green**.
-- Behavioural proof of printed effects: **64/124**.
+- Head at last update: `028c5b6`.
+- Rule harness: **1664 passed, 0 failed** (`node tools/rule-test-runner.js`).
+- `node tools/check-all.js`: **all checks green** (13 gates, including three
+  real-browser runs: smoke 37, two clients 35, five clients 39).
+- Behavioural proof of printed effects: **123/124**.
   Generic rule systems are tracked separately in
   `tools/generic-rules-checklist.md` and never count toward the 124.
 
@@ -21,105 +22,124 @@ Proof by category (from `tools/coverage-matrix.js`):
 | Category | Proven |
 |---|---|
 | Standard Focus | 24/24 |
-| Unique Focus | 0/18 |
-| Civilization abilities | 6/18 |
-| World Wonders | 6/36 |
+| Unique Focus | 18/18 |
+| Civilization abilities | 18/18 |
+| World Wonders | 35/36 |
 | Player Diplomacy | 5/5 |
 | City States | 12/12 |
 | Governments | 6/6 |
 | Districts | 5/5 |
 
+The single unproven effect is **Oxford University**, which is BLOCKED — see
+below. It is not a missing test; it is a rule that cannot be settled from the
+sources available.
+
+## Generic rule systems
+
+`tools/generic-rules-checklist.md` is the honest status list. **Every row is
+now `proven` except one**: Component supply, which is `partial` because its
+NUMBER is blocked. Nothing is on the known-broken list.
+
+The two systems every card runs on — the focus row and the tech dial — were
+added as rows of their own in `028c5b6`; they had been carrying the whole game
+without appearing on the list at all.
+
 ## Done
 
-Each of these is a rule defect found and fixed, with a behavioural regression
-that fails without the fix.
+Each of these is a rule defect found and fixed, or a system proven, with a
+behavioural regression that fails without the fix.
 
-- **Districts** — all five printed effects, both options of each where the card
-  prints a choice. Encampment targets one named figure rather than a space;
-  "within N" includes the origin, so an unreinforced encampment can reinforce
-  itself.
-- **City maturity** — derived from the current board instead of a cached flag
-  that only some actions refreshed.
-- **Barbarian defeat** — one `onBarbarianDefeated` event; all four routes
-  (combat, card effect, encampment, Currency) pay Sumeria exactly once.
-- **Currency** — clearing a barbarian no longer ends the caravan's remaining
-  movement (FAQ), and the card's reference text says so.
-- **England** — one `onCityBuilt` event, so Industrial Zone / Cartography /
-  Amundsen builds trigger it; the offer is optional, as "you may" requires.
-- **Inca** — triggers on any placement on a mountain, not only on its own chain.
+- **Districts** — all five printed effects, both options of each. Encampment
+  targets one named figure rather than a space; "within N" includes the origin.
+- **City maturity** — derived from the current board, not a cached flag.
+- **Barbarian defeat** — one `onBarbarianDefeated`; all four routes pay Sumeria
+  exactly once.
+- **Currency** — clearing a barbarian no longer ends the caravan's movement
+  (FAQ), and the card's reference text says so.
+- **England** — one `onCityBuilt`; the offer is optional, as "you may" requires.
+- **Inca** — triggers on any placement on a mountain, not only its own chain.
 - **Non-Aggression Pact** — flipping a reinforced token is neither attacking nor
-  destroying, so a pact does not forbid it (Mass Media, Nuclear Power).
+  destroying.
 - **"Up to N"** — Pyramids and Porcelain Tower can stop early.
-- **Natural wonder tokens** — a claim takes the token off the map onto the
-  owner; conquest transfers it; losing the space does not.
-- **Barbarian lifecycle** — a figure belongs to its printed spawn, not to its
-  letter (letters repeat across tiles). Static printed data and dynamic figure
-  state are separate; defeated figures keep identity and home and retry.
+- **Natural wonder tokens** — a claim takes the token off the map; conquest
+  transfers it; losing the space does not.
+- **Barbarian lifecycle** — a figure belongs to its printed spawn, not its
+  letter. Defeated figures keep identity and home, and retry.
 - **Five-player browser proof** — `tools/five-client-test.js`, in check-all.
-  Five real tabs, five colours, purple takes a turn by clicking, next client
-  sees it with no reload. 39 assertions.
-- **Control-token supply** — finite, spent through one placement function; an
-  empty supply costs a token taken back off the map rather than blocking. The
-  NUMBER is blocked (see below).
-- **America** — natural wonder tokens live on focus cards and pay for the card
-  they sit on.
-- **Caravan launch** — capital or mature city for anyone; Rome adds its other
-  cities, but only for a caravan still on the economy card.
-- **Petra** — the redirect was already implemented; now driven, and the stale
-  known-broken entry is gone.
-- **Standard focus** — all 24 driven end to end.
-- **Governments** — all six, each driven to a real consequence of the shift.
-- **Player diplomacy** — all five, each against the giver and a third player.
-- **City states** — all twelve. Found and fixed: Seoul's start-of-turn offer went
-  stale because the wheel turns AFTER the offer is queued.
+- **Control-token supply** — finite, one placement function, empty supply costs
+  a token off the map rather than blocking. NUMBER blocked.
+- **America**, **Rome caravan launch**, **Petra**, **Standard focus 24/24**,
+  **Governments 6/6**, **Player diplomacy 5/5**, **City states 12/12**.
+- **Unique focus 18/18** — the last six were Humanism, State Workforce, Radio,
+  Mysticism, Military Engineering and Astronomy.
+- **World wonders 35/36** — the combat wonders read off real attacks; the
+  start-of-turn wonders reached by ending a turn; the reach-changing wonders
+  measured against boards that differ by the wonder ALONE.
+- **Generic systems** — movement, city construction, victory/agendas, the event
+  dial, core composition, fortress legality, the trade-token cap, resources,
+  exploration, map population, the wonder deck, the focus row, the tech dial.
 
 ## Remaining, in priority order
 
-1. **Civilization abilities** — 6/18. Twelve left.
-2. **Unique focus cards** — 0/18. One per civilization.
-3. **World wonders** — 6/36. Thirty left.
-4. **Generic rule systems** — `tools/generic-rules-checklist.md` is the honest
-   status list; movement, combat modifiers, city construction, victory/agendas
-   and the event wheel are still `unproven` or `partial`.
+There is no unblocked rule work left on the list that produced this file.
+What remains is either blocked (below) or needs new input:
+
+1. **Oxford University** — blocked, see below.
+2. **Component counts** — two blocked items, see below.
+3. Anything new the user raises.
 
 ## Blocked
 
-- **Control-token component counts.** Modelling a finite supply needs the exact
-  number of control tokens per player in the ENGLISH base game and the number
-  Terra Incognita adds. That is a component list, not a rule I can derive from
-  the code or from the tile data, and guessing it would put an invented number
-  into the rules engine. The *semantics* can be built without it (a supply, a
-  "remove one of your own first" path when empty, districts using the district
-  piece rather than a control token); only the count is blocked.
+These are recorded rather than guessed. Each needs a source this session does
+not have; none is a missing test.
+
 - **Oxford University.** "When you replace (tech upgrade) a focus card other
   than a science focus card, you do not have to replace it with a card of the
   same type." The effect is defined entirely against a restriction on which
   card a tech upgrade may replace — and this engine's upgrade step already lets
   the player pick any eligible type, so there is no restriction for Oxford to
-  lift and the wonder would be a no-op. Settling it needs the English rulebook's
-  exact wording for the tech-upgrade step. Not implemented; not faked.
+  lift and the wonder would be a no-op. Settling it needs the English
+  rulebook's exact wording for the tech-upgrade step. Not implemented; not
+  faked. This is the 124th effect.
+
+- **Control-token component count.** Modelling a finite supply needs the exact
+  number of control tokens per player in the ENGLISH base game and the number
+  Terra Incognita adds. That is a component list, not a rule derivable from the
+  code or the tile data. The *semantics* are built and proven; only the count
+  is blocked, and `CFG.controlTokens` is Infinity until it is verified.
+
 - **Duplicate printed barbarian letters.** The tiles print E on four different
-  tiles and F and B on two each, so two icons showing one letter can be in play.
-  The engine places a figure on every printed icon, which is the existing
-  behaviour and is what the identity model now assumes. Whether the physical
-  game ships one figure per LETTER (so a second icon would get none) cannot be
-  settled without the English component list. Recorded rather than guessed; the
+  tiles and F and B on two each. The engine places a figure on every printed
+  icon, which the identity model assumes. Whether the physical game ships one
+  figure per LETTER cannot be settled without the English component list. The
   identity model is correct under either reading.
 
 ## Notes for whoever picks this up
 
 - `applyAction` mutates in place. Any test branching from one state needs
   `JSON.parse(JSON.stringify(...))`, and `tryApplyAction` returns its own copy,
-  so editing the player object you started with edits the wrong state.
-- `rulesState()` deals real tiles at random. A fixture that depends on what was
-  dealt is a flake; clear what you do not want and assert over what you placed.
+  so editing the player object you started with edits the wrong state. This has
+  now caused four separate test bugs; check it first when a branch behaves as
+  though an earlier branch had already run.
+- `rulesState()` deals real tiles and real victory cards at random. A fixture
+  that depends on what was dealt is a flake: clear what you do not want, and
+  NAME what you need (`st.agendaCards`, `deck.revealed`).
+- `rulesState()` also skips setup, so there is no capital tile on the board.
+  Exploration needs one (`isExploreEligible` requires a tile holding a
+  capital), and `PLACE_FORTRESS` needs a state still in setup.
+- `st.tileStack` is materialised by `migrateState`, so it is empty until an
+  action has run. Take stack readings after a no-op action.
 - `activate()` in the harness resets a hex — keep its reset list in step with
   new hex fields or a dealt feature leaks into a fixture.
+- When comparing "with wonder" against "without", make the boards differ by the
+  WONDER only. A helper that also creates the city the wonder sits in changes
+  the build range, the friendly-space set and city maturity, and the comparison
+  then measures the city.
+- `deck.revealed` is the deck's own top card, not a card beside it. Counting
+  both makes every wonder deck look like eight cards.
 - Do not add `proves()` for an effect until every printed option of that card is
   driven. An honest low number is the point.
-- `END_TURN` is refused until a card has been resolved (base p6: no passing), so
-  a fixture that wants to reach the NEXT start of turn has to play a card first.
-  `takeTurn()` in the city-state block does this.
+- `END_TURN` is refused until a card has been resolved (base p6: no passing).
 - The event dial asks EVERY player for a government; one unanswered decision
   blocks the board for everyone, so a fixture must answer the rivals' too.
 - browser-smoke occasionally fails at "Create Room" with the status stuck on
