@@ -453,13 +453,24 @@ async function waitFor(cdp, expr, label, timeoutMs = 8000) {
       const btn = document.getElementById("btn-create");
       out.createButton = !!btn;
       if (btn) {
-        btn.click();
-        // Creating a room opens a PeerJS connection to a public broker, so the
-        // lobby appears when that resolves, not on the click.
-        for (let i = 0; i < 120; i++) {
+        // Creating a room opens a PeerJS connection to a PUBLIC broker, so the
+        // lobby appears when that resolves rather than on the click — and that
+        // broker is outside this repo and does throttle. A single click was
+        // failing this whole check every few runs for a reason that is not a
+        // finding about the game, so it gets three goes within the same overall
+        // budget, the way the two- and five-client tests already do.
+        out.attempts = 0;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          out.attempts = attempt + 1;
+          btn.click();
+          for (let i = 0; i < 40; i++) {
+            const s = UI.debugState();
+            if (s && s.phase === "lobby") break;
+            await new Promise((r) => setTimeout(r, 250));
+          }
           const s = UI.debugState();
           if (s && s.phase === "lobby") break;
-          await new Promise((r) => setTimeout(r, 250));
+          await new Promise((r) => setTimeout(r, 500));
         }
       }
       out.status = (document.getElementById("lobby-status") || {}).textContent || "";

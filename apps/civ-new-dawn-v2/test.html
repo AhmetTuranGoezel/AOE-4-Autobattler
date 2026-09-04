@@ -4547,6 +4547,298 @@
       }
 
       {
+        // Six civilization abilities, each driven to the state it changes and
+        // each checked against the same board without the leader, so what is
+        // asserted is the ability and not the fixture.
+        const civBoard = (leaderId, opts) => {
+          const o = opts || {};
+          const st = rulesState();
+          const me = st.players[0];
+          me.leaderId = leaderId || null;
+          me.cardPlayed = false;
+          st.turn.index = st.turn.order.indexOf(me.id);
+          Game.FOCUS_TYPES.forEach((t) => { me.trade[t] = 0; });
+          Game.RESOURCES.forEach((r) => { me.resources[r] = 0; });
+          st.players.forEach((p) => { p.diplomacy = []; });
+          Object.values(st.map.hexes).forEach((h) => {
+            h.barbarian = false; h.barbarianId = null; h.barbarianToken = null;
+            h.barbarianHome = null; h.control = null; h.cityState = null;
+            h.resource = null; h.naturalWonder = null; h.naturalWonderSpace = null;
+          });
+          st.naturalWonders = {};
+          // Two rows either side, not one. Japan's ability covers spaces
+          // adjacent to water OR THE EDGE OF THE MAP, so a space meant to be
+          // "inland" needs a full ring of land around it — with a one-row band
+          // every space in it touches the edge, and the negative case was
+          // testing nothing.
+          for (let q = -3; q <= 8; q++) {
+            for (let r = -2; r <= 2; r++) activate(st, q + "," + r, { terrain: "grass" });
+          }
+          activate(st, "0,0", { city: { ownerId: me.id, isCapital: true,
+            developed: false, hasWonder: false, wonder: null } });
+          if (o.setUp) o.setUp(st, me);
+          return { st, me, foe: st.players[1] };
+        };
+        const strike = (st, me, toKey, targetType) => Game.applyAction(st,
+          { type: "PLAY_MILITARY_ATTACK", payload: { playerId: me.id, unitId: "a1",
+            fromKey: "0,0", toKey, targetType } });
+
+        // ── Scythia ──────────────────────────────────────────────────────
+        {
+          // "When attacking or defending a GRASSLAND OR HILL space, increase
+          // your combat value by 3."
+          const onTerrain = (terrain) => (s2, p2) => {
+            const foe = s2.players[1];
+            activate(s2, "1,0", { terrain,
+              control: { ownerId: foe.id, fortified: false, district: null } });
+            p2.armies = [{ id: "a1", position: "0,0" }];
+          };
+          const plainGrass = civBoard(null, { setUp: onTerrain("grass") });
+          const baseGrass = strike(plainGrass.st, plainGrass.me, "1,0", "control").combat.atkBase;
+          const scyGrass = civBoard("scythia", { setUp: onTerrain("grass") });
+          const gotGrass = strike(scyGrass.st, scyGrass.me, "1,0", "control").combat;
+          assert("Scythia adds 3 attacking a grassland space",
+            gotGrass.atkBase === baseGrass + 3, `${baseGrass} -> ${gotGrass.atkBase}`);
+          assert("and says so in the breakdown",
+            (gotGrass.atkParts || []).some((p) => /scythia/i.test(p.label)),
+            JSON.stringify(gotGrass.atkParts));
+
+          const plainDesert = civBoard(null, { setUp: onTerrain("desert") });
+          const baseDesert = strike(plainDesert.st, plainDesert.me, "1,0", "control").combat.atkBase;
+          const scyDesert = civBoard("scythia", { setUp: onTerrain("desert") });
+          assert("but nothing on a desert space",
+            strike(scyDesert.st, scyDesert.me, "1,0", "control").combat.atkBase === baseDesert,
+            String(baseDesert));
+
+          // Defending on a hill.
+          const defend = (leaderId) => {
+            const b = civBoard(leaderId, { setUp: (s2, p2) => {
+              const foe = s2.players[1];
+              activate(s2, "1,0", { terrain: "hill",
+                control: { ownerId: p2.id, fortified: false, district: null } });
+              foe.armies = [{ id: "a1", position: "2,0" }];
+              foe.cardPlayed = false;
+            } });
+            b.st.turn.index = b.st.turn.order.indexOf(b.foe.id);
+            return Game.applyAction(b.st, { type: "PLAY_MILITARY_ATTACK",
+              payload: { playerId: b.foe.id, unitId: "a1", fromKey: "2,0",
+                toKey: "1,0", targetType: "control" } });
+          };
+          const plainDef = defend(null).combat.defBase;
+          const scyDef = defend("scythia").combat;
+          assert("and 3 defending a hill space",
+            scyDef.defBase === plainDef + 3, `${plainDef} -> ${scyDef.defBase}`);
+          proves("civ.scythia");
+        }
+
+        // ── China ────────────────────────────────────────────────────────
+        {
+          // "When defending, your REINFORCED control tokens increase your
+          // combat value by 2 instead of 1."
+          const defend = (leaderId, fortified) => {
+            const b = civBoard(leaderId, { setUp: (s2, p2) => {
+              const foe = s2.players[1];
+              activate(s2, "1,0", { terrain: "grass",
+                control: { ownerId: p2.id, fortified, district: null } });
+              foe.armies = [{ id: "a1", position: "2,0" }];
+              foe.cardPlayed = false;
+            } });
+            b.st.turn.index = b.st.turn.order.indexOf(b.foe.id);
+            return Game.applyAction(b.st, { type: "PLAY_MILITARY_ATTACK",
+              payload: { playerId: b.foe.id, unitId: "a1", fromKey: "2,0",
+                toKey: "1,0", targetType: "control" } });
+          };
+          const plainReinforced = defend(null, true).combat.defBase;
+          const chinaReinforced = defend("china", true).combat.defBase;
+          assert("China's reinforced token defends for one more",
+            chinaReinforced === plainReinforced + 1,
+            `${plainReinforced} -> ${chinaReinforced}`);
+          const plainPlain = defend(null, false).combat.defBase;
+          const chinaPlain = defend("china", false).combat.defBase;
+          assert("but an unreinforced one is unchanged",
+            chinaPlain === plainPlain, `${plainPlain} -> ${chinaPlain}`);
+          proves("civ.china");
+        }
+
+        // ── Egypt ────────────────────────────────────────────────────────
+        {
+          // "The cost of all world wonders is reduced by 1 for you."
+          const plain = civBoard(null);
+          const egy = civBoard("egypt");
+          const names = Game.ALL_WONDERS.slice(0, 8).map((w) => w.name);
+          const differences = names.map((n) =>
+            Game.getWonderCost(n, plain.me, plain.st) -
+            Game.getWonderCost(n, egy.me, egy.st));
+          assert("every wonder costs Egypt exactly one less",
+            differences.every((d) => d === 1), JSON.stringify(differences));
+          assert("and the reduction is named in the breakdown",
+            Game.calculateWonderCost(names[0], egy.me, egy.st).modifiers
+              .some((m) => /egypt/i.test(m.source)),
+            JSON.stringify(Game.calculateWonderCost(names[0], egy.me, egy.st)));
+          // It reaches the build: a wonder Egypt can afford and nobody else can.
+          const buy = (board, wonderName, resources) => {
+            const player = board.st.players[0];
+            player.cardPlayed = false;
+            player.focusRow = ["industry", "science", "growth", "economy", "military", "culture"];
+            Game.RESOURCES.forEach((r) => { player.resources[r] = 0; });
+            Object.entries(resources).forEach(([r, n]) => { player.resources[r] = n; });
+            player.trade.industry = 1;
+            const deck = board.st.wonderDecks.military;
+            deck.deck = [wonderName].concat(deck.deck.filter((n) => n !== wonderName));
+            deck.revealed = wonderName;
+            return Game.tryApplyAction(board.st, { type: "PLAY_INDUSTRY_WONDER",
+              payload: { hexKey: "0,0", wonderName, tradeSpent: 1,
+                resources, naturalWonders: [] } },
+              { actorId: player.id, role: "player" });
+          };
+          // Jebel Barkal is printed at 7. Production here is slot 1 + 1 trade +
+          // 2 per eligible resource, so two oil make exactly 6: one short for
+          // everyone else, and exactly enough once Egypt takes a point off.
+          const short = buy(civBoard(null), "Jebel Barkal", { oil: 2 });
+          assert("without Egypt that payment is short", !short.accepted, short.code);
+          const enough = buy(civBoard("egypt"), "Jebel Barkal", { oil: 2 });
+          assert("but it buys the wonder for Egypt", enough.accepted, enough.code);
+          assert("and the wonder is in the city",
+            enough.accepted &&
+            enough.state.map.hexes["0,0"].city.wonder.name === "Jebel Barkal");
+          proves("civ.egypt");
+        }
+
+        // ── Japan ────────────────────────────────────────────────────────
+        {
+          // "During your turn, desert and mountain spaces that are adjacent to
+          // water or the edge of the map are treated as having a terrain
+          // difficulty of 3."
+          const setUp = (s2) => {
+            activate(s2, "1,0", { terrain: "mountain" });   // beside the water below
+            activate(s2, "1,1", { terrain: "water" });
+            // 0,-1 has a full ring of land around it on this board, so it is
+            // neither coastal nor on the edge.
+            activate(s2, "0,-1", { terrain: "mountain" });
+          };
+          const plain = civBoard(null, { setUp });
+          plain.me.focusRow = ["culture", "science", "growth", "economy", "military", "industry"];
+          const jap = civBoard("japan", { setUp });
+          jap.me.focusRow = ["culture", "science", "growth", "economy", "military", "industry"];
+          assert("a coastal mountain is difficulty 5 for anyone else",
+            !Game.validControlHexes(plain.st, plain.me.id, 3).has("1,0"));
+          assert("Japan treats it as 3, bringing it into reach",
+            Game.validControlHexes(jap.st, jap.me.id, 3).has("1,0"),
+            [...Game.validControlHexes(jap.st, jap.me.id, 3)].sort().join(" "));
+          assert("but an inland mountain is still 5 even for Japan",
+            !Game.validControlHexes(jap.st, jap.me.id, 3).has("0,-1"),
+            [...Game.validControlHexes(jap.st, jap.me.id, 3)].sort().join(" "));
+          proves("civ.japan");
+        }
+
+        // ── Zulu ─────────────────────────────────────────────────────────
+        {
+          // "After you win a combat as the ATTACKER, place 1 trade token on
+          // your military focus card, plus 1 ADDITIONAL if you attacked a rival
+          // city or city-state."
+          const win = (leaderId, targetIsCity) => {
+            for (let i = 0; i < 400; i++) {
+              const b = civBoard(leaderId, { setUp: (s2, p2) => {
+                const foe = s2.players[1];
+                if (targetIsCity) {
+                  activate(s2, "1,0", { terrain: "grass", city: { ownerId: foe.id,
+                    isCapital: false, developed: false, hasWonder: false, wonder: null } });
+                } else {
+                  activate(s2, "1,0", { terrain: "grass",
+                    control: { ownerId: foe.id, fortified: false, district: null } });
+                }
+                p2.armies = [{ id: "a1", position: "0,0" }];
+              } });
+              let s = strike(b.st, b.me, "1,0", targetIsCity ? "city" : "control");
+              if (!s.combat) continue;
+              s = Game.applyAction(s, { type: "COMBAT_ROLL", payload: { playerId: b.me.id, side: "attacker" } });
+              s = Game.applyAction(s, { type: "COMBAT_ROLL", payload: { playerId: b.me.id, side: "defender", hostOverride: true } });
+              s = Game.applyAction(s, { type: "COMBAT_PASS", payload: { playerId: b.me.id, side: "attacker" } });
+              s = Game.applyAction(s, { type: "COMBAT_PASS", payload: { playerId: b.foe.id, side: "defender", hostOverride: true } });
+              const took = targetIsCity
+                ? (s.map.hexes["1,0"].city && s.map.hexes["1,0"].city.ownerId === b.me.id)
+                : (s.map.hexes["1,0"].control &&
+                   s.map.hexes["1,0"].control.ownerId === b.me.id);
+              if (took) return s;
+            }
+            return null;
+          };
+          const plainWin = win(null, false);
+          assert("an attack against a token can be won", !!plainWin);
+          const zuluToken = win("zulu", false);
+          assert("and the Zulu can win the same one", !!zuluToken);
+          if (plainWin && zuluToken) {
+            assert("winning as attacker pays the Zulu a military trade token",
+              zuluToken.players[0].trade.military ===
+              plainWin.players[0].trade.military + 1,
+              `${plainWin.players[0].trade.military} -> ${zuluToken.players[0].trade.military}`);
+          }
+          const zuluCity = win("zulu", true);
+          assert("a rival city can be taken", !!zuluCity);
+          if (zuluCity && zuluToken) {
+            assert("and taking a CITY pays one more than taking a token",
+              zuluCity.players[0].trade.military >
+              zuluToken.players[0].trade.military ||
+              zuluCity.players[0].trade.military === Game.CFG.maxTrade,
+              `${zuluToken.players[0].trade.military} vs ${zuluCity.players[0].trade.military}`);
+          }
+          proves("civ.zulu");
+        }
+
+        // ── Aztec ────────────────────────────────────────────────────────
+        {
+          // "After you reset your military focus card, IF YOU WON AT LEAST 1
+          // ATTACK THIS TURN, you may swap any 2 cards in your focus row."
+          const board = (leaderId, won) => {
+            const b = civBoard(leaderId, { setUp: (s2, p2) => {
+              p2.armies = [{ id: "a1", position: "0,0" }];
+            } });
+            b.me.focusRow = ["military", "science", "growth", "economy", "culture", "industry"];
+            b.me.wonAttackThisTurn = won;
+            return b;
+          };
+          const swapChoice = (st) => (st.pendingChoices || [])
+            .find((c) => /aztec/i.test(c.source || "") || c.kind === "swap_cards");
+
+          const noWin = board("aztec", false);
+          const outNoWin = Game.tryApplyAction(noWin.st, { type: "PLAY_MILITARY_MOVE",
+            payload: { playerId: noWin.me.id, unitId: "a1", toKey: "1,0", tradeSpent: 0 } },
+            { actorId: noWin.me.id, role: "player" });
+          assert("the military card resolves", outNoWin.accepted, outNoWin.code);
+          assert("with no win this turn the Aztec are offered no swap",
+            !swapChoice(outNoWin.state),
+            JSON.stringify((outNoWin.state.pendingChoices || []).map((c) => c.kind)));
+
+          const withWin = board("aztec", true);
+          const outWin = Game.tryApplyAction(withWin.st, { type: "PLAY_MILITARY_MOVE",
+            payload: { playerId: withWin.me.id, unitId: "a1", toKey: "1,0", tradeSpent: 0 } },
+            { actorId: withWin.me.id, role: "player" });
+          assert("the military card resolves after a win", outWin.accepted, outWin.code);
+          const swap = swapChoice(outWin.state);
+          assert("having won, the Aztec are offered a swap", !!swap,
+            JSON.stringify((outWin.state.pendingChoices || []).map((c) => c.kind)));
+          const before = outWin.state.players[0].focusRow.slice();
+          const done = Game.applyAction(outWin.state, { type: "RESOLVE_PENDING_CHOICE",
+            payload: { playerId: withWin.me.id, choiceId: swap.id,
+              optionId: (swap.options || [])[0].id } });
+          assert("and taking it really rearranges the row",
+            JSON.stringify(done.players[0].focusRow) !== JSON.stringify(before),
+            `${before.join(",")} -> ${done.players[0].focusRow.join(",")}`);
+          assert("with the same six cards in it",
+            done.players[0].focusRow.slice().sort().join(",") ===
+            before.slice().sort().join(","));
+
+          const notAztec = board(null, true);
+          const outPlain = Game.tryApplyAction(notAztec.st, { type: "PLAY_MILITARY_MOVE",
+            payload: { playerId: notAztec.me.id, unitId: "a1", toKey: "1,0", tradeSpent: 0 } },
+            { actorId: notAztec.me.id, role: "player" });
+          assert("another civilization gets no swap even after winning",
+            !swapChoice(outPlain.state));
+          proves("civ.aztec");
+        }
+      }
+
+      {
         // The twelve city-state diplomacy cards. Each is driven with the card
         // and without it, so what is asserted is the card's doing.
         const csBoard = (opts) => {
