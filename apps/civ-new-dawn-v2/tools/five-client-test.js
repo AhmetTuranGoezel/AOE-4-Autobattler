@@ -284,12 +284,20 @@ async function drainOwnChoices(tab) {
           JSON.stringify(clicked));
         R.info("purple played", `${clicked.card}${clicked.opened ? " (via panel)" : " (immediate)"}`);
 
+        // Five active connections make the durable host checkpoint slower than
+        // the old fixed 600 ms pause on some machines. Observe the authoritative
+        // acknowledgement instead of racing END_TURN against an action that is
+        // still in flight.
+        const purpleApplied = await waitUntil(async () => purpleTab.eval(
+          `(() => { const s = UI.debugState(); const p = Game.getPlayer(s, ${JSON.stringify(purpleSeat)});
+            return p.cardPlayed === true || p.tech !== ${JSON.stringify(before.tech)} ||
+              s.revision !== ${JSON.stringify(before.revision)}; })()`), 20000);
         const after = await purpleTab.eval(
           `(() => { const s = UI.debugState(); const p = Game.getPlayer(s, ${JSON.stringify(purpleSeat)});
             return { cardPlayed: p.cardPlayed, tech: p.tech, revision: s.revision }; })()`);
         R.ok("the authoritative state changed as a result",
-          after.cardPlayed === true || after.tech !== before.tech ||
-          after.revision !== before.revision, JSON.stringify({ before, after }));
+          purpleApplied >= 0 && (after.cardPlayed === true || after.tech !== before.tech ||
+          after.revision !== before.revision), JSON.stringify({ before, after }));
 
         // ---- the next player's browser notices on its own ----------------
         await drainOwnChoices(purpleTab);
