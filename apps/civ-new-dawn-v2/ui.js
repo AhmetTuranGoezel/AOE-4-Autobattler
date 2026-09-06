@@ -133,6 +133,100 @@ const UI = (() => {
     advancedDraft: false
   };
 
+  // Private, pre-fortress inspection state. This deliberately does not live in
+  // `state` or `sub`: authoritative actions snapshot `sub`, multiplayer
+  // snapshots project `state`, and neither should ever carry this planning
+  // sandbox to another seat.
+  const previewCapital = {
+    enabled: false,
+    tileId: null,
+    side: "A",
+    rotation: 0,
+    anchorKey: null
+  };
+  let renderedCapitalPreview = null;
+
+  function resetCapitalPreview() {
+    previewCapital.enabled = false;
+    previewCapital.tileId = null;
+    previewCapital.side = "A";
+    previewCapital.rotation = 0;
+    previewCapital.anchorKey = null;
+    renderedCapitalPreview = null;
+  }
+
+  function localCapitalTileId() {
+    if (!state || state.phase !== "setup" || !state.setup || !localPlayerId) return null;
+    return ((state.setup.playerTiles && state.setup.playerTiles[localPlayerId]) || [])[0] || null;
+  }
+
+  function canPreviewCapitalTile() {
+    if (!state || state.phase !== "setup" || state.setup.phase !== "fortress") return false;
+    const activeId = state.setup.order[state.setup.turnIndex];
+    return activeId === localPlayerId && !!localCapitalTileId();
+  }
+
+  function previewingCapitalTile() {
+    return previewCapital.enabled && canPreviewCapitalTile() &&
+      previewCapital.tileId === localCapitalTileId();
+  }
+
+  // Put the first frame beside the explored core. It does not have to be a
+  // legal capital placement — the fortress does not exist yet — but all ten
+  // cells must be present in the local render margin so the whole tile is
+  // immediately visible when Preview is pressed.
+  function defaultCapitalPreviewAnchor(rotation) {
+    if (!state || !state.map || !state.map.hexes) return null;
+    const hexes = state.map.hexes;
+    const active = Object.values(hexes).filter((hex) => hex.active);
+    const candidates = Object.values(hexes).filter((hex) => {
+      if (hex.active) return false;
+      return Game.getTileHexKeys(Game.key(hex.q, hex.r), rotation, hexes)
+        .every((hexKey) => !!hexes[hexKey]);
+    });
+    const distanceToBoard = (hex) => active.length
+      ? Math.min(...active.map((land) => Game.hexDist(hex, land)))
+      : Game.hexDist(hex, { q: 0, r: 0 });
+    candidates.sort((a, b) => distanceToBoard(a) - distanceToBoard(b) ||
+      Game.hexDist(a, { q: 0, r: 0 }) - Game.hexDist(b, { q: 0, r: 0 }));
+    const clear = candidates.find((hex) => Game.getTileHexKeys(
+      Game.key(hex.q, hex.r), rotation, hexes).every((hexKey) => !hexes[hexKey].active));
+    const chosen = clear || candidates[0];
+    return chosen ? Game.key(chosen.q, chosen.r) : null;
+  }
+
+  function setCapitalPreview(enabled) {
+    if (enabled) {
+      if (!canPreviewCapitalTile()) return;
+      previewCapital.enabled = true;
+      previewCapital.tileId = localCapitalTileId();
+      const hoverKey = mouseHex ? Game.key(mouseHex.q, mouseHex.r) : null;
+      const anchorStillDraws = previewCapital.anchorKey &&
+        Game.getTileHexKeys(previewCapital.anchorKey, previewCapital.rotation, state.map.hexes)
+          .every((hexKey) => !!state.map.hexes[hexKey]);
+      previewCapital.anchorKey = hoverKey || (anchorStillDraws
+        ? previewCapital.anchorKey : defaultCapitalPreviewAnchor(previewCapital.rotation));
+    } else {
+      // Convenience only: the later real placement starts with the last face
+      // and angle, but still requires its own PLACE_TILE action.
+      sub.tileSide = previewCapital.side;
+      sub.tileRotation = previewCapital.rotation;
+      previewCapital.enabled = false;
+      renderedCapitalPreview = null;
+      mouseHex = null;
+    }
+    render();
+  }
+
+  function reconcileCapitalPreview() {
+    if (!previewCapital.enabled || previewingCapitalTile()) return;
+    sub.tileSide = previewCapital.side;
+    sub.tileRotation = previewCapital.rotation;
+    previewCapital.enabled = false;
+    renderedCapitalPreview = null;
+    mouseHex = null;
+  }
+
   function paymentCount(payment) {
     return Object.values(payment || {}).reduce((sum, count) =>
       sum + Math.max(0, Number(count || 0)), 0);
@@ -218,6 +312,10 @@ const UI = (() => {
 
   function publishPresence(force) {
     if (!state || !localPlayerId || !Net.getPeerCount()) return;
+    // Capital planning before the fortress is private. Even the otherwise
+    // harmless shared cursor would disclose the preview's successive anchors,
+    // so this mode emits no presence traffic at all.
+    if (previewingCapitalTile()) return;
     const snap = presenceSnapshot();
     if (!snap) return;
     const now = performance.now();
@@ -872,6 +970,7 @@ const UI = (() => {
       state = null;
       localPlayerId = null;
       roomCode = null;
+      resetCapitalPreview();
       try { localStorage.removeItem("civ-nd-save"); } catch(e) {}
       resetSub();
       dom.game.classList.add("hidden");
@@ -981,6 +1080,7 @@ const UI = (() => {
   function startLocal() {
     stopSessionTimers();
     Net.leaveRoom?.();
+    resetCapitalPreview();
     sessionCredentials = null;
     networkRoster = [];
     backupFailure = null;
@@ -1008,6 +1108,7 @@ const UI = (() => {
     const hostToken = randomToken();
     stopSessionTimers();
     Net.leaveRoom?.();
+    resetCapitalPreview();
     localPlayerId = seatId;
     roomCode = gameId;
     processedActionIds = [];
@@ -1074,6 +1175,7 @@ const UI = (() => {
     const seatToken = randomToken();
     stopSessionTimers();
     Net.leaveRoom?.();
+    resetCapitalPreview();
     state = null;
     localPlayerId = seatId;
     roomCode = code;
@@ -1191,6 +1293,7 @@ const UI = (() => {
     sessionCredentials = null;
     networkRoster = [];
     processedActionIds = [];
+    resetCapitalPreview();
     resetSub();
     try { localStorage.removeItem("civ-nd-save"); } catch (e) { /* optional */ }
     dom.game.classList.add("hidden");
@@ -1358,6 +1461,7 @@ const UI = (() => {
     dom.lobbyStatus.textContent = "Restoring the last confirmed revision...";
     stopSessionTimers();
     Net.leaveRoom?.();
+    resetCapitalPreview();
     try {
       const savedCredentials = await CivSessionStore.loadCredentials(gameId);
       const checkpoint = await CivSessionStore.loadLatest(gameId);
@@ -1510,10 +1614,10 @@ const UI = (() => {
     // auxclick is what actually fires the flip, so a drag off the canvas does
     // not count as one.
     canvas.addEventListener("mousedown", (e) => {
-      if (e.button === 1 && placingTile()) e.preventDefault();
+      if (e.button === 1 && manipulatingTile()) e.preventDefault();
     });
     canvas.addEventListener("auxclick", (e) => {
-      if (e.button !== 1 || !placingTile()) return;
+      if (e.button !== 1 || !manipulatingTile()) return;
       e.preventDefault();
       flipTile();
     });
@@ -1522,7 +1626,7 @@ const UI = (() => {
       // With a tile in hand the wheel turns it, which is what your hand wants to
       // do anyway. Ctrl/Cmd-wheel remains a zoom gesture even then, and the
       // visible +/- buttons mean a player holding a tile can always zoom.
-      if (placingTile() && !e.ctrlKey && !e.metaKey) {
+      if (manipulatingTile() && !e.ctrlKey && !e.metaKey) {
         turnTile(e.deltaY > 0 ? 1 : -1);
         return;
       }
@@ -1704,19 +1808,50 @@ const UI = (() => {
     let setupValid = new Set();
     let ghostKeys = new Set();
     let ghostValid = false;
+    let ghostView = null;
     let fortressGhostKey = null;
+    renderedCapitalPreview = null;
 
     if (state.phase === "setup") {
       const activeId = state.setup.order[state.setup.turnIndex];
       if (activeId === localPlayerId) {
         if (state.setup.phase === "fortress") {
-          // Fortress placement is a board-reading decision. Do not paint every
-          // legal answer green; the only preview is the single space currently
-          // under the pointer, and an invalid click gets a plain-language reason.
-          if (mouseHex) {
-            const hoveredKey = Game.key(mouseHex.q, mouseHex.r);
-            const hovered = hexes[hoveredKey];
-            if (hovered && !hovered.active) fortressGhostKey = hoveredKey;
+          if (previewingCapitalTile()) {
+            const tileId = previewCapital.tileId;
+            const anchorKey = previewCapital.anchorKey ||
+              defaultCapitalPreviewAnchor(previewCapital.rotation);
+            if (anchorKey) {
+              previewCapital.anchorKey = anchorKey;
+              const keys = Game.getTileHexKeys(anchorKey, previewCapital.rotation, hexes);
+              if (keys.length === Game.TILE_OFFSETS.length &&
+                  keys.every((hexKey) => !!hexes[hexKey])) {
+                ghostKeys = new Set(keys);
+                ghostView = {
+                  preview: true,
+                  tileId,
+                  anchorKey,
+                  rotation: previewCapital.rotation,
+                  side: previewCapital.side
+                };
+                renderedCapitalPreview = {
+                  tileId,
+                  anchorKey,
+                  rotation: previewCapital.rotation,
+                  side: previewCapital.side,
+                  cellKeys: keys.slice()
+                };
+              }
+            }
+          } else {
+            // Fortress placement is a board-reading decision. Do not paint
+            // every legal answer green; the only preview is the single space
+            // currently under the pointer, and an invalid click gets a
+            // plain-language reason.
+            if (mouseHex) {
+              const hoveredKey = Game.key(mouseHex.q, mouseHex.r);
+              const hovered = hexes[hoveredKey];
+              if (hovered && !hovered.active) fortressGhostKey = hoveredKey;
+            }
           }
         } else if (state.setup.phase === "tile" || state.setup.phase === "capital_tile" || state.setup.phase === "draft_tile") {
           const playerTiles = setupHand(state, localPlayerId);
@@ -1876,7 +2011,7 @@ const UI = (() => {
     }
 
     // Layer 6: Ghost tile
-    if (ghostKeys.size > 0) drawGhostTile(ghostKeys, ghostValid);
+    if (ghostKeys.size > 0) drawGhostTile(ghostKeys, ghostValid, ghostView);
 
     // Layer 6a: pieces in transit, over the board they are crossing.
     drawMovingUnits();
@@ -2108,10 +2243,10 @@ const UI = (() => {
   // This is the same fit drawTileArt uses for a placed tile — the ghost and the
   // board are then literally the same picture, so what you see under the cursor
   // is what ends up on the table.
-  function drawGhostPhoto(ghostKeyArr, tileId, valid) {
+  function drawGhostPhoto(ghostKeyArr, tileId, valid, sideValue, previewOnly) {
     if (!tileArt || !window.CivTileArt || !tileId) return false;
     if (ghostKeyArr.length !== Game.TILE_OFFSETS.length) return false;
-    const side = sub.tileSide === "B" ? "B" : "A";
+    const side = sideValue === "B" ? "B" : "A";
     const img = CivTileArt.tileImage(tileId, side, () => { renderCanvas(); });
     if (!img || !img.complete || !img.naturalWidth) return false;
 
@@ -2137,7 +2272,7 @@ const UI = (() => {
       hexSubPath(p.x, p.y, HEX_SIZE + 0.6);
     });
     ctx.clip();
-    ctx.globalAlpha = valid ? 0.82 : 0.5;
+    ctx.globalAlpha = previewOnly ? 0.82 : (valid ? 0.82 : 0.5);
     ctx.setTransform(m.a, m.b, m.c, m.d, m.e, m.f);
     ctx.drawImage(img, 0, 0);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -2300,14 +2435,15 @@ const UI = (() => {
     anims.living = true;   // keep repainting while anyone is moving about
   }
 
-  function drawGhostTile(ghostKeys, valid) {
+  function drawGhostTile(ghostKeys, valid, view) {
     const hexes = state.map.hexes;
-    const fillColor = valid ? "rgba(102,187,106,0.25)" : "rgba(239,83,80,0.2)";
-    const strokeColor = valid ? "#66bb6a" : "#ef5350";
+    const previewOnly = !!(view && view.preview);
+    const fillColor = previewOnly ? "rgba(255,213,79,0.18)"
+      : (valid ? "rgba(102,187,106,0.25)" : "rgba(239,83,80,0.2)");
+    const strokeColor = previewOnly ? "#ffd54f" : (valid ? "#66bb6a" : "#ef5350");
 
-    let tileId = null;
-    let tile = null;
-    if (state.phase === "setup") {
+    let tileId = view && view.tileId ? view.tileId : null;
+    if (!tileId && state.phase === "setup") {
       // setupHand, not playerTiles: during the advanced draft the tile being
       // placed comes from draftTiles, while playerTiles still holds the capital
       // this player will lay down later. Reading the wrong one drew the wrong
@@ -2315,24 +2451,24 @@ const UI = (() => {
       // tile 16 was the one actually in hand.
       const playerTiles = setupHand(state, localPlayerId);
       tileId = playerTiles[0];
-      tile = tileId ? state.setup.tiles[tileId] : null;
-    } else if (isExploring(sub.phase)) {
+    } else if (!tileId && isExploring(sub.phase)) {
       tileId = exploringTileId();
-      tile = tileId ? state.tiles[tileId] : null;
     }
 
-    const ghostKeyArr = mouseHex ? Game.getTileHexKeys(
-      Game.key(mouseHex.q, mouseHex.r), sub.tileRotation, hexes
-    ) : [];
+    const rotation = view && Number.isInteger(view.rotation) ? view.rotation : sub.tileRotation;
+    const side = view && view.side === "B" ? "B" : (sub.tileSide === "B" ? "B" : "A");
+    const anchorKey = view && view.anchorKey
+      ? view.anchorKey : (mouseHex ? Game.key(mouseHex.q, mouseHex.r) : null);
+    const ghostKeyArr = anchorKey ? Game.getTileHexKeys(anchorKey, rotation, hexes) : [];
 
     // The face you are actually holding. This used to paint from two lists of
     // colours typed into this function, the same ten for every tile — so you
     // could not see what was on the land, and turning it over changed nothing
     // on screen because the side never reached the drawing at all.
     const def = tileId && Game.getTileDef ? Game.getTileDef(tileId) : null;
-    const face = def && def.sides ? (def.sides[sub.tileSide] || def.sides.A) : null;
+    const face = def && def.sides ? (def.sides[side] || def.sides.A) : null;
     const faceCells = face ? face.cells : null;
-    const photoDrawn = drawGhostPhoto(ghostKeyArr, tileId, valid);
+    const photoDrawn = drawGhostPhoto(ghostKeyArr, tileId, valid, side, previewOnly);
 
     ghostKeys.forEach((k) => {
       const h = hexes[k];
@@ -2342,17 +2478,18 @@ const UI = (() => {
       const cell = faceCells && idx >= 0 ? faceCells[idx] : null;
       hexPath(p.x, p.y, HEX_SIZE);
 
-      if (h.active) {
+      if (h.active && !previewOnly) {
         // Occupied ground: this is why it will not go here.
         ctx.fillStyle = "rgba(239,83,80,0.35)";
         ctx.fill();
       } else if (photoDrawn) {
         // The photograph is already down; only tint it for legal or not.
-        ctx.fillStyle = valid ? "rgba(102,187,106,0.12)" : "rgba(239,83,80,0.3)";
+        ctx.fillStyle = previewOnly ? "rgba(255,213,79,0.08)"
+          : (valid ? "rgba(102,187,106,0.12)" : "rgba(239,83,80,0.3)");
         ctx.fill();
       } else if (cell) {
         ctx.fillStyle = TERRAIN_COLORS[cell.terrain] || fillColor;
-        ctx.globalAlpha = valid ? 0.75 : 0.4;
+        ctx.globalAlpha = previewOnly ? 0.75 : (valid ? 0.75 : 0.4);
         ctx.fill();
         ctx.globalAlpha = 1.0;
       } else {
@@ -2364,7 +2501,7 @@ const UI = (() => {
       // uses, so the ghost and the placed tile are the same picture.
       if (!cell) return;
       ctx.save();
-      ctx.globalAlpha = valid ? 0.95 : 0.55;
+      ctx.globalAlpha = previewOnly ? 0.95 : (valid ? 0.95 : 0.55);
       drawGhostCellMarks(p.x, p.y, cell, k);
       ctx.restore();
     });
@@ -2373,6 +2510,7 @@ const UI = (() => {
     ctx.strokeStyle = strokeColor;
     ctx.lineWidth = 3;
     ctx.lineCap = "round";
+    if (previewOnly) ctx.setLineDash([8, 5]);
     ghostKeys.forEach((k) => {
       const h = hexes[k];
       if (!h) return;
@@ -2390,6 +2528,7 @@ const UI = (() => {
         }
       }
     });
+    if (previewOnly) ctx.setLineDash([]);
   }
 
   function roundRect(x, y, w, hh, r) {
@@ -2842,13 +2981,15 @@ const UI = (() => {
     const newHex = pixelToAxial(mx, my);
     const newKey = Game.key(newHex.q, newHex.r);
     const oldKey = mouseHex ? Game.key(mouseHex.q, mouseHex.r) : null;
+    const privateCapitalPreview = previewingCapitalTile();
 
     if (newKey !== oldKey) {
       mouseHex = state && state.map.hexes[newKey] ? newHex : null;
+      if (privateCapitalPreview && mouseHex) previewCapital.anchorKey = newKey;
       if (mouseHex) showTooltip(e.clientX, e.clientY, newKey);
       else hideTooltip();
       renderCanvas();
-      publishPresence();
+      if (!privateCapitalPreview) publishPresence();
     } else if (mouseHex) {
       dom.mapTooltip.style.left = (e.clientX + 14) + "px";
       dom.mapTooltip.style.top = (e.clientY + 14) + "px";
@@ -3069,6 +3210,10 @@ const UI = (() => {
     return state.setup.order[state.setup.turnIndex] === localPlayerId;
   }
 
+  function manipulatingTile() {
+    return placingTile() || previewingCapitalTile();
+  }
+
   // The tile in the panel is the thing in your hand, so it should move when you
   // spin it round or turn it over. The card redraws at the new angle and side,
   // and so does the ghost on the board — they read the same two variables.
@@ -3078,13 +3223,26 @@ const UI = (() => {
   let autoDiscardedTile = null;
 
   function turnTile(step) {
-    sub.tileRotation = (sub.tileRotation + step + 6) % 6;
+    if (previewingCapitalTile()) {
+      previewCapital.rotation = (previewCapital.rotation + step + 6) % 6;
+      const keys = previewCapital.anchorKey && Game.getTileHexKeys(
+        previewCapital.anchorKey, previewCapital.rotation, state.map.hexes);
+      if (!keys || !keys.every((hexKey) => !!state.map.hexes[hexKey])) {
+        previewCapital.anchorKey = defaultCapitalPreviewAnchor(previewCapital.rotation);
+      }
+    } else {
+      sub.tileRotation = (sub.tileRotation + step + 6) % 6;
+    }
     if (!reducedMotion()) pendingCardMove = step > 0 ? "turn-cw" : "turn-ccw";
     render();
   }
 
   function flipTile() {
-    sub.tileSide = sub.tileSide === "A" ? "B" : "A";
+    if (previewingCapitalTile()) {
+      previewCapital.side = previewCapital.side === "A" ? "B" : "A";
+    } else {
+      sub.tileSide = sub.tileSide === "A" ? "B" : "A";
+    }
     if (!reducedMotion()) pendingCardMove = "flip";
     render();
   }
@@ -3098,7 +3256,7 @@ const UI = (() => {
       if (sub.phase !== "idle" && canCancelMovement()) { e.preventDefault(); cancelAction(); }
       return;
     }
-    if (!placingTile()) return;
+    if (!manipulatingTile()) return;
     const k = e.key.toLowerCase();
     if (k === "q") { e.preventDefault(); turnTile(-1); }
     else if (k === "e" || k === "r") { e.preventDefault(); turnTile(1); }
@@ -3342,6 +3500,7 @@ const UI = (() => {
 
   function render() {
     if (!state) return;
+    reconcileCapitalPreview();
     reconcileAuthoritativeResolution();
     frameNewExploration();
     dom.game.classList.toggle("lobby-active", state.phase === "lobby");
@@ -4139,6 +4298,7 @@ const UI = (() => {
         return;
       }
       const fort = window.CivCardArt && CivCardArt.fort();
+      const previewing = previewingCapitalTile();
       // Terra deals every player their capital tile BEFORE fortresses go down,
       // so at the table you are looking at your own hometown tile - both faces
       // of it - while you decide where the fortress goes. The engine already
@@ -4162,16 +4322,43 @@ const UI = (() => {
               <figcaption style="${capStyle}">Side B</figcaption></figure>
           </div>
         </div>` : "";
+      const modeToggle = `
+        <div class="setup-mode-toggle" role="group" aria-label="Fortress setup mode">
+          <button type="button" id="setup-fortress-mode" aria-pressed="${previewing ? "false" : "true"}">Place Fortress</button>
+          <button type="button" id="setup-capital-preview-mode" aria-pressed="${previewing ? "true" : "false"}"
+            ${myCapital ? "" : "disabled"}>Preview Capital Tile</button>
+        </div>`;
+      const previewControls = previewing ? `
+        <div id="capital-preview-label" class="capital-preview-label">PREVIEW — PLACE FORTRESS FIRST</div>
+        <div class="trade-counter capital-preview-controls">
+          <span>Turn preview:</span>
+          <button type="button" id="preview-rot-dec" class="sm" aria-label="Rotate capital preview counterclockwise">Left</button>
+          <span class="tc-val">${previewCapital.rotation + 1}/6</span>
+          <button type="button" id="preview-rot-inc" class="sm" aria-label="Rotate capital preview clockwise">Right</button>
+          <button type="button" id="preview-side-toggle" class="sm">Side ${previewCapital.side}</button>
+        </div>
+        <div class="wiz-hint">Move the pointer across the map to inspect the tile at board scale. Clicks only reposition this private preview. Use the map controls or Ctrl/Cmd + wheel to zoom.</div>` : "";
       dom.wizard.innerHTML = `
         <div class="wiz-title">Place Your Fortress</div>
         <div class="wiz-body">
-          ${fort ? `<div class="fortress-preview"><img src="${fort}" alt="Fortress tile"><span>This tile follows your pointer.</span></div>` : ""}
-          Click an <strong>inactive hex</strong> bordering at least 2 active hexes.<br>
+          ${modeToggle}
+          ${previewControls}
+          ${fort ? `<div class="fortress-preview"><img src="${fort}" alt="Fortress tile"><span>${previewing
+            ? "Return to Place Fortress to put this tile down."
+            : "This tile follows your pointer."}</span></div>` : ""}
+          ${previewing ? "Fortress rule: choose" : "Click"} an <strong>inactive hex</strong> bordering at least 2 active hexes.${previewing
+            ? " Switch back to Place Fortress before clicking to commit it."
+            : ""}<br>
           This is a neutral defensive hex (defense ${Game.CFG.fortressDefense}). Your capital will go on your hometown tile next.<br>
           Read the board and choose; legal spaces are deliberately not highlighted.
           ${setupKnownInformation(Game.getPlayer(state, localPlayerId))}
           ${capitalPanel}
         </div>`;
+      document.getElementById("setup-fortress-mode")?.addEventListener("click", () => setCapitalPreview(false));
+      document.getElementById("setup-capital-preview-mode")?.addEventListener("click", () => setCapitalPreview(true));
+      document.getElementById("preview-rot-dec")?.addEventListener("click", () => turnTile(-1));
+      document.getElementById("preview-rot-inc")?.addEventListener("click", () => turnTile(1));
+      document.getElementById("preview-side-toggle")?.addEventListener("click", flipTile);
       return;
     }
 
@@ -4316,11 +4503,11 @@ const UI = (() => {
     return `<div class="tile-card${move}">
       <div class="tc-top">
         <svg class="tc-face" viewBox="0 0 ${w.toFixed(2)} ${h.toFixed(2)}"
-          role="img" aria-label="Tile ${escapeHtml(tileId)}, side ${side}, turned to ${sub.tileRotation + 1} of 6">${body}</svg>
+          role="img" aria-label="Tile ${escapeHtml(tileId)}, side ${side}, turned to ${rotation + 1} of 6">${body}</svg>
         ${photo ? `<img class="tc-photo" src="${photo}" alt="Printed tile, side ${side}"
           onerror="this.remove()">` : ""}
       </div>
-      <div class="tc-side">Side ${side} \u00b7 turned ${sub.tileRotation + 1}/6</div>
+      <div class="tc-side">Side ${side} \u00b7 turned ${rotation + 1}/6</div>
       ${rows.length ? `<ul class="tc-list">${rows.join("")}</ul>` : ""}
       <div class="tc-terrain">${escapeHtml(terrText)}</div>
     </div>`;
@@ -6530,6 +6717,14 @@ const UI = (() => {
       if (activeId !== localPlayerId) return;
 
       if (state.setup.phase === "fortress") {
+        if (previewingCapitalTile()) {
+          // A click in the sandbox only pins the local ghost at this anchor.
+          // There is intentionally no action, undo snapshot or network call.
+          const keys = Game.getTileHexKeys(hexKey, previewCapital.rotation, state.map.hexes);
+          if (keys.every((key) => !!state.map.hexes[key])) previewCapital.anchorKey = hexKey;
+          render();
+          return;
+        }
         if (!Game.getValidFortressHexes(state).has(hexKey)) {
           flashHex(hexKey, "rgb(239,83,80)", 400);
           showToast("A fortress needs an inactive space beside at least 2 active spaces");
@@ -7212,6 +7407,7 @@ const UI = (() => {
       overlay.remove();
       state = null;
       localPlayerId = null;
+      resetCapitalPreview();
       try { localStorage.removeItem("civ-nd-save"); } catch(e) {}
       dom.game.classList.add("hidden");
       dom.lobby.classList.remove("hidden");
@@ -7250,6 +7446,21 @@ const UI = (() => {
       seatInState: !!(state && state.players && state.players.some((p) => p.id === localPlayerId)),
       credentialSeat: sessionCredentials ? sessionCredentials.seatId : null,
       subPhase: sub.phase,
+      tilePlacement: { side: sub.tileSide, rotation: sub.tileRotation },
+      capitalPreview: {
+        enabled: previewingCapitalTile(),
+        tileId: previewCapital.tileId,
+        side: previewCapital.side,
+        rotation: previewCapital.rotation,
+        anchorKey: previewCapital.anchorKey,
+        rendered: renderedCapitalPreview ? {
+          tileId: renderedCapitalPreview.tileId,
+          side: renderedCapitalPreview.side,
+          rotation: renderedCapitalPreview.rotation,
+          anchorKey: renderedCapitalPreview.anchorKey,
+          cellCount: renderedCapitalPreview.cellKeys.length
+        } : null
+      },
       actionPending,
       readOnlySession,
       backupFailure: backupFailure ? (backupFailure.code || String(backupFailure.message || "")) : null
