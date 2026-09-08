@@ -34,18 +34,22 @@ const Game = (() => {
   // same type in the starting row, so it is there from the off; a level II or
   // higher unique is only in play once its owner chose to take it in place of
   // a focus card of that level (Terra p8).
-  function getActiveUniqueCard(player, cardType) {
+  function getActiveUniqueCard(player, cardType, cardIndex) {
     const leader = getLeader(player);
     if (!leader || !leader.unique) return null;
     const u = leader.unique;
     if (u.type !== cardType) return null;
-    // The unique card is a card in the ROW. Oxford can replace the last card of
-    // a type, and a type with no card cannot be the one you are running.
-    if (Array.isArray(player.focusRow) && player.focusRow.length &&
-        focusIndexOf(player, cardType) < 0) return null;
-    const tier = getCardTier(player, cardType);
-    if (tier !== u.tier) return null;
-    return u.tier === 1 || player.uniqueTaken ? u : null;
+    if (!(u.tier === 1 || player.uniqueTaken)) return null;
+    // The unique is a physical card in the row. Oxford can leave two cards of
+    // one type there, so the leftmost type key is no longer its identity. A
+    // resolving caller names the exact row index; display/passive callers may
+    // ask whether any matching instance is present.
+    if (Number.isInteger(cardIndex)) {
+      const card = rowCardAt(player, cardIndex);
+      return card && card.type === cardType && card.tier === u.tier ? u : null;
+    }
+    return rowCards(player).some((card) => card.type === cardType && card.tier === u.tier)
+      ? u : null;
   }
 
   // True while the civ's unique card is the one it is running right now, so
@@ -1202,6 +1206,12 @@ const Game = (() => {
       st.combat.defRolled = !!st.combat.rolled;
     }
     if (st.combat) {
+      st.combat.combatId = st.combat.combatId ||
+        `legacy-combat-${st.combat.attackerId || "unknown"}-${st.combat.toKey || "unknown"}`;
+      if (!Number.isInteger(st.combat.atkRollSeq)) st.combat.atkRollSeq = st.combat.atkRolled ? 1 : 0;
+      if (!Number.isInteger(st.combat.defRollSeq)) st.combat.defRollSeq = st.combat.defRolled ? 1 : 0;
+    }
+    if (st.combat) {
       if (st.combat.atkResource === undefined) st.combat.atkResource = 0;
       if (st.combat.defResource === undefined) st.combat.defResource = 0;
     }
@@ -1567,8 +1577,9 @@ const Game = (() => {
         if (!player || !canResolveCard(player, "science")) {
           return denied("science_unavailable", "The science card cannot be resolved now.");
         }
+        const scienceIndex = resolveCardIndex(player, "science", payload.cardIndex);
         const trade = validateFocusTradeSpend(st, player, "science",
-          payload.tradeSpent, payload.tradeResources);
+          payload.tradeSpent, payload.tradeResources, null, scienceIndex);
         if (!trade.ok) return denied(trade.code, trade.message);
       }
       if (type === "PLAY_INDUSTRY_CITY") {
@@ -2398,8 +2409,11 @@ const Game = (() => {
     if (type === "PLAY_SCIENCE") {
       const player = getPlayer(st, payload.playerId);
       if (!canResolveCard(player, "science")) return st;
+      const scienceIndex = resolveCardIndex(player, "science", payload.cardIndex);
+      if (scienceIndex < 0 || rowEntryType(player.focusRow[scienceIndex]) !== "science") return st;
+      if (Number.isInteger(payload.cardIndex) && payload.cardIndex !== scienceIndex) return st;
       const trade = validateFocusTradeSpend(st, player, "science",
-        payload.tradeSpent, payload.tradeResources);
+        payload.tradeSpent, payload.tradeResources, null, scienceIndex);
       if (!trade.ok) return st;
       let bonus = 0;
       // China's Writing (unique Science I): +1 step while you control a wonder.
@@ -2417,7 +2431,6 @@ const Game = (() => {
       // WHICH science card. With two cards of one type in the row (Oxford) the
       // player names the place; with one, this is the only card of that type
       // and the answer is what it always was.
-      const scienceIndex = resolveCardIndex(player, "science", payload.cardIndex);
       const advanceAmount = getSlotValue(player, "science", st, scienceIndex) +
         trade.spent + bonus;
       if (!queueSciencePrelude(st, player, trade, advanceAmount, scienceIndex)) {
@@ -2436,6 +2449,12 @@ const Game = (() => {
       if (continuation && (continuation.playerId !== player.id ||
           continuation.unitType !== "caravan" || continuation.unitId !== unit.id ||
           unit.position !== continuation.fromKey)) return st;
+      const cardIndex = continuation && Number.isInteger(continuation.cardIndex)
+        ? continuation.cardIndex
+        : (st.activeCard && Number.isInteger(st.activeCard.cardIndex)
+          ? st.activeCard.cardIndex : resolveCardIndex(player, "economy", payload.cardIndex));
+      if (cardIndex < 0 || rowEntryType(player.focusRow[cardIndex]) !== "economy") return st;
+      if (Number.isInteger(payload.cardIndex) && payload.cardIndex !== cardIndex) return st;
       const ecoHex = st.map.hexes[payload.toKey];
       if (!ecoHex || !ecoHex.active) return st;
       // Where this caravan sets off from. A continuation resumes where it
@@ -2459,18 +2478,24 @@ const Game = (() => {
       if (!startKey) return st;
       const tradePayment = continuation
         ? normalizeFocusTradePayment(continuation.tradePayment || continuation.tradeSpent)
-        : movementTradePayment(st, player, "economy", payload);
+        : movementTradePayment(st, player, "economy", payload, cardIndex);
       if (!tradePayment) return st;
       const tradeSpent = tradePayment.spent;
       const moveLimit = continuation
-        ? continuation.remaining : getEconomyMove(player, st) + tradeSpent;
-      const reachable = getReachable(st, startKey, moveLimit, "caravan", payload.playerId);
+        ? continuation.remaining : getEconomyMove(player, st, cardIndex) + tradeSpent;
+      const reachable = getReachable(st, startKey, moveLimit, "caravan", payload.playerId, cardIndex);
       if (payload.toKey !== startKey && !reachable.has(payload.toKey)) return st;
       // How far this hop actually goes, measured before anything on the board
       // moves. Currency needs it to know what movement is left over.
-      const stepsUsed = payload.toKey === startKey ? 0
-        : (getReachableWithDist(st, startKey, moveLimit, "caravan", payload.playerId)
-            .get(payload.toKey) || moveLimit);
+      const submittedRoute = Array.isArray(payload.route) && payload.route.length
+        ? validateMovementRoute(st, startKey, payload.toKey, payload.route,
+            moveLimit, "caravan", payload.playerId, cardIndex)
+        : null;
+      if (Array.isArray(payload.route) && payload.route.length && !submittedRoute) return st;
+      const stepsUsed = submittedRoute ? submittedRoute.spent :
+        (payload.toKey === startKey ? 0
+          : (getReachableWithDist(st, startKey, moveLimit, "caravan", payload.playerId, cardIndex)
+              .get(payload.toKey) || moveLimit));
       const hex = st.map.hexes[payload.toKey];
       // Base p9: "The player cannot move more than one caravan to the same city
       // or city-state during the same turn."
@@ -2629,6 +2654,7 @@ const Game = (() => {
           unitType: "caravan",
           unitId: unit.id,
           cardType: "economy",
+          cardIndex,
           startKey,
           fromKey: payload.toKey,
           maxMove: moveLimit,
@@ -2641,7 +2667,7 @@ const Game = (() => {
       } else {
         completeFigureMove(unit);
       }
-      activeMovementCard(st, player, "economy", tradePayment);
+      activeMovementCard(st, player, "economy", tradePayment, cardIndex);
       if (!unitsLeftToMove(player, "economy")) finishActiveCard(st);
       return st;
     }
@@ -2729,6 +2755,7 @@ const Game = (() => {
         .filter((part) => part.category === "leader")
         .reduce((sum, part) => sum + part.value, 0);
       st.combat = {
+        combatId: makeChoiceId("combat"),
         attackerId: payload.playerId,
         unitId: payload.unitId,
         fromKey: payload.fromKey || unit.position || from,
@@ -2746,6 +2773,8 @@ const Game = (() => {
         defRoll: 0,
         atkRolled: false,
         defRolled: false,
+        atkRollSeq: 0,
+        defRollSeq: 0,
         rolled: false,
         atkTrade: 0,
         defTrade: 0,
@@ -2793,6 +2822,7 @@ const Game = (() => {
         if (payload.playerId && payload.playerId !== c.attackerId && !payload.hostOverride) return st;
         c.atkRoll = rollDie();
         c.atkRolled = true;
+        c.atkRollSeq = Number(c.atkRollSeq || 0) + 1;
         const who = getPlayer(st, c.attackerId);
         log(st, `${who ? who.name : "The attacker"} rolls a ${c.atkRoll}.`);
       } else {
@@ -2802,6 +2832,7 @@ const Game = (() => {
         if (payload.playerId && roller && payload.playerId !== roller && !payload.hostOverride) return st;
         c.defRoll = rollDie();
         c.defRolled = true;
+        c.defRollSeq = Number(c.defRollSeq || 0) + 1;
         log(st, `${c.defenderLabel} answers with a ${c.defRoll}.`);
       }
 
@@ -2864,7 +2895,13 @@ const Game = (() => {
         // A token buys a fresh die instead of a flat +1 — and you get to look
         // before deciding whether to buy another.
         const rolled = rollDie();
-        if (side === "attacker") c.atkRoll = rolled; else c.defRoll = rolled;
+        if (side === "attacker") {
+          c.atkRoll = rolled;
+          c.atkRollSeq = Number(c.atkRollSeq || 0) + 1;
+        } else {
+          c.defRoll = rolled;
+          c.defRollSeq = Number(c.defRollSeq || 0) + 1;
+        }
         c.history.push({ side, mode: "reroll", from: before, to: rolled,
           tradeResource: palenqueResource || null });
         log(st, `${actor.name} rerolled a ${before} into a ${rolled}` +
@@ -3134,7 +3171,7 @@ const Game = (() => {
     return { ok: true, spent, focusSpent: spent, resources: {}, resourceCount: 0 };
   }
 
-  function activeMovementCard(st, player, cardType, tradePayment) {
+  function activeMovementCard(st, player, cardType, tradePayment, cardIndex) {
     const same = st.activeCard && st.activeCard.playerId === player.id &&
       st.activeCard.cardType === cardType ? st.activeCard : {};
     const normalizedPayment = normalizeFocusTradePayment(
@@ -3143,6 +3180,8 @@ const Game = (() => {
       ...same,
       playerId: player.id,
       cardType,
+      cardIndex: Number.isInteger(cardIndex) ? cardIndex :
+        (Number.isInteger(same.cardIndex) ? same.cardIndex : resolveCardIndex(player, cardType)),
       tradeSpent: normalizedPayment.spent,
       tradePayment: normalizedPayment
     };
@@ -3224,7 +3263,7 @@ const Game = (() => {
     (player.caravans || []).forEach(resetFigureForCard);
     (player.armies || []).forEach(resetFigureForCard);
     resolveCard(st, player, active.cardType,
-      active.tradePayment || active.tradeSpent);
+      active.tradePayment || active.tradeSpent, active.cardIndex);
   }
 
   function endUnitMovement(st, payload) {
@@ -3247,7 +3286,7 @@ const Game = (() => {
     completeFigureMove(unit);
     st.movementContinuation = null;
     activeMovementCard(st, player, continuation.cardType,
-      continuation.tradePayment || continuation.tradeSpent);
+      continuation.tradePayment || continuation.tradeSpent, continuation.cardIndex);
     if (redeploying) consumeMassProductionRedeploy(st, player, unit);
     log(st, `${player.name} ended ${continuation.unitType} movement.`);
     if (!unitsLeftToMove(player, continuation.cardType)) finishActiveCard(st);
@@ -3482,52 +3521,141 @@ const Game = (() => {
     return resolution;
   }
 
+  function astronomyCapitalEdges(st, playerId) {
+    const capitalKey = findCapital(st, playerId);
+    const capital = capitalKey && st.map.hexes[capitalKey];
+    return capital ? Object.entries(st.map.hexes)
+      .filter(([, hex]) => hex && hex.active && hex.tileId === capital.tileId && isEdgeSpace(st, hex))
+      .map(([hexKey]) => hexKey) : [];
+  }
+
+  function queueAstronomyTileChoice(st, resolution, count) {
+    const visible = Array.isArray(resolution.astronomyInspected) &&
+      resolution.astronomyInspected.length
+      ? resolution.astronomyInspected.slice()
+      : (st.tileStack || []).slice(-Math.max(0, count));
+    if (!visible.length) return finishScienceResolution(st, resolution);
+    const edgeSpaces = astronomyCapitalEdges(st, resolution.playerId);
+    resolution.step = "astronomy_tiles";
+    resolution.astronomyInspected = visible.slice();
+    resolution.astronomySelectedFromKey = null;
+    queuePendingChoice(st, {
+      kind: "astronomy_tiles",
+      playerId: resolution.playerId,
+      title: "Astronomy: Compare the Inspected Map Tiles",
+      source: "Astronomy",
+      tileIds: visible,
+      edgeSpaces,
+      // Candidate comparison in the browser is local. This action only moves
+      // to the explicit capital-edge question; it does not place a tile or
+      // mutate the stack.
+      options: visible.map((tileId) => ({
+        id: `origin|${tileId}`,
+        label: `Choose an origin for tile ${tileId}`
+      })).concat({ id: "none", label: "Place neither" }),
+      cardResolutionId: resolution.id
+    });
+    return true;
+  }
+
+  function queueAstronomyEdgeChoice(st, resolution, tileIds, selectedTileId) {
+    const edgeSpaces = astronomyCapitalEdges(st, resolution.playerId);
+    if (!edgeSpaces.length || !(tileIds || []).includes(selectedTileId)) return false;
+    resolution.step = "astronomy_edge";
+    resolution.astronomyTileId = selectedTileId;
+    resolution.astronomySelectedFromKey = null;
+    queuePendingChoice(st, {
+      kind: "astronomy_edge",
+      playerId: resolution.playerId,
+      title: "Astronomy: Choose an Edge Space of Your Capital Tile",
+      source: "Astronomy",
+      tileId: selectedTileId,
+      tileIds: (tileIds || []).slice(),
+      hexKeys: edgeSpaces,
+      cardResolutionId: resolution.id
+    });
+    return true;
+  }
+
+  function queueAstronomyPlacementChoice(st, resolution, tileIds, selectedTileId, selectedFromKey) {
+    if (!(tileIds || []).includes(selectedTileId) ||
+        !astronomyCapitalEdges(st, resolution.playerId).includes(selectedFromKey)) return false;
+    resolution.step = "astronomy_place";
+    resolution.astronomyTileId = selectedTileId;
+    resolution.astronomySelectedFromKey = selectedFromKey;
+    queuePendingChoice(st, {
+      kind: "astronomy_place",
+      playerId: resolution.playerId,
+      title: "Astronomy: Position an Inspected Map Tile",
+      source: "Astronomy",
+      tileIds: (tileIds || []).slice(),
+      selectedTileId,
+      selectedFromKey,
+      options: (tileIds || []).map((tileId) => ({
+        id: `place|${tileId}`,
+        label: `Place tile ${tileId}`
+      })).concat([
+        { id: "change_origin", label: "Change origin" },
+        { id: "compare", label: "Compare inspected tiles" },
+        { id: "none", label: "Place neither" }
+      ]),
+      cardResolutionId: resolution.id
+    });
+    return true;
+  }
+
+  function queueAstronomyReturn(st, resolution, tileIds) {
+    const remaining = (tileIds || []).slice();
+    resolution.astronomyRemaining = remaining;
+    if (!remaining.length) return finishScienceResolution(st, resolution);
+    resolution.step = "astronomy_return";
+    const options = [];
+    ["top", "bottom"].forEach((where) => {
+      options.push({
+        id: `${where}|forward`,
+        label: remaining.length === 1
+          ? `Return tile ${remaining[0]} to the ${where}`
+          : `${where}: ${remaining.join(" then ")}`
+      });
+      if (remaining.length > 1) options.push({
+        id: `${where}|reverse`,
+        label: `${where}: ${remaining.slice().reverse().join(" then ")}`
+      });
+    });
+    queuePendingChoice(st, {
+      kind: "astronomy_return",
+      playerId: resolution.playerId,
+      title: remaining.length === 1
+        ? "Astronomy: Return the Unused Tile"
+        : "Astronomy: Return the Inspected Tiles",
+      source: "Astronomy",
+      tileIds: remaining,
+      options,
+      cardResolutionId: resolution.id
+    });
+    return true;
+  }
+
   function queueSciencePrelude(st, player, tradePayment, advanceAmount, cardIndex) {
     // Every branch below belongs to the CARD that was played, so which card
     // that is has to be settled before any of them.
     const idx = resolveCardIndex(player, "science", cardIndex);
     // Unique science cards replace, rather than supplement, the standard card
     // at their tier. Their own handlers decide whether they need a sequence.
-    const unique = getActiveUniqueCard(player, "science");
+    const unique = getActiveUniqueCard(player, "science", idx);
     if (unique && unique.name === "Astronomy") {
       const resolution = beginScienceResolution(st, player, tradePayment,
-        advanceAmount, "Astronomy", "astronomy_tiles", idx);
-      const visible = (st.tileStack || []).slice(-2);
-      if (!visible.length) {
-        finishScienceResolution(st, resolution);
-        return true;
-      }
-      const options = [];
-      const capitalKey = findCapital(st, player.id);
-      const capital = capitalKey && st.map.hexes[capitalKey];
-      const edgeSpaces = capital ? Object.entries(st.map.hexes)
-        .filter(([, hex]) => hex && hex.active && hex.tileId === capital.tileId && isEdgeSpace(st, hex))
-        .map(([hexKey]) => hexKey) : [];
-      if (edgeSpaces.length) {
-        visible.forEach((tileId) => {
-          const remaining = visible.filter((id) => id !== tileId);
-          if (!remaining.length) {
-            options.push({ id: `place|${tileId}|bottom`, label: `Place tile ${tileId}` });
-          } else {
-            options.push({ id: `place|${tileId}|top`, label: `Place tile ${tileId}; return the other to the top` });
-            options.push({ id: `place|${tileId}|bottom`, label: `Place tile ${tileId}; return the other to the bottom` });
-          }
-        });
-      }
-      ["top", "bottom"].forEach((where) => {
-        options.push({ id: `none|${where}|forward`,
-          label: `Place neither; return ${visible.join(" then ")} to the ${where}` });
-        if (visible.length > 1) options.push({ id: `none|${where}|reverse`,
-          label: `Place neither; return ${visible.slice().reverse().join(" then ")} to the ${where}` });
-      });
+        advanceAmount, "Astronomy", "astronomy_count", idx);
+      const available = Math.min(2, (st.tileStack || []).length);
+      if (!available) return !!finishScienceResolution(st, resolution);
       queuePendingChoice(st, {
-        kind: "astronomy_tiles",
+        kind: "astronomy_count",
         playerId: player.id,
-        title: "Astronomy: Inspect the Bottom Map Tiles",
+        title: "Astronomy: How Many Bottom Tiles Will You Inspect?",
         source: "Astronomy",
-        tileIds: visible,
-        edgeSpaces,
-        options,
+        options: Array.from({ length: available }, (_, i) => available - i)
+          .map((count) => ({ id: String(count), label: `Inspect ${count} map tile${count === 1 ? "" : "s"}` }))
+          .concat({ id: "0", label: "Inspect none" }),
         cardResolutionId: resolution.id
       });
       return true;
@@ -3828,16 +3956,21 @@ const Game = (() => {
     // leftmost and leave the one actually played where it stood.
     const idx = Number.isInteger(cardIndex) && rowEntryType(player.focusRow[cardIndex]) === cardType
       ? cardIndex : focusIndexOf(player, cardType);
+    const resolvedUnique = getActiveUniqueCard(player, cardType, idx);
+    const resolvedTier = idx >= 0 ? cardTierAt(player, idx) : getCardTier(player, cardType);
     // Terra p13: "For any ability that depends on a focus card being resolved
     // in a specific slot, the card is treated as though it is in the
     // farther-right slot." So a card shifted into the 5 slot counts as a 5.
-    const resolvedSlot = getSlotValue(player, cardType, st);
+    const resolvedSlot = getSlotValue(player, cardType, st, idx);
     const wasReplay = player.arsenalReplay === cardType;
-    if (idx >= 0 && !capitalismReplay) {
-      player.focusRow.splice(idx, 1);
-      player.focusRow.unshift(cardType);
-    }
+    // Pay the physical card before moving it. An Oxford duplicate carries its
+    // own tokens in the row entry; after the reset its old index belongs to a
+    // different card.
     spendFocusTradePayment(player, cardType, tradePayment, st, idx);
+    if (idx >= 0 && !capitalismReplay) {
+      const [resolvedEntry] = player.focusRow.splice(idx, 1);
+      player.focusRow.unshift(resolvedEntry);
+    }
     player.cardPlayed = true;
     player.arsenalReplay = null;
     player.capitalismReplay = null;
@@ -3863,8 +3996,8 @@ const Game = (() => {
     // "ReferenceError: cardType is not defined" and took the rest of the
     // turn down with it. Their resolvers were already in place; only the
     // queuing was in the wrong function.
-    const standardEconomy = !getActiveUniqueCard(player, "economy");
-    const economyTier = getCardTier(player, "economy");
+    const standardEconomy = cardType === "economy" && !resolvedUnique;
+    const economyTier = resolvedTier;
     if (cardType === "economy" && standardEconomy && economyTier === 3) {
       const held = RESOURCES.filter((resource) => Number(player.resources[resource] || 0) > 0);
       if (held.length) {
@@ -4210,6 +4343,26 @@ const Game = (() => {
           choice.takeUnique, choice.chain);
         resolved = true;
       }
+    } else if (choice.kind === "astronomy_count") {
+      const resolution = st.cardResolution;
+      const count = Number(payload.optionId);
+      const legal = (choice.options || []).some((entry) => entry.id === String(count));
+      if (legal && Number.isInteger(count) && count >= 0 && count <= 2 &&
+          resolution && resolution.id === choice.cardResolutionId) {
+        if (count > 0) {
+          // Looking exposes hidden stack information. The turn may be undone
+          // before this answer, but not after the player has seen a tile.
+          if (st.turnUndo) {
+            st.turnUndo.locked = true;
+            st.turnUndo.reason = "Undo is locked because Astronomy revealed hidden map tiles.";
+            st.turnUndo.snapshot = null;
+          }
+          queueAstronomyTileChoice(st, resolution, count);
+        } else {
+          finishScienceResolution(st, resolution);
+        }
+        resolved = true;
+      }
     } else if (choice.kind === "astronomy_tiles") {
       const option = (choice.options || []).find((entry) => entry.id === payload.optionId);
       const resolution = st.cardResolution;
@@ -4217,54 +4370,95 @@ const Game = (() => {
       const tail = (st.tileStack || []).slice(-visible.length);
       if (option && resolution && resolution.id === choice.cardResolutionId &&
           JSON.stringify(tail) === JSON.stringify(visible)) {
-        const [mode, value, orderMode] = option.id.split("|");
-        st.tileStack.splice(st.tileStack.length - visible.length, visible.length);
-        const returnTiles = (tiles, where) => {
-          if (where === "top") st.tileStack = tiles.concat(st.tileStack);
-          else st.tileStack = st.tileStack.concat(tiles);
-        };
-        if (mode === "place" && visible.includes(value)) {
-          const remaining = visible.filter((tileId) => tileId !== value);
-          returnTiles(remaining, orderMode === "top" ? "top" : "bottom");
-          resolution.astronomyTileId = value;
-          resolution.step = "astronomy_edge";
-          queuePendingChoice(st, {
-            kind: "astronomy_edge",
-            playerId: player.id,
-            title: `Astronomy: Explore Tile ${value} From Your Capital Tile`,
-            source: "Astronomy",
-            tileId: value,
-            hexKeys: (choice.edgeSpaces || []).slice(),
-            cardResolutionId: resolution.id
-          });
+        const [mode, tileId] = option.id.split("|");
+        if (mode === "origin" && visible.includes(tileId)) {
+          resolved = queueAstronomyEdgeChoice(st, resolution, visible, tileId);
         } else if (mode === "none") {
-          const ordered = orderMode === "reverse" ? visible.slice().reverse() : visible;
-          returnTiles(ordered, value === "top" ? "top" : "bottom");
-          finishScienceResolution(st, resolution);
-        } else {
-          return st;
+          st.tileStack.splice(st.tileStack.length - visible.length, visible.length);
+          st.tileDeck = st.tileStack.slice();
+          queueAstronomyReturn(st, resolution, visible);
+          resolved = true;
         }
-        st.tileDeck = st.tileStack.slice();
-        resolved = true;
       }
     } else if (choice.kind === "astronomy_edge") {
       const hexKey = payload.hexKey;
       const resolution = st.cardResolution;
-      if ((choice.hexKeys || []).includes(hexKey) && resolution &&
-          resolution.id === choice.cardResolutionId &&
-          resolution.astronomyTileId === choice.tileId) {
-        resolution.step = "astronomy_exploration";
-        st.freeExplore = {
-          playerId: player.id,
-          fromKey: hexKey,
-          source: "Astronomy",
-          followUp: "astronomy_finish",
-          tileId: choice.tileId,
-          scienceResolutionId: resolution.id
-        };
-        beginExploration(st, { playerId: player.id, fromKey: hexKey });
-        resolved = !!(st.pendingExploration && st.pendingExploration.tileId === choice.tileId);
-        if (!resolved) st.freeExplore = null;
+      const visible = (choice.tileIds || []).slice();
+      const tail = (st.tileStack || []).slice(-visible.length);
+      if (resolution && resolution.id === choice.cardResolutionId &&
+          resolution.astronomyTileId === choice.tileId &&
+          JSON.stringify(tail) === JSON.stringify(visible)) {
+        if (payload.optionId === "compare") {
+          resolution.astronomyInspected = visible.slice();
+          resolved = !!queueAstronomyTileChoice(st, resolution, visible.length);
+        } else if (payload.optionId === "none") {
+          st.tileStack.splice(st.tileStack.length - visible.length, visible.length);
+          st.tileDeck = st.tileStack.slice();
+          queueAstronomyReturn(st, resolution, visible);
+          resolved = true;
+        } else if ((choice.hexKeys || []).includes(hexKey)) {
+          resolved = queueAstronomyPlacementChoice(st, resolution, visible,
+            choice.tileId, hexKey);
+        }
+      }
+    } else if (choice.kind === "astronomy_place") {
+      const option = (choice.options || []).find((entry) => entry.id === payload.optionId);
+      const resolution = st.cardResolution;
+      const visible = (choice.tileIds || []).slice();
+      const tail = (st.tileStack || []).slice(-visible.length);
+      if (option && resolution && resolution.id === choice.cardResolutionId &&
+          resolution.astronomySelectedFromKey === choice.selectedFromKey &&
+          JSON.stringify(tail) === JSON.stringify(visible)) {
+        const [mode, tileId] = option.id.split("|");
+        if (mode === "place" && visible.includes(tileId)) {
+          const attempt = isLegalExplorationPlacement(st, {
+            tileId,
+            fromKey: choice.selectedFromKey
+          }, payload.anchorKey, payload.rotation, payload.side);
+          if (!attempt.ok) return st;
+          st.tileStack.splice(st.tileStack.length - visible.length, visible.length);
+          placeExploredTile(st, tileId, attempt.placement.anchorKey,
+            attempt.placement.rotation, attempt.placement.side);
+          st.tileDeck = st.tileStack.slice();
+          resolution.astronomyTileId = tileId;
+          log(st, `${player.name} placed Astronomy tile ${tileId} from capital-edge space ${choice.selectedFromKey}.`);
+          queueAstronomyReturn(st, resolution, visible.filter((id) => id !== tileId));
+          resolved = true;
+        } else if (mode === "change_origin") {
+          const preferredTileId = visible.includes(payload.tileId)
+            ? payload.tileId
+            : (visible.includes(choice.selectedTileId) ? choice.selectedTileId : visible[0]);
+          resolved = queueAstronomyEdgeChoice(st, resolution, visible,
+            preferredTileId);
+        } else if (mode === "compare") {
+          resolution.astronomyInspected = visible.slice();
+          resolved = !!queueAstronomyTileChoice(st, resolution, visible.length);
+        } else if (mode === "none") {
+          st.tileStack.splice(st.tileStack.length - visible.length, visible.length);
+          st.tileDeck = st.tileStack.slice();
+          queueAstronomyReturn(st, resolution, visible);
+          resolved = true;
+        }
+      }
+    } else if (choice.kind === "astronomy_return") {
+      const option = (choice.options || []).find((entry) => entry.id === payload.optionId);
+      const resolution = st.cardResolution;
+      const remaining = (choice.tileIds || []).slice();
+      if (option && resolution && resolution.id === choice.cardResolutionId &&
+          JSON.stringify(resolution.astronomyRemaining || []) === JSON.stringify(remaining) &&
+          remaining.every((tileId) => !(st.tileStack || []).includes(tileId) &&
+            st.tiles[tileId] && !st.tiles[tileId].placed)) {
+        const [where, orderMode] = option.id.split("|");
+        if (where !== "top" && where !== "bottom") return st;
+        const ordered = orderMode === "reverse" ? remaining.slice().reverse() : remaining;
+        st.tileStack = where === "top"
+          ? ordered.concat(st.tileStack || [])
+          : (st.tileStack || []).concat(ordered);
+        st.tileDeck = st.tileStack.slice();
+        resolution.astronomyRemaining = [];
+        log(st, `${player.name} returned Astronomy's unused tile${ordered.length === 1 ? "" : "s"} to the ${where}.`);
+        finishScienceResolution(st, resolution);
+        resolved = true;
       }
     } else if (choice.kind === "shipbuilding_water") {
       const pickedKey = payload.hexKey;
@@ -5471,8 +5665,9 @@ const Game = (() => {
       if (burn) rows.push({ label: "resources burned", value: burn, category: "resource" });
       return rows;
     };
-    st.lastCombat = { attacker: player.name, defender: c.defenderLabel, toKey: c.toKey,
+    st.lastCombat = { combatId: c.combatId, attacker: player.name, defender: c.defenderLabel, toKey: c.toKey,
       atkRoll: c.atkRoll, defRoll: c.defRoll, atkTotal, defTotal, win,
+      atkRollSeq: Number(c.atkRollSeq || 0), defRollSeq: Number(c.defRollSeq || 0),
       leaderBonus: c.leaderBonus, atkTrade: c.atkTrade, defTrade: c.defTrade,
       atkParts: withBurn(c.atkParts, c.atkResource),
       defParts: withBurn(c.defParts, c.defResource),
@@ -6676,10 +6871,12 @@ const Game = (() => {
     return CARD_TIERS.military.move[tier - 1];
   }
 
-  function getEconomyMove(player, st) {
-    const tier = getCardTier(player, "economy");
+  function getEconomyMove(player, st, cardIndex) {
+    const idx = resolveCardIndex(player, "economy", cardIndex);
+    const tier = idx >= 0 ? cardTierAt(player, idx) : getCardTier(player, "economy");
     // Egypt's Wheel (unique Economy I): caravans roll 4 spaces.
-    const base = uniqueInPlay(player, "egypt") ? 4 : CARD_TIERS.economy.move[tier - 1];
+    const unique = getActiveUniqueCard(player, "economy", idx);
+    const base = unique && unique.name === "Wheel" ? 4 : CARD_TIERS.economy.move[tier - 1];
     // Colossus: 6 additional spaces of caravan movement on the economy card.
     const colossus = st && player && hasWonder(st, player.id, "Colossus") ? 6 : 0;
     return base + colossus;
@@ -8133,7 +8330,7 @@ const Game = (() => {
   // Palenque. Keeping the composition explicit is important: the resource is
   // consumed, a natural-wonder token is never legal here, and the remaining
   // amount must actually exist on the focus card.
-  function validateFocusTradeSpend(st, player, cardType, tradeSpent, tradeResources, reservedResources) {
+  function validateFocusTradeSpend(st, player, cardType, tradeSpent, tradeResources, reservedResources, cardIndex) {
     const spent = tradeSpent === undefined ? 0 : Number(tradeSpent);
     if (!Number.isInteger(spent) || spent < 0) {
       return {
@@ -8169,7 +8366,9 @@ const Game = (() => {
     }
 
     const focusSpent = spent - resources.count;
-    const printedTrade = Number(player && player.trade && player.trade[cardType] || 0);
+    const exactIndex = player ? resolveCardIndex(player, cardType, cardIndex) : -1;
+    const printedTrade = exactIndex >= 0 ? cardTradeAt(player, exactIndex)
+      : Number(player && player.trade && player.trade[cardType] || 0);
     // America's natural wonder tokens sitting on THIS card spend like trade
     // tokens on it. They are the last thing used, so an ordinary token is never
     // saved at the cost of exhausting a wonder that could have paid elsewhere.
@@ -8645,20 +8844,21 @@ const Game = (() => {
     return new Set(valid);
   }
 
-  function canCrossWater(player, unitType) {
+  function canCrossWater(player, unitType, cardIndex) {
     if (!player) return false;
     // Indonesia: caravans and armies can always move into water.
     if (hasLeader(player, "indonesia")) return true;
     const cardType = unitType === "caravan" ? "economy" : "military";
-    const tier = getCardTier(player, cardType);
+    const idx = resolveCardIndex(player, cardType, cardIndex);
+    const tier = idx >= 0 ? cardTierAt(player, idx) : getCardTier(player, cardType);
     const waterTier = CARD_TIERS[cardType].water;
     return waterTier && tier >= waterTier;
   }
 
-  function movementTerrainLimit(st, player, unitType) {
+  function movementTerrainLimit(st, player, unitType, cardIndex) {
     if (!player) return 1;
     const cardType = unitType === "caravan" ? "economy" : "military";
-    return getSlotValue(player, cardType, st);
+    return getSlotValue(player, cardType, st, cardIndex);
   }
 
   // Flight IV prints: "They can move through spaces with unreinforced control
@@ -8947,17 +9147,35 @@ const Game = (() => {
     return false;
   }
 
-  function getReachable(st, startKey, maxSteps, unitType, playerId) {
+  function movementNeighborKeys(st, currentKey, unitType, playerId) {
+    const normal = hexNeighborKeys(parseQ(currentKey), parseR(currentKey));
     const player = getPlayer(st, playerId);
-    const waterOk = canCrossWater(player, unitType);
-    const terrainLimit = movementTerrainLimit(st, player, unitType);
+    const current = st && st.map && st.map.hexes && st.map.hexes[currentKey];
+    if (unitType !== "caravan" || !hasLeader(player, "indonesia") ||
+        !current || !current.active || current.terrain !== "water" || !isEdgeSpace(st, current)) {
+      return normal;
+    }
+    // Indonesia: "treat water spaces on the edge of the map as though they are
+    // adjacent to each other." They are ordinary movement adjacencies: one
+    // space each, repeatable while movement remains, and independent of which
+    // physical map tile printed the water.
+    const edgeWater = Object.entries(st.map.hexes)
+      .filter(([, hex]) => hex && hex.active && hex.terrain === "water" && isEdgeSpace(st, hex))
+      .map(([hexKey]) => hexKey);
+    return Array.from(new Set(normal.concat(edgeWater)));
+  }
+
+  function getReachable(st, startKey, maxSteps, unitType, playerId, cardIndex) {
+    const player = getPlayer(st, playerId);
+    const waterOk = canCrossWater(player, unitType, cardIndex);
+    const terrainLimit = movementTerrainLimit(st, player, unitType, cardIndex);
     const visited = new Set([startKey]);
     const reachable = new Set();
     const queue = [{ key: startKey, steps: 0 }];
     while (queue.length) {
       const cur = queue.shift();
       if (cur.steps >= maxSteps) continue;
-      hexNeighborKeys(parseQ(cur.key), parseR(cur.key)).forEach((nk) => {
+      movementNeighborKeys(st, cur.key, unitType, playerId).forEach((nk) => {
         if (visited.has(nk)) return;
         const h = st.map.hexes[nk];
         if (!h || !h.active) return;
@@ -9424,6 +9642,36 @@ const Game = (() => {
     return placements;
   }
 
+  // Astronomy changes only WHICH normal exploration origin may be chosen.
+  // Once the player has named one capital-edge space, neither the UI nor the
+  // reducer is allowed to search the other edges for an answer that happens to
+  // fit. Keeping this helper singular makes that guarantee structural.
+  function getAstronomyPlacements(st, tileId, selectedFromKey, filters) {
+    if (typeof selectedFromKey !== "string" || !selectedFromKey) return [];
+    return getLegalExplorationPlacements(st, {
+      tileId,
+      fromKey: selectedFromKey
+    }, filters).map((entry) => ({ ...entry, fromKey: selectedFromKey }));
+  }
+
+  // Validate one physical attempt without exposing the set of other legal
+  // answers. Both the canvas and the authoritative reducer call this wrapper,
+  // which delegates to the ordinary exploration rules above.
+  function isLegalExplorationPlacement(st, pending, anchorKey, rotation, side) {
+    if (!pending || typeof anchorKey !== "string" ||
+        !Number.isInteger(rotation) || rotation < 0 || rotation > 5 ||
+        (side !== "A" && side !== "B")) {
+      return { ok: false, code: "invalid_tile_attempt" };
+    }
+    const placement = getLegalExplorationPlacements(st, pending, {
+      side,
+      rotation
+    }).find((entry) => entry.anchorKey === anchorKey);
+    return placement
+      ? { ok: true, placement }
+      : { ok: false, code: "illegal_tile_position" };
+  }
+
   // "Nowhere it fits" is a claim about the physical tile, not the currently
   // selected face or angle. The host therefore checks both faces at all six
   // rotations against every possible anchor before accepting an abandonment.
@@ -9469,7 +9717,7 @@ const Game = (() => {
       Number(a && a[resource] || 0) === Number(b && b[resource] || 0));
   }
 
-  function movementTradePayment(st, player, cardType, payload) {
+  function movementTradePayment(st, player, cardType, payload, cardIndex) {
     const requested = payload.tradeSpent === undefined ? 0 : Number(payload.tradeSpent);
     if (!Number.isInteger(requested) || requested < 0) return null;
     // Military trade is bid after both combat dice are visible. It is not an
@@ -9481,6 +9729,8 @@ const Game = (() => {
     }
     if (st.activeCard) {
       if (st.activeCard.playerId !== player.id || st.activeCard.cardType !== cardType) return null;
+      if (Number.isInteger(cardIndex) && Number.isInteger(st.activeCard.cardIndex) &&
+          cardIndex !== st.activeCard.cardIndex) return null;
       const committed = normalizeFocusTradePayment(
         st.activeCard.tradePayment || st.activeCard.tradeSpent);
       if (payload.tradeSpent !== undefined && requested !== committed.spent) return null;
@@ -9490,14 +9740,14 @@ const Game = (() => {
     }
     if (!canResolveCard(player, cardType)) return null;
     const payment = validateFocusTradeSpend(st, player, cardType, requested,
-      payload.tradeResources);
+      payload.tradeResources, null, cardIndex);
     return payment.ok ? payment : null;
   }
 
   // Route entries are the successive hexes selected by the player. Each leg is
   // recomputed against the authoritative board; caller-supplied remaining or
   // spent values never participate in the result.
-  function validateMovementRoute(st, startKey, fromKey, route, maxMove, unitType, playerId) {
+  function validateMovementRoute(st, startKey, fromKey, route, maxMove, unitType, playerId, cardIndex) {
     let stops = Array.isArray(route) ? route.slice() : [];
     if (stops.length > 32 || stops.some((hexKey) => typeof hexKey !== "string")) return null;
     if (stops[0] === startKey) stops.shift();
@@ -9510,7 +9760,7 @@ const Game = (() => {
       const target = stops[index];
       if (target === current) return null;
       const left = maxMove - spent;
-      const distances = getReachableWithDist(st, current, left, unitType, playerId);
+      const distances = getReachableWithDist(st, current, left, unitType, playerId, cardIndex);
       if (!distances.has(target)) return null;
       spent += distances.get(target);
       const hex = st.map.hexes[target];
@@ -9525,14 +9775,16 @@ const Game = (() => {
     if (!found || found.unit.movedThisCard || found.unit.exploredThisMove) return null;
     const { unit, unitType } = found;
     const cardType = unitType === "caravan" ? "economy" : "military";
-    const tradePayment = movementTradePayment(st, player, cardType, payload);
+    const cardIndex = st.activeCard && Number.isInteger(st.activeCard.cardIndex)
+      ? st.activeCard.cardIndex : resolveCardIndex(player, cardType, payload.cardIndex);
+    const tradePayment = movementTradePayment(st, player, cardType, payload, cardIndex);
     if (!tradePayment) return null;
     const startKey = movementOrigin(st, player, unit, unitType, payload);
     if (!startKey) return null;
     const maxMove = unitType === "caravan"
-      ? getEconomyMove(player, st) + tradePayment.spent : getMilitaryMove(player, st);
+      ? getEconomyMove(player, st, cardIndex) + tradePayment.spent : getMilitaryMove(player, st);
     const route = validateMovementRoute(st, startKey, payload.fromKey, payload.route,
-      maxMove, unitType, player.id);
+      maxMove, unitType, player.id, cardIndex);
     if (!route || route.remaining < 1) return null;
     return {
       kind: "post_exploration_movement",
@@ -9540,6 +9792,7 @@ const Game = (() => {
       unitType,
       unitId: unit.id,
       cardType,
+      cardIndex,
       startKey,
       fromKey: payload.fromKey,
       maxMove,
@@ -9651,7 +9904,8 @@ const Game = (() => {
     const active = st.activeCard && st.activeCard.playerId === player.id &&
       st.activeCard.cardType === "economy" ? st.activeCard : null;
     const shipbuilding = movement && movement.unitType === "caravan" &&
-      uniqueInPlay(player, "indonesia") && !payload.skipShipbuilding &&
+      getActiveUniqueCard(player, "economy", movement.cardIndex)?.name === "Shipbuilding" &&
+      !payload.skipShipbuilding &&
       !(active && active.shipbuildingWaterOffered);
     if (shipbuilding) {
       const waterSpaces = shipbuildingWaterSpaces(st, payload.fromKey);
@@ -9682,7 +9936,7 @@ const Game = (() => {
       explorer.exploredThisMove = true;
       explorer.exploredThisCard = true;
       explorer.moveInProgress = true;
-      activeMovementCard(st, player, movement.cardType, movement.tradePayment);
+      activeMovementCard(st, player, movement.cardType, movement.tradePayment, movement.cardIndex);
     }
 
     // Draw from the bottom and remove it from the secret sequence immediately.
@@ -9903,17 +10157,17 @@ const Game = (() => {
     fillEnclosedHoles(st);
   }
 
-  function getReachableWithDist(st, startKey, maxSteps, unitType, playerId) {
+  function getReachableWithDist(st, startKey, maxSteps, unitType, playerId, cardIndex) {
     const player = getPlayer(st, playerId);
-    const waterOk = canCrossWater(player, unitType);
-    const terrainLimit = movementTerrainLimit(st, player, unitType);
+    const waterOk = canCrossWater(player, unitType, cardIndex);
+    const terrainLimit = movementTerrainLimit(st, player, unitType, cardIndex);
     const distances = new Map([[startKey, 0]]);
     const transitOnly = new Set();
     const queue = [{ key: startKey, steps: 0 }];
     while (queue.length) {
       const cur = queue.shift();
       if (cur.steps >= maxSteps) continue;
-      hexNeighborKeys(parseQ(cur.key), parseR(cur.key)).forEach((nk) => {
+      movementNeighborKeys(st, cur.key, unitType, playerId).forEach((nk) => {
         if (distances.has(nk)) return;
         const h = st.map.hexes[nk];
         if (!h || !h.active) return;
@@ -9975,7 +10229,8 @@ const Game = (() => {
     placeControlToken,
     hexNeighborKeys, parseQ, parseR, key, hexDist, rollDie, rotateAxial,
     isExploreEligible, validateExploration, placeExploredTile,
-    getLegalExplorationPlacements, hasLegalExplorationPlacement,
-    canAbandonExploration, getReachableWithDist
+    getLegalExplorationPlacements, getAstronomyPlacements, isLegalExplorationPlacement,
+    hasLegalExplorationPlacement,
+    canAbandonExploration, getReachableWithDist, movementNeighborKeys
   };
 })();

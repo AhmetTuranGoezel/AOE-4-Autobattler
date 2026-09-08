@@ -145,6 +145,98 @@ const UI = (() => {
     anchorKey: null
   };
   let renderedCapitalPreview = null;
+  let renderedBoardHighlights = [];
+
+  // Astronomy uses the same map-scale ghost renderer as setup, but its two
+  // inspected tiles stay in a separate local hand. Candidate, face, angle and
+  // anchor are never written into game state; only the explicit Place button
+  // sends the complete, revalidated placement to the host.
+  const astronomyPreview = {
+    choiceId: null,
+    resolutionId: null,
+    tileId: null,
+    side: "A",
+    rotation: 0,
+    anchorKey: null,
+    selectedFromKey: null
+  };
+  let renderedAstronomyPreview = null;
+  const astronomyReturnOrder = { choiceId: null, reversed: false };
+
+  function resetAstronomyPreview() {
+    astronomyPreview.choiceId = null;
+    astronomyPreview.resolutionId = null;
+    astronomyPreview.tileId = null;
+    astronomyPreview.side = "A";
+    astronomyPreview.rotation = 0;
+    astronomyPreview.anchorKey = null;
+    astronomyPreview.selectedFromKey = null;
+    renderedAstronomyPreview = null;
+  }
+
+  function currentAstronomyDecision() {
+    if (!state || state.phase !== "playing" || !localPlayerId) return null;
+    return (state.pendingChoices || []).find((choice) =>
+      choice.playerId === localPlayerId &&
+      ["astronomy_tiles", "astronomy_edge", "astronomy_place"].includes(choice.kind)) || null;
+  }
+
+  function currentAstronomyChoice() {
+    const choice = currentAstronomyDecision();
+    return choice && choice.kind === "astronomy_place" ? choice : null;
+  }
+
+  function previewingAstronomyTile() {
+    const choice = currentAstronomyChoice();
+    return !!choice && astronomyPreview.choiceId === choice.id &&
+      choice.selectedFromKey === astronomyPreview.selectedFromKey &&
+      (choice.tileIds || []).includes(astronomyPreview.tileId);
+  }
+
+  function astronomyAttempt(choice) {
+    if (!choice || !astronomyPreview.tileId || !astronomyPreview.selectedFromKey ||
+        !astronomyPreview.anchorKey || !Game.isLegalExplorationPlacement) {
+      return { ok: false, code: "incomplete_preview" };
+    }
+    return Game.isLegalExplorationPlacement(state, {
+      tileId: astronomyPreview.tileId,
+      fromKey: astronomyPreview.selectedFromKey
+    }, astronomyPreview.anchorKey, astronomyPreview.rotation, astronomyPreview.side);
+  }
+
+  function selectAstronomyPreview(choice, tileId) {
+    if (!choice || !(choice.tileIds || []).includes(tileId)) return;
+    const sameResolution = astronomyPreview.resolutionId === choice.cardResolutionId;
+    astronomyPreview.choiceId = choice.id;
+    astronomyPreview.resolutionId = choice.cardResolutionId;
+    astronomyPreview.tileId = tileId;
+    astronomyPreview.selectedFromKey = choice.selectedFromKey || null;
+    if (!sameResolution) {
+      astronomyPreview.side = "A";
+      astronomyPreview.rotation = 0;
+      astronomyPreview.anchorKey = null;
+    }
+  }
+
+  function reconcileAstronomyPreview() {
+    const choice = currentAstronomyDecision();
+    if (!choice) {
+      if (astronomyPreview.choiceId) resetAstronomyPreview();
+      return;
+    }
+    const preferred = (choice.tileIds || []).includes(astronomyPreview.tileId)
+      ? astronomyPreview.tileId
+      : (choice.selectedTileId || choice.tileId || (choice.tileIds || [])[0]);
+    if (preferred) selectAstronomyPreview(choice, preferred);
+    if (choice.kind === "astronomy_place" && !astronomyPreview.anchorKey) {
+      // Start from the explicitly chosen origin itself. That is normally an
+      // invalid overlap, which is intentional: no legal answer is revealed or
+      // auto-selected. The player moves the cardboard ghost from there.
+      astronomyPreview.anchorKey = mouseHex
+        ? Game.key(mouseHex.q, mouseHex.r)
+        : choice.selectedFromKey;
+    }
+  }
 
   function resetCapitalPreview() {
     previewCapital.enabled = false;
@@ -283,6 +375,7 @@ const UI = (() => {
   // applied to the game, only drawn, so a late or lost packet cannot desync
   // anything.
   const presence = new Map();          // playerId -> last packet
+  let renderedPresenceVisuals = [];
   const PRESENCE_STALE_MS = 8000;      // a player who stops sending fades out
   let lastPresenceSent = "";
   let lastPresenceAt = 0;
@@ -315,7 +408,7 @@ const UI = (() => {
     // Capital planning before the fortress is private. Even the otherwise
     // harmless shared cursor would disclose the preview's successive anchors,
     // so this mode emits no presence traffic at all.
-    if (previewingCapitalTile()) return;
+    if (previewingCapitalTile() || previewingAstronomyTile()) return;
     const snap = presenceSnapshot();
     if (!snap) return;
     const now = performance.now();
@@ -1811,6 +1904,7 @@ const UI = (() => {
     let ghostView = null;
     let fortressGhostKey = null;
     renderedCapitalPreview = null;
+    renderedAstronomyPreview = null;
 
     if (state.phase === "setup") {
       const activeId = state.setup.order[state.setup.turnIndex];
@@ -1878,6 +1972,35 @@ const UI = (() => {
       }
     }
 
+    if (state.phase === "playing" && previewingAstronomyTile()) {
+      const choice = currentAstronomyChoice();
+      const attempt = astronomyAttempt(choice);
+      if (astronomyPreview.anchorKey) {
+        const keys = Game.getTileHexKeys(astronomyPreview.anchorKey,
+          astronomyPreview.rotation, hexes);
+        ghostKeys = new Set(keys);
+        ghostValid = !!attempt.ok;
+        ghostView = {
+          preview: "astronomy",
+          tileId: astronomyPreview.tileId,
+          anchorKey: astronomyPreview.anchorKey,
+          rotation: astronomyPreview.rotation,
+          side: astronomyPreview.side,
+          playerColor: seatOf(localPlayerId)
+        };
+        renderedAstronomyPreview = {
+          tileId: astronomyPreview.tileId,
+          anchorKey: astronomyPreview.anchorKey,
+          rotation: astronomyPreview.rotation,
+          side: astronomyPreview.side,
+          selectedFromKey: astronomyPreview.selectedFromKey,
+          valid: !!attempt.ok,
+          cellKeys: keys.slice(),
+          legalAnchorCount: 0
+        };
+      }
+    }
+
     if (state.phase === "playing" &&
         isExploring(sub.phase) &&
         mouseHex && exploringTileId()) {
@@ -1899,6 +2022,7 @@ const UI = (() => {
     const hexChoice = activeHexChoice();
     const combinedValid = new Set([...sub.validHexes, ...setupValid,
       ...(hexChoice ? hexChoice.hexKeys : [])]);
+    renderedBoardHighlights = Array.from(combinedValid);
     // Everything on the board that moves by itself, in one place, so the loop
     // and the drawing can never disagree about whether a frame is worth having.
     anims.living = combinedValid.size > 0 || anythingAnimating();
@@ -2360,9 +2484,22 @@ const UI = (() => {
   // colour. Everything here is a hint, never a target: none of it takes clicks.
   function drawPresence(hexes) {
     const others = livePresence();
+    renderedPresenceVisuals = [];
     if (!others.length) return;
     others.forEach((p) => {
-      const color = p.color || "#fff";
+      // Presence packets describe transient geometry, never identity. Seat
+      // name and colour come from the authoritative game state so a stale or
+      // forged packet cannot paint somebody else's cursor/route/ghost.
+      const actor = Game.getPlayer(state, p.playerId);
+      if (!actor) return;
+      const color = safeColor(actor.color);
+      renderedPresenceVisuals.push({
+        playerId: actor.id,
+        color,
+        hover: p.hover || null,
+        hasRoute: !!(p.route && p.route.currentKey),
+        hasGhost: !!(p.ghost && p.ghost.anchor)
+      });
       ctx.save();
 
       // The tile they are holding over a spot, as a dashed outline.
@@ -2419,7 +2556,7 @@ const UI = (() => {
         ctx.fill();
 
         ctx.globalAlpha = 1;
-        const label = p.name || "player";
+        const label = actor.name || "player";
         ctx.font = `600 ${Math.max(9, Math.round(HEX_SIZE * 0.34))}px system-ui, sans-serif`;
         const w = ctx.measureText(label).width + 10;
         const bx = q.x - w / 2, by = q.y - HEX_SIZE - 15;
@@ -2438,9 +2575,14 @@ const UI = (() => {
   function drawGhostTile(ghostKeys, valid, view) {
     const hexes = state.map.hexes;
     const previewOnly = !!(view && view.preview);
-    const fillColor = previewOnly ? "rgba(255,213,79,0.18)"
-      : (valid ? "rgba(102,187,106,0.25)" : "rgba(239,83,80,0.2)");
-    const strokeColor = previewOnly ? "#ffd54f" : (valid ? "#66bb6a" : "#ef5350");
+    const astronomyGhost = !!(view && view.preview === "astronomy");
+    const fillColor = astronomyGhost
+      ? (valid ? "rgba(255,255,255,0.16)" : "rgba(239,83,80,0.24)")
+      : (previewOnly ? "rgba(255,213,79,0.18)"
+        : (valid ? "rgba(102,187,106,0.25)" : "rgba(239,83,80,0.2)"));
+    const strokeColor = astronomyGhost
+      ? (valid ? safeColor(view.playerColor) : "#ef5350")
+      : (previewOnly ? "#ffd54f" : (valid ? "#66bb6a" : "#ef5350"));
 
     let tileId = view && view.tileId ? view.tileId : null;
     if (!tileId && state.phase === "setup") {
@@ -2478,18 +2620,21 @@ const UI = (() => {
       const cell = faceCells && idx >= 0 ? faceCells[idx] : null;
       hexPath(p.x, p.y, HEX_SIZE);
 
-      if (h.active && !previewOnly) {
+      if (h.active && (!previewOnly || astronomyGhost)) {
         // Occupied ground: this is why it will not go here.
         ctx.fillStyle = "rgba(239,83,80,0.35)";
         ctx.fill();
       } else if (photoDrawn) {
         // The photograph is already down; only tint it for legal or not.
-        ctx.fillStyle = previewOnly ? "rgba(255,213,79,0.08)"
-          : (valid ? "rgba(102,187,106,0.12)" : "rgba(239,83,80,0.3)");
+        ctx.fillStyle = astronomyGhost
+          ? (valid ? "rgba(255,255,255,0.06)" : "rgba(239,83,80,0.3)")
+          : (previewOnly ? "rgba(255,213,79,0.08)"
+            : (valid ? "rgba(102,187,106,0.12)" : "rgba(239,83,80,0.3)"));
         ctx.fill();
       } else if (cell) {
         ctx.fillStyle = TERRAIN_COLORS[cell.terrain] || fillColor;
-        ctx.globalAlpha = previewOnly ? 0.75 : (valid ? 0.75 : 0.4);
+        ctx.globalAlpha = astronomyGhost ? (valid ? 0.78 : 0.42)
+          : (previewOnly ? 0.75 : (valid ? 0.75 : 0.4));
         ctx.fill();
         ctx.globalAlpha = 1.0;
       } else {
@@ -2501,7 +2646,8 @@ const UI = (() => {
       // uses, so the ghost and the placed tile are the same picture.
       if (!cell) return;
       ctx.save();
-      ctx.globalAlpha = previewOnly ? 0.95 : (valid ? 0.95 : 0.55);
+      ctx.globalAlpha = astronomyGhost ? (valid ? 0.95 : 0.58)
+        : (previewOnly ? 0.95 : (valid ? 0.95 : 0.55));
       drawGhostCellMarks(p.x, p.y, cell, k);
       ctx.restore();
     });
@@ -2982,14 +3128,22 @@ const UI = (() => {
     const newKey = Game.key(newHex.q, newHex.r);
     const oldKey = mouseHex ? Game.key(mouseHex.q, mouseHex.r) : null;
     const privateCapitalPreview = previewingCapitalTile();
+    const privateAstronomyPreview = previewingAstronomyTile();
 
     if (newKey !== oldKey) {
       mouseHex = state && state.map.hexes[newKey] ? newHex : null;
       if (privateCapitalPreview && mouseHex) previewCapital.anchorKey = newKey;
+      if (privateAstronomyPreview && mouseHex) {
+        // The ghost follows the pointer through legal and illegal positions.
+        // Only this attempted anchor is evaluated; the set of answers remains
+        // internal to the rules engine.
+        astronomyPreview.anchorKey = newKey;
+      }
       if (mouseHex) showTooltip(e.clientX, e.clientY, newKey);
       else hideTooltip();
-      renderCanvas();
-      if (!privateCapitalPreview) publishPresence();
+      if (privateAstronomyPreview) render();
+      else renderCanvas();
+      if (!privateCapitalPreview && !privateAstronomyPreview) publishPresence();
     } else if (mouseHex) {
       dom.mapTooltip.style.left = (e.clientX + 14) + "px";
       dom.mapTooltip.style.top = (e.clientY + 14) + "px";
@@ -3068,6 +3222,7 @@ const UI = (() => {
     if (!unit) return false;
     clearSub();
     sub.cardType = continuation.cardType;
+    sub.cardIndex = Number.isInteger(continuation.cardIndex) ? continuation.cardIndex : null;
     sub.tradeSpent = Number(continuation.tradeSpent || 0);
     sub.movementState = {
       unitType: continuation.unitType,
@@ -3082,7 +3237,7 @@ const UI = (() => {
     sub.selectedUnit = { id: unit.id, position: continuation.fromKey };
     sub.phase = continuation.unitType === "army" ? "move_army" : "move_caravan";
     sub.validHexes = Game.getReachable(state, continuation.fromKey,
-      sub.movementState.remaining, continuation.unitType, localPlayerId);
+      sub.movementState.remaining, continuation.unitType, localPlayerId, sub.cardIndex);
     return true;
   }
 
@@ -3211,7 +3366,7 @@ const UI = (() => {
   }
 
   function manipulatingTile() {
-    return placingTile() || previewingCapitalTile();
+    return placingTile() || previewingCapitalTile() || previewingAstronomyTile();
   }
 
   // The tile in the panel is the thing in your hand, so it should move when you
@@ -3230,20 +3385,30 @@ const UI = (() => {
       if (!keys || !keys.every((hexKey) => !!state.map.hexes[hexKey])) {
         previewCapital.anchorKey = defaultCapitalPreviewAnchor(previewCapital.rotation);
       }
+    } else if (previewingAstronomyTile()) {
+      astronomyPreview.rotation = (astronomyPreview.rotation + step + 6) % 6;
     } else {
       sub.tileRotation = (sub.tileRotation + step + 6) % 6;
     }
-    if (!reducedMotion()) pendingCardMove = step > 0 ? "turn-cw" : "turn-ccw";
+    if (state.phase !== "setup" && !previewingCapitalTile() &&
+        !previewingAstronomyTile() && !reducedMotion()) {
+      pendingCardMove = step > 0 ? "turn-cw" : "turn-ccw";
+    }
     render();
   }
 
   function flipTile() {
     if (previewingCapitalTile()) {
       previewCapital.side = previewCapital.side === "A" ? "B" : "A";
+    } else if (previewingAstronomyTile()) {
+      astronomyPreview.side = astronomyPreview.side === "A" ? "B" : "A";
     } else {
       sub.tileSide = sub.tileSide === "A" ? "B" : "A";
     }
-    if (!reducedMotion()) pendingCardMove = "flip";
+    if (state.phase !== "setup" && !previewingCapitalTile() &&
+        !previewingAstronomyTile() && !reducedMotion()) {
+      pendingCardMove = "flip";
+    }
     render();
   }
 
@@ -3501,6 +3666,7 @@ const UI = (() => {
   function render() {
     if (!state) return;
     reconcileCapitalPreview();
+    reconcileAstronomyPreview();
     reconcileAuthoritativeResolution();
     frameNewExploration();
     dom.game.classList.toggle("lobby-active", state.phase === "lobby");
@@ -3612,13 +3778,17 @@ const UI = (() => {
     const others = livePresence();
     if (!others.length) { strip.innerHTML = ""; strip.classList.add("hidden"); return; }
     strip.classList.remove("hidden");
-    strip.innerHTML = others.map((p) => `
+    strip.innerHTML = others.map((p) => {
+      const actor = Game.getPlayer(state, p.playerId);
+      if (!actor) return "";
+      return `
       <div class="pres-row">
-        <span class="dot" style="background:${safeColor(p.color)}"></span>
-        <b>${escapeHtml(p.name || "player")}</b>
+        <span class="dot" style="background:${safeColor(actor.color)}"></span>
+        <b>${escapeHtml(actor.name || "player")}</b>
         <span>${escapeHtml(presenceVerb(p))}</span>
         ${p.hover ? `<em>${escapeHtml(p.hover)}</em>` : ""}
-      </div>`).join("");
+      </div>`;
+    }).join("");
   }
 
   function renderOpponentFocusRow(player) {
@@ -3680,6 +3850,15 @@ const UI = (() => {
         : `Cities: ${Game.countCities(state, p.id)} | Ctrl: ${Game.countControl(state, p.id)}${score}`;
       const lead = Game.getLeader ? Game.getLeader(p) : null;
       const civTag = lead ? `<span class="pcv" title="${escapeHtml(lead.ability.text)}">${escapeHtml(lead.civ)}</span>` : "";
+      // Ibrahim is a physical card handed to another player. The rules give
+      // that holder its effect and never instruct anyone to conceal it, so it
+      // belongs with the public tableau holdings, not only in the event log.
+      const ibrahimBadge = state.ibrahimHolder === p.id
+        ? `<button type="button" class="ibrahim-holder-chip" data-ibrahim-holder="${escapeHtml(p.id)}"
+            title="${escapeHtml(`${p.name} currently holds Ibrahim. Open the card.`)}">
+            ${window.CivCardArt ? `<img src="${escapeHtml(CivCardArt.ibrahim())}" alt="">` : ""}
+            <span>Ibrahim</span>
+          </button>` : "";
 
       // Everyone's tableau is face up on a real table, so it is face up here.
       // Physical component art and short labels keep the summary readable
@@ -3752,11 +3931,20 @@ const UI = (() => {
       }
 
       return `<div class="player-card${active}">
-        <div class="pname"><span class="dot" style="background:${safeColor(p.color)}"></span>${escapeHtml(p.name)}${civTag}</div>
+        <div class="pname"><span class="dot" style="background:${safeColor(p.color)}"></span>${escapeHtml(p.name)}${civTag}${ibrahimBadge}</div>
         <div class="pstats">${stats}</div>
         ${tableau}
       </div>`;
     }).join("");
+    dom.players.querySelectorAll("[data-ibrahim-holder]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const ottoman = state.players.find((player) => {
+          const leader = Game.getLeader ? Game.getLeader(player) : null;
+          return leader && leader.id === "ottoman";
+        });
+        openReference("civ", ottoman ? ottoman.id : button.dataset.ibrahimHolder);
+      });
+    });
   }
 
   function renderMyStats() {
@@ -3821,12 +4009,14 @@ const UI = (() => {
       leaderRow = `<div class="leader-box"><div class="lb-head">${escapeHtml(myLeader.civ)}${myLeader.ability.manual ? ' <span class="lb-ut">(manual ability)</span>' : ""}</div>
          <div class="lb-ability">${escapeHtml(myLeader.ability.text)}</div>${uniqueLine}</div>`;
     }
-    const ibrahim = state.ibrahimHolder === localPlayerId && window.CivCardArt
-      ? `<div class="ibrahim-mini" title="Ibrahim is currently in your tableau">
-          <img src="${CivCardArt.ibrahim()}" alt="Ibrahim unique diplomacy card">
-          <span>Ibrahim</span>
-        </div>` : "";
-    dom.myStats.innerHTML = `<h3>My Tableau</h3>${techDial}${leaderRow}${ibrahim}<div class="stat-grid">
+    const ibrahim = state.ibrahimHolder === localPlayerId
+      ? `<button type="button" class="ibrahim-tableau-chip" id="my-ibrahim"
+          title="Open the Ibrahim card">${window.CivCardArt
+            ? `<img src="${escapeHtml(CivCardArt.ibrahim())}" alt="">` : ""}<span>Ibrahim</span></button>` : "";
+    const quickCount = Object.values(me.resources || {}).reduce((sum, value) => sum + Number(value || 0), 0);
+    dom.myStats.innerHTML = `<details class="my-tableau-details">
+      <summary><span>My Tableau</span><small>${quickCount} resources · ${(me.diplomacy || []).length} diplomacy · ${myWonders.length} wonders</small>${ibrahim}</summary>
+      <div class="my-tableau-body">${techDial}${leaderRow}<div class="stat-grid">
       <span>Card Tiers:</span><span class="sv">${tiers}</span>
       <span>Armies:</span><span class="sv">${me.armies.length}/${maxA}</span>
       <span>Caravans:</span><span class="sv">${me.caravans.length}/${maxW}</span>
@@ -3835,7 +4025,16 @@ const UI = (() => {
       <span>CS Tokens:</span><span class="sv">${csTokens}</span>
       <span>Gov:</span><span class="sv">${gov}</span>
       <span>My Wonders:</span><span class="sv">${myWonderStr}</span>
-    </div>`;
+    </div></div></details>`;
+    document.getElementById("my-ibrahim")?.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const ottoman = state.players.find((player) => {
+        const leader = Game.getLeader ? Game.getLeader(player) : null;
+        return leader && leader.id === "ottoman";
+      });
+      openReference("civ", ottoman ? ottoman.id : localPlayerId);
+    });
   }
 
   // ── Wizard ────────────────────────────────────────────────
@@ -3999,6 +4198,11 @@ const UI = (() => {
     dom.wizard.classList.toggle("lobby-mode", lobby);
     dom.wizard.classList.toggle("setup-mode", state.phase === "setup");
     dom.wizard.classList.toggle("action-mode", state.phase === "playing");
+    const pending = state.phase === "playing"
+      ? getVisiblePendingChoice(Game.getPlayer(state, localPlayerId)) : null;
+    dom.wizard.classList.toggle("astronomy-mode", !!pending &&
+      ["astronomy_tiles", "astronomy_edge", "astronomy_place", "astronomy_return"]
+        .includes(pending.kind));
     dom.wizard.classList.toggle("collapsed", !lobby && wizardCollapsed);
     if (lobby || !dom.wizard.innerHTML.trim()) return;
     const button = document.createElement("button");
@@ -4383,7 +4587,7 @@ const UI = (() => {
         <div class="wiz-title">${isCapitalPhase ? "Place Your Capital Tile" : (isDraftPhase ? `Place Drafted Tile: ${tileType} (${tileId})` : `Place Tile: ${tileType} (${tileId})`)}</div>
         <div class="wiz-body">
           ${isDraftPhase ? `<div class="wiz-hint">Advanced setup: this tile joins the shared core — place it touching the growing map.</div>` : ""}
-          <div class="tile-preview">${renderTileCard(tileId)}</div>
+          <div class="tile-preview">${renderTileCard(tileId, { side: sub.tileSide, rotation: 0 })}</div>
           <div class="trade-counter">
             <span>Turn it:</span>
             <button id="rot-dec" class="sm">\u21ba</button>
@@ -4575,6 +4779,165 @@ const UI = (() => {
       </span>`;
   }
 
+  function astronomyFaceImage(tileId, side) {
+    const src = window.CivTileArt && CivTileArt.tileImagePath(tileId, side);
+    return src
+      ? `<img src="${escapeHtml(src)}" alt="Tile ${escapeHtml(tileId)} side ${side}" draggable="false">`
+      : `<span class="astro-face-missing">${renderTileCard(tileId, { side, rotation: 0 })}</span>`;
+  }
+
+  function astronomyCandidateCards(choice) {
+    return (choice.tileIds || []).map((tileId) => `
+      <button type="button" class="astro-candidate${astronomyPreview.tileId === tileId ? " selected" : ""}"
+        data-astro-tile="${escapeHtml(tileId)}" aria-pressed="${astronomyPreview.tileId === tileId ? "true" : "false"}">
+        <span class="astro-candidate-name">Tile ${escapeHtml(tileId)}</span>
+        <span class="astro-faces">
+          <span><small>Side A</small>${astronomyFaceImage(tileId, "A")}</span>
+          <span><small>Side B</small>${astronomyFaceImage(tileId, "B")}</span>
+        </span>
+      </button>`).join("");
+  }
+
+  function bindAstronomyCandidateCards(choice) {
+    document.querySelectorAll(".astro-candidate").forEach((button) => {
+      button.addEventListener("click", () => {
+        selectAstronomyPreview(choice, button.dataset.astroTile);
+        render();
+      });
+    });
+  }
+
+  function renderAstronomyTileChoice(choice) {
+    if (!(choice.tileIds || []).includes(astronomyPreview.tileId)) {
+      selectAstronomyPreview(choice, (choice.tileIds || [])[0]);
+    }
+
+    dom.wizard.innerHTML = `
+      <div class="wiz-title">Astronomy: Compare Your Inspected Tiles</div>
+      <div class="wiz-body">Both fixed-orientation faces are shown below. Select the tile you want to try. This does not place, return, rotate, or move anything.</div>
+      <div class="astro-candidates">${astronomyCandidateCards(choice)}</div>
+      <div class="wiz-actions astro-commit">
+        <button type="button" class="primary" id="astro-choose-origin" ${astronomyPreview.tileId ? "" : "disabled"}>Choose Capital-Edge Origin</button>
+        <button type="button" class="ghost" id="astro-none">Place Neither</button>
+      </div>`;
+
+    bindAstronomyCandidateCards(choice);
+    document.getElementById("astro-choose-origin")?.addEventListener("click", () => dispatch({
+      type: "RESOLVE_PENDING_CHOICE", payload: {
+        playerId: localPlayerId,
+        choiceId: choice.id,
+        optionId: `origin|${astronomyPreview.tileId}`
+      }
+    }));
+    document.getElementById("astro-none")?.addEventListener("click", () => dispatch({
+      type: "RESOLVE_PENDING_CHOICE",
+      payload: { playerId: localPlayerId, choiceId: choice.id, optionId: "none" }
+    }));
+  }
+
+  function renderAstronomyEdgeChoice(choice) {
+    dom.wizard.innerHTML = `
+      <div class="wiz-title">Astronomy: Choose an Exploration Origin</div>
+      <div class="wiz-body">Choose the actual edge space of your capital tile from which tile <strong>${escapeHtml(choice.tileId)}</strong> will be treated as explored. Only these origin choices are highlighted.</div>
+      <div class="astro-origin-card">${astronomyFaceImage(choice.tileId, "A")}<span>Tile ${escapeHtml(choice.tileId)}</span></div>
+      <div class="pending-note">Click one highlighted capital-edge space on the map.</div>
+      <div class="wiz-actions">
+        <button type="button" class="ghost" id="astro-compare">Compare Tiles</button>
+        <button type="button" class="ghost" id="astro-none">Place Neither</button>
+      </div>`;
+    const choose = (optionId) => dispatch({ type: "RESOLVE_PENDING_CHOICE", payload: {
+      playerId: localPlayerId, choiceId: choice.id, optionId
+    }});
+    document.getElementById("astro-compare")?.addEventListener("click", () => choose("compare"));
+    document.getElementById("astro-none")?.addEventListener("click", () => choose("none"));
+  }
+
+  function renderAstronomyPlacementChoice(choice) {
+    if (!(choice.tileIds || []).includes(astronomyPreview.tileId)) {
+      selectAstronomyPreview(choice, choice.selectedTileId || (choice.tileIds || [])[0]);
+    }
+    const attempt = astronomyAttempt(choice);
+    const status = !astronomyPreview.anchorKey
+      ? "Move the tile on the map."
+      : (attempt.ok ? "Current position is valid." : "Current position is not legal.");
+    dom.wizard.innerHTML = `
+      <div class="wiz-title">Astronomy: Position the Tile</div>
+      <div class="wiz-body">The map ghost is the tile being manipulated. These reference images remain fixed and readable.</div>
+      <div class="astro-candidates">${astronomyCandidateCards(choice)}</div>
+      <div class="astro-preview-toolbar" role="group" aria-label="Astronomy tile preview controls">
+        <button type="button" id="astro-rot-dec" class="sm" aria-label="Rotate map tile counterclockwise">Left</button>
+        <strong>Tile ${escapeHtml(astronomyPreview.tileId || "")} · Origin ${escapeHtml(choice.selectedFromKey)} · Side ${astronomyPreview.side} · Rotation ${astronomyPreview.rotation * 60}°</strong>
+        <button type="button" id="astro-rot-inc" class="sm" aria-label="Rotate map tile clockwise">Right</button>
+        <button type="button" id="astro-side" class="sm">Show side ${astronomyPreview.side === "A" ? "B" : "A"}</button>
+      </div>
+      <div class="pending-note astro-map-note ${attempt.ok ? "valid" : "invalid"}">${status}</div>
+      <div class="wiz-actions astro-commit">
+        <button type="button" class="primary" id="astro-place" ${attempt.ok ? "" : "disabled"}>Place This Tile</button>
+        <button type="button" class="ghost" id="astro-change-origin">Change Origin</button>
+        <button type="button" class="ghost" id="astro-compare">Compare Tiles</button>
+        <button type="button" class="ghost" id="astro-none">Place Neither</button>
+      </div>`;
+
+    bindAstronomyCandidateCards(choice);
+    document.getElementById("astro-rot-dec")?.addEventListener("click", () => turnTile(-1));
+    document.getElementById("astro-rot-inc")?.addEventListener("click", () => turnTile(1));
+    document.getElementById("astro-side")?.addEventListener("click", flipTile);
+    const choose = (optionId, extra) => dispatch({ type: "RESOLVE_PENDING_CHOICE", payload: {
+      playerId: localPlayerId, choiceId: choice.id, optionId, ...(extra || {})
+    }});
+    document.getElementById("astro-change-origin")?.addEventListener("click", () =>
+      choose("change_origin", { tileId: astronomyPreview.tileId }));
+    document.getElementById("astro-compare")?.addEventListener("click", () => choose("compare"));
+    document.getElementById("astro-none")?.addEventListener("click", () => choose("none"));
+    document.getElementById("astro-place")?.addEventListener("click", async () => {
+      const current = astronomyAttempt(choice);
+      if (!current.ok) { showToast("Current position is not legal."); return; }
+      await dispatch({ type: "RESOLVE_PENDING_CHOICE", payload: {
+        playerId: localPlayerId,
+        choiceId: choice.id,
+        optionId: `place|${astronomyPreview.tileId}`,
+        anchorKey: astronomyPreview.anchorKey,
+        rotation: astronomyPreview.rotation,
+        side: astronomyPreview.side
+      }});
+    });
+  }
+
+  function renderAstronomyReturnChoice(choice) {
+    if (astronomyReturnOrder.choiceId !== choice.id) {
+      astronomyReturnOrder.choiceId = choice.id;
+      astronomyReturnOrder.reversed = false;
+    }
+    const ordered = astronomyReturnOrder.reversed
+      ? (choice.tileIds || []).slice().reverse() : (choice.tileIds || []).slice();
+    const tiles = ordered.map((tileId, index) => `<div class="astro-return-tile">
+      <span>${index + 1}</span>${astronomyFaceImage(tileId, "A")}<b>Tile ${escapeHtml(tileId)}</b>
+    </div>`).join("");
+    dom.wizard.innerHTML = `
+      <div class="wiz-title">${escapeHtml(choice.title || "Astronomy: Return Tiles")}</div>
+      <div class="wiz-body">All unused inspected tiles return to one chosen end of the stack. Arrange their order, then choose that end.</div>
+      <div class="astro-return-order">${tiles}</div>
+      ${ordered.length > 1 ? `<button type="button" class="sm" id="astro-swap-order">Swap Order</button>` : ""}
+      <div class="wiz-actions astro-return-actions">
+        <button type="button" class="primary" data-astro-return="top">Return to Top</button>
+        <button type="button" class="primary" data-astro-return="bottom">Return to Bottom</button>
+      </div>
+      <div class="pending-note">At the top, tile ${escapeHtml(ordered[0] || "")} becomes the new top tile. At the bottom, tile ${escapeHtml(ordered[ordered.length - 1] || "")} becomes the bottom-most tile.</div>`;
+    document.getElementById("astro-swap-order")?.addEventListener("click", () => {
+      astronomyReturnOrder.reversed = !astronomyReturnOrder.reversed;
+      render();
+    });
+    document.querySelectorAll("[data-astro-return]").forEach((button) => {
+      button.addEventListener("click", () => dispatch({
+        type: "RESOLVE_PENDING_CHOICE", payload: {
+          playerId: localPlayerId,
+          choiceId: choice.id,
+          optionId: `${button.dataset.astroReturn}|${astronomyReturnOrder.reversed ? "reverse" : "forward"}`
+        }
+      }));
+    });
+  }
+
   function renderPendingChoice(choice) {
     // Foreign choices are read-only waiting records. The host has the complete
     // state, but is still never a substitute for the authenticated owner.
@@ -4583,6 +4946,22 @@ const UI = (() => {
       dom.wizard.innerHTML = `<div class="wiz-title">Waiting</div>
         <div class="wiz-body"><strong>${escapeHtml(waitingFor ? waitingFor.name : "Another player")}</strong>
         must finish their decision.</div>`;
+      return;
+    }
+    if (choice.kind === "astronomy_tiles") {
+      renderAstronomyTileChoice(choice);
+      return;
+    }
+    if (choice.kind === "astronomy_edge") {
+      renderAstronomyEdgeChoice(choice);
+      return;
+    }
+    if (choice.kind === "astronomy_place") {
+      renderAstronomyPlacementChoice(choice);
+      return;
+    }
+    if (choice.kind === "astronomy_return") {
+      renderAstronomyReturnChoice(choice);
       return;
     }
     const owner = Game.getPlayer(state, choice.playerId);
@@ -4841,6 +5220,7 @@ const UI = (() => {
       stage.classList.add("hidden");
       stage.innerHTML = "";
       lastStageDice = null;
+      clearDiceAnimations();
       return;
     }
 
@@ -4988,39 +5368,82 @@ const UI = (() => {
     // Track each physical die separately. A panel-wide key made the attacker's
     // settled die visibly roll again when the defender threw or somebody paid
     // +1 even though that die had not changed.
-    const combatId = `${atkName || "?"}|${defName || "?"}|${(live || done).toKey || "?"}`;
+    const combatId = (live || done).combatId ||
+      `${atkName || "?"}|${defName || "?"}|${(live || done).toKey || "?"}`;
+    if (lastStageDice && lastStageDice.id !== combatId) clearDiceAnimations();
+    const atkSeq = Number((live || done).atkRollSeq || (atkThrown ? 1 : 0));
+    const defSeq = Number((live || done).defRollSeq || (defThrown ? 1 : 0));
     const sameCombat = lastStageDice && lastStageDice.id === combatId;
-    const atkChanged = atkThrown && (!sameCombat || !lastStageDice.atkThrown || lastStageDice.atkRoll !== atkRoll);
-    const defChanged = defThrown && (!sameCombat || !lastStageDice.defThrown || lastStageDice.defRoll !== defRoll);
-    if (atkChanged) rollDice(stage.querySelector(".cs-die.atk"), atkRoll);
-    if (defChanged) rollDice(stage.querySelector(".cs-die.def"), defRoll);
+    // A page loaded or reconnected into an existing result establishes the
+    // baseline without replaying history. A roll animates only when this tab
+    // already saw the same combat and its authoritative sequence advanced.
+    const atkChanged = !!(atkThrown && sameCombat &&
+      (!lastStageDice.atkThrown || lastStageDice.atkSeq !== atkSeq));
+    const defChanged = !!(defThrown && sameCombat &&
+      (!lastStageDice.defThrown || lastStageDice.defSeq !== defSeq));
+    rollDice(stage.querySelector(".cs-die.atk"), atkRoll,
+      `${combatId}|attacker|${atkSeq}`, atkChanged);
+    rollDice(stage.querySelector(".cs-die.def"), defRoll,
+      `${combatId}|defender|${defSeq}`, defChanged);
     if (atkChanged || defChanged) {
       flashHex((live || done).toKey || (state.combat && state.combat.toKey), "rgb(239,83,80)", 900);
     }
-    lastStageDice = { id: combatId, atkThrown, defThrown, atkRoll, defRoll };
+    lastStageDice = { id: combatId, atkThrown, defThrown, atkRoll, defRoll, atkSeq, defSeq };
   }
 
   let lastStageDice = null;
+  const liveDiceAnimations = new Map();
+  let diceAnimationTimer = null;
 
-  // A short cast through pip faces before settling on the decided result. The
-  // transform runs once; it never spins indefinitely like a slot machine.
-  function rollDice(el, result) {
-    if (!el || reducedMotion()) return;
+  function clearDiceAnimations() {
+    liveDiceAnimations.clear();
+    if (diceAnimationTimer) clearTimeout(diceAnimationTimer);
+    diceAnimationTimer = null;
+  }
+
+  function scheduleDiceAnimationFrame() {
+    if (diceAnimationTimer || !liveDiceAnimations.size) return;
+    diceAnimationTimer = setTimeout(() => {
+      diceAnimationTimer = null;
+      if (state && liveDiceAnimations.size) renderCombatStage();
+      if (liveDiceAnimations.size) scheduleDiceAnimationFrame();
+    }, 80);
+  }
+
+  // A short deterministic cast through pip faces before settling on the one
+  // authoritative result. The event key survives ordinary rerenders, so a new
+  // DOM node resumes the same animation instead of silently skipping it. The
+  // visual interim faces are derived from the event identity, never a second
+  // client-side random roll.
+  function rollDice(el, result, eventKey, start) {
+    if (!el) return;
     const final = Math.max(1, Math.min(6, Number(result) || 1));
-    let ticks = 0;
+    if (reducedMotion() || !eventKey) {
+      el.innerHTML = dieFace(final);
+      el.setAttribute("aria-label", `Rolled ${final}`);
+      return;
+    }
+    if (start) liveDiceAnimations.set(eventKey, { startedAt: performance.now(), final });
+    const active = liveDiceAnimations.get(eventKey);
+    if (!active) return;
+    const elapsed = performance.now() - active.startedAt;
+    if (elapsed >= 640) {
+      liveDiceAnimations.delete(eventKey);
+      el.innerHTML = dieFace(active.final);
+      el.setAttribute("aria-label", `Rolled ${active.final}`);
+      el.classList.remove("rolling");
+      el.classList.add("landed");
+      return;
+    }
+    const seed = Array.from(eventKey).reduce((sum, char) => sum + char.charCodeAt(0), 0);
+    const frame = Math.floor(elapsed / 80);
+    const visual = 1 + ((seed + frame * 5) % 6);
+    el.innerHTML = dieFace(visual);
+    el.setAttribute("aria-label", `Rolling; authoritative result ${active.final}`);
     el.classList.remove("landed");
     el.classList.add("rolling");
-    const id = setInterval(() => {
-      el.innerHTML = dieFace(1 + Math.floor(Math.random() * 6));
-      if (++ticks >= 8) {
-        clearInterval(id);
-        el.innerHTML = dieFace(final);
-        el.setAttribute("aria-label", `Rolled ${final}`);
-        el.classList.remove("rolling");
-        el.classList.add("landed");
-        setTimeout(() => el.classList.remove("landed"), 400);
-      }
-    }, 80);
+    el.style.animationDelay = `${-Math.min(570, elapsed)}ms`;
+    scheduleDiceAnimationFrame();
   }
 
   const reducedMotion = () =>
@@ -5111,8 +5534,10 @@ const UI = (() => {
   }
 
   function renderCardSelected(me) {
-    const slot = Game.getSlotValue(me, sub.cardType, state);
-    const tradeAvail = Number(me.trade[sub.cardType] || 0);
+    const slot = Game.getSlotValue(me, sub.cardType, state, sub.cardIndex);
+    const selectedCard = rowCardsOf(me).find((card) => card.index === sub.cardIndex);
+    const tradeAvail = selectedCard ? Number(selectedCard.trade || 0)
+      : Number(me.trade[sub.cardType] || 0);
     // Industry payment depends on the chosen wonder and is therefore selected
     // only after that card is known. City building never accepts a payment.
     // Military tokens are handed over during combat after both dice.
@@ -5135,7 +5560,7 @@ const UI = (() => {
         ${Game.FOCUS_TRADE_DESC[sub.cardType]}<br>
         Trade on card: <strong>${tradeAvail}</strong>
         ${tradeBlock}
-        ${getCardPreview(sub.cardType, me, slot)}
+        ${getCardPreview(sub.cardType, me, slot, sub.cardIndex)}
       </div>
       <div class="wiz-actions">
         <button class="primary" id="wiz-start">Start Action</button>
@@ -5498,7 +5923,8 @@ const UI = (() => {
     if (!ms) return;
     sub.phase = ms.unitType === "army" ? "move_army" : "move_caravan";
     sub.selectedUnit = { id: ms.unitId, position: ms.currentKey };
-    sub.validHexes = Game.getReachable(state, ms.currentKey, ms.remaining, ms.unitType, localPlayerId);
+    sub.validHexes = Game.getReachable(state, ms.currentKey, ms.remaining,
+      ms.unitType, localPlayerId, sub.cardIndex);
     render();
   }
 
@@ -5591,7 +6017,8 @@ const UI = (() => {
     } else {
       const result = await dispatch({ type: "PLAY_ECONOMY", payload: {
         playerId: localPlayerId, unitId: ms.unitId, toKey: ms.currentKey, tradeSpent: sub.tradeSpent,
-        startKey: ms.romeStart || undefined
+        startKey: ms.romeStart || undefined, cardIndex: sub.cardIndex,
+        route: (ms.route || []).slice()
       }});
       if (!result || result.status !== "accepted") return;
     }
@@ -5630,7 +6057,8 @@ const UI = (() => {
 
   function computeStepDistance(st, fromKey, toKey, maxSteps, unitType, playerId) {
     if (fromKey === toKey) return 0;
-    const distances = Game.getReachableWithDist(st, fromKey, maxSteps, unitType, playerId);
+    const distances = Game.getReachableWithDist(st, fromKey, maxSteps,
+      unitType, playerId, sub.cardIndex);
     if (distances.has(toKey)) return distances.get(toKey);
     return maxSteps;
   }
@@ -6335,7 +6763,7 @@ const UI = (() => {
     if (!overlay || !body || !state) return;
     try {
       body.innerHTML = which === "wonders" ? renderWondersRef()
-        : which === "civ" ? renderCivRef()
+        : which === "civ" ? renderCivRef(arg)
         : which === "victory" ? renderVictoryRef()
         : which === "players" ? renderPlayersRef()
         : which === "citystate" ? renderCityStateRef(arg)
@@ -6376,16 +6804,21 @@ const UI = (() => {
 
   function renderCardFace(player, cardType, opts) {
     const o = opts || {};
-    const tier = Game.getCardTier(player, cardType);
-    const slot = Game.getSlotValue(player, cardType, state);
-    const unique = Game.getActiveUniqueCard ? Game.getActiveUniqueCard(player, cardType) : null;
-    const name = Game.getCardName ? Game.getCardName(player, cardType) : Game.CARD_NAMES[cardType][tier - 1];
-    const printed = Game.getCardEffectText ? Game.getCardEffectText(player, cardType) : "";
+    const exact = Number.isInteger(o.cardIndex)
+      ? rowCardsOf(player).find((card) => card.index === o.cardIndex) : null;
+    const tier = exact ? exact.tier : Game.getCardTier(player, cardType);
+    const slot = Game.getSlotValue(player, cardType, state, exact ? exact.index : undefined);
+    const unique = Game.getActiveUniqueCard
+      ? Game.getActiveUniqueCard(player, cardType, exact ? exact.index : undefined) : null;
+    const name = exact && Game.getCardNameAt ? Game.getCardNameAt(player, exact.index)
+      : (Game.getCardName ? Game.getCardName(player, cardType) : Game.CARD_NAMES[cardType][tier - 1]);
+    const printed = unique ? (unique.text || "")
+      : ((((Game.CARD_DEFS || {})[cardType] || {})[tier] || {}).effectText || "");
     // The figure allowance is printed on the card as its own line.
     const def = (Game.CARD_DEFS[cardType] || {})[tier];
     const figures = !unique && def && def.figures ? def.figures : "";
     const maxT = Game.CFG.maxTrade;
-    const filled = player.trade[cardType] || 0;
+    const filled = exact ? exact.trade : (player.trade[cardType] || 0);
     let dots = "";
     for (let i = 0; i < maxT; i++) {
       dots += i < filled ? `<span class="trade-filled">●</span>` : `<span class="trade-empty">●</span>`;
@@ -6415,10 +6848,10 @@ const UI = (() => {
     </div>`;
   }
 
-  function getCardPreview(cardType, player, slot) {
+  function getCardPreview(cardType, player, slot, cardIndex) {
     const spend = sub.tradeSpent;
-    const face = renderCardFace(player, cardType);
-    const unique = Game.getActiveUniqueCard ? Game.getActiveUniqueCard(player, cardType) : null;
+    const face = renderCardFace(player, cardType, { cardIndex });
+    const unique = Game.getActiveUniqueCard ? Game.getActiveUniqueCard(player, cardType, cardIndex) : null;
     const uniqueName = unique ? unique.name : "";
     // What this particular play resolves to, given the tokens being spent.
     // Trade tokens do only what the card's trade track says they do.
@@ -6450,7 +6883,7 @@ const UI = (() => {
         break;
       }
       case "economy":
-        outcome = `Move each caravan up to <strong>${Game.getEconomyMove(player, state) + spend}</strong> spaces.`;
+        outcome = `Move each caravan up to <strong>${Game.getEconomyMove(player, state, cardIndex) + spend}</strong> spaces.`;
         break;
       case "military": {
         const combatBonus = Game.getMilitaryCombatBonus(player);
@@ -6492,11 +6925,11 @@ const UI = (() => {
   function startAction() {
     const me = Game.getPlayer(state, localPlayerId);
     if (!me) return;
-    const slot = Game.getSlotValue(me, sub.cardType, state);
+    const slot = Game.getSlotValue(me, sub.cardType, state, sub.cardIndex);
 
     if (sub.cardType === "science") {
       dispatch({ type: "PLAY_SCIENCE", payload: { playerId: localPlayerId,
-        amount: slot + sub.tradeSpent, cardIndex: sub.cardIndex, tradeSpent: sub.tradeSpent } });
+        amount: slot + sub.tradeSpent, cardIndex: sub.cardIndex, ...focusTradePayload() } });
       resetSub(); return;
     }
     if (sub.cardType === "culture") {
@@ -6691,6 +7124,12 @@ const UI = (() => {
   async function handleHexClick(hexKey) {
     if (!state) return;
 
+    if (previewingAstronomyTile()) {
+      astronomyPreview.anchorKey = hexKey;
+      render();
+      return;
+    }
+
     // A choice waiting on a space takes the click before anything else.
     const hexChoice = activeHexChoice();
     if (hexChoice) {
@@ -6846,11 +7285,12 @@ const UI = (() => {
         // your economy card", and the engine refuses it either way.
         if (!unit) return;
         sub.selectedUnit = unit;
-        const maxMove = Game.getEconomyMove(me, state) + sub.tradeSpent;
+        const maxMove = Game.getEconomyMove(me, state, sub.cardIndex) + sub.tradeSpent;
         const originKey = romeStart || unit.position;
         sub.movementState = { unitType: "caravan", unitId: unit.id, maxMove, remaining: maxMove, currentKey: originKey, startKey: originKey, romeStart, explored: false, route: [] };
         sub.selectedUnit = { id: unit.id, position: originKey };
-        sub.validHexes = Game.getReachable(state, originKey, maxMove, "caravan", localPlayerId);
+        sub.validHexes = Game.getReachable(state, originKey, maxMove,
+          "caravan", localPlayerId, sub.cardIndex);
         render();
       } else {
         const ms0 = sub.movementState;
@@ -7232,7 +7672,7 @@ const UI = (() => {
       // The unique card is a CARD, so a twin of the same type at another level
       // is not it, however the type-keyed lookup would answer.
       const leaderUnique = Game.getActiveUniqueCard
-        ? Game.getActiveUniqueCard(me, cardType) : null;
+        ? Game.getActiveUniqueCard(me, cardType, idx) : null;
       const uniqueCard = leaderUnique && leaderUnique.name === cardName ? leaderUnique : null;
       const maxT = Game.CFG.maxTrade;
       const filled = card.trade;
@@ -7243,7 +7683,8 @@ const UI = (() => {
           : `<span class="trade-empty">●</span>`;
       }
       const disabled = !canPlay ? " disabled" : "";
-      const selected = sub.cardType === cardType && sub.phase !== "idle" ? " selected" : "";
+      const selected = sub.cardType === cardType && sub.cardIndex === idx &&
+        sub.phase !== "idle" ? " selected" : "";
       const played = owed === cardType ? " card-anim" : "";
 
       // Laid out like the printed card: type band across the top, the name and
@@ -7327,7 +7768,8 @@ const UI = (() => {
         el.style.setProperty("--shine-y", `${(y * 100).toFixed(1)}%`);
       });
       el.addEventListener("mouseenter", () => {
-        dom.mapTooltip.innerHTML = renderCardFace(me, cardType, { hideSlot: true });
+        dom.mapTooltip.innerHTML = renderCardFace(me, cardType,
+          { hideSlot: true, cardIndex: Number(el.dataset.idx) });
         dom.mapTooltip.classList.add("card-face");
         dom.mapTooltip.classList.remove("hidden");
         const rect = el.getBoundingClientRect();
@@ -7379,7 +7821,8 @@ const UI = (() => {
           // With no tokens on the card there is nothing to decide, so don't ask:
           // clicking the card is the decision, and the action starts.
           const meNow = Game.getPlayer(state, localPlayerId);
-          if (meNow && !meNow.trade[sub.cardType]) { startAction(); return; }
+          const picked = meNow && rowCardsOf(meNow).find((card) => card.index === sub.cardIndex);
+          if (picked && !picked.trade) { startAction(); return; }
           refreshWizard();
           renderFocusRow();
         });
@@ -7441,11 +7884,25 @@ const UI = (() => {
     // Used by tools/oxford-browser-test.js to seat a board that would otherwise
     // take a dozen real turns to reach.
     debugSetState: (next) => { if (next) state = next; render(); return true; },
+    // Feeds the same transient packet handler used by Net. Browser regressions
+    // use this to prove that untrusted packet colours never override the
+    // authoritative colour stored on the sender's seat.
+    debugReceivePresence: receivePresence,
     debugInfo: () => ({
       localPlayerId,
       seatInState: !!(state && state.players && state.players.some((p) => p.id === localPlayerId)),
       credentialSeat: sessionCredentials ? sessionCredentials.seatId : null,
       subPhase: sub.phase,
+      cardIndex: Number.isInteger(sub.cardIndex) ? sub.cardIndex : null,
+      validHexes: Array.from(sub.validHexes || []),
+      movement: sub.movementState ? {
+        unitType: sub.movementState.unitType,
+        unitId: sub.movementState.unitId,
+        startKey: sub.movementState.startKey,
+        currentKey: sub.movementState.currentKey,
+        remaining: sub.movementState.remaining,
+        route: (sub.movementState.route || []).slice()
+      } : null,
       tilePlacement: { side: sub.tileSide, rotation: sub.tileRotation },
       capitalPreview: {
         enabled: previewingCapitalTile(),
@@ -7461,6 +7918,30 @@ const UI = (() => {
           cellCount: renderedCapitalPreview.cellKeys.length
         } : null
       },
+      astronomyPreview: {
+        enabled: previewingAstronomyTile(),
+        choiceId: astronomyPreview.choiceId,
+        tileId: astronomyPreview.tileId,
+        side: astronomyPreview.side,
+        rotation: astronomyPreview.rotation,
+        anchorKey: astronomyPreview.anchorKey,
+        selectedFromKey: astronomyPreview.selectedFromKey,
+        rendered: renderedAstronomyPreview ? {
+          tileId: renderedAstronomyPreview.tileId,
+          side: renderedAstronomyPreview.side,
+          rotation: renderedAstronomyPreview.rotation,
+          anchorKey: renderedAstronomyPreview.anchorKey,
+          selectedFromKey: renderedAstronomyPreview.selectedFromKey,
+          valid: renderedAstronomyPreview.valid,
+          cellCount: renderedAstronomyPreview.cellKeys.length,
+          legalAnchorCount: renderedAstronomyPreview.legalAnchorCount
+        } : null
+      },
+      boardHighlights: renderedBoardHighlights.slice(),
+      presenceVisuals: renderedPresenceVisuals.map((entry) => ({ ...entry })),
+      diceAnimations: Array.from(liveDiceAnimations.entries()).map(([eventKey, value]) => ({
+        eventKey, final: value.final, elapsed: performance.now() - value.startedAt
+      })),
       actionPending,
       readOnlySession,
       backupFailure: backupFailure ? (backupFailure.code || String(backupFailure.message || "")) : null

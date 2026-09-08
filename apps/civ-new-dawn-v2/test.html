@@ -1107,17 +1107,70 @@
           const begun = Game.tryApplyAction(st0, {
             type: "PLAY_SCIENCE", payload: { tradeSpent: 0 }
           }, seat);
-          const inspect = begun.accepted && begun.state.pendingChoices
-            .find((choice) => choice.kind === "astronomy_tiles");
-          assert("Astronomy exposes at most the bottom two tiles before moving the dial",
-            begun.accepted && inspect && inspect.tileIds.length > 0 &&
-            inspect.tileIds.length <= 2 && astronomer.tech === 0 &&
+          const count = begun.accepted && begun.state.pendingChoices
+            .find((choice) => choice.kind === "astronomy_count");
+          assert("Astronomy's UP TO wording lets its owner inspect zero, one, or two tiles",
+            begun.accepted && count && ["2", "1", "0"].every((id) =>
+              count.options.some((option) => option.id === id)) &&
             begun.state.players[0].tech === 0);
-          const reordered = inspect ? Game.tryApplyAction(begun.state, {
+          assert("Astronomy does not lock undo before hidden tiles are revealed",
+            begun.accepted && begun.state.turnUndo && !begun.state.turnUndo.locked);
+          const inspectedNone = count ? Game.tryApplyAction(begun.state, {
             type: "RESOLVE_PENDING_CHOICE",
-            payload: { choiceId: inspect.id, optionId: "none|top|forward" }
+            payload: { choiceId: count.id, optionId: "0" }
           }, seat) : { accepted: false };
-          assert("Astronomy can return both inspected tiles to the top in order",
+          assert("inspecting zero reveals nothing, leaves the stack exact, and completes Astronomy",
+            inspectedNone.accepted && !inspectedNone.state.cardResolution &&
+            JSON.stringify(inspectedNone.state.tileStack) === JSON.stringify(originalStack) &&
+            inspectedNone.state.players[0].tech === expectedAdvance);
+
+          const inspectedOne = count ? Game.tryApplyAction(begun.state, {
+            type: "RESOLVE_PENDING_CHOICE",
+            payload: { choiceId: count.id, optionId: "1" }
+          }, seat) : { accepted: false };
+          const oneChoice = inspectedOne.accepted && inspectedOne.state.pendingChoices
+            .find((choice) => choice.kind === "astronomy_tiles");
+          assert("inspecting one reveals exactly the bottom tile without removing it",
+            inspectedOne.accepted && oneChoice && oneChoice.tileIds.length === 1 &&
+            oneChoice.tileIds[0] === originalStack[originalStack.length - 1] &&
+            JSON.stringify(inspectedOne.state.tileStack) === JSON.stringify(originalStack));
+          const looked = count ? Game.tryApplyAction(begun.state, {
+            type: "RESOLVE_PENDING_CHOICE",
+            payload: { choiceId: count.id, optionId: "2" }
+          }, seat) : { accepted: false };
+          const inspect = looked.accepted && looked.state.pendingChoices
+            .find((choice) => choice.kind === "astronomy_tiles");
+          assert("Astronomy exposes exactly the chosen bottom tiles and no third tile",
+            looked.accepted && inspect && inspect.tileIds.length === 2 &&
+            JSON.stringify(inspect.tileIds) === JSON.stringify(originalStack.slice(-2)) &&
+            looked.state.tileStack.length === originalStack.length);
+          assert("seeing Astronomy's hidden bottom tiles locks undo immediately",
+            looked.accepted && looked.state.turnUndo && looked.state.turnUndo.locked &&
+            looked.state.turnUndo.snapshot === null);
+          const declined = inspect ? Game.tryApplyAction(looked.state, {
+            type: "RESOLVE_PENDING_CHOICE",
+            payload: { choiceId: inspect.id, optionId: "none" }
+          }, seat) : { accepted: false };
+          const returning = declined.accepted && declined.state.pendingChoices
+            .find((choice) => choice.kind === "astronomy_return");
+          assert("placing neither leads to a separate top/bottom and order decision",
+            declined.accepted && returning && ["top|forward", "top|reverse",
+              "bottom|forward", "bottom|reverse"].every((id) =>
+                returning.options.some((option) => option.id === id)));
+          const reversedBottom = returning ? Game.tryApplyAction(declined.state, {
+            type: "RESOLVE_PENDING_CHOICE",
+            payload: { choiceId: returning.id, optionId: "bottom|reverse" }
+          }, seat) : { accepted: false };
+          assert("Astronomy can return both inspected tiles to the bottom in reverse order",
+            reversedBottom.accepted &&
+            JSON.stringify(reversedBottom.state.tileStack.slice(-inspect.tileIds.length)) ===
+              JSON.stringify(inspect.tileIds.slice().reverse()) &&
+            reversedBottom.state.tileStack.length === originalStack.length);
+          const reordered = returning ? Game.tryApplyAction(declined.state, {
+            type: "RESOLVE_PENDING_CHOICE",
+            payload: { choiceId: returning.id, optionId: "top|forward" }
+          }, seat) : { accepted: false };
+          assert("Astronomy can return both inspected tiles to the top in the chosen order",
             reordered.accepted &&
             JSON.stringify(reordered.state.tileStack.slice(0, inspect.tileIds.length)) ===
               JSON.stringify(inspect.tileIds) &&
@@ -1154,45 +1207,102 @@
           const begun = Game.tryApplyAction(st0, {
             type: "PLAY_SCIENCE", payload: { tradeSpent: 0 }
           }, seat);
-          const inspect = begun.accepted && begun.state.pendingChoices
+          const count = begun.accepted && begun.state.pendingChoices
+            .find((choice) => choice.kind === "astronomy_count");
+          const looked = count ? Game.tryApplyAction(begun.state, {
+            type: "RESOLVE_PENDING_CHOICE",
+            payload: { choiceId: count.id, optionId: "2" }
+          }, seat) : { accepted: false };
+          const inspect = looked.accepted && looked.state.pendingChoices
             .find((choice) => choice.kind === "astronomy_tiles");
-          const placeOption = inspect && inspect.options.find((option) =>
-            String(option.id).startsWith("place|"));
-          const selected = placeOption ? Game.tryApplyAction(begun.state, {
-            type: "RESOLVE_PENDING_CHOICE",
-            payload: { choiceId: inspect.id, optionId: placeOption.id }
-          }, seat) : { accepted: false };
-          const edge = selected.accepted && selected.state.pendingChoices
-            .find((choice) => choice.kind === "astronomy_edge");
-          const explored = edge ? Game.tryApplyAction(selected.state, {
-            type: "RESOLVE_PENDING_CHOICE",
-            payload: { choiceId: edge.id, hexKey: edge.hexKeys[0] }
-          }, seat) : { accepted: false };
-          const pending = explored.accepted && explored.state.pendingExploration;
-          assert("Astronomy explores the chosen retained tile from a capital-tile edge",
-            explored.accepted && pending && pending.freeRun &&
-            pending.followUp === "astronomy_finish" &&
-            pending.tileId === (placeOption && placeOption.id.split("|")[1]) &&
-            !explored.state.tileStack.includes(pending.tileId));
-
-          let finished = { accepted: false };
-          if (pending) {
-            const placements = Game.getLegalExplorationPlacements(explored.state, pending);
-            if (placements.length) {
-              const home = placements[0];
-              finished = Game.tryApplyAction(explored.state, {
-                type: "PLACE_EXPLORED_TILE",
-                payload: {
-                  anchorKey: home.anchorKey, rotation: home.rotation, side: home.side
+          const originOption = inspect && inspect.options.find((option) =>
+            String(option.id).startsWith("origin|"));
+          const tileId = originOption && originOption.id.split("|")[1];
+          let originCase = null;
+          if (tileId && inspect) {
+            for (const edgeB of inspect.edgeSpaces) {
+              const placementsB = Game.getAstronomyPlacements(looked.state, tileId, edgeB);
+              for (const placement of placementsB) {
+                const edgeA = inspect.edgeSpaces.find((candidate) => candidate !== edgeB &&
+                  !Game.isLegalExplorationPlacement(looked.state,
+                    { tileId, fromKey: candidate }, placement.anchorKey,
+                    placement.rotation, placement.side).ok);
+                if (edgeA) {
+                  originCase = { edgeA, edgeB, placement };
+                  break;
                 }
-              }, seat);
-            } else {
-              finished = Game.tryApplyAction(explored.state, {
-                type: "ABANDON_EXPLORATION", payload: {}
-              }, seat);
+              }
+              if (originCase) break;
             }
           }
-          assert("placing or returning Astronomy's tile closes its science transaction",
+          assert("Astronomy test board has a placement whose legality differs by chosen origin",
+            !!originCase, JSON.stringify({ edges: inspect && inspect.edgeSpaces, tileId }));
+
+          const chooseOrigin = originCase ? Game.tryApplyAction(looked.state, {
+            type: "RESOLVE_PENDING_CHOICE",
+            payload: { choiceId: inspect.id, optionId: originOption.id }
+          }, seat) : { accepted: false };
+          const edgeChoiceA = chooseOrigin.accepted && chooseOrigin.state.pendingChoices
+            .find((choice) => choice.kind === "astronomy_edge");
+          assert("Astronomy restores an explicit capital-edge origin decision",
+            chooseOrigin.accepted && edgeChoiceA &&
+            edgeChoiceA.hexKeys.includes(originCase.edgeA) &&
+            JSON.stringify(chooseOrigin.state.tileStack) === JSON.stringify(st0.tileStack) &&
+            chooseOrigin.state.players[0].tech === 0);
+          const choseA = edgeChoiceA ? Game.tryApplyAction(chooseOrigin.state, {
+            type: "RESOLVE_PENDING_CHOICE",
+            payload: { choiceId: edgeChoiceA.id, hexKey: originCase.edgeA }
+          }, seat) : { accepted: false };
+          const placeA = choseA.accepted && choseA.state.pendingChoices
+            .find((choice) => choice.kind === "astronomy_place");
+          assert("the selected Astronomy origin is retained explicitly without mutating the deck",
+            choseA.accepted && placeA && placeA.selectedFromKey === originCase.edgeA &&
+            JSON.stringify(choseA.state.tileStack) === JSON.stringify(st0.tileStack) &&
+            choseA.state.players[0].tech === 0);
+
+          const beforeWrongOrigin = choseA.accepted ? JSON.stringify(choseA.state) : "";
+          const wrongOrigin = placeA ? Game.tryApplyAction(choseA.state, {
+            type: "RESOLVE_PENDING_CHOICE",
+            payload: { choiceId: placeA.id, optionId: `place|${tileId}`,
+              anchorKey: originCase.placement.anchorKey,
+              rotation: originCase.placement.rotation,
+              side: originCase.placement.side }
+          }, seat) : { accepted: false };
+          assert("a placement legal only from edge B is refused while edge A is selected",
+            !wrongOrigin.accepted && choseA.accepted &&
+            JSON.stringify(choseA.state) === beforeWrongOrigin);
+
+          const changing = placeA ? Game.tryApplyAction(choseA.state, {
+            type: "RESOLVE_PENDING_CHOICE",
+            payload: { choiceId: placeA.id, optionId: "change_origin" }
+          }, seat) : { accepted: false };
+          const edgeChoiceB = changing.accepted && changing.state.pendingChoices
+            .find((choice) => choice.kind === "astronomy_edge");
+          const choseB = edgeChoiceB ? Game.tryApplyAction(changing.state, {
+            type: "RESOLVE_PENDING_CHOICE",
+            payload: { choiceId: edgeChoiceB.id, hexKey: originCase.edgeB }
+          }, seat) : { accepted: false };
+          const placeB = choseB.accepted && choseB.state.pendingChoices
+            .find((choice) => choice.kind === "astronomy_place");
+          const selected = placeB ? Game.tryApplyAction(choseB.state, {
+            type: "RESOLVE_PENDING_CHOICE",
+            payload: { choiceId: placeB.id, optionId: `place|${tileId}`,
+              anchorKey: originCase.placement.anchorKey,
+              rotation: originCase.placement.rotation,
+              side: originCase.placement.side }
+          }, seat) : { accepted: false };
+          const returning = selected.accepted && selected.state.pendingChoices
+            .find((choice) => choice.kind === "astronomy_return");
+          const finished = returning ? Game.tryApplyAction(selected.state, {
+            type: "RESOLVE_PENDING_CHOICE",
+            payload: { choiceId: returning.id, optionId: "bottom|forward" }
+          }, seat) : selected;
+          assert("changing to edge B makes that exact placement legal",
+            selected.accepted && placeB.selectedFromKey === originCase.edgeB &&
+            tileId && selected.state.tiles[tileId].placed &&
+            Object.values(selected.state.map.hexes).filter((hex) => hex.tileId === tileId).length === 10 &&
+            !selected.state.tileStack.includes(tileId));
+          assert("returning the other tile closes Astronomy's science transaction",
             finished.accepted && !finished.state.pendingExploration &&
             !finished.state.cardResolution &&
             finished.state.players[0].tech === expectedAdvance &&
@@ -4921,6 +5031,67 @@
             Game.getReachable(water.st, "0,0",
               Game.getEconomyMove(water.me, water.st),
               "caravan", water.me.id).has("1,0"));
+
+          // The distant-water movement is Indonesia's civilization ability,
+          // not shorthand printed on Shipbuilding: all revealed water spaces
+          // on the current map edge are adjacent. This is the real playtest
+          // shape — already on water A, then one step to distant water B.
+          const voyage = uniqBoard("indonesia", { setUp: (s2, p2) => {
+            activate(s2, "-3,0", { terrain: "water" });
+            activate(s2, "9,0", { terrain: "water" });
+            activate(s2, "8,1", { terrain: "grass" });
+            p2.caravans = [{ id: "edge-sailor", position: "-3,0" }];
+          } });
+          atTier(voyage.me, u.type, u.tier);
+          voyage.me.focusRow = ["economy", "science", "growth", "military", "industry", "culture"];
+          const cardIndex = 0;
+          const edgeDistance = Game.getReachableWithDist(voyage.st, "-3,0", 4,
+            "caravan", voyage.me.id, cardIndex);
+          assert("Indonesia treats distant revealed edge-water B as one adjacent space",
+            edgeDistance.get("9,0") === 1, JSON.stringify([...edgeDistance]));
+          assert("movement may continue normally after that water adjacency",
+            edgeDistance.get("8,1") === 2, JSON.stringify([...edgeDistance]));
+          const sailed = Game.tryApplyAction(voyage.st, { type: "PLAY_ECONOMY",
+            payload: {
+              unitId: "edge-sailor", toKey: "8,1", tradeSpent: 0, cardIndex,
+              route: ["9,0", "8,1"]
+            }
+          }, { actorId: voyage.me.id, role: "player" });
+          assert("the authoritative economy action accepts water A to distant B then onward",
+            sailed.accepted && sailed.state.players[0].caravans[0].position === "8,1",
+            sailed.code || sailed.state.players[0].caravans[0].position);
+
+          const ordinary = uniqBoard("indonesia", { setUp: (s2, p2) => {
+            activate(s2, "-3,0", { terrain: "water" });
+            activate(s2, "9,0", { terrain: "water" });
+            p2.caravans = [{ id: "ordinary-sailor", position: "-3,0" }];
+          } });
+          ordinary.me.cardTiers.economy = 2;
+          ordinary.me.cardLevels.economy = 2;
+          ordinary.me.uniqueTaken = false;
+          assert("Indonesia's edge-water adjacency remains a civilization ability on ordinary Currency",
+            Game.getReachableWithDist(ordinary.st, "-3,0", 4, "caravan", ordinary.me.id)
+              .get("9,0") === 1);
+          const outsider = uniqBoard(null, { setUp: (s2, p2) => {
+            activate(s2, "-3,0", { terrain: "water" });
+            activate(s2, "9,0", { terrain: "water" });
+            p2.caravans = [{ id: "outsider", position: "-3,0" }];
+          } });
+          outsider.me.cardTiers.economy = 3; // may enter water, but cannot fold the edge
+          outsider.me.cardLevels.economy = 3;
+          assert("another civilization with water movement gets no distant edge adjacency",
+            Game.getReachableWithDist(outsider.st, "-3,0", 1, "caravan", outsider.me.id)
+              .get("9,0") === undefined);
+
+          const oxford = uniqBoard("indonesia");
+          oxford.me.uniqueTaken = true;
+          oxford.me.focusRow = ["economy", "science", "growth", "military",
+            { type: "economy", tier: 2, trade: 0 }, "industry"];
+          oxford.me.cardTiers.economy = 1;
+          oxford.me.cardLevels.economy = 1;
+          assert("Oxford identifies Shipbuilding by its exact economy card instance",
+            !Game.getActiveUniqueCard(oxford.me, "economy", 0) &&
+            Game.getActiveUniqueCard(oxford.me, "economy", 4).name === "Shipbuilding");
           proves("unique.indonesia.shipbuilding");
         }
 
@@ -5443,8 +5614,19 @@
           const out = Game.tryApplyAction(b.st, { type: "PLAY_SCIENCE",
             payload: { playerId: b.me.id, tradeSpent: 0 } },
             { actorId: b.me.id, role: "player" });
-          assert("resolving Astronomy opens the inspection", out.accepted, out.code);
-          const look = (out.state.pendingChoices || [])
+          assert("resolving Astronomy first asks how many tiles to inspect", out.accepted, out.code);
+          const count = (out.state.pendingChoices || [])
+            .find((c) => c.kind === "astronomy_count");
+          assert("UP TO two includes the explicit two, one, and none choices",
+            !!count && ["2", "1", "0"].every((id) =>
+              count.options.some((option) => option.id === id)),
+            count && JSON.stringify(count.options));
+          const viewed = count ? Game.tryApplyAction(out.state, {
+            type: "RESOLVE_PENDING_CHOICE", payload: {
+              choiceId: count.id, optionId: "2"
+            }
+          }, { actorId: b.me.id, role: "player" }) : { accepted: false };
+          const look = viewed.accepted && (viewed.state.pendingChoices || [])
             .find((c) => c.kind === "astronomy_tiles");
           assert("and it shows two tiles", !!look && (look.tileIds || []).length === 2,
             look && JSON.stringify(look.tileIds));
@@ -5452,16 +5634,27 @@
             !!look && JSON.stringify(look.tileIds) === JSON.stringify(bottomTwo),
             JSON.stringify({ offered: look && look.tileIds, bottomTwo }));
           assert("the dial has not moved yet: it advances after the tiles",
-            out.state.players[0].tech === techBefore,
-            String(out.state.players[0].tech));
+            viewed.state.players[0].tech === techBefore,
+            String(viewed.state.players[0].tech));
 
-          // Decline both and send them back to the top, in the order shown.
-          const declineId = `none|top|forward`;
-          assert("declining both is one of the printed options",
-            look.options.some((o) => o.id === declineId),
-            JSON.stringify(look.options.map((o) => o.id)));
-          const done = Game.applyAction(out.state, { type: "RESOLVE_PENDING_CHOICE", payload: {
-            playerId: b.me.id, choiceId: look.id, optionId: declineId } });
+          // Decline both, then choose their common end and exact order.
+          const declined = Game.tryApplyAction(viewed.state, {
+            type: "RESOLVE_PENDING_CHOICE", payload: {
+              choiceId: look.id, optionId: "none"
+            }
+          }, { actorId: b.me.id, role: "player" });
+          const returning = declined.accepted && (declined.state.pendingChoices || [])
+            .find((c) => c.kind === "astronomy_return");
+          assert("declining both opens all four same-end order choices",
+            !!returning && ["top|forward", "top|reverse", "bottom|forward", "bottom|reverse"]
+              .every((id) => returning.options.some((o) => o.id === id)),
+            returning && JSON.stringify(returning.options.map((o) => o.id)));
+          const doneResult = returning ? Game.tryApplyAction(declined.state, {
+            type: "RESOLVE_PENDING_CHOICE", payload: {
+              choiceId: returning.id, optionId: "top|forward"
+            }
+          }, { actorId: b.me.id, role: "player" }) : { accepted: false };
+          const done = doneResult.state || declined.state;
           assert("the stack keeps every tile it had",
             (done.tileStack || []).length === stackBefore.length,
             `${stackBefore.length} -> ${(done.tileStack || []).length}`);

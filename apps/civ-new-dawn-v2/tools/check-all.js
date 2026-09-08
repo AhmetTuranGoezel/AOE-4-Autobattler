@@ -29,7 +29,12 @@ const steps = [
   // only thing here that can catch a client not being told the turn changed.
   ["two clients", "two-client-test.js"],
   ["five clients", "five-client-test.js"],
-  ["oxford browser", "oxford-browser-test.js"]
+  ["oxford browser", "oxford-browser-test.js"],
+  ["astronomy browser", "astronomy-browser-test.js"],
+  ["indonesia browser", "indonesia-browser-test.js"],
+  ["dice browser", "dice-browser-test.js"],
+  ["actor colours", "actor-colour-browser-test.js"],
+  ["ibrahim browser", "ibrahim-browser-test.js"]
 ];
 
 const SOURCES = ["game.js", "ui.js", "rules-data.js", "card-art.js", "tile-art.js",
