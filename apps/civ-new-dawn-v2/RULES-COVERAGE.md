@@ -14,6 +14,29 @@ Page numbers below are English ones.
 Three sections, and the third one matters as much as the first: **verified**,
 **approximated**, and **invented**.
 
+## Latest focused checkpoint — 2026-09-10
+
+The setup/Astronomy/dice/Natural Wonder/district-event playtest batch passed all
+25 gates in one final `tools/check-all.js` run: 1733 rule assertions, 31 additional
+playtest assertions, and 124 effect entries with behavioural evidence (including
+all 36 Terra Wonder definitions). The separate Netlify tests passed 13/13.
+
+New real-browser scenarios passed: waiting-capital planning 17/17, multiplayer
+Astronomy with actual subsequent exploration 30/30, dice observer 8/8, Natural
+Wonder hover 13/13, and four-player district ordering 24/24. The existing dice
+suite now passes 16/16 with mounted-popup frame checks; Oxford passes 24/24 with
+fixed lobby civilizations instead of random unanswered opening decisions.
+
+This closes the specific reported boundaries: private waiting previews with
+active-only commits; capital-edge-only Astronomy origins and four-contact
+placement; explicit top/bottom draw order; stable dice panels; typeless
+difficulty-five Natural Wonders; first-player clockwise district resolution.
+It does not establish every possible interaction merely by counting effect IDs.
+
+See [the complete A–M playtest report](PLAYTEST-2026-09-09.md) for the baseline,
+root causes, English sources, exact counts, restored mutation tests and local
+commits. Earlier sections below retain their historical context.
+
 ---
 
 ## 1. Verified against the rulebook
