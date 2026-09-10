@@ -446,8 +446,9 @@ async function waitFor(cdp, expr, label, timeoutMs = 8000) {
     // internet and is not something a smoke test should depend on. The seat
     // logic underneath it is testable though: a second seat arrives as
     // ADD_PLAYER, which is exactly what the network path applies on the host.
+    await cdp.eval("window.__smokePreviousDocument = true");
     await cdp.send("Page.reload");
-    await waitFor(cdp, "typeof UI === 'object' && typeof Game === 'object'", "reload", 10000);
+    await waitFor(cdp, "!window.__smokePreviousDocument && document.readyState === 'complete' && typeof UI === 'object' && typeof Game === 'object'", "reload", 10000);
     const mp = await cdp.eval(`(async () => {
       const out = { peerAvailable: typeof Peer !== "undefined" };
       const btn = document.getElementById("btn-create");

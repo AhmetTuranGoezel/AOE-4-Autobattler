@@ -278,7 +278,7 @@ const wizardMetrics = `(() => {
       text: document.querySelector(".astro-map-note").textContent }))()`);
     R.ok("only the current invalid attempt is marked and cannot be committed",
       invalid.info.anchorKey === invalidKey && invalid.info.rendered.valid === false &&
-      invalid.disabled === true && /not legal/i.test(invalid.text), JSON.stringify(invalid));
+      invalid.disabled === true && /overlaps|not legal/i.test(invalid.text), JSON.stringify(invalid));
 
     R.ok("moving to the chosen legal anchor uses the real canvas", await moveToHex(tab, plan.placement.anchorKey));
     const legalNow = await waitUntil(async () => await tab.eval(`(() => {
@@ -290,10 +290,13 @@ const wizardMetrics = `(() => {
     R.ok("the current legal attempt enables Place without exposing alternatives", legalNow >= 0,
       await tab.eval("UI.debugInfo()"));
 
-    await tab.eval(`(() => { document.getElementById("astro-place")?.click(); return true; })()`);
+    await clickHex(tab, plan.placement.anchorKey);
+    await require("./playtest-browser-helpers.js").click(tab, "#astro-place");
     const returnMode = await waitUntil(async () =>
       await tab.eval(`UI.debugState().pendingChoices.some((choice) => choice.kind === "astronomy_return")`), 8000);
-    R.ok("Place commits the exact current tile and opens the separate return step", returnMode >= 0);
+    if (returnMode < 0) console.error("Astronomy runtime errors", tab.errors);
+    R.ok("Place commits the exact current tile and opens the separate return step", returnMode >= 0,
+      returnMode < 0 ? await tab.eval("({preview:UI.debugInfo().astronomyPreview,toast:document.querySelector('#toast')?.textContent})") : null);
     const committed = await tab.eval(`(() => {
       const st = UI.debugState();
       const tile = st.tiles[${JSON.stringify(plan.tileId)}];

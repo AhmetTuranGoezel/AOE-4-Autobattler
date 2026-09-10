@@ -59,6 +59,33 @@ const R = reporter();
     R.ok("the authoritative attacker roll starts one visible animation", attackerRolling >= 0,
       await tab.eval("({combat:UI.debugState().combat, info:UI.debugInfo().diceAnimations})"));
     const attackerFinal = await tab.eval("UI.debugState().combat.atkRoll");
+    const stable = await tab.eval(`(async () => {
+      const body = document.querySelector('.cs-body');
+      const title = document.querySelector('.cs-vs');
+      const names = [...document.querySelectorAll('.cs-name')];
+      const buttons = [...document.querySelectorAll('.cs-actions button')];
+      const box = body.getBoundingClientRect();
+      const faces = new Set();
+      let stable = true, frames = 0; const samples = [];
+      for (let i = 0; i < 9; i++) {
+        await new Promise((r) => setTimeout(r, 65));
+        const current = document.querySelector('.cs-body');
+        const rect = current?.getBoundingClientRect();
+        stable = stable && current === body && title.isConnected &&
+          names.every((node) => node.isConnected) && buttons.every((node) => node.isConnected) &&
+          !document.querySelector('#combat-stage').classList.contains('hidden') &&
+          rect.width > 0 && rect.height > 0 && Math.abs(rect.width - box.width) < 1 &&
+          Math.abs(rect.height - box.height) < 1;
+        faces.add(document.querySelector('.cs-die.atk').innerHTML); frames++;
+        samples.push({ same: current === body, title: title.isConnected,
+          labels: names.every((node) => node.isConnected), buttons: buttons.every((node) => node.isConnected),
+          width: rect.width, height: rect.height, initialWidth: box.width, initialHeight: box.height });
+      }
+      return { stable, frames, faces: faces.size, samples };
+    })()`);
+    R.ok("animation frames preserve popup, title, labels, buttons and geometry",
+      stable.stable && stable.frames === 9, stable);
+    R.ok("only the die face changes across mounted popup frames", stable.faces > 1, stable);
     const attackerLanded = await waitUntil(async () => await tab.eval(`(() => {
       const die = document.querySelector('.cs-die.atk');
       return die && !die.classList.contains('rolling') &&

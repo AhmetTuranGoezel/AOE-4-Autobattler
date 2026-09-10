@@ -272,6 +272,21 @@ input, select {
   cursor: grab;
 }
 
+.map-camera-controls {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 22;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(22, 28, 45, .9);
+}
+.map-camera-controls button { min-width: 32px; min-height: 30px; padding: 4px 8px; }
+
 #map-tooltip {
   position: fixed;
   background: var(--surface);
@@ -2036,8 +2051,12 @@ input, select {
   position: absolute; inset: 0;
   background: rgba(8, 10, 18, 0.72);
   backdrop-filter: blur(2px);
-  animation: cs-fade 0.25s ease;
 }
+.cs-scrim.cs-enter { animation: cs-fade 0.25s ease; }
+.astro-fewer { margin: 12px 0; }
+.astro-fewer summary { cursor: pointer; color: var(--text2); }
+.astro-stack-diagram { display: grid; justify-items: center; gap: 3px; font-size: 11px; margin: 10px; }
+.astro-stack-diagram i { display: block; width: 54px; height: 5px; border: 1px solid #af9261; background: #574a37; transform: skewX(-18deg); }
 @keyframes cs-fade { from { opacity: 0; } to { opacity: 1; } }
 
 .cs-body {
@@ -2049,8 +2068,8 @@ input, select {
   border: 1px solid var(--border);
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.65);
   text-align: center;
-  animation: cs-rise 0.3s cubic-bezier(0.2, 1.1, 0.5, 1);
 }
+.cs-body.cs-enter { animation: cs-rise 0.3s cubic-bezier(0.2, 1.1, 0.5, 1); }
 @keyframes cs-rise {
   from { opacity: 0; transform: translateY(14px) scale(0.96); }
   to   { opacity: 1; transform: none; }
@@ -2300,7 +2319,7 @@ kbd {
    a button, the other as grey rows in a sidebar. */
 #table-strip {
   position: absolute;
-  top: 8px; left: 8px; right: 8px;
+  top: 8px; left: 66px; right: 8px;
   display: flex; gap: 10px; align-items: flex-start;
   pointer-events: none;
   z-index: 22;

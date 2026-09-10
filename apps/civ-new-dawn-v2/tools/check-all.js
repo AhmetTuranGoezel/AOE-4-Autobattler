@@ -13,6 +13,7 @@ const node = process.execPath;
 const steps = [
   ["syntax", null],
   ["rules harness", "rule-test-runner.js"],
+  ["playtest rules", "playtest-rules-test.js"],
   ["coverage matrix", "coverage-matrix.js"],
   ["authorization", "authorization-test.js"],
   ["net protocol", "net-protocol-test.js"],
@@ -33,8 +34,13 @@ const steps = [
   ["astronomy browser", "astronomy-browser-test.js"],
   ["indonesia browser", "indonesia-browser-test.js"],
   ["dice browser", "dice-browser-test.js"],
+  ["dice observer", "dice-observer-browser-test.js"],
   ["actor colours", "actor-colour-browser-test.js"],
-  ["ibrahim browser", "ibrahim-browser-test.js"]
+  ["ibrahim browser", "ibrahim-browser-test.js"],
+  ["waiting capital", "setup-waiting-browser-test.js"],
+  ["astronomy peers", "astronomy-multiplayer-browser-test.js"],
+  ["wonder tooltip", "natural-wonder-browser-test.js"],
+  ["district order", "district-order-browser-test.js"]
 ];
 
 const SOURCES = ["game.js", "ui.js", "rules-data.js", "card-art.js", "tile-art.js",

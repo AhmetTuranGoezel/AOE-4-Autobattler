@@ -83,11 +83,13 @@ async function attach(wsUrl) {
 }
 
 class Tab {
-  constructor(name, proc, cdp) {
+  constructor(name, proc, cdp, profileDir) {
     this.name = name;
     this.proc = proc;
     this.cdp = cdp;
     this.errors = cdp.errors;
+    this.profileDir = profileDir;
+    this.closed = false;
   }
   static async open(name, url) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "civ-tab-"));
@@ -115,11 +117,28 @@ class Tab {
       if (!target) await sleep(150);
     }
     if (!target) throw new Error(name + ": no page target");
-    return new Tab(name, proc, await attach(target.webSocketDebuggerUrl));
+    return new Tab(name, proc, await attach(target.webSocketDebuggerUrl), dir);
   }
   eval(expr) { return this.cdp.eval(expr); }
   reload() { return this.cdp.send("Page.reload"); }
-  close() { try { this.proc.kill(); } catch { /* already gone */ } }
+  close() {
+    if (this.closed) return;
+    this.closed = true;
+    const cleanup = () => {
+      const target = path.resolve(this.profileDir);
+      // Only the exact disposable directory this Tab created, never a caller's
+      // profile, a symlink or the Temp root itself. Wait for Chrome to exit.
+      if (path.dirname(target) !== path.resolve(os.tmpdir()) ||
+          !/^civ-tab-[A-Za-z0-9]+$/.test(path.basename(target))) return;
+      try { if (fs.lstatSync(target).isSymbolicLink()) return; } catch { return; }
+      fs.rm(target, { recursive: true, force: true, maxRetries: 8, retryDelay: 100 }, (error) => {
+        if (error) console.error(`Temporary test profile cleanup failed: ${target}: ${error.code}`);
+      });
+    };
+    if (this.proc.exitCode !== null || this.proc.signalCode !== null) { cleanup(); return; }
+    this.proc.once("exit", cleanup);
+    try { this.proc.kill(); } catch { /* exit listener owns cleanup */ }
+  }
 }
 
 async function waitUntil(fn, ms, step = 150) {

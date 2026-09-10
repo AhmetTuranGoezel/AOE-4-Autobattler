@@ -479,6 +479,8 @@ const Game = (() => {
   }
 
   function validateTilePlacement(st, tileId, anchorKey, rotation) {
+    if (typeof anchorKey !== "string" || !/^-?\d+,-?\d+$/.test(anchorKey) ||
+        !Number.isInteger(rotation) || rotation < 0 || rotation > 5) return { ok: false };
     const tile = st.setup.tiles[tileId];
     if (!tile || tile.placed) return { ok: false };
     const cellKeys = getTileHexKeys(anchorKey, rotation, st.map.hexes);
@@ -1421,6 +1423,9 @@ const Game = (() => {
       if (choice.playerId !== actorId) {
         return denied("choice_owner_mismatch", "This decision belongs to another player.");
       }
+      if (st.districtEvent && st.pendingChoices[0]?.playerId !== choice.playerId) {
+        return denied("district_priority", "Wait for the current district decision to finish.");
+      }
       // The Industrial Zone's alternatives are not generic trade-spend levels.
       // Its printed city option costs exactly three Industry tokens, so an old
       // or forged client cannot select it when that exact payment (and a legal
@@ -1770,6 +1775,10 @@ const Game = (() => {
       }
     }
 
+    if (view.cardResolution?.cardName === "Astronomy" && view.cardResolution.playerId !== viewerSeatId) {
+      const { id, kind, playerId, cardType, cardName, step } = view.cardResolution;
+      view.cardResolution = { id, kind, playerId, cardType, cardName, step };
+    }
     view.pendingChoices = (view.pendingChoices || []).map((choice) => {
       if (choice.playerId === viewerSeatId) return choice;
       return { id: choice.id, playerId: choice.playerId, status: "pending" };
@@ -2102,7 +2111,8 @@ const Game = (() => {
       if (payload.playerId !== activeId) return st;
       const hand = inDraft ? st.setup.draftTiles : st.setup.playerTiles;
       const playerTiles = hand[payload.playerId] || [];
-      if (!playerTiles.includes(payload.tileId)) return st;
+      if (!playerTiles.includes(payload.tileId) ||
+          (payload.side != null && payload.side !== "A" && payload.side !== "B")) return st;
 
       const result = validateTilePlacement(st, payload.tileId, payload.anchorKey, payload.rotation);
       if (!result.ok) return st;
@@ -2312,8 +2322,8 @@ const Game = (() => {
           hx.resource = null;
         }
         placeControlToken(st, k, payload.playerId, { fortified: false });
-        if (hx.terrain === "mountain") placedMountains.push(k);
-        if (hx.terrain === "hill") placedHills.push(k);
+        if (terrainType(hx) === "mountain") placedMountains.push(k);
+        if (terrainType(hx) === "hill") placedHills.push(k);
       }
       log(st, `${player.name} placed ${hexKeys.length} control marker(s).${franceBonus ? ` (+${franceBonus} from wonders)` : ""}`);
       // Inca: each token placed on a mountain may spill onto an adjacent space.
@@ -3019,6 +3029,7 @@ const Game = (() => {
       st.pendingBarbReward = null;
       log(st, `${player.name} gained +1 ${payload.cardType} trade.`);
       if (cardResolutionId) advanceCardResolution(st, cardResolutionId);
+      advanceDistrictEvent(st);
       return st;
     }
 
@@ -3363,7 +3374,7 @@ const Game = (() => {
 
   function stateWorkforceMountainTargets(st, playerId) {
     return Object.entries(st.map.hexes).filter(([, hex]) => {
-      if (!hex || !hex.active || hex.terrain !== "mountain" || hex.city ||
+      if (!hex || !hex.active || terrainType(hex) !== "mountain" || hex.city ||
           hex.cityState || hex.barbarian || hex.control || (hex.fortress && !hex.city)) return false;
       return hexNeighborKeys(hex.q, hex.r).some((neighborKey) =>
         isFriendlySpace(st.map.hexes[neighborKey], playerId, st));
@@ -3524,7 +3535,7 @@ const Game = (() => {
   function astronomyCapitalEdges(st, playerId) {
     const capitalKey = findCapital(st, playerId);
     const capital = capitalKey && st.map.hexes[capitalKey];
-    return capital ? Object.entries(st.map.hexes)
+    return capital && capital.tileId ? Object.entries(st.map.hexes)
       .filter(([, hex]) => hex && hex.active && hex.tileId === capital.tileId && isEdgeSpace(st, hex))
       .map(([hexKey]) => hexKey) : [];
   }
@@ -4275,6 +4286,8 @@ const Game = (() => {
     const idx = st.pendingChoices.findIndex((c) => c.id === payload.choiceId);
     if (idx < 0) return st;
     const choice = st.pendingChoices[idx];
+    if (st.districtEvent && st.pendingChoices[0]?.playerId !== choice.playerId) return st;
+    const queuedBefore = st.pendingChoices.length;
     if (choice.playerId && payload.playerId && choice.playerId !== payload.playerId && !payload.hostOverride) return st;
     const player = getPlayer(st, choice.playerId);
     if (!player) return st;
@@ -4411,6 +4424,9 @@ const Game = (() => {
           JSON.stringify(tail) === JSON.stringify(visible)) {
         const [mode, tileId] = option.id.split("|");
         if (mode === "place" && visible.includes(tileId)) {
+          if (payload.tileId != null && payload.tileId !== tileId) return st;
+          if (!astronomyCapitalEdges(st, player.id).includes(choice.selectedFromKey) ||
+              (payload.selectedFromKey != null && payload.selectedFromKey !== choice.selectedFromKey)) return st;
           const attempt = isLegalExplorationPlacement(st, {
             tileId,
             fromKey: choice.selectedFromKey
@@ -4512,8 +4528,10 @@ const Game = (() => {
         const left = Number(choice.remaining || 1) - 1;
         // Re-ask for whatever is still standing. Nubia's single-district
         // prompt sets remaining to 1, so it never comes back.
-        const rest = DISTRICT_KINDS.filter((k) => k !== kind && hexes[k].length);
-        if (left > 0 && rest.length) {
+        const rest = (choice.options || []).map((o) => o.id).filter((k) => k !== kind && hexes[k]?.length);
+        if (st.districtEvent && choice.districtEventId === st.districtEvent.id) {
+          st.districtEvent.remaining = rest;
+        } else if (left > 0 && rest.length) {
           queuePendingChoice(st, {
             kind: "district_order",
             playerId: player.id,
@@ -4709,13 +4727,13 @@ const Game = (() => {
         // replacing a rival's (Mass Media, Statue of Liberty, capture), handing
         // one over (Eiffel Tower) and reinforcing one all have their own
         // handlers and none of them is a placement.
-        if (hasLeader(player, "inca") && hex.terrain === "mountain") {
+        if (hasLeader(player, "inca") && terrainType(hex) === "mountain") {
           queueIncaChain(st, player, hexKey);
         }
         // Stonehenge listens to every actual placement source (Hanging
         // Gardens, Engineering, Urbanization, Amundsen-Scott, Inca, etc.),
         // not only Culture-card placements or its own previous link.
-        if (hasWonder(st, player.id, "Stonehenge") && hex.terrain === "hill") {
+        if (hasWonder(st, player.id, "Stonehenge") && terrainType(hex) === "hill") {
           queueStonehengeChain(st, player, hexKey);
         }
         if (choice.chainKey && choice.chainLeft > 0) {
@@ -5301,12 +5319,19 @@ const Game = (() => {
     }
     if (resolved || dismissed) {
       st.pendingChoices.splice(idx, 1);
+      if (st.districtEvent) {
+        // A selected strike's target/reward is part of THAT ability, before
+        // already queued reinforcement or the next district's decisions.
+        const followups = st.pendingChoices.splice(queuedBefore - 1);
+        st.pendingChoices.unshift(...followups);
+      }
       if (choice.nextChoice) queueInteractionChoice(st, choice.nextChoice);
       if (choice.cardResolutionId) advanceCardResolution(st, choice.cardResolutionId);
       if (choice.kind === "scorched_earth" && !player.scorchedEarthUsedThisTurn &&
           !unitsLeftToMove(player, "military")) {
         finishActiveCard(st);
       }
+      advanceDistrictEvent(st);
     }
     return st;
   }
@@ -6101,6 +6126,40 @@ const Game = (() => {
     return true;
   }
 
+  // Terra p9: first player, clockwise; finish every ability (including
+  // nested choices) before handing the district event to the next seat.
+  // Persist the cursor so snapshots/reloads cannot reorder or repeat payouts.
+  function advanceDistrictEvent(st) {
+    const event = st.districtEvent;
+    if (!event || (st.pendingChoices || []).length || st.pendingBarbReward) return;
+    while (event.index < event.order.length) {
+      const player = getPlayer(st, event.order[event.index]);
+      event.playerId = player?.id || null;
+      const hexes = player ? districtHexesFor(st, player.id) : {};
+      if (event.remaining == null) {
+        event.remaining = DISTRICT_KINDS.filter((kind) => hexes[kind]?.length);
+      }
+      event.remaining = event.remaining.filter((kind) => hexes[kind]?.length);
+      if (!event.remaining.length) {
+        event.index++;
+        event.remaining = null;
+        continue;
+      }
+      if (event.remaining.length > 1) {
+        queuePendingChoice(st, { kind: "district_order", playerId: player.id,
+          districtEventId: event.id, title: "District Event — Your Turn", source: "district event",
+          remaining: event.remaining.length,
+          options: event.remaining.map((kind) => ({ id: kind, label: DISTRICT_NAMES[kind] })) });
+        return;
+      }
+      const kind = event.remaining.shift();
+      resolveDistrictKind(st, player, kind, hexes[kind]);
+      if ((st.pendingChoices || []).length || st.pendingBarbReward) return;
+    }
+    st.districtEvent = null;
+    log(st, "District event complete: all players resolved in first-player clockwise order.");
+  }
+
   // A district's ability is resolved per district token, and three of the five
   // are a printed CHOICE of one of two options (Terra p9). The engine used to
   // fuse each pair into a single always-on effect, which is a different and
@@ -6151,8 +6210,8 @@ const Game = (() => {
   }
 
   function districtTerrainMatches(st, h, playerId, terrain) {
-    return !!h && (h.terrain === terrain ||
-      (h.terrain === "water" && isDistrictFriendlySpace(st, h, playerId) &&
+    return !!h && (terrainType(h) === terrain ||
+      (terrainType(h) === "water" && isDistrictFriendlySpace(st, h, playerId) &&
         hasLeader(getPlayer(st, playerId), "netherlands")));
   }
 
@@ -6475,13 +6534,15 @@ const Game = (() => {
       moveBarbarians(st);
     }
     if (evt === "district_event") {
+      if (st.districtEvent) return;
       // Which spaces actually paid out, so the board can show its working. A
       // campus that scores nothing is the rule doing its job, not a bug, and the
       // only way to tell is to say what it was looking for.
       st.districtReport = [];
-      st.turn.order.map((id) => getPlayer(st, id)).filter(Boolean).forEach((player) => {
-        beginDistrictResolution(st, player);
-      });
+      st.districtEvent = { id: makeChoiceId("district-event"),
+        order: (st.setup?.order || st.turn.order).slice(), index: 0,
+        playerId: (st.setup?.order || st.turn.order)[0], remaining: null };
+      advanceDistrictEvent(st);
     }
     if (evt === "gov_change") {
       // Terra p22: only now may a player change government, and only onto a card
@@ -7592,7 +7653,7 @@ const Game = (() => {
     const spots = hexNeighborKeys(parseQ(fromKey), parseR(fromKey)).filter((neighborKey) => {
       if (alreadyQueued.has(neighborKey)) return false;
       const neighbor = st.map.hexes[neighborKey];
-      return neighbor && neighbor.active && neighbor.terrain === "hill" &&
+      return neighbor && neighbor.active && terrainType(neighbor) === "hill" &&
         !neighbor.city && !neighbor.control && !neighbor.barbarian && !neighbor.cityState &&
         !(neighbor.fortress && !neighbor.city);
     });
@@ -7621,7 +7682,7 @@ const Game = (() => {
   // Chichen Itza lifts the adjacency requirement for empty forest spaces that
   // are NOT next to one of your cities.
   function chichenAllows(st, playerId, h) {
-    return h.terrain === "forest" && hasWonder(st, playerId, "Chichen Itza") &&
+    return terrainType(h) === "forest" && hasWonder(st, playerId, "Chichen Itza") &&
       !adjacentToFriendlyCity(st, h, playerId);
   }
 
@@ -7799,7 +7860,7 @@ const Game = (() => {
     let bonus = 0;
     const h = st.map.hexes[toKey];
     // Scythia: +3 when attacking a grassland or hill space.
-    if (hasLeader(player, "scythia") && h && (h.terrain === "grass" || h.terrain === "hill")) bonus += 3;
+    if (hasLeader(player, "scythia") && h && (terrainType(h) === "grass" || terrainType(h) === "hill")) bonus += 3;
     // Ottoman: +2 against the player holding the Ibrahim card.
     const against = defenderOwnerId || hexOwnerAt(st, toKey);
     if (hasLeader(player, "ottoman") && st.ibrahimHolder && against === st.ibrahimHolder) bonus += 2;
@@ -7835,7 +7896,7 @@ const Game = (() => {
       });
     }
 
-    if (hasLeader(player, "scythia") && h && (h.terrain === "grass" || h.terrain === "hill")) {
+    if (hasLeader(player, "scythia") && h && (terrainType(h) === "grass" || terrainType(h) === "hill")) {
       parts.push({ label: "Scythia (grass/hill)", value: 3, category: "leader" });
     }
     const against = defender && defender.ownerId || hexOwnerAt(st, toKey);
@@ -8253,8 +8314,12 @@ const Game = (() => {
   }
   function getSlotIndex(player, cardType) { return focusIndexOf(player, cardType); }
 
+  function terrainType(h) {
+    return h && (h.resource === "wonder" || h.naturalWonder) ? null : h?.terrain;
+  }
+
   function terrainDifficulty(h) {
-    if (h.resource === "wonder") return 5;
+    if (terrainType(h) === null) return 5;
     return TERRAIN[h.terrain] || 1;
   }
 
@@ -8263,7 +8328,7 @@ const Game = (() => {
   function japanCoastalDifficulty(st, h, player, d) {
     if (!hasLeader(player, "japan")) return d;
     if (h.terrain !== "desert" && h.terrain !== "mountain") return d;
-    if (h.resource === "wonder") return d;
+    if (terrainType(h) === null) return d;
     const coastalOrEdge = hexNeighborKeys(h.q, h.r).some((nk) => {
       const nh = st.map.hexes[nk];
       return !nh || !nh.active || nh.terrain === "water";
@@ -8282,7 +8347,7 @@ const Game = (() => {
 
     // Kumasi applies only while resolving Industry or Culture, not to Growth's
     // district/control steps or unrelated wonder effects.
-    if (h.terrain === "forest" && hasCityStateDiplomacy(player, "Kumasi") &&
+    if (terrainType(h) === "forest" && hasCityStateDiplomacy(player, "Kumasi") &&
         (context === "culture" || context === "industry_control" || industryCity)) {
       difficulty = 1;
     }
@@ -9226,7 +9291,7 @@ const Game = (() => {
     const defenderLeaderBonus = (ownerId) => {
       const owner = getPlayer(st, ownerId);
       let value = hasLeader(owner, "scythia") &&
-        (h.terrain === "grass" || h.terrain === "hill") ? 3 : 0;
+        (terrainType(h) === "grass" || terrainType(h) === "hill") ? 3 : 0;
       if (hasLeader(owner, "ottoman") && st.ibrahimHolder === attackerId) value += 2;
       return value;
     };
@@ -9268,13 +9333,13 @@ const Game = (() => {
     };
     if (h.control && h.control.ownerId !== attackerId) {
       const parts = breakdown(h.control.ownerId,
-        { label: `${TERRAIN_LABELS[h.terrain] || h.terrain} terrain`, value: terrainDifficulty(h) });
+        { label: terrainType(h) === null ? "Natural wonder (no terrain type)" : `${TERRAIN_LABELS[h.terrain] || h.terrain} terrain`, value: terrainDifficulty(h) });
       return { type: "control", label: "Control Marker", ownerId: h.control.ownerId,
         power: parts.reduce((a, x) => a + x.value, 0), parts };
     }
     if (h.city && h.city.ownerId !== attackerId) {
       const parts = breakdown(h.city.ownerId,
-        { label: `${TERRAIN_LABELS[h.terrain] || h.terrain} terrain, doubled`, value: terrainDifficulty(h) * 2 });
+        { label: terrainType(h) === null ? "Natural wonder difficulty, doubled" : `${TERRAIN_LABELS[h.terrain] || h.terrain} terrain, doubled`, value: terrainDifficulty(h) * 2 });
       return { type: "city", label: h.city.isCapital ? "Capital" : "City", ownerId: h.city.ownerId,
         power: parts.reduce((a, x) => a + x.value, 0), parts };
     }
@@ -9283,7 +9348,7 @@ const Game = (() => {
     const rival = rivalUnitAt(st, hexKey, attackerId, targetUnitId, targetOwnerId);
     if (rival) {
       const parts = breakdown(rival.playerId,
-        { label: `${TERRAIN_LABELS[h.terrain] || h.terrain} terrain`, value: terrainDifficulty(h) },
+        { label: terrainType(h) === null ? "Natural wonder (no terrain type)" : `${TERRAIN_LABELS[h.terrain] || h.terrain} terrain`, value: terrainDifficulty(h) },
         rival.unitId, true);
       const rivalPlayer = getPlayer(st, rival.playerId);
       return { type: rival.kind,
@@ -9590,9 +9655,7 @@ const Game = (() => {
   }
 
   function canPlaceExploration(st, tileId, anchorKey, rotation, side, fromKey) {
-    return explorationSideExists(tileId, side) &&
-      validateExploration(st, tileId, anchorKey, rotation).ok &&
-      explorationTouchesOrigin(st, anchorKey, rotation, fromKey);
+    return isLegalExplorationPlacement(st, { tileId, fromKey }, anchorKey, rotation, side).ok;
   }
 
   // A legal explored tile must include a space beside fromKey. That gives a
@@ -9663,13 +9726,18 @@ const Game = (() => {
         (side !== "A" && side !== "B")) {
       return { ok: false, code: "invalid_tile_attempt" };
     }
-    const placement = getLegalExplorationPlacements(st, pending, {
-      side,
-      rotation
-    }).find((entry) => entry.anchorKey === anchorKey);
-    return placement
-      ? { ok: true, placement }
-      : { ok: false, code: "illegal_tile_position" };
+    if (!/^-?\d+,-?\d+$/.test(anchorKey) ||
+        !st.map.hexes[pending.fromKey]?.active || !explorationSideExists(pending.tileId, side)) {
+      return { ok: false, code: "invalid_tile_attempt" };
+    }
+    const geometry = validateExploration(st, pending.tileId, anchorKey, rotation);
+    if (!geometry.ok) return geometry;
+    if (!explorationTouchesOrigin(st, anchorKey, rotation, pending.fromKey)) {
+      return { ok: false, code: "origin_not_touched" };
+    }
+    return { ok: true, contacts: geometry.contacts, placement: {
+      side, rotation, anchorKey, cellKeys: getTileHexKeys(anchorKey, rotation, st.map.hexes)
+    }};
   }
 
   // "Nowhere it fits" is a claim about the physical tile, not the currently
@@ -10113,10 +10181,10 @@ const Game = (() => {
 
   function validateExploration(st, tileId, anchorKey, rotation) {
     const tile = st.tiles[tileId];
-    if (!tile || tile.placed) return { ok: false };
+    if (!tile || tile.placed) return { ok: false, code: "tile_unavailable" };
     const cellKeys = getTileHexKeys(anchorKey, rotation, st.map.hexes);
     if (cellKeys.length !== TILE_OFFSETS.length) return { ok: false };
-    if (cellKeys.some((k) => st.map.hexes[k] && st.map.hexes[k].active)) return { ok: false };
+    if (cellKeys.some((k) => st.map.hexes[k] && st.map.hexes[k].active)) return { ok: false, code: "tile_overlap" };
 
     const cellSet = new Set(cellKeys);
     const boardNeighbors = new Set();
@@ -10138,8 +10206,8 @@ const Game = (() => {
     // exploration in as many words. Exploration being hard to place is the
     // printed difficulty, and the real reason a tile could not be placed was
     // an authorization gate, not this.
-    if (boardNeighbors.size < 4) return { ok: false };
-    return { ok: true };
+    if (boardNeighbors.size < 4) return { ok: false, code: "four_contacts_required", contacts: boardNeighbors.size };
+    return { ok: true, contacts: boardNeighbors.size };
   }
 
   function placeExploredTile(st, tileId, anchorKey, rotation, side) {
@@ -10215,7 +10283,7 @@ const Game = (() => {
     canCrossWater, computeScore,
     findDefenders, validControlHexes, validDistrictHexes, validReinforceHexes,
     validCityHexes, validWonderHexes, getReachable, findDefender, getUnitsAt,
-    adjacentToCityState, adjacentToFriendlyControl, terrainDifficulty, movementTerrainLimit, isForcedStopHex,
+    adjacentToCityState, adjacentToFriendlyControl, terrainType, terrainDifficulty, movementTerrainLimit, isForcedStopHex,
     validateCulturePlacement, validateReinforcePlacement,
     validateIndustryCityAction,
     countControl, countWonders, countDeveloped, countCities, countNaturalWonders, findCapital,
@@ -10229,7 +10297,7 @@ const Game = (() => {
     placeControlToken,
     hexNeighborKeys, parseQ, parseR, key, hexDist, rollDie, rotateAxial,
     isExploreEligible, validateExploration, placeExploredTile,
-    getLegalExplorationPlacements, getAstronomyPlacements, isLegalExplorationPlacement,
+    getLegalExplorationPlacements, getAstronomyPlacements, astronomyCapitalEdges, isLegalExplorationPlacement,
     hasLegalExplorationPlacement,
     canAbandonExploration, getReachableWithDist, movementNeighborKeys
   };

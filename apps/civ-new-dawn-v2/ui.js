@@ -142,7 +142,8 @@ const UI = (() => {
     tileId: null,
     side: "A",
     rotation: 0,
-    anchorKey: null
+    anchorKey: null,
+    pinned: false
   };
   let renderedCapitalPreview = null;
   let renderedBoardHighlights = [];
@@ -158,7 +159,8 @@ const UI = (() => {
     side: "A",
     rotation: 0,
     anchorKey: null,
-    selectedFromKey: null
+    selectedFromKey: null,
+    pinned: false
   };
   let renderedAstronomyPreview = null;
   const astronomyReturnOrder = { choiceId: null, reversed: false };
@@ -170,6 +172,7 @@ const UI = (() => {
     astronomyPreview.side = "A";
     astronomyPreview.rotation = 0;
     astronomyPreview.anchorKey = null;
+    astronomyPreview.pinned = false;
     astronomyPreview.selectedFromKey = null;
     renderedAstronomyPreview = null;
   }
@@ -215,6 +218,7 @@ const UI = (() => {
       astronomyPreview.side = "A";
       astronomyPreview.rotation = 0;
       astronomyPreview.anchorKey = null;
+      astronomyPreview.pinned = false;
     }
   }
 
@@ -244,6 +248,7 @@ const UI = (() => {
     previewCapital.side = "A";
     previewCapital.rotation = 0;
     previewCapital.anchorKey = null;
+    previewCapital.pinned = false;
     renderedCapitalPreview = null;
   }
 
@@ -253,14 +258,21 @@ const UI = (() => {
   }
 
   function canPreviewCapitalTile() {
-    if (!state || state.phase !== "setup" || state.setup.phase !== "fortress") return false;
-    const activeId = state.setup.order[state.setup.turnIndex];
-    return activeId === localPlayerId && !!localCapitalTileId();
+    return !!state && state.phase === "setup" &&
+      ["fortress", "capital_tile"].includes(state.setup.phase) && !!localCapitalTileId();
   }
 
   function previewingCapitalTile() {
     return previewCapital.enabled && canPreviewCapitalTile() &&
       previewCapital.tileId === localCapitalTileId();
+  }
+
+  function capitalPreviewAttempt() {
+    if (!previewCapital.anchorKey) return { ok: false };
+    // Preview future capital geometry even while fortresses are being placed.
+    // This shallow read-only view grants no setup authority.
+    return Game.validateTilePlacement({ ...state, setup: { ...state.setup, phase: "capital_tile" } },
+      previewCapital.tileId, previewCapital.anchorKey, previewCapital.rotation);
   }
 
   // Put the first frame beside the explored core. It does not have to be a
@@ -291,6 +303,7 @@ const UI = (() => {
     if (enabled) {
       if (!canPreviewCapitalTile()) return;
       previewCapital.enabled = true;
+      previewCapital.pinned = false;
       previewCapital.tileId = localCapitalTileId();
       const hoverKey = mouseHex ? Game.key(mouseHex.q, mouseHex.r) : null;
       const anchorStillDraws = previewCapital.anchorKey &&
@@ -1910,33 +1923,7 @@ const UI = (() => {
       const activeId = state.setup.order[state.setup.turnIndex];
       if (activeId === localPlayerId) {
         if (state.setup.phase === "fortress") {
-          if (previewingCapitalTile()) {
-            const tileId = previewCapital.tileId;
-            const anchorKey = previewCapital.anchorKey ||
-              defaultCapitalPreviewAnchor(previewCapital.rotation);
-            if (anchorKey) {
-              previewCapital.anchorKey = anchorKey;
-              const keys = Game.getTileHexKeys(anchorKey, previewCapital.rotation, hexes);
-              if (keys.length === Game.TILE_OFFSETS.length &&
-                  keys.every((hexKey) => !!hexes[hexKey])) {
-                ghostKeys = new Set(keys);
-                ghostView = {
-                  preview: true,
-                  tileId,
-                  anchorKey,
-                  rotation: previewCapital.rotation,
-                  side: previewCapital.side
-                };
-                renderedCapitalPreview = {
-                  tileId,
-                  anchorKey,
-                  rotation: previewCapital.rotation,
-                  side: previewCapital.side,
-                  cellKeys: keys.slice()
-                };
-              }
-            }
-          } else {
+          if (!previewingCapitalTile()) {
             // Fortress placement is a board-reading decision. Do not paint
             // every legal answer green; the only preview is the single space
             // currently under the pointer, and an invalid click gets a
@@ -1970,6 +1957,15 @@ const UI = (() => {
           }
         }
       }
+    }
+
+    if (previewingCapitalTile() && previewCapital.anchorKey) {
+      const { tileId, anchorKey, rotation, side } = previewCapital;
+      const keys = Game.getTileHexKeys(anchorKey, rotation, hexes);
+      ghostKeys = new Set(keys);
+      ghostValid = capitalPreviewAttempt().ok;
+      ghostView = { preview: "capital", tileId, anchorKey, rotation, side, playerColor: seatOf(localPlayerId) };
+      renderedCapitalPreview = { ...ghostView, cellKeys: keys.slice(), valid: ghostValid };
     }
 
     if (state.phase === "playing" && previewingAstronomyTile()) {
@@ -2020,8 +2016,9 @@ const UI = (() => {
     }
 
     const hexChoice = activeHexChoice();
-    const combinedValid = new Set([...sub.validHexes, ...setupValid,
-      ...(hexChoice ? hexChoice.hexKeys : [])]);
+    const originChoice = currentAstronomyDecision()?.kind === "astronomy_edge";
+    const combinedValid = new Set(originChoice ? Game.astronomyCapitalEdges(state, localPlayerId)
+      : [...sub.validHexes, ...setupValid, ...(hexChoice ? hexChoice.hexKeys : [])]);
     renderedBoardHighlights = Array.from(combinedValid);
     // Everything on the board that moves by itself, in one place, so the loop
     // and the drawing can never disagree about whether a frame is worth having.
@@ -2575,14 +2572,12 @@ const UI = (() => {
   function drawGhostTile(ghostKeys, valid, view) {
     const hexes = state.map.hexes;
     const previewOnly = !!(view && view.preview);
-    const astronomyGhost = !!(view && view.preview === "astronomy");
+    const astronomyGhost = !!(view && ["astronomy", "capital"].includes(view.preview));
     const fillColor = astronomyGhost
       ? (valid ? "rgba(255,255,255,0.16)" : "rgba(239,83,80,0.24)")
       : (previewOnly ? "rgba(255,213,79,0.18)"
         : (valid ? "rgba(102,187,106,0.25)" : "rgba(239,83,80,0.2)"));
-    const strokeColor = astronomyGhost
-      ? (valid ? safeColor(view.playerColor) : "#ef5350")
-      : (previewOnly ? "#ffd54f" : (valid ? "#66bb6a" : "#ef5350"));
+    const strokeColor = safeColor(view?.playerColor || seatOf(localPlayerId));
 
     let tileId = view && view.tileId ? view.tileId : null;
     if (!tileId && state.phase === "setup") {
@@ -2598,7 +2593,7 @@ const UI = (() => {
     }
 
     const rotation = view && Number.isInteger(view.rotation) ? view.rotation : sub.tileRotation;
-    const side = view && view.side === "B" ? "B" : (sub.tileSide === "B" ? "B" : "A");
+    const side = (view ? view.side : sub.tileSide) === "B" ? "B" : "A";
     const anchorKey = view && view.anchorKey
       ? view.anchorKey : (mouseHex ? Game.key(mouseHex.q, mouseHex.r) : null);
     const ghostKeyArr = anchorKey ? Game.getTileHexKeys(anchorKey, rotation, hexes) : [];
@@ -3132,8 +3127,8 @@ const UI = (() => {
 
     if (newKey !== oldKey) {
       mouseHex = state && state.map.hexes[newKey] ? newHex : null;
-      if (privateCapitalPreview && mouseHex) previewCapital.anchorKey = newKey;
-      if (privateAstronomyPreview && mouseHex) {
+      if (privateCapitalPreview && mouseHex && !previewCapital.pinned) previewCapital.anchorKey = newKey;
+      if (privateAstronomyPreview && mouseHex && !astronomyPreview.pinned) {
         // The ghost follows the pointer through legal and illegal positions.
         // Only this attempted anchor is evaluated; the set of answers remains
         // internal to the rules engine.
@@ -3141,7 +3136,7 @@ const UI = (() => {
       }
       if (mouseHex) showTooltip(e.clientX, e.clientY, newKey);
       else hideTooltip();
-      if (privateAstronomyPreview) render();
+      if (privateAstronomyPreview || privateCapitalPreview) render();
       else renderCanvas();
       if (!privateCapitalPreview && !privateAstronomyPreview) publishPresence();
     } else if (mouseHex) {
@@ -3437,7 +3432,13 @@ const UI = (() => {
     if (!h.active) {
       lines.push(`<strong>Inactive</strong> (${hexKey})`);
     } else {
-      lines.push(`<strong>${Game.TERRAIN_LABELS[h.terrain]}</strong> (diff ${Game.TERRAIN[h.terrain]})`);
+      const typeless = Game.terrainType(h) === null;
+      if (typeless) {
+        lines.push("<strong>Natural Wonder</strong>", "No terrain type · Difficulty 5");
+        if (h.naturalWonder) lines.push(escapeHtml(h.naturalWonder));
+        const resource = Game.NATURAL_WONDER_RESOURCES[h.naturalWonder || h.naturalWonderSpace];
+        if (resource) lines.push(`Resource: ${escapeHtml(resource[0].toUpperCase() + resource.slice(1))}`);
+      } else lines.push(`<strong>${Game.TERRAIN_LABELS[h.terrain]}</strong> (diff ${Game.terrainDifficulty(h)})`);
       if (h.city) {
         const owner = Game.getPlayer(state, h.city.ownerId);
         lines.push(`${h.city.isCapital ? "Capital" : "City"}: ${escapeHtml(owner ? owner.name : "?")} ${h.city.developed ? "(Dev)" : ""}`);
@@ -3453,10 +3454,10 @@ const UI = (() => {
         const owner = Game.getPlayer(state, h.control.ownerId);
         lines.push(`${h.control.district ? `District: ${escapeHtml(h.control.district)}` : "Control"}: ${escapeHtml(owner ? owner.name : "?")} ${h.control.fortified ? "(Fort)" : ""}`);
       }
-      if (h.barbarian) lines.push(`Barbarian (power ${Game.TERRAIN[h.terrain]})`);
+      if (h.barbarian) lines.push(`Barbarian (power ${Game.terrainDifficulty(h)})`);
       if (h.cityState) lines.push(`City-State: ${escapeHtml(h.cityState.name)} (${escapeHtml(h.cityState.type)})`);
       if (h.unownedWonder) lines.push(`<strong style="color:#e1bee7">Unowned wonder: ${escapeHtml(h.unownedWonder.name)}</strong>`);
-      if (h.resource) lines.push(`Resource: ${h.resource}`);
+      if (h.resource && !typeless) lines.push(`Resource: ${escapeHtml(h.resource)}`);
       if (h.fortress) {
         const owner = h.fortressOwnerId ? Game.getPlayer(state, h.fortressOwnerId) : null;
         lines.push(`Fortress: ${escapeHtml(owner ? owner.name : "Neutral")}`);
@@ -4138,6 +4139,15 @@ const UI = (() => {
     // prompt panel.
     if (state.combat) { dom.wizard.innerHTML = ""; return; }
 
+    if (state.districtEvent) {
+      const decisionOwner = state.pendingBarbReward?.playerId || state.pendingChoices?.[0]?.playerId || state.districtEvent.playerId;
+      if (decisionOwner !== localPlayerId) {
+        if (sub.phase !== "idle") clearSub();
+        dom.wizard.innerHTML = `<div class="wiz-title">District Event</div><div class="wiz-body">Waiting for <strong>${escapeHtml(Game.getPlayer(state, decisionOwner)?.name || "the current player")}</strong> to resolve districts.</div>`;
+        return;
+      }
+    }
+
     // Your own decisions come BEFORE the finished-combat blanking below, and
     // that order is load-bearing. resolveCombat queues the barbarian reward and
     // Sumeria's resource on any barbarian kill, and lastCombat is cleared only
@@ -4496,6 +4506,46 @@ const UI = (() => {
     const activeP = Game.getPlayer(state, activeId);
     const isMySetupTurn = activeId === localPlayerId;
 
+    if (canPreviewCapitalTile() && (!isMySetupTurn ||
+        (state.setup.phase === "capital_tile" && previewingCapitalTile()))) {
+      const enabled = previewingCapitalTile();
+      const valid = enabled && capitalPreviewAttempt().ok;
+      const canCommit = isMySetupTurn && state.setup.phase === "capital_tile";
+      const waiting = escapeHtml(activeP?.name || "the active player");
+      const tileId = localCapitalTileId();
+      dom.wizard.innerHTML = `
+        <div class="wiz-title">${canCommit ? "Place Your Capital Tile" : `Waiting for ${waiting}`}</div>
+        <div class="wiz-body">${canCommit ? "Your planned position is not placed until you confirm."
+          : `You may preview your own capital tile while ${waiting} places their ${state.setup.phase === "fortress" ? "fortress" : "capital"}.`}</div>
+        <div class="astro-faces"><span><small>Side A</small>${astronomyFaceImage(tileId, "A")}</span>
+          <span><small>Side B</small>${astronomyFaceImage(tileId, "B")}</span></div>
+        <button type="button" id="setup-capital-preview-mode">${enabled ? "Move My Tile" : "Preview My Capital Tile"}</button>
+        ${enabled ? `<div id="capital-preview-label" class="capital-preview-label">${canCommit ? "CAPITAL PLANNING" : `PREVIEW ONLY — WAITING FOR ${waiting}`}</div>
+          <div class="capital-preview-controls">
+            <button type="button" id="preview-rot-dec" aria-label="Rotate capital preview counterclockwise">Left</button>
+            <button type="button" id="preview-rot-inc" aria-label="Rotate capital preview clockwise">Right</button>
+            <button type="button" id="preview-side-toggle">Side ${previewCapital.side}</button>
+          </div>
+          <div class="pending-note ${valid ? "valid" : "invalid"}">${valid ? "VALID" : "INVALID"} — needs four core/fort contacts, without overlap.</div>
+          <div class="wiz-hint">Click the board to hold a position. Move My Tile resumes following the pointer. No spaces are reserved.</div>
+          <button type="button" class="primary" id="capital-preview-place" ${canCommit && valid ? "" : "disabled"}>Confirm Capital Placement</button>` : ""}`;
+      document.getElementById("setup-capital-preview-mode")?.addEventListener("click", () => {
+        if (enabled) { previewCapital.pinned = false; render(); }
+        else setCapitalPreview(true);
+      });
+      document.getElementById("preview-rot-dec")?.addEventListener("click", () => turnTile(-1));
+      document.getElementById("preview-rot-inc")?.addEventListener("click", () => turnTile(1));
+      document.getElementById("preview-side-toggle")?.addEventListener("click", flipTile);
+      document.getElementById("capital-preview-place")?.addEventListener("click", () => {
+        if (state.setup.phase !== "capital_tile" || state.setup.order[state.setup.turnIndex] !== localPlayerId ||
+            !capitalPreviewAttempt().ok) return;
+        dispatch({ type: "PLACE_TILE", payload: { playerId: localPlayerId,
+          tileId: previewCapital.tileId, anchorKey: previewCapital.anchorKey,
+          rotation: previewCapital.rotation, side: previewCapital.side } });
+      });
+      return;
+    }
+
     if (state.setup.phase === "fortress") {
       if (!isMySetupTurn) {
         dom.wizard.innerHTML = `<div class="wiz-title">Fortress Placement</div><div class="wiz-body">Waiting for <strong>${escapeHtml(activeP ? activeP.name : "...")}</strong>.</div>`;
@@ -4606,6 +4656,13 @@ const UI = (() => {
       document.getElementById("rot-dec").addEventListener("click", () => turnTile(-1));
       document.getElementById("rot-inc").addEventListener("click", () => turnTile(1));
       document.getElementById("side-toggle").addEventListener("click", flipTile);
+      if (isCapitalPhase) {
+        const previewButton = document.createElement("button");
+        previewButton.id = "setup-capital-preview-mode";
+        previewButton.textContent = "Preview My Capital Tile";
+        previewButton.addEventListener("click", () => setCapitalPreview(true));
+        dom.wizard.append(previewButton);
+      }
     }
   }
 
@@ -4737,6 +4794,7 @@ const UI = (() => {
   function getVisiblePendingChoice(me) {
     const choices = state.pendingChoices || [];
     if (!choices.length || !me) return null;
+    if (state.districtEvent) return choices[0].playerId === me.id ? choices[0] : null;
     return choices.find((c) => c.playerId === me.id) || null;
   }
 
@@ -4835,6 +4893,24 @@ const UI = (() => {
     }));
   }
 
+  function renderAstronomyCountChoice(choice) {
+    const options = choice.options || [];
+    const primary = options[0];
+    const button = (option, main) => `<button type="button" class="pending-option ${main ? "primary" : "ghost"}"
+      data-option="${escapeHtml(option.id)}">${option.id === "0" ? "Skip Inspection"
+        : `Inspect ${escapeHtml(option.id)} Tile${option.id === "1" ? "" : "s"}`}</button>`;
+    dom.wizard.innerHTML = `<div class="wiz-title">Astronomy: Inspect Map Tiles</div>
+      <div class="wiz-body">Look at up to two tiles from the bottom of the stack.</div>
+      <div class="wiz-actions">${button(primary, true)}</div>
+      ${primary.id === "2" ? `<details class="astro-fewer"><summary>Inspect Fewer…</summary>
+        <div class="wiz-actions">${options.slice(1).map((o) => button(o, false)).join("")}</div></details>`
+        : options.slice(1).map((o) => button(o, false)).join("")}`;
+    dom.wizard.querySelectorAll(".pending-option").forEach((node) => node.addEventListener("click", () =>
+      dispatch({ type: "RESOLVE_PENDING_CHOICE", payload: {
+        playerId: localPlayerId, choiceId: choice.id, optionId: node.dataset.option
+      }})));
+  }
+
   function renderAstronomyEdgeChoice(choice) {
     dom.wizard.innerHTML = `
       <div class="wiz-title">Astronomy: Choose an Exploration Origin</div>
@@ -4857,9 +4933,12 @@ const UI = (() => {
       selectAstronomyPreview(choice, choice.selectedTileId || (choice.tileIds || [])[0]);
     }
     const attempt = astronomyAttempt(choice);
+    const reasons = { tile_overlap: "Overlaps existing land.",
+      four_contacts_required: `Touches ${attempt.contacts || 0} existing spaces; four are required, including your origin.`,
+      origin_not_touched: "Does not touch the selected origin.", tile_unavailable: "This tile is no longer available." };
     const status = !astronomyPreview.anchorKey
       ? "Move the tile on the map."
-      : (attempt.ok ? "Current position is valid." : "Current position is not legal.");
+      : (attempt.ok ? "Current position is valid." : (reasons[attempt.code] || "Current position is not legal."));
     dom.wizard.innerHTML = `
       <div class="wiz-title">Astronomy: Position the Tile</div>
       <div class="wiz-body">The map ghost is the tile being manipulated. These reference images remain fixed and readable.</div>
@@ -4871,8 +4950,10 @@ const UI = (() => {
         <button type="button" id="astro-side" class="sm">Show side ${astronomyPreview.side === "A" ? "B" : "A"}</button>
       </div>
       <div class="pending-note astro-map-note ${attempt.ok ? "valid" : "invalid"}">${status}</div>
+      <div class="wiz-hint">Click the map to hold the tile here, then confirm. Move Tile resumes following the pointer.</div>
       <div class="wiz-actions astro-commit">
         <button type="button" class="primary" id="astro-place" ${attempt.ok ? "" : "disabled"}>Place This Tile</button>
+        <button type="button" class="ghost" id="astro-move">Move Tile</button>
         <button type="button" class="ghost" id="astro-change-origin">Change Origin</button>
         <button type="button" class="ghost" id="astro-compare">Compare Tiles</button>
         <button type="button" class="ghost" id="astro-none">Place Neither</button>
@@ -4882,6 +4963,7 @@ const UI = (() => {
     document.getElementById("astro-rot-dec")?.addEventListener("click", () => turnTile(-1));
     document.getElementById("astro-rot-inc")?.addEventListener("click", () => turnTile(1));
     document.getElementById("astro-side")?.addEventListener("click", flipTile);
+    document.getElementById("astro-move")?.addEventListener("click", () => { astronomyPreview.pinned = false; render(); });
     const choose = (optionId, extra) => dispatch({ type: "RESOLVE_PENDING_CHOICE", payload: {
       playerId: localPlayerId, choiceId: choice.id, optionId, ...(extra || {})
     }});
@@ -4896,6 +4978,8 @@ const UI = (() => {
         playerId: localPlayerId,
         choiceId: choice.id,
         optionId: `place|${astronomyPreview.tileId}`,
+        tileId: astronomyPreview.tileId,
+        selectedFromKey: astronomyPreview.selectedFromKey,
         anchorKey: astronomyPreview.anchorKey,
         rotation: astronomyPreview.rotation,
         side: astronomyPreview.side
@@ -4908,21 +4992,25 @@ const UI = (() => {
       astronomyReturnOrder.choiceId = choice.id;
       astronomyReturnOrder.reversed = false;
     }
+    // Display DRAW order, not array order: ordinary exploration uses pop().
     const ordered = astronomyReturnOrder.reversed
-      ? (choice.tileIds || []).slice().reverse() : (choice.tileIds || []).slice();
+      ? (choice.tileIds || []).slice() : (choice.tileIds || []).slice().reverse();
     const tiles = ordered.map((tileId, index) => `<div class="astro-return-tile">
       <span>${index + 1}</span>${astronomyFaceImage(tileId, "A")}<b>Tile ${escapeHtml(tileId)}</b>
     </div>`).join("");
     dom.wizard.innerHTML = `
       <div class="wiz-title">${escapeHtml(choice.title || "Astronomy: Return Tiles")}</div>
-      <div class="wiz-body">All unused inspected tiles return to one chosen end of the stack. Arrange their order, then choose that end.</div>
+      <div class="wiz-body">Normal exploration draws from the <strong>bottom</strong>. Arrange the tiles in their future draw order:</div>
+      <div class="astro-stack-diagram" role="img" aria-label="Top: far end. Bottom: next exploration draw.">
+        <span>TOP · far end</span><i></i><i></i><i></i><span>BOTTOM · next draw</span></div>
       <div class="astro-return-order">${tiles}</div>
       ${ordered.length > 1 ? `<button type="button" class="sm" id="astro-swap-order">Swap Order</button>` : ""}
       <div class="wiz-actions astro-return-actions">
-        <button type="button" class="primary" data-astro-return="top">Return to Top</button>
-        <button type="button" class="primary" data-astro-return="bottom">Return to Bottom</button>
+        <button type="button" class="primary" data-astro-return="bottom">Return to Bottom — Next to Be Explored</button>
+        <button type="button" class="ghost" data-astro-return="top">Return to Top — Far End of Stack</button>
       </div>
-      <div class="pending-note">At the top, tile ${escapeHtml(ordered[0] || "")} becomes the new top tile. At the bottom, tile ${escapeHtml(ordered[ordered.length - 1] || "")} becomes the bottom-most tile.</div>`;
+      <div class="pending-note">Bottom: tile ${escapeHtml(ordered[0] || "")} will be the next map tile explored${ordered.length > 1 ? `, then tile ${escapeHtml(ordered[1])}` : ""}.
+        Top: these tiles will be drawn in that same order only after the other ${Number(state.tileStack?.length ?? state.tileStackCount ?? 0)} tiles.</div>`;
     document.getElementById("astro-swap-order")?.addEventListener("click", () => {
       astronomyReturnOrder.reversed = !astronomyReturnOrder.reversed;
       render();
@@ -4948,6 +5036,10 @@ const UI = (() => {
         must finish their decision.</div>`;
       return;
     }
+    if (choice.kind === "astronomy_count") {
+      renderAstronomyCountChoice(choice);
+      return;
+    }
     if (choice.kind === "astronomy_tiles") {
       renderAstronomyTileChoice(choice);
       return;
@@ -4965,7 +5057,7 @@ const UI = (() => {
       return;
     }
     const owner = Game.getPlayer(state, choice.playerId);
-    const title = choice.title || "Pending Choice";
+    const title = state.districtEvent ? "District Event — Your Turn" : (choice.title || "Pending Choice");
     // Never show a raw action name — "science_upgrade" means nothing at the table.
     const CHOICE_BLURB = {
       science_upgrade: "pick the card you take",
@@ -5331,9 +5423,10 @@ const UI = (() => {
       return `<li>${who2} paid a token for +1</li>`;
     }).join("");
 
+    const entering = stage.classList.contains("hidden") ? " cs-enter" : "";
     stage.classList.remove("hidden");
-    stage.innerHTML = `<div class="cs-scrim"></div>
-      <div class="cs-body">
+    stage.innerHTML = `<div class="cs-scrim${entering}"></div>
+      <div class="cs-body${entering}">
         <div class="cs-vs"><strong>${escapeHtml(atkName || "Attacker")}</strong> attacks <strong>${escapeHtml(defName || "?")}</strong></div>
         <div class="cs-duel">
           ${side("atk", atkName, atkRoll, totals.atk, atkNote, atkThrown, live && !atkThrown)}
@@ -5405,7 +5498,12 @@ const UI = (() => {
     if (diceAnimationTimer || !liveDiceAnimations.size) return;
     diceAnimationTimer = setTimeout(() => {
       diceAnimationTimer = null;
-      if (state && liveDiceAnimations.size) renderCombatStage();
+      // Keep the popup mounted. Only the two existing dice own animation
+      // frames; rebuilding cs-body here restarts its entrance animation.
+      for (const [eventKey, active] of liveDiceAnimations) {
+        if (!active.element?.isConnected) { liveDiceAnimations.delete(eventKey); continue; }
+        rollDice(active.element, active.final, eventKey, false);
+      }
       if (liveDiceAnimations.size) scheduleDiceAnimationFrame();
     }, 80);
   }
@@ -5426,6 +5524,8 @@ const UI = (() => {
     if (start) liveDiceAnimations.set(eventKey, { startedAt: performance.now(), final });
     const active = liveDiceAnimations.get(eventKey);
     if (!active) return;
+    const newElement = active.element !== el;
+    active.element = el;
     const elapsed = performance.now() - active.startedAt;
     if (elapsed >= 640) {
       liveDiceAnimations.delete(eventKey);
@@ -5442,7 +5542,7 @@ const UI = (() => {
     el.setAttribute("aria-label", `Rolling; authoritative result ${active.final}`);
     el.classList.remove("landed");
     el.classList.add("rolling");
-    el.style.animationDelay = `${-Math.min(570, elapsed)}ms`;
+    if (newElement) el.style.animationDelay = `${-Math.min(570, elapsed)}ms`;
     scheduleDiceAnimationFrame();
   }
 
@@ -7124,8 +7224,15 @@ const UI = (() => {
   async function handleHexClick(hexKey) {
     if (!state) return;
 
+    if (previewingCapitalTile()) {
+      previewCapital.anchorKey = hexKey;
+      previewCapital.pinned = true;
+      render();
+      return;
+    }
     if (previewingAstronomyTile()) {
       astronomyPreview.anchorKey = hexKey;
+      astronomyPreview.pinned = true;
       render();
       return;
     }
@@ -7133,6 +7240,9 @@ const UI = (() => {
     // A choice waiting on a space takes the click before anything else.
     const hexChoice = activeHexChoice();
     if (hexChoice) {
+      if (hexChoice.kind === "astronomy_edge" && !Game.astronomyCapitalEdges(state, localPlayerId).includes(hexKey)) {
+        showToast("Choose a map-edge space of your own capital tile."); return;
+      }
       if (!hexChoice.hexKeys.includes(hexKey)) { showToast("Not one of the highlighted spaces"); return; }
       flashHex(hexKey, "rgb(255,213,79)", 700);
       const resolved = await dispatch({ type: "RESOLVE_PENDING_CHOICE", payload: {
@@ -7915,6 +8025,8 @@ const UI = (() => {
           side: renderedCapitalPreview.side,
           rotation: renderedCapitalPreview.rotation,
           anchorKey: renderedCapitalPreview.anchorKey,
+          valid: renderedCapitalPreview.valid,
+          playerColor: renderedCapitalPreview.playerColor,
           cellCount: renderedCapitalPreview.cellKeys.length
         } : null
       },

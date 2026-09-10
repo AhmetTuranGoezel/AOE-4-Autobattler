@@ -29,6 +29,9 @@ const SETUP = `(async () => {
   const me = Net.getCredentials().seatId;
   const p = Game.getPlayer(st, me);
   // Give this seat Oxford, a clean row and a tech tab to cross.
+  // The Oxford scenario belongs to the host, independent of setup turn order.
+  st.turn.index = st.turn.order.indexOf(me);
+  p.cardPlayed = false;
   const capital = Object.entries(st.map.hexes)
     .find(([, h]) => h.city && h.city.isCapital && h.city.ownerId === me);
   if (!capital) return { error: "no capital" };
@@ -95,6 +98,21 @@ const SETUP = `(async () => {
     R.ok("a second seat joined",
       (await waitUntil(async () =>
         (await host.eval("(UI.debugState()?.players || []).length")) === 2, 30000)) >= 0);
+
+    // Random leaders can queue Poland/Ottoman opening decisions for either
+    // seat. Those correctly block focus play even after Oxford is answered.
+    // Select fixed leaders in the lobby, rather than deleting real choices
+    // from a started game or weakening the UI's pending-decision lock.
+    const leaders = [];
+    for (const [tab, leaderId] of [[host, "rome"], [guest, "egypt"]]) {
+      await waitUntil(async () => await tab.eval("Net.getStatus().phase === 'synced' && !UI.debugInfo().actionPending"), 20000);
+      leaders.push(await tab.eval(`UI.dispatch({ type: "SET_LEADER", payload: {
+        playerId: Net.getCredentials().seatId, leaderId: ${JSON.stringify(leaderId)}
+      } })`));
+    }
+    R.ok("both seats selected fixed civilizations before setup",
+      leaders.every((r) => r && r.status === "accepted"), JSON.stringify(leaders));
+    if (leaders.some((r) => !r || r.status !== "accepted")) throw new Error("leader fixture was not accepted");
 
     await host.eval(`(() => { const b = document.getElementById("lobby-start");
       if (b && !b.disabled) b.click(); return true; })()`);
@@ -172,7 +190,7 @@ const SETUP = `(async () => {
         options: (ask.options || []).length };
     })()`);
     R.ok("Oxford asked which card the gained one replaces",
-      upgraded && upgraded.ok === true, JSON.stringify(upgraded));
+      upgraded && upgraded.ok === true && upgraded.status === "accepted", JSON.stringify(upgraded));
     // A SCIENCE card is being gained here, so the science card is a legal
     // target as the ORDINARY replacement, and Oxford adds the other five. The
     // engine harness drives the military case, where science is excluded.
@@ -204,7 +222,7 @@ const SETUP = `(async () => {
     R.ok("the gained card is the level-II one", !!gained, JSON.stringify(military));
     R.ok("and it carries the two trade tokens the replaced card had",
       gained && gained.filled === 2, JSON.stringify(military));
-    R.ok("while the other military card carries none of them",
+    R.ok("while the other science card carries none of them",
       military.filter((c) => c.filled === 0).length === 1, JSON.stringify(military));
 
     // ---- the second client sees the same row, with no reload ------------
@@ -235,10 +253,20 @@ const SETUP = `(async () => {
       await new Promise((r) => setTimeout(r, 300));
       const before = Game.getRowCards(Game.getPlayer(UI.debugState(), seat))
         .map((c) => c.type + " " + c.tier);
-      // The level-I military card, which is NOT the leftmost military card.
+      // The level-I science card, which is NOT the leftmost science card.
       const els = [...document.querySelectorAll("#focus-row .fcard:not(.disabled)")]
         .filter((el) => el.dataset.card === "science");
-      if (els.length < 2) return { error: "not two playable science cards", n: els.length };
+      if (els.length < 2) return {
+        error: "not two playable science cards", n: els.length,
+        ui: UI.debugInfo(), net: Net.getStatus(),
+        player: Game.getPlayer(UI.debugState(), seat),
+        choices: UI.debugState().pendingChoices,
+        activeCard: UI.debugState().activeCard,
+        resolution: UI.debugState().cardResolution,
+        movement: UI.debugState().movementContinuation,
+        reward: UI.debugState().pendingBarbReward,
+        wizard: document.getElementById("wizard")?.innerText
+      };
       const target = els.find((el) =>
         (el.querySelector(".fc-tier-roman") || {}).textContent === "I");
       if (!target) return { error: "no level-I science card" };

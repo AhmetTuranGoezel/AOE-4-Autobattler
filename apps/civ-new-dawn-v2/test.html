@@ -570,6 +570,7 @@
         // placed" fails, and one on "the token was NOT placed" passes for the
         // wrong reason. Seat players[0] first so the runs are comparable.
         st.turn.order = st.players.map((p) => p.id);
+        st.setup.order = st.turn.order.slice();
         st.turn.index = 0;
         return st;
       }
@@ -2687,6 +2688,9 @@
         {
           const { st, me } = mk("industrial");
           me.trade.industry = 3;
+          activate(st, "2,0", { terrain: "grass" });
+          Game.hexNeighborKeys(2, 0).filter((k) => !["0,0", "1,0"].includes(k))
+            .forEach((k) => activate(st, k, { terrain: "grass" }));
           Game.resolveEvent(st, "district_event");
           const m = mode(st);
           const cityOpt = m.options.find((o) => o.id === "city");
@@ -3688,16 +3692,18 @@
           assert("choosing one resolves it",
             (after.pendingChoices || []).some((c) => c.kind === "district_mode" && c.districtKind === "theater"),
             JSON.stringify((after.pendingChoices || []).map((c) => c.kind)));
-          const next = (after.pendingChoices || []).find((c) => c.kind === "district_order");
-          assert("and the rest are asked again", !!next);
-          if (next) {
-            assert("without offering the one already done",
-              next.options.map((o) => o.id).join(",") === "industrial", next.options.map((o) => o.id).join(","));
-            const done = Game.applyAction(after, { type: "RESOLVE_PENDING_CHOICE", payload: {
-              playerId: me.id, choiceId: next.id, optionId: "industrial" } });
-            assert("and the last one ends the run",
-              !(done.pendingChoices || []).some((c) => c.kind === "district_order"));
-          }
+          assert("the next district waits for the selected district's nested effects",
+            !after.pendingChoices.some((c) => c.kind === "district_order") &&
+            after.districtEvent.remaining.join(",") === "industrial");
+          let next = after.pendingChoices[0];
+          Game.applyAction(after, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: next.id, optionId: "near" } });
+          next = after.pendingChoices[0];
+          if (next?.hexKeys?.length) Game.applyAction(after, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: next.id, hexKey: next.hexKeys[0] } });
+          assert("only after the theater placement does the last district resolve",
+            after.pendingChoices[0]?.districtKind === "industrial");
+          assert("the theater is not offered a second time", after.districtEvent.remaining.length === 0);
         }
       }
 
@@ -3718,15 +3724,15 @@
         if (first) {
           const mid = Game.applyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {
             playerId: me.id, choiceId: first.id, optionId: "theater" } });
-          const stale = (mid.pendingChoices || []).find((c) => c.kind === "district_order");
-          assert("a second district is still queued", !!stale);
-          if (stale) {
-            mid.map.hexes["1,0"].control = null;      // the industrial zone goes
-            const out = Game.applyAction(mid, { type: "RESOLVE_PENDING_CHOICE", payload: {
-              playerId: me.id, choiceId: stale.id, optionId: "industrial" } });
-            assert("answering for a district that has gone still clears the prompt",
-              !(out.pendingChoices || []).some((c) => c.id === stale.id));
-          }
+          assert("the next district is retained in the event cursor", mid.districtEvent.remaining.includes("industrial"));
+          mid.map.hexes["1,0"].control = null;
+          let next = mid.pendingChoices[0];
+          Game.applyAction(mid, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: next.id, optionId: "near" } });
+          next = mid.pendingChoices[0];
+          if (next?.hexKeys?.length) Game.applyAction(mid, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            playerId: me.id, choiceId: next.id, hexKey: next.hexKeys[0] } });
+          assert("a destroyed remaining district cannot strand the event", !mid.districtEvent);
         }
       }
 
