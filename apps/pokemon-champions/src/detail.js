@@ -1,7 +1,7 @@
 // Detail panel for a selected Pokemon: radar, cleaned-stat breakdown,
 // abilities + moves with rarity, and "find similar".
 import { statScaleMax } from "./effective-stats.js";
-import { displayName, rarityTier, TYPE_COLORS, GEN_LABEL, formFamily } from "./data.js";
+import { displayName, rarityTier, TYPE_COLORS, GEN_LABEL, formFamily, learnsetNotice } from "./data.js";
 import { renderRadar } from "./radar.js";
 import { findSimilar } from "./similarity.js";
 import { typeBadges, ROLE_META } from "./table.js";
@@ -20,13 +20,14 @@ function renderUsage(mon, data) {
       const nameCell = id != null
         ? `<button class="use-name use-link" data-move-info="${id}" title="Open ${n}">${n}</button>`
         : `<span class="use-name">${n}</span>`;
-      return `<span class="use-item" title="${n}: ${p}%"><i class="use-fill" style="width:${p}%"></i>${nameCell}<span class="use-pct">${p}%</span></span>`;
+      const unverified = link && !mon.moves.includes(id);
+      return `<span class="use-item" title="${n}: ${p}%${unverified ? ' · Not confirmed in this Champions learnset' : ''}"><i class="use-fill" style="width:${p}%"></i>${nameCell}${unverified ? '<small class="learnset-warning">unverified</small>' : ''}<span class="use-pct">${p}%</span></span>`;
     }).join("")}</div>
   </div>` : "");
   // Ability % is shown on the Abilities list itself; here we keep item/nature/move.
   const body = cat("Item", u.items) + cat("Nature", u.natures) + cat("Moves", u.moves, true);
   return `<section class="detail-usage">
-    <h4>Usage <span class="muted">ranked ladder · pokebase</span></h4>
+    <h4>Usage <span class="muted">PokéBase snapshot · may reflect an earlier format</span></h4>
     ${body || '<p class="use-empty">No ranked usage data for this Pokémon yet.</p>'}
   </section>`;
 }
@@ -148,7 +149,7 @@ export function renderDetail(mon, { data, all, simCtx, statMode, spread, detailS
           <div class="hl"><span class="t-lab">Cleaned total</span><span class="t-val">${e.cleaned}</span></div>
           <div class="wst"><span class="t-lab">Wasted</span><span class="t-val">${e.wasted}</span></div>
           ${mon.weight != null ? `<div><span class="t-lab">Weight</span><span class="t-val">${mon.weight} kg</span></div>` : ""}
-      ${mon.usagePct != null ? `<div title="M-B ladder usage (pokebase)"><span class="t-lab">Usage</span><span class="t-val">${mon.usagePct}%</span></div>` : ""}
+      ${mon.usagePct != null ? `<div title="PokéBase usage snapshot; format/date may differ from the roster regulation"><span class="t-lab">Usage</span><span class="t-val">${mon.usagePct}%</span></div>` : ""}
         </div>
         <div class="detail-actions">
           <button class="btn cmp-detail ${pinned && pinned.has(mon.slug) ? "on" : ""}" data-pin="${mon.slug}" data-pin-icon title="Pin — stays on top of the roster through any filters">${pinned && pinned.has(mon.slug) ? "📌 Pinned" : "📌 Pin"}</button>
@@ -184,6 +185,7 @@ export function renderDetail(mon, { data, all, simCtx, statMode, spread, detailS
     ${renderUsage(mon, data)}
 
     <section class="detail-moves">
+      <p class="learnset-note ${mon.learnset?.status === "verified" ? "muted" : "learnset-warning"}">${learnsetNotice(mon)} <a href="learnset-report.json" target="_blank" rel="noopener noreferrer">Source report</a></p>
       <div class="dm-head">
         <h4>Moves <span class="muted">${moves.length}</span></h4>
         <input class="mv-search" type="search" placeholder="Filter moves…" autocomplete="off">

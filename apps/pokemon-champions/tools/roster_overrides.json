@@ -13,7 +13,28 @@
     "pyroar": "pyroar-male",
     "meowstic": "meowstic-male",
     "gourgeist": "gourgeist-average",
-    "basculegion": "basculegion-male"
+    "basculegion": "basculegion-male",
+    "toxtricity": "toxtricity-amped",
+    "toxtricity-amped-form": "toxtricity-amped",
+    "indeedee": "indeedee-male",
+    "squawkabilly": "squawkabilly-green-plumage",
+    "squawkabilly-blue": "squawkabilly-blue-plumage",
+    "squawkabilly-yellow": "squawkabilly-yellow-plumage",
+    "squawkabilly-white": "squawkabilly-white-plumage",
+    "vivillon-meadow-pattern": "vivillon",
+    "florges-red-flower": "florges",
+    "furfrou-natural-form": "furfrou",
+    "aegislash-shield-forme": "aegislash-shield",
+    "gourgeist-medium-variety": "gourgeist-average",
+    "lycanroc-midday-form": "lycanroc-midday",
+    "alcremie-vanilla-cream": "alcremie",
+    "morpeko-full-belly-mode": "morpeko-full-belly",
+    "palafin-zero-form": "palafin-zero",
+    "sinistcha-unremarkable-form": "sinistcha",
+    "sinistcha-masterpiece-form": "sinistcha"
+  },
+  "_api": {
+    "meowstic-mega": "meowstic-male-mega"
   },
   "_skip": [
     "vivillon-high-plains", "vivillon-icy-snow", "vivillon-polar", "vivillon-tundra",

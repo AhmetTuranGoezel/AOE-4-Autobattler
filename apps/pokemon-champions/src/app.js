@@ -102,7 +102,17 @@ async function init() {
     }
     $("#meta-line").textContent =
       `${data.meta.count} species · ${data.meta.megaCount} Megas · ` +
-      `Regulation ${data.meta.regulation} · data from Bulbapedia + PokéAPI`;
+      `Updated ${data.meta.generated?.slice(0, 10) || "unknown"}`;
+    const reg = $("#regulation-label");
+    reg.textContent = `Regulation: ${data.meta.regulation || "unspecified"}`;
+    reg.title = `${data.meta.rosterScope || "Champions roster snapshot"}. Check official rules for ranked eligibility.`;
+    const source = data.meta.regulationDetails?.source;
+    if (source?.startsWith("https://")) reg.href = source;
+    const unverified = data.meta.learnsets?.unverified?.length || 0;
+    const quality = $("#learnset-quality");
+    quality.textContent = unverified ? `${unverified} unverified learnset${unverified === 1 ? "" : "s"}` : "Learnset report";
+    quality.classList.toggle("has-warning", unverified > 0);
+    quality.title = "Source provenance and withheld move candidates. Unverified moves are not selectable.";
     syncTopbarH();
     window.addEventListener("resize", syncTopbarH);
     // keep --topbar-h / --cmpbar-h exact as the toolbar / compare bar reflow
@@ -145,7 +155,7 @@ function render() {
   const max = statScaleMax(state.statMode);
   const teamSet = new Set(state.team.map((t) => t.slug));
   const body = state.view === "table"
-    ? renderTable(unpinned, state.sort, cmp, max, state.extras, pinned, teamSet)
+    ? renderTable(sorted, state.sort, cmp, max, state.extras, pinned, teamSet)
     : renderGrid(unpinned, cmp, max, pinned, teamSet);
   // friendly prompt instead of a blank pane when filters/search exclude everything
   const empty = sorted.length === 0
@@ -165,7 +175,7 @@ function buildToolbar() {
     ...STAT_KEYS.map((k) => [k, STAT_LABELS[k]]),
     ["ehpMixed", "eHP (mixed)"], ["ehpPhys", "Phys eHP"], ["ehpSpec", "Spec eHP"],
     ["weight", "Weight"], ["usagePct", "Usage %"],
-    ["dex", "Dex #"], ["name", "Name"],
+    ["name", "Name"],
   ];
   $("#sort-key").innerHTML = sortKeys
     .map(([k, l]) => `<option value="${k}">${l}</option>`).join("");

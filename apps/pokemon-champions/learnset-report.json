@@ -1,0 +1,5598 @@
+{
+  "regulation": "M-C",
+  "generated": "2026-09-11T18:21:54Z",
+  "skippedRosterEntries": [],
+  "unverified": [
+    "meowstic-mega"
+  ],
+  "verifiedCount": 349,
+  "entries": [
+    {
+      "slug": "venusaur",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Venusaur",
+      "moveCount": 57,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "chlorophyll",
+        "modest",
+        "overgrow"
+      ]
+    },
+    {
+      "slug": "charizard",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Charizard",
+      "moveCount": 72,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "slash"
+      ],
+      "usageMovesNotConfirmed": [
+        "blaze",
+        "modest",
+        "solar-power"
+      ]
+    },
+    {
+      "slug": "blastoise",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Blastoise",
+      "moveCount": 73,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "modest",
+        "rain-dish",
+        "torrent"
+      ]
+    },
+    {
+      "slug": "beedrill",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Beedrill",
+      "moveCount": 53,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adaptability",
+        "sniper",
+        "swarm"
+      ]
+    },
+    {
+      "slug": "pidgeot",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Pidgeot",
+      "moveCount": 31,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "big-pecks",
+        "keen-eye",
+        "tangled-feet"
+      ]
+    },
+    {
+      "slug": "arbok",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Arbok",
+      "moveCount": 70,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "impish",
+        "intimidate",
+        "jolly"
+      ]
+    },
+    {
+      "slug": "pikachu",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Pikachu",
+      "moveCount": 60,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "focus-sash",
+        "jolly",
+        "lightning-rod"
+      ]
+    },
+    {
+      "slug": "raichu",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/raichu/",
+      "entry": "Standard Moves",
+      "moveCount": 66,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "jolly",
+        "lightning-rod",
+        "timid"
+      ]
+    },
+    {
+      "slug": "raichu-alola",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/raichu/",
+      "entry": "Alola Form Standard Moves",
+      "moveCount": 74,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "modest",
+        "surge-surfer",
+        "timid"
+      ]
+    },
+    {
+      "slug": "clefable",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/clefable/",
+      "entry": "Standard Moves",
+      "moveCount": 91,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "calm",
+        "magic-guard",
+        "unaware"
+      ]
+    },
+    {
+      "slug": "ninetales",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/ninetales/",
+      "entry": "Standard Moves",
+      "moveCount": 67,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "aurora-veil",
+        "avalanche",
+        "blizzard",
+        "chilling-water",
+        "dazzling-gleam",
+        "draining-kiss",
+        "freeze-dry",
+        "ice-beam",
+        "ice-shard",
+        "icicle-spear",
+        "icy-wind",
+        "misty-terrain",
+        "moonblast",
+        "play-rough",
+        "rain-dance",
+        "snowscape",
+        "triple-axel",
+        "wonder-room"
+      ],
+      "usageMovesNotConfirmed": [
+        "drought",
+        "life-orb",
+        "modest"
+      ]
+    },
+    {
+      "slug": "ninetales-alola",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/ninetales/",
+      "entry": "Alola Form Standard Moves",
+      "moveCount": 64,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "snow-cloak",
+        "snow-warning",
+        "timid"
+      ]
+    },
+    {
+      "slug": "wigglytuff",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/wigglytuff/",
+      "entry": "Standard Moves",
+      "moveCount": 98,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "vileplume",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/vileplume/",
+      "entry": "Standard Moves",
+      "moveCount": 54,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "chlorophyll",
+        "focus-sash",
+        "timid"
+      ]
+    },
+    {
+      "slug": "persian",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/persian/",
+      "entry": "Standard Moves",
+      "moveCount": 66,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "persian-alola",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/persian/",
+      "entry": "Alola Form Standard Moves",
+      "moveCount": 73,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "last-resort",
+        "pain-split"
+      ],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "arcanine",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/arcanine/",
+      "entry": "Standard Moves",
+      "moveCount": 57,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "head-smash",
+        "power-gem",
+        "rock-blast",
+        "rock-slide",
+        "rock-tomb",
+        "sandstorm",
+        "smack-down",
+        "smart-strike",
+        "stealth-rock",
+        "stone-edge"
+      ],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "intimidate",
+        "sitrus-berry"
+      ]
+    },
+    {
+      "slug": "arcanine-hisui",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/arcanine/",
+      "entry": "Hisuian Form Standard Moves",
+      "moveCount": 64,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "intimidate",
+        "jolly",
+        "rock-head"
+      ]
+    },
+    {
+      "slug": "alakazam",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/alakazam/",
+      "entry": "Standard Moves",
+      "moveCount": 60,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "alakazite",
+        "inner-focus",
+        "timid"
+      ]
+    },
+    {
+      "slug": "machamp",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Machamp",
+      "moveCount": 66,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "brave",
+        "life-orb",
+        "no-guard"
+      ]
+    },
+    {
+      "slug": "victreebel",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Victreebel",
+      "moveCount": 58,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "grassy-terrain"
+      ],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "chlorophyll",
+        "modest"
+      ]
+    },
+    {
+      "slug": "slowbro",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/slowbro/",
+      "entry": "Standard Moves",
+      "moveCount": 78,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "acid-spray",
+        "double-edge",
+        "gunk-shot",
+        "haze",
+        "ice-fang",
+        "poison-jab",
+        "power-gem",
+        "rock-blast",
+        "sandstorm",
+        "scary-face",
+        "shell-side-arm",
+        "sludge-bomb",
+        "sludge-wave",
+        "smack-down",
+        "toxic",
+        "toxic-spikes",
+        "venoshock"
+      ],
+      "usageMovesNotConfirmed": [
+        "calm",
+        "oblivious",
+        "regenerator"
+      ]
+    },
+    {
+      "slug": "slowbro-galar",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/slowbro/",
+      "entry": "Galarian Form Standard Moves",
+      "moveCount": 92,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "own-tempo",
+        "quick-draw",
+        "regenerator"
+      ]
+    },
+    {
+      "slug": "farfetchd",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/farfetch'd/",
+      "entry": "Standard Moves",
+      "moveCount": 50,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "gengar",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/gengar/",
+      "entry": "Standard Moves",
+      "moveCount": 76,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "cursed-body",
+        "modest",
+        "timid"
+      ]
+    },
+    {
+      "slug": "kangaskhan",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Kangaskhan",
+      "moveCount": 67,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "brave",
+        "scrappy"
+      ]
+    },
+    {
+      "slug": "starmie",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/starmie/",
+      "entry": "Standard Moves",
+      "moveCount": 62,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "analytic",
+        "illuminate",
+        "natural-cure"
+      ]
+    },
+    {
+      "slug": "mr-mime",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/mr.mime/",
+      "entry": "Standard Moves",
+      "moveCount": 77,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "pinsir",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Pinsir",
+      "moveCount": 53,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "slash"
+      ],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "hyper-cutter",
+        "jolly"
+      ]
+    },
+    {
+      "slug": "tauros",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/tauros/",
+      "entry": "Standard Moves",
+      "moveCount": 57,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "aqua-jet",
+        "body-press",
+        "bulk-up",
+        "chilling-water",
+        "drill-run",
+        "fire-spin",
+        "flame-charge",
+        "flare-blitz",
+        "hydro-pump",
+        "liquidation",
+        "overheat",
+        "temper-flare",
+        "water-pulse",
+        "wave-crash",
+        "will-o-wisp"
+      ],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "intimidate",
+        "magnet"
+      ]
+    },
+    {
+      "slug": "tauros-paldea-combat-breed",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/tauros/",
+      "entry": "Paldean Form Standard Moves",
+      "moveCount": 48,
+      "candidateSource": "pokeapi-mainline",
+      "withheldCandidates": [
+        "double-kick",
+        "headbutt",
+        "tackle",
+        "tail-whip",
+        "take-down",
+        "tera-blast",
+        "work-up"
+      ],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "tauros-paldea-blaze-breed",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/tauros/",
+      "entry": "Standard Moves - Blaze Breed",
+      "moveCount": 53,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "intimidate",
+        "jolly"
+      ]
+    },
+    {
+      "slug": "tauros-paldea-aqua-breed",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/tauros/",
+      "entry": "Standard Moves - Aqua Breed",
+      "moveCount": 52,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "intimidate",
+        "jolly"
+      ]
+    },
+    {
+      "slug": "gyarados",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Gyarados",
+      "moveCount": 67,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "careful",
+        "intimidate",
+        "sitrus-berry"
+      ]
+    },
+    {
+      "slug": "ditto",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Ditto",
+      "moveCount": 1,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "bold",
+        "calm",
+        "hasty",
+        "imposter",
+        "limber",
+        "serious",
+        "timid"
+      ]
+    },
+    {
+      "slug": "vaporeon",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Vaporeon",
+      "moveCount": 59,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "hydration",
+        "modest",
+        "water-absorb"
+      ]
+    },
+    {
+      "slug": "jolteon",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Jolteon",
+      "moveCount": 59,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "quick-feet",
+        "timid",
+        "volt-absorb"
+      ]
+    },
+    {
+      "slug": "flareon",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Flareon",
+      "moveCount": 57,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "flash-fire",
+        "jolly"
+      ]
+    },
+    {
+      "slug": "aerodactyl",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Aerodactyl",
+      "moveCount": 58,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "jolly",
+        "rock-head",
+        "unnerve"
+      ]
+    },
+    {
+      "slug": "snorlax",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Snorlax",
+      "moveCount": 83,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "leftovers",
+        "relaxed",
+        "thick-fat"
+      ]
+    },
+    {
+      "slug": "dragonite",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Dragonite",
+      "moveCount": 83,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "inner-focus",
+        "modest",
+        "multiscale"
+      ]
+    },
+    {
+      "slug": "meganium",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Meganium",
+      "moveCount": 61,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "leaf-guard",
+        "mega-sol",
+        "overgrow"
+      ]
+    },
+    {
+      "slug": "typhlosion",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/typhlosion/",
+      "entry": "Standard Moves",
+      "moveCount": 63,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "calm-mind",
+        "confuse-ray",
+        "hex",
+        "infernal-parade",
+        "mystical-fire",
+        "night-shade",
+        "poltergeist",
+        "spite"
+      ],
+      "usageMovesNotConfirmed": [
+        "blaze",
+        "charcoal",
+        "modest"
+      ]
+    },
+    {
+      "slug": "typhlosion-hisui",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/typhlosion/",
+      "entry": "Hisuian Form Standard Moves",
+      "moveCount": 66,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "blaze",
+        "frisk",
+        "modest"
+      ]
+    },
+    {
+      "slug": "feraligatr",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Feraligatr",
+      "moveCount": 82,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "slash"
+      ],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "sheer-force",
+        "torrent"
+      ]
+    },
+    {
+      "slug": "ariados",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/ariados/",
+      "entry": "Standard Moves",
+      "moveCount": 64,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "psychic-fangs"
+      ],
+      "usageMovesNotConfirmed": [
+        "insomnia",
+        "sniper",
+        "swarm"
+      ]
+    },
+    {
+      "slug": "ampharos",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Ampharos",
+      "moveCount": 67,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "ampharosite",
+        "quiet",
+        "static"
+      ]
+    },
+    {
+      "slug": "azumarill",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Azumarill",
+      "moveCount": 66,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "huge-power",
+        "sap-sipper",
+        "thick-fat"
+      ]
+    },
+    {
+      "slug": "politoed",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/politoed/",
+      "entry": "Standard Moves",
+      "moveCount": 56,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "calm",
+        "drizzle",
+        "water-absorb"
+      ]
+    },
+    {
+      "slug": "espeon",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/espeon/",
+      "entry": "Standard Moves",
+      "moveCount": 67,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "magic-bounce",
+        "modest",
+        "synchronize"
+      ]
+    },
+    {
+      "slug": "umbreon",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/umbreon/",
+      "entry": "Standard Moves",
+      "moveCount": 67,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "bold",
+        "inner-focus",
+        "synchronize"
+      ]
+    },
+    {
+      "slug": "slowking",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/slowking/",
+      "entry": "Standard Moves",
+      "moveCount": 85,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "acid-spray",
+        "eerie-spell",
+        "gunk-shot",
+        "hex",
+        "low-sweep",
+        "poison-jab",
+        "scary-face",
+        "sludge-bomb",
+        "sludge-wave",
+        "snarl",
+        "stomping-tantrum",
+        "taunt",
+        "toxic",
+        "toxic-spikes",
+        "venoshock"
+      ],
+      "usageMovesNotConfirmed": [
+        "bold",
+        "oblivious",
+        "sitrus-berry"
+      ]
+    },
+    {
+      "slug": "slowking-galar",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/slowking/",
+      "entry": "Galarian Form Standard Moves",
+      "moveCount": 95,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "curious-medicine",
+        "own-tempo",
+        "regenerator"
+      ]
+    },
+    {
+      "slug": "forretress",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Forretress",
+      "moveCount": 69,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "brave",
+        "overcoat",
+        "sturdy"
+      ]
+    },
+    {
+      "slug": "steelix",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Steelix",
+      "moveCount": 66,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "brave",
+        "steelixite",
+        "sturdy"
+      ]
+    },
+    {
+      "slug": "qwilfish",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/qwilfish/",
+      "entry": "Standard Moves",
+      "moveCount": 64,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "careful",
+        "intimidate"
+      ]
+    },
+    {
+      "slug": "scizor",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Scizor",
+      "moveCount": 64,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "slash"
+      ],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "scizorite",
+        "technician"
+      ]
+    },
+    {
+      "slug": "heracross",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Heracross",
+      "moveCount": 66,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "guts",
+        "moxie",
+        "swarm"
+      ]
+    },
+    {
+      "slug": "skarmory",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Skarmory",
+      "moveCount": 51,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "slash"
+      ],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "skarmorite",
+        "weak-armor"
+      ]
+    },
+    {
+      "slug": "houndoom",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Houndoom",
+      "moveCount": 67,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "early-bird",
+        "flash-fire",
+        "unnerve"
+      ]
+    },
+    {
+      "slug": "tyranitar",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Tyranitar",
+      "moveCount": 92,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "jolly",
+        "sand-stream"
+      ]
+    },
+    {
+      "slug": "sceptile",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/sceptile/",
+      "entry": "Standard Moves",
+      "moveCount": 78,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "naughty",
+        "overgrow",
+        "unburden"
+      ]
+    },
+    {
+      "slug": "blaziken",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/blaziken/",
+      "entry": "Standard Moves",
+      "moveCount": 79,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "jolly",
+        "speed-boost"
+      ]
+    },
+    {
+      "slug": "swampert",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/swampert/",
+      "entry": "Standard Moves",
+      "moveCount": 77,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "damp",
+        "torrent"
+      ]
+    },
+    {
+      "slug": "pelipper",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Pelipper",
+      "moveCount": 53,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "drizzle",
+        "keen-eye",
+        "modest"
+      ]
+    },
+    {
+      "slug": "gardevoir",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/gardevoir/",
+      "entry": "Standard Moves",
+      "moveCount": 80,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "synchronize",
+        "telepathy",
+        "trace"
+      ]
+    },
+    {
+      "slug": "sableye",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/sableye/",
+      "entry": "Standard Moves",
+      "moveCount": 88,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "bold",
+        "careful",
+        "prankster"
+      ]
+    },
+    {
+      "slug": "mawile",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/mawile/",
+      "entry": "Standard Moves",
+      "moveCount": 71,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "hyper-cutter",
+        "intimidate"
+      ]
+    },
+    {
+      "slug": "aggron",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Aggron",
+      "moveCount": 83,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "aggronite",
+        "filter"
+      ]
+    },
+    {
+      "slug": "medicham",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/medicham/",
+      "entry": "Standard Moves",
+      "moveCount": 77,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "pure-power",
+        "telepathy"
+      ]
+    },
+    {
+      "slug": "manectric",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Manectric",
+      "moveCount": 49,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "lightning-rod",
+        "static",
+        "timid"
+      ]
+    },
+    {
+      "slug": "swalot",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/swalot/",
+      "entry": "Standard Moves",
+      "moveCount": 62,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "sharpedo",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Sharpedo",
+      "moveCount": 57,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "slash"
+      ],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "jolly",
+        "speed-boost"
+      ]
+    },
+    {
+      "slug": "camerupt",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Camerupt",
+      "moveCount": 67,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "anger-point",
+        "sheer-force",
+        "solid-rock"
+      ]
+    },
+    {
+      "slug": "torkoal",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Torkoal",
+      "moveCount": 57,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "drought",
+        "quiet",
+        "white-smoke"
+      ]
+    },
+    {
+      "slug": "altaria",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Altaria",
+      "moveCount": 65,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "bold",
+        "cloud-nine",
+        "modest"
+      ]
+    },
+    {
+      "slug": "milotic",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Milotic",
+      "moveCount": 61,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "calm",
+        "competitive",
+        "modest"
+      ]
+    },
+    {
+      "slug": "castform",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/castform/",
+      "entry": "Standard Moves",
+      "moveCount": 37,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "forecast",
+        "modest",
+        "timid"
+      ]
+    },
+    {
+      "slug": "banette",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/banette/",
+      "entry": "Standard Moves",
+      "moveCount": 67,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "cursed-body",
+        "frisk",
+        "insomnia"
+      ]
+    },
+    {
+      "slug": "chimecho",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/chimecho/",
+      "entry": "Standard Moves",
+      "moveCount": 65,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "bold",
+        "levitate",
+        "quiet"
+      ]
+    },
+    {
+      "slug": "absol",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Absol",
+      "moveCount": 71,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "slash"
+      ],
+      "usageMovesNotConfirmed": [
+        "justified",
+        "pressure",
+        "super-luck"
+      ]
+    },
+    {
+      "slug": "glalie",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Glalie",
+      "moveCount": 54,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "glalitite",
+        "inner-focus",
+        "jolly"
+      ]
+    },
+    {
+      "slug": "salamence",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/salamence/",
+      "entry": "Standard Moves",
+      "moveCount": 62,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "metagross",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/metagross/",
+      "entry": "Standard Moves",
+      "moveCount": 68,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "clear-body",
+        "light-metal"
+      ]
+    },
+    {
+      "slug": "torterra",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Torterra",
+      "moveCount": 72,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "life-orb",
+        "overgrow"
+      ]
+    },
+    {
+      "slug": "infernape",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Infernape",
+      "moveCount": 88,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "blaze",
+        "iron-fist",
+        "jolly"
+      ]
+    },
+    {
+      "slug": "empoleon",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Empoleon",
+      "moveCount": 74,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "competitive",
+        "modest",
+        "torrent"
+      ]
+    },
+    {
+      "slug": "staraptor",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/staraptor/",
+      "entry": "Standard Moves",
+      "moveCount": 43,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "intimidate",
+        "jolly",
+        "staraptite"
+      ]
+    },
+    {
+      "slug": "luxray",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Luxray",
+      "moveCount": 53,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "impish",
+        "intimidate",
+        "timid"
+      ]
+    },
+    {
+      "slug": "roserade",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Roserade",
+      "moveCount": 51,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "modest",
+        "natural-cure",
+        "poison-point"
+      ]
+    },
+    {
+      "slug": "rampardos",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Rampardos",
+      "moveCount": 74,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "brave",
+        "life-orb",
+        "sheer-force"
+      ]
+    },
+    {
+      "slug": "bastiodon",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Bastiodon",
+      "moveCount": 68,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "impish",
+        "soundproof",
+        "sturdy"
+      ]
+    },
+    {
+      "slug": "lopunny",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Lopunny",
+      "moveCount": 76,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "cute-charm",
+        "jolly",
+        "lopunnite"
+      ]
+    },
+    {
+      "slug": "spiritomb",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/spiritomb/",
+      "entry": "Standard Moves",
+      "moveCount": 54,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "pressure",
+        "roseli-berry",
+        "sassy"
+      ]
+    },
+    {
+      "slug": "garchomp",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Garchomp",
+      "moveCount": 58,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "slash"
+      ],
+      "usageMovesNotConfirmed": [
+        "levitate",
+        "rough-skin",
+        "sand-veil"
+      ]
+    },
+    {
+      "slug": "lucario",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/lucario/",
+      "entry": "Standard Moves",
+      "moveCount": 83,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "aura-guard",
+        "inner-focus",
+        "justified"
+      ]
+    },
+    {
+      "slug": "hippowdon",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Hippowdon",
+      "moveCount": 51,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "brave",
+        "impish",
+        "sand-stream"
+      ]
+    },
+    {
+      "slug": "toxicroak",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Toxicroak",
+      "moveCount": 81,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "dry-skin",
+        "poison-touch"
+      ]
+    },
+    {
+      "slug": "abomasnow",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Abomasnow",
+      "moveCount": 65,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "abomasite",
+        "quiet",
+        "snow-warning"
+      ]
+    },
+    {
+      "slug": "weavile",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Weavile",
+      "moveCount": 72,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "slash"
+      ],
+      "usageMovesNotConfirmed": [
+        "jolly",
+        "pressure",
+        "sitrus-berry"
+      ]
+    },
+    {
+      "slug": "rhyperior",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Rhyperior",
+      "moveCount": 91,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "brave",
+        "hard-stone",
+        "solid-rock"
+      ]
+    },
+    {
+      "slug": "leafeon",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Leafeon",
+      "moveCount": 58,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "chlorophyll",
+        "jolly"
+      ]
+    },
+    {
+      "slug": "glaceon",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Glaceon",
+      "moveCount": 58,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "ice-body",
+        "modest",
+        "snow-cloak"
+      ]
+    },
+    {
+      "slug": "gliscor",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Gliscor",
+      "moveCount": 74,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "slash"
+      ],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "hyper-cutter",
+        "impish"
+      ]
+    },
+    {
+      "slug": "mamoswine",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mamoswine",
+      "moveCount": 63,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "oblivious",
+        "thick-fat"
+      ]
+    },
+    {
+      "slug": "gallade",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/gallade/",
+      "entry": "Standard Moves",
+      "moveCount": 106,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "brave",
+        "sharpness"
+      ]
+    },
+    {
+      "slug": "froslass",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/froslass/",
+      "entry": "Standard Moves",
+      "moveCount": 68,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "cursed-body",
+        "snow-warning",
+        "timid"
+      ]
+    },
+    {
+      "slug": "rotom",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/rotom/",
+      "entry": "Standard Moves",
+      "moveCount": 42,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "air-slash",
+        "blizzard",
+        "hydro-pump",
+        "leaf-storm",
+        "overheat"
+      ],
+      "usageMovesNotConfirmed": [
+        "levitate",
+        "modest",
+        "timid"
+      ]
+    },
+    {
+      "slug": "serperior",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Serperior",
+      "moveCount": 53,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "contrary",
+        "overgrow",
+        "timid"
+      ]
+    },
+    {
+      "slug": "emboar",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Emboar",
+      "moveCount": 79,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "blaze",
+        "reckless"
+      ]
+    },
+    {
+      "slug": "samurott",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/samurott/",
+      "entry": "Standard Moves",
+      "moveCount": 62,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "ceaseless-edge",
+        "dark-pulse",
+        "lash-out",
+        "snarl",
+        "sucker-punch",
+        "throat-chop"
+      ],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "samurott-hisui",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/samurott/",
+      "entry": "Hisuian Form Standard Moves",
+      "moveCount": 68,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "sharpness",
+        "torrent"
+      ]
+    },
+    {
+      "slug": "watchog",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Watchog",
+      "moveCount": 52,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "analytic",
+        "impish"
+      ]
+    },
+    {
+      "slug": "liepard",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Liepard",
+      "moveCount": 60,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "slash"
+      ],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "jolly",
+        "prankster"
+      ]
+    },
+    {
+      "slug": "simisage",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Simisage",
+      "moveCount": 50,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "focus-sash",
+        "jolly",
+        "overgrow"
+      ]
+    },
+    {
+      "slug": "simisear",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Simisear",
+      "moveCount": 55,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "blaze",
+        "modest",
+        "timid"
+      ]
+    },
+    {
+      "slug": "simipour",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Simipour",
+      "moveCount": 52,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "gluttony",
+        "timid",
+        "torrent"
+      ]
+    },
+    {
+      "slug": "musharna",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/musharna/",
+      "entry": "Standard Moves",
+      "moveCount": 50,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "relaxed",
+        "synchronize",
+        "telepathy"
+      ]
+    },
+    {
+      "slug": "excadrill",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Excadrill",
+      "moveCount": 53,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "slash"
+      ],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "mold-breaker",
+        "sand-rush"
+      ]
+    },
+    {
+      "slug": "audino",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/audino/",
+      "entry": "Standard Moves",
+      "moveCount": 69,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "healer",
+        "regenerator",
+        "relaxed"
+      ]
+    },
+    {
+      "slug": "conkeldurr",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Conkeldurr",
+      "moveCount": 61,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "guts",
+        "iron-fist",
+        "sheer-force"
+      ]
+    },
+    {
+      "slug": "scolipede",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/scolipede/",
+      "entry": "Standard Moves",
+      "moveCount": 53,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "poison-point",
+        "speed-boost"
+      ]
+    },
+    {
+      "slug": "whimsicott",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/whimsicott/",
+      "entry": "Standard Moves",
+      "moveCount": 50,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "modest",
+        "prankster",
+        "timid"
+      ]
+    },
+    {
+      "slug": "krookodile",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Krookodile",
+      "moveCount": 83,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "intimidate",
+        "moxie"
+      ]
+    },
+    {
+      "slug": "scrafty",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/scrafty/",
+      "entry": "Standard Moves",
+      "moveCount": 82,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "brave",
+        "impish",
+        "intimidate"
+      ]
+    },
+    {
+      "slug": "cofagrigus",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/cofagrigus/",
+      "entry": "Standard Moves",
+      "moveCount": 54,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "mummy",
+        "quiet",
+        "relaxed"
+      ]
+    },
+    {
+      "slug": "garbodor",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/garbodor/",
+      "entry": "Standard Moves",
+      "moveCount": 53,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "aftermath",
+        "impish",
+        "stench"
+      ]
+    },
+    {
+      "slug": "zoroark",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/zoroark/",
+      "entry": "Standard Moves",
+      "moveCount": 70,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "bitter-malice",
+        "comeuppance",
+        "curse",
+        "focus-punch",
+        "icy-wind",
+        "phantom-force",
+        "poltergeist",
+        "shadow-sneak",
+        "snowscape",
+        "will-o-wisp"
+      ],
+      "usageMovesNotConfirmed": [
+        "illusion",
+        "jolly",
+        "modest"
+      ]
+    },
+    {
+      "slug": "zoroark-hisui",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/zoroark/",
+      "entry": "Hisuian Form Standard Moves",
+      "moveCount": 73,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "illusion",
+        "modest",
+        "timid"
+      ]
+    },
+    {
+      "slug": "reuniclus",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/reuniclus/",
+      "entry": "Standard Moves",
+      "moveCount": 66,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "life-orb",
+        "quiet",
+        "regenerator"
+      ]
+    },
+    {
+      "slug": "vanilluxe",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Vanilluxe",
+      "moveCount": 41,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "choice-scarf",
+        "snow-warning",
+        "timid"
+      ]
+    },
+    {
+      "slug": "emolga",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Emolga",
+      "moveCount": 46,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "motor-drive",
+        "static",
+        "timid"
+      ]
+    },
+    {
+      "slug": "eelektross",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/eelektross/",
+      "entry": "Standard Moves",
+      "moveCount": 75,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "eelektrossite",
+        "levitate",
+        "quiet"
+      ]
+    },
+    {
+      "slug": "chandelure",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/chandelure/",
+      "entry": "Standard Moves",
+      "moveCount": 54,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "flash-fire",
+        "focus-sash",
+        "timid"
+      ]
+    },
+    {
+      "slug": "beartic",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Beartic",
+      "moveCount": 75,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "slash"
+      ],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "slush-rush",
+        "swift-swim"
+      ]
+    },
+    {
+      "slug": "stunfisk",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/stunfisk/",
+      "entry": "Standard Moves",
+      "moveCount": 48,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "bind",
+        "counter",
+        "crunch",
+        "flash-cannon",
+        "ice-fang",
+        "iron-defense",
+        "metal-sound",
+        "screech",
+        "snap-trap",
+        "steel-beam",
+        "terrain-pulse"
+      ],
+      "usageMovesNotConfirmed": [
+        "modest",
+        "sand-veil",
+        "static"
+      ]
+    },
+    {
+      "slug": "stunfisk-galar",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/stunfisk/",
+      "entry": "Galarian Form Standard Moves",
+      "moveCount": 52,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "impish",
+        "mimicry"
+      ]
+    },
+    {
+      "slug": "golurk",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/golurk/",
+      "entry": "Standard Moves",
+      "moveCount": 78,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "iron-fist",
+        "no-guard",
+        "unseen-fist"
+      ]
+    },
+    {
+      "slug": "hydreigon",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Hydreigon",
+      "moveCount": 78,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "levitate",
+        "modest",
+        "timid"
+      ]
+    },
+    {
+      "slug": "volcarona",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/volcarona/",
+      "entry": "Standard Moves",
+      "moveCount": 57,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "bold",
+        "flame-body",
+        "timid"
+      ]
+    },
+    {
+      "slug": "chesnaught",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Chesnaught",
+      "moveCount": 87,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "bulletproof",
+        "jolly",
+        "sitrus-berry"
+      ]
+    },
+    {
+      "slug": "delphox",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/delphox/",
+      "entry": "Standard Moves",
+      "moveCount": 72,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "blaze",
+        "levitate",
+        "magician"
+      ]
+    },
+    {
+      "slug": "greninja",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Greninja",
+      "moveCount": 64,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "greninjite",
+        "hasty",
+        "protean"
+      ]
+    },
+    {
+      "slug": "diggersby",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Diggersby",
+      "moveCount": 58,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "huge-power",
+        "pickup"
+      ]
+    },
+    {
+      "slug": "talonflame",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Talonflame",
+      "moveCount": 50,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "flame-body",
+        "gale-wings",
+        "jolly"
+      ]
+    },
+    {
+      "slug": "pyroar-male",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/pyroar/",
+      "entry": "Standard Moves",
+      "moveCount": 49,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "attract",
+        "bounce",
+        "confide",
+        "double-team",
+        "echoed-voice",
+        "ember",
+        "frustration",
+        "headbutt",
+        "hidden-power",
+        "incinerate",
+        "leer",
+        "retaliate",
+        "return",
+        "rock-smash",
+        "secret-power",
+        "snatch",
+        "strength",
+        "swagger",
+        "swift",
+        "tackle",
+        "take-down",
+        "tera-blast",
+        "toxic",
+        "work-up"
+      ],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "floette-eternal",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/floette/",
+      "entry": "Standard Moves - Eternal Floette",
+      "moveCount": 41,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "after-you",
+        "ally-switch",
+        "aromatherapy",
+        "attract",
+        "confide",
+        "covet",
+        "double-team",
+        "echoed-voice",
+        "fairy-wind",
+        "flash",
+        "frustration",
+        "heal-bell",
+        "hidden-power",
+        "lucky-chant",
+        "magic-coat",
+        "magical-leaf",
+        "nature-power",
+        "razor-leaf",
+        "return",
+        "round",
+        "secret-power",
+        "snore",
+        "swagger",
+        "tackle",
+        "toxic",
+        "vine-whip",
+        "worry-seed"
+      ],
+      "usageMovesNotConfirmed": [
+        "fairy-aura",
+        "flower-veil",
+        "symbiosis"
+      ]
+    },
+    {
+      "slug": "florges",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/florges/",
+      "entry": "Standard Moves",
+      "moveCount": 46,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "coba-berry",
+        "flower-veil",
+        "gentle"
+      ]
+    },
+    {
+      "slug": "gogoat",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/gogoat/",
+      "entry": "Standard Moves",
+      "moveCount": 54,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "pangoro",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Pangoro",
+      "moveCount": 80,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "slash"
+      ],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "life-orb",
+        "scrappy"
+      ]
+    },
+    {
+      "slug": "furfrou",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Furfrou",
+      "moveCount": 40,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "calm",
+        "fur-coat",
+        "jolly"
+      ]
+    },
+    {
+      "slug": "meowstic-male",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/meowstic/",
+      "entry": "Standard Moves - Male",
+      "moveCount": 59,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "aegislash-shield",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/aegislash/",
+      "entry": "Standard Moves",
+      "moveCount": 45,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "after-you",
+        "autotomize",
+        "confide",
+        "cut",
+        "double-team",
+        "false-swipe",
+        "frustration",
+        "fury-cutter",
+        "hidden-power",
+        "kings-shield",
+        "laser-focus",
+        "magnet-rise",
+        "pursuit",
+        "retaliate",
+        "return",
+        "rock-smash",
+        "secret-power",
+        "shock-wave",
+        "spite",
+        "swagger",
+        "tackle",
+        "toxic"
+      ],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "aromatisse",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/aromatisse/",
+      "entry": "Standard Moves",
+      "moveCount": 48,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "aroma-veil",
+        "healer",
+        "relaxed"
+      ]
+    },
+    {
+      "slug": "slurpuff",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/slurpuff/",
+      "entry": "Standard Moves",
+      "moveCount": 42,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "bold",
+        "sweet-veil",
+        "unburden"
+      ]
+    },
+    {
+      "slug": "malamar",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/malamar/",
+      "entry": "Standard Moves",
+      "moveCount": 69,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "brave",
+        "contrary"
+      ]
+    },
+    {
+      "slug": "barbaracle",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/barbaracle/",
+      "entry": "Standard Moves",
+      "moveCount": 72,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "sniper",
+        "tough-claws"
+      ]
+    },
+    {
+      "slug": "dragalge",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/dragalge/",
+      "entry": "Standard Moves",
+      "moveCount": 52,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adaptability",
+        "poison-point",
+        "poison-touch"
+      ]
+    },
+    {
+      "slug": "clawitzer",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Clawitzer",
+      "moveCount": 52,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "mega-launcher",
+        "modest",
+        "quiet"
+      ]
+    },
+    {
+      "slug": "heliolisk",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Heliolisk",
+      "moveCount": 63,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "dry-skin",
+        "sand-veil",
+        "solar-power"
+      ]
+    },
+    {
+      "slug": "tyrantrum",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Tyrantrum",
+      "moveCount": 64,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "jolly",
+        "rock-head",
+        "strong-jaw"
+      ]
+    },
+    {
+      "slug": "aurorus",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/aurorus/",
+      "entry": "Standard Moves",
+      "moveCount": 56,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "quiet",
+        "refrigerate",
+        "snow-warning"
+      ]
+    },
+    {
+      "slug": "sylveon",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/sylveon/",
+      "entry": "Standard Moves",
+      "moveCount": 55,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "cute-charm",
+        "modest",
+        "pixilate"
+      ]
+    },
+    {
+      "slug": "hawlucha",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Hawlucha",
+      "moveCount": 74,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "hawluchanite",
+        "jolly",
+        "limber"
+      ]
+    },
+    {
+      "slug": "dedenne",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Dedenne",
+      "moveCount": 50,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "cheek-pouch",
+        "pickup",
+        "plus"
+      ]
+    },
+    {
+      "slug": "goodra",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/goodra/",
+      "entry": "Standard Moves",
+      "moveCount": 65,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "ancient-power",
+        "flash-cannon",
+        "gyro-ball",
+        "heavy-slam",
+        "ice-spinner",
+        "iron-head",
+        "lash-out",
+        "rock-tomb",
+        "sandstorm",
+        "scary-face",
+        "shelter",
+        "steel-beam"
+      ],
+      "usageMovesNotConfirmed": [
+        "gooey",
+        "hydration",
+        "sap-sipper"
+      ]
+    },
+    {
+      "slug": "goodra-hisui",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/goodra/",
+      "entry": "Hisuian Form Standard Moves",
+      "moveCount": 63,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "gooey",
+        "sap-sipper",
+        "shell-armor"
+      ]
+    },
+    {
+      "slug": "klefki",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/klefki/",
+      "entry": "Standard Moves",
+      "moveCount": 44,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "bold",
+        "magician",
+        "prankster"
+      ]
+    },
+    {
+      "slug": "trevenant",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/trevenant/",
+      "entry": "Standard Moves",
+      "moveCount": 72,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "forests-curse"
+      ],
+      "usageMovesNotConfirmed": [
+        "brave",
+        "harvest",
+        "natural-cure"
+      ]
+    },
+    {
+      "slug": "gourgeist-average",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/gourgeist/",
+      "entry": "Standard Moves",
+      "moveCount": 60,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "astonish",
+        "charge-beam",
+        "confide",
+        "double-team",
+        "dream-eater",
+        "flame-charge",
+        "flash",
+        "frustration",
+        "hidden-power",
+        "incinerate",
+        "magic-coat",
+        "nature-power",
+        "razor-leaf",
+        "return",
+        "rock-smash",
+        "role-play",
+        "secret-power",
+        "spite",
+        "swagger",
+        "synthesis",
+        "telekinesis",
+        "toxic"
+      ],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "avalugg",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/avalugg/",
+      "entry": "Standard Moves",
+      "moveCount": 49,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "ancient-power",
+        "dig",
+        "hard-press",
+        "meteor-beam",
+        "mountain-gale",
+        "rock-blast",
+        "sandstorm",
+        "stealth-rock"
+      ],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "own-tempo",
+        "sturdy"
+      ]
+    },
+    {
+      "slug": "avalugg-hisui",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/avalugg/",
+      "entry": "Hisuian Form Standard Moves",
+      "moveCount": 49,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "ice-body",
+        "strong-jaw",
+        "sturdy"
+      ]
+    },
+    {
+      "slug": "noivern",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/noivern/",
+      "entry": "Standard Moves",
+      "moveCount": 64,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "frisk",
+        "infiltrator",
+        "telepathy"
+      ]
+    },
+    {
+      "slug": "decidueye",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/decidueye/",
+      "entry": "Standard Moves",
+      "moveCount": 66,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "aura-sphere",
+        "brick-break",
+        "bulk-up",
+        "close-combat",
+        "coaching",
+        "focus-blast",
+        "focus-punch",
+        "reversal",
+        "rock-tomb",
+        "scary-face",
+        "taunt",
+        "triple-arrows",
+        "upper-hand"
+      ],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "long-reach",
+        "overgrow"
+      ]
+    },
+    {
+      "slug": "decidueye-hisui",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/decidueye/",
+      "entry": "Hisuian Form Standard Moves",
+      "moveCount": 66,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "scope-lens",
+        "scrappy"
+      ]
+    },
+    {
+      "slug": "incineroar",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Incineroar",
+      "moveCount": 77,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "blaze",
+        "careful",
+        "intimidate"
+      ]
+    },
+    {
+      "slug": "primarina",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/primarina/",
+      "entry": "Standard Moves",
+      "moveCount": 63,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "liquid-voice",
+        "modest",
+        "torrent"
+      ]
+    },
+    {
+      "slug": "toucannon",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Toucannon",
+      "moveCount": 53,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "keen-eye",
+        "skill-link"
+      ]
+    },
+    {
+      "slug": "crabominable",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Crabominable",
+      "moveCount": 63,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "brave",
+        "hyper-cutter"
+      ]
+    },
+    {
+      "slug": "lycanroc-midday",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/lycanroc/",
+      "entry": "Standard Moves",
+      "moveCount": 58,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "toxapex",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Toxapex",
+      "moveCount": 51,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "bold",
+        "merciless",
+        "regenerator"
+      ]
+    },
+    {
+      "slug": "mudsdale",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mudsdale",
+      "moveCount": 45,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "brave",
+        "inner-focus",
+        "life-orb"
+      ]
+    },
+    {
+      "slug": "araquanid",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Araquanid",
+      "moveCount": 51,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "mystic-water",
+        "water-bubble"
+      ]
+    },
+    {
+      "slug": "salazzle",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Salazzle",
+      "moveCount": 70,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "charcoal",
+        "oblivious",
+        "timid"
+      ]
+    },
+    {
+      "slug": "tsareena",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Tsareena",
+      "moveCount": 54,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "jolly",
+        "queenly-majesty"
+      ]
+    },
+    {
+      "slug": "oranguru",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/oranguru/",
+      "entry": "Standard Moves",
+      "moveCount": 64,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "calm",
+        "inner-focus",
+        "telepathy"
+      ]
+    },
+    {
+      "slug": "passimian",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Passimian",
+      "moveCount": 66,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "choice-scarf",
+        "defiant",
+        "jolly"
+      ]
+    },
+    {
+      "slug": "golisopod",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/golisopod/",
+      "entry": "Standard Moves",
+      "moveCount": 67,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "mimikyu-disguised",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/mimikyu/",
+      "entry": "Standard Moves",
+      "moveCount": 61,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "after-you",
+        "astonish",
+        "attract",
+        "charge-beam",
+        "confide",
+        "covet",
+        "dream-eater",
+        "embargo",
+        "feint-attack",
+        "frustration",
+        "grudge",
+        "hidden-power",
+        "hone-claws",
+        "infestation",
+        "last-resort",
+        "mimic",
+        "nightmare",
+        "return",
+        "scratch",
+        "snatch",
+        "splash",
+        "swagger",
+        "take-down",
+        "telekinesis",
+        "tera-blast",
+        "toxic",
+        "work-up"
+      ],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "drampa",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Drampa",
+      "moveCount": 66,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "berserk",
+        "cloud-nine",
+        "quiet"
+      ]
+    },
+    {
+      "slug": "kommo-o",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Kommo-o",
+      "moveCount": 78,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "bold",
+        "modest",
+        "soundproof"
+      ]
+    },
+    {
+      "slug": "rillaboom",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/rillaboom/",
+      "entry": "Standard Moves",
+      "moveCount": 67,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "cinderace",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/cinderace/",
+      "entry": "Standard Moves",
+      "moveCount": 64,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "inteleon",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/inteleon/",
+      "entry": "Standard Moves",
+      "moveCount": 62,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "corviknight",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Corviknight",
+      "moveCount": 55,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "careful",
+        "mirror-armor"
+      ]
+    },
+    {
+      "slug": "thievul",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/thievul/",
+      "entry": "Standard Moves",
+      "moveCount": 51,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "flapple",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Flapple",
+      "moveCount": 44,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "hustle",
+        "jolly"
+      ]
+    },
+    {
+      "slug": "appletun",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Appletun",
+      "moveCount": 51,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "ripen",
+        "sassy",
+        "thick-fat"
+      ]
+    },
+    {
+      "slug": "sandaconda",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Sandaconda",
+      "moveCount": 48,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "sand-spit",
+        "sand-veil"
+      ]
+    },
+    {
+      "slug": "toxtricity-amped",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/toxtricity/",
+      "entry": "Standard Moves",
+      "moveCount": 68,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "grapploct",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/grapploct/",
+      "entry": "Standard Moves",
+      "moveCount": 49,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "polteageist",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/polteageist/",
+      "entry": "Standard Moves",
+      "moveCount": 46,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "bold",
+        "cursed-body",
+        "weak-armor"
+      ]
+    },
+    {
+      "slug": "hatterene",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/hatterene/",
+      "entry": "Standard Moves",
+      "moveCount": 59,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "magic-bounce",
+        "modest",
+        "quiet"
+      ]
+    },
+    {
+      "slug": "grimmsnarl",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/grimmsnarl/",
+      "entry": "Standard Moves",
+      "moveCount": 64,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "careful",
+        "prankster",
+        "sassy"
+      ]
+    },
+    {
+      "slug": "perrserker",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/perrserker/",
+      "entry": "Standard Moves",
+      "moveCount": 74,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "sirfetchd",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/sirfetch'd/",
+      "entry": "Standard Moves",
+      "moveCount": 49,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "mr-rime",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mr. Rime",
+      "moveCount": 92,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "psychic"
+      ],
+      "usageMovesNotConfirmed": [
+        "ice-body",
+        "quiet",
+        "screen-cleaner"
+      ]
+    },
+    {
+      "slug": "runerigus",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/runerigus/",
+      "entry": "Standard Moves",
+      "moveCount": 69,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "mental-herb",
+        "relaxed",
+        "wandering-spirit"
+      ]
+    },
+    {
+      "slug": "alcremie",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/alcremie/",
+      "entry": "Standard Moves",
+      "moveCount": 49,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "aroma-veil",
+        "bold",
+        "sitrus-berry"
+      ]
+    },
+    {
+      "slug": "falinks",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/falinks/",
+      "entry": "Standard Moves",
+      "moveCount": 51,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "battle-armor",
+        "defiant"
+      ]
+    },
+    {
+      "slug": "pincurchin",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/pincurchin/",
+      "entry": "Standard Moves",
+      "moveCount": 48,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "indeedee-male",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/indeedee/",
+      "entry": "Standard Moves - Male",
+      "moveCount": 46,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "morpeko-full-belly",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/morpeko/",
+      "entry": "Standard Moves",
+      "moveCount": 65,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "attract",
+        "leer",
+        "revenge",
+        "spark",
+        "swift",
+        "tail-whip",
+        "take-down",
+        "tera-blast",
+        "thunder-shock"
+      ],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "dragapult",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Dragapult",
+      "moveCount": 63,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "clear-body",
+        "muscle-band"
+      ]
+    },
+    {
+      "slug": "wyrdeer",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/wyrdeer/",
+      "entry": "Standard Moves",
+      "moveCount": 61,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "intimidate",
+        "relaxed",
+        "sap-sipper"
+      ]
+    },
+    {
+      "slug": "kleavor",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Kleavor",
+      "moveCount": 56,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "slash"
+      ],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "jolly",
+        "sharpness"
+      ]
+    },
+    {
+      "slug": "basculegion-male",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/basculegion/",
+      "entry": "Standard Moves - Male",
+      "moveCount": 49,
+      "candidateSource": "pokeapi-mainline",
+      "withheldCandidates": [
+        "headbutt",
+        "tackle",
+        "tail-whip",
+        "take-down",
+        "tera-blast",
+        "water-gun"
+      ],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "sneasler",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Sneasler",
+      "moveCount": 61,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "slash"
+      ],
+      "usageMovesNotConfirmed": [
+        "poison-touch",
+        "pressure",
+        "unburden"
+      ]
+    },
+    {
+      "slug": "overqwil",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/overqwil/",
+      "entry": "Standard Moves",
+      "moveCount": 60,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "careful",
+        "intimidate",
+        "leftovers"
+      ]
+    },
+    {
+      "slug": "meowscarada",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Meowscarada",
+      "moveCount": 65,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "slash"
+      ],
+      "usageMovesNotConfirmed": [
+        "jolly",
+        "overgrow",
+        "protean"
+      ]
+    },
+    {
+      "slug": "skeledirge",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Skeledirge",
+      "moveCount": 56,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "blaze",
+        "modest",
+        "unaware"
+      ]
+    },
+    {
+      "slug": "quaquaval",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Quaquaval",
+      "moveCount": 59,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "moxie",
+        "torrent"
+      ]
+    },
+    {
+      "slug": "pawmot",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/pawmot/",
+      "entry": "Standard Moves",
+      "moveCount": 64,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "arm-thrust",
+        "growl",
+        "metal-claw",
+        "metronome",
+        "scratch",
+        "slam",
+        "spark",
+        "swift",
+        "take-down",
+        "tera-blast",
+        "thunder-shock"
+      ],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "maushold-family-of-four",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Maushold",
+      "moveCount": 50,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "echoed-voice",
+        "pound",
+        "swift",
+        "take-down",
+        "tera-blast"
+      ],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "arboliva",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/arboliva/",
+      "entry": "Standard Moves",
+      "moveCount": 44,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "squawkabilly-green-plumage",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/squawkabilly/",
+      "entry": "Standard Moves",
+      "moveCount": 43,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "fury-attack",
+        "growl",
+        "mimic",
+        "peck",
+        "take-down",
+        "tera-blast"
+      ],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "garganacl",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Garganacl",
+      "moveCount": 54,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "clear-body",
+        "purifying-salt",
+        "sturdy"
+      ]
+    },
+    {
+      "slug": "armarouge",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/armarouge/",
+      "entry": "Standard Moves",
+      "moveCount": 55,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "flash-fire",
+        "quiet",
+        "weak-armor"
+      ]
+    },
+    {
+      "slug": "ceruledge",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Ceruledge",
+      "moveCount": 55,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "flash-fire",
+        "jolly"
+      ]
+    },
+    {
+      "slug": "bellibolt",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Bellibolt",
+      "moveCount": 39,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "electromorphosis",
+        "gentle",
+        "life-orb"
+      ]
+    },
+    {
+      "slug": "mabosstiff",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/mabosstiff/",
+      "entry": "Standard Moves",
+      "moveCount": 44,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "scovillain",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Scovillain",
+      "moveCount": 48,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "bold",
+        "moody",
+        "spicy-spray"
+      ]
+    },
+    {
+      "slug": "espathra",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/espathra/",
+      "entry": "Standard Moves",
+      "moveCount": 57,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "opportunist",
+        "sassy",
+        "speed-boost"
+      ]
+    },
+    {
+      "slug": "tinkaton",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Tinkaton",
+      "moveCount": 47,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "impish",
+        "mold-breaker",
+        "occa-berry"
+      ]
+    },
+    {
+      "slug": "palafin-zero",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/palafin/",
+      "entry": "Standard Moves",
+      "moveCount": 58,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "astonish",
+        "disarming-voice",
+        "mist",
+        "supersonic",
+        "swift",
+        "take-down",
+        "tera-blast",
+        "water-gun"
+      ],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "orthworm",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Orthworm",
+      "moveCount": 40,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "careful",
+        "earth-eater",
+        "relaxed"
+      ]
+    },
+    {
+      "slug": "glimmora",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Glimmora",
+      "moveCount": 46,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adaptability",
+        "timid",
+        "toxic-debris"
+      ]
+    },
+    {
+      "slug": "houndstone",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/houndstone/",
+      "entry": "Standard Moves",
+      "moveCount": 52,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "fluffy",
+        "sand-rush"
+      ]
+    },
+    {
+      "slug": "annihilape",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/annihilape/",
+      "entry": "Standard Moves",
+      "moveCount": 75,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "defiant",
+        "jolly"
+      ]
+    },
+    {
+      "slug": "farigiraf",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/farigiraf/",
+      "entry": "Standard Moves",
+      "moveCount": 70,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "armor-tail",
+        "bold",
+        "cud-chew"
+      ]
+    },
+    {
+      "slug": "kingambit",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Kingambit",
+      "moveCount": 52,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "slash"
+      ],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "defiant",
+        "supreme-overlord"
+      ]
+    },
+    {
+      "slug": "baxcalibur",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/baxcalibur/",
+      "entry": "Standard Moves",
+      "moveCount": 51,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "gholdengo",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/gholdengo/",
+      "entry": "Standard Moves",
+      "moveCount": 42,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "good-as-gold",
+        "modest",
+        "timid"
+      ]
+    },
+    {
+      "slug": "sinistcha",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Sinistcha",
+      "moveCount": 35,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "bold",
+        "calm",
+        "hospitality"
+      ]
+    },
+    {
+      "slug": "archaludon",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Archaludon",
+      "moveCount": 51,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "slash"
+      ],
+      "usageMovesNotConfirmed": [
+        "stalwart",
+        "stamina",
+        "sturdy"
+      ]
+    },
+    {
+      "slug": "hydrapple",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Hydrapple",
+      "moveCount": 51,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "regenerator",
+        "sticky-hold",
+        "supersweet-syrup"
+      ]
+    },
+    {
+      "slug": "venusaur-mega",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Venusaur",
+      "moveCount": 57,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "charizard-mega-x",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Charizard X",
+      "moveCount": 72,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "slash"
+      ],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "charizard-mega-y",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Charizard Y",
+      "moveCount": 72,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "slash"
+      ],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "blastoise-mega",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Blastoise",
+      "moveCount": 73,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "beedrill-mega",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Beedrill",
+      "moveCount": 53,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "pidgeot-mega",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Pidgeot",
+      "moveCount": 31,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "raichu-mega-x",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/raichu/",
+      "entry": "Standard Moves",
+      "moveCount": 66,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "raichu-mega-y",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/raichu/",
+      "entry": "Standard Moves",
+      "moveCount": 66,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "clefable-mega",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/clefable/",
+      "entry": "Standard Moves",
+      "moveCount": 91,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "alakazam-mega",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/alakazam/",
+      "entry": "Standard Moves",
+      "moveCount": 60,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "victreebel-mega",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Victreebel",
+      "moveCount": 58,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "slowbro-mega",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/slowbro/",
+      "entry": "Standard Moves",
+      "moveCount": 78,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "acid-spray",
+        "double-edge",
+        "gunk-shot",
+        "haze",
+        "ice-fang",
+        "poison-jab",
+        "power-gem",
+        "rock-blast",
+        "sandstorm",
+        "scary-face",
+        "shell-side-arm",
+        "sludge-bomb",
+        "sludge-wave",
+        "smack-down",
+        "toxic",
+        "toxic-spikes",
+        "venoshock"
+      ],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "gengar-mega",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/gengar/",
+      "entry": "Standard Moves",
+      "moveCount": 76,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "kangaskhan-mega",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Kangaskhan",
+      "moveCount": 67,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "starmie-mega",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/starmie/",
+      "entry": "Standard Moves",
+      "moveCount": 62,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "pinsir-mega",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Pinsir",
+      "moveCount": 53,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "slash"
+      ],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "gyarados-mega",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Gyarados",
+      "moveCount": 67,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "aerodactyl-mega",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Aerodactyl",
+      "moveCount": 58,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "dragonite-mega",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Dragonite",
+      "moveCount": 83,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "meganium-mega",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Meganium",
+      "moveCount": 61,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "feraligatr-mega",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Feraligatr",
+      "moveCount": 82,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "slash"
+      ],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "ampharos-mega",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Ampharos",
+      "moveCount": 67,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "steelix-mega",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Steelix",
+      "moveCount": 66,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "scizor-mega",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Scizor",
+      "moveCount": 64,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "slash"
+      ],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "heracross-mega",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Heracross",
+      "moveCount": 66,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "skarmory-mega",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Skarmory",
+      "moveCount": 51,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "slash"
+      ],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "houndoom-mega",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Houndoom",
+      "moveCount": 67,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "tyranitar-mega",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Tyranitar",
+      "moveCount": 92,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "sceptile-mega",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/sceptile/",
+      "entry": "Standard Moves",
+      "moveCount": 78,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "blaziken-mega",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/blaziken/",
+      "entry": "Standard Moves",
+      "moveCount": 79,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "swampert-mega",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/swampert/",
+      "entry": "Standard Moves",
+      "moveCount": 77,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "gardevoir-mega",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/gardevoir/",
+      "entry": "Standard Moves",
+      "moveCount": 80,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "sableye-mega",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/sableye/",
+      "entry": "Standard Moves",
+      "moveCount": 88,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "mawile-mega",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/mawile/",
+      "entry": "Standard Moves",
+      "moveCount": 71,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "aggron-mega",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Aggron",
+      "moveCount": 83,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "medicham-mega",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/medicham/",
+      "entry": "Standard Moves",
+      "moveCount": 77,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "manectric-mega",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Manectric",
+      "moveCount": 49,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "sharpedo-mega",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Sharpedo",
+      "moveCount": 57,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "slash"
+      ],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "camerupt-mega",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Camerupt",
+      "moveCount": 67,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "altaria-mega",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Altaria",
+      "moveCount": 65,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "banette-mega",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/banette/",
+      "entry": "Standard Moves",
+      "moveCount": 67,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "chimecho-mega",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/chimecho/",
+      "entry": "Standard Moves",
+      "moveCount": 65,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "absol-mega",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Absol",
+      "moveCount": 71,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "slash"
+      ],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "absol-mega-z",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/absol/",
+      "entry": "Standard Moves",
+      "moveCount": 72,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "glalie-mega",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Glalie",
+      "moveCount": 54,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "salamence-mega",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/salamence/",
+      "entry": "Standard Moves",
+      "moveCount": 62,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "metagross-mega",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/metagross/",
+      "entry": "Standard Moves",
+      "moveCount": 68,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "staraptor-mega",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/staraptor/",
+      "entry": "Standard Moves",
+      "moveCount": 43,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "lopunny-mega",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Lopunny",
+      "moveCount": 76,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "garchomp-mega",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Garchomp",
+      "moveCount": 58,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "slash"
+      ],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "garchomp-mega-z",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/garchomp/",
+      "entry": "Standard Moves",
+      "moveCount": 59,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "lucario-mega",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/lucario/",
+      "entry": "Standard Moves",
+      "moveCount": 83,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "lucario-mega-z",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/lucario/",
+      "entry": "Standard Moves",
+      "moveCount": 83,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "abomasnow-mega",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Abomasnow",
+      "moveCount": 65,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "gallade-mega",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/gallade/",
+      "entry": "Standard Moves",
+      "moveCount": 106,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "froslass-mega",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/froslass/",
+      "entry": "Standard Moves",
+      "moveCount": 68,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "emboar-mega",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Emboar",
+      "moveCount": 79,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "excadrill-mega",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Excadrill",
+      "moveCount": 53,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "slash"
+      ],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "audino-mega",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/audino/",
+      "entry": "Standard Moves",
+      "moveCount": 69,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "scolipede-mega",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/scolipede/",
+      "entry": "Standard Moves",
+      "moveCount": 53,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "scrafty-mega",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/scrafty/",
+      "entry": "Standard Moves",
+      "moveCount": 82,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "eelektross-mega",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/eelektross/",
+      "entry": "Standard Moves",
+      "moveCount": 75,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "chandelure-mega",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/chandelure/",
+      "entry": "Standard Moves",
+      "moveCount": 54,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "golurk-mega",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/golurk/",
+      "entry": "Standard Moves",
+      "moveCount": 78,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "chesnaught-mega",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Chesnaught",
+      "moveCount": 87,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "delphox-mega",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/delphox/",
+      "entry": "Standard Moves",
+      "moveCount": 72,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "greninja-mega",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Greninja",
+      "moveCount": 64,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "pyroar-mega",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/pyroar/",
+      "entry": "Standard Moves",
+      "moveCount": 49,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "floette-mega",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Floette",
+      "moveCount": 40,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "psychic"
+      ],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "meowstic-mega",
+      "status": "unverified",
+      "source": "pokebase",
+      "reason": "No verified, form-specific Champions learnset available.",
+      "moveCount": 0,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "alluring-voice",
+        "baton-pass",
+        "calm-mind",
+        "charge-beam",
+        "charm",
+        "covet",
+        "dark-pulse",
+        "dig",
+        "endure",
+        "energy-ball",
+        "expanding-force",
+        "extrasensory",
+        "facade",
+        "fake-out",
+        "fake-tears",
+        "future-sight",
+        "giga-impact",
+        "gravity",
+        "helping-hand",
+        "hyper-beam",
+        "imprison",
+        "iron-tail",
+        "light-screen",
+        "magic-room",
+        "mean-look",
+        "misty-terrain",
+        "nasty-plot",
+        "payback",
+        "play-rough",
+        "protect",
+        "psych-up",
+        "psychic",
+        "psychic-noise",
+        "psychic-terrain",
+        "psyshock",
+        "quick-guard",
+        "rain-dance",
+        "reflect",
+        "rest",
+        "role-play",
+        "round",
+        "safeguard",
+        "shadow-ball",
+        "skill-swap",
+        "sleep-talk",
+        "snore",
+        "stored-power",
+        "substitute",
+        "sucker-punch",
+        "sunny-day",
+        "tail-slap",
+        "thunder-wave",
+        "thunderbolt",
+        "tickle",
+        "trailblaze",
+        "trick",
+        "trick-room",
+        "wish",
+        "wonder-room",
+        "yawn",
+        "zen-headbutt"
+      ],
+      "usageMovesNotConfirmed": [
+        "alluring-voice",
+        "expanding-force",
+        "nasty-plot",
+        "protect"
+      ]
+    },
+    {
+      "slug": "malamar-mega",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/malamar/",
+      "entry": "Standard Moves",
+      "moveCount": 69,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "barbaracle-mega",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/barbaracle/",
+      "entry": "Standard Moves",
+      "moveCount": 72,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "dragalge-mega",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/dragalge/",
+      "entry": "Standard Moves",
+      "moveCount": 52,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "hawlucha-mega",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Hawlucha",
+      "moveCount": 74,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "crabominable-mega",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Crabominable",
+      "moveCount": 63,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "golisopod-mega",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/golisopod/",
+      "entry": "Standard Moves",
+      "moveCount": 67,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "drampa-mega",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Drampa",
+      "moveCount": 66,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "falinks-mega",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/falinks/",
+      "entry": "Standard Moves",
+      "moveCount": 51,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "scovillain-mega",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Scovillain",
+      "moveCount": 48,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "glimmora-mega",
+      "status": "verified",
+      "source": "champions-repo",
+      "url": "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main/learnsets/learnsets.json",
+      "entry": "Mega Glimmora",
+      "moveCount": 46,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "baxcalibur-mega",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/baxcalibur/",
+      "entry": "Standard Moves",
+      "moveCount": 51,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "castform-sunny",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/castform/",
+      "entry": "Standard Moves",
+      "moveCount": 37,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "captivate",
+        "clear-smog",
+        "confide",
+        "defense-curl",
+        "defog",
+        "disable",
+        "double-edge",
+        "double-team",
+        "ember",
+        "flash",
+        "frustration",
+        "hail",
+        "headbutt",
+        "hidden-power",
+        "incinerate",
+        "last-resort",
+        "lucky-chant",
+        "mimic",
+        "natural-gift",
+        "ominous-wind",
+        "powder-snow",
+        "psych-up",
+        "reflect-type",
+        "retaliate",
+        "return",
+        "secret-power",
+        "shock-wave",
+        "swagger",
+        "swift",
+        "tackle",
+        "tailwind",
+        "toxic",
+        "water-gun",
+        "water-pulse",
+        "work-up"
+      ],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "castform-rainy",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/castform/",
+      "entry": "Standard Moves",
+      "moveCount": 37,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "captivate",
+        "clear-smog",
+        "confide",
+        "defense-curl",
+        "defog",
+        "disable",
+        "double-edge",
+        "double-team",
+        "ember",
+        "flash",
+        "frustration",
+        "hail",
+        "headbutt",
+        "hidden-power",
+        "incinerate",
+        "last-resort",
+        "lucky-chant",
+        "mimic",
+        "natural-gift",
+        "ominous-wind",
+        "powder-snow",
+        "psych-up",
+        "reflect-type",
+        "retaliate",
+        "return",
+        "secret-power",
+        "shock-wave",
+        "swagger",
+        "swift",
+        "tackle",
+        "tailwind",
+        "toxic",
+        "water-gun",
+        "water-pulse",
+        "work-up"
+      ],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "castform-snowy",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/castform/",
+      "entry": "Standard Moves",
+      "moveCount": 37,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "captivate",
+        "clear-smog",
+        "confide",
+        "defense-curl",
+        "defog",
+        "disable",
+        "double-edge",
+        "double-team",
+        "ember",
+        "flash",
+        "frustration",
+        "hail",
+        "headbutt",
+        "hidden-power",
+        "incinerate",
+        "last-resort",
+        "lucky-chant",
+        "mimic",
+        "natural-gift",
+        "ominous-wind",
+        "powder-snow",
+        "psych-up",
+        "reflect-type",
+        "retaliate",
+        "return",
+        "secret-power",
+        "shock-wave",
+        "swagger",
+        "swift",
+        "tackle",
+        "tailwind",
+        "toxic",
+        "water-gun",
+        "water-pulse",
+        "work-up"
+      ],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "rotom-heat",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/rotom/",
+      "entry": "Standard Moves",
+      "moveCount": 43,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "astonish",
+        "confide",
+        "defog",
+        "dream-eater",
+        "flash",
+        "frustration",
+        "hidden-power",
+        "mud-slap",
+        "natural-gift",
+        "ominous-wind",
+        "psych-up",
+        "return",
+        "secret-power",
+        "shock-wave",
+        "signal-beam",
+        "snatch",
+        "sucker-punch",
+        "swagger",
+        "swift",
+        "telekinesis",
+        "tera-blast",
+        "thunder-shock",
+        "toxic"
+      ],
+      "usageMovesNotConfirmed": [
+        "bold",
+        "levitate",
+        "modest"
+      ]
+    },
+    {
+      "slug": "rotom-wash",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/rotom/",
+      "entry": "Standard Moves",
+      "moveCount": 43,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "astonish",
+        "confide",
+        "defog",
+        "dream-eater",
+        "flash",
+        "frustration",
+        "hidden-power",
+        "mud-slap",
+        "natural-gift",
+        "ominous-wind",
+        "psych-up",
+        "return",
+        "secret-power",
+        "shock-wave",
+        "signal-beam",
+        "snatch",
+        "sucker-punch",
+        "swagger",
+        "swift",
+        "telekinesis",
+        "tera-blast",
+        "thunder-shock",
+        "toxic"
+      ],
+      "usageMovesNotConfirmed": [
+        "bold",
+        "calm",
+        "levitate"
+      ]
+    },
+    {
+      "slug": "rotom-frost",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/rotom/",
+      "entry": "Standard Moves",
+      "moveCount": 43,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "astonish",
+        "confide",
+        "defog",
+        "dream-eater",
+        "flash",
+        "frustration",
+        "hidden-power",
+        "mud-slap",
+        "natural-gift",
+        "ominous-wind",
+        "psych-up",
+        "return",
+        "secret-power",
+        "shock-wave",
+        "signal-beam",
+        "snatch",
+        "sucker-punch",
+        "swagger",
+        "swift",
+        "telekinesis",
+        "tera-blast",
+        "thunder-shock",
+        "toxic"
+      ],
+      "usageMovesNotConfirmed": [
+        "levitate",
+        "modest",
+        "never-melt-ice"
+      ]
+    },
+    {
+      "slug": "rotom-fan",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/rotom/",
+      "entry": "Standard Moves",
+      "moveCount": 43,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "astonish",
+        "confide",
+        "defog",
+        "dream-eater",
+        "flash",
+        "frustration",
+        "hidden-power",
+        "mud-slap",
+        "natural-gift",
+        "ominous-wind",
+        "psych-up",
+        "return",
+        "secret-power",
+        "shock-wave",
+        "signal-beam",
+        "snatch",
+        "sucker-punch",
+        "swagger",
+        "swift",
+        "telekinesis",
+        "tera-blast",
+        "thunder-shock",
+        "toxic"
+      ],
+      "usageMovesNotConfirmed": [
+        "levitate",
+        "modest",
+        "timid"
+      ]
+    },
+    {
+      "slug": "rotom-mow",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/rotom/",
+      "entry": "Standard Moves",
+      "moveCount": 43,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "astonish",
+        "confide",
+        "defog",
+        "dream-eater",
+        "flash",
+        "frustration",
+        "hidden-power",
+        "mud-slap",
+        "natural-gift",
+        "ominous-wind",
+        "psych-up",
+        "return",
+        "secret-power",
+        "shock-wave",
+        "signal-beam",
+        "snatch",
+        "sucker-punch",
+        "swagger",
+        "swift",
+        "telekinesis",
+        "tera-blast",
+        "thunder-shock"
+      ],
+      "usageMovesNotConfirmed": [
+        "levitate",
+        "modest",
+        "timid"
+      ]
+    },
+    {
+      "slug": "vivillon",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/vivillon/",
+      "entry": "Standard Moves",
+      "moveCount": 43,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "compound-eyes",
+        "focus-sash",
+        "timid"
+      ]
+    },
+    {
+      "slug": "meowstic-female",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/meowstic/",
+      "entry": "Standard Moves - Female",
+      "moveCount": 56,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "bold",
+        "competitive",
+        "timid"
+      ]
+    },
+    {
+      "slug": "aegislash-blade",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/aegislash/",
+      "entry": "Standard Moves",
+      "moveCount": 45,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "after-you",
+        "autotomize",
+        "confide",
+        "cut",
+        "double-team",
+        "false-swipe",
+        "frustration",
+        "fury-cutter",
+        "hidden-power",
+        "kings-shield",
+        "laser-focus",
+        "magnet-rise",
+        "pursuit",
+        "retaliate",
+        "return",
+        "rock-smash",
+        "secret-power",
+        "shock-wave",
+        "spite",
+        "swagger",
+        "tackle",
+        "toxic"
+      ],
+      "usageMovesNotConfirmed": [
+        "kings-shield"
+      ]
+    },
+    {
+      "slug": "gourgeist-small",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/gourgeist/",
+      "entry": "Standard Moves",
+      "moveCount": 60,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "astonish",
+        "charge-beam",
+        "confide",
+        "double-team",
+        "dream-eater",
+        "flame-charge",
+        "flash",
+        "frustration",
+        "hidden-power",
+        "incinerate",
+        "magic-coat",
+        "nature-power",
+        "razor-leaf",
+        "return",
+        "rock-smash",
+        "role-play",
+        "secret-power",
+        "spite",
+        "swagger",
+        "synthesis",
+        "telekinesis",
+        "toxic"
+      ],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "gourgeist-large",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/gourgeist/",
+      "entry": "Standard Moves",
+      "moveCount": 60,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "astonish",
+        "charge-beam",
+        "confide",
+        "double-team",
+        "dream-eater",
+        "flame-charge",
+        "flash",
+        "frustration",
+        "hidden-power",
+        "incinerate",
+        "magic-coat",
+        "nature-power",
+        "razor-leaf",
+        "return",
+        "rock-smash",
+        "role-play",
+        "secret-power",
+        "spite",
+        "swagger",
+        "synthesis",
+        "telekinesis",
+        "toxic"
+      ],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "lycanroc-midnight",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/lycanroc/",
+      "entry": "Standard Moves - Midnight Form",
+      "moveCount": 68,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "jolly",
+        "no-guard"
+      ]
+    },
+    {
+      "slug": "lycanroc-dusk",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/lycanroc/",
+      "entry": "Standard Moves - Dusk Form",
+      "moveCount": 61,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adamant",
+        "jolly",
+        "tough-claws"
+      ]
+    },
+    {
+      "slug": "toxtricity-low-key",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/toxtricity/",
+      "entry": "Standard Moves",
+      "moveCount": 68,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "indeedee-female",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/indeedee/",
+      "entry": "Standard Moves - Female",
+      "moveCount": 45,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "after-you",
+        "encore",
+        "expanding-force",
+        "extrasensory",
+        "gravity",
+        "last-resort",
+        "magic-room",
+        "power-split",
+        "power-swap",
+        "psychic-noise",
+        "tri-attack",
+        "wonder-room"
+      ],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "morpeko-hangry",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/morpeko/",
+      "entry": "Standard Moves",
+      "moveCount": 65,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "attract",
+        "leer",
+        "revenge",
+        "spark",
+        "swift",
+        "tail-whip",
+        "take-down",
+        "tera-blast",
+        "thunder-shock"
+      ],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "basculegion-female",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/basculegion/",
+      "entry": "Standard Moves - Female",
+      "moveCount": 49,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [],
+      "usageMovesNotConfirmed": [
+        "adaptability",
+        "modest",
+        "mystic-water"
+      ]
+    },
+    {
+      "slug": "squawkabilly-blue-plumage",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/squawkabilly/",
+      "entry": "Standard Moves",
+      "moveCount": 43,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "fury-attack",
+        "growl",
+        "mimic",
+        "peck",
+        "take-down",
+        "tera-blast"
+      ],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "squawkabilly-yellow-plumage",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/squawkabilly/",
+      "entry": "Standard Moves",
+      "moveCount": 43,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "fury-attack",
+        "growl",
+        "mimic",
+        "peck",
+        "take-down",
+        "tera-blast"
+      ],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "squawkabilly-white-plumage",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/squawkabilly/",
+      "entry": "Standard Moves",
+      "moveCount": 43,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "fury-attack",
+        "growl",
+        "mimic",
+        "peck",
+        "take-down",
+        "tera-blast"
+      ],
+      "usageMovesNotConfirmed": []
+    },
+    {
+      "slug": "palafin-hero",
+      "status": "verified",
+      "source": "serebii-champions",
+      "url": "https://www.serebii.net/pokedex-champions/palafin/",
+      "entry": "Standard Moves",
+      "moveCount": 58,
+      "candidateSource": "pokebase",
+      "withheldCandidates": [
+        "astonish",
+        "disarming-voice",
+        "mist",
+        "supersonic",
+        "swift",
+        "take-down",
+        "tera-blast",
+        "water-gun"
+      ],
+      "usageMovesNotConfirmed": []
+    }
+  ]
+}

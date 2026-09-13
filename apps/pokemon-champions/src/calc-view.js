@@ -2,7 +2,7 @@
 // chips: the move type + defender type(s) auto-compute effectiveness, stat stages
 // give effective Atk/Def, and STAB/Crit/Weather/Burn are chip toggles. Shows the
 // Gen-9 formula and the min–max range from the 16 damage rolls (0.85–1.00).
-import { TYPES, TYPE_COLORS, displayName, grassKnotBP, formFamily } from "./data.js";
+import { TYPES, TYPE_COLORS, displayName, grassKnotBP, formFamily, confirmedMoveIds, learnsetNotice } from "./data.js";
 import { statsFor, roleOf } from "./effective-stats.js";
 import { attachAutocomplete } from "./autocomplete.js";
 import { defaultAbility, applyAbility } from "./type-defense.js";
@@ -853,9 +853,10 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
     const u = mon.usage || {};
     const tAtk = Math.floor((base.atk + (sp.atk || 0)) * natureMult(nat, "atk"));
     const tSpa = Math.floor((base.spa + (sp.spa || 0)) * natureMult(nat, "spa"));
-    const um = (u.moves || []).map(([nm]) => movesByName.get(nm)).filter((mv) => mv && mv.class !== "status" && mv.type);
+    const um = (u.moves || []).filter(([nm]) => mon.moves.includes(moveIdByName.get(nm)))
+      .map(([nm]) => movesByName.get(nm)).filter((mv) => mv && mv.class !== "status" && mv.type);
     const pool = mon.moves.map((id) => data.moves[id]).filter((mv) => mv && mv.class !== "status" && mv.type);
-    const chosen = cfg.targetMoves && cfg.targetMoves.length ? cfg.targetMoves.map((id) => data.moves[id]).filter((mv) => mv && mv.class !== "status" && mv.type) : (um.length ? um : pool);
+    const chosen = cfg.targetMoves && cfg.targetMoves.length ? confirmedMoveIds(mon, cfg.targetMoves).map((id) => data.moves[id]).filter((mv) => mv && mv.class !== "status" && mv.type) : (um.length ? um : pool);
     const threat = { mon, atk: tAtk, spa: tSpa, def: effDef, spe, types: mon.types, ability: abil, item, weight: mon.weight, moves: chosen };
     return { mon, hp, def: effDef, spd: effSpd, spe, defRaw, spdRaw, ability: abil, threat,
       lv: { hp, def: effDef, spd: effSpd, atk: base.atk, spe } };
@@ -1199,7 +1200,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       if (um.length) pool = um;
     }
     const rows = [];
-    for (const id of pool) {
+    for (const id of confirmedMoveIds(entry.mon, pool)) {
       if (!includeExcluded && eb.excluded.has(id)) continue;
       const row = evalMove(entry, target, data.moves[id], st, ctx, speFirst);
       if (row) { row.id = id; rows.push(row); }
@@ -1328,6 +1329,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
           ${stageStepper("Speed boost", "speStage", cfg.speStage)}
         </div>
         <div class="cl-tmoves"><span class="cl-stat-lab">Its moves</span>
+          ${mon.learnset?.status === "unverified" ? `<p class="learnset-note learnset-warning">${learnsetNotice(mon)}</p>` : ""}
           ${(target.threat.moves || []).map((mv) => `<span class="cl-exchip"><span class="type tiny" style="background:${TYPE_COLORS[mv.type]}">${mv.type}</span><span class="cl-exchip-nm" data-move-info="${moveIdByName.get(mv.name)}" title="Open ${mv.name}">${mv.name}</span><button data-tmove-remove="${moveIdByName.get(mv.name)}" aria-label="remove">✕</button></span>`).join("") || '<small class="muted">no damaging moves</small>'}
         </div>
         ${abilRow}
@@ -1341,7 +1343,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
           <div class="cl-stat"><span class="cl-stat-lab">Target item</span>${seg("item", DEF_ITEMS, cfg.item)}</div>
           <div class="cl-stat"><span class="cl-stat-lab">Target status</span>${seg("targetStatus", { none: "Healthy", psn: "Poisoned", brn: "Burned", par: "Paralyzed", slp: "Asleep" }, eb.targetStatus)}</div>
           <div class="cl-stat"><span class="cl-stat-lab">Attacker status</span>${seg("userStatus", { none: "Healthy", brn: "Burned", psn: "Poisoned", par: "Paralyzed" }, eb.userStatus)}</div>
-          <label class="cl-avail cl-doubles" title="Champions is doubles (Reg M-B): spread moves like Earthquake do ×0.75"><input type="checkbox" data-ebsel="doubles" ${eb.doubles ? "checked" : ""}> Doubles spread ×0.75</label>
+          <label class="cl-avail cl-doubles" title="In doubles, moves hitting multiple targets take the ×0.75 spread modifier"><input type="checkbox" data-ebsel="doubles" ${eb.doubles ? "checked" : ""}> Doubles spread ×0.75</label>
         </div>
       </div>
       <div class="cl-sec">
@@ -1693,6 +1695,8 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
         </div>
       </div>
       <div class="cl-sec">
+        ${mon.learnset?.status === "unverified" ? `<p class="learnset-note learnset-warning">${learnsetNotice(mon)}</p>` : ""}
+        ${(c.moveset || []).some((id) => !mon.moves.includes(id)) ? '<p class="learnset-note learnset-warning">Unconfirmed saved moves are excluded from calculations.</p>' : ""}
         <div class="cl-sec-head"><span>Attacker offense</span>
           <label class="cl-toggle" data-acc-toggle title="Weight damage by each move's accuracy (off = potential damage)"><input type="checkbox" tabindex="-1" ${eb.useAccuracy ? "checked" : ""}> weight by accuracy</label></div>
         <div class="cl-attacker">
@@ -1734,7 +1738,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
           <div class="cl-stat"><span class="cl-stat-lab">Screen</span>${seg("screen", SCREENS, eb.screen)}</div>
           <div class="cl-stat" title="Burn halves the attacker's physical damage (Guts/Facade exempt); paralysis halves its Speed"><span class="cl-stat-lab">Attacker status</span>${seg("userStatus", { none: "Healthy", brn: "Burned", psn: "Poisoned", par: "Paralyzed" }, eb.userStatus)}</div>
           <div class="cl-stat"><span class="cl-stat-lab">Defender status</span>${seg("targetStatus", { none: "Healthy", psn: "Poisoned", brn: "Burned", par: "Paralyzed", slp: "Asleep" }, eb.targetStatus)}</div>
-          <label class="cl-avail cl-doubles" title="Champions is doubles (Reg M-B): spread moves like Earthquake do ×0.75"><input type="checkbox" data-ebsel="doubles" ${eb.doubles ? "checked" : ""}> Doubles spread ×0.75</label>
+          <label class="cl-avail cl-doubles" title="In doubles, moves hitting multiple targets take the ×0.75 spread modifier"><input type="checkbox" data-ebsel="doubles" ${eb.doubles ? "checked" : ""}> Doubles spread ×0.75</label>
         </div>
       </div>
       <div class="cl-sec">
@@ -1820,7 +1824,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       const slug = d.mon.slug;
       const open = eb.expanded === slug;
       const pinned = eb.revPinned.has(slug);
-      const use = d.mon.usagePct != null ? `<span class="ehp-use" title="M-B ladder usage (pokebase)">${d.mon.usagePct}%</span>` : "";
+      const use = d.mon.usagePct != null ? `<span class="ehp-use" title="PokéBase usage snapshot; format/date may differ from the roster regulation">${d.mon.usagePct}%</span>` : "";
       // the assumed defender set, visible WITHOUT opening the expander — no hidden assumptions
       const cfg = defenderCfg(d.mon);
       const edited = eb.revOverrides.has(slug) && Object.keys(eb.revOverrides.get(slug)).length > 0;

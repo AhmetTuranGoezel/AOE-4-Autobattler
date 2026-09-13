@@ -52,10 +52,10 @@ const sep = (x) => Math.round(x).toLocaleString("en-US");
 // Optional secondary-info columns (Weight / Usage %) toggled from the toolbar.
 const EXTRA_COLS = [
   { key: "weight", label: "kg", num: true, title: "Weight — drives Grass Knot / Low Kick power" },
-  { key: "usagePct", label: "Usage", num: true, title: "M-B ladder usage rate (pokebase)" },
+  { key: "usagePct", label: "Usage", num: true, title: "PokéBase usage snapshot; its format/date may differ from the roster regulation" },
 ];
 const colsFor = (extras) => [
-  { key: "dex", label: "#", num: true },
+  { key: "rank", label: "Rank", num: true, nosort: true, title: "Position in the current filtered and sorted results" },
   { key: "name", label: "Name" },
   { key: "role", label: "Role", nosort: true },
   ...STAT_KEYS.map((k) => ({ key: k, label: STAT_LABELS[k], stat: true, num: true })),
@@ -68,8 +68,8 @@ const colsFor = (extras) => [
   { key: "ehpMixed", label: "Mixed eHP", num: true, ehp: true, title: "Effective HP vs an even physical+special mix @Lv50 (harmonic mean)" },
 ];
 const widthsFor = (extras) => (extras
-  ? ["3%", "12.6%", "5.4%", ...STAT_KEYS.map(() => "5.2%"), "4.6%", "6.8%", "5.8%", "4.6%", "5%", "6.6%", "6.6%", "7%"]
-  : ["3%", "17.4%", "6%", ...STAT_KEYS.map(() => "5.6%"), "5%", "6.8%", "5.6%", "7.2%", "7.2%", "7.2%"]);
+  ? ["4%", "11.6%", "5.4%", ...STAT_KEYS.map(() => "5.2%"), "4.6%", "6.8%", "5.8%", "4.6%", "5%", "6.6%", "6.6%", "7%"]
+  : ["4%", "16.4%", "6%", ...STAT_KEYS.map(() => "5.6%"), "5%", "6.8%", "5.6%", "7.2%", "7.2%", "7.2%"]);
 
 const sumGet = (m, k) => (k === "bst" ? m._eff.bst : k === "cleaned" ? m._eff.cleaned
   : k === "wasted" ? m._eff.wasted
@@ -103,10 +103,13 @@ function summarize(list, extras = false) {
 }
 
 export function renderTable(list, sort, cmp, max = 200, extras = false, pinned = [], team = new Set()) {
+  // list is the FULL filtered/sorted result. A pin changes presentation, not rank.
+  const ranks = new Map(list.map((mon, index) => [mon.slug, index + 1]));
+  const pinnedSlugs = new Set(pinned.map((mon) => mon.slug));
   const cols = `<colgroup>${widthsFor(extras).map((w) => `<col style="width:${w}">`).join("")}</colgroup>`;
 
   const head = colsFor(extras).map((c) => {
-    const active = sort.key === c.key;
+    const active = !c.nosort && sort.key === c.key;
     const arrow = active ? `<span class="th-arrow">${sort.dir === "asc" ? "▴" : "▾"}</span>` : "";
     const cls = `${c.num ? "num" : ""} ${c.nosort ? "" : "sortable"} ${active ? "active" : ""}`;
     return `<th class="${cls}" ${c.title ? `title="${c.title}"` : ""} ${c.nosort ? "" : `data-sort="${c.key}"`}>${c.label}${arrow}</th>`;
@@ -121,7 +124,7 @@ export function renderTable(list, sort, cmp, max = 200, extras = false, pinned =
     }).join("");
     const role = ROLE_META[e.role];
     return `<tr data-slug="${m.slug}" class="${isPinned ? "pinned" : ""}">
-      <td class="num dex">${m.dex}</td>
+      <td class="num rank"${ranks.has(m.slug) ? "" : ' title="Pinned outside the current filters — not ranked"'}>${ranks.get(m.slug) ?? "—"}</td>
       <td class="namecell"><span class="row-btns">${pinBtn(m, isPinned)}${cmpBtn(m, cmp)}</span>${spriteTag(m, "spr")}
         <span class="nm"><span class="nm-top">${m._display}${megaBadge(m)}</span>
         <span class="types">${typeBadges(m.types)}</span></span></td>
@@ -141,10 +144,10 @@ export function renderTable(list, sort, cmp, max = 200, extras = false, pinned =
   // pinned rows sit on top inside the same table (aligned columns), behind a labeled divider
   const nCols = colsFor(extras).length;
   const pinBlock = pinned.length ? `
-    <tr class="pin-head"><td colspan="${nCols}">📌 Pinned (${pinned.length}) <small>ignores filters &amp; search</small><button class="btn-sm" data-pin-clear>Clear all</button></td></tr>
+    <tr class="pin-head"><td colspan="${nCols}">📌 Pinned (${pinned.length}) <small>keeps filtered rank · — when outside filters</small><button class="btn-sm" data-pin-clear>Clear all</button></td></tr>
     ${pinned.map((m) => row(m, true)).join("")}
     <tr class="pin-end"><td colspan="${nCols}"></td></tr>` : "";
-  const rows = pinBlock + list.map((m) => row(m, false)).join("");
+  const rows = pinBlock + list.filter((m) => !pinnedSlugs.has(m.slug)).map((m) => row(m, false)).join("");
 
   let foot = "";
   if (list.length) {

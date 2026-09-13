@@ -116,6 +116,10 @@ button, .chip, .type-chip, .seg button, select, .ehp-row, .apm-move, tr[data-mov
 h1 { font-size: 1.3rem; letter-spacing: -0.3px; }
 h1 span { color: var(--accent); }
 .meta { color: var(--muted); font-size: 0.78rem; }
+.snapshot-label { color: var(--muted); font-size: 0.75rem; white-space: nowrap; text-underline-offset: 3px; }
+#regulation-label { color: var(--accent-2); }
+.snapshot-label.has-warning, .learnset-warning { color: var(--accent-2); }
+.learnset-note { font-size: 0.8rem; line-height: 1.5; margin: 8px 0; }
 
 .tabs { display: inline-flex; gap: 4px; margin-left: 6px; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 3px; }
 .tab { background: none; border: none; color: var(--muted); padding: 5px 14px; border-radius: 7px; font-weight: 700; font-size: 0.82rem; }
@@ -276,7 +280,7 @@ input[type=search]:hover::-webkit-search-cancel-button, input[type=search]:focus
 /* ---------- results: table ---------- */
 .results { flex: 1; padding: 14px 18px 96px; min-width: 0; }
 .poke-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; min-width: 1080px; table-layout: fixed; }
-.poke-table td.stat, .poke-table td.bst, .poke-table td.cleaned, .poke-table td.wasted, .poke-table td.dex, .poke-table td.ehp { white-space: nowrap; }
+.poke-table td.stat, .poke-table td.bst, .poke-table td.cleaned, .poke-table td.wasted, .poke-table td.rank, .poke-table td.ehp { white-space: nowrap; }
 .poke-table td.ehp { font-variant-numeric: tabular-nums; color: var(--muted); }
 .poke-table td.ehp.ehp-mix { color: var(--accent-2); font-weight: 700; }
 .poke-table thead th {
@@ -295,7 +299,7 @@ input[type=search]:hover::-webkit-search-cancel-button, input[type=search]:focus
 .poke-table tbody tr:hover { background: #1b1b24; }
 .poke-table td { padding: 6px 11px; vertical-align: middle; }
 .poke-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
-.dex { color: var(--muted); font-size: 0.78rem; }
+.rank { color: var(--muted); font-size: 0.78rem; font-variant-numeric: tabular-nums; }
 .namecell { display: flex; align-items: center; gap: 9px; min-width: 0; }
 /* pin + compare stacked in one narrow rail so the name keeps its full width */
 /* pin·compare·team collect-cluster — 2-wide so a third button doesn't add row height */
@@ -1694,6 +1698,9 @@ tr.pin-end td { padding: 0; height: 8px; border-bottom: 2px solid color-mix(in s
      page scroll (the roster stays a table on tablets; on phones it's the card grid).
      Viewport-sticky header is traded away below 920px. */
   #results, #moves-results, #abilities-results { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  /* Inside this horizontal scroll container, viewport offsets can place the
+     sticky header underneath the summary on short filtered lists. */
+  .poke-table thead th, .poke-table tfoot, .poke-table tfoot td { position: static; }
 }
 
 /* Phone: the main pass. Roster defaults to the card grid (set in app.js). */

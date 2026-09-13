@@ -29,6 +29,8 @@
           <button class="tab" data-tab="coverage">Coverage</button>
         </nav>
         <p id="meta-line" class="meta"></p>
+        <a id="regulation-label" class="snapshot-label" target="_blank" rel="noopener noreferrer">Regulation: loading…</a>
+        <a id="learnset-quality" class="snapshot-label" href="learnset-report.json" target="_blank" rel="noopener noreferrer">Learnset report</a>
         <button id="btn-sync" class="sync-pill" title="Sync your pins, teams and bans across devices"><span class="sync-dot"></span>Sync</button>
       </div>
       <div class="toolbar tb-pokemon">
@@ -45,7 +47,7 @@
           </div>
         </div>
         <div class="tb-right">
-          <button id="tb-extras" class="btn" title="Show Weight (kg) and M-B usage % columns in the table">＋ kg/％</button>
+          <button id="tb-extras" class="btn" title="Show Weight (kg) and source usage % columns in the table">＋ kg/％</button>
           <label class="sortwrap">Sort <select id="sort-key"></select></label>
           <button id="sort-dir" class="btn">▼ Desc</button>
           <span id="result-count" class="count"></span>
@@ -72,8 +74,8 @@
             <button data-mega="hide" class="active">No Mega</button>
             <button data-mega="only">Only Mega</button>
           </div>
-          <label class="fcheck" title="Only Pokémon you can actually get and use in Champions right now — hides ones that exist in the game data but aren't obtainable/playable (e.g. Pawmot)."><input type="checkbox" id="f-available"> Obtainable in Champions</label>
-          <small class="fhint">Hides Pokémon that exist in the game's data but can't be obtained / aren't playable in Champions (e.g. Pawmot).</small>
+          <label class="fcheck" title="Availability according to the roster source at snapshot time; not a ranked eligibility check."><input type="checkbox" id="f-available"> Obtainable in Champions</label>
+          <small class="fhint">Uses availability at snapshot time. Check the linked regulation rules for ranked eligibility.</small>
         </div>
 
         <div class="fgroup wt-group">

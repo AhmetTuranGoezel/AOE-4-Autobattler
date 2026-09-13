@@ -8,7 +8,7 @@ Dish heal in their weather). **Burn** halves the burned side's physical damage (
 Speed (Quick Feet exempt) — both directions.
 Within that frame each ability/move is **modeled** (applied to the numbers), **flagged** (condition we can't verify — shown
 as an explicit flag on the row), or **no-op** (genuinely cannot change a first-hit number — reason given).
-Champions data: 199 abilities, 523 moves. Regenerate with `python tools/generate_coverage.py`.
+Champions data: 215 abilities, 508 moves. Regenerate with `python tools/generate_coverage.py`.
 
 ## Abilities
 
@@ -22,6 +22,7 @@ Champions data: 199 abilities, 523 moves. Regenerate with `python tools/generate
 | Anticipation | ➖ no-op | controls switching/trapping — no damage effect |
 | Armor Tail | ✅ modeled | priority moves fail against it |
 | Aroma Veil | ➖ no-op | healing over turns — no effect on single-hit damage |
+| Aura Guard | ➖ no-op | no effect on first-hit damage/speed/accuracy: Halves the damage the Pokémon takes from contact moves. |
 | Battle Armor | ➖ no-op | crit-related — random crits aren't simulated in the ranking (only Merciless's guaranteed crit is) |
 | Berserk | ➖ no-op | +1 SpA below half HP — full-HP assumption; model it with the Sp.Atk stage stepper |
 | Big Pecks | ➖ no-op | no effect on first-hit damage/speed/accuracy: Prevents other Pokemon from lowering this Pokemon's Defense stat stage. |
@@ -32,6 +33,7 @@ Champions data: 199 abilities, 523 moves. Regenerate with `python tools/generate
 | Clear Body | ➖ no-op | no effect on first-hit damage/speed/accuracy: Prevents other Pokemon from lowering this Pokemon's stat stages. |
 | Cloud Nine | ➖ no-op | weather utility (immunity/chip healing) — no effect on hit damage; weather itself is a control |
 | Competitive | ➖ no-op | +2 SpA when stats are lowered — reactive; model it with the Sp.Atk stage stepper |
+| Compound Eyes | ➖ no-op | accuracy/evasion niche — not part of the modeled accuracy layer (No Guard / Hustle / Sand Veil / Snow Cloak are) |
 | Contrary | ➖ no-op | no effect on first-hit damage/speed/accuracy: If this Pokemon has a stat stage raised it is lowered instead, and vice versa. |
 | Corrosion | ➖ no-op | status-condition utility — prevents/inflicts/heals status; no effect on a hit's damage |
 | Cud Chew | ➖ no-op | no effect on first-hit damage/speed/accuracy: If this Pokemon eats a Berry, it will eat that Berry again at the end of the next turn. |
@@ -51,6 +53,7 @@ Champions data: 199 abilities, 523 moves. Regenerate with `python tools/generate
 | Effect Spore | ➖ no-op | status-condition utility — prevents/inflicts/heals status; no effect on a hit's damage |
 | Electric Surge | ➖ no-op | sets Electric Terrain on entry — use the Terrain control |
 | Electromorphosis | ➖ no-op | no effect on first-hit damage/speed/accuracy: This Pokemon gains the Charge effect when it takes a hit from an attack. |
+| Emergency Exit | ➖ no-op | controls switching/trapping — no damage effect |
 | Fairy Aura | ✅ modeled | Fairy moves ×1.33 — field-wide aura (applies whichever side holds it) |
 | Filter | ✅ modeled | super-effective taken ×0.75 |
 | Fire Mane | ✅ modeled | Fire moves ×1.5 (Mega Pyroar, Champions-original) |
@@ -67,6 +70,9 @@ Champions data: 199 abilities, 523 moves. Regenerate with `python tools/generate
 | Gluttony | ➖ no-op | doubles ally-support — this tool computes 1v1 matchups |
 | Good as Gold | ➖ no-op | no effect on first-hit damage/speed/accuracy: A body of pure, solid gold gives the Pokémon full immunity to other Pokémon's status moves. |
 | Gooey | ➖ no-op | no effect on first-hit damage/speed/accuracy: Pokemon making contact with this Pokemon have their Speed lowered by 1 stage. |
+| Grass Pelt | ✅ modeled | physical taken ×⅔ in Grassy Terrain |
+| Grassy Surge | ➖ no-op | sets Grassy Terrain — use the Terrain control |
+| Guard Dog | ➖ no-op | controls switching/trapping — no damage effect |
 | Guts | ✅ modeled | ×1.5 physical when statused |
 | Harvest | ➖ no-op | item interaction — beyond Klutz/Knock Off/Acrobatics/Poltergeist, item events aren't tracked |
 | Healer | ➖ no-op | status-condition utility — prevents/inflicts/heals status; no effect on a hit's damage |
@@ -94,9 +100,11 @@ Champions data: 199 abilities, 523 moves. Regenerate with `python tools/generate
 | Klutz | ✅ modeled | holder's item has no effect (damage items and Choice Scarf) |
 | Leaf Guard | ➖ no-op | status-condition utility — prevents/inflicts/heals status; no effect on a hit's damage |
 | Levitate | ✅ modeled | immune to Ground |
+| Libero | ✅ modeled | STAB on every move |
 | Light Metal | ✅ modeled | weight ×0.5 (Grass Knot / Low Kick take less) |
 | Lightning Rod | ✅ modeled | immune to Electric |
 | Limber | ➖ no-op | status-condition utility — prevents/inflicts/heals status; no effect on a hit's damage |
+| Liquid Ooze | ➖ no-op | healing over turns — no effect on single-hit damage |
 | Liquid Voice | ✅ modeled | Sound moves become Water (type/STAB re-evaluated) |
 | Long Reach | ✅ modeled | its moves never make contact → Fluffy's contact-halving doesn't apply |
 | Magic Bounce | ➖ no-op | reflects status moves — no effect on damaging moves |
@@ -135,12 +143,15 @@ Champions data: 199 abilities, 523 moves. Regenerate with `python tools/generate
 | Prankster | ➖ no-op | priority for status moves only — damaging moves are unaffected |
 | Pressure | ➖ no-op | no effect on first-hit damage/speed/accuracy: If this Pokemon is the target of an opposing Pokemon's move, that move loses one additional PP. Imprison, Snat |
 | Protean | ✅ modeled | STAB on every move |
+| Psychic Surge | ➖ no-op | sets Psychic Terrain — use the Terrain control |
+| Punk Rock | ✅ modeled | Sound ×1.3 dealt · ×0.5 taken |
 | Pure Power | ✅ modeled | Atk ×2 (physical) |
 | Purifying Salt | ✅ modeled | Ghost taken ×0.5 |
 | Queenly Majesty | ✅ modeled | priority moves fail against it |
 | Quick Draw | ➖ no-op | priority interaction — only Gale Wings and the Dazzling family change the modeled speed layer |
 | Quick Feet | ✅ modeled | Spe ×1.5 when statused |
 | Rain Dish | ✅ modeled | +6.25%/turn healing in rain (KO simulation) |
+| Rattled | ➖ no-op | no effect on first-hit damage/speed/accuracy: When the Pokémon takes damage from a Dark-, Ghost-, or Bug-type move or when it is on the receiving end of Int |
 | Receiver | ➖ no-op | status-condition utility — prevents/inflicts/heals status; no effect on a hit's damage |
 | Reckless | ✅ modeled | recoil moves ×1.2 |
 | Refrigerate | ✅ modeled | Normal moves → Ice ×1.2 |
@@ -149,6 +160,7 @@ Champions data: 199 abilities, 523 moves. Regenerate with `python tools/generate
 | Rivalry | ➖ no-op | ±25% by gender — the dataset has no gender information |
 | Rock Head | ➖ no-op | prevents recoil to the user — outgoing damage unchanged |
 | Rough Skin | ➖ no-op | no effect on first-hit damage/speed/accuracy: Pokemon making contact with this Pokemon lose 1/8 of their maximum HP, rounded down. |
+| Run Away | ➖ no-op | controls switching/trapping — no damage effect |
 | Sand Force | ✅ modeled | Ground/Rock/Steel ×1.3 in sand |
 | Sand Rush | ✅ modeled | Spe ×2 in sand |
 | Sand Spit | ➖ no-op | weather utility (immunity/chip healing) — no effect on hit damage; weather itself is a control |
@@ -157,6 +169,7 @@ Champions data: 199 abilities, 523 moves. Regenerate with `python tools/generate
 | Sap Sipper | ✅ modeled | immune to Grass |
 | Scrappy | ✅ modeled | Normal/Fighting hit Ghost |
 | Screen Cleaner | ➖ no-op | controls switching/trapping — no damage effect |
+| Seed Sower | ➖ no-op | weather utility (immunity/chip healing) — no effect on hit damage; weather itself is a control |
 | Shadow Tag | ➖ no-op | controls switching/trapping — no damage effect |
 | Sharpness | ✅ modeled | Slicing moves ×1.5 |
 | Shed Skin | ➖ no-op | status-condition utility — prevents/inflicts/heals status; no effect on a hit's damage |
@@ -173,12 +186,14 @@ Champions data: 199 abilities, 523 moves. Regenerate with `python tools/generate
 | Soundproof | ✅ modeled | immune to Sound moves (Hyper Voice…) |
 | Speed Boost | ➖ no-op | +1 Spe per turn — turn-1 speeds shown; model later turns with the Spe stage stepper |
 | Spicy Spray | ➖ no-op | status-condition utility — prevents/inflicts/heals status; no effect on a hit's damage |
+| Stakeout | ➖ no-op | ×2 vs a Pokémon that switched in this turn — switch state isn't tracked |
 | Stall | ➖ no-op | priority interaction — only Gale Wings and the Dazzling family change the modeled speed layer |
 | Stalwart | ➖ no-op | no effect on first-hit damage/speed/accuracy: This Pokemon's moves cannot be redirected to a different target by any effect. |
 | Stamina | ➖ no-op | +1 Def when hit — applies after the first hit; model it with the Def stage stepper |
 | Stance Change | ➖ no-op | Aegislash form swap per move — needs per-turn form state; stats shown are the listed form's |
 | Static | ➖ no-op | status-condition utility — prevents/inflicts/heals status; no effect on a hit's damage |
 | Steadfast | ➖ no-op | no effect on first-hit damage/speed/accuracy: If this Pokemon flinches, its Speed is raised by 1 stage. |
+| Steely Spirit | ✅ modeled | Steel ×1.5 |
 | Stench | ➖ no-op | no effect on first-hit damage/speed/accuracy: This Pokemon's attacks without a chance to make the target flinch gain a 10% chance to make the target flinch. |
 | Sticky Hold | ➖ no-op | item interaction — beyond Klutz/Knock Off/Acrobatics/Poltergeist, item events aren't tracked |
 | Strong Jaw | ✅ modeled | Bite moves ×1.5 |
@@ -196,6 +211,7 @@ Champions data: 199 abilities, 523 moves. Regenerate with `python tools/generate
 | Tangled Feet | ➖ no-op | no effect on first-hit damage/speed/accuracy: This Pokemon's evasiveness is doubled as long as it is confused. |
 | Technician | ✅ modeled | ×1.5 on ≤60 effective BP |
 | Telepathy | ➖ no-op | doubles ally-support — this tool computes 1v1 matchups |
+| Thermal Exchange | ➖ no-op | +1 Atk when hit by Fire — reactive; its burn immunity has no damage effect |
 | Thick Fat | ✅ modeled | Fire/Ice taken ×0.5 |
 | Torrent | ✅ modeled | Water ×1.5 (pinch, flagged) |
 | Tough Claws | ✅ modeled | Contact moves ×1.3 |

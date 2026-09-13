@@ -20,6 +20,20 @@ export async function loadData() {
   return d;
 }
 
+// Keep provenance wording consistent wherever a Pokémon's movepool is used.
+export function learnsetNotice(mon) {
+  if (mon.learnset?.status !== "verified") {
+    return "Champions learnset unverified. Move choices are withheld; this does not mean the Pokémon learns no moves.";
+  }
+  return mon.learnset.source === "serebii-champions"
+    ? "Champions learnset sourced from Serebii's form-specific Champions table."
+    : "Champions learnset marked verified by the community dataset.";
+}
+
+export function confirmedMoveIds(mon, ids = []) {
+  return ids.filter((id) => mon.moves.includes(id));
+}
+
 const REGION_ADJ = new Set(["Alolan", "Hisuian", "Galarian", "Paldean"]);
 
 // A Mega belongs to the base form its slug derives from (slowbro-mega → slowbro), NOT to

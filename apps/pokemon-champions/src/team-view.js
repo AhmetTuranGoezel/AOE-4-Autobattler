@@ -2,7 +2,7 @@
 // multiple teams, and see defensive weaknesses, offensive coverage (from the chosen
 // moves), speed tiers and role balance. Pure render — app owns state + persistence
 // and attaches the add/move autocompletes after each render.
-import { TYPES, TYPE_COLORS, displayName } from "./data.js";
+import { TYPES, TYPE_COLORS, displayName, learnsetNotice, confirmedMoveIds } from "./data.js";
 import { statsFor, roleOf, speedTier } from "./effective-stats.js";
 import { rosterAbilities } from "./type-defense.js";
 import {
@@ -69,7 +69,10 @@ export function renderTeamView(container, {
   const bySlug = new Map(data.pokemon.map((m) => [m.slug, m]));
   const pickedCount = team.filter((member) => member.picked).length;
   const battleTeam = team.filter((member) => member.picked).slice(0, 4);
-  const analysisTeam = analysisScope === "battle" ? battleTeam : team;
+  // Keep saved choices visible/removable, but never count unconfirmed moves in
+  // coverage or recommendations after a data refresh changes a learnset.
+  const confirmedTeam = team.map((entry) => ({ ...entry, moveIds: confirmedMoveIds(entry.mon, entry.moveIds) }));
+  const analysisTeam = analysisScope === "battle" ? confirmedTeam.filter((entry) => entry.picked).slice(0, 4) : confirmedTeam;
 
   // --- team manager (save / load / delete multiple teams) ---
   const savedRows = savedTeams.length
@@ -115,12 +118,13 @@ export function renderTeamView(container, {
 
   // --- member cards (sprite + types + ability + moveset) ---
   const members = team.map(({ mon, moveIds, ability, picked }) => {
+    const unconfirmed = moveIds.filter((id) => !mon.moves.includes(id));
     const chips = moveIds.map((id) => {
       const mv = data.moves[id];
       if (!mv) return "";
       const pow = mv.power != null ? mv.power : (mv.class === "status" ? "" : "~");
       return `<span class="tm-move" data-move-info="${id}" style="--tc:${TYPE_COLORS[mv.type] || "#555"}" title="${mv.name} · ${mv.type || ""} · ${mv.class} · view details">
-        <span class="tm-move-name">${mv.name}</span>${pow !== "" ? `<small class="tm-move-pow">${pow}</small>` : ""}
+        <span class="tm-move-name">${mv.name}${unconfirmed.includes(id) ? ' <small class="learnset-warning">unverified</small>' : ''}</span>${pow !== "" ? `<small class="tm-move-pow">${pow}</small>` : ""}
         <button class="tm-move-x" data-move-remove="${id}" data-slug="${mon.slug}" aria-label="Remove move">✕</button></span>`;
     }).join("");
     const addMove = moveIds.length < 4
@@ -150,6 +154,8 @@ export function renderTeamView(container, {
         <button class="team-remove" data-team-remove="${mon.slug}" aria-label="Remove">✕</button>
       </div>
       ${abilSel}
+      ${mon.learnset?.status === "unverified" ? `<p class="learnset-note learnset-warning">${learnsetNotice(mon)}</p>` : ""}
+      ${unconfirmed.length ? `<p class="learnset-note learnset-warning">${unconfirmed.length} saved move(s) not confirmed by this snapshot; excluded from team analysis.</p>` : ""}
       <div class="tm-moves">${chips}${addMove}</div>
     </div>`;
   }).join("") || `<p class="team-empty">No Pokémon yet — add up to ${TEAM_MAX} above to analyse the team.</p>`;
@@ -294,7 +300,7 @@ export function renderTeamView(container, {
   const recommendations = rankTypingRecommendations({
     data,
     activeTeam: analysisTeam,
-    fullTeam: team,
+    fullTeam: confirmedTeam,
     limit: 5,
   });
   const recommendationPanel = `<section class="team-card team-recommendations">

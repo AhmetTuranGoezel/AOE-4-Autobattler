@@ -1,23 +1,25 @@
 #!/usr/bin/env python3
 """Generate champions-data.json for the Pokemon Champions tool.
 
-Roster (which species/forms are legal) is scraped from Bulbapedia's
+Roster (available species/forms, not a ranked eligibility whitelist) comes from
 "List of Pokemon in Pokemon Champions" page via the MediaWiki API.
-Per-Pokemon data (stats, types, abilities, movepools, sprites) comes from
-PokeAPI. Derived fields (offensive bias, ability/move rarity) are computed
-here so the front-end loads one static file.
+Learnsets come from verified Champions community records, with a form-aware
+Serebii Champions fallback. PokeAPI/Pokebase movepools are never legality evidence.
 
-Stdlib only. HTTP responses are cached on disk (.cache/) so re-runs are fast
-and polite. Re-run after a balance patch to refresh the data.
+Stdlib only. Regulation-scoped HTTP caches expire after 24 hours. --refresh
+bypasses them immediately; failed refreshes never silently reuse expired data.
 
 Usage:  python apps/pokemon-champions/tools/generate_data.py
 """
+import argparse
 import collections
+import concurrent.futures
 import html
 import json
 import os
 import re
 import sys
+import tempfile
 import time
 import unicodedata
 import urllib.error
@@ -29,6 +31,22 @@ APP = os.path.dirname(HERE)
 CACHE = os.path.join(HERE, ".cache")
 OUT = os.path.join(APP, "champions-data.json")
 OVERRIDES_PATH = os.path.join(HERE, "roster_overrides.json")
+REGULATION_PATH = os.path.join(HERE, "regulation.json")
+REPORT_PATH = os.path.join(APP, "learnset-report.json")
+CACHE_MAX_AGE = 24 * 60 * 60
+REGULATION = None
+REFRESH = False
+FETCHED = set()
+
+
+def load_regulation(path=REGULATION_PATH):
+    with open(path, encoding="utf-8") as f:
+        config = json.load(f)
+    if not re.fullmatch(r"M-[A-Z]+", config.get("id", "")):
+        raise ValueError("Set a verified regulation id in tools/regulation.json")
+    if not config.get("source", "").startswith("https://"):
+        raise ValueError("regulation.json requires a source URL for the regulation")
+    return config
 
 UA = "OwlToolsPokeChampions/1.0 (contact: info@vapor-handel.de)"
 POKEAPI = "https://pokeapi.co/api/v2"
@@ -41,6 +59,7 @@ POKEBASE_MOVE = "https://pokebase.app/pokemon-champions/moves"
 # mechanically PRECISE move/ability descriptions ("Raises Attack by 2 stages", etc.)
 # that the in-game flavor text (pokebase) lacks. MIT-style open data, fetched as JSON.
 CHAMP_REPO = "https://raw.githubusercontent.com/otterlyclueless/pokemon-champions-data/main"
+SEREBII = "https://www.serebii.net/pokedex-champions"
 MOVE_LINK_RE = re.compile(r"pokemon-champions/moves/([a-z0-9-]+)")
 META_DESC_RE = re.compile(r'<meta[^>]*name="description"[^>]*content="([^"]*)"', re.I)
 ABILITY_RE = re.compile(
@@ -76,28 +95,69 @@ FORM_LABELS = {
 # ----------------------------------------------------------------------------
 def _cache_path(key):
     safe = re.sub(r"[^A-Za-z0-9._-]", "_", key)
-    return os.path.join(CACHE, safe + ".json")
+    reg = (REGULATION or load_regulation())["id"]
+    # v2 also invalidates the old parser's persistent, unscoped caches.
+    return os.path.join(CACHE, "v2", reg, safe + ".json")
 
 
-def http_json(url, cache_key=None, retries=4):
+def write_json(path, data, **kwargs):
+    """Atomic replacement: a failed fetch/run cannot leave half a JSON file."""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=os.path.dirname(path),
+                                     delete=False) as f:
+        temp = f.name
+        try:
+            json.dump(data, f, ensure_ascii=False, **kwargs)
+        except BaseException:
+            f.close()
+            os.unlink(temp)
+            raise
+    try:
+        os.replace(temp, path)
+    finally:
+        if os.path.exists(temp):
+            os.unlink(temp)
+
+
+def cache_valid(path):
+    if REFRESH and path not in FETCHED:
+        return False
+    return os.path.isfile(path) and 0 <= time.time() - os.path.getmtime(path) < CACHE_MAX_AGE
+
+
+def http_json(url, cache_key=None, retries=4, *, text=False, missing=None):
+    """Fetch JSON or text; only explicit HTTP 404s can use a supplied default."""
     cache_key = cache_key or url
     cp = _cache_path(cache_key)
-    if os.path.exists(cp):
-        with open(cp, "r", encoding="utf-8") as f:
-            return json.load(f)
+    if cache_valid(cp):
+        try:
+            with open(cp, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except (OSError, ValueError):
+            pass  # corrupt cache: refetch, not a partially valid snapshot
     safe_url = urllib.parse.quote(url, safe=":/?&=%+,")
     last = None
     for attempt in range(retries):
         try:
             req = urllib.request.Request(safe_url, headers={"User-Agent": UA})
-            with urllib.request.urlopen(req, timeout=60) as r:
-                data = json.loads(r.read().decode("utf-8"))
-            os.makedirs(CACHE, exist_ok=True)
-            with open(cp, "w", encoding="utf-8") as f:
-                json.dump(data, f)
+            with urllib.request.urlopen(req, timeout=30) as r:
+                raw = r.read()
+                try:
+                    body = raw.decode("utf-8")
+                except UnicodeDecodeError:
+                    if not text:
+                        raise
+                    body = raw.decode(r.headers.get_content_charset() or "windows-1252")
+                data = body if text else json.loads(body)
+            write_json(cp, data)
+            FETCHED.add(cp)
             time.sleep(0.03)  # be polite to PokeAPI
             return data
         except urllib.error.HTTPError as e:
+            if e.code == 404 and missing is not None:
+                write_json(cp, missing)
+                FETCHED.add(cp)
+                return missing
             if 400 <= e.code < 500:  # bad/unknown slug: permanent, don't retry
                 raise
             last = e
@@ -109,86 +169,40 @@ def http_json(url, cache_key=None, retries=4):
 
 
 def fetch_pokebase_mon(slug):
-    """Fetch a mon's pokebase Champions page once (cached) and pull out the two
-    things only pokebase has Champions-accurate: its real movepool (move slugs appear
-    as /pokemon-champions/moves/<slug> links) and its abilities with descriptions
-    (incl. Champions-original ones like Mega Eelektross's "Eelevate" that PokeAPI
-    doesn't know), plus competitive usage % (abilities/items/natures/moves).
-    Returns {"moves": [...], "abilities": [[name, desc]...], "usage": {...}};
-    fields stay empty on 404 so callers can fall back to PokeAPI."""
-    cp = _cache_path(f"pbmon_{slug}")
-    if os.path.exists(cp):
-        with open(cp, "r", encoding="utf-8") as f:
-            return json.load(f)
-    out = {"moves": [], "abilities": [], "usage": {}}
-    for attempt in range(4):
-        try:
-            req = urllib.request.Request(f"{POKEBASE}/{slug}", headers={"User-Agent": UA})
-            with urllib.request.urlopen(req, timeout=60) as r:
-                page = r.read().decode("utf-8", "ignore")
-            out["moves"] = sorted(set(MOVE_LINK_RE.findall(page)))
-            i = page.find("Abilities")
-            seg = page[i:i + 3000] if i >= 0 else ""
-            out["abilities"] = [[html.unescape(n).strip(), html.unescape(d).strip()]
-                                for n, d in ABILITY_RE.findall(seg)]
-            out["usage"] = parse_pb_usage(page)
-            os.makedirs(CACHE, exist_ok=True)
-            with open(cp, "w", encoding="utf-8") as f:
-                json.dump(out, f, ensure_ascii=False)
-            time.sleep(0.1)  # be polite to pokebase
-            return out
-        except urllib.error.HTTPError as e:
-            if e.code == 404:
-                os.makedirs(CACHE, exist_ok=True)
-                with open(cp, "w", encoding="utf-8") as f:
-                    json.dump(out, f)
-                return out
-            time.sleep(1.5 * (attempt + 1))
-        except Exception:  # noqa: BLE001
-            time.sleep(1.5 * (attempt + 1))
-    return out
+    """Abilities/usage plus UNVERIFIED move candidates (some pages are mainline)."""
+    page = http_json(f"{POKEBASE}/{slug}", f"pbmon_{slug}", text=True, missing="")
+    i = page.find("Abilities")
+    seg = page[i:i + 3000] if i >= 0 else ""
+    return {
+        "moves": sorted(set(MOVE_LINK_RE.findall(page))),
+        "abilities": [[html.unescape(n).strip(), html.unescape(d).strip()]
+                      for n, d in ABILITY_RE.findall(seg)],
+        "usage": parse_pb_usage(page),
+    }
 
 
-def fetch_champions_moves(slug):
-    return fetch_pokebase_mon(slug)["moves"]
-
-
-# Global M-B usage rate per mon, from the pokebase pokemon LIST page: each row is
+# Global usage rate per mon, from the pokebase pokemon LIST page: each row is
 # href="/pokemon-champions/pokemon/<slug>" followed by its rate as
 # <span class="text-xs tabular-nums">NN.N<!-- -->%</span> before the next row's link.
 def fetch_usage_rates():
     """Fetch the pokemon list page once (cached) -> {pokebase slug: usage %}."""
-    cp = _cache_path("pb_usage_rates")
-    if os.path.exists(cp):
-        with open(cp, "r", encoding="utf-8") as f:
-            return json.load(f)
+    page = http_json(POKEBASE, "pb_usage_rates", text=True)
     rates = {}
-    for attempt in range(4):
-        try:
-            req = urllib.request.Request(POKEBASE, headers={"User-Agent": UA})
-            with urllib.request.urlopen(req, timeout=120) as r:
-                page = r.read().decode("utf-8", "ignore")
-            # pair-up: a slug binds to the FIRST rate after it, but only if no other
-            # mon link sits in between (a row without a rate must not steal the next's).
-            link_re = re.compile(r'href="/pokemon-champions/pokemon/([a-z0-9\-]+)"')
-            links = [(m.start(), m.group(1)) for m in link_re.finditer(page)]
-            rate_re = re.compile(r'tabular-nums">([\d.]+)<!-- -->%')
-            rate_list = [(m.start(), float(m.group(1))) for m in rate_re.finditer(page)]
-            ri = 0
-            for li, (lpos, slug) in enumerate(links):
-                nxt = links[li + 1][0] if li + 1 < len(links) else len(page)
-                while ri < len(rate_list) and rate_list[ri][0] < lpos:
-                    ri += 1
-                if ri < len(rate_list) and rate_list[ri][0] < nxt and slug not in rates:
-                    rates[slug] = rate_list[ri][1]
-            os.makedirs(CACHE, exist_ok=True)
-            with open(cp, "w", encoding="utf-8") as f:
-                json.dump(rates, f)
-            print(f"  usage rates: {len(rates)} mons from the pokebase list page")
-            return rates
-        except Exception:  # noqa: BLE001
-            time.sleep(1.5 * (attempt + 1))
-    print("  WARNING: usage rates unavailable (pokebase list fetch failed)")
+    # A slug binds to the FIRST rate after it, without stealing the next row's.
+    links = [(m.start(), m.group(1)) for m in re.finditer(
+        r'href="/pokemon-champions/pokemon/([a-z0-9\-]+)"', page)]
+    rate_list = [(m.start(), float(m.group(1))) for m in re.finditer(
+        r'class="[^"]*\btabular-nums\b[^"]*">([\d.]+)(?:<!-- -->)?%', page)]
+    ri = 0
+    for li, (lpos, slug) in enumerate(links):
+        nxt = links[li + 1][0] if li + 1 < len(links) else len(page)
+        while ri < len(rate_list) and rate_list[ri][0] < lpos:
+            ri += 1
+        if ri < len(rate_list) and rate_list[ri][0] < nxt and slug not in rates:
+            rates[slug] = rate_list[ri][1]
+    print(f"  usage rates: {len(rates)} mons from the pokebase list page")
+    if not rates:
+        print("  WARNING: no usage rates parsed; usage is omitted, not invented")
     return rates
 
 
@@ -201,73 +215,144 @@ def _norm_key(s):
     return re.sub(r"[^a-z0-9]", "", s.lower())
 
 
-# Moves the dataset repo omits from EVERY learnset while listing them in its own
-# moves.json — an upstream generator bug (the move "Psychic" collides with the type
-# name: 0/240 repo learnsets contain it, yet 23 mons' real ladder usage sets run it,
-# e.g. Alakazam 16.7%). For these, keep the pokebase movepool as the source of truth.
+# These need a Champions-table check, never a mainline/Pokebase union.
 REPO_OMITTED_MOVES = {"psychic"}
 
 
-def apply_repo_learnsets(mons):
-    """Replace each mon's movepool with the curated Champions learnset (Serebii-
-    Champions, community-verified) from the dataset repo. pokebase lists the *full*
-    mainline movepool (e.g. Aegislash with Autotomize), which isn't Champions-legal;
-    the repo learnsets are reg-accurate. Mons the repo doesn't cover keep the pokebase
-    movepool (strictly >= current accuracy)."""
-    ls = fetch_champ_repo("learnsets/learnsets.json")
-    name_idx = {_norm_key(k): v.get("moves", []) for k, v in ls.items()}
-    dex_base = {}
-    for v in ls.values():
-        if str(v.get("form", "")).lower() in ("base", "normal", "") and v.get("dexNumber"):
-            dex_base.setdefault(v["dexNumber"], v.get("moves", []))
+def repo_candidates(mon):
+    """Exact form names only. A shared dex number is NOT learnset evidence."""
+    name, form = mon["species"], mon["formLabel"]
+    if mon["isMega"]:
+        suffix = form.removeprefix("Mega").strip()
+        return [f"Mega {name}{' ' + suffix if suffix else ''}"]
+    if form in ("Alolan", "Galarian", "Hisuian", "Paldean"):
+        return [f"{form} {name}"]
+    if form:
+        return [f"{name} {form}"]
+    return [name]
 
-    def candidates(m):
-        nm, fl = m["species"], m["formLabel"]
-        out = []
-        if m["isMega"]:
-            out.append(f"Mega {nm} X" if fl == "Mega X" else
-                       f"Mega {nm} Y" if fl == "Mega Y" else f"Mega {nm}")
-        if fl in ("Alolan", "Galarian", "Hisuian", "Paldean"):
-            out.append(f"{fl} {nm}")
-        if "Paldea" in fl:
-            out.append(f"Paldean {nm}")
-        if fl and not m["isMega"]:
-            out.append(f"{nm} {fl}")
-        out.append(nm)
-        return out
 
-    hits, miss = 0, []
-    for m in mons:
-        learn = None
-        for c in candidates(m):
-            learn = name_idx.get(_norm_key(c))
-            if learn:
-                break
-        if learn is None and not m["isMega"]:
-            learn = dex_base.get(m["dex"])
-        if learn:
-            new = {slugify(x["name"]) for x in learn}
-            # re-add moves the repo omits globally, but only if pokebase agrees
-            new |= REPO_OMITTED_MOVES & set(m["_moves"])
-            m["_moves"] = sorted(new)
-            m["_movesrc"] = "repo"
-            hits += 1
-        else:
-            miss.append(m["slug"])  # keep pokebase movepool
-    print(f"\nLearnsets: {hits}/{len(mons)} from the Champions dataset, "
-          f"{len(miss)} kept pokebase{(' -> ' + ', '.join(miss)) if miss else ''}")
-    # Diagnostic: a mon's real ladder usage moves are legal by definition — any of
-    # them missing from its final learnset signals another repo omission to vet.
-    gaps = collections.Counter()
-    for m in mons:
-        have = set(m["_moves"])
-        for nm, _pct in (m.get("usage", {}).get("moves") or []):
-            if slugify(nm) not in have:
-                gaps[nm] += 1
-    if gaps:
-        print("  WARNING: usage-set moves missing from learnsets (possible repo omissions):")
-        for nm, n in gaps.most_common(10):
-            print(f"    {nm}: {n} mons")
+def plain_text(markup):
+    return re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", "", markup))).strip()
+
+
+def parse_serebii_moves(page, mon):
+    """Read ONE form's Champions move table, never the union of the page.
+
+    Unknown form headings fail closed. Move names come from link text (not the
+    separator-free attack URL). Other-generation links and type links don't count.
+    """
+    tables = []
+    for match in re.finditer(r"<h3>(.*?)</h3>(.*?)</table>", page, re.S | re.I):
+        title, body = plain_text(match[1]), match[2]
+        if "Standard Moves" in title:
+            tables.append((title, body))
+    slug = mon["slug"]
+    keys = []
+    for token, label in (("alola", "Alolan"), ("galar", "Galarian"),
+                         ("hisui", "Hisuian"), ("paldea", "Paldean")):
+        if token in slug.split("-"):
+            keys.append(f"{label} Form Standard Moves")
+            keys.append(f"{token.title()} Form Standard Moves")
+    if mon["formLabel"]:
+        keys.insert(0, f"Standard Moves - {mon['formLabel']} {mon['species']}")
+    for token, label in (("blaze", "Blaze Breed"), ("aqua", "Aqua Breed"),
+                         ("female", "Female"), ("male", "Male"),
+                         ("midnight", "Midnight Form"), ("dusk", "Dusk Form")):
+        if token in slug.split("-"):
+            keys.insert(0, f"Standard Moves - {label}")
+    # Standard is shared by a species' Mega/battle transformations unless the
+    # source explicitly splits that form's learnset. Regional/sex splits never
+    # fall through to the standard table when their specific table is absent.
+    if (not any(x in slug.split("-") for x in ("alola", "galar", "hisui", "paldea", "female", "male", "midnight", "dusk"))
+            or (len(tables) == 1 and tables[0][0] == "Standard Moves"
+                    and not any(x in slug.split("-") for x in ("alola", "galar", "hisui", "paldea")))):
+        keys.append("Standard Moves")
+    if (not mon["isMega"] and mon.get("category") == "base"
+            and not any(x in slug.split("-") for x in ("female", "alola", "galar", "hisui", "paldea"))):
+        keys.append("Standard Moves - Male")
+    selected = next(((title, body) for key in keys for title, body in tables if title == key), None)
+    if selected is None:
+        return None
+    title, body = selected
+    links = re.findall(r'<a\s+[^>]*href=["\']/attackdex-champions/[^"\']+\.shtml["\'][^>]*>([^<]+)</a>', body, re.I)
+    moves = {slugify(html.unescape(name)) for name in links}
+    # Rotom's signature moves live in a separate, form-restricted table. Each
+    # row includes a Pokémon icon naming the only form allowed to use that move.
+    if mon["species"] == "Rotom":
+        for row in re.findall(r"<tr\b[^>]*>(.*?)</tr>", page, re.S | re.I):
+            names = re.findall(r'/pokedex-champions/icon/[^>]+alt="([^"]+)"', row)
+            if any(_norm_key(n) == _norm_key(f"{mon['formLabel']} Rotom") for n in names):
+                moves.update(slugify(html.unescape(n)) for n in re.findall(
+                    r'<a\s+[^>]*href="/attackdex-champions/[^" ]+\.shtml"[^>]*>([^<]+)</a>', row))
+    return {"moves": sorted(moves), "entry": title} if moves else None
+
+
+def fetch_serebii_learnset(mon):
+    # Serebii retains punctuation in these species' URLs, unlike PokeAPI.
+    api_slug = slugify(mon["species"])
+    species_slug = {"farfetchd": "farfetch'd", "sirfetchd": "sirfetch'd",
+                    "mr-mime": "mr.mime"}.get(api_slug, api_slug)
+    url = f"{SEREBII}/{species_slug}/"
+    page = http_json(url, f"serebii_{species_slug}", text=True, missing="")
+    result = parse_serebii_moves(page, mon)
+    if result:
+        result["url"] = url
+    return result
+
+
+def apply_repo_learnsets(mons, learnsets=None, fallback=None):
+    """Publish only source-verified Champions moves; retain rejected candidates
+    as diagnostics, not selectable moves. Verification is the source's claim,
+    not an assertion that community data or ranked eligibility is infallible.
+    """
+    ls = fetch_champ_repo("learnsets/learnsets.json") if learnsets is None else learnsets
+    fallback = fallback or fetch_serebii_learnset
+    name_idx = {_norm_key(k): (k, v) for k, v in ls.items()}
+    forms = collections.Counter(m["dex"] for m in mons if not m["isMega"])
+    for mon in mons:
+        original = set(mon["_moves"])
+        original_source = mon["_movesrc"]
+        matched = next((name_idx[_norm_key(c)] for c in repo_candidates(mon)
+                        if _norm_key(c) in name_idx), None)
+        entry, record = matched if matched else (None, {})
+        verified = (record.get("championsVerified") is True
+                    and record.get("source") == "serebii-champions"
+                    and record.get("dexNumber") == mon["dex"] and bool(record.get("moves")))
+        new = {slugify(x["name"]) for x in record.get("moves", [])} if verified else set()
+        provenance = {"status": "verified", "source": "champions-repo",
+                      "url": f"{CHAMP_REPO}/learnsets/learnsets.json", "entry": entry}
+        # The repo scraper unions forms on some pages (e.g. Slowbro, Rotom).
+        # Consult the original form-specific tables for these, missing records,
+        # and the known Psychic omission instead of merging mainline candidates.
+        ambiguous = forms[mon["dex"]] > 1
+        needs_check = bool(REPO_OMITTED_MOVES & (original - new))
+        if not verified or ambiguous or needs_check:
+            direct = fallback(mon)
+            if direct:
+                new = set(direct["moves"])
+                provenance = {"status": "verified", "source": "serebii-champions",
+                              "url": direct["url"], "entry": direct["entry"]}
+            elif not verified or ambiguous:
+                new = set()
+                provenance = {"status": "unverified", "source": original_source,
+                              "reason": "No verified, form-specific Champions learnset available."}
+        mon["_moves"] = sorted(new)
+        mon["_movesrc"] = provenance["source"]
+        mon["learnset"] = provenance
+        mon["_learnset_report"] = {
+            "slug": mon["slug"], **provenance, "moveCount": len(new),
+            "candidateSource": original_source,
+            "withheldCandidates": sorted(original - new),
+            "usageMovesNotConfirmed": sorted(slugify(n) for n, _ in mon.get("usage", {}).get("moves", [])
+                                             if slugify(n) not in new),
+        }
+    counts = collections.Counter(m["learnset"]["source"] for m in mons)
+    print(f"\nLearnset sources: {dict(counts)}")
+    unresolved = [m["slug"] for m in mons if m["learnset"]["status"] != "verified"]
+    print(f"  {len(unresolved)} unverified learnsets (moves withheld): {', '.join(unresolved) or 'none'}")
+    return {"unverified": unresolved, "verifiedCount": len(mons) - len(unresolved),
+            "entries": [m["_learnset_report"] for m in mons]}
 
 
 def _between(page, a, b):
@@ -318,70 +403,25 @@ def fetch_pokebase_move(slug):
     """Champions-accurate move numbers (power/accuracy/pp) + effect text from
     pokebase's move page (mainline PokeAPI/Showdown values are often re-tuned in
     Champions, e.g. Iron Head flinch 20% not 30%, PP 16 not 15). Cached; {} on 404."""
-    cp = _cache_path(f"pbmove_{slug}")
-    if os.path.exists(cp):
-        with open(cp, "r", encoding="utf-8") as f:
-            return json.load(f)
-    out = {}
-    for attempt in range(4):
-        try:
-            req = urllib.request.Request(f"{POKEBASE_MOVE}/{slug}", headers={"User-Agent": UA})
-            with urllib.request.urlopen(req, timeout=60) as r:
-                page = r.read().decode("utf-8", "ignore")
-            eff = META_DESC_RE.search(page)
-            out = {
-                "power": _pb_move_stat(page, "Power"),
-                "accuracy": _pb_move_stat(page, "Accuracy"),
-                "pp": _pb_move_stat(page, "PP"),
-                "effect": re.sub(r"\s+", " ", html.unescape(eff.group(1))).strip() if eff else None,
-            }
-            os.makedirs(CACHE, exist_ok=True)
-            with open(cp, "w", encoding="utf-8") as f:
-                json.dump(out, f, ensure_ascii=False)
-            time.sleep(0.1)  # be polite to pokebase
-            return out
-        except urllib.error.HTTPError as e:
-            if e.code == 404:
-                os.makedirs(CACHE, exist_ok=True)
-                with open(cp, "w", encoding="utf-8") as f:
-                    json.dump(out, f)
-                return out
-            time.sleep(1.5 * (attempt + 1))
-        except Exception:  # noqa: BLE001
-            time.sleep(1.5 * (attempt + 1))
-    return out
+    page = http_json(f"{POKEBASE_MOVE}/{slug}", f"pbmove_{slug}", text=True, missing="")
+    if not page:
+        return {}
+    eff = META_DESC_RE.search(page)
+    return {
+        "power": _pb_move_stat(page, "Power"),
+        "accuracy": _pb_move_stat(page, "Accuracy"),
+        "pp": _pb_move_stat(page, "PP"),
+        "effect": re.sub(r"\s+", " ", html.unescape(eff.group(1))).strip() if eff else None,
+    }
 
 
 def fetch_pokebase_ability_desc(slug):
     """Champions-accurate ability effect from pokebase's ability page meta
     description. Cached as a string; returns None on 404/missing so the caller
     falls back to PokeAPI."""
-    cp = _cache_path(f"pb_ability_{slug}")
-    if os.path.exists(cp):
-        with open(cp, "r", encoding="utf-8") as f:
-            return json.load(f)
-    for attempt in range(4):
-        try:
-            req = urllib.request.Request(f"{POKEBASE_ABILITY}/{slug}", headers={"User-Agent": UA})
-            with urllib.request.urlopen(req, timeout=60) as r:
-                page = r.read().decode("utf-8", "ignore")
-            m = META_DESC_RE.search(page)
-            desc = html.unescape(m.group(1)).strip() if m else None
-            os.makedirs(CACHE, exist_ok=True)
-            with open(cp, "w", encoding="utf-8") as f:
-                json.dump(desc, f)
-            time.sleep(0.1)  # be polite to pokebase
-            return desc
-        except urllib.error.HTTPError as e:
-            if e.code == 404:
-                os.makedirs(CACHE, exist_ok=True)
-                with open(cp, "w", encoding="utf-8") as f:
-                    json.dump(None, f)
-                return None
-            time.sleep(1.5 * (attempt + 1))
-        except Exception:  # noqa: BLE001
-            time.sleep(1.5 * (attempt + 1))
-    return None
+    page = http_json(f"{POKEBASE_ABILITY}/{slug}", f"pb_ability_{slug}", text=True, missing="")
+    m = META_DESC_RE.search(page)
+    return html.unescape(m.group(1)).strip() if m else None
 
 
 # ----------------------------------------------------------------------------
@@ -447,6 +487,12 @@ def section(text, start_marker, end_markers):
 
 def parse_section(wikitext, category, available=True):
     """Yield roster entries from one wikitext section."""
+    # Version notes contain nested {{tt|...}} templates (e.g. Pawmot in M-C).
+    # Remove only inner helper templates so their braces don't hide a roster row.
+    previous = None
+    while previous != wikitext:
+        previous = wikitext
+        wikitext = re.sub(r"\{\{(?!(?:gdex|MSP)/Champs\|)[^{}]*\}\}", "", wikitext)
     entries = []
     for m in re.finditer(r"\{\{(gdex/Champs\|[^{}]*?)\}\}", wikitext):
         pos, named = parse_template_args(m.group(1))
@@ -517,6 +563,7 @@ def fetch_roster():
         if e["slug"] in seen:
             continue
         seen.add(e["slug"])
+        e["apiSlug"] = overrides.get("_api", {}).get(e["slug"], e["slug"])
         roster.append(e)
     print(f"  parsed {len(roster)} roster entries "
           f"(base/mega/other/untransferable)")
@@ -533,7 +580,8 @@ def gen_to_int(gen_name):
 
 def fetch_pokemon(entry, species_cache):
     slug = entry["slug"]
-    p = http_json(f"{POKEAPI}/pokemon/{slug}", cache_key=f"poke_{slug}")
+    api_slug = entry.get("apiSlug", slug)
+    p = http_json(f"{POKEAPI}/pokemon/{api_slug}", cache_key=f"poke_{api_slug}")
 
     stats = {}
     name_map = {"hp": "hp", "attack": "atk", "defense": "def",
@@ -547,14 +595,14 @@ def fetch_pokemon(entry, species_cache):
 
     types = [t["type"]["name"] for t in p["types"]]
 
-    # Real Champions movepool + abilities come from a single pokebase page fetch.
-    # PokeAPI is the fallback for the movepool and supplies the hidden-ability flag.
+    # These move candidates are diagnostics only until apply_repo_learnsets runs.
+    # PokeAPI supplies stats and the hidden-ability flag, not Champions legality.
     pb = fetch_pokebase_mon(slug)
     if pb["moves"]:
         moves, move_src = pb["moves"], "pokebase"
     else:
         moves = sorted({m["move"]["name"] for m in p["moves"]})
-        move_src = "fallback"
+        move_src = "pokeapi-mainline"
 
     poke_hidden = {a["ability"]["name"]: a["is_hidden"] for a in p["abilities"]}
     if pb["abilities"]:
@@ -717,20 +765,44 @@ def fetch_ability(slug):
 # ----------------------------------------------------------------------------
 # Main
 # ----------------------------------------------------------------------------
-def main():
+def parallel_map(fn, values):
+    # A small bounded pool keeps full regulation refreshes practical. map retains
+    # input order, so snapshot ordering and stable move-id allocation don't race.
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+        yield from pool.map(fn, values)
+
+
+def fetch_roster_mon(entry):
+    try:
+        return fetch_pokemon(entry, {})
+    except urllib.error.HTTPError as ex:
+        if ex.code == 404:
+            return None
+        raise
+
+
+def main(argv=None):
+    global REGULATION, REFRESH
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--refresh", action="store_true", help="Fetch all sources anew, ignoring HTTP caches")
+    parser.add_argument("--strict-learnsets", action="store_true",
+                        help="Write the report but refuse to publish if any learnsets are unverified")
+    args = parser.parse_args(argv)
+    REGULATION, REFRESH = load_regulation(), args.refresh
+    FETCHED.clear()
+    print(f"Regulation {REGULATION['id']} ({REGULATION['source']}); "
+          f"cache: {'refresh all' if REFRESH else '24-hour TTL'}, {_cache_path('')}")
     roster = fetch_roster()
+    if not roster:
+        raise ValueError("Roster parser returned no entries; keeping the existing snapshot")
 
     print("Fetching Pokemon data from PokeAPI ...")
-    species_cache = {}
     mons, misses = [], []
-    for i, e in enumerate(roster, 1):
-        try:
-            mons.append(fetch_pokemon(e, species_cache))
-        except urllib.error.HTTPError as ex:
-            if 400 <= ex.code < 500:
-                misses.append(e["slug"])
-                continue
-            raise
+    for i, (e, mon) in enumerate(zip(roster, parallel_map(fetch_roster_mon, roster)), 1):
+        if mon is None:
+            misses.append(e["slug"])
+        else:
+            mons.append(mon)
         if i % 25 == 0 or i == len(roster):
             print(f"  {i}/{len(roster)} ({len(misses)} missing)")
 
@@ -740,15 +812,19 @@ def main():
         for s in misses:
             print("   -", s)
 
-    fb = [m["slug"] for m in mons if m["_movesrc"] == "fallback"]
-    print(f"\nMovepools: {len(mons) - len(fb)} from pokebase, {len(fb)} fell back "
-          f"to PokeAPI{(' -> ' + ', '.join(fb)) if fb else ''}")
+    fb = [m["slug"] for m in mons if m["_movesrc"] == "pokeapi-mainline"]
+    print(f"\nUNVERIFIED move candidates: {len(mons) - len(fb)} from pokebase, {len(fb)} from PokeAPI")
     afb = [m["slug"] for m in mons if m["_abilsrc"] == "fallback"]
     print(f"Abilities: {len(mons) - len(afb)} mons from pokebase, {len(afb)} fell back "
           f"to PokeAPI{(' -> ' + ', '.join(afb)) if afb else ''}")
 
     # Replace pokebase's mainline movepools with the curated Champions learnsets.
-    apply_repo_learnsets(mons)
+    learnset_report = apply_repo_learnsets(mons)
+    generated = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    write_json(REPORT_PATH, {"regulation": REGULATION["id"], "generated": generated,
+                            "skippedRosterEntries": misses, **learnset_report}, indent=2)
+    if args.strict_learnsets and learnset_report["unverified"]:
+        raise ValueError("Unverified learnsets; see learnset-report.json. Snapshot not replaced.")
 
     # ---- unique moves ----
     all_moves = sorted({m for mon in mons for m in mon["_moves"]})
@@ -757,7 +833,9 @@ def main():
     for i, mv in enumerate(all_moves, 1):
         try:
             move_meta[mv] = fetch_move(mv)
-        except urllib.error.HTTPError:
+        except urllib.error.HTTPError as ex:
+            if ex.code != 404:
+                raise
             move_meta[mv] = {"name": mv.replace("-", " ").title(),
                              "type": None, "class": "status", "power": None,
                              "pp": None, "accuracy": None, "priority": 0, "effect": ""}
@@ -788,8 +866,7 @@ def main():
     # when pokebase actually provides a value (never blank out good data on a miss).
     print("Applying Champions-accurate move data from pokebase ...")
     pb_hits = 0
-    for i, (mv, meta) in enumerate(move_meta.items(), 1):
-        pb = fetch_pokebase_move(mv)
+    for i, ((mv, meta), pb) in enumerate(zip(move_meta.items(), parallel_map(fetch_pokebase_move, move_meta)), 1):
         if not pb:
             continue
         pb_hits += 1
@@ -857,8 +934,6 @@ def main():
             name_ids[nm] = next_id
             next_id += 1
         move_id[mv] = name_ids[nm]
-    with open(ids_path, "w", encoding="utf-8") as f:
-        json.dump(name_ids, f, ensure_ascii=False, indent=0, sort_keys=True)
     move_count = {mv: 0 for mv in all_moves}
 
     # ---- unique abilities ----
@@ -880,7 +955,9 @@ def main():
         else:
             try:
                 abil_meta[slug] = fetch_ability(slug)
-            except urllib.error.HTTPError:
+            except urllib.error.HTTPError as ex:
+                if ex.code != 404:
+                    raise
                 abil_meta[slug] = {"name": slug.replace("-", " ").title(),
                                    "desc": "", "src": "pokeapi"}
         abil_count[slug] = 0
@@ -920,7 +997,7 @@ def main():
                 spec_top = max(spec_top, pw)
         for a in mon["abilities"]:
             abil_count[a["slug"]] += 1
-        # global M-B usage rate: own list-page row, else inherit the base form's
+        # Global source usage rate: own list-page row, else inherit the base form's
         # (megas share their base mon's ladder identity)
         pct = usage_rates.get(mon["slug"])
         if pct is None:
@@ -936,6 +1013,7 @@ def main():
             "abilities": [{"slug": a["slug"], "hidden": a["hidden"]}
                           for a in mon["abilities"]],
             "moves": sorted(ids),
+            "learnset": mon["learnset"],
             "off": {"phys": phys, "spec": spec,
                     "physTop": phys_top, "specTop": spec_top},
             "gen": mon["gen"],
@@ -977,9 +1055,15 @@ def main():
                                  m["formLabel"]))
     data = {
         "meta": {
-            "generated": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "source": "Bulbapedia (roster) + PokeAPI (stats/moves/abilities)",
-            "regulation": "M-B",
+            "generated": generated,
+            "source": "Bulbapedia (availability); Champions community dataset + Serebii Champions (learnsets); PokeAPI + Pokebase + Showdown (metadata)",
+            "regulation": REGULATION["id"],
+            "regulationDetails": REGULATION,
+            "rosterScope": "Champions availability, not a ranked eligibility whitelist",
+            "learnsets": {"verifiedCount": learnset_report["verifiedCount"],
+                          "unverified": learnset_report["unverified"], "report": "learnset-report.json"},
+            "cacheMaxAgeHours": CACHE_MAX_AGE // 3600,
+            "skippedRosterEntries": misses,
             "count": sum(1 for m in out_mons if not m["isMega"]),
             "megaCount": sum(1 for m in out_mons if m["isMega"]),
         },
@@ -988,8 +1072,9 @@ def main():
         "typeChart": fetch_type_chart(),
         "pokemon": out_mons,
     }
-    with open(OUT, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, separators=(",", ":"))
+    # Reserve new IDs before publishing the snapshot (old IDs are never removed).
+    write_json(ids_path, name_ids, indent=0, sort_keys=True)
+    write_json(OUT, data, separators=(",", ":"))
     size = os.path.getsize(OUT) / 1024
     print(f"\nWrote {OUT}")
     print(f"  {data['meta']['count']} species, {data['meta']['megaCount']} "
