@@ -384,19 +384,30 @@ const Game = (() => {
     });
   })();
 
-  function getCoreAnchors(playerCount) {
-    // A two- or three-player core is two tiles, so it sits tighter in the middle.
-    if (playerCount <= 3) return [
-      { q: 0, r: -1, rotation: 0 },
-      { q: -1, r: 1, rotation: 3 }
-    ];
-    return [
-      { q: -1, r: -1, rotation: 0 },
-      { q: 3,  r: -1, rotation: 0 },
-      { q: -2, r: 1,  rotation: 3 },
-      { q: 2,  r: 1,  rotation: 3 }
-    ];
-  }
+function getCoreAnchors(playerCount, coreSide = "A") {
+  // Official Terra Incognita setup:
+  // 2-3 players use core tiles 1-2.
+  // 4-5 players use core tiles 1-4.
+  // The tiles form one horizontal chain, with the orientation mirrored
+  // between Side A and Side B.
+
+  const sideA = [
+    { q: -6, r:  0, rotation: 0 },
+    { q: -1, r: -1, rotation: 3 },
+    { q:  2, r:  0, rotation: 0 },
+    { q:  7, r: -1, rotation: 3 }
+  ];
+
+  const sideB = [
+    { q: -6, r: 0, rotation: 3 },
+    { q: -3, r: 1, rotation: 0 },
+    { q:  2, r: 0, rotation: 3 },
+    { q:  5, r: 1, rotation: 0 }
+  ];
+
+  const anchors = coreSide === "B" ? sideB : sideA;
+  return anchors.slice(0, playerCount <= 3 ? 2 : 4);
+}
 
   // --- Map & Tile Functions ---
 
@@ -979,7 +990,7 @@ const Game = (() => {
     if (opts.advancedDraft) {
       log(st, "Advanced setup: each player drafts 2 tiles to build the core.");
     } else {
-      const anchors = getCoreAnchors(st.players.length);
+      const anchors = getCoreAnchors(st.players.length, setup.coreSide);
       setup.coreTiles.forEach((tileId, i) => {
         const anchor = anchors[i];
         const anchorKey = key(anchor.q, anchor.r);
