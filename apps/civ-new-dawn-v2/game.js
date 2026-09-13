@@ -9351,7 +9351,7 @@ const Game = (() => {
       if (unitType === "army" && antananarivoIsFriendlyCity(st, h, playerId)) return false;
       return !flies;
     }
-    if (h.fortress && !h.city) return true;
+    if (h.fortress && !h.city) return unitType === "army";
     if (h.control && h.control.ownerId !== playerId) {
       if (unitType === "army" && hasCityStateDiplomacy(getPlayer(st, playerId), "Akkad")) {
         return false;
