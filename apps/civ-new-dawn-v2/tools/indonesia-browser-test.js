@@ -109,8 +109,9 @@ async function clickHex(tab, key) {
     R.ok("ordinary movement continues after the Indonesia jump", onLand >= 0,
       await tab.eval("UI.debugInfo().movement"));
 
-    // Clicking the current space is the real UI's "end this figure" gesture.
-    R.ok("browser ended the movement on the current land space", await clickHex(tab, seeded.land));
+    R.ok("clicking the selected space leaves the route uncommitted", await clickHex(tab, seeded.land) &&
+      await tab.eval("!!UI.debugInfo().movement && !UI.debugInfo().actionPending"));
+    await tab.eval("document.querySelector('#bc-done').click()");
     const committed = await waitUntil(async () => await tab.eval(`(() => {
       const me = Game.getPlayer(UI.debugState(), ${JSON.stringify(seeded.id)});
       const unit = me.caravans.find((entry) => entry.id === ${JSON.stringify(seeded.caravanId)});

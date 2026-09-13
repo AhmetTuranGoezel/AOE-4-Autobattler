@@ -56,6 +56,43 @@ function playtestBoard(Game, profiles, mode) {
     p.focusRow = ["culture", "growth", "science", "economy", "military", "industry"];
     st.tileStack = ["15", "06", "07"]; st.tileDeck = st.tileStack.slice();
     st.fixture = { water: edge, capitalKeys };
+  } else if (["movement", "ibrahim", "recovery"].includes(mode)) {
+    const p = st.players[0];
+    p.leaderId = "indonesia"; p.uniqueTaken = true;
+    p.cardTiers.economy = 2; p.cardLevels.economy = 2;
+    p.focusRow = ["economy", "culture", "growth", "science", "military", "industry"];
+    put("-6,0", { city: city(p.id) });
+    put("-5,0"); put("-4,0", { terrain: "water" });
+    put("4,0", { terrain: "water" }); put("5,0"); put("6,0");
+    if (st.players[1]) put("0,4", { city: city(st.players[1].id) });
+    if (st.players[2]) put("0,-4", { city: city(st.players[2].id) });
+    p.caravans[0].position = "-5,0";
+    p.caravans.forEach((u, i) => { u.movedThisCard = i > 0; });
+    st.fixture = { start: "-5,0", waterA: "-4,0", waterB: "4,0", land: "5,0" };
+    if (mode === "ibrahim") {
+      st.players[1].leaderId = "ottoman";
+      st.ibrahimHolder = p.id;
+      put("6,0", { city: city(st.players[1].id) });
+    }
+    if (mode === "recovery") {
+      st.map.hexes["-6,0"].tileId = "01";
+      st.map.hexes["-5,0"].tileId = "01";
+      Game.finalizeSetup(st);
+    }
+  } else if (mode === "soak") {
+    st.players.forEach((p,i) => {
+      const q=i*5-5;
+      put(`${q},0`,{city:city(p.id)});put(`${q},1`);put(`${q+1},0`);
+      p.cardTiers.economy=3;p.cardLevels.economy=3;
+      p.focusRow=["economy","culture","growth","science","military","industry"];
+      Game.syncUnitCounts(st,p);
+      p.caravans.forEach(u=>{u.position=null;u.movedThisCard=false;});
+    });
+    const p=st.players[0];p.leaderId="indonesia";p.uniqueTaken=true;
+    p.cardTiers.economy=2;p.cardLevels.economy=2;Game.syncUnitCounts(st,p);
+    put("-4,0",{terrain:"water"});put("4,0",{terrain:"water"});put("3,0");
+    p.caravans[0].position="-5,1";
+    st.fixture={indonesiaStart:"-5,1",indonesiaExit:"3,0"};
   } else if (mode === "district") {
     // Actual first player can differ from host, player array and current turn.
     const kinds = [["theater", "industrial"], ["theater"], [], ["theater", "industrial"]];

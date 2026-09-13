@@ -101,15 +101,58 @@ const Game = (() => {
   const rowEntryType = (entry) =>
     (entry && typeof entry === "object") ? entry.type : entry;
 
+  // Identity is separate from the legacy string/object trade representation.
+  // Never derive an existing identity from a slot: cards move between slots.
+  function ensureCardIds(player) {
+    const ids = player.focusCardIds || [];
+    const seen = new Set();
+    player.focusCardSerial = Number.isSafeInteger(player.focusCardSerial) ? player.focusCardSerial : 0;
+    for (const id of ids) {
+      if (typeof id === "string" && id.startsWith(`${player.id}:focus:`)) {
+        const serial = Number(id.slice(`${player.id}:focus:`.length));
+        if (Number.isSafeInteger(serial)) player.focusCardSerial = Math.max(player.focusCardSerial, serial);
+      }
+    }
+    player.focusCardIds = (player.focusRow || []).map((entry, index) => {
+      let id = ids[index];
+      if (typeof id !== "string" || seen.has(id)) id = newCardId(player);
+      seen.add(id);
+      return id;
+    });
+  }
+
+  function newCardId(player) {
+    player.focusCardSerial = (player.focusCardSerial || 0) + 1;
+    return `${player.id}:focus:${player.focusCardSerial}`;
+  }
+
+  function swapRowCards(player, a, b) {
+    ensureCardIds(player);
+    [player.focusRow[a], player.focusRow[b]] = [player.focusRow[b], player.focusRow[a]];
+    [player.focusCardIds[a], player.focusCardIds[b]] = [player.focusCardIds[b], player.focusCardIds[a]];
+  }
+
+  function movementCardIndex(player, type, reference = {}) {
+    const cards = rowCards(player);
+    if (reference.cardId) {
+      return cards.findIndex(card => card.id === reference.cardId && card.type === type);
+    }
+    if (Number.isInteger(reference.cardIndex)) {
+      return cards[reference.cardIndex]?.type === type ? reference.cardIndex : -1;
+    }
+    const matches = cards.filter(card => card.type === type);
+    return matches.length === 1 ? matches[0].index : -1;
+  }
+
   // The card in a given place, whichever form the entry takes.
   function rowCardAt(player, index) {
     const entry = (player.focusRow || [])[index];
     if (entry === undefined) return null;
     if (entry && typeof entry === "object") {
-      return { index, type: entry.type, tier: entry.tier || 1,
+      return { index, id: player.focusCardIds?.[index], type: entry.type, tier: entry.tier || 1,
         trade: entry.trade || 0, owns: false, entry };
     }
-    return { index, type: entry, tier: (player.cardTiers && player.cardTiers[entry]) || 1,
+    return { index, id: player.focusCardIds?.[index], type: entry, tier: (player.cardTiers && player.cardTiers[entry]) || 1,
       trade: (player.trade && player.trade[entry]) || 0, owns: true, entry };
   }
   const rowCards = (player) =>
@@ -1094,6 +1137,7 @@ const Game = (() => {
 
   function migratePlayer(player) {
     if (!player) return player;
+    ensureCardIds(player);
     if (player.ready === undefined) player.ready = false;
     player.leaderId = player.leaderId || "random";
     player.trade = player.trade || { culture: 0, growth: 0, science: 0, economy: 0, military: 0, industry: 0 };
@@ -1171,8 +1215,16 @@ const Game = (() => {
       });
     }
     st.rulesVersion = RULE_VERSION;
+    if (!Number.isSafeInteger(st.recoveryGeneration) || st.recoveryGeneration < 0) st.recoveryGeneration = 0;
     ensureNaturalWonderRegistry(st);
     st.players = (st.players || []).map(migratePlayer);
+    for (const ref of [st.activeCard, st.movementContinuation, st.pendingExploration?.movementContinuation]) {
+      if (!ref || ref.cardId || !ref.cardType) continue;
+      const owner = getPlayer(st, ref.playerId);
+      const index = owner ? movementCardIndex(owner, ref.cardType, ref) : -1;
+      if (index < 0) ref.requiresReselection = true;
+      else { ref.cardIndex = index; ref.cardId = owner.focusCardIds[index]; }
+    }
     if (!projectedView && !Array.isArray(st.tileStack)) {
       if (Array.isArray(st.tileDeck)) st.tileStack = st.tileDeck.slice();
       else if (st.setup && Array.isArray(st.setup.tileStack)) st.tileStack = st.setup.tileStack.slice();
@@ -1267,7 +1319,7 @@ const Game = (() => {
 
   const HOST_ACTIONS = new Set([
     "ADD_PLAYER", "START_GAME", "HOST_EDIT_HEX", "HOST_ADJUST_PLAYER",
-    "FORCE_EVENT", "CHECK_AGENDAS", "KICK_PLAYER"
+    "FORCE_EVENT", "CHECK_AGENDAS", "KICK_PLAYER", "EMERGENCY_UNDO_TURN"
   ]);
   const SETUP_ACTIONS = new Set(["PLACE_FORTRESS", "PLACE_TILE"]);
   const CURRENT_PLAYER_ACTIONS = new Set([
@@ -1317,6 +1369,11 @@ const Game = (() => {
       // a seat. Requiring the authenticated host to own a seat closes the last
       // path by which a caller outside the game could invoke correction tools.
       if (!actor) return denied("unknown_actor", "The authenticated host seat is not part of this game.");
+      if (type === "EMERGENCY_UNDO_TURN") {
+        const undo = getUndoStatus(st, actorId, { role });
+        if (!undo.canEmergencyUndo) return denied("recovery_unavailable", undo.emergencyReason);
+        if (payload.snapshotId !== undo.snapshotId) return denied("recovery_snapshot_changed", "The recovery snapshot changed. Review and confirm it again.");
+      }
       if (type === "ADD_PLAYER") {
         // A named component colour that is already held is refused with a
         // reason, so the joining client can say which colour is gone instead of
@@ -1349,6 +1406,11 @@ const Game = (() => {
       return { ok: true };
     }
     if (!actor) return denied("unknown_actor", "The authenticated seat is not part of this game.");
+    if (type === "UNDO_TURN") {
+      if (currentPlayer(st)?.id !== actorId) return denied("not_your_turn", "Only the current player may undo their turn.");
+      const undo = getUndoStatus(st, actorId);
+      return undo.canUndo ? { ok: true } : denied("undo_unavailable", undo.reason);
+    }
 
     if (type === "SET_LEADER" || type === "SET_READY" || type === "SET_COLOR") {
       if (st.phase !== "lobby") {
@@ -1697,6 +1759,12 @@ const Game = (() => {
       if (!permission.ok) {
         return { accepted: false, state: original, code: permission.code, message: permission.message };
       }
+      const movement = movementRequest(bound, candidate);
+      if (movement) {
+        const assessment = inspectMovement(candidate, movement, context || {});
+        if (!assessment.ok) return { accepted: false, state: original,
+          code: assessment.code, message: assessment.message };
+      }
       // applyAction lazily arms the turn checkpoint. Prepare that housekeeping
       // before the transaction baseline so an otherwise illegal move is not
       // mistaken for a successful action merely because the checkpoint exists.
@@ -1732,6 +1800,7 @@ const Game = (() => {
     // The host keeps its undo checkpoint out of every network view. A client
     // only needs the public can/cannot-undo result rendered by the host.
     delete view.turnUndo;
+    view.undoSummary = undoSummary(state);
 
     if (Array.isArray(view.tileStack)) {
       view.tileStackCount = view.tileStack.length;
@@ -1779,6 +1848,10 @@ const Game = (() => {
       const { id, kind, playerId, cardType, cardName, step } = view.cardResolution;
       view.cardResolution = { id, kind, playerId, cardType, cardName, step };
     }
+    if (view.arrivalResolution) {
+      const { id, playerId, unitId, cardId, currentId } = view.arrivalResolution;
+      view.arrivalResolution = { id, playerId, unitId, cardId, currentId, status: "resolving" };
+    }
     view.pendingChoices = (view.pendingChoices || []).map((choice) => {
       if (choice.playerId === viewerSeatId) return choice;
       return { id: choice.id, playerId: choice.playerId, status: "pending" };
@@ -1805,6 +1878,7 @@ const Game = (() => {
   function stateWithoutUndo(st) {
     const plain = { ...st };
     delete plain.turnUndo;
+    delete plain.undoSummary;
     return JSON.parse(JSON.stringify(plain));
   }
 
@@ -1813,6 +1887,7 @@ const Game = (() => {
     const player = currentPlayer(st);
     if (!player) { st.turnUndo = null; return; }
     st.turnUndo = {
+      snapshotId: `turn:${player.id}:${st.turn.round}:${st.turn.index}:${st.recoveryGeneration || 0}`,
       playerId: player.id,
       round: st.turn.round,
       turnIndex: st.turn.index,
@@ -1826,23 +1901,36 @@ const Game = (() => {
   function ensureTurnUndo(st) {
     const cp = currentPlayer(st);
     const undo = st.turnUndo;
-    if (!cp || !undo || undo.playerId !== cp.id || undo.round !== st.turn.round ||
-        undo.turnIndex !== st.turn.index) armTurnUndo(st);
+    // A missing legacy snapshot is NOT evidence of a genuine turn boundary.
+    // Only finalizeSetup and a completed END_TURN may create that boundary.
+    if (undo && (!cp || undo.playerId !== cp.id || undo.round !== st.turn.round ||
+        undo.turnIndex !== st.turn.index)) st.turnUndo = null;
   }
 
-  function getUndoStatus(st, playerId) {
+  function undoSummary(st) {
+    const undo = st?.turnUndo;
+    if (!undo) return null;
+    return { playerId: undo.playerId, round: undo.round, turnIndex: undo.turnIndex,
+      snapshotId: undo.snapshotId || `turn:${undo.playerId}:${undo.round}:${undo.turnIndex}:0`,
+      available: !!undo.snapshot, locked: !!undo.locked, reason: undo.reason || "", actions: undo.actions || 0 };
+  }
+
+  function getUndoStatus(st, playerId, { role } = {}) {
     const cp = st && st.phase === "playing" ? currentPlayer(st) : null;
-    const undo = st && st.turnUndo;
-    if (!cp || !undo || undo.playerId !== cp.id || (playerId && playerId !== cp.id)) {
-      return { canUndo: false, reason: "Undo is available only during your turn.", actions: 0 };
-    }
-    if (undo.locked || !undo.snapshot) {
-      return { canUndo: false, reason: undo.reason || "This turn has passed an irreversible step.", actions: undo.actions || 0 };
-    }
-    if (!(undo.actions > 0)) {
-      return { canUndo: false, reason: "Nothing in this turn needs undoing yet.", actions: 0 };
-    }
-    return { canUndo: true, reason: "Restore the start of this turn.", actions: undo.actions };
+    const undo = st?.stateView ? st.undoSummary : undoSummary(st);
+    const valid = !!(cp && undo?.available && undo.playerId === cp.id &&
+      undo.round === st.turn.round && undo.turnIndex === st.turn.index);
+    const emergency = valid && role === "host" && !!getPlayer(st, playerId) && !st.stateView;
+    const ownTurn = cp && cp.id === playerId;
+    const reason = !valid ? "No turn-start recovery snapshot remains. Recovery is available from the next genuine turn."
+      : !ownTurn ? "Undo is available only during your turn."
+      : undo.locked ? undo.reason || "This turn passed an irreversible step."
+      : !undo.actions ? "Nothing in this turn needs undoing yet." : "Restore the start of this turn.";
+    return { canUndo: valid && ownTurn && !undo.locked && undo.actions > 0,
+      canEmergencyUndo: emergency, snapshotId: valid ? undo.snapshotId : null,
+      reason, lockReason: undo?.locked ? undo.reason : "", actions: undo?.actions || 0,
+      emergencyReason: emergency ? "Host recovery restores this turn despite revealed information."
+        : valid ? "Only the authoritative host may perform emergency recovery." : reason };
   }
 
   function irreversibleReason(type, payload) {
@@ -1859,14 +1947,18 @@ const Game = (() => {
     return "";
   }
 
-  function restoreTurn(st, payload) {
+  function restoreTurn(st, payload, emergency = false) {
     const cp = currentPlayer(st);
-    if (!cp || (!payload.hostOverride && payload.playerId !== cp.id)) return st;
-    const status = getUndoStatus(st, payload.playerId);
-    if (!status.canUndo) return st;
+    if (!cp) return st;
+    const status = getUndoStatus(st, emergency ? cp.id : payload.playerId, { role: emergency ? "host" : "player" });
+    if (emergency ? !status.canEmergencyUndo || payload.snapshotId !== status.snapshotId : !status.canUndo) return st;
     const name = (currentPlayer(st) || {}).name || "Player";
     const restored = migrateState(JSON.parse(JSON.stringify(st.turnUndo.snapshot)));
-    log(restored, `${name} undid the current turn.`);
+    restored.revision = st.revision;
+    restored.gameId = st.gameId;
+    restored.recoveryGeneration = Number(st.recoveryGeneration || 0) + 1;
+    log(restored, emergency ? `Host emergency recovery restored ${name}'s current turn. Previously revealed information cannot be unlearned.`
+      : `${name} undid the current turn.`);
     armTurnUndo(restored);
     return restored;
   }
@@ -1926,6 +2018,7 @@ const Game = (() => {
     // registering as a change merely because it repaired a stale flag.
     normalizeDerivedState(st);
     const before = tracksTurn ? JSON.stringify(stateWithoutUndo(st)) : "";
+    const alreadyRevealed = !!st.pendingExploration;
     const result = applyActionInner(st, action);
     normalizeDerivedState(result);
     const changed = tracksTurn && before !== JSON.stringify(stateWithoutUndo(result));
@@ -1936,12 +2029,14 @@ const Game = (() => {
         armTurnUndo(result);
       } else {
         ensureTurnUndo(result);
+        if (!result.turnUndo) return result;
         result.turnUndo.actions = (result.turnUndo.actions || 0) + 1;
-        const reason = irreversibleReason(type, payload);
+        const reason = !alreadyRevealed && result.pendingExploration
+          ? "Undo is locked because an exploration tile has been revealed."
+          : type === "BEGIN_EXPLORATION" && !result.pendingExploration ? "" : irreversibleReason(type, payload);
         if (reason) {
           result.turnUndo.locked = true;
           result.turnUndo.reason = reason;
-          result.turnUndo.snapshot = null;
         }
       }
     }
@@ -1955,6 +2050,7 @@ const Game = (() => {
     const { type, payload = {} } = action;
 
     if (type === "UNDO_TURN") return restoreTurn(st, payload);
+    if (type === "EMERGENCY_UNDO_TURN") return restoreTurn(st, payload, true);
 
     if (type === "SET_LEADER") {
       if (st.phase !== "lobby") return st;
@@ -2452,6 +2548,10 @@ const Game = (() => {
 
     if (type === "PLAY_ECONOMY") {
       const player = getPlayer(st, payload.playerId);
+      const assessment = inspectMovement(st, { ...payload, unitType: "caravan", intent: "move" });
+      if (!assessment.ok) return st;
+      const arrivalChoiceStart = (st.pendingChoices || []).length;
+      let ibrahimReward = null;
       if (!canResolveCard(player, "economy")) return st;
       const unit = player.caravans.find((u) => u.id === payload.unitId);
       if (!unit) return st;
@@ -2459,10 +2559,7 @@ const Game = (() => {
       if (continuation && (continuation.playerId !== player.id ||
           continuation.unitType !== "caravan" || continuation.unitId !== unit.id ||
           unit.position !== continuation.fromKey)) return st;
-      const cardIndex = continuation && Number.isInteger(continuation.cardIndex)
-        ? continuation.cardIndex
-        : (st.activeCard && Number.isInteger(st.activeCard.cardIndex)
-          ? st.activeCard.cardIndex : resolveCardIndex(player, "economy", payload.cardIndex));
+      const cardIndex = assessment.cardIndex;
       if (cardIndex < 0 || rowEntryType(player.focusRow[cardIndex]) !== "economy") return st;
       if (Number.isInteger(payload.cardIndex) && payload.cardIndex !== cardIndex) return st;
       const ecoHex = st.map.hexes[payload.toKey];
@@ -2580,13 +2677,12 @@ const Game = (() => {
         const hostPlayer = getPlayer(st, hex.city.ownerId);
         const hadEmbassyOnArrival = !!(hex.city.isCapital && hostPlayer &&
           heldDiplomacy(player, "embassy").some((d) => d.fromId === hostPlayer.id));
-        for (let i = 0; i < tradeGain; i++) {
-          queuePendingChoice(st, {
-            kind: "trade_any", playerId: player.id, amount: 1,
-            title: `Trade run: place token ${i + 1} of ${tradeGain}`,
-            options: tradeTargets(st, player)
-          });
-        }
+        const options = tradeTargets(st, player);
+        if (options.length) queuePendingChoice(st, {
+          kind: "trade_any", playerId: player.id, amount: tradeGain,
+          source: "Trade run", title: "Trade run: place 2 tokens", options
+        });
+        else log(st, `${player.name}: 2 normal trade tokens returned to supply (no eligible card capacity).`);
         grantPlayerDiplomacy(st, player, hex.city.ownerId, {
           embassyOnTake: !!(hex.city.isCapital && hostPlayer && !hadEmbassyOnArrival)
         });
@@ -2600,7 +2696,7 @@ const Game = (() => {
         // token goes. These are two seat-owned decisions, never an automatic
         // deposit on Economy.
         if (st.ibrahimHolder === player.id && hasLeader(hostPlayer, "ottoman")) {
-          queueTradeGrant(st, {
+          ibrahimReward = {
             kind: "trade_grant",
             playerId: player.id,
             source: "Ibrahim",
@@ -2611,7 +2707,7 @@ const Game = (() => {
               source: "Ibrahim",
               title: "Ibrahim: Place the Ottoman Trade Token"
             }
-          });
+          };
         }
         // Ottoman Banking (unique Economy III): a caravan reaching the Ibrahim
         // holder's capital brings home a resource.
@@ -2678,12 +2774,21 @@ const Game = (() => {
         completeFigureMove(unit);
       }
       activeMovementCard(st, player, "economy", tradePayment, cardIndex);
-      if (!unitsLeftToMove(player, "economy")) finishActiveCard(st);
+      if (arrival) {
+        const queue = st.pendingChoices.splice(arrivalChoiceStart);
+        if (ibrahimReward) queue.push(ibrahimReward);
+        st.arrivalResolution = { id: makeChoiceId("arrival"), playerId: player.id,
+          cardId: assessment.cardId, cardIndex, unitId: unit.id, queue, currentId: null };
+        advanceArrivalResolution(st);
+      } else if (!unitsLeftToMove(player, "economy")) finishActiveCard(st);
       return st;
     }
 
     if (type === "PLAY_MILITARY_MOVE") {
       const player = getPlayer(st, payload.playerId);
+      const assessment = inspectMovement(st, { ...payload, unitType: "army", intent: "move" });
+      if (!assessment.ok) return st;
+      const cardIndex = assessment.cardIndex;
       if (!canResolveCard(player, "military")) return st;
       const unit = player.armies.find((u) => u.id === payload.unitId);
       if (!unit || !canMoveUnitOnActiveCard(st, player, unit, "military")) return st;
@@ -2694,7 +2799,7 @@ const Game = (() => {
           unit.position !== continuation.fromKey)) return st;
       const tradePayment = continuation
         ? normalizeFocusTradePayment(continuation.tradePayment || continuation.tradeSpent)
-        : movementTradePayment(st, player, "military", payload);
+        : movementTradePayment(st, player, "military", payload, cardIndex);
       if (!tradePayment) return st;
       const moveHex = st.map.hexes[payload.toKey];
       if (!moveHex || !moveHex.active) return st;
@@ -2703,14 +2808,14 @@ const Game = (() => {
       const from = continuation ? continuation.fromKey : (unit.position || payload.startKey);
       if (!from) return st;
       if (!continuation && !unit.position && !launchSpaces(st, player.id).has(from)) return st;
-      const moveLimit = continuation ? continuation.remaining : getMilitaryMove(player, st);
-      const reachable = getReachable(st, from, moveLimit, "army", payload.playerId);
+      const moveLimit = assessment.allowance;
+      const reachable = getReachable(st, from, moveLimit, "army", payload.playerId, cardIndex);
       if (payload.toKey !== from && !reachable.has(payload.toKey)) return st;
       if (findDefender(st, payload.toKey, payload.playerId)) return st;
       unit.position = payload.toKey; log(st, `${player.name} moved army.`);
       completeFigureMove(unit);
       if (continuation) st.movementContinuation = null;
-      activeMovementCard(st, player, "military", tradePayment);
+      activeMovementCard(st, player, "military", tradePayment, cardIndex);
       if (redeploying) {
         consumeMassProductionRedeploy(st, player, unit);
         log(st, `${player.name} redeployed a defeated army with Mass Production.`);
@@ -2721,6 +2826,10 @@ const Game = (() => {
 
     if (type === "PLAY_MILITARY_ATTACK") {
       const player = getPlayer(st, payload.playerId);
+      const assessment = inspectMovement(st, { ...payload, startKey: payload.startKey || payload.fromKey,
+        unitType: "army", intent: "attack" });
+      if (!assessment.ok) return st;
+      const cardIndex = assessment.cardIndex;
       if (!canResolveCard(player, "military")) return st;
       if (st.combat && st.combat.turn !== "done") return st;   // one fight at a time
       const unit = player.armies.find((u) => u.id === payload.unitId);
@@ -2732,7 +2841,7 @@ const Game = (() => {
           unit.position !== continuation.fromKey)) return st;
       const tradePayment = continuation
         ? normalizeFocusTradePayment(continuation.tradePayment || continuation.tradeSpent)
-        : movementTradePayment(st, player, "military", payload);
+        : movementTradePayment(st, player, "military", payload, cardIndex);
       if (!tradePayment) return st;
       const hex = st.map.hexes[payload.toKey];
       if (!hex) return st;
@@ -2740,8 +2849,8 @@ const Game = (() => {
       const from = continuation ? continuation.fromKey : (unit.position || payload.fromKey);
       if (!from) return st;
       if (!continuation && !unit.position && !launchSpaces(st, player.id).has(from)) return st;
-      const moveLimit = continuation ? continuation.remaining : getMilitaryMove(player, st);
-      const reachable = getReachable(st, from, moveLimit, "army", payload.playerId);
+      const moveLimit = assessment.allowance;
+      const reachable = getReachable(st, from, moveLimit, "army", payload.playerId, cardIndex);
       if (!reachable.has(payload.toKey) && from !== payload.toKey) return st;
       // A Non-Aggression Pact stops the attack before it starts: "You cannot
       // attack or destroy the pieces of the player who gave you this card."
@@ -2759,13 +2868,16 @@ const Game = (() => {
         (defender.type === "citystate" && hex.cityState ? hex.cityState.name : null);
       const returnedDiplomacy = diplomacySource
         ? detachDiplomacyFromSource(st, player, diplomacySource) : [];
-      const slot = getSlotValue(player, "military", st);
+      const slot = getSlotValue(player, "military", st, cardIndex);
       const atkParts = getAttackCombatParts(st, player, payload.toKey, defender, slot);
       const leaderBonus = atkParts
         .filter((part) => part.category === "leader")
         .reduce((sum, part) => sum + part.value, 0);
       st.combat = {
         combatId: makeChoiceId("combat"),
+        cardIndex,
+        cardId: assessment.cardId,
+        route: assessment.route,
         attackerId: payload.playerId,
         unitId: payload.unitId,
         fromKey: payload.fromKey || unit.position || from,
@@ -3196,6 +3308,7 @@ const Game = (() => {
       tradeSpent: normalizedPayment.spent,
       tradePayment: normalizedPayment
     };
+    st.activeCard.cardId = rowCardAt(player, st.activeCard.cardIndex)?.id;
     return st.activeCard;
   }
 
@@ -3266,6 +3379,7 @@ const Game = (() => {
   }
 
   function finishActiveCard(st) {
+    if (st.arrivalResolution) return;
     const active = st.activeCard;
     if (!active) return;
     const player = getPlayer(st, active.playerId);
@@ -3979,6 +4093,9 @@ const Game = (() => {
     // different card.
     spendFocusTradePayment(player, cardType, tradePayment, st, idx);
     if (idx >= 0 && !capitalismReplay) {
+      ensureCardIds(player);
+      const [resolvedId] = player.focusCardIds.splice(idx, 1);
+      player.focusCardIds.unshift(resolvedId);
       const [resolvedEntry] = player.focusRow.splice(idx, 1);
       player.focusRow.unshift(resolvedEntry);
     }
@@ -4109,6 +4226,8 @@ const Game = (() => {
   function replaceRowCard(player, targetIndex, gainedType, tier) {
     const target = rowCardAt(player, targetIndex);
     if (!target) return false;
+    ensureCardIds(player);
+    player.focusCardIds[targetIndex] = newCardId(player);
     const carriedTrade = target.trade;
     if (target.type === gainedType) {
       // The ordinary case: the same card, a higher level, where it stands.
@@ -4271,9 +4390,9 @@ const Game = (() => {
       return null;
     }
     const queued = {
-      id: choice.id || makeChoiceId(choice.kind || "choice"),
       round: st.turn ? st.turn.round : 0,
-      ...choice
+      ...choice,
+      id: choice.id || makeChoiceId(choice.kind || "choice")
     };
     st.pendingChoices.push(queued);
     const player = getPlayer(st, queued.playerId);
@@ -4286,6 +4405,7 @@ const Game = (() => {
     const idx = st.pendingChoices.findIndex((c) => c.id === payload.choiceId);
     if (idx < 0) return st;
     const choice = st.pendingChoices[idx];
+    if (st.arrivalResolution && st.arrivalResolution.currentId !== choice.id) return st;
     if (st.districtEvent && st.pendingChoices[0]?.playerId !== choice.playerId) return st;
     const queuedBefore = st.pendingChoices.length;
     if (choice.playerId && payload.playerId && choice.playerId !== payload.playerId && !payload.hostOverride) return st;
@@ -4368,7 +4488,6 @@ const Game = (() => {
           if (st.turnUndo) {
             st.turnUndo.locked = true;
             st.turnUndo.reason = "Undo is locked because Astronomy revealed hidden map tiles.";
-            st.turnUndo.snapshot = null;
           }
           queueAstronomyTileChoice(st, resolution, count);
         } else {
@@ -4481,9 +4600,8 @@ const Game = (() => {
       const skip = !!payload.dismiss;
       const legalPick = !skip && (choice.hexKeys || []).includes(pickedKey) &&
         isShipbuildingWaterSpace(st, choice.fromKey, pickedKey);
-      if ((skip || legalPick) && continueShipbuildingExploration(st, choice, legalPick ? pickedKey : null)) {
-        resolved = !skip;
-      }
+      if (!(skip || legalPick) || !continueShipbuildingExploration(st, choice, legalPick ? pickedKey : null)) return st;
+      resolved = true;
     } else if (choice.kind === "growth_globalization_type") {
       const kind = payload.optionId;
       const resolution = st.cardResolution;
@@ -4648,12 +4766,10 @@ const Game = (() => {
         resolved = true;
       }
     } else if (choice.kind === "capital_loot_place") {
-      const targetType = payload.optionId;
-      if (FOCUS_TYPES.includes(targetType) &&
-          (choice.options || []).some((option) => option.id === targetType) &&
-          Number(player.trade[targetType] || 0) < CFG.maxTrade) {
-        player.trade[targetType]++;
-        log(st, `${player.name} placed a captured trade token on ${FOCUS_LABELS[targetType]}.`);
+      const target = tradeChoiceCard(player, choice, payload.optionId);
+      if (target && target.trade < CFG.maxTrade) {
+        setCardTradeAt(player, target.index, target.trade + 1);
+        log(st, `${player.name} placed a captured trade token on ${cardNameAt(player, target.index)}.`);
         if (Number(choice.remaining || 1) > 1) {
           queueCapitalLootTake(st, player.id, choice.defenderId,
             Number(choice.remaining || 1) - 1);
@@ -4673,18 +4789,20 @@ const Game = (() => {
           log(st, `${player.name} banked 1 trade token on Great Zimbabwe (${player.zimbabwe}/4).`);
           resolved = true;
         }
-      } else if (FOCUS_TYPES.includes(cardType) &&
-          Number(player.trade[cardType] || 0) < CFG.maxTrade) {
-        player.trade[cardType] = Number(player.trade[cardType] || 0) + 1;
-        log(st, `${player.name} gained +1 ${cardType} trade.`);
-        resolved = true;
+      } else {
+        const target = tradeChoiceCard(player, choice, cardType);
+        if (target && target.trade < CFG.maxTrade) {
+          setCardTradeAt(player, target.index, target.trade + 1);
+          log(st, `${player.name} placed 1 trade token on ${cardNameAt(player, target.index)} (slot ${target.index + 1}).`);
+          resolved = true;
+        }
       }
       // Multi-token effects are separate physical placements. Recompute the
       // target list after each token so the player can distribute them and a
       // card that just filled cannot eat the rest through a stale UI option.
       if (resolved && Number(choice.amount || 1) > 1) {
         const remaining = Number(choice.amount || 1) - 1;
-        const options = tradeTargets(st, player);
+        const options = choice.focusOnly ? focusTradeTargets(player) : tradeTargets(st, player);
         if (options.length) {
           queuePendingChoice(st, {
             ...choice,
@@ -5083,9 +5201,7 @@ const Game = (() => {
     } else if (choice.kind === "swap_adjacent") {
       const i = parseInt(payload.optionId, 10);
       if (Number.isInteger(i) && i >= 0 && i < player.focusRow.length - 1) {
-        const tmp = player.focusRow[i];
-        player.focusRow[i] = player.focusRow[i + 1];
-        player.focusRow[i + 1] = tmp;
+        swapRowCards(player, i, i + 1);
         log(st, `${player.name} swapped two adjacent focus cards (${choice.source || "effect"}).`);
         resolved = true;
       }
@@ -5178,8 +5294,7 @@ const Game = (() => {
       // Some sources leave one card type where it is — Sankore never moves science.
       const barred = choice.exclude && (a === choice.exclude || b === choice.exclude);
       if (ia >= 0 && ib >= 0 && !barred) {
-        player.focusRow[ia] = b;
-        player.focusRow[ib] = a;
+        swapRowCards(player, ia, ib);
         log(st, `${player.name} swapped ${FOCUS_LABELS[a]} and ${FOCUS_LABELS[b]}.`);
         resolved = true;
       }
@@ -5192,8 +5307,7 @@ const Game = (() => {
       if (FOCUS_TYPES.includes(otherType) && otherType !== "military" &&
           militaryIndex >= 0 && otherIndex >= 0 && heldIndex >= 0) {
         player.diplomacy.splice(heldIndex, 1);
-        player.focusRow[militaryIndex] = otherType;
-        player.focusRow[otherIndex] = "military";
+        swapRowCards(player, militaryIndex, otherIndex);
         const giver = getPlayer(st, choice.fromId);
         log(st, `${player.name} returned the Non-Aggression Pact from ${giver ? giver.name : "its giver"} and moved Military.`);
         resolved = true;
@@ -5332,6 +5446,13 @@ const Game = (() => {
         finishActiveCard(st);
       }
       advanceDistrictEvent(st);
+      if (st.arrivalResolution?.currentId === choice.id) {
+        // Every follow-up caused by the current decision precedes the next
+        // arrival step, including Embassy's other-seat placement and resource.
+        st.arrivalResolution.queue.unshift(...st.pendingChoices.splice(0));
+        st.arrivalResolution.currentId = null;
+        advanceArrivalResolution(st);
+      }
     }
     return st;
   }
@@ -5812,7 +5933,7 @@ const Game = (() => {
     activeMovementCard(st, player, "military",
       st.activeCard && st.activeCard.cardType === "military"
         ? st.activeCard.tradePayment || st.activeCard.tradeSpent
-        : c.tradePayment || 0);
+        : c.tradePayment || 0, c.cardIndex);
     if (scorchedOffer) {
       queuePendingChoice(st, {
         kind: "scorched_earth",
@@ -6920,15 +7041,16 @@ const Game = (() => {
     return slotAfterShift(idx, shift);
   }
 
-  function getMilitaryMove(player, st) {
+  function getMilitaryMove(player, st, cardIndex) {
     // Pentagon: "Your armies can move any number of spaces. (They must still
     // obey all other movement rules.)" Only the distance is lifted — stopping
     // on a rival piece, ending on entering a barbarian, and the rest still
     // apply, so this is a very large budget rather than a special case.
     if (st && hasWonder(st, player.id, "Pentagon")) return 99;
-    const tier = getCardTier(player, "military");
+    const index = resolveCardIndex(player, "military", cardIndex);
+    const tier = cardTierAt(player, index);
     // Scythia's Horseback Riding (unique Military I): armies ride 6 spaces.
-    if (uniqueInPlay(player, "scythia")) return 6;
+    if (getActiveUniqueCard(player, "military", index)?.name === "Horseback Riding") return 6;
     return CARD_TIERS.military.move[tier - 1];
   }
 
@@ -7012,11 +7134,47 @@ const Game = (() => {
   // card as a fifth-and-more place to park one, up to a printed limit of 4.
   function focusTradeTargets(player) {
     if (!player) return [];
-    return FOCUS_TYPES.filter((f) => Number(player.trade[f] || 0) < CFG.maxTrade)
-      .map((f) => ({
-        id: f,
-        label: `${FOCUS_LABELS[f]} (${player.trade[f] || 0}/${CFG.maxTrade})`
-      }));
+    const cards = rowCards(player);
+    return cards.filter(card => card.trade < CFG.maxTrade).map(card => ({
+      id: cards.filter(other => other.type === card.type).length === 1 ? card.type : `card|${card.id}`,
+      cardId: card.id, cardIndex: card.index,
+      label: `${cardNameAt(player, card.index)} / slot ${card.index + 1} (${card.trade}/${CFG.maxTrade})`
+    }));
+  }
+
+  function tradeChoiceCard(player, choice, optionId) {
+    const option = (choice.options || []).find(entry => entry.id === optionId);
+    if (!option) return null;
+    const cards = rowCards(player);
+    if (option.cardId) return cards.find(card => card.id === option.cardId) || null;
+    // Deterministic legacy migration: a unique type is unambiguous, Oxford is
+    // not. A legacy type must never silently name its first duplicate.
+    const matches = cards.filter(card => card.type === optionId);
+    return matches.length === 1 ? matches[0] : null;
+  }
+
+  function advanceArrivalResolution(st) {
+    const arrival = st.arrivalResolution;
+    if (!arrival || st.pendingChoices.length) return;
+    while (arrival.queue.length) {
+      let choice = arrival.queue.shift();
+      const owner = getPlayer(st, choice.playerId);
+      if (!owner) continue;
+      if (choice.kind === "trade_grant") choice = { ...choice, kind: "trade_any", amount: 1, focusOnly: true };
+      if (choice.kind === "trade_any") {
+        choice.options = choice.focusOnly ? focusTradeTargets(owner) : tradeTargets(st, owner);
+        if (!choice.options.length) {
+          log(st, `${choice.source || "Trade"}: ${owner.name} returned ${choice.amount || 1} unplaceable trade token(s) to supply.`);
+          if (choice.nextChoice) arrival.queue.unshift(choice.nextChoice);
+          continue;
+        }
+      }
+      arrival.currentId = queuePendingChoice(st, choice);
+      if (arrival.currentId) return;
+    }
+    const player = getPlayer(st, arrival.playerId);
+    st.arrivalResolution = null;
+    if (player && !unitsLeftToMove(player, "economy")) finishActiveCard(st);
   }
 
   function tradeTargets(st, player) {
@@ -7054,6 +7212,7 @@ const Game = (() => {
       title: descriptor.title || `${descriptor.source || "Trade reward"}: Place a Trade Token`,
       source: descriptor.source || "Trade reward",
       amount: 1,
+      focusOnly: true,
       options,
       nextChoice: descriptor.nextChoice || null
     });
@@ -9763,15 +9922,9 @@ const Game = (() => {
 
   function movementOrigin(st, player, unit, unitType, payload) {
     if (unit.position) {
-      // Trajan may start a deployed caravan's route from any Roman city.
-      if (unitType === "caravan" && hasLeader(player, "rome") && payload.startKey &&
-          payload.startKey !== unit.position) {
-        const startHex = st.map.hexes[payload.startKey];
-        if (startHex && startHex.city && startHex.city.ownerId === player.id) return payload.startKey;
-      }
       return unit.position;
     }
-    const launches = launchSpaces(st, player.id);
+    const launches = unitType === "caravan" ? caravanLaunchSpaces(st, player.id) : launchSpaces(st, player.id);
     if (payload.startKey && launches.has(payload.startKey)) return payload.startKey;
     if (unitType === "caravan") {
       const capital = findCapital(st, player.id);
@@ -9783,6 +9936,95 @@ const Game = (() => {
   function sameResourcePayment(a, b) {
     return RESOURCES.every((resource) =>
       Number(a && a[resource] || 0) === Number(b && b[resource] || 0));
+  }
+
+  function movementRequest(action, st) {
+    const p = action.payload || {};
+    if (action.type === "PLAY_ECONOMY") return { ...p, unitType: "caravan", intent: "move" };
+    if (action.type === "PLAY_MILITARY_MOVE" || action.type === "PLAY_MILITARY_ATTACK") {
+      return { ...p, startKey: p.startKey || p.fromKey, unitType: "army",
+        intent: action.type === "PLAY_MILITARY_ATTACK" ? "attack" : "move" };
+    }
+    if (action.type === "BEGIN_EXPLORATION" && !(st.freeExplore?.playerId === p.playerId &&
+        st.freeExplore.fromKey === p.fromKey)) {
+      const explorer = findExplorer(getPlayer(st, p.playerId), p);
+      return { ...p, unitType: explorer?.unitType, unitId: explorer?.unit.id,
+        toKey: p.fromKey, intent: "explore" };
+    }
+    return null;
+  }
+
+  // A read-only view of the SAME route the reducer will accept. No client
+  // allowance, cached edge set or per-type card fallback is trusted here.
+  function inspectMovement(st, request = {}, context = {}) {
+    const fail = (code, message) => ({ ok: false, legal: false, code, message,
+      route: [], reachable: [], spent: 0, remaining: 0 });
+    const actorId = context.actorId || request.playerId;
+    const player = getPlayer(st, actorId);
+    if (!player || (request.playerId && request.playerId !== actorId))
+      return fail("movement_owner_mismatch", "This movement belongs to another seat.");
+    if (st.phase !== "playing" || currentPlayer(st)?.id !== actorId)
+      return fail("movement_wrong_turn", "Only the current player may move a figure.");
+    if (request.recoveryGeneration !== undefined && request.recoveryGeneration !== (st.recoveryGeneration || 0))
+      return fail("movement_state_changed", "The turn was restored. Select the card and figure again.");
+    if (st.combat || st.pendingExploration || (!context.resolvingChoice && (st.pendingChoices || []).length))
+      return fail("movement_pending_decision", "Resolve the current decision before moving.");
+    const unitType = request.unitType;
+    if (!["army", "caravan"].includes(unitType)) return fail("movement_unit_mismatch", "Select an army or caravan.");
+    const unit = (unitType === "army" ? player.armies : player.caravans).find(u => u.id === request.unitId);
+    const cardType = unitType === "army" ? "military" : "economy";
+    if (!unit || (request.cardType && request.cardType !== cardType))
+      return fail("movement_unit_mismatch", "The selected figure does not belong to this card and seat.");
+    const active = st.activeCard;
+    const cont = st.movementContinuation;
+    if (active && (active.playerId !== actorId || active.cardType !== cardType))
+      return fail("movement_card_mismatch", "Finish the active physical card first.");
+    const bound = cont || active;
+    const cardIndex = movementCardIndex(player, cardType, bound || request);
+    const card = rowCardAt(player, cardIndex);
+    if (!card || bound?.requiresReselection || (request.cardId && request.cardId !== card.id) ||
+        (Number.isInteger(request.cardIndex) && request.cardIndex !== cardIndex))
+      return fail("movement_card_mismatch", "That physical card changed or is ambiguous. Select it again.");
+    if (cont && (cont.playerId !== actorId || cont.unitId !== unit.id || cont.unitType !== unitType ||
+        cont.fromKey !== unit.position || cont.status !== "ready"))
+      return fail("movement_unit_mismatch", "Finish the interrupted figure from its confirmed position.");
+    if (!canMoveUnitOnActiveCard(st, player, unit, cardType) || (!active && !canResolveCard(player, cardType)))
+      return fail("movement_exhausted", "This figure or card has already finished moving.");
+    const payment = movementTradePayment(st, player, cardType, request, cardIndex);
+    if (!payment || (cont && (payment.spent !== Number(cont.tradeSpent || 0) ||
+        !sameResourcePayment(payment.resources, cont.tradePayment?.resources))))
+      return fail("movement_payment_mismatch", "The movement payment changed. Re-select the payment before moving.");
+    const startKey = cont?.fromKey || movementOrigin(st, player, unit, unitType, request);
+    if (!startKey || (request.startKey && request.startKey !== startKey))
+      return fail("movement_origin_changed", "The figure is no longer at the selected origin.");
+    const allowance = cont ? cont.remaining : unitType === "caravan"
+      ? getEconomyMove(player, st, cardIndex) + payment.spent : getMilitaryMove(player, st, cardIndex);
+    const toKey = request.toKey || startKey;
+    if (!st.map.hexes[toKey]?.active) return fail("movement_blocked", "The destination is not an active board space.");
+    const route = validateMovementRoute(st, startKey, toKey, request.route, allowance, unitType, actorId, cardIndex);
+    if (!route) return fail(allowance <= 0 ? "movement_exhausted" : "movement_unreachable",
+      allowance <= 0 ? "No movement remains." : "The proposed route is blocked or exceeds the remaining allowance.");
+    const h = st.map.hexes[toKey];
+    const arrival = unitType === "caravan" && ((h.cityState && !antananarivoIsFriendlyCity(st, h, actorId)) ||
+      (h.city && h.city.ownerId !== actorId));
+    if (arrival && (player.citiesTradedThisTurn || []).includes(toKey))
+      return fail("movement_city_already_traded", "You already traded at this city this turn.");
+    const targets = unitType === "army" ? findDefenders(st, toKey, actorId) : [];
+    if (request.intent === "move" && targets.length)
+      return fail("movement_attack_required", "Choose Attack and its target to enter this space.");
+    if (request.intent === "attack" && !targets.length)
+      return fail("movement_target_changed", "There is no longer an attack target at that destination.");
+    const canExplore = !unit.exploredThisMove && route.remaining > 0 && isExploreEligible(st, toKey);
+    if (request.intent === "explore" && !canExplore)
+      return fail("movement_exploration_unavailable", "Exploration needs one remaining movement and an eligible, unexplored origin.");
+    const stopping = toKey !== startKey && isForcedStopHex(st, h, unitType, actorId);
+    return { ok: true, legal: true, code: "ok", message: "Route is legal.", playerId: actorId,
+      cardType, cardIndex, cardId: card.id, unitType, unitId: unit.id, startKey, toKey,
+      route: route.route, spent: route.spent, remaining: route.remaining, allowance, tradePayment: payment,
+      recoveryGeneration: st.recoveryGeneration || 0,
+      reachable: stopping ? [] : [...getReachable(st, toKey, route.remaining, unitType, actorId, cardIndex)],
+      interaction: { trade: !!arrival, attack: targets.length > 0, canExplore: canExplore && !stopping,
+        targets, forcedStop: stopping }, explored: !!unit.exploredThisMove };
   }
 
   function movementTradePayment(st, player, cardType, payload, cardIndex) {
@@ -9835,25 +10077,17 @@ const Game = (() => {
       if (index < stops.length - 1 && isForcedStopHex(st, hex, unitType, playerId)) return null;
       current = target;
     }
-    return { spent, remaining: maxMove - spent };
+    return { route: stops, spent, remaining: maxMove - spent };
   }
 
-  function prepareExplorationMovement(st, player, payload) {
+  function prepareExplorationMovement(st, player, payload, resolvingChoice = false) {
     const found = findExplorer(player, payload);
     if (!found || found.unit.movedThisCard || found.unit.exploredThisMove) return null;
     const { unit, unitType } = found;
-    const cardType = unitType === "caravan" ? "economy" : "military";
-    const cardIndex = st.activeCard && Number.isInteger(st.activeCard.cardIndex)
-      ? st.activeCard.cardIndex : resolveCardIndex(player, cardType, payload.cardIndex);
-    const tradePayment = movementTradePayment(st, player, cardType, payload, cardIndex);
-    if (!tradePayment) return null;
-    const startKey = movementOrigin(st, player, unit, unitType, payload);
-    if (!startKey) return null;
-    const maxMove = unitType === "caravan"
-      ? getEconomyMove(player, st, cardIndex) + tradePayment.spent : getMilitaryMove(player, st);
-    const route = validateMovementRoute(st, startKey, payload.fromKey, payload.route,
-      maxMove, unitType, player.id, cardIndex);
-    if (!route || route.remaining < 1) return null;
+    const assessment = inspectMovement(st, { ...payload, unitType, unitId: unit.id,
+      toKey: payload.fromKey, intent: "explore" }, { actorId: player.id, resolvingChoice });
+    if (!assessment.ok) return null;
+    const { cardType, cardIndex, cardId, startKey, tradePayment, allowance: maxMove } = assessment;
     return {
       kind: "post_exploration_movement",
       playerId: player.id,
@@ -9861,11 +10095,12 @@ const Game = (() => {
       unitId: unit.id,
       cardType,
       cardIndex,
+      cardId,
       startKey,
       fromKey: payload.fromKey,
       maxMove,
-      spentBeforeExplore: route.spent,
-      remaining: route.remaining - 1,
+      spentBeforeExplore: assessment.spent,
+      remaining: assessment.remaining - 1,
       tradeSpent: tradePayment.spent,
       tradePayment,
       status: "pending_tile"
@@ -9933,9 +10168,8 @@ const Game = (() => {
     // the exploration it belongs to. The authoritative snapshot exposes both
     // changes together, which is still the printed "before exploring" window.
     beginExploration(st, {
-      ...cloneSerializable(choice.explorationPayload),
-      skipShipbuilding: true
-    });
+      ...cloneSerializable(choice.explorationPayload)
+    }, choice.id);
     if (!st.pendingExploration || st.pendingExploration.playerId !== player.id) return false;
 
     const active = activeMovementCard(st, player, "economy",
@@ -9950,7 +10184,9 @@ const Game = (() => {
     return true;
   }
 
-  function beginExploration(st, payload) {
+  function beginExploration(st, payload, shipbuildingChoiceId) {
+    const resolvingShipbuilding = (st.pendingChoices || []).some(choice =>
+      choice.id === shipbuildingChoiceId && choice.kind === "shipbuilding_water" && choice.playerId === payload.playerId);
     if (st.phase !== "playing" || st.pendingExploration) return st;
     const current = currentPlayer(st);
     if (!current || current.id !== payload.playerId) return st;
@@ -9962,7 +10198,7 @@ const Game = (() => {
         (!st.tileStack.length && !retainedTile)) return st;
 
     if (!freeRun && !isExploreEligible(st, payload.fromKey)) return st;
-    const movement = freeRun ? null : prepareExplorationMovement(st, player, payload);
+    const movement = freeRun ? null : prepareExplorationMovement(st, player, payload, resolvingShipbuilding);
     if (!freeRun && !movement) return st;
 
     // Indonesia's unique economy card inserts one optional component placement
@@ -9973,7 +10209,7 @@ const Game = (() => {
       st.activeCard.cardType === "economy" ? st.activeCard : null;
     const shipbuilding = movement && movement.unitType === "caravan" &&
       getActiveUniqueCard(player, "economy", movement.cardIndex)?.name === "Shipbuilding" &&
-      !payload.skipShipbuilding &&
+      !resolvingShipbuilding &&
       !(active && active.shipbuildingWaterOffered);
     if (shipbuilding) {
       const waterSpaces = shipbuildingWaterSpaces(st, payload.fromKey);
@@ -9986,7 +10222,9 @@ const Game = (() => {
           optional: true,
           fromKey: payload.fromKey,
           hexKeys: waterSpaces,
-          explorationPayload: cloneSerializable(payload)
+          cardId: movement.cardId,
+          unitId: movement.unitId,
+          explorationPayload: { ...cloneSerializable(payload), cardId: movement.cardId, cardIndex: movement.cardIndex }
         });
         return st;
       }
@@ -10299,6 +10537,6 @@ const Game = (() => {
     isExploreEligible, validateExploration, placeExploredTile,
     getLegalExplorationPlacements, getAstronomyPlacements, astronomyCapitalEdges, isLegalExplorationPlacement,
     hasLegalExplorationPlacement,
-    canAbandonExploration, getReachableWithDist, movementNeighborKeys
+    canAbandonExploration, getReachableWithDist, movementNeighborKeys, inspectMovement
   };
 })();

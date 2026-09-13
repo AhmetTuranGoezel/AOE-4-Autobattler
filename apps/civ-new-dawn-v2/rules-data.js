@@ -714,7 +714,7 @@
   ];
 
   window.CivRulesData = {
-    rulesVersion: 3,
+    rulesVersion: 4,
     TILES,
     TILE_OFFSETS,
     CARD_DEFS,

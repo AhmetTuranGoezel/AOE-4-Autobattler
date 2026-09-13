@@ -36,6 +36,7 @@ const colourOf = (tab, seatId) => tab.eval(
 
 // Answer any decision this tab's own seat is being asked for.
 async function drainOwnChoices(tab) {
+  await waitUntil(() => tab.eval("!UI.debugInfo().actionPending && !Net.getStatus().pendingActionId"),20000);
   return tab.eval(`(async () => {
     const answered = [];
     for (let i = 0; i < 25; i++) {
@@ -50,7 +51,7 @@ async function drainOwnChoices(tab) {
       else if (c.optional) p.dismiss = true;
       else break;
       const r = await UI.dispatch({ type: "RESOLVE_PENDING_CHOICE", payload: p });
-      answered.push(c.kind + ":" + (r && r.status));
+      answered.push(c.kind + ":" + (r && r.status) + ":" + (r && r.code));
       if (!r || r.status !== "accepted") break;
     }
     return answered;
@@ -228,7 +229,7 @@ async function drainOwnChoices(tab) {
         const current = await activeSeat();
         const tab = tabs[seatIds.indexOf(current)];
         if (!tab) break;
-        await drainOwnChoices(tab);
+        const openingChoices = await drainOwnChoices(tab);
         const played = await tab.eval(`(async () => {
           const all = [...document.querySelectorAll('.fcard:not(.disabled)')];
           const el = all.find((e) => e.dataset.card === 'science') || all[0];
@@ -238,23 +239,27 @@ async function drainOwnChoices(tab) {
           if (b) b.click();
           return true;
         })()`);
-        await drainOwnChoices(tab);
+        const cardChoices = await drainOwnChoices(tab);
         const ended = await tab.eval(`(async () => {
           const r = await UI.dispatch({ type: "END_TURN", payload: {
             playerId: Net.getCredentials().seatId } });
-          return r && r.status;
+          return r;
         })()`);
-        if (ended === "accepted") turnsTaken++;
-        else { await sleep(400); }
+        if (ended?.status === "accepted") turnsTaken++;
+        else { R.info("turn blocked",JSON.stringify({openingChoices,cardChoices,result:ended,
+          detail:await tab.eval("({ui:UI.debugInfo(),bytes:new TextEncoder().encode(JSON.stringify(UI.debugState())).length})")})); await sleep(400); }
       }
       const reachedPurple = (await activeSeat()) === purpleSeat;
       R.ok("play advanced normally until the purple seat was active", reachedPurple,
-        JSON.stringify({ active: await activeSeat(), purpleSeat, turnsTaken }));
+        JSON.stringify({ active: await activeSeat(), purpleSeat, turnsTaken,
+          diagnostics: await host.eval(`(()=>{const s=UI.debugState();return {ui:UI.debugInfo(),net:Net.getStatus().phase,
+            bytes:new TextEncoder().encode(JSON.stringify(s)).length,choices:s.pendingChoices.map(c=>({kind:c.kind,playerId:c.playerId})),
+            activePlayer:Game.currentPlayer(s).leaderId};})()`) }));
       R.info("turns played before purple", String(turnsTaken));
 
       if (reachedPurple && purpleTab) {
         // ---- purple plays a focus card THROUGH THE UI --------------------
-        await drainOwnChoices(purpleTab);
+        R.info("purple's owned choices",JSON.stringify(await drainOwnChoices(purpleTab)));
         const before = await purpleTab.eval(
           `(() => { const s = UI.debugState(); const p = Game.getPlayer(s, ${JSON.stringify(purpleSeat)});
             return { cardPlayed: p.cardPlayed, tech: p.tech, revision: s.revision,
@@ -304,9 +309,9 @@ async function drainOwnChoices(tab) {
         const endedByPurple = await purpleTab.eval(`(async () => {
           const r = await UI.dispatch({ type: "END_TURN", payload: {
             playerId: Net.getCredentials().seatId } });
-          return r && r.status;
+          return r;
         })()`);
-        R.ok("purple could end its turn", endedByPurple === "accepted", String(endedByPurple));
+        R.ok("purple could end its turn", endedByPurple?.status === "accepted", JSON.stringify({result:endedByPurple,ui:await purpleTab.eval("UI.debugInfo()")}));
 
         const nextSeat = await host.eval("Game.currentPlayer(UI.debugState()).id");
         const nextTab = tabs[seatIds.indexOf(nextSeat)];

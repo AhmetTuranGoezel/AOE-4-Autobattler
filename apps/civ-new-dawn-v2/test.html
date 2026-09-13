@@ -546,7 +546,7 @@
       });
       Game.migrateState(oldNaturalFace);
       assert("rules-v1 saves remap a placed Natural Wonder from its printed face",
-        oldNaturalFace.rulesVersion === 3 &&
+        oldNaturalFace.rulesVersion === 4 &&
         oldNaturalFace.map.hexes["0,0"].naturalWonder === "Torres del Paine" &&
         oldNaturalFace.map.hexes["0,0"].resource === "wonder");
       const naturalFaceOnce = JSON.stringify(oldNaturalFace);
@@ -572,6 +572,7 @@
         st.turn.order = st.players.map((p) => p.id);
         st.setup.order = st.turn.order.slice();
         st.turn.index = 0;
+        Game.finalizeSetup(st); // Genuine turn boundary; no lazy mid-turn snapshots.
         return st;
       }
       function activate(st, k, props) {
@@ -583,6 +584,20 @@
           naturalWonder: null, naturalWonderSpace: null
         }, props || {});
         return st.map.hexes[k];
+      }
+      function resolveNormalArrival(st, includeDiplomacy = true) {
+        // Normal trade and diplomacy happen BEFORE arrival abilities. Drive
+        // those actual owned decisions, rather than reaching into a queued tail.
+        for (let guard = 0; guard < 10; guard++) {
+          const choice = st.pendingChoices?.[0];
+          if (!choice || !(choice.source === "Trade run" || (includeDiplomacy && choice.kind === "take_diplomacy"))) break;
+          const result = Game.tryApplyAction(st, { type: "RESOLVE_PENDING_CHOICE", payload: {
+            choiceId: choice.id, ...(choice.optional ? { dismiss: true } : { optionId: choice.options[0].id })
+          } }, { actorId: choice.playerId, role: "player" });
+          if (!result.accepted) throw Error(`Arrival prefix failed: ${result.code}`);
+          st = result.state;
+        }
+        return st;
       }
 
       {
@@ -1147,7 +1162,7 @@
             looked.state.tileStack.length === originalStack.length);
           assert("seeing Astronomy's hidden bottom tiles locks undo immediately",
             looked.accepted && looked.state.turnUndo && looked.state.turnUndo.locked &&
-            looked.state.turnUndo.snapshot === null);
+            !!looked.state.turnUndo.snapshot && !Game.getUndoStatus(looked.state, astronomer.id).canUndo);
           const declined = inspect ? Game.tryApplyAction(looked.state, {
             type: "RESOLVE_PENDING_CHOICE",
             payload: { choiceId: inspect.id, optionId: "none" }
@@ -4302,7 +4317,8 @@
         explored = Game.applyAction(explored, { type: "ABANDON_EXPLORATION", payload: {
           playerId: explorer.id, fromKey: "0,0"
         } });
-        assert("resolving exploration locks turn undo", !Game.getUndoStatus(explored, explorer.id).canUndo && /exploration/.test(Game.getUndoStatus(explored, explorer.id).reason));
+        assert("legacy offline exploration resolution locks normal undo but retains recovery",
+          !Game.getUndoStatus(explored, explorer.id).canUndo && explored.turnUndo.locked && !!explored.turnUndo.snapshot);
       }
 
       {
@@ -5127,6 +5143,7 @@
             return Game.getEconomyMove(b.me, b.st) === 6;
           })());
           const withHolder = run("ottoman", true);
+          withHolder.out.state = resolveNormalArrival(withHolder.out.state);
           assert("the caravan reaches the Ibrahim holder's capital",
             withHolder.out.accepted, withHolder.out.code);
           const banking = (withHolder.out.state.pendingChoices || [])
@@ -5135,6 +5152,7 @@
             JSON.stringify((withHolder.out.state.pendingChoices || [])
               .map((c) => c.kind + "/" + (c.source || ""))));
           const noHolder = run("ottoman", false);
+          noHolder.out.state = resolveNormalArrival(noHolder.out.state);
           assert("the same trip to a capital with no Ibrahim is accepted",
             noHolder.out.accepted, noHolder.out.code);
           assert("but offers no Banking resource",
@@ -5173,6 +5191,7 @@
             return { b, out };
           };
           const far = run("netherlands", 8);
+          far.out.state = resolveNormalArrival(far.out.state);
           assert("the caravan reaches a rival city eight spaces out",
             far.out.accepted, far.out.code);
           const offer = (far.out.state.pendingChoices || [])
@@ -5191,6 +5210,7 @@
             !!built.map.hexes[offer.hexKeys[0]].city &&
             built.map.hexes[offer.hexKeys[0]].city.ownerId === far.b.me.id);
           const near = run("netherlands", 4);
+          near.out.state = resolveNormalArrival(near.out.state);
           assert("a rival city only four spaces out is reached too",
             near.out.accepted, near.out.code);
           assert("but offers nothing: the card says eight or more",
@@ -6772,6 +6792,7 @@
             payload: { playerId: me.id, unitId: "c1", toKey: "2,0", tradeSpent: 0 } },
             { actorId: me.id, role: "player" });
           assert("the caravan reaches the giver's capital", out.accepted, out.code);
+          out.state = resolveNormalArrival(out.state);
           const grant = (out.state.pendingChoices || [])
             .find((c) => /embassy/i.test(c.source || ""));
           assert("Embassy queues its trade grant", !!grant,
@@ -9463,7 +9484,8 @@
           activate(st, "1,0");
           ["0,1", "-1,1"].forEach((k) => activate(st, k, { control: { ownerId: p.id, fortified: false, district: null } }));
           // Arm the checkpoint the way the start of a real turn does.
-          return { st: Game.applyAction(st, { type: "END_FOCUS_CARD", payload: { playerId: "nobody" } }), me: p };
+          Game.finalizeSetup(st);
+          return { st, me: p };
         };
         const { st: armed, me } = armedSanitation();
         const mid = Game.applyAction(armed, { type: "PLAY_GROWTH_DISTRICT", payload: {
@@ -9610,6 +9632,7 @@
             type: "PLAY_ECONOMY",
             payload: { unitId: holder.caravans[0].id, toKey: "1,0", tradeSpent: 0 }
           }, { actorId: holder.id, role: "player" });
+          arrival.state = resolveNormalArrival(arrival.state);
           const holderPick = arrival.state.pendingChoices.find((choice) =>
             choice.source === "Ibrahim" && choice.playerId === holder.id);
           assert("Ibrahim lets the visiting holder choose their own focus card",
@@ -9628,6 +9651,7 @@
             !stolen.accepted && stolen.code === "choice_owner_mismatch" &&
             JSON.stringify(arrival.state) === stolenBefore);
 
+          const beforeIbrahim = arrival.state.players[1].trade.culture;
           const own = Game.tryApplyAction(arrival.state, {
             type: "RESOLVE_PENDING_CHOICE",
             payload: { choiceId: holderPick.id, optionId: "culture" }
@@ -9635,7 +9659,7 @@
           const ottomanPick = own.state.pendingChoices.find((choice) =>
             choice.source === "Ibrahim" && choice.playerId === ottoman.id);
           assert("Ibrahim sequences the Ottoman's separately owned placement second",
-            own.accepted && own.state.players[1].trade.culture === 1 && !!ottomanPick);
+            own.accepted && own.state.players[1].trade.culture === beforeIbrahim + 1 && !!ottomanPick);
         }
 
         {
@@ -9678,6 +9702,7 @@
             type: "PLAY_ECONOMY",
             payload: { unitId: visitor.caravans[0].id, toKey: "1,0", tradeSpent: 0 }
           }, { actorId: visitor.id, role: "player" });
+          arrival.state = resolveNormalArrival(arrival.state, false);
           const take = arrival.state.pendingChoices.find((choice) => choice.kind === "take_diplomacy");
           const picked = Game.tryApplyAction(arrival.state, {
             type: "RESOLVE_PENDING_CHOICE",
@@ -11371,12 +11396,14 @@
             playerId: b.me.id, unitId: "c1", toKey: "1,0", tradeSpent: 0 } },
             { actorId: b.me.id, role: "player" });
           const plain = run(build(false));
+          plain.state = resolveNormalArrival(plain.state);
           assert("a caravan can reach a rival city", plain.accepted, plain.code);
           assert("and without the wonder no card is offered",
             !(plain.state.pendingChoices || []).some((c) => /Library/.test(c.title || "")),
             JSON.stringify((plain.state.pendingChoices || []).map((c) => c.title)));
 
           const lib = run(build(true));
+          lib.state = resolveNormalArrival(lib.state);
           assert("with the Great Library the run offers a card", lib.accepted, lib.code);
           const offer = (lib.state.pendingChoices || [])
             .find((c) => /Library/.test(c.title || "") || c.source === "Great Library");
@@ -11498,6 +11525,7 @@
               playerId: b2.me.id, unitId: "c1", toKey: "1,0", tradeSpent: 0 } },
               { actorId: b2.me.id, role: "player" });
             if (!run.accepted) return { failed: run.code };
+            run.state = resolveNormalArrival(run.state, false);
             const take = (run.state.pendingChoices || [])
               .find((c) => c.kind === "take_diplomacy");
             if (!take) return { failed: "no offer" };

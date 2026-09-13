@@ -412,7 +412,7 @@ const UI = (() => {
         ? { tileId, anchor: Game.key(mouseHex.q, mouseHex.r), rotation: sub.tileRotation, side: sub.tileSide }
         : null,
       // A figure mid-walk: where it started, where it has got to, what is left.
-      route: ms ? { unitType: ms.unitType, startKey: ms.startKey, currentKey: ms.currentKey, remaining: ms.remaining } : null
+      route: null // A planned route is private until its explicit confirmation.
     };
   }
 
@@ -684,6 +684,9 @@ const UI = (() => {
     if (readOnlySession) return "This recovered game is read-only.";
     if (state.solo || !isNetworkGame()) return "";
     if (backupFailure) return "Backup is unavailable. No game action can be confirmed.";
+    // An offline seat pauses gameplay, not the trusted authority's explicitly
+    // confirmed recovery. Read-only/lost authority and failed backup still win.
+    if (action?.type === "EMERGENCY_UNDO_TURN" && Net.getIsHost()) return "";
     const phase = String(networkStatus.phase || networkStatus.state || networkStatus.status || "").toLowerCase();
     if (["offline", "disconnected", "reconnecting", "connecting"].includes(phase)) {
       return "Connection is being restored.";
@@ -831,21 +834,11 @@ const UI = (() => {
     };
   }
 
-  // What actually has to survive to restore a game, which is not the same as
-  // what the table needs while playing.
-  //
-  // turnUndo carries a COMPLETE second copy of the state - measured at 339 KiB
-  // of a 678 KiB late game, i.e. half the payload - purely so the current
-  // player can undo the turn they are in the middle of. That is worthless to a
-  // restore: nobody resumes a saved game in order to undo a turn they were not
-  // present for. Stripping it halves the backup and keeps the live state (and
-  // therefore Undo) exactly as it was, because only the copy on the wire loses
-  // it. getUndoStatus already treats a missing checkpoint as "nothing to undo".
+  // Recovery data belongs in trusted checkpoints, never in player snapshots.
+  // Game.projectState is the ONLY redaction boundary for a player's view.
   function backupPayload(fullState) {
     if (!fullState || typeof fullState !== "object") return fullState;
-    const trimmed = { ...fullState };
-    delete trimmed.turnUndo;
-    return trimmed;
+    return { ...fullState };
   }
 
   async function checkpointCandidate(candidate, actionId, extraSeatTokens) {
@@ -938,6 +931,21 @@ const UI = (() => {
     }
   }
 
+  const movementDiagnostics = [];
+  function recordMovementDiagnostic(action, context, result) {
+    if (!["PLAY_ECONOMY", "PLAY_MILITARY_MOVE", "PLAY_MILITARY_ATTACK", "BEGIN_EXPLORATION"].includes(action.type)) return;
+    const p = action.payload || {}, actor = Game.getPlayer(state, context.actorId);
+    const assessment = actor && Game.inspectMovement(state, { ...p, playerId: actor.id,
+      unitType: p.unitType || (action.type === "PLAY_ECONOMY" ? "caravan" : "army"),
+      toKey: action.type === "BEGIN_EXPLORATION" ? p.fromKey : p.toKey }, context);
+    movementDiagnostics.push({ at: Date.now(), actorId: context.actorId, civilization: actor?.leaderId,
+      unitId: p.unitId, origin: assessment?.startKey || p.startKey || p.fromKey,
+      destination: p.toKey || p.fromKey, cardId: p.cardId || assessment?.cardId,
+      baseRevision: context.baseRevision ?? state.revision, hostRevision: state.revision,
+      allowance: assessment?.allowance, remaining: assessment?.remaining,
+      accepted: result.accepted, code: result.code });
+    if (movementDiagnostics.length > 128) movementDiagnostics.splice(0, movementDiagnostics.length - 128);
+  }
   async function applyAuthoritativeAction(action, context = {}) {
     const blocked = interactionBlockReason(action);
     if (blocked) return { accepted: false, state, revision: state?.revision || 0, code: "game_paused", message: blocked };
@@ -947,6 +955,7 @@ const UI = (() => {
     const result = Game.tryApplyAction
       ? Game.tryApplyAction(state, action, { actorId, role })
       : { accepted: true, state: Game.applyAction(JSON.parse(JSON.stringify(state)), action), code: "accepted", message: "" };
+    recordMovementDiagnostic(action, { ...context, actorId, role }, result);
     if (!result.accepted) return { ...result, state, revision: state?.revision || 0 };
 
     if (isNetworkGame() && sessionCredentials.role === "host") {
@@ -1064,8 +1073,13 @@ const UI = (() => {
     document.getElementById("btn-undo")?.addEventListener("click", () => {
       const status = Game.getUndoStatus ? Game.getUndoStatus(state, localPlayerId) : { canUndo: false };
       if (!status.canUndo) { showToast(status.reason || "This turn cannot be undone"); return; }
-      clearSub();
       dispatch({ type: "UNDO_TURN", payload: { playerId: localPlayerId } });
+    });
+    document.getElementById("btn-emergency-undo")?.addEventListener("click", () => {
+      const status = Game.getUndoStatus(state, localPlayerId, { role: Net.getIsHost() ? "host" : "player" });
+      if (!status.canEmergencyUndo || actionPending) return;
+      if (!confirm("HOST EMERGENCY RECOVERY: Restore this turn's starting position for everyone? This cancels combat, exploration and pending decisions, including other players' decisions. Previously revealed information cannot be unlearned; future random rolls may differ. No completed turn will be undone.")) return;
+      dispatch({ type: "EMERGENCY_UNDO_TURN", payload: { snapshotId: status.snapshotId } });
     });
 
     document.getElementById("btn-local").addEventListener("click", startLocal);
@@ -1132,6 +1146,7 @@ const UI = (() => {
         updateNetworkChrome();
       },
       onStatus: (status) => {
+        const resumed = status.phase === "synced" && networkStatus.phase !== "synced";
         networkStatus = { ...networkStatus, ...status };
         if (!Net.getIsHost() && ["reconnecting", "offline", "protocol_error"].includes(status.phase)) {
           pollRecoveryStatus();
@@ -1140,6 +1155,7 @@ const UI = (() => {
         // Same reason as onRoster: the local seat's own online-ness comes from
         // this phase, and the lobby gate reads it.
         if (state && state.phase === "lobby") renderLobby();
+        if (resumed && state?.phase === "playing") queueMicrotask(() => render());
       },
       onRoster: (roster) => {
         networkRoster = Array.isArray(roster) ? roster : [];
@@ -1354,12 +1370,15 @@ const UI = (() => {
     }
 
     const beforeSub = copySubState();
+    const dispatchContext = `${state.gameId || roomCode}|${localPlayerId}|${state.recoveryGeneration || 0}`;
+    const stillCurrent = () => state && dispatchContext ===
+      `${state.gameId || roomCode}|${localPlayerId}|${state.recoveryGeneration || 0}`;
     let afterSub = beforeSub;
     actionPending = true;
     updateNetworkChrome();
     const capture = Promise.resolve().then(() => {
       afterSub = copySubState();
-      restoreSubState(beforeSub);
+      if (stillCurrent()) restoreSubState(beforeSub);
       render();
     });
     let result;
@@ -1367,8 +1386,15 @@ const UI = (() => {
       result = await Net.submitAction(action);
       await capture;
       actionPending = false;
+      if (!stillCurrent()) {
+        render();
+        if (result.status === "accepted" && ["UNDO_TURN", "EMERGENCY_UNDO_TURN"].includes(action.type)) return result;
+        return { ...result, status: "superseded", code: "recovery_changed",
+          message: "The turn was restored; the old action cannot restore its selection." };
+      }
       if (result.status === "accepted") {
         restoreSubState(afterSub);
+        if (["PLAY_ECONOMY", "PLAY_MILITARY_MOVE", "PLAY_MILITARY_ATTACK", "BEGIN_EXPLORATION", "END_UNIT_MOVE"].includes(action.type)) clearSub();
         if (!isNetworkGame()) {
           try { localStorage.setItem("civ-nd-save", JSON.stringify({ state, localPlayerId })); } catch(e) {}
         }
@@ -1379,7 +1405,7 @@ const UI = (() => {
     } catch (error) {
       await capture;
       actionPending = false;
-      restoreSubState(beforeSub);
+      if (stillCurrent()) restoreSubState(beforeSub);
       result = { status: "rejected", code: "action_failed", message: error.message || String(error) };
       showToast(result.message);
     }
@@ -3218,15 +3244,17 @@ const UI = (() => {
     clearSub();
     sub.cardType = continuation.cardType;
     sub.cardIndex = Number.isInteger(continuation.cardIndex) ? continuation.cardIndex : null;
-    sub.tradeSpent = Number(continuation.tradeSpent || 0);
+    sub.cardId = continuation.cardId;
+    restoreFocusTradePayment(continuation.tradePayment || { spent: continuation.tradeSpent || 0 });
     sub.movementState = {
       unitType: continuation.unitType,
       unitId: continuation.unitId,
       maxMove: Number(continuation.maxMove || 0),
       remaining: Math.max(0, Number(continuation.remaining || 0)),
       currentKey: continuation.fromKey,
-      startKey: continuation.startKey || continuation.fromKey,
-      explored: true,
+      startKey: continuation.fromKey,
+      explored: !!unit.exploredThisMove,
+      recoveryGeneration: state.recoveryGeneration || 0,
       route: []
     };
     sub.selectedUnit = { id: unit.id, position: continuation.fromKey };
@@ -3294,6 +3322,8 @@ const UI = (() => {
   // engine state behind it.
   function reconcileAuthoritativeResolution() {
     if (!state || state.phase !== "playing") return;
+    reconcileRecoveryGeneration();
+    restoreMovementDraft();
     // A fight is a modal decision on the combat panel; no map target belongs to
     // it. Whatever route opened it, the highlights come down here too, so a
     // path that reaches combat without going through nextUnitOrFinish cannot
@@ -3315,10 +3345,12 @@ const UI = (() => {
       return;
     }
     const continuation = state.movementContinuation;
-    if (continuation && continuation.playerId === localPlayerId && sub.phase === "idle") {
+    if (continuation && continuation.playerId === localPlayerId && !actionPending &&
+        (!sub.movementState || isExploring(sub.phase) || sub.movementState.startKey !== continuation.fromKey ||
+          sub.movementState.unitId !== continuation.unitId)) {
       setSubFromMovementContinuation(continuation);
-      return;
     }
+    if (sub.movementState && !isExploring(sub.phase) && !actionPending) reconcileMovementDraft();
 
     // A fight ends with the card still open: unitsLeftToMove keeps activeCard
     // set while the player's other figures are still waiting on it.
@@ -3337,9 +3369,108 @@ const UI = (() => {
     if (!Array.isArray(list) || !list.some((unit) => !unit.movedThisCard)) return;
     sub.phase = card.cardType === "economy" ? "move_caravan" : "move_army";
     sub.cardType = card.cardType;
+    sub.cardIndex = card.cardIndex;
+    sub.cardId = card.cardId;
+    restoreFocusTradePayment(card.tradePayment || { spent: card.tradeSpent || 0 });
     sub.selectedUnit = null;
     sub.movementState = null;
     sub.validHexes = new Set();
+  }
+
+  let recoveryContext = null;
+  let draftLoadedKey = null;
+  function movementDraftKey() {
+    return state && localPlayerId ? `civ-movement:${state.gameId || roomCode || "solo"}:${localPlayerId}` : null;
+  }
+  function movementContext() {
+    return `${movementDraftKey()}:${state.turn?.round}:${state.turn?.index}:${Game.currentPlayer(state)?.id}:${state.recoveryGeneration || 0}`;
+  }
+  function reconcileRecoveryGeneration() {
+    const current = `${movementDraftKey()}:${state.recoveryGeneration || 0}`;
+    if (recoveryContext && current !== recoveryContext) {
+      clearSub();
+      pendingCardMove = null;
+      pendingCardAnim = null;
+      clearDiceAnimations();
+      lastStageDice = null;
+      dismissedCombatKey = null;
+      autoDiscardedTile = null;
+      try { localStorage.removeItem(movementDraftKey()); } catch { /* optional storage */ }
+      showToast("Turn restored. Old selections and routes were cleared.");
+    }
+    recoveryContext = current;
+  }
+  function movementPayload(ms = sub.movementState) {
+    return { playerId: localPlayerId, unitType: ms.unitType, unitId: ms.unitId,
+      cardType: sub.cardType, cardId: sub.cardId, cardIndex: sub.cardIndex,
+      startKey: ms.startKey, toKey: ms.currentKey, route: (ms.route || []).slice(),
+      tradeSpent: sub.tradeSpent, tradeResources: { ...sub.tradeResources },
+      recoveryGeneration: ms.recoveryGeneration ?? (state.recoveryGeneration || 0) };
+  }
+  function reconcileMovementDraft() {
+    const ms = sub.movementState;
+    if (!ms) return;
+    if (state.combat || state.pendingExploration || state.pendingChoices?.length) {
+      sub.validHexes = new Set();
+      return;
+    }
+    sub.cardId ||= Game.getRowCards(Game.getPlayer(state, localPlayerId))[sub.cardIndex]?.id;
+    if (ms.context && ms.context !== movementContext()) {
+      clearSub(); showToast("The turn changed. Select your card and figure again."); return;
+    }
+    ms.context ||= movementContext();
+    const assessment = Game.inspectMovement(state, movementPayload(), { actorId: localPlayerId });
+    sub.movementAssessment = assessment;
+    sub.validHexes = new Set(assessment.reachable);
+    if (assessment.ok) {
+      ms.remaining = assessment.remaining;
+      ms.maxMove = assessment.allowance;
+      ms.explored = assessment.explored;
+      ms.problem = null;
+    } else {
+      // Keep an invalid attempted route editable. Never refill it from a fresh
+      // card allowance, nor silently submit a different destination.
+      ms.problem = assessment.message;
+    }
+  }
+  function persistMovementDraft() {
+    const key = movementDraftKey();
+    if (!key || draftLoadedKey !== key || actionPending || state.phase !== "playing") return;
+    try {
+      const ms = sub.movementState;
+      if (ms && /^move_(army|caravan)(_post)?$/.test(sub.phase)) {
+        localStorage.setItem(key, JSON.stringify({ context: movementContext(), revision: state.revision || 0,
+          cardType: sub.cardType, cardId: sub.cardId, cardIndex: sub.cardIndex,
+          tradeSpent: sub.tradeSpent, tradeResources: sub.tradeResources, movement: ms }));
+      } else localStorage.removeItem(key);
+    } catch { /* local drafts are optional; authoritative state is not */ }
+  }
+  function restoreMovementDraft() {
+    const key = movementDraftKey();
+    if (!key || draftLoadedKey === key || actionPending) return;
+    // Resume the saved route only against the live host revision, not the
+    // checkpoint painted while the connection is still being established.
+    if (isNetworkGame() && Net.getStatus().phase !== "synced") return;
+    draftLoadedKey = key;
+    try {
+      const saved = JSON.parse(localStorage.getItem(key) || "null");
+      if (!saved) return;
+      if (saved.context !== movementContext()) { localStorage.removeItem(key); return; }
+      if (sub.phase !== "idle") return;
+      Object.assign(sub, { cardType: saved.cardType, cardId: saved.cardId, cardIndex: saved.cardIndex,
+        tradeSpent: saved.tradeSpent, tradeResources: saved.tradeResources || {},
+        movementState: saved.movement, selectedUnit: { id: saved.movement.unitId },
+        phase: saved.movement.unitType === "army" ? "move_army" : "move_caravan" });
+      reconcileMovementDraft();
+    } catch { /* corrupt drafts never affect gameplay */ }
+  }
+  function editMovementRoute(mode) {
+    if (actionPending || !sub.movementState) return;
+    const ms = sub.movementState;
+    if (mode === "back") ms.route.pop(); else ms.route = [];
+    ms.currentKey = ms.route.at(-1) || ms.startKey;
+    sub.attackTargets = null;
+    continueMovement();
   }
 
   function continueFromAuthoritativeExploration() {
@@ -3669,6 +3800,7 @@ const UI = (() => {
     reconcileCapitalPreview();
     reconcileAstronomyPreview();
     reconcileAuthoritativeResolution();
+    persistMovementDraft();
     frameNewExploration();
     dom.game.classList.toggle("lobby-active", state.phase === "lobby");
     dom.game.classList.toggle("preplay", state.phase === "lobby" || state.phase === "setup");
@@ -3747,9 +3879,16 @@ const UI = (() => {
     const undoBtn = document.getElementById("btn-undo");
     const undo = Game.getUndoStatus ? Game.getUndoStatus(state, localPlayerId) : { canUndo: false, reason: "Undo unavailable." };
     if (undoBtn) {
-      undoBtn.disabled = !undo.canUndo;
+      undoBtn.disabled = !undo.canUndo || actionPending;
       undoBtn.classList.toggle("undo-ready", !!undo.canUndo);
       undoBtn.title = undo.reason || "Undo current turn";
+    }
+    const recovery = Game.getUndoStatus(state, localPlayerId, { role: Net.getIsHost() ? "host" : "player" });
+    const recoveryButton = document.getElementById("btn-emergency-undo");
+    if (recoveryButton) {
+      recoveryButton.classList.toggle("hidden", !Net.getIsHost() || state.phase !== "playing");
+      recoveryButton.disabled = !recovery.canEmergencyUndo || actionPending || !!interactionBlockReason({type:"EMERGENCY_UNDO_TURN"});
+      recoveryButton.title = recovery.emergencyReason;
     }
     if (state.phase === "lobby") {
       dom.hdrRound.textContent = "Lobby";
@@ -5235,7 +5374,8 @@ const UI = (() => {
     const targets = ms.unitType === "army"
       ? Game.findDefenders(state, ms.currentKey, localPlayerId) : [];
     const defender = targets[0] || null;
-    const canExplore = Game.isExploreEligible(state, ms.currentKey) && ms.remaining > 0 && !ms.explored;
+    const assessment = sub.movementAssessment;
+    const canExplore = !!assessment?.ok && assessment.interaction.canExplore;
 
     let html = "";
     if (defender) {
@@ -5245,13 +5385,16 @@ const UI = (() => {
         ? `${targets.map((d) => escapeHtml(d.label)).join(" and ")} \u00b7 pick your target`
         : `${escapeHtml(defender.label)} \u00b7 power ${defender.power}`;
       html += `<span class="bc-label bc-danger">${label}</span>
-        <button class="bc-btn danger" id="bc-attack">Attack</button>
-        <button class="bc-btn" id="bc-retreat">Retreat</button>`;
+        <button class="bc-btn danger" id="bc-attack">Attack</button>`;
     } else {
-      html += `<span class="bc-label">${ms.remaining} left</span>`;
+      html += `<span class="bc-label">${escapeHtml(ms.currentKey)}: ${ms.remaining} movement left</span>`;
       if (canExplore) html += `<button class="bc-btn" id="bc-explore">Explore</button>`;
-      html += `<button class="bc-btn" id="bc-done">Done</button>`;
+      html += `<button class="bc-btn" id="bc-done">${assessment?.interaction.trade ? "Trade" : "Confirm Move"}</button>`;
     }
+    html += `<button class="bc-btn" id="bc-back-step">Back One Step</button>
+      <button class="bc-btn" id="bc-clear-route">Clear Route</button>
+      <button class="bc-btn" id="bc-cancel-route">Cancel</button>`;
+    if (ms.problem) html += `<span class="bc-label bc-danger" role="status">${escapeHtml(ms.problem)}</span>`;
     chip.innerHTML = html;
     chip.classList.remove("hidden");
 
@@ -5261,12 +5404,14 @@ const UI = (() => {
     // hex, and only its buttons take clicks at all.
 
     document.getElementById("bc-attack")?.addEventListener("click", endMovement);
-    document.getElementById("bc-retreat")?.addEventListener("click", () => {
-      ms.currentKey = ms.startKey;
-      endMovement();
-    });
+    document.getElementById("bc-back-step")?.addEventListener("click", () => editMovementRoute("back"));
+    document.getElementById("bc-clear-route")?.addEventListener("click", () => editMovementRoute("clear"));
+    document.getElementById("bc-cancel-route")?.addEventListener("click", cancelAction);
     document.getElementById("bc-explore")?.addEventListener("click", startExploration);
     document.getElementById("bc-done")?.addEventListener("click", endMovement);
+    chip.querySelectorAll("button").forEach(button => {
+      button.disabled = actionPending || (["bc-done", "bc-attack", "bc-explore"].includes(button.id) && !assessment?.ok);
+    });
   }
 
   // The fight takes the board: the map dims, both hexes stay lit, and the dice
@@ -5802,7 +5947,7 @@ const UI = (() => {
     const hint = selectingUnit
       ? `Click one of your <strong>${unitType}s</strong> on the map.` +
         (onCard ? `<br><em>${onCard} waiting on the card — click one of your cities to send it out.</em>` : "")
-      : `Click a <strong>highlighted hex</strong> to move.`;
+      : `Click spaces to plan a route, then Confirm Move. Nothing moves until you confirm.`;
     dom.wizard.innerHTML = `
       <div class="wiz-title">Move ${unitType === "caravan" ? "Caravan" : "Army"}${remaining}</div>
       <div class="wiz-body">${hint}${left > 1 ? `<br><span class="wiz-note">${left} still to move on this card.</span>` : ""}</div>
@@ -5852,9 +5997,7 @@ const UI = (() => {
   // this file's own note that a turn IS resolving a card and there is no
   // passing.
   function canCancelMovement() {
-    if (state && state.movementContinuation) return false;
-    const ms = sub.movementState;
-    return !(ms && ms.route && ms.route.length);
+    return !actionPending;
   }
 
   // The rail says what is happening; the board says what to do about it.
@@ -5897,7 +6040,7 @@ const UI = (() => {
       <div class="wiz-title">${ms.unitType === "army" ? "Army" : "Caravan"} on the move</div>
       <div class="wiz-body">${defender
         ? `<strong style="color:#ef5350">${escapeHtml(defender.label)}</strong> is in the way \u2014 attack or pull back from the chip on the board.`
-        : `Click another space to keep going, or the unit itself to stop.`}</div>`;
+        : `Click spaces to edit your route. Confirm Move commits it; Back One Step and Clear Route do not.`}</div>`;
   }
 
   // Two pieces in one space is a real fork: the city is worth more and defends
@@ -5934,6 +6077,7 @@ const UI = (() => {
         const d = t.list[Number(btn.dataset.i)];
         flashHex(t.hexKey, "rgb(239,83,80)", 800);
         const result = await dispatch({ type: "PLAY_MILITARY_ATTACK", payload: {
+          ...movementPayload(),
           playerId: localPlayerId, unitId: t.unitId, toKey: t.hexKey,
           fromKey: t.fromKey, targetType: d.type,
           targetOwnerId: d.ownerId || null, targetUnitId: d.unitId || null } });
@@ -6023,8 +6167,7 @@ const UI = (() => {
     if (!ms) return;
     sub.phase = ms.unitType === "army" ? "move_army" : "move_caravan";
     sub.selectedUnit = { id: ms.unitId, position: ms.currentKey };
-    sub.validHexes = Game.getReachable(state, ms.currentKey, ms.remaining,
-      ms.unitType, localPlayerId, sub.cardIndex);
+    reconcileMovementDraft();
     render();
   }
 
@@ -6042,6 +6185,7 @@ const UI = (() => {
     // silently skipped the phase change and left the player in the move panel
     // with a tile already revealed behind it.
     const result = await dispatch({ type: "BEGIN_EXPLORATION", payload: {
+      ...movementPayload(),
       playerId: localPlayerId,
       fromKey: ms.currentKey,
       unitId: ms.unitId,
@@ -6069,6 +6213,7 @@ const UI = (() => {
   }
 
   async function endMovement() {
+    if (actionPending) return;
     const ms = sub.movementState;
     if (!ms) { resetSub(); return; }
     const me = Game.getPlayer(state, localPlayerId);
@@ -6101,6 +6246,7 @@ const UI = (() => {
       if (defender) {
         flashHex(ms.currentKey, "rgb(239,83,80)", 800);
         const result = await dispatch({ type: "PLAY_MILITARY_ATTACK", payload: {
+          ...movementPayload(),
           playerId: localPlayerId, unitId: ms.unitId, toKey: ms.currentKey,
           fromKey: ms.startKey, targetType: defender.type,
           targetOwnerId: defender.ownerId || null, targetUnitId: defender.unitId || null
@@ -6108,6 +6254,7 @@ const UI = (() => {
         if (!result || result.status !== "accepted") return;
       } else {
         const result = await dispatch({ type: "PLAY_MILITARY_MOVE", payload: {
+          ...movementPayload(),
           playerId: localPlayerId, unitId: ms.unitId, toKey: ms.currentKey,
           // An army that started on its card needs to say which city it left.
           startKey: ms.startKey, tradeSpent: sub.tradeSpent
@@ -6116,8 +6263,9 @@ const UI = (() => {
       }
     } else {
       const result = await dispatch({ type: "PLAY_ECONOMY", payload: {
+        ...movementPayload(),
         playerId: localPlayerId, unitId: ms.unitId, toKey: ms.currentKey, tradeSpent: sub.tradeSpent,
-        startKey: ms.romeStart || undefined, cardIndex: sub.cardIndex,
+        startKey: ms.startKey, cardIndex: sub.cardIndex,
         route: (ms.route || []).slice()
       }});
       if (!result || result.status !== "accepted") return;
@@ -7155,6 +7303,10 @@ const UI = (() => {
   }
 
   function cancelAction() {
+    if (actionPending) return;
+    if (state?.movementContinuation?.playerId === localPlayerId) {
+      setSubFromMovementContinuation(state.movementContinuation); render(); return;
+    }
     if (state && state.activeCard && state.activeCard.playerId === localPlayerId) {
       // Earlier figures on this card may already have moved. Cancelling only
       // throws away the current, still-local route; "Done with card" is the
@@ -7178,6 +7330,7 @@ const UI = (() => {
   }
 
   function clearSub() {
+    sub.cardId = null; sub.cardIndex = null; sub.movementAssessment = null;
     sub.phase = "idle"; sub.cardType = null; sub.tradeSpent = 0; sub.remaining = 0;
     sub.totalMarkers = 0; sub.validHexes = new Set(); sub.selectedUnit = null;
     sub.districtType = null; sub.spentResources = {}; sub.tradeResources = {};
@@ -7201,7 +7354,9 @@ const UI = (() => {
     }
     clearSub();
     sub.cardType = active.cardType;
-    sub.tradeSpent = active.tradeSpent || 0;
+    sub.cardIndex = active.cardIndex;
+    sub.cardId = active.cardId;
+    restoreFocusTradePayment(active.tradePayment || { spent: active.tradeSpent || 0 });
     const kind = active.cardType === "economy" ? "caravan" : "army";
     sub.phase = kind === "caravan" ? "move_caravan" : "move_army";
     const starts = Game.unitStartSpaces(state, me, kind);
@@ -7404,7 +7559,7 @@ const UI = (() => {
         render();
       } else {
         const ms0 = sub.movementState;
-        if (ms0 && hexKey === ms0.currentKey) { endMovement(); return; }
+        if (ms0 && hexKey === ms0.currentKey) return;
         if (!sub.validHexes.has(hexKey)) { showToast(explainUnreachable(hexKey, "caravan", localPlayerId)); return; }
         const ms = sub.movementState;
         const dist = computeStepDistance(state, ms.currentKey, hexKey, ms.remaining, "caravan", localPlayerId);
@@ -7414,7 +7569,7 @@ const UI = (() => {
         (ms.route = ms.route || []).push(hexKey);
         // Don't stop to ask. Either the move is spent, or the next hex is
         // already clickable — the chip on the board carries the rest.
-        if (ms.remaining > 0) continueMovement(); else endMovement();
+        continueMovement();
       }
       return;
     }
@@ -7433,13 +7588,13 @@ const UI = (() => {
         }
         if (!unit) return;
         sub.selectedUnit = unit;
-        const maxMove = Game.getMilitaryMove(me, state);
+        const maxMove = Game.getMilitaryMove(me, state, sub.cardIndex);
         sub.movementState = { unitType: "army", unitId: unit.id, maxMove, remaining: maxMove, currentKey: hexKey, startKey: hexKey, explored: false, route: [] };
-        sub.validHexes = Game.getReachable(state, hexKey, maxMove, "army", localPlayerId);
+        sub.validHexes = Game.getReachable(state, hexKey, maxMove, "army", localPlayerId, sub.cardIndex);
         render();
       } else {
         const ms0 = sub.movementState;
-        if (ms0 && hexKey === ms0.currentKey) { endMovement(); return; }
+        if (ms0 && hexKey === ms0.currentKey) return;
         if (!sub.validHexes.has(hexKey)) { showToast(explainUnreachable(hexKey, "army", localPlayerId)); return; }
         const ms = sub.movementState;
         const dist = computeStepDistance(state, ms.currentKey, hexKey, ms.remaining, "army", localPlayerId);
@@ -7452,10 +7607,8 @@ const UI = (() => {
         if (Game.findDefender(state, ms.currentKey, localPlayerId)) {
           sub.phase = "move_army_post";
           render();
-        } else if (ms.remaining > 0) {
-          continueMovement();
         } else {
-          endMovement();
+          continueMovement();
         }
       }
       return;
@@ -7919,6 +8072,7 @@ const UI = (() => {
           // WHICH card was clicked. Oxford can put two cards of one type in the
           // row, and the type alone would always send the leftmost.
           sub.cardIndex = Number(el.dataset.idx);
+          sub.cardId = Game.getRowCards(Game.getPlayer(state, localPlayerId))[sub.cardIndex]?.id;
           // sub.tradeSpent is DERIVED (syncFocusTradeTotal recomputes it from
           // focusTradeSpent + Palenque substitutes). Zeroing only the derived
           // value let the previous card's selection survive: pick Culture, take
@@ -7998,10 +8152,13 @@ const UI = (() => {
     // use this to prove that untrusted packet colours never override the
     // authoritative colour stored on the sender's seat.
     debugReceivePresence: receivePresence,
+    debugMovementDiagnostics: () => Net.getIsHost() ? movementDiagnostics.map(entry => ({ ...entry })) : [],
     debugInfo: () => ({
       localPlayerId,
       seatInState: !!(state && state.players && state.players.some((p) => p.id === localPlayerId)),
       credentialSeat: sessionCredentials ? sessionCredentials.seatId : null,
+      cardId: sub.cardId || null,
+      movementAssessment: sub.movementAssessment || null,
       subPhase: sub.phase,
       cardIndex: Number.isInteger(sub.cardIndex) ? sub.cardIndex : null,
       validHexes: Array.from(sub.validHexes || []),

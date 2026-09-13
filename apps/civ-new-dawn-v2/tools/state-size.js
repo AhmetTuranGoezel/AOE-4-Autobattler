@@ -56,8 +56,9 @@ function lateGame(seats = 5) {
 }
 
 const st = lateGame(5);
-// Arm an undo checkpoint the way a real turn does.
-const armed = G.applyAction(st, { type: "END_FOCUS_CARD", payload: { playerId: "nobody" } });
+// A genuine completed turn creates the next turn's recovery checkpoint.
+G.currentPlayer(st).cardPlayed = true;
+const armed = G.applyAction(st, { type: "END_TURN", payload: { playerId: G.currentPlayer(st).id } });
 
 const total = bytes(armed);
 const rows = Object.keys(armed).map((k) => [k, bytes(armed[k])]).sort((a, b) => b[1] - a[1]);
@@ -89,18 +90,18 @@ if (armed.turnUndo && armed.turnUndo.snapshot) {
   console.log(`turnUndo.snapshot is a FULL SECOND COPY of the state: ${kib(bytes(armed.turnUndo.snapshot))}`);
 }
 
-// What ui.js actually ships now: the same trim backupPayload() applies.
-const trimmed = { ...armed };
-delete trimmed.turnUndo;
-const trimmedBytes = bytes(trimmed);
+// Include the envelope and a full deduplication window, not only fullState.
+const request = { hostToken: "x".repeat(22), hostEpoch: 1, expectedRevision: 1000,
+  fullState: armed, processedActionIds: Array.from({length:512},(_,i)=>`action-${String(i).padStart(6,"0")}-${"x".repeat(32)}`) };
+const trimmedBytes = bytes(request);
 console.log("");
-console.log("what the backup actually sends (turnUndo stripped):");
+console.log("trusted checkpoint request (turn-start recovery retained):");
 console.log(`  ${kib(trimmedBytes)}  (${trimmedBytes} bytes)  -> ` +
   `${trimmedBytes > LIMIT ? "OVER LIMIT" : "within limit"}, ` +
   `${(100 - (trimmedBytes / total) * 100).toFixed(0)}% smaller`);
 console.log(`  headroom to the 1 MiB cap: ${kib(LIMIT - trimmedBytes)}`);
 
-process.exitCode = trimmedBytes > LIMIT ? 1 : 0;
+process.exitCode = trimmedBytes > LIMIT || !armed.turnUndo?.snapshot ? 1 : 0;
 
 if (process.argv.includes("--json")) {
   console.log(JSON.stringify({ total, limit: LIMIT, byKey: Object.fromEntries(rows) }, null, 2));

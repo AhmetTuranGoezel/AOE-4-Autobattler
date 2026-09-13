@@ -17,6 +17,7 @@ import { readFile } from "node:fs/promises";
 import { extname, join, normalize, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createSessionService, SessionError } from "../../../netlify/functions/civ-session-core.mjs";
+import faults from "./reliability-faults.cjs";
 
 const PORT = Number(process.argv[2] || 8971);
 // fileURLToPath, not url.pathname: this repo lives under "VSCode Stuff", and a
@@ -95,7 +96,11 @@ createServer(async (req, res) => {
   const file = join(ROOT, normalize(rel).replace(/^([/\\])+/, ""));
   if (!file.startsWith(ROOT)) return json(res, 403, { ok: false, message: "outside the app" });
   try {
-    const data = await readFile(file);
+    let data = await readFile(file);
+    if (["game.js", "ui.js", "net.js"].some(name => file.endsWith(name)) &&
+        (process.env.CIV_TEST_MUTATION || process.env.CIV_BROWSER_LATENCY_MS)) {
+      data = faults.transform(file.split(/[/\\]/).at(-1), data.toString("utf8"));
+    }
     res.writeHead(200, { "Content-Type": TYPES[extname(file).toLowerCase()] || "application/octet-stream" });
     res.end(data);
   } catch {

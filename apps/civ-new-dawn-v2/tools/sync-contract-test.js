@@ -61,12 +61,12 @@ function scope(over) {
 const run = (s, code) => vm.runInContext(code, s);
 
 (async () => {
-  console.log("\n[1] the backup payload no longer carries the undo snapshot");
+  console.log("\n[1] trusted backups retain the private recovery snapshot");
   {
     const s = scope();
     const big = { revision: 7, map: { hexes: { a: 1 } }, turnUndo: { snapshot: { huge: "x".repeat(5000) } } };
     const out = run(s, "backupPayload(" + JSON.stringify(big) + ")");
-    ok("turnUndo is stripped", out.turnUndo === undefined);
+    ok("turnUndo is retained for recovery", out.turnUndo.snapshot.huge.length === 5000);
     ok("everything else survives", out.revision === 7 && !!out.map);
     ok("the original object is not mutated", big.turnUndo !== undefined);
   }
@@ -78,7 +78,7 @@ const run = (s, code) => vm.runInContext(code, s);
     const r = await run(s, "checkpointCandidate(" + JSON.stringify(candidate) + ", 'a1')");
     ok("accepted", r.accepted === true, JSON.stringify(r).slice(0, 120));
     ok("revision came from the authority", r.revision === 8, r.revision);
-    ok("the wire payload had no turnUndo", s.sentToRemote[0].fullState.turnUndo === undefined);
+    ok("trusted remote checkpoint contains recovery", s.sentToRemote[0].fullState.turnUndo.snapshot.big.length === 2000);
     ok("backupFailure cleared", s.backupFailure === null);
   }
 
