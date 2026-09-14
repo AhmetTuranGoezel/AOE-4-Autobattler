@@ -20,6 +20,8 @@ const steps = [
   ["lobby contract", "lobby-contract-test.js"],
   ["sync contract", "sync-contract-test.js"],
   ["state size", "state-size.js"],
+  ["production rules", "production-rules-test.js"],
+  ["reliability rules", "reliability-rules-test.js"],
   ["art index", "verify-art.js"],
   ["focus layout", "focus-layout-test.js"],
   // Last because it is the slow one: it starts the dev session server, drives a
@@ -40,7 +42,10 @@ const steps = [
   ["waiting capital", "setup-waiting-browser-test.js"],
   ["astronomy peers", "astronomy-multiplayer-browser-test.js"],
   ["wonder tooltip", "natural-wonder-browser-test.js"],
-  ["district order", "district-order-browser-test.js"]
+  ["district order", "district-order-browser-test.js"],
+  ["production browser", "production-browser-test.js"],
+  ["movement reconnect", "movement-reconnect-browser-test.js"],
+  ["reliability browser", "reliability-browser-test.js"]
 ];
 
 const SOURCES = ["game.js", "ui.js", "rules-data.js", "card-art.js", "tile-art.js",

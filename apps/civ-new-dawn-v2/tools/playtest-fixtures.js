@@ -31,7 +31,10 @@ function playtestBoard(Game, profiles, mode) {
     fortress: false, cityState: null, barbarian: false, unownedWonder: null
   }));
   Object.values(st.tiles).forEach((t) => { t.placed = false; t.ownerId = null; });
-  const put = (key, props = {}) => Object.assign(st.map.hexes[key], { active: true, revealed: true }, props);
+  const put = (key, props = {}) => {
+    Game.ensureMapHexes(st.map, [key], 0);
+    return Object.assign(st.map.hexes[key], { active: true, revealed: true }, props);
+  };
   const city = (id) => ({ ownerId: id, isCapital: true, developed: true, hasWonder: false, wonder: null });
   if (mode === "astronomy") {
     // The entire ten-cell physical capital, not whichever map tile happens

@@ -404,6 +404,7 @@ const UI = (() => {
       playerId: localPlayerId,
       name: me.name,
       color: me.color,
+      recoveryGeneration: state.recoveryGeneration || 0,
       phase: sub.phase,
       cardType: sub.cardType || null,
       hover: mouseHex ? Game.key(mouseHex.q, mouseHex.r) : null,
@@ -438,6 +439,7 @@ const UI = (() => {
 
   function receivePresence(packet) {
     if (!packet || !packet.playerId || packet.playerId === localPlayerId) return;
+    if ((packet.recoveryGeneration || 0) !== (state?.recoveryGeneration || 0)) return;
     packet.seen = performance.now();
     presence.set(packet.playerId, packet);
     renderCanvas();
@@ -686,7 +688,7 @@ const UI = (() => {
     if (backupFailure) return "Backup is unavailable. No game action can be confirmed.";
     // An offline seat pauses gameplay, not the trusted authority's explicitly
     // confirmed recovery. Read-only/lost authority and failed backup still win.
-    if (action?.type === "EMERGENCY_UNDO_TURN" && Net.getIsHost()) return "";
+    if (["EMERGENCY_UNDO_TURN", "RESTORE_REVISION"].includes(action?.type) && Net.getIsHost()) return "";
     const phase = String(networkStatus.phase || networkStatus.state || networkStatus.status || "").toLowerCase();
     if (["offline", "disconnected", "reconnecting", "connecting"].includes(phase)) {
       return "Connection is being restored.";
@@ -720,7 +722,7 @@ const UI = (() => {
 
   async function saveLocalCheckpoint(fullState, revision) {
     if (!sessionCredentials?.gameId || !window.CivSessionStore) return;
-    await CivSessionStore.saveCheckpoint({
+    const checkpoint = {
       gameId: sessionCredentials.gameId,
       revision,
       hostEpoch: sessionCredentials.hostEpoch || 1,
@@ -732,7 +734,68 @@ const UI = (() => {
       // every checkpoint for something a restore cannot use.
       fullState: backupPayload(fullState),
       processedActionIds
-    });
+    };
+    await CivSessionStore.saveCheckpoint(checkpoint);
+    if (sessionCredentials.role === "host" && !fullState.stateView) {
+      if (fullState.turnUndo?.snapshot) await CivSessionStore.saveTurnStart({ ...checkpoint,
+        fullState: backupPayload(fullState.turnUndo.snapshot) }, fullState.turnUndo.snapshotId);
+      await CivSessionStore.saveHistory({ ...checkpoint, metadata: {
+        round: fullState.turn?.round, activePlayer: Game.currentPlayer(fullState)?.name,
+        phase: fullState.phase, action: fullState.lastAction?.type || "Session created"
+      } });
+    }
+  }
+
+  async function hydrateTurnRecovery(fullState) {
+    const restored = Game.migrateState(fullState);
+    if (restored.turnUndo && !restored.turnUndo.snapshot) {
+      const saved = await CivSessionStore.loadTurnStart(sessionCredentials.gameId, restored.turnUndo.snapshotId);
+      if (saved) restored.turnUndo.snapshot = Game.unpackCheckpoint(saved.fullState);
+    }
+    return restored;
+  }
+
+  function assertRecoveryDoesNotRegress(remote, local) {
+    if (Number(remote.revision) < Number(local?.revision || sessionCredentials?.revision || 0) ||
+        (["playing", "gameover"].includes(local?.phase) && !["playing", "gameover"].includes(remote.fullState?.phase))) {
+      const error = new Error("The remote backup is older than this device's game. It has NOT been installed. Recover a verified local revision; setup will not be replayed.");
+      error.code = "backup_behind";
+      throw error;
+    }
+  }
+
+  async function openRecoveryHistory() {
+    if (!Net.getIsHost() || actionPending || !sessionCredentials?.gameId) return;
+    const gameId = sessionCredentials.gameId, head = state.revision;
+    const entries = await CivSessionStore.listHistory(gameId);
+    if (gameId !== sessionCredentials?.gameId || !Net.getIsHost()) return;
+    document.getElementById("recovery-dialog")?.remove();
+    const dialog = document.createElement("dialog");
+    dialog.id = "recovery-dialog";
+    const undo = Game.getUndoStatus(state, localPlayerId, { role: "host" });
+    const revisions = entries.filter(entry => entry.revision < head &&
+      (!["playing", "gameover"].includes(state.phase) || ["playing", "gameover"].includes(entry.phase)));
+    dialog.innerHTML = `<h2>Recover Game</h2><p>Restore a verified revision for every player. This cancels later moves and decisions. Previously revealed information cannot be unlearned.</p>
+      <p>History is stored privately on this host device; the server keeps the latest confirmed head.</p>
+      <label>Recovery point <select id="recovery-revision">
+      ${undo.canEmergencyUndo ? `<option value="turn">Start of the current turn</option>` : ""}
+      ${revisions.map(entry => `<option value="${entry.revision}">r${entry.revision} · Round ${entry.round} · ${escapeHtml(entry.activePlayer || "Setup")} · ${escapeHtml(entry.phase)} · ${escapeHtml(entry.action)} · ${escapeHtml(new Date(entry.timestamp).toLocaleTimeString())}</option>`).join("")}
+      </select></label>
+      ${!revisions.length && !undo.canEmergencyUndo ? "<p>No earlier valid recovery point exists on this device.</p>" : ""}
+      <div class="recovery-actions"><button id="recovery-cancel">Cancel</button><button id="recovery-confirm" ${revisions.length || undo.canEmergencyUndo ? "" : "disabled"}>Restore for everyone</button></div>`;
+    document.body.append(dialog);
+    dialog.showModal();
+    dialog.querySelector("#recovery-cancel").onclick = () => dialog.remove();
+    dialog.querySelector("#recovery-confirm").onclick = async () => {
+      if (sessionCredentials?.gameId !== gameId || state.revision !== head) {
+        dialog.remove(); showToast("The game advanced. Review the recovery point again."); return;
+      }
+      const value = dialog.querySelector("select").value;
+      if (!confirm(`Restore ${value === "turn" ? "the current turn's starting position" : "revision r" + value} for everyone? Later moves will be undone; previously revealed information cannot be unlearned.`)) return;
+      dialog.remove();
+      await dispatch(value === "turn" ? { type: "EMERGENCY_UNDO_TURN", payload: { snapshotId: undo.snapshotId } } :
+        { type: "RESTORE_REVISION", payload: { revision: Number(value) } });
+    };
   }
 
   function remoteAuth(includeState) {
@@ -815,16 +878,21 @@ const UI = (() => {
   async function recoverAuthoritativeState(actionId) {
     if (!sessionCredentials?.gameId || sessionCredentials.role !== "host") return null;
     const remote = await CivSessionApi.status(sessionCredentials.gameId, remoteAuth(true));
+    assertRecoveryDoesNotRegress(remote, state);
     sessionCredentials.revision = remote.revision;
     sessionCredentials.hostEpoch = remote.hostEpoch;
     sessionCredentials.hostPeerId = remote.hostPeerId;
     rememberProcessed(remote.processedActionIds || []);
     if (remote.fullState) {
-      state = Game.migrateState ? Game.migrateState(remote.fullState) : remote.fullState;
+      state = await hydrateTurnRecovery(remote.fullState);
       state.revision = remote.revision;
-      await saveLocalCheckpoint(state, remote.revision);
+      // This path also follows a successful remote CAS (with a lost response).
+      // A failed optional local write cannot turn that success into rejection.
+      await saveLocalCheckpoint(state, remote.revision).catch(error => {
+        showToast(`Remote backup confirmed; local recovery history unavailable: ${error.message}`);
+      });
       Net.setRevision?.(remote.revision);
-      await saveSessionCredentials();
+      await saveSessionCredentials().catch(() => {});
       render();
     }
     return {
@@ -834,11 +902,10 @@ const UI = (() => {
     };
   }
 
-  // Recovery data belongs in trusted checkpoints, never in player snapshots.
-  // Game.projectState is the ONLY redaction boundary for a player's view.
+  // Exactly one gameplay state. Recovery snapshots/history are separate records.
   function backupPayload(fullState) {
     if (!fullState || typeof fullState !== "object") return fullState;
-    return { ...fullState };
+    return Game.checkpointState(fullState);
   }
 
   async function checkpointCandidate(candidate, actionId, extraSeatTokens) {
@@ -864,13 +931,13 @@ const UI = (() => {
       sessionCredentials.leaseUntil = saved.leaseUntil;
       rememberProcessed(nextIds);
       // The remote CAS has already committed at this point, so the action IS
-      // durable. Local persistence is a convenience on top of that, and it used
-      // to be awaited inside this try - so an IndexedDB failure (private
-      // browsing, quota, a locked store) threw into the catch below and the
-      // committed turn was reported as a failed backup. It is best-effort, and
-      // it no longer holds up the broadcast either.
-      saveLocalCheckpoint(candidate, saved.revision).catch(() => {});
-      saveSessionCredentials().catch(() => {});
+      // durable. Finish the separate local recovery write before the ACK, but
+      // report local failure separately: it cannot undo the successful CAS or
+      // mislabel this committed turn as a failed remote backup.
+      await saveLocalCheckpoint(candidate, saved.revision).catch(error => {
+        showToast(`Remote backup saved; local recovery history unavailable: ${error.message}`);
+      });
+      await saveSessionCredentials().catch(() => {});
       state = candidate;
       Net.setRevision?.(saved.revision);
       backupFailure = null;
@@ -903,30 +970,15 @@ const UI = (() => {
           message: error.message || "The backup could not confirm this action"
         };
       }
-      // Everything else - the endpoint down, a timeout, a payload over the
-      // 1 MiB cap - is a lost BACKUP, not a lost game. Rejecting here stopped
-      // the whole table: net.js only broadcasts when the action is accepted,
-      // so an oversized save meant the host's every move was refused and no
-      // client ever saw another turn. Degrade to "unbacked" instead: the move
-      // stands, the revision advances, the snapshot goes out, and the banner
-      // says the backup is behind.
-      const localRevision = nextRevision;
-      candidate.revision = localRevision;
-      state = candidate;
-      sessionCredentials.revision = localRevision;
-      rememberProcessed(nextIds);
-      Net.setRevision?.(localRevision);
-      networkStatus = { ...networkStatus, revision: localRevision };
+      // No local-only commits. Advancing here made the live board newer than
+      // the backup; a later reload silently restored an earlier setup phase.
+      // If the request never committed, keep N. If its response was lost,
+      // recoverAuthoritativeState above recognizes the durable action id.
       updateNetworkChrome();
-      // Keep a local copy even when the remote one failed, so a reload after a
-      // backup outage still finds this turn.
-      saveLocalCheckpoint(candidate, localRevision).catch(() => {});
       return {
-        accepted: true,
-        state: candidate,
-        revision: localRevision,
-        code: "accepted_unbacked",
-        message: error.message || "Played without a confirmed backup"
+        accepted: false, state, revision: state.revision,
+        code: error.code || "backup_unavailable",
+        message: error.message || "No action was confirmed. Retry the backup connection."
       };
     }
   }
@@ -952,11 +1004,18 @@ const UI = (() => {
     const actionId = context.actionId || newActionId();
     const actorId = context.actorId || localPlayerId;
     const role = context.role || (Net.getIsHost() ? "host" : "player");
+    // Recovery data is loaded by the authority, never accepted in a wire payload.
+    let recoveryState;
+    if (action.type === "RESTORE_REVISION" && role === "host") {
+      const entry = await CivSessionStore.loadHistory(sessionCredentials.gameId, action.payload?.revision);
+      if (entry) recoveryState = await hydrateTurnRecovery(entry.fullState);
+    }
     const result = Game.tryApplyAction
-      ? Game.tryApplyAction(state, action, { actorId, role })
+      ? Game.tryApplyAction(state, action, { actorId, role, recoveryState })
       : { accepted: true, state: Game.applyAction(JSON.parse(JSON.stringify(state)), action), code: "accepted", message: "" };
     recordMovementDiagnostic(action, { ...context, actorId, role }, result);
     if (!result.accepted) return { ...result, state, revision: state?.revision || 0 };
+    result.state.lastAction = { type: action.type, playerId: actorId, ts: Date.now() };
 
     if (isNetworkGame() && sessionCredentials.role === "host") {
       const outcome = await checkpointCandidate(result.state, actionId, context.extraSeatTokens);
@@ -991,6 +1050,11 @@ const UI = (() => {
         hostPeerId: sessionCredentials.hostPeerId
       });
       sessionCredentials.leaseUntil = result.leaseUntil;
+      // A lease heartbeat does not prove the gameplay head is synchronized.
+      if (backupFailure) {
+        await recoverAuthoritativeState();
+        Net.broadcast(state, state.revision);
+      }
       backupFailure = null;
       await saveSessionCredentials();
     } catch (error) {
@@ -1075,12 +1139,7 @@ const UI = (() => {
       if (!status.canUndo) { showToast(status.reason || "This turn cannot be undone"); return; }
       dispatch({ type: "UNDO_TURN", payload: { playerId: localPlayerId } });
     });
-    document.getElementById("btn-emergency-undo")?.addEventListener("click", () => {
-      const status = Game.getUndoStatus(state, localPlayerId, { role: Net.getIsHost() ? "host" : "player" });
-      if (!status.canEmergencyUndo || actionPending) return;
-      if (!confirm("HOST EMERGENCY RECOVERY: Restore this turn's starting position for everyone? This cancels combat, exploration and pending decisions, including other players' decisions. Previously revealed information cannot be unlearned; future random rolls may differ. No completed turn will be undone.")) return;
-      dispatch({ type: "EMERGENCY_UNDO_TURN", payload: { snapshotId: status.snapshotId } });
-    });
+    document.getElementById("btn-emergency-undo")?.addEventListener("click", openRecoveryHistory);
 
     document.getElementById("btn-local").addEventListener("click", startLocal);
     document.getElementById("btn-create").addEventListener("click", startCreate);
@@ -1388,7 +1447,7 @@ const UI = (() => {
       actionPending = false;
       if (!stillCurrent()) {
         render();
-        if (result.status === "accepted" && ["UNDO_TURN", "EMERGENCY_UNDO_TURN"].includes(action.type)) return result;
+        if (result.status === "accepted" && ["UNDO_TURN", "EMERGENCY_UNDO_TURN", "RESTORE_REVISION"].includes(action.type)) return result;
         return { ...result, status: "superseded", code: "recovery_changed",
           message: "The turn was restored; the old action cannot restore its selection." };
       }
@@ -1396,7 +1455,7 @@ const UI = (() => {
         restoreSubState(afterSub);
         if (["PLAY_ECONOMY", "PLAY_MILITARY_MOVE", "PLAY_MILITARY_ATTACK", "BEGIN_EXPLORATION", "END_UNIT_MOVE"].includes(action.type)) clearSub();
         if (!isNetworkGame()) {
-          try { localStorage.setItem("civ-nd-save", JSON.stringify({ state, localPlayerId })); } catch(e) {}
+          try { localStorage.setItem("civ-nd-save", JSON.stringify({ state: backupPayload(state), localPlayerId })); } catch(e) {}
         }
       } else {
         restoreSubState(beforeSub);
@@ -1438,6 +1497,12 @@ const UI = (() => {
     if (!payload || typeof payload !== "object") return;
     const incomingRevision = Number.isInteger(meta.revision) ? meta.revision : (payload.revision || 0);
     if (state && Number.isInteger(state.revision) && incomingRevision < state.revision) return;
+    if (["playing", "gameover"].includes(state?.phase) && !["playing", "gameover"].includes(payload.phase)) {
+      backupFailure = { code: "setup_regression", message: "Rejected an old setup snapshot. Your current board was preserved." };
+      readOnlySession = true;
+      updateNetworkChrome();
+      return;
+    }
     state = Game.migrateState ? Game.migrateState(payload) : payload;
     state.revision = incomingRevision;
     if (Array.isArray(state.chat)) {
@@ -1609,7 +1674,8 @@ const UI = (() => {
           hostToken: savedCredentials.hostToken,
           includeState: true
         });
-        state = Game.migrateState ? Game.migrateState(remote.fullState) : remote.fullState;
+        assertRecoveryDoesNotRegress(remote, checkpoint.fullState);
+        state = await hydrateTurnRecovery(remote.fullState);
         state.revision = remote.revision;
         rememberProcessed(remote.processedActionIds || checkpoint.processedActionIds || []);
         sessionCredentials = {
@@ -3389,6 +3455,8 @@ const UI = (() => {
     const current = `${movementDraftKey()}:${state.recoveryGeneration || 0}`;
     if (recoveryContext && current !== recoveryContext) {
       clearSub();
+      presence.clear();
+      lastPresenceSent = null;
       pendingCardMove = null;
       pendingCardAnim = null;
       clearDiceAnimations();
@@ -3887,8 +3955,8 @@ const UI = (() => {
     const recoveryButton = document.getElementById("btn-emergency-undo");
     if (recoveryButton) {
       recoveryButton.classList.toggle("hidden", !Net.getIsHost() || state.phase !== "playing");
-      recoveryButton.disabled = !recovery.canEmergencyUndo || actionPending || !!interactionBlockReason({type:"EMERGENCY_UNDO_TURN"});
-      recoveryButton.title = recovery.emergencyReason;
+      recoveryButton.disabled = actionPending || !!interactionBlockReason({type:"RESTORE_REVISION"});
+      recoveryButton.title = "Restore a verified revision from this host's recovery history";
     }
     if (state.phase === "lobby") {
       dom.hdrRound.textContent = "Lobby";
@@ -3904,7 +3972,7 @@ const UI = (() => {
       dom.hdrTurn.textContent = activeP ? (activeId === localPlayerId ? "Your Turn" : `${activeP.name}'s Turn`) : "";
       dom.hdrTurn.style.color = activeP ? activeP.color : "";
     } else {
-      dom.hdrRound.textContent = `Round ${state.turn.round}/${Game.CFG.maxRounds}`;
+      dom.hdrRound.textContent = `Round ${state.turn.round}`;
       dom.hdrTurn.textContent = cp ? (cp.id === localPlayerId ? "Your Turn" : `${cp.name}'s Turn`) : "";
       dom.hdrTurn.style.color = cp ? cp.color : "";
       if (state.tileStack) dom.hdrRoom.textContent = `Tiles: ${state.tileStack.length}`;
@@ -3984,7 +4052,7 @@ const UI = (() => {
       const active = state.phase === "setup"
         ? (state.setup.order[state.setup.turnIndex] === p.id ? " active" : "")
         : (state.phase !== "lobby" && Game.currentPlayer(state)?.id === p.id ? " active" : "");
-      const score = state.phase === "playing" ? ` | Score: ${Game.computeScore(state, p.id)}` : "";
+      const score = "";
       const stats = state.phase === "lobby" ? "In lobby"
         : state.phase === "setup" ? "Setup"
         : `Cities: ${Game.countCities(state, p.id)} | Ctrl: ${Game.countControl(state, p.id)}${score}`;
@@ -4352,8 +4420,8 @@ const UI = (() => {
     dom.wizard.classList.toggle("astronomy-mode", !!pending &&
       ["astronomy_tiles", "astronomy_edge", "astronomy_place", "astronomy_return"]
         .includes(pending.kind));
-    dom.wizard.classList.toggle("collapsed", !lobby && wizardCollapsed);
-    if (lobby || !dom.wizard.innerHTML.trim()) return;
+    dom.wizard.classList.toggle("collapsed", state.phase === "playing" && wizardCollapsed);
+    if (lobby || state.phase === "setup" || !dom.wizard.innerHTML.trim()) return;
     const button = document.createElement("button");
     button.type = "button";
     button.className = "wiz-collapse";
@@ -4402,7 +4470,7 @@ const UI = (() => {
     }).join("");
     const uniqueCard = leader && leader.unique;
     return `
-      <details open style="margin-top:10px;border-top:1px solid rgba(255,255,255,0.12);padding-top:8px">
+      <details id="setup-known-info" style="margin-top:10px;border-top:1px solid rgba(255,255,255,0.12);padding-top:8px">
         <summary style="cursor:pointer;font-size:11px;opacity:0.85">What you already know</summary>
         ${leader ? `<div style="margin-top:6px;font-size:11px">
           <div><strong>${escapeHtml(leader.civ)}</strong>${leader.name && leader.name !== leader.civ ? ` — ${escapeHtml(leader.name)}` : ""}</div>
@@ -4643,165 +4711,38 @@ const UI = (() => {
   function renderSetupWizard() {
     const activeId = state.setup.order[state.setup.turnIndex];
     const activeP = Game.getPlayer(state, activeId);
-    const isMySetupTurn = activeId === localPlayerId;
-
-    if (canPreviewCapitalTile() && (!isMySetupTurn ||
-        (state.setup.phase === "capital_tile" && previewingCapitalTile()))) {
-      const enabled = previewingCapitalTile();
-      const valid = enabled && capitalPreviewAttempt().ok;
-      const canCommit = isMySetupTurn && state.setup.phase === "capital_tile";
-      const waiting = escapeHtml(activeP?.name || "the active player");
-      const tileId = localCapitalTileId();
-      dom.wizard.innerHTML = `
-        <div class="wiz-title">${canCommit ? "Place Your Capital Tile" : `Waiting for ${waiting}`}</div>
-        <div class="wiz-body">${canCommit ? "Your planned position is not placed until you confirm."
-          : `You may preview your own capital tile while ${waiting} places their ${state.setup.phase === "fortress" ? "fortress" : "capital"}.`}</div>
-        <div class="astro-faces"><span><small>Side A</small>${astronomyFaceImage(tileId, "A")}</span>
-          <span><small>Side B</small>${astronomyFaceImage(tileId, "B")}</span></div>
-        <button type="button" id="setup-capital-preview-mode">${enabled ? "Move My Tile" : "Preview My Capital Tile"}</button>
-        ${enabled ? `<div id="capital-preview-label" class="capital-preview-label">${canCommit ? "CAPITAL PLANNING" : `PREVIEW ONLY — WAITING FOR ${waiting}`}</div>
-          <div class="capital-preview-controls">
-            <button type="button" id="preview-rot-dec" aria-label="Rotate capital preview counterclockwise">Left</button>
-            <button type="button" id="preview-rot-inc" aria-label="Rotate capital preview clockwise">Right</button>
-            <button type="button" id="preview-side-toggle">Side ${previewCapital.side}</button>
-          </div>
-          <div class="pending-note ${valid ? "valid" : "invalid"}">${valid ? "VALID" : "INVALID"} — needs four core/fort contacts, without overlap.</div>
-          <div class="wiz-hint">Click the board to hold a position. Move My Tile resumes following the pointer. No spaces are reserved.</div>
-          <button type="button" class="primary" id="capital-preview-place" ${canCommit && valid ? "" : "disabled"}>Confirm Capital Placement</button>` : ""}`;
-      document.getElementById("setup-capital-preview-mode")?.addEventListener("click", () => {
-        if (enabled) { previewCapital.pinned = false; render(); }
-        else setCapitalPreview(true);
-      });
-      document.getElementById("preview-rot-dec")?.addEventListener("click", () => turnTile(-1));
-      document.getElementById("preview-rot-inc")?.addEventListener("click", () => turnTile(1));
-      document.getElementById("preview-side-toggle")?.addEventListener("click", flipTile);
-      document.getElementById("capital-preview-place")?.addEventListener("click", () => {
-        if (state.setup.phase !== "capital_tile" || state.setup.order[state.setup.turnIndex] !== localPlayerId ||
-            !capitalPreviewAttempt().ok) return;
-        dispatch({ type: "PLACE_TILE", payload: { playerId: localPlayerId,
-          tileId: previewCapital.tileId, anchorKey: previewCapital.anchorKey,
-          rotation: previewCapital.rotation, side: previewCapital.side } });
-      });
+    // Setup placement is always direct board placement, not the exploration
+    // planner. Waiting seats have no placement controls.
+    resetCapitalPreview();
+    if (activeId !== localPlayerId) {
+      dom.wizard.innerHTML = `<div class="wiz-title">Waiting for ${escapeHtml(activeP?.name || "the active player")}</div><div class="wiz-body">Placing ${state.setup.phase === "fortress" ? "a fortress" : "a tile"}.</div>`;
       return;
     }
-
     if (state.setup.phase === "fortress") {
-      if (!isMySetupTurn) {
-        dom.wizard.innerHTML = `<div class="wiz-title">Fortress Placement</div><div class="wiz-body">Waiting for <strong>${escapeHtml(activeP ? activeP.name : "...")}</strong>.</div>`;
-        return;
-      }
-      const fort = window.CivCardArt && CivCardArt.fort();
-      const previewing = previewingCapitalTile();
-      // Terra deals every player their capital tile BEFORE fortresses go down,
-      // so at the table you are looking at your own hometown tile - both faces
-      // of it - while you decide where the fortress goes. The engine already
-      // deals it here (createSetup fills playerTiles before phase "fortress");
-      // it was simply never shown, which made the choice blind in a way the
-      // physical game never is. The side is still chosen later, when the tile
-      // is actually placed, so both faces are offered and neither is committed.
-      const myCapital = (setupHand(state, localPlayerId) || [])[0];
-      // Styled inline rather than in style.css: that file is being worked on
-      // elsewhere for focus-row sizing, and this panel is small and local.
-      const faceStyle = "flex:1 1 0;min-width:0;margin:0;text-align:center";
-      const capStyle = "font-size:10px;opacity:0.75;margin-top:2px";
-      const capitalPanel = myCapital ? `
-        <div style="margin-top:10px;border-top:1px solid rgba(255,255,255,0.12);padding-top:8px">
-          <div class="wiz-hint">Your capital tile — <strong>${escapeHtml(myCapital)}</strong>.
-            You place it after the fortress, and you choose which face goes up then.</div>
-          <div style="display:flex;gap:8px;align-items:flex-start;margin-top:6px">
-            <figure style="${faceStyle}">${renderTileCard(myCapital, { side: "A", rotation: 0 })}
-              <figcaption style="${capStyle}">Side A</figcaption></figure>
-            <figure style="${faceStyle}">${renderTileCard(myCapital, { side: "B", rotation: 0 })}
-              <figcaption style="${capStyle}">Side B</figcaption></figure>
-          </div>
-        </div>` : "";
-      const modeToggle = `
-        <div class="setup-mode-toggle" role="group" aria-label="Fortress setup mode">
-          <button type="button" id="setup-fortress-mode" aria-pressed="${previewing ? "false" : "true"}">Place Fortress</button>
-          <button type="button" id="setup-capital-preview-mode" aria-pressed="${previewing ? "true" : "false"}"
-            ${myCapital ? "" : "disabled"}>Preview Capital Tile</button>
-        </div>`;
-      const previewControls = previewing ? `
-        <div id="capital-preview-label" class="capital-preview-label">PREVIEW — PLACE FORTRESS FIRST</div>
-        <div class="trade-counter capital-preview-controls">
-          <span>Turn preview:</span>
-          <button type="button" id="preview-rot-dec" class="sm" aria-label="Rotate capital preview counterclockwise">Left</button>
-          <span class="tc-val">${previewCapital.rotation + 1}/6</span>
-          <button type="button" id="preview-rot-inc" class="sm" aria-label="Rotate capital preview clockwise">Right</button>
-          <button type="button" id="preview-side-toggle" class="sm">Side ${previewCapital.side}</button>
-        </div>
-        <div class="wiz-hint">Move the pointer across the map to inspect the tile at board scale. Clicks only reposition this private preview. Use the map controls or Ctrl/Cmd + wheel to zoom.</div>` : "";
-      dom.wizard.innerHTML = `
-        <div class="wiz-title">Place Your Fortress</div>
-        <div class="wiz-body">
-          ${modeToggle}
-          ${previewControls}
-          ${fort ? `<div class="fortress-preview"><img src="${fort}" alt="Fortress tile"><span>${previewing
-            ? "Return to Place Fortress to put this tile down."
-            : "This tile follows your pointer."}</span></div>` : ""}
-          ${previewing ? "Fortress rule: choose" : "Click"} an <strong>inactive hex</strong> bordering at least 2 active hexes.${previewing
-            ? " Switch back to Place Fortress before clicking to commit it."
-            : ""}<br>
-          This is a neutral defensive hex (defense ${Game.CFG.fortressDefense}). Your capital will go on your hometown tile next.<br>
-          Read the board and choose; legal spaces are deliberately not highlighted.
-          ${setupKnownInformation(Game.getPlayer(state, localPlayerId))}
-          ${capitalPanel}
-        </div>`;
-      document.getElementById("setup-fortress-mode")?.addEventListener("click", () => setCapitalPreview(false));
-      document.getElementById("setup-capital-preview-mode")?.addEventListener("click", () => setCapitalPreview(true));
-      document.getElementById("preview-rot-dec")?.addEventListener("click", () => turnTile(-1));
-      document.getElementById("preview-rot-inc")?.addEventListener("click", () => turnTile(1));
-      document.getElementById("preview-side-toggle")?.addEventListener("click", flipTile);
+      const fort = window.CivCardArt?.fort();
+      const capital = (setupHand(state, localPlayerId) || [])[0];
+      dom.wizard.innerHTML = `<div class="wiz-title">Place your fortress</div>
+        <div class="wiz-body">Click an empty space touching at least 2 spaces on the core.
+        ${fort ? `<div class="fortress-preview"><img src="${fort}" alt="Fortress tile"></div>` : ""}
+        ${capital ? `<details id="setup-capital-info"><summary>Your capital tile ${escapeHtml(capital)}</summary><div class="astro-faces"><span>Side A${astronomyFaceImage(capital, "A")}</span><span>Side B${astronomyFaceImage(capital, "B")}</span></div></details>` : ""}
+        ${setupKnownInformation(Game.getPlayer(state,localPlayerId))}</div>`;
       return;
     }
-
-    if (state.setup.phase === "tile" || state.setup.phase === "capital_tile" || state.setup.phase === "draft_tile") {
-      const isCapitalPhase = state.setup.phase === "capital_tile";
-      const isDraftPhase = state.setup.phase === "draft_tile";
-      const phaseLabel = isCapitalPhase ? "Capital Tile Placement" : (isDraftPhase ? "Draft: Core Tile Placement" : "Tile Placement");
-      const playerTiles = setupHand(state, activeId);
-      if (!isMySetupTurn) {
-        dom.wizard.innerHTML = `<div class="wiz-title">${escapeHtml(phaseLabel)}</div><div class="wiz-body">Waiting for <strong>${escapeHtml(activeP ? activeP.name : "...")}</strong>. (${playerTiles.length} remaining)</div>`;
-        return;
-      }
-      if (playerTiles.length === 0) {
-        dom.wizard.innerHTML = `<div class="wiz-title">${phaseLabel}</div><div class="wiz-body">All tiles placed! Waiting for others...</div>`;
-        return;
-      }
-      const tileId = playerTiles[0];
-      const tile = state.setup.tiles[tileId];
-      const tileType = tile ? tile.type.charAt(0).toUpperCase() + tile.type.slice(1) : "?";
-
-      dom.wizard.innerHTML = `
-        <div class="wiz-title">${isCapitalPhase ? "Place Your Capital Tile" : (isDraftPhase ? `Place Drafted Tile: ${tileType} (${tileId})` : `Place Tile: ${tileType} (${tileId})`)}</div>
-        <div class="wiz-body">
-          ${isDraftPhase ? `<div class="wiz-hint">Advanced setup: this tile joins the shared core — place it touching the growing map.</div>` : ""}
-          <div class="tile-preview">${renderTileCard(tileId, { side: sub.tileSide, rotation: 0 })}</div>
-          <div class="trade-counter">
-            <span>Turn it:</span>
-            <button id="rot-dec" class="sm">\u21ba</button>
-            <span class="tc-val">${sub.tileRotation + 1}/6</span>
-            <button id="rot-inc" class="sm">\u21bb</button>
-            <button id="side-toggle" class="sm">Side ${sub.tileSide}</button>
-          </div>
-          <br><strong>Find it a home.</strong> Hover the board — the tile shows
-          <strong style="color:#66bb6a">green</strong> where it fits and
-          <strong style="color:#ef5350">red</strong> where it does not. Click to lay it.<br>
-          Scroll or <kbd>R</kbd> to turn it, <kbd>F</kbd> to flip it over.<br>
-          Tiles remaining: <strong>${playerTiles.length}</strong>
-          ${tileDeadEndNote(tileId)}
-        </div>`;
-
-      document.getElementById("rot-dec").addEventListener("click", () => turnTile(-1));
-      document.getElementById("rot-inc").addEventListener("click", () => turnTile(1));
-      document.getElementById("side-toggle").addEventListener("click", flipTile);
-      if (isCapitalPhase) {
-        const previewButton = document.createElement("button");
-        previewButton.id = "setup-capital-preview-mode";
-        previewButton.textContent = "Preview My Capital Tile";
-        previewButton.addEventListener("click", () => setCapitalPreview(true));
-        dom.wizard.append(previewButton);
-      }
+    if (["tile", "capital_tile", "draft_tile"].includes(state.setup.phase)) {
+      const tileId = (setupHand(state, localPlayerId) || [])[0];
+      if (!tileId) { dom.wizard.textContent = "Waiting for setup to finish."; return; }
+      const capital = state.setup.phase === "capital_tile";
+      dom.wizard.innerHTML = `<div class="wiz-title">${capital ? "Place your capital tile" : "Place your drafted tile"}</div>
+        <div class="wiz-body">${capital ? "Must touch at least 4 spaces on core tiles and/or fort tokens" : "Place the tile touching the shared core."}
+        <div class="tile-preview">${renderTileCard(tileId, {side:sub.tileSide,rotation:sub.tileRotation})}</div>
+        <div class="setup-placement-controls">
+          <button id="rot-dec" type="button" aria-label="Rotate left">Rotate left</button>
+          <button id="rot-inc" type="button" aria-label="Rotate right">Rotate right</button>
+          <button id="side-toggle" type="button" aria-label="Flip side">Flip side (${sub.tileSide})</button>
+        </div></div>`;
+      document.getElementById("rot-dec").onclick = () => turnTile(-1);
+      document.getElementById("rot-inc").onclick = () => turnTile(1);
+      document.getElementById("side-toggle").onclick = flipTile;
     }
   }
 
@@ -6764,7 +6705,7 @@ const UI = (() => {
           <b>${escapeHtml(p.name)}${isMe ? " (you)" : ""}</b>
           ${lead ? `<span class="pl-civ">${escapeHtml(lead.civ)} · ${escapeHtml(lead.name)}</span>` : ""}
           ${active ? `<span class="pl-turn">to move</span>` : ""}
-          <span class="pl-score">Score ${Game.computeScore(state, p.id)}</span>
+          <span class="pl-score">${Game.getClaimedAgendaCount(state, p.id)}/4 victory cards</span>
         </div>
         ${lead ? `<p class="pl-ability">${escapeHtml(lead.ability.text)}</p>` : ""}
         <div class="pl-row">`;
@@ -7106,8 +7047,8 @@ const UI = (() => {
     let outcome = "";
     switch (cardType) {
       case "culture": {
-        const markers = Game.getCultureMarkers(player, spend, state);
-        outcome = `Markers to place: <strong>${markers}</strong> (terrain ≤ ${slot})`;
+        const parts = Game.getCultureMarkerBreakdown(player, spend, state, cardIndex);
+        outcome = `Markers to place: <strong>${parts.total}</strong> (${parts.base} base${parts.trade ? ` + ${parts.trade} Culture trade` : ""}${parts.franceBonus ? ` + ${parts.franceBonus} France` : ""}; terrain ≤ ${slot})`;
         if (uniqueName === "Radio" && slot === 5) outcome += "; then choose a legal rival non-capital city.";
         if (uniqueName === "State Workforce" && slot === 5) outcome += "; then place the mountain control token.";
         if (uniqueName === "Humanism") outcome += "; then distribute trade for each mature city.";
@@ -7182,7 +7123,7 @@ const UI = (() => {
     }
     if (sub.cardType === "culture") {
       sub.phase = "placing_control";
-      sub.remaining = Game.getCultureMarkers(me, sub.tradeSpent, state);
+      sub.remaining = Game.getCultureMarkers(me, sub.tradeSpent, state, sub.cardIndex);
       sub.totalMarkers = sub.remaining;
       sub.placedKeys = [];
       sub.validHexes = Game.validControlHexes(state, localPlayerId, slot);
@@ -7910,7 +7851,11 @@ const UI = (() => {
       (state.activeCard && state.activeCard.playerId === localPlayerId) ||
       state.pendingExploration || state.movementContinuation ||
       (state.pendingChoices && state.pendingChoices.length) || state.pendingBarbReward);
-    const canPlay = isMyTurn && !me.cardPlayed && sub.phase === "idle" && !resolving;
+    // Previewing a card has not begun an action. Let the player select another
+    // preview without first cancelling; never allow that during an ACK or an
+    // authoritative card resolution.
+    const canPlay = isMyTurn && !me.cardPlayed && ["idle", "card_selected"].includes(sub.phase) &&
+      !actionPending && !resolving;
     const TIER_LABELS = ["I", "II", "III", "IV"];
     const focusBoard = window.CivCardArt ? CivCardArt.focusBar(me.color) : "";
     dom.focusRow.classList.toggle("has-board-art", !!focusBoard);
@@ -8069,6 +8014,7 @@ const UI = (() => {
           setTimeout(() => { pendingCardAnim = null; renderFocusRow(); }, 440);
           sub.phase = "card_selected";
           sub.cardType = el.dataset.card;
+          sub.confirmNothing = false;
           // WHICH card was clicked. Oxford can put two cards of one type in the
           // row, and the type alone would always send the leftmost.
           sub.cardIndex = Number(el.dataset.idx);
@@ -8082,11 +8028,8 @@ const UI = (() => {
           sub.focusTradeSpent = 0;
           sub.tradeResources = {};
           syncFocusTradeTotal();
-          // With no tokens on the card there is nothing to decide, so don't ask:
-          // clicking the card is the decision, and the action starts.
-          const meNow = Game.getPlayer(state, localPlayerId);
-          const picked = meNow && rowCardsOf(meNow).find((card) => card.index === sub.cardIndex);
-          if (picked && !picked.trade) { startAction(); return; }
+          // Selection is a private preview for EVERY focus card, even at zero
+          // trade. Only the explicit Start Action control begins resolution.
           refreshWizard();
           renderFocusRow();
         });
@@ -8105,7 +8048,7 @@ const UI = (() => {
       <div class="go-type">${state.winner.type}</div>
       <div style="margin-bottom:12px"><strong>${state.winner.playerName}</strong> wins!</div>
       <div class="gameover-scores">${state.players.map((p) =>
-        `<div><span class="dot" style="background:${safeColor(p.color)};display:inline-block;width:8px;height:8px;border-radius:50%"></span> ${escapeHtml(p.name)}: ${Game.computeScore(state, p.id)} pts</div>`
+        `<div><span class="dot" style="background:${safeColor(p.color)};display:inline-block;width:8px;height:8px;border-radius:50%"></span> ${escapeHtml(p.name)}: ${Game.getClaimedAgendaCount(state, p.id)} victory cards</div>`
       ).join("")}</div>
       <div class="gameover-actions"><button class="primary" id="go-restart">Play Again</button></div>
     </div>`;

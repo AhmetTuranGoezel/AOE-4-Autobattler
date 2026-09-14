@@ -409,7 +409,6 @@ const Game = (() => {
     resourceProdValue: 2,
     techWheelSize: 24,
     techResetAt: 15, // past space 24 the arrow jumps straight here (base p16)
-    maxRounds: 20,
     minPlayers: 2,
     maxPlayers: 5,
     victoryMilitary: 12,
@@ -610,7 +609,10 @@ const Game = (() => {
 
   function ensureMapHexes(map, hexKeys, margin) {
     const keys = Array.isArray(hexKeys) ? hexKeys : Array.from(hexKeys || []);
-    let needed = Math.max(0, Number(map && map.radius) || 0);
+    // Margin belongs around the requested coordinates, not around the entire
+    // already allocated map. Adding it to map.radius on every placement grew
+    // thousands of empty cells even when placing inside the existing bounds.
+    let needed = 0;
     keys.forEach((hexKey) => {
       if (typeof hexKey !== "string" || !hexKey.includes(",")) return;
       needed = Math.max(needed, axialRadius(parseQ(hexKey), parseR(hexKey)));
@@ -1491,7 +1493,62 @@ const Game = (() => {
     return player;
   }
 
+  // Storage encoding only: one canonical state, never a second gameplay copy.
+  // Hex columns preserve every property (including absent vs null), while
+  // avoiding thousands of repeated property names in the inactive map margin.
+  function checkpointState(st) {
+    const saved = { ...st };
+    if (st.turnUndo) {
+      saved.turnUndo = { ...st.turnUndo };
+      delete saved.turnUndo.snapshot;
+    }
+    delete saved.undoSummary;
+    if (st.map?.hexes && !st.map.hexEncoding) {
+      const entries = Object.entries(st.map.hexes);
+      const columns = [...new Set(entries.flatMap(([, hex]) => Object.keys(hex)))].filter(name => name !== "q" && name !== "r");
+      const templates = [], byTemplate = new Map();
+      saved.map = { ...st.map, hexEncoding: 1, hexColumns: columns, hexTemplates: templates,
+        hexRows: entries.map(([key, hex]) => {
+          const values = columns.flatMap((name, i) => Object.prototype.hasOwnProperty.call(hex, name) && hex[name] !== undefined ? [i, hex[name]] : []);
+          const json = JSON.stringify(values);
+          if (!byTemplate.has(json)) { byTemplate.set(json, templates.length); templates.push(values); }
+          return [key, hex.q, hex.r, byTemplate.get(json)];
+        }) };
+      delete saved.map.hexes;
+    }
+    return JSON.parse(JSON.stringify(saved));
+  }
+
+  function unpackCheckpoint(st) {
+    if (st?.map?.hexEncoding === 1) {
+      const { hexColumns: columns, hexRows: rows, hexTemplates: templates } = st.map;
+      if (!Array.isArray(columns) || !Array.isArray(rows) || !Array.isArray(templates) || rows.length > 50000 ||
+          new Set(columns).size !== columns.length ||
+          columns.some(name => typeof name !== "string" || ["q", "r", "__proto__", "constructor", "prototype"].includes(name)) ||
+          templates.some(values => !Array.isArray(values) || values.length % 2 ||
+            values.some((value, i) => i % 2 === 0 && (!Number.isInteger(value) || value < 0 || value >= columns.length))) ||
+          rows.some(row => !Array.isArray(row) || row.length !== 4 ||
+            !Number.isSafeInteger(row[1]) || !Number.isSafeInteger(row[2]) || row[0] !== `${row[1]},${row[2]}` ||
+            !Number.isInteger(row[3]) || row[3] < 0 || row[3] >= templates.length) ||
+          new Set(rows.map(row => row[0])).size !== rows.length)
+        throw new Error("Invalid checkpoint map encoding");
+      st.map.hexes = Object.fromEntries(rows.map(([key, q, r, template]) => {
+        // Clone template values: two equal control tokens are not one object.
+        const values = JSON.parse(JSON.stringify(templates[template]));
+        const hex = { q, r };
+        for (let i = 0; i < values.length; i += 2) hex[columns[values[i]]] = values[i + 1];
+        return [key, hex];
+      }));
+      delete st.map.hexEncoding;
+      delete st.map.hexColumns;
+      delete st.map.hexRows;
+      delete st.map.hexTemplates;
+    }
+    return st;
+  }
+
   function migrateState(st) {
+    unpackCheckpoint(st);
     if (!st) return st;
     const projectedView = st.stateView === true;
     const sourceSchema = Number.isInteger(st.saveSchemaVersion)
@@ -1672,6 +1729,7 @@ const Game = (() => {
     "CHECK_AGENDAS",
     "KICK_PLAYER",
     "EMERGENCY_UNDO_TURN",
+    "RESTORE_REVISION",
   ]);
   const SETUP_ACTIONS = new Set(["PLACE_FORTRESS", "PLACE_TILE"]);
   const CURRENT_PLAYER_ACTIONS = new Set([
@@ -1728,7 +1786,7 @@ const Game = (() => {
   // This is the sole online permission table. The transport supplies actorId
   // from its authenticated seat binding; nothing inside the action may grant a
   // different identity or host privileges.
-  function authorizeAction(st, action, context) {
+  function authorizeAction(st, action, context, preflight = false) {
     const type = action.type;
     const payload = action.payload || {};
     const actorId = context.actorId || null;
@@ -1754,6 +1812,15 @@ const Game = (() => {
           "unknown_actor",
           "The authenticated host seat is not part of this game.",
         );
+      if (type === "RESTORE_REVISION" && !preflight) {
+        const recovery = context.recoveryState;
+        if (!recovery || !Number.isSafeInteger(payload.revision) || recovery.revision !== payload.revision ||
+            recovery.gameId !== st.gameId || recovery.stateView ||
+            recovery.players.map(p => p.id).sort().join("|") !== st.players.map(p => p.id).sort().join("|"))
+          return denied("recovery_unavailable", "Select a verified revision from this game's host history.");
+        if (["playing", "gameover"].includes(st.phase) && !["playing", "gameover"].includes(recovery.phase))
+          return denied("setup_regression", "A running game cannot be restored into setup.");
+      }
       if (type === "EMERGENCY_UNDO_TURN") {
         const undo = getUndoStatus(st, actorId, { role });
         if (!undo.canEmergencyUndo)
@@ -2366,7 +2433,7 @@ const Game = (() => {
       return denied("invalid_action", "Malformed action.");
     }
     const trusted = context || {};
-    return authorizeAction(state, bindActionActor(action, trusted), trusted);
+    return authorizeAction(state, bindActionActor(action, trusted), trusted, true);
   }
 
   function tryApplyAction(state, action, context) {
@@ -2418,7 +2485,15 @@ const Game = (() => {
       // action having changed something.
       normalizeDerivedState(candidate);
       const before = JSON.stringify(candidate);
-      const result = applyAction(candidate, bound);
+      let result;
+      if (bound.type === "RESTORE_REVISION") {
+        result = migrateState(JSON.parse(JSON.stringify(context.recoveryState)));
+        result.revision = candidate.revision;
+        result.gameId = candidate.gameId;
+        result.recoveryGeneration = (candidate.recoveryGeneration || 0) + 1;
+        log(result, `Host restored revision r${bound.payload.revision}. Previously revealed information cannot be unlearned.`);
+        result.lastAction = { type: bound.type, playerId: context.actorId, ts: Date.now() };
+      } else result = applyAction(candidate, bound);
       if (JSON.stringify(result) === before) {
         return {
           accepted: false,
@@ -2785,15 +2860,14 @@ const Game = (() => {
         armTurnUndo(result);
       } else {
         ensureTurnUndo(result);
-        if (!result.turnUndo) return result;
-        result.turnUndo.actions = (result.turnUndo.actions || 0) + 1;
+        if (result.turnUndo) result.turnUndo.actions = (result.turnUndo.actions || 0) + 1;
         const reason =
           !alreadyRevealed && result.pendingExploration
             ? "Undo is locked because an exploration tile has been revealed."
             : type === "BEGIN_EXPLORATION" && !result.pendingExploration
               ? ""
               : irreversibleReason(type, payload);
-        if (reason) {
+        if (reason && result.turnUndo) {
           result.turnUndo.locked = true;
           result.turnUndo.reason = reason;
         }
@@ -3199,14 +3273,7 @@ const Game = (() => {
 
     if (type === "CHECK_AGENDAS") {
       updateAgendaClaims(st);
-      const winner = checkVictory(st);
-      if (winner) {
-        st.winner = winner;
-        st.phase = "gameover";
-        log(st, `${winner.playerName} wins by ${winner.type}!`);
-      } else {
-        manualLog(st, "Agenda claims refreshed.");
-      }
+      manualLog(st, "Agenda claims refreshed. Victory is checked at the end of the round.");
       return st;
     }
 
@@ -9509,22 +9576,6 @@ const Game = (() => {
         playerId: p.id,
       };
     }
-    if (st.turn.round >= CFG.maxRounds) {
-      let best = st.players[0];
-      let bestScore = computeScore(st, best.id);
-      st.players.forEach((p) => {
-        const s = computeScore(st, p.id);
-        if (s > bestScore) {
-          bestScore = s;
-          best = p;
-        }
-      });
-      return {
-        playerName: best.name,
-        type: `Highest Score (${bestScore})`,
-        playerId: best.id,
-      };
-    }
     return null;
   }
 
@@ -9616,24 +9667,6 @@ const Game = (() => {
     return Object.values(st.map.hexes).filter(
       (h) => h.control && h.control.ownerId === playerId && h.control.district,
     ).length;
-  }
-
-  function computeScore(st, playerId) {
-    let score = 0;
-    Object.values(st.map.hexes).forEach((h) => {
-      if (h.city && h.city.ownerId === playerId) {
-        score += 3;
-        if (isCityDeveloped(st, h)) score += 2;
-        if (h.city.hasWonder) score += 4;
-      }
-      if (h.control && h.control.ownerId === playerId) {
-        score++;
-        if (h.control.district) score++;
-      }
-    });
-    const p = getPlayer(st, playerId);
-    if (p) score += Math.floor(p.tech / 4);
-    return score;
   }
 
   // --- Query Helpers ---
@@ -9896,14 +9929,19 @@ const Game = (() => {
     return base + colossus;
   }
 
-  function getCultureMarkers(player, tradeSpent, st) {
-    const tier = getCardTier(player, "culture");
+  function getCultureMarkerBreakdown(player, tradeSpent, st, cardIndex) {
+    const tier = Number.isInteger(cardIndex) ? cardTierAt(player, cardIndex) : getCardTier(player, "culture");
     const base = CARD_TIERS.culture.markers[tier - 1];
     const franceBonus =
       st && player && hasLeader(player, "france")
         ? franceWonderBonus(st, player.id)
         : 0;
-    return base + tradeSpent + franceBonus;
+    const trade = Math.max(0, Number(tradeSpent) || 0);
+    return { base, trade, franceBonus, total: base + trade + franceBonus };
+  }
+
+  function getCultureMarkers(player, tradeSpent, st, cardIndex) {
+    return getCultureMarkerBreakdown(player, tradeSpent, st, cardIndex).total;
   }
 
   // The printed cards, not a flat table. Iron Working reads "your combat value
@@ -14835,6 +14873,9 @@ const Game = (() => {
     getMilitaryMove,
     getEconomyMove,
     getCultureMarkers,
+    getCultureMarkerBreakdown,
+    checkpointState,
+    unpackCheckpoint,
     getMilitaryCombatBonus,
     getCityRange,
     getWonderCost,
@@ -14860,7 +14901,6 @@ const Game = (() => {
     caravanLaunchSpaces,
     unitStartSpaces,
     canCrossWater,
-    computeScore,
     findDefenders,
     validControlHexes,
     validDistrictHexes,

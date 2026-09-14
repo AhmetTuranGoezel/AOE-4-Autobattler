@@ -576,6 +576,7 @@
         return st;
       }
       function activate(st, k, props) {
+        Game.ensureMapHexes(st.map, [k], 0);
         Object.assign(st.map.hexes[k], {
           active: true, revealed: true, terrain: "grass", city: null, control: null,
           barbarian: false, cityState: null, fortress: false, resource: null,
@@ -1377,7 +1378,7 @@
           st.map.hexes["1,0"].terrain !== "forest");
         const reach = Game.getReachable(st, "0,0", 3, "caravan", me.id);
         assert("a slot-1 caravan can enter a fort", reach.has("1,0"));
-        assert("but still cannot pass through it", !reach.has("2,0"));
+        assert("caravans can pass through forts (Terra p11)", reach.has("2,0"));
 
         const st2 = rulesState();
         const me2 = st2.players[0];
@@ -1404,7 +1405,7 @@
         const touching = (anchor, rot) => {
           const cells = Game.getTileHexKeys(anchor, rot, st.map.hexes);
           if (cells.length !== Game.TILE_OFFSETS.length) return null;
-          if (cells.some((k) => st.map.hexes[k].active)) return null;
+          if (cells.some((k) => st.map.hexes[k]?.active)) return null;
           const set = new Set(cells);
           const nb = new Set();
           cells.forEach((k) => Game.hexNeighborKeys(Game.parseQ(k), Game.parseR(k)).forEach((nk) => {
@@ -2393,17 +2394,13 @@
           const { st, me } = ringed();
           assert("a fully ringed capital is mature",
             Game.countDeveloped(st, me.id) === 1, String(Game.countDeveloped(st, me.id)));
-          const scoreWhileMature = Game.computeScore(st, me.id);
+          const controlsBefore = Game.countControl(st, me.id);
           // Exactly what a barbarian raid leaves behind: one marker gone.
           st.map.hexes["0,1"].control = null;
           assert("losing one ring token ends maturity immediately",
             Game.countDeveloped(st, me.id) === 0, String(Game.countDeveloped(st, me.id)));
-          // Three points: one for the control token itself, two for the
-          // maturity it was holding up. Comparing within one state rather than
-          // against a second generated map, whose terrain would differ.
-          assert("and the city stops scoring as mature",
-            Game.computeScore(st, me.id) === scoreWhileMature - 3,
-            scoreWhileMature + " -> " + Game.computeScore(st, me.id));
+          assert("the lost physical control token is counted immediately",
+            Game.countControl(st, me.id) === controlsBefore - 1);
           st.map.hexes["0,1"].control = { ownerId: me.id, fortified: false, district: null };
           assert("replacing the token makes it mature again",
             Game.countDeveloped(st, me.id) === 1);

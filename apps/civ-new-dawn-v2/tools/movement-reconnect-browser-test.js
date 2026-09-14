@@ -9,6 +9,7 @@ const R = reporter();
     await seedRoom(table, "movement", [table.profiles[1], table.profiles[0], table.profiles[2]]);
     const [host, mover] = table.tabs;
     await click(mover, '.fcard[data-card="economy"]');
+    await click(mover, '#wiz-start');
     await hex(mover, "-5,0"); await hex(mover, "-4,0"); await hex(mover, "4,0");
     const capture = async (tab) => tab.eval(`(() => {
       const st=UI.debugState(), id=st.players.find(p=>p.leaderId==='indonesia').id;

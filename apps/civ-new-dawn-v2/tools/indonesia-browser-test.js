@@ -70,6 +70,7 @@ async function clickHex(tab, key) {
     R.ok("Indonesia and Shipbuilding are seated", !!seeded.caravanId, JSON.stringify(seeded));
 
     await tab.eval(`(() => { document.querySelector('.fcard[data-card="economy"]')?.click(); return true; })()`);
+    await tab.eval("document.querySelector('#wiz-start').click()");
     R.ok("real Shipbuilding card click opens caravan movement", (await waitUntil(async () =>
       await tab.eval(`UI.debugInfo().subPhase === "move_caravan"`), 8000)) >= 0);
     const exact = await tab.eval(`(() => ({

@@ -3526,3 +3526,8 @@ kbd {
   opacity: 0.9;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
 }
+/* Host recovery is separate from the in-turn decision wizard. */
+#recovery-dialog { max-width: min(680px, 90vw); color: #eee3cb; background: #25201c; border: 1px solid #ab8953; border-radius: 10px; padding: 24px; }
+#recovery-dialog::backdrop { background: #0009; }
+#recovery-dialog select { display: block; width: 100%; margin: 12px 0; padding: 10px; }
+.recovery-actions, .setup-placement-controls { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }

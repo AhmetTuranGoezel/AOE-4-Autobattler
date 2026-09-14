@@ -12,6 +12,7 @@
   const DB_NAME = "civ-new-dawn-multiplayer-v2";
   const DB_VERSION = 1;
   const CHECKPOINT_LIMIT = 5;
+  const HISTORY_LIMIT = 24;
   const MAX_CHECKPOINT_BYTES = 1024 * 1024;
   const GAME_ID_RE = /^[A-Za-z0-9_-]{8,96}$/;
   const CHECKPOINT_STORE = "checkpoints";
@@ -229,8 +230,15 @@
     const gameId = validateGameId(input.gameId);
     if (!Number.isSafeInteger(input.revision) || input.revision < 0) throw new TypeError("revision must be a non-negative integer");
     if (!Number.isSafeInteger(input.hostEpoch) || input.hostEpoch < 1) throw new TypeError("hostEpoch must be a positive integer");
-    const fullState = input.fullState ?? input.state;
-    if (!plainObject(fullState)) throw new TypeError("fullState must be an object");
+    const source = input.fullState ?? input.state;
+    if (!plainObject(source)) throw new TypeError("fullState must be an object");
+    const fullState = { ...source };
+    // Enforce the storage boundary even for callers importing an older save.
+    // Its turn-start copy must be saved as a separate recovery record.
+    if (fullState.turnUndo) {
+      fullState.turnUndo = { ...fullState.turnUndo };
+      delete fullState.turnUndo.snapshot;
+    }
     const normalized = {
       protocolVersion: input.protocolVersion ?? 2,
       saveSchemaVersion: input.saveSchemaVersion ?? 2,
@@ -239,6 +247,9 @@
       revision: input.revision,
       hostEpoch: input.hostEpoch,
       savedAt,
+      kind: input.kind || "checkpoint",
+      identity: input.identity || null,
+      metadata: input.metadata || null,
       fullState,
       processedActionIds: Array.isArray(input.processedActionIds)
         ? input.processedActionIds.slice(-512)
@@ -258,7 +269,12 @@
           throw new Error(`Local checkpoint exceeds ${MAX_CHECKPOINT_BYTES} bytes`);
         }
         const digest = await checksum(normalized.json);
-        const records = await backend.list(normalized.value.gameId);
+        const records = (await backend.list(normalized.value.gameId)).filter(record =>
+          (record.kind || "checkpoint") === normalized.value.kind);
+        if (normalized.value.kind !== "checkpoint") {
+          const existing = records.find(record => record.identity === normalized.value.identity);
+          if (existing && await verifyRecord(existing)) return JSON.parse(existing.payloadJson);
+        }
         const duplicate = records.find((record) =>
           record.revision === normalized.value.revision && record.checksum === digest && record.payloadJson === normalized.json
         );
@@ -267,20 +283,26 @@
         const sequence = records.reduce((max, record) => Math.max(max, Number(record.sequence) || 0), 0) + 1;
         const key = `${normalized.value.gameId}:${String(sequence).padStart(10, "0")}:${generateToken().slice(0, 8)}`;
         const sorted = records.slice().sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
-        while (sorted.length >= CHECKPOINT_LIMIT) {
-          const oldest = sorted.shift();
-          if (oldest?.key) await backend.delete(oldest.key);
-        }
         await backend.put({
           key,
           gameId: normalized.value.gameId,
           revision: normalized.value.revision,
           hostEpoch: normalized.value.hostEpoch,
           savedAt,
+          kind: normalized.value.kind,
+          identity: normalized.value.identity,
           sequence,
           checksum: digest,
           payloadJson: normalized.json
         });
+        // Commit first, prune afterwards. A quota/write failure must not erase
+        // the previous valid recovery point.
+        const limit = normalized.value.kind === "checkpoint" ? CHECKPOINT_LIMIT :
+          normalized.value.kind === "revision" ? HISTORY_LIMIT : 2;
+        while (sorted.length >= limit) {
+          const oldest = sorted.shift();
+          if (oldest?.key) await backend.delete(oldest.key);
+        }
         return { ...normalized.value, checkpoint: { key, checksum: digest, sequence } };
       };
       const result = writeQueue.then(work, work);
@@ -299,7 +321,7 @@
 
     async function loadLatest(gameId) {
       validateGameId(gameId);
-      const records = (await backend.list(gameId)).slice().sort((a, b) =>
+      const records = (await backend.list(gameId)).filter(r => !r.kind || r.kind === "checkpoint").sort((a, b) =>
         (b.revision - a.revision) || ((b.sequence || 0) - (a.sequence || 0))
       );
       for (const record of records) {
@@ -311,7 +333,7 @@
 
     async function listCheckpoints(gameId) {
       validateGameId(gameId);
-      const records = (await backend.list(gameId)).slice().sort((a, b) =>
+      const records = (await backend.list(gameId)).filter(r => !r.kind || r.kind === "checkpoint").sort((a, b) =>
         (b.revision - a.revision) || ((b.sequence || 0) - (a.sequence || 0))
       );
       return Promise.all(records.map(async (record) => ({
@@ -334,6 +356,23 @@
       return cloned;
     }
 
+    async function listHistory(gameId) {
+      validateGameId(gameId);
+      const records = (await backend.list(gameId)).filter(r => r.kind === "revision").sort((a,b) => b.revision-a.revision);
+      const entries = await Promise.all(records.map(async r => {
+        const saved = await verifyRecord(r);
+        return saved ? { ...saved.metadata, revision: saved.revision, timestamp: saved.savedAt } : null;
+      }));
+      return entries.filter(Boolean);
+    }
+
+    async function loadHistory(gameId, revision, kind = "revision") {
+      validateGameId(gameId);
+      const record = (await backend.list(gameId)).find(r => r.kind === kind &&
+        (kind === "turn-start" ? r.identity === revision : r.revision === revision));
+      return verifyRecord(record);
+    }
+
     async function loadCredentials(gameId) {
       validateGameId(gameId);
       const record = await backend.getCredentials(gameId);
@@ -354,6 +393,11 @@
       loadLatest,
       recoverSession: loadLatest,
       listCheckpoints,
+      saveHistory: input => saveCheckpoint({ ...input, kind: "revision", identity: `revision:${input.revision}` }),
+      saveTurnStart: (input, identity) => saveCheckpoint({ ...input, kind: "turn-start", identity }),
+      listHistory,
+      loadHistory,
+      loadTurnStart: (gameId, snapshotId) => loadHistory(gameId, snapshotId, "turn-start"),
       saveCredentials,
       loadCredentials,
       exportSession,
@@ -449,6 +493,6 @@
     createApiClient,
     createMemoryBackend,
     CivSessionApiError,
-    constants: { DB_NAME, DB_VERSION, CHECKPOINT_LIMIT, MAX_CHECKPOINT_BYTES }
+    constants: { DB_NAME, DB_VERSION, CHECKPOINT_LIMIT, HISTORY_LIMIT, MAX_CHECKPOINT_BYTES }
   });
 });

@@ -57,7 +57,7 @@ async function seedRoom(room, mode, order = room.profiles, options = {}) {
 async function click(tab, selector) {
   await settled(tab);
   if (await waitUntil(() => tab.eval(`(() => {const b=document.querySelector(${JSON.stringify(selector)});
-    return b && !b.disabled && b.getBoundingClientRect().width>0;})()`),10000)<0)
+    return b && !b.disabled && !b.classList.contains('disabled') && b.getBoundingClientRect().width>0;})()`),10000)<0)
     throw Error('Control did not appear: '+selector+' '+JSON.stringify(await tab.eval(
       `({info:UI.debugInfo(),wizard:document.querySelector('#wizard')?.innerText,chip:document.querySelector('#board-chip')?.innerText,net:Net.getStatus().phase})`)));
   // A newly received fixture/turn can animate the focus row. Track the actual

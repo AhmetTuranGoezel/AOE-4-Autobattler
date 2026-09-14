@@ -236,158 +236,16 @@ const info = (n, d) => lines.push(["INFO", n, String(d)]);
       activeFortressSeat === hostSeat || activeFortressSeat === guestSeatNow,
       { activeFortressSeat, hostSeat, guestSeatNow });
 
-    const previewBefore = await previewer.eval(`(() => {
-      window.__capitalPreviewTraffic = { presence: 0, actions: 0 };
-      window.__capitalPreviewOriginals = {
-        sendPresence: Net.sendPresence,
-        submitAction: Net.submitAction
-      };
-      Net.sendPresence = function (...args) {
-        window.__capitalPreviewTraffic.presence++;
-        return window.__capitalPreviewOriginals.sendPresence.apply(Net, args);
-      };
-      Net.submitAction = function (...args) {
-        window.__capitalPreviewTraffic.actions++;
-        return window.__capitalPreviewOriginals.submitAction.apply(Net, args);
-      };
-      const s = UI.debugState();
-      return {
-        json: JSON.stringify(s),
-        revision: s.revision,
-        fortressCount: Object.values(s.map.hexes).filter((h) => h.fortress).length,
-        tileId: (s.setup.playerTiles[${JSON.stringify(activeFortressSeat)}] || [])[0],
-        phase: s.setup.phase,
-        mode: UI.debugInfo().capitalPreview
-      };
-    })()`);
-    const observerBefore = await observer.eval(`(() => {
-      const s = UI.debugState();
-      return { json: JSON.stringify(s), revision: s.revision,
-        preview: UI.debugInfo().capitalPreview };
-    })()`);
-    ok("no fortress is committed before previewing",
-      previewBefore.phase === "fortress" && previewBefore.fortressCount === 0,
-      previewBefore);
-    ok("Place Fortress is the default mode",
-      previewBefore.mode && previewBefore.mode.enabled === false);
-
-    await previewer.eval(`(() => {
-      const button = document.getElementById("setup-capital-preview-mode");
-      if (button) button.click();
-      return !!button;
-    })()`);
-    const previewOpened = await waitUntil(async () => {
-      const result = await previewer.eval(`(() => {
-        const info = UI.debugInfo().capitalPreview;
-        return !!(info.enabled && info.rendered && info.rendered.cellCount === 10 &&
-          document.getElementById("capital-preview-label"));
-      })()`);
-      return result;
-    }, 5000);
-    const openedInfo = await previewer.eval("UI.debugInfo().capitalPreview");
-    ok("Preview Capital Tile draws all ten cells at board scale",
-      previewOpened >= 0 && openedInfo.tileId === previewBefore.tileId, openedInfo);
-
-    await previewer.eval(`(() => {
-      document.getElementById("preview-rot-inc")?.click();
-      document.getElementById("preview-side-toggle")?.click();
-      return UI.debugInfo().capitalPreview;
-    })()`);
-    const turnedInfo = await previewer.eval("UI.debugInfo().capitalPreview");
-    ok("the private preview rotates", turnedInfo.rotation === 1, turnedInfo);
-    ok("the private preview flips from A to B", turnedInfo.side === "B", turnedInfo);
-
-    const moveTarget = await previewer.eval(`(() => {
-      const info = UI.debugInfo().capitalPreview;
-      const canvas = document.querySelector("#map canvas");
-      const rect = canvas.getBoundingClientRect();
-      const wizardRect = document.getElementById("wizard")?.getBoundingClientRect();
-      const hexes = UI.debugState().map.hexes;
-      const candidates = Object.keys(hexes).map((key) => ({
-        key,
-        keys: Game.getTileHexKeys(key, info.rotation, hexes)
-      })).filter((candidate) => candidate.key !== info.anchorKey &&
-        candidate.keys.every((cellKey) => !!hexes[cellKey]));
-      // Prefer an overlap with the explored core. Real capital placement would
-      // reject this, while the pre-fortress planning sandbox intentionally
-      // allows it for inspection.
-      candidates.sort((a, b) => Number(b.keys.some((key) => hexes[key].active)) -
-        Number(a.keys.some((key) => hexes[key].active)));
-      for (const candidate of candidates) {
-        const key = candidate.key;
-        const point = UI.hexPoint(key);
-        if (!point) continue;
-        const outsideWizard = !wizardRect || point.x < wizardRect.left || point.x > wizardRect.right ||
-          point.y < wizardRect.top || point.y > wizardRect.bottom;
-        if (point.x > rect.left + 30 && point.x < rect.right - 30 &&
-            point.y > rect.top + 30 && point.y < rect.bottom - 30 && outsideWizard) {
-          return { key, point, before: info.anchorKey,
-            overlapsActive: candidate.keys.some((cellKey) => hexes[cellKey].active) };
-        }
-      }
-      return null;
-    })()`);
-    if (moveTarget) {
-      await previewer.cdp.send("Input.dispatchMouseEvent", {
-        type: "mouseMoved", x: moveTarget.point.x, y: moveTarget.point.y
-      });
-    }
-    const previewMoved = moveTarget && await waitUntil(async () =>
-      (await previewer.eval("UI.debugInfo().capitalPreview.anchorKey")) === moveTarget.key, 5000);
-    ok("moving across the board moves the capital preview",
-      !!moveTarget && previewMoved >= 0, moveTarget);
-    ok("the planning preview is not restricted by final placement legality",
-      !!moveTarget && moveTarget.overlapsActive, moveTarget);
-
-    const previewAfter = await previewer.eval(`(() => ({
-      json: JSON.stringify(UI.debugState()),
-      revision: UI.debugState().revision,
-      traffic: window.__capitalPreviewTraffic,
-      info: UI.debugInfo().capitalPreview
-    }))()`);
-    const observerDuring = await observer.eval(`(() => ({
-      json: JSON.stringify(UI.debugState()),
-      revision: UI.debugState().revision,
-      preview: UI.debugInfo().capitalPreview,
-      label: !!document.getElementById("capital-preview-label")
-    }))()`);
-    ok("previewing leaves the authoritative setup state byte-identical",
-      previewAfter.json === previewBefore.json && previewAfter.revision === previewBefore.revision,
-      { before: previewBefore.revision, after: previewAfter.revision });
-    ok("preview movement sends no presence or action traffic",
-      previewAfter.traffic.presence === 0 && previewAfter.traffic.actions === 0,
-      previewAfter.traffic);
-    ok("the second client receives no preview state or UI",
-      observerDuring.json === observerBefore.json &&
-      observerDuring.revision === observerBefore.revision &&
-      observerDuring.preview.enabled === false && !observerDuring.label,
-      observerDuring);
-
-    await previewer.eval(`(() => {
-      document.getElementById("setup-fortress-mode")?.click();
-      return true;
-    })()`);
-    const closedInfo = await previewer.eval(`(() => ({
-      preview: UI.debugInfo().capitalPreview,
-      label: !!document.getElementById("capital-preview-label"),
-      phase: UI.debugState().setup.phase,
-      json: JSON.stringify(UI.debugState())
-    }))()`);
-    ok("switching back hides the preview and restores Place Fortress",
-      !closedInfo.preview.enabled && !closedInfo.preview.rendered && !closedInfo.label,
-      closedInfo);
-    ok("fortress remains the required action after closing preview",
-      closedInfo.phase === "fortress" && closedInfo.json === previewBefore.json, closedInfo.phase);
-    const repeatedSwitch = await previewer.eval(`(() => {
-      document.getElementById("setup-capital-preview-mode")?.click();
-      const reopened = UI.debugInfo().capitalPreview.enabled;
-      document.getElementById("setup-fortress-mode")?.click();
-      return { reopened, closed: !UI.debugInfo().capitalPreview.enabled,
-        json: JSON.stringify(UI.debugState()) };
-    })()`);
-    ok("fortress and preview modes can be switched repeatedly without state changes",
-      repeatedSwitch.reopened && repeatedSwitch.closed && repeatedSwitch.json === previewBefore.json,
-      repeatedSwitch);
+    const beforeReferences=await previewer.eval("JSON.stringify(UI.debugState())");
+    await previewer.eval("document.querySelector('#setup-capital-info > summary')?.click()");
+    ok("capital tile faces remain inspectable before fortress placement",
+      await previewer.eval("document.querySelectorAll('#setup-capital-info img').length===2"));
+    ok("viewing capital reference does not mutate setup",
+      beforeReferences===await previewer.eval("JSON.stringify(UI.debugState())"));
+    ok("no obsolete preview-mode buttons remain",
+      await previewer.eval("!document.querySelector('#setup-capital-preview-mode')"));
+    ok("waiting seat has no fake actionable setup buttons",
+      await observer.eval("document.querySelectorAll('#wizard button').length===0"));
 
     // Commit the two fortresses through their owning browser. Only after both
     // acknowledgements may the real capital-tile phase begin.
@@ -438,8 +296,8 @@ const info = (n, d) => lines.push(["INFO", n, String(d)]);
     ok("real capital placement still waits for explicit confirmation",
       capitalBefore.phase === "capital_tile" && capitalBefore.tileStillInHand &&
       !capitalBefore.alreadyPlaced, capitalBefore);
-    ok("the preview face and rotation carry over only as local starting values",
-      capitalBefore.orientation.side === "B" && capitalBefore.orientation.rotation === 1,
+    ok("capital placement starts with an uncommitted default orientation",
+      capitalBefore.orientation.side === "A" && capitalBefore.orientation.rotation === 0,
       capitalBefore.orientation);
 
     const capitalChoice = await previewer.eval(`(() => {

@@ -413,6 +413,44 @@ async function reconnectScheduleSuite() {
   client.leaveRoom();
 }
 
+async function lostPacketRetrySuite() {
+  for (const fault of ["action", "actionResult"]) {
+    const hub = new FakeHub(), clock = new FakeClock();
+    const host = createCivNet({ Peer: hub.Peer, clock });
+    const client = createCivNet({ Peer: hub.Peer, clock });
+    let applied = 0;
+    host.init({onAction: async () => ({accepted:true,revision:++applied,state:{applied}})});
+    client.init({});
+    host.createRoom({peerId:"retry-room",gameId:"retry-game",seatId:"host",seatToken:"host-token",revision:0});
+    client.joinRoom({hostPeerId:"retry-room",gameId:"retry-game",seatId:"guest",seatToken:"guest-token",lastRevision:0});
+    await flush();
+    const connection = fault === "action" ? hub.newestLink().client : hub.newestLink().server;
+    const originalSend = connection.send.bind(connection);
+    let dropped;
+    connection.send = message => {
+      if (message.type === fault && !dropped) { dropped=structuredClone(message);return; }
+      originalSend(message);
+    };
+    const promise = client.submitAction({type:"MOVE"});
+    await flush();
+    assert.ok(dropped, `${fault} was lost on an otherwise healthy connection`);
+    assert.equal(applied, fault === "action" ? 0 : 1);
+    assert.equal(clock.runNextTimeout(), true, "pending action schedules a retry without disconnecting");
+    await flush();
+    const result = await promise;
+    assert.equal(result.status,"accepted");
+    assert.equal(applied,1,`${fault}: only one authoritative application`);
+    const packets = hub.messages.filter(p=>p.message.type==="action").map(p=>p.message);
+    assert.ok(packets.length);
+    for(const packet of packets) {
+      assert.equal(packet.actionId,dropped.actionId,"retry preserves original action identity");
+      assert.equal(packet.baseRevision,0,"retry must never rebase an old action");
+    }
+    assert.equal(clock.timeouts.size,0,"ACK cancels retry timer");
+    client.leaveRoom();host.leaveRoom();
+  }
+}
+
 // A joining client never got into the game: the host authenticated the seat,
 // ran ADD_PLAYER and sent its welcome, and the joiner sat in "handshaking"
 // forever. The welcome carries the whole state view - the map alone is ~64KB in
@@ -487,6 +525,7 @@ async function run(name, suite) {
   await run("takeover authentication", takeoverAuthenticationSuite);
   await run("lifecycle isolation", lifecycleIsolationSuite);
   await run("reconnect schedule", reconnectScheduleSuite);
+  await run("lost request and ACK retry", lostPacketRetrySuite);
   finished = true;
   clearTimeout(watchdog);
   console.log("net-protocol-test: all assertions passed");

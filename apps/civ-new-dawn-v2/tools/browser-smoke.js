@@ -276,6 +276,9 @@ async function waitFor(cdp, expr, label, timeoutMs = 8000) {
       const me = Game.getPlayer(s, UI.debugInfo().localPlayerId);
       const leader = Game.getLeader ? Game.getLeader(me) : null;
       const panel = document.getElementById("wizard") || document.body;
+      // Setup now keeps reference information behind collapsible summaries;
+      // opening it is read-only and leaves only placement controls in view.
+      panel.querySelectorAll('details > summary').forEach(summary=>summary.click());
       const text = panel.innerText || "";
       const hand = (s.setup.playerTiles[me.id] || []);
       const tileCards = panel.querySelectorAll(".tile-card, svg").length;

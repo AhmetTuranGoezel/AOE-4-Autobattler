@@ -16,10 +16,10 @@ const mutations = {
   stale_targets: ["ui.js", s=>replace(s,
     'if (sub.movementState && !isExploring(sub.phase) && !actionPending) reconcileMovementDraft();',
     '/* mutation: leave cached movement targets untouched on snapshots */')],
-  locked_host_recovery: ["game.js", s=>replace(s,'const emergency = valid && role === "host"',
-    'const emergency = valid && !undo.locked && role === "host"')],
-  local_only_undo: ["ui.js", s=>replace(s,'return { ...fullState };',
-    'const copy = { ...fullState }; delete copy.turnUndo; return copy;')],
+  locked_host_recovery: ["game.js", s=>replace(s,'valid && role === "host" && !!getPlayer(st, playerId) && !st.stateView;',
+    'valid && !undo.locked && role === "host" && !!getPlayer(st, playerId) && !st.stateView;')],
+  local_only_undo: ["ui.js", s=>replace(s,'if (fullState.turnUndo?.snapshot) await CivSessionStore.saveTurnStart',
+    'if (false) await CivSessionStore.saveTurnStart')],
   forced_economy_rewards: ["game.js", s=>replace(s,'const target = tradeChoiceCard(player, choice, cardType);',
     'const target = choice.source === "Ibrahim" ? rowCards(player).find(c=>c.type==="economy") : tradeChoiceCard(player, choice, cardType);')],
   replaced_normal_reward: ["game.js", s=>replace(s,'const tradeGain = 2;',
@@ -40,6 +40,12 @@ function transform(file, source) {
     source=replace(source,'try { connection.send(message); return true; } catch (error) { return false; }',
       `try {
         const copy=cloneJson(message);
+        const fault=globalThis.__productionFault;
+        if(fault && fault.type===message.type && fault.remaining>0) {
+          fault.remaining--; fault.message=copy;
+          if(fault.hold)globalThis.__releaseProductionPacket=()=>connection.send(copy);
+          return true;
+        }
         setTimeout(()=>{try { if(connection.open) connection.send(copy); } catch {}}, ${ms});
         if(['action','snapshot','actionResult'].includes(message.type)) {
           globalThis.__faultPackets=(globalThis.__faultPackets||0)+1;

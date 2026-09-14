@@ -27,6 +27,7 @@ function createCivNet(dependencies) {
   const pingIntervalMs = deps.pingIntervalMs || 10000;
   const connectionTimeoutMs = deps.connectionTimeoutMs || 35000;
   const presenceIntervalMs = deps.presenceIntervalMs || 100;
+  const actionRetryMs = deps.actionRetryMs || 2000;
   const maxBufferedBytes = deps.maxBufferedBytes || 256 * 1024;
 
   let callbacks = normalizeCallbacks({});
@@ -43,6 +44,7 @@ function createCivNet(dependencies) {
   let lastSnapshotRevision = -1;
   let lastBroadcastState;
   let pendingAction = null;
+  let actionRetryTimer = null;
   let processedActions = new Map();
   let hostActionQueue = Promise.resolve();
   let reconnectTimer = null;
@@ -221,6 +223,8 @@ function createCivNet(dependencies) {
   }
 
   function resetTransport(nextRole) {
+    clock.clearTimeout(actionRetryTimer);
+    actionRetryTimer = null;
     cancelPendingAction("session_replaced");
     lifecycleGeneration++;
     clearReconnectTimer();
@@ -780,6 +784,8 @@ function createCivNet(dependencies) {
     revision = Math.max(revision, result.revision);
     const resolve = pendingAction.resolve;
     pendingAction = null;
+    clock.clearTimeout(actionRetryTimer);
+    actionRetryTimer = null;
     try { callbacks.onActionResult(result); } catch (error) { reportCallbackError(error); }
     updateStatus(clientConnection && clientConnection.open ? "synced" : "reconnecting", {
       lastError: result.status === "accepted" ? null : result.code
@@ -863,9 +869,21 @@ function createCivNet(dependencies) {
 
   function resendPendingAction() {
     if (!pendingAction || role !== "client" || !clientConnection || !clientConnection.open) return false;
+    clock.clearTimeout(actionRetryTimer);
     pendingAction.sent = safeSend(clientConnection, pendingAction.envelope);
     if (pendingAction.sent) updateStatus("confirming", { lastError: null });
-    else scheduleReconnect("action_send_failed");
+    else {
+      scheduleReconnect("action_send_failed");
+      return false;
+    }
+    // A healthy connection can still lose a request or its result. Ping/pong
+    // alone won't reconnect it. Retry the exact id AND original base revision:
+    // the host deduplicates a committed action, or refuses a stale attempt.
+    const generation = lifecycleGeneration, actionId = pendingAction.envelope.actionId;
+    actionRetryTimer = clock.setTimeout(() => {
+      actionRetryTimer = null;
+      if (generation === lifecycleGeneration && pendingAction?.envelope.actionId === actionId) resendPendingAction();
+    }, actionRetryMs);
     return pendingAction.sent;
   }
 
@@ -1035,6 +1053,10 @@ function createCivNet(dependencies) {
   }
 
   function scheduleReconnect(reason) {
+    // A disconnected transport is owned by the reconnect state machine; an
+    // action timeout must not compete with that timer or retain the old link.
+    clock.clearTimeout(actionRetryTimer);
+    actionRetryTimer = null;
     if (role !== "client" && role !== "host") return;
     if (!isOnline()) {
       clearReconnectTimer();
@@ -1125,6 +1147,8 @@ function createCivNet(dependencies) {
 
   function cancelPendingAction(code) {
     if (!pendingAction) return;
+    clock.clearTimeout(actionRetryTimer);
+    actionRetryTimer = null;
     const abandoned = pendingAction;
     pendingAction = null;
     abandoned.resolve({
@@ -1203,7 +1227,7 @@ function createCivNet(dependencies) {
   }
 
   function getProcessedActionIds() {
-    return Array.from(processedActions.keys());
+    return Array.from(processedActions).filter(([, result]) => result.status === "accepted").map(([id]) => id);
   }
 
   function processedIdsIncluding(actionId) {

@@ -6,7 +6,7 @@ const R=reporter();
   let table;
   try{
     table=await room(2);const [host,guest]=table.tabs,order=[table.profiles[1],table.profiles[0]];
-    async function start(options){await seedRoom(table,'astronomy',order,options);await click(guest,'.fcard[data-card="science"]');
+    async function start(options){await seedRoom(table,'astronomy',order,options);await click(guest,'.fcard[data-card="science"]');await click(guest,'#wiz-start');
       if(await waitUntil(()=>guest.eval("UI.debugState().pendingChoices[0]?.kind==='astronomy_count'"),10000)<0)throw Error('No Astronomy count: '+JSON.stringify(await guest.eval(`({info:UI.debugInfo(),wizard:document.querySelector('#wizard')?.innerText,toast:document.querySelector('#toast')?.innerText,card:document.querySelector('.fcard[data-card="science"]')?.outerHTML})`)));}
     async function exploreNext(expected, end) {
       // Advance two real turns; never replace or reorder the returned stack
@@ -19,6 +19,7 @@ const R=reporter();
         await waitUntil(()=>guest.eval(`UI.debugState().revision===${r.revision}`),8000);
       }
       await click(guest,'.fcard[data-card="military"]');
+      await click(guest,'#wiz-start');
       await hex(guest,'-1,0');await click(guest,'#bc-explore');
       R.ok(`${end}: ordinary Explore button actually draws tile ${expected}`,await waitUntil(()=>guest.eval(
         `UI.debugState().pendingExploration?.tileId===${JSON.stringify(expected)}`),10000)>=0);

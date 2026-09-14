@@ -1,10 +1,13 @@
 #!/usr/bin/env node
 // Exercises the REAL checkpointCandidate / receiveNetworkState bodies lifted
-// from ui.js, to prove a failing backup no longer stops live synchronisation.
+// from ui.js. A failed backup must never be acknowledged as a committed move.
 const fs = require("fs");
 const vm = require("vm");
 const APP = require("path").resolve(__dirname, "..") + "/";
 const src = fs.readFileSync(APP + "ui.js", "utf8");
+const engineContext=vm.createContext({console,structuredClone});engineContext.window=engineContext;
+for(const file of ["rules-data.js","tile-art.js","game.js"])vm.runInContext(fs.readFileSync(APP+file,"utf8"),engineContext);
+const engine=vm.runInContext("Game",engineContext);
 
 function lift(name) {
   const m = src.match(new RegExp("(?:^|\\n)(  (?:async )?function " + name + "\\([\\s\\S]*?\\n  \\})", "m"));
@@ -37,10 +40,13 @@ function scope(over) {
     // hidden that path instead of testing it.
     Game: {
       migrateState: (x) => x,
+      checkpointState:engine.checkpointState,
+      currentPlayer:()=>({name:"P1"}),
       getPlayer: (st, id) => (st && st.players || []).find((pl) => pl.id === id) || null
     },
     kickedTo: [],
-    CivSessionStore: { saveCheckpoint: async (rec) => { s.savedLocally.push(rec); } },
+    CivSessionStore: { saveCheckpoint: async (rec) => { s.savedLocally.push(rec); },saveHistory:async()=>{},saveTurnStart:async()=>{},saveCredentials:async()=>{} },
+    showToast:()=>{},
     updateNetworkChrome: () => {},
     rememberProcessed: (ids) => { s.processedActionIds = ids; },
     recoverAuthoritativeState: async () => ({ committed: false }),
@@ -61,12 +67,12 @@ function scope(over) {
 const run = (s, code) => vm.runInContext(code, s);
 
 (async () => {
-  console.log("\n[1] trusted backups retain the private recovery snapshot");
+  console.log("\n[1] checkpoints never embed a second gameplay state");
   {
     const s = scope();
     const big = { revision: 7, map: { hexes: { a: 1 } }, turnUndo: { snapshot: { huge: "x".repeat(5000) } } };
     const out = run(s, "backupPayload(" + JSON.stringify(big) + ")");
-    ok("turnUndo is retained for recovery", out.turnUndo.snapshot.huge.length === 5000);
+    ok("turnUndo has no embedded snapshot", out.turnUndo.snapshot === undefined);
     ok("everything else survives", out.revision === 7 && !!out.map);
     ok("the original object is not mutated", big.turnUndo !== undefined);
   }
@@ -78,11 +84,11 @@ const run = (s, code) => vm.runInContext(code, s);
     const r = await run(s, "checkpointCandidate(" + JSON.stringify(candidate) + ", 'a1')");
     ok("accepted", r.accepted === true, JSON.stringify(r).slice(0, 120));
     ok("revision came from the authority", r.revision === 8, r.revision);
-    ok("trusted remote checkpoint contains recovery", s.sentToRemote[0].fullState.turnUndo.snapshot.big.length === 2000);
+    ok("remote checkpoint contains only recovery metadata", s.sentToRemote[0].fullState.turnUndo.snapshot === undefined);
     ok("backupFailure cleared", s.backupFailure === null);
   }
 
-  console.log("\n[3] an OVERSIZED backup must not stop the game");
+  console.log("\n[3] a failed backup never creates a local-only revision");
   {
     const s = scope();
     s.CivSessionApi = { checkpoint: async () => {
@@ -91,11 +97,11 @@ const run = (s, code) => vm.runInContext(code, s);
     vm.runInContext(LIFTED, s);
     const candidate = { revision: 0, phase: "playing" };
     const r = await run(s, "checkpointCandidate(" + JSON.stringify(candidate) + ", 'a2')");
-    ok("the action is still ACCEPTED so net.js will broadcast", r.accepted === true,
+    ok("the uncommitted action is rejected", r.accepted === false,
       JSON.stringify(r).slice(0, 160));
-    ok("it is flagged as unbacked, not silently fine", r.code === "accepted_unbacked", r.code);
-    ok("the revision still advanced", r.revision === 8, r.revision);
-    ok("Net was told the new revision", s.netRevisions.includes(8), JSON.stringify(s.netRevisions));
+    ok("the specific backup failure is reported", r.code === "http_413", r.code);
+    ok("the revision stays at the committed head", r.revision === 7, r.revision);
+    ok("Net never sees an uncommitted revision", !s.netRevisions.includes(8), JSON.stringify(s.netRevisions));
     ok("the failure is recorded for the banner", !!s.backupFailure);
     ok("the session is NOT put into read-only", s.readOnlySession === false);
   }
@@ -131,7 +137,7 @@ const run = (s, code) => vm.runInContext(code, s);
 
   console.log("\n[6] a removed seat is handed back to the join screen");
   {
-    const s = scope({ localPlayerId: "p2" });
+    const s = scope({ localPlayerId: "p2", state:{revision:7,phase:"lobby"} });
     await run(s, "receiveNetworkState({revision:10, phase:'lobby', players:[{id:'p1'}], " +
       "kicked:['p2'], turn:{index:0,round:1}, chat:[]}, {revision:10})");
     ok("the kicked client is sent back to the join screen", s.kickedTo.length === 1,
@@ -141,7 +147,7 @@ const run = (s, code) => vm.runInContext(code, s);
   }
   {
     // The seat that is still there must be unaffected by someone else's kick.
-    const s = scope({ localPlayerId: "p1" });
+    const s = scope({ localPlayerId: "p1", state:{revision:7,phase:"lobby"} });
     await run(s, "receiveNetworkState({revision:10, phase:'lobby', players:[{id:'p1'}], " +
       "kicked:['p2'], turn:{index:0,round:1}, chat:[]}, {revision:10})");
     ok("a seat that was NOT kicked stays in the game", s.kickedTo.length === 0,
@@ -149,6 +155,12 @@ const run = (s, code) => vm.runInContext(code, s);
     ok("and it repaints normally", s.renders === 1, s.renders);
   }
 
+  {
+    const s=scope();const original=s.state;
+    await run(s,"receiveNetworkState({revision:99,phase:'setup'}, {revision:99})");
+    ok("even a higher-revision setup snapshot cannot replace a running game",s.state===original&&s.state.phase==="playing");
+    ok("setup regression is visibly blocked",s.backupFailure?.code==="setup_regression"&&s.readOnlySession);
+  }
   console.log("\n=== " + pass + " passed, " + fail + " failed ===");
   if (fail) process.exitCode = 1;
 })();

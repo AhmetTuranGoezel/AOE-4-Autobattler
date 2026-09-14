@@ -6,6 +6,32 @@ const CivSessionStore = require("./session-store.js");
 
 const gameId = "game_local_0001";
 
+test("host history retains 24 committed revisions separately from five cache checkpoints", async () => {
+  const store = CivSessionStore.create({backend:CivSessionStore.createMemoryBackend()});
+  for(let n=0;n<30;n++) {
+    await store.saveCheckpoint(checkpoint(n));
+    await store.saveHistory({...checkpoint(n),metadata:{round:n,phase:"playing",activePlayer:"P1",action:"PLAY_SCIENCE"}});
+  }
+  assert.equal((await store.listCheckpoints(gameId)).length,5);
+  const history=await store.listHistory(gameId);
+  assert.equal(history.length,24);
+  assert.equal(history.at(-1).revision,6);
+  assert.equal((await store.loadHistory(gameId,8)).fullState.revision,8);
+  assert.equal((await store.loadLatest(gameId)).fullState.revision,29);
+  assert.equal("history" in (await store.loadLatest(gameId)).fullState,false);
+});
+
+test("turn-start recovery is a separate checksummed record, not a nested state",async()=>{
+  const backend=CivSessionStore.createMemoryBackend(),store=CivSessionStore.create({backend});
+  await store.saveTurnStart(checkpoint(2),"turn-p1");
+  await store.saveCheckpoint({...checkpoint(3),fullState:{revision:3,turnUndo:{snapshotId:"turn-p1",locked:true}}});
+  assert.equal((await store.loadLatest(gameId)).fullState.turnUndo.snapshot,undefined);
+  assert.equal((await store.loadTurnStart(gameId,"turn-p1")).fullState.revision,2);
+  const record=[...backend._records.values()].find(r=>r.kind==="turn-start");
+  record.payloadJson="corrupted";
+  assert.equal(await store.loadTurnStart(gameId,"turn-p1"),null);
+});
+
 function checkpoint(revision) {
   return {
     gameId,
@@ -18,6 +44,11 @@ function checkpoint(revision) {
     processedActionIds: [`action-${revision}`]
   };
 }
+
+test("checkpoint rejects arrays and strings instead of spreading them into state",async()=>{
+  const store=CivSessionStore.create({backend:CivSessionStore.createMemoryBackend()});
+  for(const fullState of [[],"invalid",42,null])await assert.rejects(store.saveCheckpoint({...checkpoint(1),fullState}),/fullState must be an object/);
+});
 
 test("five-checkpoint ring keeps the newest records", async () => {
   const backend = CivSessionStore.createMemoryBackend();

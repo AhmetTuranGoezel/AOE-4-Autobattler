@@ -136,7 +136,9 @@
       { 0: { barbarian: "K" }, 4: { resource: "mercury" }, 6: { cityState: "Akkad" } }),
     // Printed tile 4 — Grand Mesa / Galapagos Islands
     tile("11", "natural",
-      ["mountain","mountain","hill","forest","grass","hill","desert","mountain","desert","desert"],
+      // Printed 04A: cell 7 (317.5,110) and cell 9 (508,220) are mountains
+      // beside Grand Mesa (6). Cell 8 (508,440) really is desert.
+      ["mountain","mountain","hill","forest","grass","hill","desert","mountain","desert","mountain"],
       ["mountain","hill","grass","water","hill","water","grass","water","water","water"],
       { 0: { resource: "mercury" }, 4: { barbarian: "D" }, 6: { naturalWonder: "Grand Mesa" } },
       { 0: { barbarian: "D" }, 6: { naturalWonder: "Galapagos Islands" } }),

@@ -45,6 +45,7 @@ async function drainEvents(table) {
     await seedRoom(table,"movement",order);
     const revision=await mover.eval("UI.debugState().revision");
     await click(mover,'.fcard[data-card="economy"]');
+    await click(mover,'#wiz-start');
     for(const k of ["-5,0","-4,0","4,0","5,0","6,0"])await hex(mover,k);
     R.ok("exhausting movement only previews, never submits",await mover.eval(`UI.debugState().revision===${revision} && UI.debugInfo().movement.remaining===0 && !Net.__debug().pendingEnvelope`));
     await hex(mover,"6,0");await click(mover,"#bc-back-step");
@@ -59,6 +60,7 @@ async function drainEvents(table) {
 
     await seedRoom(table,"ibrahim",order);
     await click(mover,'.fcard[data-card="economy"]');
+    await click(mover,'#wiz-start');
     for(const k of ["-5,0","-4,0","4,0","5,0","6,0"])await hex(mover,k);
     R.ok("rival city explicitly offers Trade",await mover.eval("document.querySelector('#bc-done')?.textContent==='Trade'"));
     await click(mover,"#bc-done");await settled(mover);
@@ -88,7 +90,7 @@ async function drainEvents(table) {
     await resume(host);await synced(table,await host.eval("UI.debugState().revision"));
     R.ok("host reload restores the retained private snapshot",await host.eval(`UI.debugState().turnUndo?.snapshotId===${JSON.stringify(snapshotId)} && !!UI.debugState().turnUndo?.snapshot`));
     await host.eval("window.confirm=message=>{window.__recoveryWarning=message;return true;}");
-    await click(host,"#btn-emergency-undo");await settled(host);await synced(table,await host.eval("UI.debugState().revision"));
+    await click(host,"#btn-emergency-undo");await click(host,"#recovery-confirm");await settled(host);await synced(table,await host.eval("UI.debugState().revision"));
     R.ok("host warning explains revealed information",await host.eval("/revealed information/.test(window.__recoveryWarning)"));
     R.ok("emergency undo restores every browser without reconnect",(await Promise.all(table.tabs.map(t=>t.eval("UI.debugState().recoveryGeneration===2 && !UI.debugState().pendingExploration && !UI.debugInfo().movement")))).every(Boolean));
     await submit(table,mover,"PLAY_SCIENCE",{cardIndex:3,tradeSpent:0});

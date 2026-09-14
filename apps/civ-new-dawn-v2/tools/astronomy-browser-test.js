@@ -118,9 +118,11 @@ const wizardMetrics = `(() => {
       if (card) card.click();
       return !!card;
     })()`);
+    R.ok("Astronomy selection waits for explicit Start Action", await tab.eval(`UI.debugInfo().subPhase === "card_selected" && !!document.querySelector("#wiz-start") && !UI.debugState().pendingChoices.some(choice => choice.kind === "astronomy_count")`));
+    await require("./playtest-browser-helpers.js").click(tab, "#wiz-start");
     const countShown = await waitUntil(async () =>
       await tab.eval(`UI.debugState().pendingChoices.some((choice) => choice.kind === "astronomy_count")`), 8000);
-    R.ok("clicking the real Astronomy focus card opens inspection count", countShown >= 0);
+    R.ok("starting the real Astronomy focus card opens inspection count", countShown >= 0);
     const countButtons = await tab.eval(`(() => [...document.querySelectorAll(".pending-option")]
       .map((button) => button.dataset.option))()`);
     R.ok("up to two is rendered as 0, 1, and 2", ["0", "1", "2"].every((id) => countButtons.includes(id)),
