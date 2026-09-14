@@ -14,7 +14,29 @@ Page numbers below are English ones.
 Three sections, and the third one matters as much as the first: **verified**,
 **approximated**, and **invented**.
 
-## Latest focused checkpoint — 2026-09-10
+## Latest focused checkpoint — 2026-09-14
+
+The production recovery/UI batch passed all 30 gates of `tools/check-all.js`:
+1,733 rule assertions, 31 playtest assertions, 32 production assertions, 85
+movement/recovery/Ibrahim assertions and all 124 effect-evidence entries. The
+expanded three-player production browser test passed 63/63; the full three-peer
+latency soak passed 21/21. Local storage and unchanged Netlify tests passed 7/7
+and 13/13. All nine fault mutations were detected.
+
+Confirmed corrections: canonical checkpoint encoding without nested recovery
+state; non-growing empty map margins; no unbacked online commits or reconnect
+into setup; idempotent retries; explicit Start Action for every card; explained
+Culture bonuses; printed Grand Mesa cell 9 mountain; simplified board-click
+capital setup; removal of invented score/round-limit victory.
+
+Host history keeps 24 separate local revisions. Cross-device retrieval of older
+server revisions is **not** implemented within this app-only batch. The specific
+reported unexplained third Culture token was not reproduced. See the
+[production report](PLAYTEST-2026-09-14.md) for measured request sizes, browser
+evidence, changed files and limits. The older waiting-capital preview behavior
+below is historical; the new simplified setup supersedes it.
+
+## Previous focused checkpoint — 2026-09-10
 
 The setup/Astronomy/dice/Natural Wonder/district-event playtest batch passed all
 25 gates in one final `tools/check-all.js` run: 1733 rule assertions, 31 additional
