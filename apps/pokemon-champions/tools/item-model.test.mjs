@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { ITEMS, itemDamage, itemAccuracy, itemSpeed, seedEffect, itemAtHit, isGrounded, resistBerry, critChance, normalizeItem, itemSelect, usageItem } from "../src/item-model.js";
+import { ITEMS, analysisItemChoices, itemDamage, itemAccuracy, itemSpeed, seedEffect, itemAtHit, isGrounded, resistBerry, critChance, normalizeItem, itemSelect, usageItem } from "../src/item-model.js";
 import { ITEM_CATALOG } from "../src/item-catalog.js";
 import { buildDefensiveProfile } from "../src/team-analysis.js";
 const data = JSON.parse(readFileSync(new URL("../champions-data.json", import.meta.url)));
@@ -77,5 +77,22 @@ for (const [id, item] of Object.entries(ITEM_CATALOG)) {
 }
 assert.equal((itemSelect("data-test", "life-orb", { isMega: true }).match(/<option /g) || []).length, 1);
 assert.ok(!itemSelect("data-test", "none").includes('value="type-item"'));
-assert.ok(itemSelect("data-test", "type-item").includes("Legacy:"));
-console.log(`item tests passed: ${Object.keys(ITEM_CATALOG).length} catalogue entries; all 18 M-C additions; damage, accuracy, crit, seeds, grounding, speed, berries and legacy presets`);
+assert.ok(itemSelect("data-test", "type-item").includes("Type item ×1.2"));
+assert.deepEqual(analysisItemChoices().slice(0, 7), ["none", "life-orb", "expert-belt", "wide-lens", "type-item", "band-glasses", "choice-scarf"]);
+for (const slug of ["farfetchd", "farfetchd-galar", "sirfetchd"]) assert.ok(analysisItemChoices({ slug }).includes("leek"));
+assert.ok(!analysisItemChoices(mon("steelix")).includes("leek"));
+assert.ok(analysisItemChoices({ slug: "pikachu" }).includes("light-ball"));
+assert.ok(!analysisItemChoices(mon("sirfetchd")).includes("light-ball"));
+assert.deepEqual(analysisItemChoices({ isMega: true }), ["mega-stone"]);
+for (const type of Object.keys(data.typeChart)) for (const cat of ["physical", "special"]) {
+  assert.equal(itemDamage("type-item", { ...ctx, type, cat }), 1.2, `${type} ${cat} comparison boost`);
+  assert.equal(itemDamage("band-glasses", { ...ctx, type, cat }), 1.1);
+}
+const customItems = itemSelect("data-test", "leek", mon("sirfetchd"), null, { heldOnly: true });
+assert.ok(!customItems.includes('label="Mega Stones"'));
+assert.ok(!customItems.includes('value="type-item"'));
+assert.ok(customItems.includes('value="leek" selected'));
+for (const [id, item] of Object.entries(ITEM_CATALOG)) {
+  assert.equal(customItems.includes(`value="${id}"`), item.group !== "Mega Stones", id);
+}
+console.log(`item tests passed: ${Object.keys(ITEM_CATALOG).length} catalogue entries; damage, accuracy, crit, seeds, grounding, speed, berries and one-click comparison presets`);

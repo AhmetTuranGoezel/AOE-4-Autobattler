@@ -7,7 +7,7 @@
 import { TYPES, TYPE_COLORS, displayName, targetLabel, isSpread, rarityTier, TARGET_GROUPS, grassKnotBP } from "./data.js";
 import { statsFor } from "./effective-stats.js";
 import { damageAbilities, offenseMult, offDefaultAbility, stageMult, OFF_ITEMS, expectedHitsForAccuracy } from "./offense-model.js";
-import { itemSelect, normalizeItem, itemDamage, itemAccuracy, itemSpeed, seedEffect, critChance, isGrounded, itemAtHit, itemLabel } from "./item-model.js";
+import { analysisItemChoices, itemSelect, normalizeItem, itemDamage, itemAccuracy, itemSpeed, seedEffect, critChance, isGrounded, itemAtHit, itemLabel } from "./item-model.js";
 import { POOL, CAP, pointsUsed } from "./stat-lab.js";
 import { attachAutocomplete } from "./autocomplete.js";
 
@@ -575,8 +575,16 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
   const abilChipsHtml = (e) => `<div class="cl-abil"><span class="cl-stat-lab">Ability</span>
     <button class="tm-abil-chip ${!e.ability ? "on" : ""}" data-cfg-abil="" title="Attack with no ability">None</button>
     ${e.dmgAbils.map((a) => `<button class="tm-abil-chip ${e.ability === a.slug ? "on" : ""}" data-cfg-abil="${a.slug}">${a.name}</button>`).join("")}</div>`;
-  const itemChipsHtml = (e) => `<div class="cl-abil"><span class="cl-stat-lab">Item</span>
-    ${itemSelect('data-cfg-item-select', e.cfg.item, e, e.ability)}</div>`;
+  const itemChipsHtml = (e) => {
+    const ids = analysisItemChoices(e), selected = normalizeItem(e.cfg.item, e);
+    if (e.isMega) return `<div class="cl-abil"><span class="cl-stat-lab">Item</span><span class="item-note">Mega Stone · included with this form</span></div>`;
+    const custom = !ids.includes(selected);
+    return `<div class="cl-abil"><span class="cl-stat-lab">Item</span>
+      ${ids.map((id) => `<button class="tm-abil-chip ${selected === id ? "on" : ""}" data-cfg-item="${id}" aria-pressed="${selected === id}" title="${OFF_ITEMS[id].note}">${itemLabel(id)}</button>`).join("")}
+      <details class="mv-custom-item" ${custom ? "open" : ""}><summary class="tm-abil-chip ${custom ? "on" : ""}">Custom item${custom ? ` · ${itemLabel(selected)}` : ""}</summary>
+        ${itemSelect('data-cfg-item-select', custom ? selected : "none", e, e.ability, { heldOnly: true })}</details>
+      ${OFF_ITEMS[selected]?.group === "Comparison presets" ? `<small class="item-note">${OFF_ITEMS[selected].note}</small>` : ""}</div>`;
+  };
   // Nature = which stat gets ×1.1 (a real nature boosts ONE stat). "" = neutral.
   const NATURES = [["", "Neutral"], ["auto", "Auto"], ["atk", "Atk"], ["spa", "Sp.Atk"], ["def", "Def"], ["spe", "Speed"]];
   const natureChipsHtml = (e) => `<div class="cl-abil" title="A boosting nature: +10% to one stat. Auto = +10% to whatever stat each move attacks with (Atk for physical, Sp.Atk for special, Def for Body Press)"><span class="cl-stat-lab">Nature +10%</span>

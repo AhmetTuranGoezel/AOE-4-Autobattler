@@ -71,9 +71,9 @@ export const ITEMS = {
       : NOTES[id] || "Utility/status effect not simulated. Item is saved, but no numerical bonus is assumed.",
   }])),
   "mega-stone": { label: "Matching Mega Stone (form selected)", group: "Mega Stones", note: "Mega stats/ability already come from the selected form. No second held item; stone cannot be removed." },
-  // Read-only compatibility for old lab presets: never silently invent a specific item.
-  "type-item": { label: "Legacy: any-type ×1.2 assumption", group: "Legacy assumptions", note: "Not a real item. Replace with a named type item for valid comparisons." },
-  "band-glasses": { label: "Legacy: Band / Glasses assumption", group: "Legacy assumptions", note: "Not one held item. Replace with Muscle Band or Wise Glasses." },
+  // Per-move comparison shortcuts, not one fixed item for an entire moveset.
+  "type-item": { label: "Type item ×1.2", group: "Comparison presets", note: "Compare every move with its matching type booster (×1.2), as if switching items between moves." },
+  "band-glasses": { label: "Band / Glasses", group: "Comparison presets", note: "Compare physical moves with Muscle Band and special moves with Wise Glasses (×1.1)." },
   "resist-berry": { label: "Legacy: any SE resist berry", group: "Legacy assumptions", note: "Not one held item. Replace with the matching named resist berry." },
 };
 export const itemLabel = (id) => ITEMS[id]?.label || "No item";
@@ -142,12 +142,21 @@ export function usageItem(mon) {
   return Object.keys(ITEM_CATALOG).find((id) => canon(ITEM_CATALOG[id].label) === canon(name)) || "none";
 }
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-export function itemSelect(attrs, value = "none", mon = null, ability = null) {
+// Keep analysis one-click; species-specific shortcuts appear only for eligible holders.
+export function analysisItemChoices(mon = null) {
+  if (mon?.isMega) return ["mega-stone"];
+  const ids = ["none", "life-orb", "expert-belt", "wide-lens", "type-item", "band-glasses", "choice-scarf", "scope-lens"];
+  if (/^(?:sirfetchd|farfetchd)(?:-|$)/.test(mon?.slug || "")) ids.push("leek");
+  if (/^pikachu(?:-|$)/.test(mon?.slug || "")) ids.push("light-ball");
+  return ids;
+}
+export function itemSelect(attrs, value = "none", mon = null, ability = null, { heldOnly = false } = {}) {
   const id = normalizeItem(value, mon);
   const groups = new Map();
   for (const [key, it] of Object.entries(ITEMS)) {
     if (mon?.isMega ? key !== "mega-stone" : key === "mega-stone") continue;
-    if (it.group === "Legacy assumptions" && key !== id) continue;
+    if (heldOnly && it.group === "Mega Stones") continue;
+    if (["Legacy assumptions", "Comparison presets"].includes(it.group) && key !== id) continue;
     if (!groups.has(it.group)) groups.set(it.group, []);
     groups.get(it.group).push(`<option value="${key}" ${key === id ? "selected" : ""}>${esc(it.label)}</option>`);
   }

@@ -143,23 +143,50 @@ def run():
             page.locator(".mv-mon").press("ArrowDown")
             page.locator(".mv-mon").press("Enter")
             page.locator('[data-mon-cfg="sirfetchd"]').click()
-            page.locator(".mv-cfg-pop [data-cfg-item-select]").select_option("leek")
+            page.locator('.mv-cfg-pop [data-cfg-item="leek"]').click()
             assert "Leek" in page.locator(".mon-cfg-badge").inner_text()
+            assert not page.locator(".mv-cfg-pop [data-cfg-item-select]").is_visible()
+            page.locator(".mv-cfg-pop .mv-custom-item summary").click()
+            custom = page.locator(".mv-cfg-pop [data-cfg-item-select]")
+            assert custom.locator('optgroup[label="Mega Stones"]').count() == 0
+            custom.select_option("charcoal")
+            assert "Charcoal" in page.locator(".mon-cfg-badge").inner_text()
+            assert custom.is_visible(), "Keep the selected custom item accessible"
+            page.locator('.mv-cfg-pop [data-cfg-item="type-item"]').click()
+            assert "Type item" in page.locator(".mon-cfg-badge").inner_text()
+            assert not custom.is_visible(), "A quick preset closes custom-item details"
             page.locator('[data-mvmode="rank"]').click()
             page.locator("[data-preset-toggle]").click()
-            page.locator(".mvr-preset [data-cfg-item-select]").select_option("muscle-band")
-            assert "Muscle Band" in page.locator(".mvr-preset").inner_text()
             page.locator(".mvr-move-input").fill("Leaf Blade")
             page.locator(".mvr-move-input").press("ArrowDown")
             page.locator(".mvr-move-input").press("Enter")
+            sirfetchd_row = page.locator('.mvr-row').filter(has=page.locator('[data-cfg-toggle="sirfetchd"]'))
+            def rank_damage():
+                return int(re.sub(r"\D", "", sirfetchd_row.locator(".mvr-dmg b").inner_text()))
+            page.locator('.mvr-preset [data-cfg-item="none"]').click()
+            baseline = rank_damage()
+            for item, factor in [("type-item", 1.2), ("band-glasses", 1.1)]:
+                page.locator(f'.mvr-preset [data-cfg-item="{item}"]').click()
+                assert abs(rank_damage() - baseline * factor) <= 2, (item, baseline, rank_damage())
+            page.locator(".mvr-preset .mv-custom-item summary").click()
+            page.locator(".mvr-preset [data-cfg-item-select]").select_option("muscle-band")
+            assert "Custom item · Muscle Band" in page.locator(".mvr-preset").inner_text()
             page.locator('[data-cfg-toggle="sirfetchd"]').click()
-            page.locator('[data-cfg-slug="sirfetchd"] [data-cfg-item-select]').select_option("leek")
-            assert page.locator('[data-cfg-slug="sirfetchd"] [data-cfg-item-select]').input_value() == "leek"
-            print("Moves browse, global rank preset and per-Pokemon rank editor passed", flush=True)
+            leek = page.locator('[data-cfg-slug="sirfetchd"] [data-cfg-item="leek"]')
+            leek.click()
+            assert leek.get_attribute("aria-pressed") == "true"
+            leek_damage = rank_damage()
+            page.locator('.mvr-preset [data-cfg-item="type-item"]').click()
+            assert leek.get_attribute("aria-pressed") == "true", "Individual item overrides survive global preset changes"
+            assert rank_damage() == leek_damage
+            print("Moves quick presets, numerical boosts, Custom item and species-specific overrides passed", flush=True)
             folder = APP / ".tmp-smoke"
             folder.mkdir(exist_ok=True)
             page.screenshot(path=str(folder / "items-rank-desktop.png"))
             page.set_viewport_size({"width": 390, "height": 844})
+            assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), "Moves overflow on mobile"
+            assert leek.is_visible()
+            page.screenshot(path=str(folder / "items-rank-mobile.png"))
             page.locator('[data-tab="team"]').click()
             assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), "Team overflow on mobile"
             assert page.locator('[data-team-item="sirfetchd"]').is_visible()

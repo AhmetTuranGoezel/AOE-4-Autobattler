@@ -154,9 +154,12 @@ generic damage multiplier merely because an item can be selected.
 
 See [ITEMS.md](ITEMS.md) for exactly which effects and app surfaces are modeled,
 which are informational only, and the remaining calculation limits. Team share
-links now use v4 to retain items; old v1/v2/v3 links still import. Existing generic
-item presets are retained as clearly labeled **legacy assumptions**, not offered
-as real held items in new configurations. Mega forms reserve their item slot for
+links now use v4 to retain items; old v1/v2/v3 links still import. Moves keeps
+one-click comparison presets: **Type item ×1.2** applies a matching booster to
+every move, and **Band / Glasses** picks the appropriate category booster.
+Leek and Light Ball have shortcuts for their eligible Pokémon; individual held
+items are under **Custom item**, without Mega Stone clutter. Team retains its
+full item catalogue. Mega forms reserve their item slot for
 their stone and cannot gain an extra offensive item boost.
 
 ## Cleaned-stat model

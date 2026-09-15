@@ -48,6 +48,10 @@
 .item-picker { display: flex; flex: 1 1 190px; flex-direction: column; gap: 5px; min-width: 0; max-width: 360px; }
 .item-picker select { width: 100%; min-width: 0; max-width: 100%; }
 .item-note { display: block; color: var(--muted, #a2a2b5); font-size: 11px; line-height: 1.45; white-space: normal; overflow-wrap: anywhere; }
+.mv-custom-item { min-width: 0; max-width: 100%; }
+.mv-custom-item[open] { flex-basis: 100%; }
+.mv-custom-item > summary { width: fit-content; }
+.mv-custom-item > .item-picker { margin-top: 6px; }
 html, body { height: 100%; }
 body {
   background: var(--bg);
