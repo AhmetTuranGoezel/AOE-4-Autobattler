@@ -45,7 +45,12 @@ MODELED = {
     "sand-rush": "Spe ×2 in sand", "swift-swim": "Spe ×2 in rain (auto-selected when rain is set)",
     "chlorophyll": "Spe ×2 in sun", "slush-rush": "Spe ×2 in snow",
     "surge-surfer": "Spe ×2 in Electric Terrain", "quick-feet": "Spe ×1.5 when statused",
-    "unburden": "Spe ×2 when its item slot is empty — ASSUMES the held Gem/Berry was already consumed (holding nothing from turn 1 wouldn't activate it in-game)",
+    "unburden": "Spe ×2 after a matching terrain seed activates; no item alone does not activate it. Other consumption history is unmodeled.",
+    "unnerve": "prevents opposing resist/healing berry consumption in Damage",
+    "ripen": "doubles resist-berry mitigation and Sitrus/Oran healing effects in Damage",
+    "sniper": "critical multiplier ×2.25; guaranteed critical ranges and expected-power weighting",
+    "super-luck": "adds one critical stage; stacks with Leek/Scope Lens in expected power and guaranteed criticals",
+    "sticky-hold": "retains items/recovery against Knock Off unless its ability is bypassed; other item-theft events unmodeled",
     "merciless": "guaranteed crit vs a poisoned target → ×1.5 (blocked by Shell Armor / Battle Armor)",
     "fairy-aura": "Fairy moves ×1.33 — field-wide aura (applies whichever side holds it)",
     "fire-mane": "Fire moves ×1.5 (Mega Pyroar, Champions-original)",
@@ -243,10 +248,8 @@ lines.append("")
 lines.append("_Every other damaging move is standard (base power × category × type) and computed with the exact Gen-9 formula._")
 lines.append("")
 lines.append("## Items (Champions-only)")
-lines.append("- Life Orb ×1.3 · Expert Belt ×1.2 (SE) · type items ×1.2 · Muscle Band / Wise Glasses ×1.1 — damage")
-lines.append("- **Choice Scarf** Spe ×1.5 (both sides — feeds the ⚡/🐢 order) · Focus Sash survives a would-be OHKO · resist berry halves one SE hit")
-lines.append("- **Leftovers** +6.25%/turn and **Sitrus Berry** +25% once at ≤50% — counted in the KO simulation")
-lines.append("- Klutz negates the holder's item. Assault Vest / Eviolite / Choice Band / Specs are **not in Champions** and deliberately absent.")
+lines.append("")
+lines.append("See [ITEMS.md](ITEMS.md) for the shared sourced catalogue, coverage by app surface, modeled effects, and explicit omissions. Item selectors display support notes; catalogue membership does not imply full battle simulation.")
 lines.append("")
 lines.append("_Source-data corrections (PokeAPI errors) are patched at load in `src/data.js` `MOVE_FIXES` — currently: Matcha Gotcha → all-opponents (spread)._")
 lines.append("")

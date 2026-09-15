@@ -67,7 +67,7 @@ ABILITY_RE = re.compile(
     r'<p class="mt-1 text-sm">([^<]+)</p>', re.S)
 # Competitive-usage rows on a pokebase mon page. Items/Natures/Moves share a
 # "name span + NN<!-- -->% span" shape; ability usage is in an aria-label.
-USAGE_NAMEPCT_RE = re.compile(r'truncate font-medium[^"]*">([^<]+)</span>.*?([\d.]+)<!-- -->%', re.S)
+USAGE_NAMEPCT_RE = re.compile(r'truncate font-medium[^"]*">([^<]+)</span>.*?([\d.]+)(?:<!--.*?-->)*\s*%', re.S)
 ABIL_USAGE_RE = re.compile(r'aria-label="([^",]+), ([\d.]+)% tournament usage"')
 USAGE_CAP = 8  # keep the top-N of each usage category
 # The meta's typical point investment per stat (pokebase "stat points allocator").
@@ -355,28 +355,60 @@ def apply_repo_learnsets(mons, learnsets=None, fallback=None):
             "entries": [m["_learnset_report"] for m in mons]}
 
 
-def _between(page, a, b):
-    """The slice of `page` from header `a` up to the next header `b` (or end)."""
-    i = page.find(a)
-    if i < 0:
-        return ""
-    j = page.find(b, i + len(a))
-    return page[i:j] if j >= 0 else page[i:]
+def usage_sections(page):
+    """Bound each usage category by the NEXT heading, regardless of its name.
+
+    Pokebase reordered Abilities before Items and added Common Teammates. A
+    search for an assumed later heading used to consume the rest of the page.
+    Ignore hydration scripts and other sections such as the main movepool.
+    """
+    page = re.sub(r"<(script|style)\b[^>]*>.*?</\1\s*>", "", page, flags=re.S | re.I)
+    headings = list(re.finditer(r"<h([1-6])\b[^>]*>(.*?)</h\1\s*>", page, re.S | re.I))
+    blocks = {}
+    current = None
+    for i, heading in enumerate(headings):
+        title = plain_text(heading[2])
+        if int(heading[1]) <= 2:
+            current = blocks.setdefault(title, {}) if title in ("Tournament Stats", "Season Stats") else None
+        if current is None or title not in ("Items", "Natures", "Moves", "Abilities"):
+            continue
+        end = headings[i + 1].start() if i + 1 < len(headings) else len(page)
+        current.setdefault(title.lower(), page[heading.end():end])
+    # Keep all categories from ONE sample. A few mons have season data only;
+    # don't drop that data or merge it into the tournament sample on other pages.
+    return blocks.get("Tournament Stats") or blocks.get("Season Stats") or {}
 
 
 def parse_pb_usage(page):
     """Competitive usage % per category from a pokebase mon page. Each list is
     [[name, pct], ...] sorted as shown (most-used first), capped to USAGE_CAP."""
-    def pairs(seg):
-        return [[html.unescape(n).strip(), round(float(p), 1)]
-                for n, p in USAGE_NAMEPCT_RE.findall(seg)][:USAGE_CAP]
-    usage = {
-        "abilities": [[html.unescape(n).strip(), round(float(p), 1)]
-                      for n, p in ABIL_USAGE_RE.findall(page)][:USAGE_CAP],
-        "items": pairs(_between(page, ">Items</h3>", ">Abilities</h3>")),
-        "natures": pairs(_between(page, ">Natures</h3>", ">Items</h3>")),
-        "moves": pairs(_between(page, ">Moves</h3>", ">Featured Teams</h3>")),
-    }
+    def pairs(seg, category):
+        # A second boundary at the individual row prevents a missing percentage
+        # from borrowing the next row's value. Item/move/ability URLs must also
+        # belong to that category: a teammate link can never become an item.
+        if category == "natures":
+            rows = re.findall(r"<li\b[^>]*>(.*?)</li\s*>", seg, re.S | re.I)
+        else:
+            rows = re.findall(r'<a\b[^>]*href=["\']/pokemon-champions/' + category
+                              + r'/[^"\']+["\'][^>]*>(.*?)</a\s*>', seg, re.S | re.I)
+        result = []
+        seen = set()
+        for row in rows:
+            match = USAGE_NAMEPCT_RE.search(row)
+            if not match:
+                continue
+            name, pct = html.unescape(match[1]).strip(), round(float(match[2]), 1)
+            if name not in seen and 0 <= pct <= 100:
+                result.append([name, pct])
+                seen.add(name)
+        return result[:USAGE_CAP]
+
+    sections = usage_sections(page)
+    usage = {category: pairs(sections.get(category, ""), category)
+             for category in ("abilities", "items", "natures", "moves")}
+    if not usage["abilities"]:
+        usage["abilities"] = [[html.unescape(n).strip(), round(float(p), 1)]
+                              for n, p in ABIL_USAGE_RE.findall(sections.get("abilities", ""))][:USAGE_CAP]
     # meta point allocation per stat -> {hp:[pts,pct], ...}
     spread = {}
     for label, mid in SPREAD_RE.findall(page):

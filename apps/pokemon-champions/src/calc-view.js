@@ -7,7 +7,8 @@ import { statsFor, roleOf } from "./effective-stats.js";
 import { attachAutocomplete } from "./autocomplete.js";
 import { defaultAbility, applyAbility } from "./type-defense.js";
 import { POOL, CAP, pointsUsed, optimizeSpread, emptySpread } from "./stat-lab.js";
-import { hasFlag, OFF_ABIL, abilityMods, hiStatOf, ATE_ABIL, PROTEAN, offDefaultAbility, stageMult, OFF_ITEMS, expectedHitsForAccuracy } from "./offense-model.js";
+import { hasFlag, OFF_ABIL, abilityMods, hiStatOf, ATE_ABIL, PROTEAN, offDefaultAbility, stageMult, expectedHitsForAccuracy } from "./offense-model.js";
+import { normalizeItem, itemLabel, itemSelect, itemActive, itemDamage, itemAccuracy, itemSpeed, seedEffect, itemAtHit, isGrounded, resistBerry, critChance, usageItem } from "./item-model.js";
 
 const pokeRound = (v) => { const f = Math.floor(v); return v - f > 0.5 ? f + 1 : f; };
 function computeDamage(p) {
@@ -125,11 +126,11 @@ const CONDITIONAL = {
   "Dream Eater": (c) => (c.eb.targetStatus === "slp" ? { note: "vs sleep" } : { blocked: true, note: "needs sleep" }),
   Nightmare: (c) => (c.eb.targetStatus === "slp" ? null : { blocked: true, note: "needs sleep" }),
   // items — the attacker's OWN item (per-mon override honoured), and only removable target items
-  Acrobatics: (c) => (c.st.item === "none" || c.st.ability === "klutz" ? { mult: 2, note: "×2 no item" } : null),
-  "Knock Off": (c) => (c.eb.item === "none" ? null
+  Acrobatics: (c) => (itemAtHit(c.st.item, c.st.ability, c.eb.terrain) === "none" ? { mult: 2, note: "×2 no item" } : null),
+  "Knock Off": (c) => (itemAtHit(c.target.item, c.target.ability, c.eb.terrain, c.target.mon) === "none" ? null
     : c.target.mon.isMega ? { note: "no boost — Mega stone can't be removed" }
     : { mult: 1.5, note: "×1.5 removes item" }),
-  Poltergeist: (c) => (c.eb.item === "none" ? { blocked: true, note: "needs a target item" } : { note: "uses target's item" }),
+  Poltergeist: (c) => (itemAtHit(c.target.item, c.target.ability, c.eb.terrain, c.target.mon) === "none" ? { blocked: true, note: "needs a target item" } : { note: "uses target's item" }),
   "Steel Roller": (c) => (c.eb.terrain === "none" ? { blocked: true, note: "needs terrain" } : null),
   // speed order
   "Bolt Beak": (c) => (c.first ? { mult: 2, note: "×2 first" } : null),
@@ -193,7 +194,7 @@ const DAMP_BLOCKED = new Set(["Explosion", "Self-Destruct", "Mind Blown", "Misty
 // Heavy Metal doubles the holder's weight, Light Metal halves it (Grass Knot / Heavy Slam math)
 const abilWeight = (w, ab) => (ab === "heavy-metal" ? w * 2 : ab === "light-metal" ? Math.max(0.1, Math.floor(w * 5) / 10) : w);
 // Terrain only affects GROUNDED Pokémon: Flying-types and Levitate/Eelevate holders float.
-const grounded = (types, ability) => !types.includes("flying") && ability !== "levitate" && ability !== "eelevate";
+const grounded = isGrounded;
 // Moves that ignore the target's defensive stat changes (so a Def boost doesn't help).
 const STAT_IGNORE = new Set(["Sacred Sword", "Chip Away", "Darkest Lariat"]);
 // Attackers whose ability ignores (or punishes) Intimidate's Atk drop.
@@ -230,7 +231,6 @@ const DEF_NATURES = ["Bold", "Impish", "Lax", "Relaxed", "Calm", "Careful", "Gen
 // Offensive items (OFF_ITEMS) are shared via offense-model.js — the Moves table uses the same list.
 // The target holds ONE item (Champions-only). Offensive ones (Life Orb…) boost its return damage;
 // defensive ones (Focus Sash / resist berry) help it take a hit; Scarf boosts its Speed.
-const DEF_ITEMS = { none: "No item", "life-orb": "Life Orb", "expert-belt": "Expert Belt", "type-item": "Type item", "wide-lens": "Wide Lens (+10% Acc)", "choice-scarf": "Choice Scarf (Spe ×1.5)", "focus-sash": "Focus Sash", "resist-berry": "Resist berry (½ SE)", leftovers: "Leftovers (+6% per turn)", "sitrus-berry": "Sitrus Berry (+25% once)" };
 
 const WEATHERS = { none: "No weather", sand: "Sandstorm", snow: "Snow", rain: "Rain", sun: "Sun" };
 const TERRAINS = { none: "No terrain", grassy: "Grassy", electric: "Electric", psychic: "Psychic", misty: "Misty" };
@@ -493,14 +493,18 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       nature: (u.natures && u.natures[0] && u.natures[0][0]) || "Serious",
       defStage: 0, spdStage: 0, speStage: 0,
       ability: offDefaultAbility(mon),   // its actual most-used ability (may be Multiscale, Intimidate, …)
-      item: "none",
+      item: usageItem(mon),
       targetMoves: (u.moves || []).map(([nm]) => moveIdByName.get(nm)).filter((id) => id != null && data.moves[id] && data.moves[id].class !== "status" && data.moves[id].type).slice(0, 4),
     };
   }
   function setTarget(slug, keepConfig = false) {
     const mon = resolveMon(slug);
     if (!mon) return;
-    if (keepConfig) { tc().slug = slug; }   // form switch keeps the current spread/ability/etc.
+    if (keepConfig) {
+      tc().slug = slug;
+      tc().item = normalizeItem(tc().item, mon);
+      if (tc().ability && !(mon.abilities || []).some((a) => a.slug === tc().ability)) tc().ability = offDefaultAbility(mon);
+    }   // keep investment, but not an impossible ability/item combination on a new form
     else { eb.targets[eb.editing] = usageCfg(mon); }
     // a fresh primary pick also clears shared field conditions
     if (eb.editing === 0 && !keepConfig) {
@@ -831,7 +835,8 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
   function targetFromCfg(cfg) {
     const mon = cfg && cfg.slug ? resolveMon(cfg.slug) : null;
     if (!mon) return null;
-    const sp = cfg.spread, nat = cfg.nature, abil = cfg.ability, item = cfg.item;
+    const sp = cfg.spread, nat = cfg.nature, abil = cfg.ability, item = normalizeItem(cfg.item, mon);
+    const seed = seedEffect(item, abil, eb.terrain, mon);
     const base = statsFor(mon, "lv50");
     const hp = base.hp + (sp.hp || 0);
     let def = Math.floor((base.def + (sp.def || 0)) * natureMult(nat, "def"));
@@ -839,15 +844,15 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
     if (eb.weather === "snow" && mon.types.includes("ice")) def = Math.floor(def * 1.5);   // Snow → Ice Def ×1.5
     if (eb.weather === "sand" && mon.types.includes("rock")) spd = Math.floor(spd * 1.5);  // Sand → Rock SpD ×1.5
     const defRaw = Math.max(1, def), spdRaw = Math.max(1, spd);   // before boost stages — for stat-ignore moves (Sacred Sword)
-    const effDef = Math.max(1, Math.floor(def * stageMult(cfg.defStage)));
-    const effSpd = Math.max(1, Math.floor(spd * stageMult(cfg.spdStage)));
+    const seedStage = (k, n) => Math.max(-6, Math.min(6, n + (seed?.stat === k ? seed.stages : 0)));
+    const effDef = Math.max(1, Math.floor(def * stageMult(seedStage("def", cfg.defStage))));
+    const effSpd = Math.max(1, Math.floor(spd * stageMult(seedStage("spd", cfg.spdStage))));
     let spe = Math.max(1, Math.floor((base.spe + (sp.spe || 0)) * natureMult(nat, "spe") * stageMult(cfg.speStage)));
     // the target's own speed ability + Choice Scarf count too (Swift Swim wall in rain, Scarf user…)
     if (eb.weather !== "none" && SPEED_ABIL[abil] === eb.weather) spe *= 2;
     else if (abil === "surge-surfer" && eb.terrain === "electric") spe *= 2;
     else if (abil === "quick-feet" && eb.targetStatus !== "none") spe = Math.floor(spe * 1.5);
-    if (abil === "unburden" && item === "none") spe *= 2;   // assumed: its Gem/Berry was already consumed
-    if (item === "choice-scarf" && abil !== "klutz") spe = Math.floor(spe * 1.5);
+    spe = Math.max(1, Math.floor(spe * itemSpeed(item, abil, eb.terrain, mon)));
     if (eb.targetStatus === "par" && abil !== "quick-feet") spe = Math.floor(spe / 2);   // paralysis halves Speed
     // the threat's own attacking set (editable; prefilled from usage) for the reverse calc
     const u = mon.usage || {};
@@ -858,7 +863,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
     const pool = mon.moves.map((id) => data.moves[id]).filter((mv) => mv && mv.class !== "status" && mv.type);
     const chosen = cfg.targetMoves && cfg.targetMoves.length ? confirmedMoveIds(mon, cfg.targetMoves).map((id) => data.moves[id]).filter((mv) => mv && mv.class !== "status" && mv.type) : (um.length ? um : pool);
     const threat = { mon, atk: tAtk, spa: tSpa, def: effDef, spe, types: mon.types, ability: abil, item, weight: mon.weight, moves: chosen };
-    return { mon, hp, def: effDef, spd: effSpd, spe, defRaw, spdRaw, ability: abil, threat,
+    return { mon, hp, def: effDef, spd: effSpd, spe, defRaw, spdRaw, ability: abil, item, threat,
       lv: { hp, def: effDef, spd: effSpd, atk: base.atk, spe } };
   }
   const currentTarget = (i = eb.editing) => targetFromCfg(eb.targets[i]);
@@ -890,7 +895,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       ability: o.ability !== undefined ? o.ability : smartDefaultAbility(entry.mon),
       invest: o.invest !== undefined ? o.invest : eb.atkInvest,
       nature: o.nature !== undefined ? o.nature : eb.atkNature,
-      item: o.item !== undefined ? o.item : eb.atkItem,
+      item: normalizeItem(o.item !== undefined ? o.item : eb.atkItem, entry.mon),
       boost: o.boost !== undefined ? o.boost : eb.atkBoost,
       speed: o.speed !== undefined ? o.speed : eb.atkSpeed,
       stages: { ...NO_STAGES, ...(o.stages || {}) },   // per-stat setup (Iron Defense = +2 def)
@@ -908,8 +913,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
     else if ((a === "protosynthesis" && eb.weather === "sun") || (a === "quark-drive" && eb.terrain === "electric")) {
       if (hiStatOf(entry.mon) === "spe") spe = Math.floor(spe * 1.3);            // Paradox: Speed boosted if it's the highest stat
     }
-    if (a === "unburden" && st.item === "none") spe *= 2;   // assumed: its Gem/Berry was already consumed
-    if (st.item === "choice-scarf" && a !== "klutz") spe = Math.floor(spe * 1.5);
+    spe = Math.max(1, Math.floor(spe * itemSpeed(st.item, a, eb.terrain, entry.mon)));
     if (eb.userStatus === "par" && a !== "quick-feet") spe = Math.floor(spe / 2);   // paralysis halves Speed (Quick Feet ignores)
     return spe;
   }
@@ -925,25 +929,31 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
 
   // Type effectiveness of a move vs a defender — with per-move overrides (Freeze-Dry, Flying Press,
   // Thousand Arrows) and the defender's ability (unless Mold Breaker).
-  function typeEffOf(mvType, mvName, defTypes, defAbility, moldBreaker, scrappy = false) {
+  function typeEffOf(mvType, mvName, defTypes, defAbility, moldBreaker, scrappy = false, item = "none") {
+    const iron = item === "iron-ball" && itemActive(item, defAbility);
+    if (mvType === "ground" && mvName !== "Thousand Arrows" && item === "air-balloon" && itemActive(item, defAbility)) return 0;
     let e = defTypes.reduce((x, t) => {
       let m = data.typeChart[mvType]?.[t] ?? 1;
+      if (iron && mvType === "ground" && t === "flying") m = 1;
       if (mvName === "Freeze-Dry" && t === "water") m = 2;                                     // Ice hits Water SE
       if ((mvName === "Thousand Arrows" || mvName === "Smack Down") && t === "flying") m = 1;  // Ground can hit Flying
       if (scrappy && t === "ghost" && (mvType === "normal" || mvType === "fighting")) m = 1;   // Scrappy hits Ghosts
       return x * m;
     }, 1);
     if (mvName === "Flying Press") e *= defTypes.reduce((x, t) => x * (data.typeChart.flying?.[t] ?? 1), 1);  // dual Fighting+Flying
-    if (!moldBreaker) e = applyAbility(e, mvType, defAbility);
+    if (iron && mvType === "ground" && defTypes.includes("flying") && mvName !== "Thousand Arrows") e = 1;
+    if (!moldBreaker && !(iron && mvType === "ground" && ["levitate", "eelevate"].includes(defAbility))) e = applyAbility(e, mvType, defAbility);
     return e;
   }
 
   // The THREAT's damage onto a candidate for one move (%HP min/max) — mirror of the forward calc,
   // honouring the target's ability/item/nature/spread + the candidate's defensive abilities.
-  function threatEval(th, defEntry, mv, defStages = null) {
+  function threatEval(th, defEntry, mv, defenderSettings = null) {
     const defHP = defEntry.lv.hp + (eb.candBulk === "hp" ? 32 : 0);   // candidates' bulk preset
-    const defAbil = defaultAbility(defEntry.mon);
-    const ctx = { userWeight: abilWeight(th.weight, th.ability), targetWeight: abilWeight(defEntry.mon.weight, defAbil), userSpe: th.spe, targetSpe: defEntry.lv.spe, skillLink: th.ability === "skill-link" };
+    const ds = defenderSettings || atkSettings(defEntry);
+    const defAbil = ds.ability, defItem = normalizeItem(ds.item, defEntry.mon);
+    const defSpeed = attackerSpe(defEntry, ds);
+    const ctx = { userWeight: abilWeight(th.weight, th.ability), targetWeight: abilWeight(defEntry.mon.weight, defAbil), userSpe: th.spe, targetSpe: defSpeed, skillLink: th.ability === "skill-link" };
     const ep = effectivePower(mv, ctx);
     if (ep.kind === "skip" || ep.kind === "ohko") return null;
     const cat = mv.class;
@@ -955,18 +965,19 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
     }
     const ebW = th.ability === "mega-sol" && eb.weather !== "sun" ? { ...eb, weather: "sun" } : eb;
     // Liquid Voice (e.g. target Primarina): its Sound moves hit back as Water
-    const wbType = mv.name === "Weather Ball" ? WEATHER_BALL_TYPE[ebW.weather] : mv.name === "Terrain Pulse" ? TERRAIN_PULSE_TYPE[eb.terrain] : null;
+    const wbType = mv.name === "Weather Ball" ? WEATHER_BALL_TYPE[ebW.weather] : mv.name === "Terrain Pulse" && grounded(th.types, th.ability, th.item) ? TERRAIN_PULSE_TYPE[eb.terrain] : null;
     const mvType = wbType || (th.ability === "liquid-voice" && (mv.flags || []).includes("Sound") && mv.type !== "water" ? "water" : mv.type);
-    const typeEff = typeEffOf(mvType, mv.name, defEntry.mon.types, defAbil, moldBreaker, th.ability === "scrappy");
+    const typeEff = typeEffOf(mvType, mv.name, defEntry.mon.types, defAbil, moldBreaker, th.ability === "scrappy", defItem);
     if (typeEff === 0) return null;
     const se = typeEff > 1;
     // conditionals with roles swapped: the TARGET is the user here (its status, its item as the
     // held item; the candidate's item/mega-ness for Knock Off etc.; "first" = target outspeeds)
     const cond = conditionalMods(mv, {
       eb: { ...ebW, userStatus: eb.targetStatus, targetStatus: eb.userStatus, item: eb.atkItem },
-      first: th.spe > defEntry.lv.spe,
+      first: th.spe > defSpeed,
       st: { item: th.item, ability: th.ability, boost: 0 },
-      target: { mon: defEntry.mon },
+      target: { mon: defEntry.mon, item: defItem, ability: defAbil },
+      grounded: { user: grounded(th.types, th.ability, th.item), target: grounded(defEntry.mon.types, defAbil, defItem) },
     });
     if (cond.blocked) return null;
     let minPct, maxPct;
@@ -979,32 +990,46 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       const chg = CHARGE_MOVES[mv.name];
       if (chg && chg.boost && defAbil !== "unaware") atk = Math.floor(atk * stageMult(1));   // its charge boost hits back too
       // the candidate's own setup stages harden it (Iron Defense = less taken)
-      const dst = defStages || NO_STAGES;
+      const seed = seedEffect(defItem, defAbil, eb.terrain, defEntry.mon);
+      const dst = { ...(ds.stages || NO_STAGES) };
+      if (seed) dst[seed.stat] = Math.max(-6, Math.min(6, (dst[seed.stat] || 0) + seed.stages));
+      const critical = critChance(mv, th.item, th.ability, th.mon, moldBreaker ? null : defAbil) === 1
+        || (th.ability === "merciless" && eb.userStatus === "psn" && !["shell-armor", "battle-armor"].includes(defAbil));
+      if (critical || th.ability === "unaware" || STAT_IGNORE.has(mv.name)) {
+        for (const k of ["def", "spd"]) dst[k] = critical ? Math.min(0, dst[k] || 0) : 0;
+      }
       const def = cat === "physical" || PSY_DEF.has(mv.name)
         ? Math.max(1, Math.floor(defEntry.lv.def * stageMult(dst.def || 0)))
         : Math.max(1, Math.floor(defEntry.lv.spd * stageMult(dst.spd || 0)));
       let other = am.mult * cond.mult;
       // Merciless target: guaranteed crit onto a poisoned candidate (unless crit-proof)
-      if (th.ability === "merciless" && eb.userStatus === "psn" && !["shell-armor", "battle-armor"].includes(defAbil)) other *= 1.5;
       if (defAbil === "fairy-aura" && mvType === "fairy") other *= 4 / 3;   // the candidate's aura boosts the threat's fairy moves too
-      if (th.item && th.ability !== "klutz" && OFF_ITEMS[th.item]) { const r = OFF_ITEMS[th.item].mult(se, cat); if (r && r.m) other *= r.m; }   // target's offensive item
-      const field = fieldOffenseMult({ ...mv, type: mvType }, cat, ebW, false, false); other *= field.m;   // screens protect the target, not the candidate
+      other *= itemDamage(th.item, { type: mvType, cat, se, ability: th.ability, mon: th.mon, moveName: mv.name });
+      const berryBase = resistBerry(defItem, mvType, typeEff, defAbil, th.ability);
+      const berry = berryBase < 1 && defAbil === "ripen" ? 0.25 : berryBase;
+      const hitCount = ep.hits || 1;
+      other *= (berry + hitCount - 1) / hitCount;
+      const field = fieldOffenseMult({ ...mv, type: mvType }, cat, ebW, false, false, grounded(th.types, th.ability, th.item), grounded(defEntry.mon.types, defAbil, defItem)); other *= field.m;
       if (eb.doubles && isSpread(mv)) other *= 0.75;
       if (TARGET_DMG[defAbil]) other *= TARGET_DMG[defAbil]({ mv, cat, terrain: eb.terrain, tStatus: "none", atkAbility: th.ability });  // candidate's Multiscale/Fur Coat/…
       const burn = eb.targetStatus === "brn" && cat === "physical" && th.ability !== "guts" && mv.name !== "Facade" ? 0.5 : 1;   // burned target's physical return is halved
-      const r = computeDamage({ level: 50, power: Math.max(1, Math.round(ep.bp * cond.bpMul)), atk, def, type: typeEff, stab, crit: 1, weather: 1, burn, other });
+      const r = computeDamage({ level: 50, power: Math.max(1, Math.round(ep.bp * cond.bpMul)), atk, def, type: typeEff, stab, crit: critical ? (th.ability === "sniper" ? 2.25 : 1.5) : 1, weather: 1, burn, other });
       const hits = ep.hits || 1;
       minPct = (r.min * hits / defHP) * 100; maxPct = (r.max * hits / defHP) * 100;
     }
+    if ((ep.hits || 1) <= 1 && defItem === "focus-sash" && itemActive(defItem, defAbil)) {
+      minPct = Math.min(minPct, 100 * (defHP - 1) / defHP);
+      maxPct = Math.min(maxPct, 100 * (defHP - 1) / defHP);
+    }
     return { mv, minPct, maxPct, prio: (mv.priority || 0)
       + (th.ability === "gale-wings" && mvType === "flying" ? 1 : 0)
-      + (mv.name === "Grassy Glide" && eb.terrain === "grassy" && grounded(th.types, th.ability) ? 1 : 0) };
+      + (mv.name === "Grassy Glide" && eb.terrain === "grassy" && grounded(th.types, th.ability, th.item) ? 1 : 0) };
   }
   // The target's move list onto a candidate, best-first (for the survive readout + expander).
   // The candidate's own setup stages (Iron Defense…) harden it here.
   function threatMovesOnto(defEntry, target, stOverride = null) {
-    const dst = (stOverride || atkSettings(defEntry)).stages;
-    const rows = target.threat.moves.map((mv) => threatEval(target.threat, defEntry, mv, dst)).filter(Boolean).sort((a, b) => b.maxPct - a.maxPct);
+    const ds = stOverride || atkSettings(defEntry);
+    const rows = target.threat.moves.map((mv) => threatEval(target.threat, defEntry, mv, ds)).filter(Boolean).sort((a, b) => b.maxPct - a.maxPct);
     return rows;
   }
   function threatBestOnto(entry, target, stOverride = null) {
@@ -1018,7 +1043,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
     if (!mv || mv.class === "status" || !mv.type) return null;
     // -ate abilities retype Normal moves (Aerilate/Pixilate/…); Liquid Voice retypes Sound
     // moves to Water (no ×1.2). The effective type drives eff/STAB.
-    const fieldType = mv.name === "Weather Ball" ? WEATHER_BALL_TYPE[eb.weather] : mv.name === "Terrain Pulse" ? TERRAIN_PULSE_TYPE[eb.terrain] : null;
+    const fieldType = mv.name === "Weather Ball" ? WEATHER_BALL_TYPE[eb.weather] : mv.name === "Terrain Pulse" && grounded(entry.mon.types, st.ability, normalizeItem(st.item, entry.mon)) ? TERRAIN_PULSE_TYPE[eb.terrain] : null;
     const ate = !fieldType && ATE_ABIL[st.ability] && mv.type === "normal" ? ATE_ABIL[st.ability] : null;   // field type wins over ‑ate (move isn't Normal in weather/terrain)
     const liquid = st.ability === "liquid-voice" && (mv.flags || []).includes("Sound") && mv.type !== "water" ? "water" : null;
     const mvType = fieldType || liquid || ate || mv.type;
@@ -1032,11 +1057,12 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       if (target.ability === "soundproof" && hasFlag(mv, "Sound")) return null;
       if (target.ability === "damp" && DAMP_BLOCKED.has(mv.name)) return null;
     }
-    const typeEff = typeEffOf(mvType, mv.name, target.mon.types, target.ability, moldBreaker, st.ability === "scrappy");
+    const typeEff = typeEffOf(mvType, mv.name, target.mon.types, target.ability, moldBreaker, st.ability === "scrappy", target.item);
     if (typeEff === 0) return null;
     // Mega Sol: the HOLDER's own moves behave as if it were sunny (offense-side only)
     const ebW = st.ability === "mega-sol" && eb.weather !== "sun" ? { ...eb, weather: "sun" } : eb;
-    const uGrd = grounded(entry.mon.types, st.ability), tGrd = grounded(target.mon.types, target.ability);
+    st = { ...st, item: normalizeItem(st.item, entry.mon) };
+    const uGrd = grounded(entry.mon.types, st.ability, st.item), tGrd = grounded(target.mon.types, target.ability, target.item);
     const se = typeEff > 1;
     const cond = conditionalMods(mv, { eb: ebW, first: speFirst, st, target, grounded: { user: uGrd, target: tGrd } });
     if (cond.blocked) return null;
@@ -1053,13 +1079,21 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
     let acc = mv.accuracy == null ? 100 : mv.accuracy;
     const wacc = WEATHER_ACC[mv.name];   // Thunder/Hurricane never miss in rain; Blizzard never misses in snow
     if (wacc && wacc[eb.weather] != null) { acc = wacc[eb.weather]; notes.push(`${WEATHERS[eb.weather]} acc ${acc}%`); }
-    if (st.ability === "no-guard" || target.ability === "no-guard") { if (acc < 100) notes.push("No Guard"); acc = 100; }
+    if (mv.accuracy == null || mv.accuracy > 100 || wacc?.[eb.weather] === 100 || st.ability === "no-guard" || target.ability === "no-guard") { if (acc < 100) notes.push("always hits"); acc = 100; }
     else {
-      if (st.ability === "compound-eyes") { acc = Math.min(100, Math.round(acc * 1.3)); notes.push("Compound Eyes"); }
+      if (st.ability === "compound-eyes") { acc *= 1.3; notes.push("Compound Eyes"); }
       if (st.ability === "hustle" && cat === "physical") { acc = Math.round(acc * 0.8); notes.push("Hustle acc ×0.8"); }
       if ((target.ability === "sand-veil" && eb.weather === "sand") || (target.ability === "snow-cloak" && eb.weather === "snow")) { acc = Math.round(acc * 0.8); notes.push("evasion ×0.8"); }
-      if (st.item === "wide-lens" && st.ability !== "klutz") { acc = Math.min(100, acc + (OFF_ITEMS[st.item].accuracyBonus || 0)); notes.push("Wide Lens +10% acc"); }
+      const accItem = itemAccuracy(st.item, st.ability, speFirst, entry.mon);
+      if (accItem !== 1) { acc *= accItem; notes.push(`${itemLabel(st.item)} acc ×${accItem}`); }
+      if (target.item === "bright-powder" && itemActive(target.item, target.ability)) { acc *= 0.9; notes.push("Bright Powder acc ×0.9"); }
+      acc = Math.round(Math.min(100, acc) * 100) / 100;
     }
+    const critProb = st.ability === "merciless" && eb.targetStatus === "psn" && !["shell-armor", "battle-armor"].includes(target.ability)
+      ? 1 : critChance(mv, st.item, st.ability, entry.mon, moldBreaker ? null : target.ability);
+    const critical = critProb === 1;
+    const critMult = st.ability === "sniper" ? 2.25 : 1.5;
+    if (critical || ["leek", "scope-lens"].includes(st.item)) notes.push(`crit chance ${(100 * critProb).toFixed(1)}%${critical ? " (guaranteed)" : "; range is noncritical"}`);
 
     if (ep.kind === "ohko") { minPct = maxPct = 100; noInvMax = 100; }
     else if (ep.kind === "fixed") { const p = (ep.dmg / realHP) * 100; minPct = maxPct = p; noInvMax = p; }
@@ -1070,7 +1104,8 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       stab = protean || entry.mon.types.includes(mvType) ? (am.stab || 1.5) : 1;
       const as = attackStat(entry, target, mv, cat);
       asNote = as.note;
-      const def = STAT_IGNORE.has(mv.name) || st.ability === "unaware" ? defendStatRaw(target, mv, cat) : defendStat(target, mv, cat);   // Sacred Sword / attacker Unaware ignore boosts
+      let def = STAT_IGNORE.has(mv.name) || st.ability === "unaware" ? defendStatRaw(target, mv, cat) : defendStat(target, mv, cat);
+      if (critical) def = Math.min(def, defendStatRaw(target, mv, cat));
       let atk = as.base;
       if (as.invest) {
         // "auto" = +10% to whatever stat the move uses (Atk / SpA / Def for Body Press); named natures via natureMult
@@ -1079,7 +1114,9 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
         // Unaware target ignores the attacker's stat boosts (setup AND charge-turn boosts).
         // Stage = global "+attacking stat" preset + this mon's per-stat stage for the stat
         // THIS move uses (Body Press reads the Def stage — Iron Defense setups work).
-        const stg = Math.max(-6, Math.min(6, (st.boost || 0) + ((st.stages || NO_STAGES)[as.key] || 0)));
+        const seed = seedEffect(st.item, st.ability, eb.terrain, entry.mon);
+        let stg = Math.max(-6, Math.min(6, (st.boost || 0) + ((st.stages || NO_STAGES)[as.key] || 0) + (seed?.stat === as.key ? seed.stages : 0)));
+        if (critical) stg = Math.max(0, stg);
         if (stg && !(target.ability === "unaware")) atk = Math.max(1, Math.floor(atk * stageMult(stg)));
         if (charge && charge.boost === as.key && target.ability !== "unaware") {   // Electro Shot / Meteor Beam +1 SpA from the charge
           atk = Math.floor(atk * stageMult(1));
@@ -1093,16 +1130,18 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       if (UNMODELED.has(mv.name)) notes.push("~approx");
       if (ate) { other *= 1.2; notes.push(`→ ${mvType}`); }   // -ate retype + ×1.2
       if (liquid) notes.push("→ water (Liquid Voice)");
-      if (st.ability === "merciless" && eb.targetStatus === "psn" && target.ability !== "shell-armor" && target.ability !== "battle-armor") { other *= 1.5; notes.push("crit (Merciless)"); }
       if (protean && !entry.mon.types.includes(mvType)) notes.push("Protean");
-      if (st.item !== "none" && st.ability !== "klutz" && OFF_ITEMS[st.item]) { const r = OFF_ITEMS[st.item].mult(se, cat); if (r && r.m) { other *= r.m; if (r.note) notes.push(r.note); } }
+      const itemM = itemDamage(st.item, { type: mvType, cat, se, ability: st.ability, mon: entry.mon, moveName: mv.name });
+      other *= itemM;
+      if (itemM !== 1) notes.push(`${itemLabel(st.item)} ×${itemM}${st.item === "normal-gem" ? " (first attack only)" : ""}`);
       if (target.ability === "fairy-aura" && mvType === "fairy") { other *= 4 / 3; notes.push("Fairy Aura (aura is field-wide)"); }   // the aura boosts EVERYONE's fairy moves
-      const field = fieldOffenseMult({ ...mv, type: mvType }, cat, ebW, st.ability === "infiltrator", true, uGrd, tGrd); other *= field.m; field.notes.forEach((n) => notes.push(n));
+      const field = fieldOffenseMult({ ...mv, type: mvType }, cat, ebW, st.ability === "infiltrator" || critical, true, uGrd, tGrd); other *= field.m; field.notes.forEach((n) => notes.push(n));
       if (eb.doubles && isSpread(mv)) { other *= 0.75; notes.push("spread"); }   // doubles spread reduction
       // one-time reductions apply to the FIRST hit only (full-HP shields / a consumed berry);
       // later hits in the KO simulation use the unshielded number.
       let oneTime = 1;
-      if (eb.item === "resist-berry" && eb.ability !== "klutz" && se) { oneTime *= 0.5; notes.push("berry ½ (1st hit)"); }
+      const berryM = resistBerry(target.item, mvType, typeEff, target.ability, st.ability);
+      if (berryM !== 1) { oneTime *= target.ability === "ripen" ? 0.25 : berryM; notes.push(`${itemLabel(target.item)} (1st hit)`); }
       if (!moldBreaker && (target.ability === "multiscale" || target.ability === "shadow-shield")) { oneTime *= 0.5; notes.push(`${(data.abilities[target.ability] || {}).name} ½ (1st hit)`); }
       if (!moldBreaker && TARGET_DMG[target.ability] && target.ability !== "multiscale" && target.ability !== "shadow-shield") {
         const tdm = TARGET_DMG[target.ability]({ mv, cat, terrain: eb.terrain, tStatus: eb.targetStatus, noContact: st.ability === "long-reach", atkAbility: st.ability });
@@ -1118,11 +1157,13 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       // one-time shields (Multiscale/berry) only cover the FIRST strike of a multi-hit move
       const hits = ep.hits || 1;
       const shieldMult = hits > 1 ? (oneTime + (hits - 1)) / hits : oneTime;
-      const r = computeDamage({ level: 50, power: pw, atk, def, type: typeEff, stab, crit: 1, weather: 1, burn, other: other * shieldMult });
+      const r = computeDamage({ level: 50, power: pw, atk, def, type: typeEff, stab, crit: critical ? critMult : 1, weather: 1, burn, other: other * shieldMult });
       if (!r.max) return null;
       minPct = (r.min * hits / realHP) * 100; maxPct = (r.max * hits / realHP) * 100;
-      if (shieldMult !== 1) {   // unshielded later-hit damage for the KO simulation
-        const rl = computeDamage({ level: 50, power: pw, atk, def, type: typeEff, stab, crit: 1, weather: 1, burn, other });
+      const knockRemoved = mv.name === "Knock Off" && cond.mult === 1.5 && (target.ability !== "sticky-hold" || moldBreaker);
+      if (shieldMult !== 1 || (st.item === "normal-gem" && itemM !== 1) || knockRemoved) {
+        const laterOther = other / (st.item === "normal-gem" ? itemM : 1) / (knockRemoved ? 1.5 : 1);
+        const rl = computeDamage({ level: 50, power: pw, atk, def, type: typeEff, stab, crit: critical ? critMult : 1, weather: 1, burn, other: laterOther });
         laterMin = (rl.min * hits / realHP) * 100; laterMax = (rl.max * hits / realHP) * 100;
       }
       noInvMax = as.invest && st.invest ? maxPct * (as.base / (as.base + st.invest)) : maxPct;
@@ -1133,7 +1174,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
     let guard = null;
     if (target.ability === "disguise" && singleHit && !moldBreaker) guard = "Disguise";
     else if (maxPct >= 100 && singleHit) {
-      if (eb.item === "focus-sash" && eb.ability !== "klutz") guard = "Sash";
+      if (target.item === "focus-sash" && itemActive(target.item, target.ability)) guard = "Sash";
       else if (target.ability === "sturdy" && !moldBreaker) guard = "Sturdy";
     }
     // honest KO count: sequential hits with one-time shields, Leftovers/Sitrus recovery,
@@ -1146,8 +1187,9 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
     if (target.ability === "rain-dish" && eb.weather === "rain") chip += 6.25;
     const simOpts = {
       block: guard === "Disguise", absorb: guard === "Sash" || guard === "Sturdy",
-      leftovers: eb.item === "leftovers" && eb.ability !== "klutz",
-      sitrus: eb.item === "sitrus-berry" && eb.ability !== "klutz",
+      leftovers: target.item === "leftovers" && itemActive(target.item, target.ability) && (mv.name !== "Knock Off" || (target.ability === "sticky-hold" && !moldBreaker)),
+      sitrus: ["sitrus-berry", "oran-berry"].includes(target.item) && itemActive(target.item, target.ability) && st.ability !== "unnerve" && (mv.name !== "Knock Off" || (target.ability === "sticky-hold" && !moldBreaker)),
+      healBerry: (target.item === "oran-berry" ? 1000 / realHP : 25) * (target.ability === "ripen" ? 2 : 1),
       chip,
     };
     const nMin = simKO(minPct, laterMin ?? minPct, simOpts);
@@ -1159,7 +1201,12 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
     const expectedHits = eb.useAccuracy ? expectedHitsForAccuracy(mv, ep.hits || 1, acc / 100) : (ep.hits || 1);
     const accW = expectedHits / (ep.hits || 1);
     if (eb.useAccuracy && mv.name === "Population Bomb" && acc < 100) notes.push(`expected ${expectedHits.toFixed(2)} hits`);
-    const expected = maxPct * accW * (risky ? 0.5 : 1);
+    // Random crits are a neutral-stage expectation, not a guaranteed KO. Stage/screen
+    // bypass is exact for guaranteed crits; probabilistic expectation stays approximate.
+    const expected = maxPct * accW * (risky ? 0.5 : 1) * (critical || ep.kind !== "normal" ? 1 : 1 + critProb * (critMult - 1));
+    if (st.item === "life-orb" && itemActive(st.item, st.ability, entry.mon) && st.ability !== "magic-guard" && !(st.ability === "sheer-force" && mv.secondaries?.length)) notes.push("Life Orb recoil: 10% user HP; not in survival verdict");
+    if (target.item === "rocky-helmet" && itemActive(target.item, target.ability) && hasFlag(mv, "Contact") && !["long-reach", "magic-guard"].includes(st.ability)) notes.push(`Rocky Helmet: ~${(100 / 6 * (ep.hits || 1)).toFixed(1)}% user HP; not in survival verdict`);
+    if ([st.item, target.item].some((id) => ["red-card", "eject-button", "binding-band", "focus-band", "quick-claw", "metronome"].includes(id))) notes.push("~approx: item turn effects not simulated (see item note)");
     return { id: null /* set by movesVsTarget */, mv, effType: mvType, cat, kind: ep.kind, stab, asNote, typeEff, acc, risky, minPct, maxPct, nMin, nBest, noInvMax, expected, se, sash: !!guard, guard, prio, notes, pw };
   }
 
@@ -1180,7 +1227,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
         if (absorb && wasFull) { absorb = false; hp = 0.01; }   // Sash/Sturdy only work from full HP
         else return n;
       }
-      if (sitrus && hp <= 50) { hp = Math.min(100, hp + 25); sitrus = false; }
+      if (sitrus && hp <= 50) { hp = Math.min(100, hp + (o.healBerry ?? 25)); sitrus = false; }
       if (o.leftovers) hp = Math.min(100, hp + 6.25);
       if (o.chip) { hp = Math.min(100, hp + o.chip); if (hp <= 0) return n; }   // status chip can finish the KO
     }
@@ -1340,7 +1387,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
           <div class="cl-stat"><span class="cl-stat-lab">Weather</span>${seg("weather", WEATHERS, eb.weather)}</div>
           <div class="cl-stat"><span class="cl-stat-lab">Terrain</span>${seg("terrain", TERRAINS, eb.terrain)}</div>
           <div class="cl-stat"><span class="cl-stat-lab">Screen</span>${seg("screen", SCREENS, eb.screen)}</div>
-          <div class="cl-stat"><span class="cl-stat-lab">Target item</span>${seg("item", DEF_ITEMS, cfg.item)}</div>
+          <div class="cl-stat"><span class="cl-stat-lab">Target item</span>${itemSelect('data-ebsel="item"', cfg.item, mon, cfg.ability)}</div>
           <div class="cl-stat"><span class="cl-stat-lab">Target status</span>${seg("targetStatus", { none: "Healthy", psn: "Poisoned", brn: "Burned", par: "Paralyzed", slp: "Asleep" }, eb.targetStatus)}</div>
           <div class="cl-stat"><span class="cl-stat-lab">Attacker status</span>${seg("userStatus", { none: "Healthy", brn: "Burned", psn: "Poisoned", par: "Paralyzed" }, eb.userStatus)}</div>
           <label class="cl-avail cl-doubles" title="In doubles, moves hitting multiple targets take the ×0.75 spread modifier"><input type="checkbox" data-ebsel="doubles" ${eb.doubles ? "checked" : ""}> Doubles spread ×0.75</label>
@@ -1356,7 +1403,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
           ${stageStepper("Boost", "atkBoost", eb.atkBoost)}
           <div class="cl-stat"><span class="cl-stat-lab">Speed</span>
             <div class="seg cl-invest">${[["base", "Base"], ["max", "Max"]].map(([v, l]) => `<button data-atkspeed="${v}" class="${eb.atkSpeed === v ? "active" : ""}">${l}</button>`).join("")}</div></div>
-          <div class="cl-stat"><span class="cl-stat-lab">Item</span>${seg("atkItem", Object.fromEntries(Object.entries(OFF_ITEMS).map(([k, v]) => [k, v.label])), eb.atkItem)}</div>
+          <div class="cl-stat"><span class="cl-stat-lab">Item</span>${itemSelect('data-ebsel="atkItem"', eb.atkItem)}</div>
           <div class="cl-stat" title="How bulky the candidates are for the 'survives' math"><span class="cl-stat-lab">Their bulk</span>
             <div class="seg cl-invest">${[["base", "Base"], ["hp", "+32 HP"]].map(([v, l]) => `<button data-candbulk="${v}" class="${eb.candBulk === v ? "active" : ""}">${l}</button>`).join("")}</div></div>
           <div class="cl-stat" title="All learnable moves or only each mon's real ladder set"><span class="cl-stat-lab">Movepool</span>
@@ -1422,6 +1469,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
     const o = eb.overrides.get(slug) || {};
     o[key] = val;
     eb.overrides.set(slug, o);
+    saveLab();
     renderResults();
   }
 
@@ -1479,7 +1527,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       { note: "as configured", set: (s) => s },
       { note: "Max invest", set: (s) => ({ ...s, invest: 32 }) },
       { note: "+ +Atk nature", set: (s) => ({ ...s, nature: "auto" }) },
-      { note: "+ Life Orb", set: (s) => ({ ...s, item: "life-orb" }) },
+      ...(!entry.mon.isMega ? [{ note: "replace item with Life Orb", set: (s) => ({ ...s, item: "life-orb" }) }] : []),
       { note: "+ +1", set: (s) => ({ ...s, boost: Math.max(s.boost, 1) }) },
       { note: "+ +2", set: (s) => ({ ...s, boost: Math.max(s.boost, 2) }) },
     ];
@@ -1493,7 +1541,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
           : `<span class="ir ok">reaches ${label} on ${targets.length > 1 ? "both" : "target"} with: <b>${used.join(" · ")}</b></span>`;
       }
     }
-    return `<span class="ir no">✗ not in ${label} range on ${targets.length > 1 ? "both" : "target"} even at Max + +Atk + Life Orb + +2</span>`;
+    return `<span class="ir no">✗ not in ${label} range on ${targets.length > 1 ? "both" : "target"} even at Max + +Atk${entry.mon.isMega ? "" : " + Life Orb"} + +2</span>`;
   }
 
   // Inline per-attacker inspector: ability + override controls + speed line + matchup(s).
@@ -1504,7 +1552,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
     const investSeg = `<div class="seg cl-invest">${[[32, "Max"], [16, "Half"], [0, "None"]].map(([v, l]) => `<button data-ovrinvest="${v}" class="${st.invest === v ? "active" : ""}">${l}</button>`).join("")}</div>`;
     const speedSeg = `<div class="seg cl-invest">${[["base", "Base"], ["max", "Max"]].map(([v, l]) => `<button data-ovrspeed="${v}" class="${st.speed === v ? "active" : ""}">${l}</button>`).join("")}</div>`;
     const natSel = natSelect('data-ovrsel="nature"', st.nature, true);
-    const itemSel = `<select class="cl-sel" data-ovrsel="item">${Object.entries(OFF_ITEMS).map(([k, val]) => `<option value="${k}" ${st.item === k ? "selected" : ""}>${val.label}</option>`).join("")}</select>`;
+    const itemSel = itemSelect('data-ovrsel="item"', st.item, mon, st.ability);
     // per-stat setup stages: Iron Defense = +2 Def → powers Body Press AND halves physical taken
     const stageStep = (k, label, title = "") => `<div class="cl-stat"${title ? ` title="${title}"` : ""}><span class="cl-stat-lab">${label}</span>
       <div class="cl-step"><button data-ovrstage="${k}" data-dir="-1">−</button><b>${st.stages[k] >= 0 ? "+" : ""}${st.stages[k]}</b><button data-ovrstage="${k}" data-dir="1">+</button></div></div>`;
@@ -1529,7 +1577,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
         ${stageStep("def", "Def stage", "Body Press scales with this; also hardens it defensively")}
         ${stageStep("spe", "Spe stage", "Decides who moves first")}
       </div>
-      <div class="ap-speed">Spe <b>${aSpe}</b> <small>(${abilName}${(eb.weather !== "none" && SPEED_ABIL[st.ability] === eb.weather) ? " ×2 " + eb.weather : (st.ability === "surge-surfer" && eb.terrain === "electric") ? " ×2 terrain" : (st.ability === "unburden" && st.item === "none") ? " ×2 — item used" : ""})</small> vs ${targets.map(speVs).join(" · ")}
+      <div class="ap-speed">Spe <b>${aSpe}</b> <small>(${abilName}${(eb.weather !== "none" && SPEED_ABIL[st.ability] === eb.weather) ? " ×2 " + eb.weather : (st.ability === "surge-surfer" && eb.terrain === "electric") ? " ×2 terrain" : (st.ability === "unburden" && seedEffect(st.item, st.ability, eb.terrain, mon)) ? " ×2 — seed consumed" : ""})</small> vs ${targets.map(speVs).join(" · ")}
         &ensp;·&ensp;eff Atk <b>${effOffense(entry, st).atk}</b> · eff Sp.A <b>${effOffense(entry, st).spa}</b> <small>(after invest/nature/stages)</small></div>
       <div class="ap-intorange">Into range: ${intoRange(entry, targets)}</div>
       ${targets.map((t) => matchupBlock(entry, t)).join("")}
@@ -1676,7 +1724,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
   }
 
   // ---------- "One vs all" reverse mode ----------
-  const revSt = () => ({ ...eb.revCfg, stages: { ...NO_STAGES, ...(eb.revCfg.stages || {}) } });   // settings object for evalMove (same shape atkSettings returns)
+  const revSt = () => ({ ...eb.revCfg, item: normalizeItem(eb.revCfg.item, resolveMon(eb.revSlug)), stages: { ...NO_STAGES, ...(eb.revCfg.stages || {}) } });
   function renderRevControls(entry) {
     const mon = entry.mon;
     const c = eb.revCfg;
@@ -1705,7 +1753,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
           <div class="cl-stat"><span class="cl-stat-lab">Nature</span>${natSelect('data-revsel="nature"', c.nature, true)}</div>
           <div class="cl-stat"><span class="cl-stat-lab">Speed</span>
             <div class="seg cl-invest">${[["base", "Base"], ["max", "Max"]].map(([v, l]) => `<button data-revspeed="${v}" class="${c.speed === v ? "active" : ""}">${l}</button>`).join("")}</div></div>
-          <div class="cl-stat"><span class="cl-stat-lab">Item</span><select class="cl-sel" data-revsel="item">${Object.entries(OFF_ITEMS).map(([k, v]) => `<option value="${k}" ${c.item === k ? "selected" : ""}>${v.label}</option>`).join("")}</select></div>
+          <div class="cl-stat"><span class="cl-stat-lab">Item</span>${itemSelect('data-revsel="item"', c.item, mon, c.ability)}</div>
           <div class="cl-stat" title="All learnable moves or only its real ladder set"><span class="cl-stat-lab">Movepool</span>
             <div class="seg cl-invest">${[["all", "All"], ["ladder", "Ladder"]].map(([v, l]) => `<button data-revpool="${v}" class="${(c.movepool || "all") === v ? "active" : ""}">${l}</button>`).join("")}</div></div>
         </div>
@@ -1782,7 +1830,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
     const cfg = defenderCfg(d.mon);   // honors the Ladder/Base basis + overrides
     const edited = Object.keys(ovr).length > 0;
     const abilChips = (d.mon.abilities || []).map((a) => `<button class="tm-abil-chip ${cfg.ability === a.slug ? "on" : ""}" data-dovrability="${a.slug}">${(data.abilities[a.slug] || {}).name || a.slug}</button>`).join("");
-    const itemSel = `<select class="cl-sel" data-dovrsel="item">${Object.entries(DEF_ITEMS).map(([k, l]) => `<option value="${k}" ${cfg.item === k ? "selected" : ""}>${l}</option>`).join("")}</select>`;
+    const itemSel = itemSelect('data-dovrsel="item"', cfg.item, d.mon, cfg.ability);
     const natSel = natSelect('data-dovrsel="nature"', cfg.nature);
     const stg = (label, key, title = "") => `<div class="cl-stat"${title ? ` title="${title}"` : ""}><span class="cl-stat-lab">${label}</span>
       <div class="cl-step"><button data-dovrstage="${key}" data-dir="-1">−</button><b>${cfg[key] >= 0 ? "+" : ""}${cfg[key]}</b><button data-dovrstage="${key}" data-dir="1">+</button></div></div>`;
@@ -1803,7 +1851,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
         <div class="cl-stat"><span class="cl-stat-lab">Item</span>${itemSel}</div>
         <button class="btn-sm" data-dovrreset title="Reset this defender to its ladder usage">↺ reset</button>
       </div>
-      <div class="ap-speed">${edited ? `<b class="ap-edited">edited</b> · ` : ""}Set: <b>${(data.abilities[cfg.ability] || {}).name || "—"}</b> · ${cfg.nature} · ${spTxt} · ${DEF_ITEMS[cfg.item] || "No item"}&ensp;—&ensp;your Spe <b>${aSpe}</b> vs ${nameOf(d.mon)} <b>${dt.spe}</b> → ${spV}
+      <div class="ap-speed">${edited ? `<b class="ap-edited">edited</b> · ` : ""}Set: <b>${(data.abilities[cfg.ability] || {}).name || "—"}</b> · ${cfg.nature} · ${spTxt} · ${itemLabel(dt.item)}&ensp;—&ensp;your Spe <b>${aSpe}</b> vs ${nameOf(d.mon)} <b>${dt.spe}</b> → ${spV}
         <button class="btn-sm ap-tocounters" data-rev2counter="${slug}" title="Open this defender fully configurable in All vs one">⚔ Open in All vs one</button></div>
       <div class="ap-intorange">Into range: ${intoRange(entry, [dt], revSt())}</div>
       ${matchupBlock(entry, dt, st)}
@@ -1828,7 +1876,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       // the assumed defender set, visible WITHOUT opening the expander — no hidden assumptions
       const cfg = defenderCfg(d.mon);
       const edited = eb.revOverrides.has(slug) && Object.keys(eb.revOverrides.get(slug)).length > 0;
-      const setLine = `<span class="ehp-setline" title="The set this row assumes (edit via ▸)">${dt.hp} HP · ${dt.def} Def · ${dt.spd} SpD · ${dt.spe} Spe · ${cfg.nature === "Serious" ? "Neutral" : cfg.nature} · ${(data.abilities[cfg.ability] || {}).name || "—"}${edited ? ' · <b class="ap-edited">edited</b>' : ""}</span>`;
+      const setLine = `<span class="ehp-setline" title="The set this row assumes (edit via ▸)">${dt.hp} HP · ${dt.def} Def · ${dt.spd} SpD · ${dt.spe} Spe · ${cfg.nature === "Serious" ? "Neutral" : cfg.nature} · ${(data.abilities[cfg.ability] || {}).name || "—"} · ${itemLabel(dt.item)}${edited ? ' · <b class="ap-edited">edited</b>' : ""}</span>`;
       return `<div class="ehp-item ${open ? "open" : ""}">
         <div class="ehp-row" data-open="${slug}">
           <img class="ehp-spr" loading="lazy" decoding="async" src="${d.mon.sprite || d.mon.artwork || ""}" alt="">
@@ -1938,11 +1986,15 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
   }
 
   // ---------- "Team check" mode: your team vs a list of threats ----------
+  function teamSettings(entry) {
+    const member = team().find((m) => m.slug === entry.mon.slug);
+    return { ...atkSettings(entry), ...(member ? { item: normalizeItem(member.item, entry.mon), ability: member.ability } : {}) };
+  }
   function addThreat(slug) { if (hasMon(slug) && !eb.threats.includes(slug)) { eb.threats.push(slug); renderTeam(); } }
   // One attacker (team member) vs one threat → a scored cell.
   function teamCell(memberMon, memberMoveIds, threatTarget) {
     const entry = { mon: memberMon, lv: statsFor(memberMon, "lv50") };
-    const st = { ...atkSettings(entry) };
+    const st = teamSettings(entry);
     if (Array.isArray(memberMoveIds) && memberMoveIds.length) st.moveset = memberMoveIds;   // lock to the team's chosen moves
     const row = bestVsTarget(entry, threatTarget, st);
     if (!row) return { tier: 1, label: "—", note: "no damaging move" };
@@ -1980,7 +2032,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
     }
 
     // header: team member sprites
-    const memberHead = roster2.map(({ mon }) => `<th class="tc-mhead" title="${nameOf(mon)}"><img src="${mon.sprite || mon.artwork || ""}" alt="">${mon.types.map((t) => `<span class="type tiny" style="background:${TYPE_COLORS[t]}">${t}</span>`).join("")}</th>`).join("");
+    const memberHead = roster2.map(({ mon }) => `<th class="tc-mhead" title="${nameOf(mon)}"><img src="${mon.sprite || mon.artwork || ""}" alt="">${mon.types.map((t) => `<span class="type tiny" style="background:${TYPE_COLORS[t]}">${t}</span>`).join("")}<small class="item-note">${itemLabel(teamSettings({ mon }).item)}</small></th>`).join("");
 
     const rows = eb.threats.map((sl) => {
       const tmon = resolveMon(sl); if (!tmon) return "";
@@ -2029,7 +2081,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       <div class="tc-legend"><span class="tc-key tier-3">handled</span><span class="tc-key tier-2">risky</span><span class="tc-key tier-1">can't</span>
         <span class="tc-note">click a cell to see how to fix it · ⚡ outspeeds · 🐢 slower · ⚠ gets OHKO'd back</span></div>
       ${detail}
-      <p class="ehp-approx">Each teammate uses its chosen team moves (or its full movepool if none set) at the global attacker preset. Threats use their real ladder set. Real Gen-9 damage vs real HP.</p>`;
+      <p class="ehp-approx">Uses saved team items, abilities and chosen moves (full movepool if empty); investment/nature/stages use Damage presets. Threats use usage-snapshot sets. Item switching, recoil knockouts and turn durations are not simulated.</p>`;
   }
 
   // Setup moves that grant a boost, for naming the "boost fix" (best-effort).
@@ -2048,7 +2100,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
     const cur = teamCell(memberMon, memberMoves, threatTarget);   // current locked-moveset result
     const curKO = cur.ko != null ? cur.ko : 99;
     // full learnable pool at the same global preset (no moveset lock) — reveals alternatives
-    const stFull = { ...atkSettings(entry), movepool: "all", moveset: null };
+    const stFull = { ...teamSettings(entry), movepool: "all", moveset: null };
     const all = movesVsTarget(entry, threatTarget, false, stFull);
     const cat = (row) => (row.cat === "physical" ? "atk" : "spa");
 
@@ -2062,7 +2114,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       : "";
     // ---- fix 2: minimal setup boost (on the current team moves) that reaches the threshold ----
     const thr = eb.threshold === "any" ? 2 : eb.threshold === "ohko" ? 1 : eb.threshold === "2hko" ? 2 : 3;
-    const stLock = { ...atkSettings(entry) };
+    const stLock = teamSettings(entry);
     if (Array.isArray(memberMoves) && memberMoves.length) stLock.moveset = memberMoves;
     let boostFix = "";
     for (const b of [1, 2]) {
@@ -2102,7 +2154,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
     }).join("") || `<p class="ehp-empty">No usable damaging move in its whole pool.</p>`;
 
     // ---- what it survives (threat's best return) ----
-    const back = threatMovesOnto(entry, threatTarget).slice(0, 3).map((r) => {
+    const back = threatMovesOnto(entry, threatTarget, teamSettings(entry)).slice(0, 3).map((r) => {
       const ko = r.maxPct >= 100 ? "faints you" : `you keep ${Math.round(100 - r.maxPct)}%`;
       const cls = r.maxPct >= 100 ? "ko-o" : 2 * r.minPct >= 100 ? "ko-2" : "ko-n";
       return `<div class="tc-mrow" data-move-info="${moveIdByName.get(r.mv.name)}">

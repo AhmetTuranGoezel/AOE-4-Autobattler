@@ -126,6 +126,69 @@ class LearnsetTests(unittest.TestCase):
         self.assertEqual([m["slug"] for m in rows], ["pawmot"])
 
 
+class UsageTests(unittest.TestCase):
+    @staticmethod
+    def row(name, pct, category="items"):
+        name_span = f'<span class="min-w-0 truncate font-medium text-zinc-800">{name}</span>'
+        pct_span = f'<span class="tabular-nums">{pct}<!-- -->%</span>' if pct is not None else ""
+        if category == "natures":
+            return f"<li>{name_span}{pct_span}</li>"
+        return (f'<li><a href="/pokemon-champions/{category}/example">'
+                f'{name_span}{pct_span}</a></li>')
+
+    @staticmethod
+    def section(title, rows):
+        return f'<h3 class="text-sm font-medium">{title}</h3><ul>{rows}</ul>'
+
+    def test_sirfetchd_items_cannot_absorb_teammates_or_moves(self):
+        # Reduced fixture of the actual September Pokebase heading order.
+        page = '<h2 id="usage"><svg></svg>Tournament Stats</h2>'
+        page += self.section("Abilities", self.row("Scrappy", 50, "abilities"))
+        page += self.section("Natures", self.row("Adamant", 50, "natures"))
+        page += self.section("Items", self.row("Muscle Band", 50) + self.row("Psychic Seed", 50))
+        page += self.section("Common Teammates", self.row("Armarouge", 50, "pokemon")
+                             + self.row("Indeedee (Female)", 50, "pokemon")
+                             + self.row("Salamence", 50, "pokemon"))
+        page += self.section("Moves", self.row("Meteor Assault", 25, "moves"))
+        page += self.section("Tournament Teams", self.row("Another Pokemon", 100, "pokemon"))
+        parsed = gen.parse_pb_usage(page)
+        self.assertEqual(parsed["items"], [["Muscle Band", 50], ["Psychic Seed", 50]])
+        self.assertEqual(parsed["moves"], [["Meteor Assault", 25]])
+        self.assertEqual(parsed["abilities"], [["Scrappy", 50]])
+        self.assertEqual(parsed["natures"], [["Adamant", 50]])
+
+    def test_category_order_and_missing_end_heading_do_not_matter(self):
+        for titles in (("Items", "Natures", "Moves", "Abilities"),
+                       ("Moves", "Abilities", "Natures", "Items")):
+            page = '<h2>Tournament Stats</h2>'
+            for title in titles:
+                page += self.section(title, self.row(title, 20, title.lower()))
+            parsed = gen.parse_pb_usage(page)
+            self.assertEqual(parsed, {title.lower(): [[title, 20]] for title in titles})
+
+    def test_wrong_category_links_and_missing_row_percentages_are_rejected(self):
+        page = '<h2>Tournament Stats</h2>' + self.section("Items",
+            self.row("Salamence", 50, "pokemon") + self.row("Meteor Assault", 25, "moves")
+            + self.row("No percentage", None) + self.row("Muscle Band", 50))
+        self.assertEqual(gen.parse_pb_usage(page), {"items": [["Muscle Band", 50]]})
+
+    def test_other_sections_and_hydration_scripts_are_not_usage(self):
+        false_items = self.section("Items", self.row("Not usage", 100))
+        self.assertEqual(gen.parse_pb_usage('<h2>Available Moves</h2>' + false_items), {})
+        page = '<script><h2>Tournament Stats</h2>' + false_items + '</script>'
+        page += '<h2>Tournament Stats</h2>' + self.section("Items", self.row("Muscle Band", 50))
+        page += '<h2>Another Feature</h2>' + false_items
+        self.assertEqual(gen.parse_pb_usage(page), {"items": [["Muscle Band", 50]]})
+
+    def test_season_only_pages_work_without_mixing_season_and_tournament_samples(self):
+        season = '<h2>Season Stats</h2>' + self.section("Items", self.row("Mystic Water", 16.6))
+        season += self.section("Natures", self.row("Modest", 60, "natures"))
+        self.assertEqual(gen.parse_pb_usage(season)["items"], [["Mystic Water", 16.6]])
+        tournament = '<h2>Tournament Stats</h2>' + self.section("Items", self.row("Muscle Band", 50))
+        for page in (season + tournament, tournament + season):
+            self.assertEqual(gen.parse_pb_usage(page), {"items": [["Muscle Band", 50]]})
+
+
 class CacheTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()

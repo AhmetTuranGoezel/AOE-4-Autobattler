@@ -68,6 +68,14 @@ def run(screenshots=False):
                 assert "Serebii" in page.locator(".detail-moves .learnset-note").inner_text()
                 assert page.locator(".detail-moves .mv-row").count() == 49
                 page.locator("#detail [data-close]").click()
+                page.locator("#search").fill("Sirfetch")
+                page.locator('[data-slug="sirfetchd"] .nm-top').click()
+                print("  checking Sirfetchd item usage", flush=True)
+                item_card = page.locator(".detail-usage .use-cat").filter(has=page.locator(".use-lab", has_text="Item"))
+                sirfetchd = next(mon for mon in data["pokemon"] if mon["slug"] == "sirfetchd")
+                assert item_card.locator(".use-name").all_text_contents() == [name for name, _ in sirfetchd["usage"]["items"]]
+                assert not any(name in item_card.inner_text() for name in ("Armarouge", "Indeedee", "Salamence", "Meteor Assault"))
+                page.locator("#detail [data-close]").click()
                 page.locator('[data-tab="team"]').click()
                 assert "excluded from team analysis" in page.locator(".team-member").first.inner_text()
                 for tab in ("moves", "abilities", "calc", "coverage", "pokemon"):
@@ -83,7 +91,7 @@ def run(screenshots=False):
                 context.close()
             browser.close()
         assert not errors, errors
-        print("browser smoke passed: desktop/mobile, regulation, ranks/pins, Pyroar, saved move warnings and tabs")
+        print("browser smoke passed: desktop/mobile, regulation, ranks/pins, Pyroar, Sirfetchd usage, saved move warnings and tabs")
     finally:
         server.shutdown()
         server.server_close()

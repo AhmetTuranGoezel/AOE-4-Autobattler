@@ -156,7 +156,7 @@ Champions data: 215 abilities, 508 moves. Regenerate with `python tools/generate
 | Reckless | ✅ modeled | recoil moves ×1.2 |
 | Refrigerate | ✅ modeled | Normal moves → Ice ×1.2 |
 | Regenerator | ➖ no-op | controls switching/trapping — no damage effect |
-| Ripen | ➖ no-op | healing over turns — no effect on single-hit damage |
+| Ripen | ✅ modeled | doubles resist-berry mitigation and Sitrus/Oran healing effects in Damage |
 | Rivalry | ➖ no-op | ±25% by gender — the dataset has no gender information |
 | Rock Head | ➖ no-op | prevents recoil to the user — outgoing damage unchanged |
 | Rough Skin | ➖ no-op | no effect on first-hit damage/speed/accuracy: Pokemon making contact with this Pokemon lose 1/8 of their maximum HP, rounded down. |
@@ -178,7 +178,7 @@ Champions data: 215 abilities, 508 moves. Regenerate with `python tools/generate
 | Shield Dust | ➖ no-op | status-condition utility — prevents/inflicts/heals status; no effect on a hit's damage |
 | Skill Link | ✅ modeled | 2–5-hit moves always hit 5× |
 | Slush Rush | ✅ modeled | Spe ×2 in snow |
-| Sniper | ➖ no-op | boosts critical hits only — random crits aren't simulated in the ranking (only Merciless's guaranteed crit is) |
+| Sniper | ✅ modeled | critical multiplier ×2.25; guaranteed critical ranges and expected-power weighting |
 | Snow Cloak | ✅ modeled | incoming accuracy ×0.8 in snow |
 | Snow Warning | ➖ no-op | sets snow on entry — use the Weather control |
 | Solar Power | ✅ modeled | Special ×1.5 in sun |
@@ -195,11 +195,11 @@ Champions data: 215 abilities, 508 moves. Regenerate with `python tools/generate
 | Steadfast | ➖ no-op | no effect on first-hit damage/speed/accuracy: If this Pokemon flinches, its Speed is raised by 1 stage. |
 | Steely Spirit | ✅ modeled | Steel ×1.5 |
 | Stench | ➖ no-op | no effect on first-hit damage/speed/accuracy: This Pokemon's attacks without a chance to make the target flinch gain a 10% chance to make the target flinch. |
-| Sticky Hold | ➖ no-op | item interaction — beyond Klutz/Knock Off/Acrobatics/Poltergeist, item events aren't tracked |
+| Sticky Hold | ✅ modeled | retains items/recovery against Knock Off unless its ability is bypassed; other item-theft events unmodeled |
 | Strong Jaw | ✅ modeled | Bite moves ×1.5 |
 | Sturdy | ✅ modeled | survives a would-be OHKO from full HP |
 | Suction Cups | ➖ no-op | controls switching/trapping — no damage effect |
-| Super Luck | ➖ no-op | raises crit chance — random crits aren't simulated in the ranking |
+| Super Luck | ✅ modeled | adds one critical stage; stacks with Leek/Scope Lens in expected power and guaranteed criticals |
 | Supersweet Syrup | ➖ no-op | controls switching/trapping — no damage effect |
 | Supreme Overlord | ✅ modeled | ×1.1 per fainted ally — team state unknowable here; numbers assume 0 fallen, rows carry the flag |
 | Surge Surfer | ✅ modeled | Spe ×2 in Electric Terrain |
@@ -218,8 +218,8 @@ Champions data: 215 abilities, 508 moves. Regenerate with `python tools/generate
 | Toxic Debris | ➖ no-op | sets Toxic Spikes when hit — hazards aren't simulated |
 | Trace | ➖ no-op | copies the opponent's ability — pick the copied ability manually on the attacker |
 | Unaware | ✅ modeled | defender: ignores your boosts · attacker: ignores the target's Def/SpD boosts |
-| Unburden | ✅ modeled | Spe ×2 when its item slot is empty — ASSUMES the held Gem/Berry was already consumed (holding nothing from turn 1 wouldn't activate it in-game) |
-| Unnerve | ➖ no-op | no effect on first-hit damage/speed/accuracy: While this Pokemon is active, it prevents opposing Pokemon from using their Berries. This Ability activates be |
+| Unburden | ✅ modeled | Spe ×2 after a matching terrain seed activates; no item alone does not activate it. Other consumption history is unmodeled. |
+| Unnerve | ✅ modeled | prevents opposing resist/healing berry consumption in Damage |
 | Unseen Fist | ➖ no-op | no effect on first-hit damage/speed/accuracy: This Pokemon's contact moves ignore the target's protection, except Max Guard. |
 | Vital Spirit | ➖ no-op | status-condition utility — prevents/inflicts/heals status; no effect on a hit's damage |
 | Volt Absorb | ✅ modeled | immune to Electric |
@@ -287,10 +287,8 @@ Champions data: 215 abilities, 508 moves. Regenerate with `python tools/generate
 _Every other damaging move is standard (base power × category × type) and computed with the exact Gen-9 formula._
 
 ## Items (Champions-only)
-- Life Orb ×1.3 · Expert Belt ×1.2 (SE) · type items ×1.2 · Muscle Band / Wise Glasses ×1.1 — damage
-- **Choice Scarf** Spe ×1.5 (both sides — feeds the ⚡/🐢 order) · Focus Sash survives a would-be OHKO · resist berry halves one SE hit
-- **Leftovers** +6.25%/turn and **Sitrus Berry** +25% once at ≤50% — counted in the KO simulation
-- Klutz negates the holder's item. Assault Vest / Eviolite / Choice Band / Specs are **not in Champions** and deliberately absent.
+
+See [ITEMS.md](ITEMS.md) for the shared sourced catalogue, coverage by app surface, modeled effects, and explicit omissions. Item selectors display support notes; catalogue membership does not imply full battle simulation.
 
 _Source-data corrections (PokeAPI errors) are patched at load in `src/data.js` `MOVE_FIXES` — currently: Matcha Gotcha → all-opponents (spread)._
 

@@ -80,6 +80,7 @@ Then, from the repo root:
 
 ```
 python apps/pokemon-champions/tools/generate_data.py --refresh
+python apps/pokemon-champions/tools/generate_items.py --refresh
 ```
 
 Requires Python 3.9+ (stdlib only). All HTTP caches live under
@@ -128,6 +129,8 @@ node apps/pokemon-champions/tools/roster-rank.test.mjs
 node apps/pokemon-champions/tools/moves-rank-rules.test.mjs
 node apps/pokemon-champions/tools/team-analysis.test.mjs
 node apps/pokemon-champions/tools/snapshot.test.mjs
+node apps/pokemon-champions/tools/item-model.test.mjs
+python apps/pokemon-champions/tools/browser-items.py
 ```
 
 The Python tests use offline fixtures and mocked HTTP, covering cache isolation,
@@ -135,6 +138,26 @@ expiry/refresh, failure behavior, source verification, form separation and the
 Pyroar fallback. Browser smoke checks can additionally be run with
 `python tools/browser-smoke.py` from this app directory (requires an existing
 Python Playwright installation and Chrome; no project dependency is added).
+
+## Held items
+
+The shared catalogue in `src/item-catalog.js` is generated from Serebii's
+Champions item list, with the same regulation configuration/cache policy as
+the Pokémon snapshot. Refresh **both** generators after a regulation update.
+It lists held items, berries and Mega Stones, not training coupons/roster tickets.
+Availability is a sourced snapshot, not a blanket guarantee of tournament legality.
+
+`src/item-model.js` supplies shared mechanics, selectors and support notes for
+Damage, Moves and Team. New source items stay selectable with an explicit
+unmodeled-effect notice until their mechanics are implemented. Never add a
+generic damage multiplier merely because an item can be selected.
+
+See [ITEMS.md](ITEMS.md) for exactly which effects and app surfaces are modeled,
+which are informational only, and the remaining calculation limits. Team share
+links now use v4 to retain items; old v1/v2/v3 links still import. Existing generic
+item presets are retained as clearly labeled **legacy assumptions**, not offered
+as real held items in new configurations. Mega forms reserve their item slot for
+their stone and cannot gain an extra offensive item boost.
 
 ## Cleaned-stat model
 Computed in `src/effective-stats.js`; the two toggles in the filter rail's **Cleaned

@@ -5,6 +5,7 @@
 import { TYPES, TYPE_COLORS, displayName, learnsetNotice, confirmedMoveIds } from "./data.js";
 import { statsFor, roleOf, speedTier } from "./effective-stats.js";
 import { rosterAbilities } from "./type-defense.js";
+import { itemSelect, itemSpeed, itemLabel } from "./item-model.js";
 import {
   buildDefensiveProfile, buildOffensiveProfile, rankTypingRecommendations,
 } from "./team-analysis.js";
@@ -117,7 +118,9 @@ export function renderTeamView(container, {
   </div>`;
 
   // --- member cards (sprite + types + ability + moveset) ---
-  const members = team.map(({ mon, moveIds, ability, picked }) => {
+  const itemCounts = new Map();
+  for (const entry of team) if (entry.item && !["none", "mega-stone"].includes(entry.item)) itemCounts.set(entry.item, (itemCounts.get(entry.item) || 0) + 1);
+  const members = team.map(({ mon, moveIds, ability, picked, item }) => {
     const unconfirmed = moveIds.filter((id) => !mon.moves.includes(id));
     const chips = moveIds.map((id) => {
       const mv = data.moves[id];
@@ -154,6 +157,8 @@ export function renderTeamView(container, {
         <button class="team-remove" data-team-remove="${mon.slug}" aria-label="Remove">✕</button>
       </div>
       ${abilSel}
+      <div class="tm-abil"><span class="tm-abil-label">Held item</span>${itemSelect(`data-team-item="${mon.slug}"`, item, mon, ability)}</div>
+      ${(itemCounts.get(item) || 0) > 1 ? `<p class="learnset-note learnset-warning">Duplicate ${itemLabel(item)}: check Item Clause before battling.</p>` : ""}
       ${mon.learnset?.status === "unverified" ? `<p class="learnset-note learnset-warning">${learnsetNotice(mon)}</p>` : ""}
       ${unconfirmed.length ? `<p class="learnset-note learnset-warning">${unconfirmed.length} saved move(s) not confirmed by this snapshot; excluded from team analysis.</p>` : ""}
       <div class="tm-moves">${chips}${addMove}</div>
@@ -277,12 +282,13 @@ export function renderTeamView(container, {
     : `<p class="cov-help cov-empty">Add damaging moves to your team to see super-effective coverage.</p>`;
 
   // --- speed tiers ---
-  const bySpeed = [...mons].sort((a, b) => b.stats.spe - a.stats.spe);
-  const speedList = bySpeed.map((m) => {
-    const lv = statsFor(m, "lv50").spe;
+  const speedOf = (entry) => Math.max(1, Math.floor(statsFor(entry.mon, "lv50").spe * itemSpeed(entry.item, entry.ability, "none", entry.mon)));
+  const bySpeed = [...analysisTeam].sort((a, b) => speedOf(b) - speedOf(a));
+  const speedList = bySpeed.map((entry) => {
+    const m = entry.mon, lv = speedOf(entry);
     return `<div class="spd-row spd-${speedTier(m.stats.spe)}" data-slug="${m.slug}">
       <span class="spd-name">${nameOf(m)}</span>
-      <span class="spd-val">${m.stats.spe}<small> base · ${lv} @50</small></span></div>`;
+      <span class="spd-val">${lv}<small>@50, 0 points · ${itemLabel(entry.item)}</small></span></div>`;
   }).join("");
 
   // --- role / balance ---
@@ -341,7 +347,7 @@ export function renderTeamView(container, {
       </div>
       <div class="team-col">
         <section class="team-card">
-          <h3>Speed tiers</h3>
+          <h3>Speed tiers <small>Lv50 · 0 points · item-aware · no field</small></h3>
           <div class="spd-list">${speedList}</div>
         </section>
         <section class="team-card">

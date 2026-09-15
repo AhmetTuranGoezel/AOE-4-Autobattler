@@ -7,6 +7,7 @@
 import { TYPES, TYPE_COLORS, displayName, targetLabel, isSpread, rarityTier, TARGET_GROUPS, grassKnotBP } from "./data.js";
 import { statsFor } from "./effective-stats.js";
 import { damageAbilities, offenseMult, offDefaultAbility, stageMult, OFF_ITEMS, expectedHitsForAccuracy } from "./offense-model.js";
+import { itemSelect, normalizeItem, itemDamage, itemAccuracy, itemSpeed, seedEffect, critChance, isGrounded, itemAtHit, itemLabel } from "./item-model.js";
 import { POOL, CAP, pointsUsed } from "./stat-lab.js";
 import { attachAutocomplete } from "./autocomplete.js";
 
@@ -174,9 +175,8 @@ function expData(m) {
   } else if (fixed && NUMWORD[fixed[1].toLowerCase()]) hits = NUMWORD[fixed[1].toLowerCase()];
   else if (/hits twice/i.test(hitEffect)) hits = 2;
   if (hits !== 1) hitNote = `×${hits % 1 ? hits.toFixed(1) : hits} hits`;
-  let crit = 1 + (1 / 24) * 0.5, critNote = "";   // baseline Gen-9 crit (1/24 → ×1.5)
-  if (/always a critical hit/i.test(eff)) { crit = 1.5; critNote = "always crits"; }
-  else if (/higher chance for a critical hit/i.test(eff)) { crit = 1 + (1 / 8) * 0.5; critNote = "high crit"; }
+  const chance = critChance(m, "none", null, null);
+  const crit = 1 + chance * 0.5, critNote = chance === 1 ? "always crits" : chance > 1 / 24 ? "high crit" : "";
   return { hits, hitNote, crit, critNote, cond: COND_DMG[m.name] || null, dynamic: DYNAMIC_BP.has(m.name) };
 }
 
@@ -298,7 +298,10 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
     const c = mon.cfg;
     const natKey = c.nature === "auto" ? autoKey : c.nature;
     const nat = natKey === key ? 1.1 : 1;
-    return Math.floor(Math.floor((base + (c.spread[key] || 0)) * nat) * stageMult(c.stages[key] || 0));
+    const seed = seedEffect(c.item, mon.ability, state.terrain, mon);
+    const stage = Math.max(-6, Math.min(6, (c.stages[key] || 0) + (seed?.stat === key ? seed.stages : 0)));
+    const speedM = key === "spe" ? itemSpeed(c.item, mon.ability, state.terrain, mon) : 1;
+    return Math.max(1, Math.floor(Math.floor((base + (c.spread[key] || 0)) * nat) * stageMult(stage) * speedM));
   }
   // The stat a move actually attacks with (Body Press = the user's Defense).
   const ATK_STAT_OVERRIDE = { "Body Press": "def" };
@@ -312,12 +315,13 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
       return { bp: r >= 5 ? 120 : r === 4 ? 100 : r === 3 ? 80 : r === 2 ? 60 : 40, note: `${mon.weight}kg vs ${c.tw}kg` };
     }
     if (m.name === "Power Trip" || m.name === "Stored Power") {   // BP grows 20 → +20 per positive boost stage
-      const boosts = ["atk", "spa", "def", "spe"].reduce((s, k) => s + Math.max(0, c.stages[k] || 0), 0);
+      const seed = seedEffect(c.item, mon.ability, state.terrain, mon);
+      const boosts = ["atk", "spa", "def", "spd", "spe"].reduce((s, k) => s + Math.max(0, Math.min(6, (c.stages[k] || 0) + (seed?.stat === k ? seed.stages : 0))), 0);
       const bp = 20 + 20 * boosts;
       return { bp, note: boosts ? `+${boosts} boost${boosts > 1 ? "s" : ""} → ${bp} BP` : "no boosts yet" };
     }
     if (m.name === "Weather Ball") { const w = WEATHER_TYPE[state.weather]; return { bp: w ? 100 : 50, note: w ? `${state.weather} → ${w} ×2` : "Normal (no weather)" }; }
-    if (m.name === "Terrain Pulse") { const t = TERRAIN_TYPE[state.terrain]; return { bp: t ? 100 : 50, note: t ? `${state.terrain} → ${t} ×2` : "Normal (no terrain)" }; }
+    if (m.name === "Terrain Pulse") { const t = isGrounded(mon.types, mon.ability, normalizeItem(c.item, mon)) && TERRAIN_TYPE[state.terrain]; return { bp: t ? 100 : 50, note: t ? `${state.terrain} → ${t} ×2` : "Normal (no terrain or airborne)" }; }
     if (m.name === "Return" || m.name === "Frustration") return { bp: 102, note: "max friendship" };
     if (m.name === "Solar Beam" || m.name === "Solar Blade") { const half = ["sand", "rain", "snow"].includes(state.weather); return { bp: half ? Math.floor(m.power / 2) : m.power, note: half ? `½ in ${state.weather}` : (state.weather === "sun" ? "no charge (sun)" : "") }; }
     // Swift Swim / Chlorophyll / Sand Rush / Slush Rush double Speed in their weather — Gyro Ball gets
@@ -339,12 +343,12 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
   const terrainTypeOf = (m) => (m.name === "Terrain Pulse" && TERRAIN_TYPE[state.terrain]) ? TERRAIN_TYPE[state.terrain] : null;
   // Effective accuracy 0..1: the weather decides some moves outright, No Guard overrides everything,
   // then ability multipliers (Hustle ×0.8 / Compound Eyes ×1.3). Never above 100%.
-  function accuracyOf(m, o, item = "none") {
+  function accuracyOf(m, o, item = "none", mon = null) {
     if (o && o.alwaysHits) return 1;                                    // No Guard — accuracy stops mattering
     const wa = WEATHER_ACC[m.name];
     const base = wa && wa[state.weather] != null ? wa[state.weather] : (m.accuracy == null ? 100 : m.accuracy);
-    const accuracyBonus = (OFF_ITEMS[item]?.accuracyBonus || 0) / 100;
-    return Math.min(1, (base / 100) * (o ? o.acc : 1) + accuracyBonus);
+    if (m.accuracy == null || m.accuracy > 100 || wa?.[state.weather] === 100) return 1;
+    return Math.min(1, (base / 100) * (o ? o.acc : 1) * itemAccuracy(item, mon?.ability, null, mon));
   }
   // Expected power INCLUDING a mon's STAB AND its ability (both live HERE, in Exp. Pow — shown to
   //   the user). { power, stab, note }. mon = null → intrinsic only. -ate retypes → STAB follows the
@@ -356,27 +360,35 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
     const bp = dyn ? dyn.bp : m.power;
     const o = mon ? offenseMult(mon.ability, mon, m, bp, state.expBest, { weather: state.weather, terrain: state.terrain })
       : { mult: 1, stab: null, acc: 1, alwaysHits: false, retype: null, note: "" };
-    const accuracy = accuracyOf(m, o, mon?.cfg.item);
-    const ip = intrinsicPower(m, accuracy, bp);
+    const accuracy = accuracyOf(m, o, mon?.cfg.item, mon);
+    let ip = intrinsicPower(m, accuracy, bp);
     if (ip == null) return null;
-    const et = o.retype || weatherTypeOf(m) || terrainTypeOf(m) || m.type;   // effective type (‑ate · Weather Ball · Terrain Pulse)
+    const et = weatherTypeOf(m) || ((!mon || isGrounded(mon.types, mon.ability, normalizeItem(mon.cfg.item, mon))) && terrainTypeOf(m)) || o.retype || m.type;
     const stab = o.stab || (mon && mon.types.includes(et) ? 1.5 : 1);
     let itemM = 1, itemNote = "";
-    if (mon && mon.cfg.item !== "none") {   // the mon's item is part of its effective power too
-      const r = OFF_ITEMS[mon.cfg.item].mult(state.expBest, m.class);   // Expert Belt: SE assumed only in best-case
-      if (r && r.m) { itemM = r.m; itemNote = r.note; }
+    if (mon) {
+      itemM = itemDamage(mon.cfg.item, { type: et, cat: m.class, se: state.expBest, ability: mon.ability, mon, moveName: m.name });
+      if (itemM !== 1) itemNote = `${itemLabel(mon.cfg.item)} ×${itemM}`;
+      if (m.name === "Acrobatics") {
+        if (state.expBest && m._ep.cond) ip /= m._ep.cond.mult;
+        if (itemAtHit(mon.cfg.item, mon.ability, state.terrain, mon) === "none") ip *= 2;
+      }
     }
-    const wM = weatherMult(et), tM = terrainMult(et);
-    const fc = FIELD_COND[m.name], fcM = fc && state.terrain === fc.terrain ? fc.mult : 1;
+    const grounded = !mon || isGrounded(mon.types, mon.ability, normalizeItem(mon.cfg.item, mon));
+    const wM = weatherMult(et), tM = grounded ? terrainMult(et) : 1;
+    const fc = FIELD_COND[m.name], fcM = grounded && fc && state.terrain === fc.terrain ? fc.mult : 1;
     const wa = WEATHER_ACC[m.name];
     const accNote = state.useAcc && o.alwaysHits && (m.accuracy ?? 100) < 100 ? "always hits"
       : (state.useAcc && wa && wa[state.weather] != null ? `${state.weather} acc ${wa[state.weather]}%` : "");
-    const wideLensNote = state.useAcc && mon?.cfg.item === "wide-lens" ? "Wide Lens +10% acc" : "";
+    const wideLensNote = state.useAcc && mon?.cfg.item === "wide-lens" && mon.ability !== "klutz" && !mon.isMega ? "Wide Lens acc ×1.1" : "";
     const hitNote = state.useAcc && m.name === "Population Bomb" && accuracy < 1
       ? `expected ${expectedHitsForAccuracy(m, m._ep.hits, accuracy).toFixed(2)} hits`
       : "";
     const fNote = [wM !== 1 ? `${state.weather} ×${wM}` : "", tM !== 1 ? `${state.terrain} ×${tM}` : "", fcM !== 1 ? fc.note : "", accNote, wideLensNote, hitNote].filter(Boolean).join(" · ");
-    return { power: ip * stab * o.mult * itemM * wM * tM * fcM, stab, note: [dyn && dyn.note, o.note, itemNote, fNote].filter(Boolean).join(" · ") };
+    const pCrit = mon ? critChance(m, mon.cfg.item, mon.ability, mon) : 0;
+    const critM = mon ? (1 + pCrit * (mon.ability === "sniper" ? 1.25 : 0.5)) / m._ep.crit : 1;
+    const critNote = mon && ["leek", "scope-lens"].includes(mon.cfg.item) ? `${(100 * pCrit).toFixed(1)}% crit; averaged` : "";
+    return { power: ip * stab * o.mult * itemM * wM * tM * fcM * critM, stab, note: [dyn && dyn.note, o.note, itemNote, critNote, fNote].filter(Boolean).join(" · ") };
   }
   // Foul Play uses the TARGET's Atk — no target exists here, so it gets no Eff. Dmg.
   const TARGET_STAT_MOVES = new Set(["Foul Play"]);
@@ -564,7 +576,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
     <button class="tm-abil-chip ${!e.ability ? "on" : ""}" data-cfg-abil="" title="Attack with no ability">None</button>
     ${e.dmgAbils.map((a) => `<button class="tm-abil-chip ${e.ability === a.slug ? "on" : ""}" data-cfg-abil="${a.slug}">${a.name}</button>`).join("")}</div>`;
   const itemChipsHtml = (e) => `<div class="cl-abil"><span class="cl-stat-lab">Item</span>
-    ${Object.entries(OFF_ITEMS).map(([k, v]) => `<button class="tm-abil-chip ${e.cfg.item === k ? "on" : ""}" data-cfg-item="${k}">${v.label}</button>`).join("")}</div>`;
+    ${itemSelect('data-cfg-item-select', e.cfg.item, e, e.ability)}</div>`;
   // Nature = which stat gets ×1.1 (a real nature boosts ONE stat). "" = neutral.
   const NATURES = [["", "Neutral"], ["auto", "Auto"], ["atk", "Atk"], ["spa", "Sp.Atk"], ["def", "Def"], ["spe", "Speed"]];
   const natureChipsHtml = (e) => `<div class="cl-abil" title="A boosting nature: +10% to one stat. Auto = +10% to whatever stat each move attacks with (Atk for physical, Sp.Atk for special, Def for Body Press)"><span class="cl-stat-lab">Nature +10%</span>
@@ -634,6 +646,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
     return false;
   }
   function cfgChange(e, target) {   // stat-point sliders + the tw/ts number inputs commit on change
+    if (target.matches("[data-cfg-item-select]")) { e.cfg.item = normalizeItem(target.value, e); return true; }
     const sl = target.closest("[data-cfg-slider]");
     if (sl) {   // clamp the dragged value to ≤32 and whatever the 66-pt pool still allows
       const k = sl.dataset.cfgSlider, others = pointsUsed(e.cfg.spread) - (e.cfg.spread[k] || 0);
@@ -680,9 +693,9 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
     return { slug: mon.slug, name: mon._display || displayName(mon),
       sprite: mon.sprite || mon.artwork || "", moves: new Set(mon.moves),
       lvAtk: lv.atk, lvSpa: lv.spa, lvDef: lv.def, lvSpe: lv.spe, weight: mon.weight || 0,
-      types: mon.types, stats: mon.stats,
+      types: mon.types, stats: mon.stats, isMega: mon.isMega,
       dmgAbils: da, ability, defAbility: ability,
-      cfg: { ...defaultCfg(), tw: state.tw, ts: state.ts } };   // seed the assumed-target from the global control
+      cfg: { ...defaultCfg(), item: normalizeItem("none", mon), tw: state.tw, ts: state.ts } };
   }
   function addMon(mon) {
     if (!mon || state.mons.some((x) => x.slug === mon.slug)) return;

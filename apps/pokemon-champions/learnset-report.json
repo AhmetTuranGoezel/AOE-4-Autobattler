@@ -1,6 +1,6 @@
 {
   "regulation": "M-C",
-  "generated": "2026-09-11T18:21:54Z",
+  "generated": "2026-09-13T01:36:11Z",
   "skippedRosterEntries": [],
   "unverified": [
     "meowstic-mega"
@@ -16,11 +16,7 @@
       "moveCount": 57,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "chlorophyll",
-        "modest",
-        "overgrow"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "charizard",
@@ -33,11 +29,7 @@
       "withheldCandidates": [
         "slash"
       ],
-      "usageMovesNotConfirmed": [
-        "blaze",
-        "modest",
-        "solar-power"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "blastoise",
@@ -48,11 +40,7 @@
       "moveCount": 73,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "modest",
-        "rain-dish",
-        "torrent"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "beedrill",
@@ -63,11 +51,7 @@
       "moveCount": 53,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adaptability",
-        "sniper",
-        "swarm"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "pidgeot",
@@ -78,11 +62,7 @@
       "moveCount": 31,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "big-pecks",
-        "keen-eye",
-        "tangled-feet"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "arbok",
@@ -93,11 +73,7 @@
       "moveCount": 70,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "impish",
-        "intimidate",
-        "jolly"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "pikachu",
@@ -108,11 +84,7 @@
       "moveCount": 60,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "focus-sash",
-        "jolly",
-        "lightning-rod"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "raichu",
@@ -123,11 +95,7 @@
       "moveCount": 66,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "jolly",
-        "lightning-rod",
-        "timid"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "raichu-alola",
@@ -138,11 +106,7 @@
       "moveCount": 74,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "modest",
-        "surge-surfer",
-        "timid"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "clefable",
@@ -153,11 +117,7 @@
       "moveCount": 91,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "calm",
-        "magic-guard",
-        "unaware"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "ninetales",
@@ -187,11 +147,7 @@
         "triple-axel",
         "wonder-room"
       ],
-      "usageMovesNotConfirmed": [
-        "drought",
-        "life-orb",
-        "modest"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "ninetales-alola",
@@ -202,11 +158,7 @@
       "moveCount": 64,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "snow-cloak",
-        "snow-warning",
-        "timid"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "wigglytuff",
@@ -228,11 +180,7 @@
       "moveCount": 54,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "chlorophyll",
-        "focus-sash",
-        "timid"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "persian",
@@ -279,11 +227,7 @@
         "stealth-rock",
         "stone-edge"
       ],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "intimidate",
-        "sitrus-berry"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "arcanine-hisui",
@@ -294,11 +238,7 @@
       "moveCount": 64,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "intimidate",
-        "jolly",
-        "rock-head"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "alakazam",
@@ -309,11 +249,7 @@
       "moveCount": 60,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "alakazite",
-        "inner-focus",
-        "timid"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "machamp",
@@ -324,11 +260,7 @@
       "moveCount": 66,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "brave",
-        "life-orb",
-        "no-guard"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "victreebel",
@@ -341,11 +273,7 @@
       "withheldCandidates": [
         "grassy-terrain"
       ],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "chlorophyll",
-        "modest"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "slowbro",
@@ -374,11 +302,7 @@
         "toxic-spikes",
         "venoshock"
       ],
-      "usageMovesNotConfirmed": [
-        "calm",
-        "oblivious",
-        "regenerator"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "slowbro-galar",
@@ -389,11 +313,7 @@
       "moveCount": 92,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "own-tempo",
-        "quick-draw",
-        "regenerator"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "farfetchd",
@@ -415,11 +335,7 @@
       "moveCount": 76,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "cursed-body",
-        "modest",
-        "timid"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "kangaskhan",
@@ -430,11 +346,7 @@
       "moveCount": 67,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "brave",
-        "scrappy"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "starmie",
@@ -445,11 +357,7 @@
       "moveCount": 62,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "analytic",
-        "illuminate",
-        "natural-cure"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "mr-mime",
@@ -473,11 +381,7 @@
       "withheldCandidates": [
         "slash"
       ],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "hyper-cutter",
-        "jolly"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "tauros",
@@ -504,11 +408,7 @@
         "wave-crash",
         "will-o-wisp"
       ],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "intimidate",
-        "magnet"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "tauros-paldea-combat-breed",
@@ -538,11 +438,7 @@
       "moveCount": 53,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "intimidate",
-        "jolly"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "tauros-paldea-aqua-breed",
@@ -553,11 +449,7 @@
       "moveCount": 52,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "intimidate",
-        "jolly"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "gyarados",
@@ -567,11 +459,11 @@
       "entry": "Gyarados",
       "moveCount": 67,
       "candidateSource": "pokebase",
-      "withheldCandidates": [],
+      "withheldCandidates": [
+        "fire-fang"
+      ],
       "usageMovesNotConfirmed": [
-        "careful",
-        "intimidate",
-        "sitrus-berry"
+        "fire-fang"
       ]
     },
     {
@@ -583,15 +475,7 @@
       "moveCount": 1,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "bold",
-        "calm",
-        "hasty",
-        "imposter",
-        "limber",
-        "serious",
-        "timid"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "vaporeon",
@@ -602,11 +486,7 @@
       "moveCount": 59,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "hydration",
-        "modest",
-        "water-absorb"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "jolteon",
@@ -617,11 +497,7 @@
       "moveCount": 59,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "quick-feet",
-        "timid",
-        "volt-absorb"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "flareon",
@@ -632,11 +508,7 @@
       "moveCount": 57,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "flash-fire",
-        "jolly"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "aerodactyl",
@@ -647,11 +519,7 @@
       "moveCount": 58,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "jolly",
-        "rock-head",
-        "unnerve"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "snorlax",
@@ -662,11 +530,7 @@
       "moveCount": 83,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "leftovers",
-        "relaxed",
-        "thick-fat"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "dragonite",
@@ -677,11 +541,7 @@
       "moveCount": 83,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "inner-focus",
-        "modest",
-        "multiscale"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "meganium",
@@ -692,11 +552,7 @@
       "moveCount": 61,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "leaf-guard",
-        "mega-sol",
-        "overgrow"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "typhlosion",
@@ -716,11 +572,7 @@
         "poltergeist",
         "spite"
       ],
-      "usageMovesNotConfirmed": [
-        "blaze",
-        "charcoal",
-        "modest"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "typhlosion-hisui",
@@ -731,11 +583,7 @@
       "moveCount": 66,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "blaze",
-        "frisk",
-        "modest"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "feraligatr",
@@ -748,11 +596,7 @@
       "withheldCandidates": [
         "slash"
       ],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "sheer-force",
-        "torrent"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "ariados",
@@ -765,11 +609,7 @@
       "withheldCandidates": [
         "psychic-fangs"
       ],
-      "usageMovesNotConfirmed": [
-        "insomnia",
-        "sniper",
-        "swarm"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "ampharos",
@@ -780,11 +620,7 @@
       "moveCount": 67,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "ampharosite",
-        "quiet",
-        "static"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "azumarill",
@@ -795,11 +631,7 @@
       "moveCount": 66,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "huge-power",
-        "sap-sipper",
-        "thick-fat"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "politoed",
@@ -810,11 +642,7 @@
       "moveCount": 56,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "calm",
-        "drizzle",
-        "water-absorb"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "espeon",
@@ -825,11 +653,7 @@
       "moveCount": 67,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "magic-bounce",
-        "modest",
-        "synchronize"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "umbreon",
@@ -840,11 +664,7 @@
       "moveCount": 67,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "bold",
-        "inner-focus",
-        "synchronize"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "slowking",
@@ -871,11 +691,7 @@
         "toxic-spikes",
         "venoshock"
       ],
-      "usageMovesNotConfirmed": [
-        "bold",
-        "oblivious",
-        "sitrus-berry"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "slowking-galar",
@@ -886,11 +702,7 @@
       "moveCount": 95,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "curious-medicine",
-        "own-tempo",
-        "regenerator"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "forretress",
@@ -901,11 +713,7 @@
       "moveCount": 69,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "brave",
-        "overcoat",
-        "sturdy"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "steelix",
@@ -916,11 +724,7 @@
       "moveCount": 66,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "brave",
-        "steelixite",
-        "sturdy"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "qwilfish",
@@ -931,11 +735,7 @@
       "moveCount": 64,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "careful",
-        "intimidate"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "scizor",
@@ -948,11 +748,7 @@
       "withheldCandidates": [
         "slash"
       ],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "scizorite",
-        "technician"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "heracross",
@@ -963,11 +759,7 @@
       "moveCount": 66,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "guts",
-        "moxie",
-        "swarm"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "skarmory",
@@ -980,11 +772,7 @@
       "withheldCandidates": [
         "slash"
       ],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "skarmorite",
-        "weak-armor"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "houndoom",
@@ -995,11 +783,7 @@
       "moveCount": 67,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "early-bird",
-        "flash-fire",
-        "unnerve"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "tyranitar",
@@ -1010,11 +794,7 @@
       "moveCount": 92,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "jolly",
-        "sand-stream"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "sceptile",
@@ -1025,11 +805,7 @@
       "moveCount": 78,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "naughty",
-        "overgrow",
-        "unburden"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "blaziken",
@@ -1040,11 +816,7 @@
       "moveCount": 79,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "jolly",
-        "speed-boost"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "swampert",
@@ -1055,11 +827,7 @@
       "moveCount": 77,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "damp",
-        "torrent"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "pelipper",
@@ -1070,11 +838,7 @@
       "moveCount": 53,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "drizzle",
-        "keen-eye",
-        "modest"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "gardevoir",
@@ -1085,11 +849,7 @@
       "moveCount": 80,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "synchronize",
-        "telepathy",
-        "trace"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "sableye",
@@ -1100,11 +860,7 @@
       "moveCount": 88,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "bold",
-        "careful",
-        "prankster"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "mawile",
@@ -1115,11 +871,7 @@
       "moveCount": 71,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "hyper-cutter",
-        "intimidate"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "aggron",
@@ -1130,11 +882,7 @@
       "moveCount": 83,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "aggronite",
-        "filter"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "medicham",
@@ -1145,11 +893,7 @@
       "moveCount": 77,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "pure-power",
-        "telepathy"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "manectric",
@@ -1160,11 +904,7 @@
       "moveCount": 49,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "lightning-rod",
-        "static",
-        "timid"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "swalot",
@@ -1188,11 +928,7 @@
       "withheldCandidates": [
         "slash"
       ],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "jolly",
-        "speed-boost"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "camerupt",
@@ -1203,11 +939,7 @@
       "moveCount": 67,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "anger-point",
-        "sheer-force",
-        "solid-rock"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "torkoal",
@@ -1218,11 +950,7 @@
       "moveCount": 57,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "drought",
-        "quiet",
-        "white-smoke"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "altaria",
@@ -1233,11 +961,7 @@
       "moveCount": 65,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "bold",
-        "cloud-nine",
-        "modest"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "milotic",
@@ -1248,11 +972,7 @@
       "moveCount": 61,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "calm",
-        "competitive",
-        "modest"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "castform",
@@ -1263,11 +983,7 @@
       "moveCount": 37,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "forecast",
-        "modest",
-        "timid"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "banette",
@@ -1278,11 +994,7 @@
       "moveCount": 67,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "cursed-body",
-        "frisk",
-        "insomnia"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "chimecho",
@@ -1293,11 +1005,7 @@
       "moveCount": 65,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "bold",
-        "levitate",
-        "quiet"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "absol",
@@ -1310,11 +1018,7 @@
       "withheldCandidates": [
         "slash"
       ],
-      "usageMovesNotConfirmed": [
-        "justified",
-        "pressure",
-        "super-luck"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "glalie",
@@ -1325,11 +1029,7 @@
       "moveCount": 54,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "glalitite",
-        "inner-focus",
-        "jolly"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "salamence",
@@ -1351,11 +1051,7 @@
       "moveCount": 68,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "clear-body",
-        "light-metal"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "torterra",
@@ -1366,11 +1062,7 @@
       "moveCount": 72,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "life-orb",
-        "overgrow"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "infernape",
@@ -1381,11 +1073,7 @@
       "moveCount": 88,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "blaze",
-        "iron-fist",
-        "jolly"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "empoleon",
@@ -1396,11 +1084,7 @@
       "moveCount": 74,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "competitive",
-        "modest",
-        "torrent"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "staraptor",
@@ -1411,11 +1095,7 @@
       "moveCount": 43,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "intimidate",
-        "jolly",
-        "staraptite"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "luxray",
@@ -1426,11 +1106,7 @@
       "moveCount": 53,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "impish",
-        "intimidate",
-        "timid"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "roserade",
@@ -1441,11 +1117,7 @@
       "moveCount": 51,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "modest",
-        "natural-cure",
-        "poison-point"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "rampardos",
@@ -1456,11 +1128,7 @@
       "moveCount": 74,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "brave",
-        "life-orb",
-        "sheer-force"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "bastiodon",
@@ -1471,11 +1139,7 @@
       "moveCount": 68,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "impish",
-        "soundproof",
-        "sturdy"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "lopunny",
@@ -1486,11 +1150,7 @@
       "moveCount": 76,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "cute-charm",
-        "jolly",
-        "lopunnite"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "spiritomb",
@@ -1501,11 +1161,7 @@
       "moveCount": 54,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "pressure",
-        "roseli-berry",
-        "sassy"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "garchomp",
@@ -1518,11 +1174,7 @@
       "withheldCandidates": [
         "slash"
       ],
-      "usageMovesNotConfirmed": [
-        "levitate",
-        "rough-skin",
-        "sand-veil"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "lucario",
@@ -1533,11 +1185,7 @@
       "moveCount": 83,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "aura-guard",
-        "inner-focus",
-        "justified"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "hippowdon",
@@ -1548,11 +1196,7 @@
       "moveCount": 51,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "brave",
-        "impish",
-        "sand-stream"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "toxicroak",
@@ -1563,11 +1207,7 @@
       "moveCount": 81,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "dry-skin",
-        "poison-touch"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "abomasnow",
@@ -1578,11 +1218,7 @@
       "moveCount": 65,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "abomasite",
-        "quiet",
-        "snow-warning"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "weavile",
@@ -1595,11 +1231,7 @@
       "withheldCandidates": [
         "slash"
       ],
-      "usageMovesNotConfirmed": [
-        "jolly",
-        "pressure",
-        "sitrus-berry"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "rhyperior",
@@ -1610,11 +1242,7 @@
       "moveCount": 91,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "brave",
-        "hard-stone",
-        "solid-rock"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "leafeon",
@@ -1625,11 +1253,7 @@
       "moveCount": 58,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "chlorophyll",
-        "jolly"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "glaceon",
@@ -1640,11 +1264,7 @@
       "moveCount": 58,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "ice-body",
-        "modest",
-        "snow-cloak"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "gliscor",
@@ -1657,11 +1277,7 @@
       "withheldCandidates": [
         "slash"
       ],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "hyper-cutter",
-        "impish"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "mamoswine",
@@ -1672,11 +1288,7 @@
       "moveCount": 63,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "oblivious",
-        "thick-fat"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "gallade",
@@ -1687,11 +1299,7 @@
       "moveCount": 106,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "brave",
-        "sharpness"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "froslass",
@@ -1702,11 +1310,7 @@
       "moveCount": 68,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "cursed-body",
-        "snow-warning",
-        "timid"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "rotom",
@@ -1724,9 +1328,7 @@
         "overheat"
       ],
       "usageMovesNotConfirmed": [
-        "levitate",
-        "modest",
-        "timid"
+        "hydro-pump"
       ]
     },
     {
@@ -1738,11 +1340,7 @@
       "moveCount": 53,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "contrary",
-        "overgrow",
-        "timid"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "emboar",
@@ -1753,11 +1351,7 @@
       "moveCount": 79,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "blaze",
-        "reckless"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "samurott",
@@ -1786,11 +1380,7 @@
       "moveCount": 68,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "sharpness",
-        "torrent"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "watchog",
@@ -1801,11 +1391,7 @@
       "moveCount": 52,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "analytic",
-        "impish"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "liepard",
@@ -1818,11 +1404,7 @@
       "withheldCandidates": [
         "slash"
       ],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "jolly",
-        "prankster"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "simisage",
@@ -1833,11 +1415,7 @@
       "moveCount": 50,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "focus-sash",
-        "jolly",
-        "overgrow"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "simisear",
@@ -1848,11 +1426,7 @@
       "moveCount": 55,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "blaze",
-        "modest",
-        "timid"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "simipour",
@@ -1863,11 +1437,7 @@
       "moveCount": 52,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "gluttony",
-        "timid",
-        "torrent"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "musharna",
@@ -1878,11 +1448,7 @@
       "moveCount": 50,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "relaxed",
-        "synchronize",
-        "telepathy"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "excadrill",
@@ -1895,11 +1461,7 @@
       "withheldCandidates": [
         "slash"
       ],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "mold-breaker",
-        "sand-rush"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "audino",
@@ -1910,11 +1472,7 @@
       "moveCount": 69,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "healer",
-        "regenerator",
-        "relaxed"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "conkeldurr",
@@ -1925,11 +1483,7 @@
       "moveCount": 61,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "guts",
-        "iron-fist",
-        "sheer-force"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "scolipede",
@@ -1940,11 +1494,7 @@
       "moveCount": 53,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "poison-point",
-        "speed-boost"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "whimsicott",
@@ -1955,11 +1505,7 @@
       "moveCount": 50,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "modest",
-        "prankster",
-        "timid"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "krookodile",
@@ -1970,11 +1516,7 @@
       "moveCount": 83,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "intimidate",
-        "moxie"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "scrafty",
@@ -1985,11 +1527,7 @@
       "moveCount": 82,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "brave",
-        "impish",
-        "intimidate"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "cofagrigus",
@@ -2000,11 +1538,7 @@
       "moveCount": 54,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "mummy",
-        "quiet",
-        "relaxed"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "garbodor",
@@ -2015,11 +1549,7 @@
       "moveCount": 53,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "aftermath",
-        "impish",
-        "stench"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "zoroark",
@@ -2041,11 +1571,7 @@
         "snowscape",
         "will-o-wisp"
       ],
-      "usageMovesNotConfirmed": [
-        "illusion",
-        "jolly",
-        "modest"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "zoroark-hisui",
@@ -2056,11 +1582,7 @@
       "moveCount": 73,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "illusion",
-        "modest",
-        "timid"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "reuniclus",
@@ -2071,11 +1593,7 @@
       "moveCount": 66,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "life-orb",
-        "quiet",
-        "regenerator"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "vanilluxe",
@@ -2086,11 +1604,7 @@
       "moveCount": 41,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "choice-scarf",
-        "snow-warning",
-        "timid"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "emolga",
@@ -2101,11 +1615,7 @@
       "moveCount": 46,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "motor-drive",
-        "static",
-        "timid"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "eelektross",
@@ -2116,11 +1626,7 @@
       "moveCount": 75,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "eelektrossite",
-        "levitate",
-        "quiet"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "chandelure",
@@ -2131,11 +1637,7 @@
       "moveCount": 54,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "flash-fire",
-        "focus-sash",
-        "timid"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "beartic",
@@ -2148,11 +1650,7 @@
       "withheldCandidates": [
         "slash"
       ],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "slush-rush",
-        "swift-swim"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "stunfisk",
@@ -2175,11 +1673,7 @@
         "steel-beam",
         "terrain-pulse"
       ],
-      "usageMovesNotConfirmed": [
-        "modest",
-        "sand-veil",
-        "static"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "stunfisk-galar",
@@ -2190,11 +1684,7 @@
       "moveCount": 52,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "impish",
-        "mimicry"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "golurk",
@@ -2205,11 +1695,7 @@
       "moveCount": 78,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "iron-fist",
-        "no-guard",
-        "unseen-fist"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "hydreigon",
@@ -2220,11 +1706,7 @@
       "moveCount": 78,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "levitate",
-        "modest",
-        "timid"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "volcarona",
@@ -2235,11 +1717,7 @@
       "moveCount": 57,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "bold",
-        "flame-body",
-        "timid"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "chesnaught",
@@ -2250,11 +1728,7 @@
       "moveCount": 87,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "bulletproof",
-        "jolly",
-        "sitrus-berry"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "delphox",
@@ -2265,11 +1739,7 @@
       "moveCount": 72,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "blaze",
-        "levitate",
-        "magician"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "greninja",
@@ -2280,11 +1750,7 @@
       "moveCount": 64,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "greninjite",
-        "hasty",
-        "protean"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "diggersby",
@@ -2295,11 +1761,7 @@
       "moveCount": 58,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "huge-power",
-        "pickup"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "talonflame",
@@ -2310,11 +1772,7 @@
       "moveCount": 50,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "flame-body",
-        "gale-wings",
-        "jolly"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "pyroar-male",
@@ -2389,11 +1847,7 @@
         "vine-whip",
         "worry-seed"
       ],
-      "usageMovesNotConfirmed": [
-        "fairy-aura",
-        "flower-veil",
-        "symbiosis"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "florges",
@@ -2404,11 +1858,7 @@
       "moveCount": 46,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "coba-berry",
-        "flower-veil",
-        "gentle"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "gogoat",
@@ -2432,11 +1882,7 @@
       "withheldCandidates": [
         "slash"
       ],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "life-orb",
-        "scrappy"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "furfrou",
@@ -2447,11 +1893,7 @@
       "moveCount": 40,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "calm",
-        "fur-coat",
-        "jolly"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "meowstic-male",
@@ -2507,11 +1949,7 @@
       "moveCount": 48,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "aroma-veil",
-        "healer",
-        "relaxed"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "slurpuff",
@@ -2522,11 +1960,7 @@
       "moveCount": 42,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "bold",
-        "sweet-veil",
-        "unburden"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "malamar",
@@ -2537,11 +1971,7 @@
       "moveCount": 69,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "brave",
-        "contrary"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "barbaracle",
@@ -2552,11 +1982,7 @@
       "moveCount": 72,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "sniper",
-        "tough-claws"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "dragalge",
@@ -2567,11 +1993,7 @@
       "moveCount": 52,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adaptability",
-        "poison-point",
-        "poison-touch"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "clawitzer",
@@ -2582,11 +2004,7 @@
       "moveCount": 52,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "mega-launcher",
-        "modest",
-        "quiet"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "heliolisk",
@@ -2597,11 +2015,7 @@
       "moveCount": 63,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "dry-skin",
-        "sand-veil",
-        "solar-power"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "tyrantrum",
@@ -2612,11 +2026,7 @@
       "moveCount": 64,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "jolly",
-        "rock-head",
-        "strong-jaw"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "aurorus",
@@ -2627,11 +2037,7 @@
       "moveCount": 56,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "quiet",
-        "refrigerate",
-        "snow-warning"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "sylveon",
@@ -2642,11 +2048,7 @@
       "moveCount": 55,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "cute-charm",
-        "modest",
-        "pixilate"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "hawlucha",
@@ -2657,11 +2059,7 @@
       "moveCount": 74,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "hawluchanite",
-        "jolly",
-        "limber"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "dedenne",
@@ -2672,11 +2070,7 @@
       "moveCount": 50,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "cheek-pouch",
-        "pickup",
-        "plus"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "goodra",
@@ -2700,11 +2094,7 @@
         "shelter",
         "steel-beam"
       ],
-      "usageMovesNotConfirmed": [
-        "gooey",
-        "hydration",
-        "sap-sipper"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "goodra-hisui",
@@ -2715,11 +2105,7 @@
       "moveCount": 63,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "gooey",
-        "sap-sipper",
-        "shell-armor"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "klefki",
@@ -2730,11 +2116,7 @@
       "moveCount": 44,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "bold",
-        "magician",
-        "prankster"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "trevenant",
@@ -2747,11 +2129,7 @@
       "withheldCandidates": [
         "forests-curse"
       ],
-      "usageMovesNotConfirmed": [
-        "brave",
-        "harvest",
-        "natural-cure"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "gourgeist-average",
@@ -2805,11 +2183,7 @@
         "sandstorm",
         "stealth-rock"
       ],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "own-tempo",
-        "sturdy"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "avalugg-hisui",
@@ -2820,11 +2194,7 @@
       "moveCount": 49,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "ice-body",
-        "strong-jaw",
-        "sturdy"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "noivern",
@@ -2835,11 +2205,7 @@
       "moveCount": 64,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "frisk",
-        "infiltrator",
-        "telepathy"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "decidueye",
@@ -2864,11 +2230,7 @@
         "triple-arrows",
         "upper-hand"
       ],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "long-reach",
-        "overgrow"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "decidueye-hisui",
@@ -2879,11 +2241,7 @@
       "moveCount": 66,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "scope-lens",
-        "scrappy"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "incineroar",
@@ -2894,11 +2252,7 @@
       "moveCount": 77,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "blaze",
-        "careful",
-        "intimidate"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "primarina",
@@ -2909,11 +2263,7 @@
       "moveCount": 63,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "liquid-voice",
-        "modest",
-        "torrent"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "toucannon",
@@ -2924,11 +2274,7 @@
       "moveCount": 53,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "keen-eye",
-        "skill-link"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "crabominable",
@@ -2939,11 +2285,7 @@
       "moveCount": 63,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "brave",
-        "hyper-cutter"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "lycanroc-midday",
@@ -2965,11 +2307,7 @@
       "moveCount": 51,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "bold",
-        "merciless",
-        "regenerator"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "mudsdale",
@@ -2980,11 +2318,7 @@
       "moveCount": 45,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "brave",
-        "inner-focus",
-        "life-orb"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "araquanid",
@@ -2995,11 +2329,7 @@
       "moveCount": 51,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "mystic-water",
-        "water-bubble"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "salazzle",
@@ -3010,11 +2340,7 @@
       "moveCount": 70,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "charcoal",
-        "oblivious",
-        "timid"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "tsareena",
@@ -3025,11 +2351,7 @@
       "moveCount": 54,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "jolly",
-        "queenly-majesty"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "oranguru",
@@ -3040,11 +2362,7 @@
       "moveCount": 64,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "calm",
-        "inner-focus",
-        "telepathy"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "passimian",
@@ -3055,11 +2373,7 @@
       "moveCount": 66,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "choice-scarf",
-        "defiant",
-        "jolly"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "golisopod",
@@ -3120,11 +2434,7 @@
       "moveCount": 66,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "berserk",
-        "cloud-nine",
-        "quiet"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "kommo-o",
@@ -3135,11 +2445,7 @@
       "moveCount": 78,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "bold",
-        "modest",
-        "soundproof"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "rillaboom",
@@ -3183,11 +2489,7 @@
       "moveCount": 55,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "careful",
-        "mirror-armor"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "thievul",
@@ -3209,11 +2511,7 @@
       "moveCount": 44,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "hustle",
-        "jolly"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "appletun",
@@ -3224,11 +2522,7 @@
       "moveCount": 51,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "ripen",
-        "sassy",
-        "thick-fat"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "sandaconda",
@@ -3239,11 +2533,7 @@
       "moveCount": 48,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "sand-spit",
-        "sand-veil"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "toxtricity-amped",
@@ -3276,11 +2566,7 @@
       "moveCount": 46,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "bold",
-        "cursed-body",
-        "weak-armor"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "hatterene",
@@ -3291,11 +2577,7 @@
       "moveCount": 59,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "magic-bounce",
-        "modest",
-        "quiet"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "grimmsnarl",
@@ -3306,11 +2588,7 @@
       "moveCount": 64,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "careful",
-        "prankster",
-        "sassy"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "perrserker",
@@ -3345,11 +2623,7 @@
       "withheldCandidates": [
         "psychic"
       ],
-      "usageMovesNotConfirmed": [
-        "ice-body",
-        "quiet",
-        "screen-cleaner"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "runerigus",
@@ -3360,11 +2634,7 @@
       "moveCount": 69,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "mental-herb",
-        "relaxed",
-        "wandering-spirit"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "alcremie",
@@ -3375,11 +2645,7 @@
       "moveCount": 49,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "aroma-veil",
-        "bold",
-        "sitrus-berry"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "falinks",
@@ -3390,11 +2656,7 @@
       "moveCount": 51,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "battle-armor",
-        "defiant"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "pincurchin",
@@ -3448,11 +2710,7 @@
       "moveCount": 63,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "clear-body",
-        "muscle-band"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "wyrdeer",
@@ -3463,11 +2721,7 @@
       "moveCount": 61,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "intimidate",
-        "relaxed",
-        "sap-sipper"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "kleavor",
@@ -3480,11 +2734,7 @@
       "withheldCandidates": [
         "slash"
       ],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "jolly",
-        "sharpness"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "basculegion-male",
@@ -3515,11 +2765,7 @@
       "withheldCandidates": [
         "slash"
       ],
-      "usageMovesNotConfirmed": [
-        "poison-touch",
-        "pressure",
-        "unburden"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "overqwil",
@@ -3530,11 +2776,7 @@
       "moveCount": 60,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "careful",
-        "intimidate",
-        "leftovers"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "meowscarada",
@@ -3547,11 +2789,7 @@
       "withheldCandidates": [
         "slash"
       ],
-      "usageMovesNotConfirmed": [
-        "jolly",
-        "overgrow",
-        "protean"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "skeledirge",
@@ -3562,11 +2800,7 @@
       "moveCount": 56,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "blaze",
-        "modest",
-        "unaware"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "quaquaval",
@@ -3577,11 +2811,7 @@
       "moveCount": 59,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "moxie",
-        "torrent"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "pawmot",
@@ -3661,11 +2891,7 @@
       "moveCount": 54,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "clear-body",
-        "purifying-salt",
-        "sturdy"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "armarouge",
@@ -3676,11 +2902,7 @@
       "moveCount": 55,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "flash-fire",
-        "quiet",
-        "weak-armor"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "ceruledge",
@@ -3691,11 +2913,7 @@
       "moveCount": 55,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "flash-fire",
-        "jolly"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "bellibolt",
@@ -3706,11 +2924,7 @@
       "moveCount": 39,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "electromorphosis",
-        "gentle",
-        "life-orb"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "mabosstiff",
@@ -3732,11 +2946,7 @@
       "moveCount": 48,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "bold",
-        "moody",
-        "spicy-spray"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "espathra",
@@ -3747,11 +2957,7 @@
       "moveCount": 57,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "opportunist",
-        "sassy",
-        "speed-boost"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "tinkaton",
@@ -3762,11 +2968,7 @@
       "moveCount": 47,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "impish",
-        "mold-breaker",
-        "occa-berry"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "palafin-zero",
@@ -3797,11 +2999,7 @@
       "moveCount": 40,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "careful",
-        "earth-eater",
-        "relaxed"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "glimmora",
@@ -3812,11 +3010,7 @@
       "moveCount": 46,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adaptability",
-        "timid",
-        "toxic-debris"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "houndstone",
@@ -3827,11 +3021,7 @@
       "moveCount": 52,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "fluffy",
-        "sand-rush"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "annihilape",
@@ -3842,11 +3032,7 @@
       "moveCount": 75,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "defiant",
-        "jolly"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "farigiraf",
@@ -3857,11 +3043,7 @@
       "moveCount": 70,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "armor-tail",
-        "bold",
-        "cud-chew"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "kingambit",
@@ -3874,11 +3056,7 @@
       "withheldCandidates": [
         "slash"
       ],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "defiant",
-        "supreme-overlord"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "baxcalibur",
@@ -3900,11 +3078,7 @@
       "moveCount": 42,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "good-as-gold",
-        "modest",
-        "timid"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "sinistcha",
@@ -3915,11 +3089,7 @@
       "moveCount": 35,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "bold",
-        "calm",
-        "hospitality"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "archaludon",
@@ -3932,11 +3102,7 @@
       "withheldCandidates": [
         "slash"
       ],
-      "usageMovesNotConfirmed": [
-        "stalwart",
-        "stamina",
-        "sturdy"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "hydrapple",
@@ -3947,11 +3113,7 @@
       "moveCount": 51,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "regenerator",
-        "sticky-hold",
-        "supersweet-syrup"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "venusaur-mega",
@@ -5124,11 +4286,7 @@
         "thunder-shock",
         "toxic"
       ],
-      "usageMovesNotConfirmed": [
-        "bold",
-        "levitate",
-        "modest"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "rotom-wash",
@@ -5163,11 +4321,7 @@
         "thunder-shock",
         "toxic"
       ],
-      "usageMovesNotConfirmed": [
-        "bold",
-        "calm",
-        "levitate"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "rotom-frost",
@@ -5202,11 +4356,7 @@
         "thunder-shock",
         "toxic"
       ],
-      "usageMovesNotConfirmed": [
-        "levitate",
-        "modest",
-        "never-melt-ice"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "rotom-fan",
@@ -5241,11 +4391,7 @@
         "thunder-shock",
         "toxic"
       ],
-      "usageMovesNotConfirmed": [
-        "levitate",
-        "modest",
-        "timid"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "rotom-mow",
@@ -5279,11 +4425,7 @@
         "tera-blast",
         "thunder-shock"
       ],
-      "usageMovesNotConfirmed": [
-        "levitate",
-        "modest",
-        "timid"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "vivillon",
@@ -5294,11 +4436,7 @@
       "moveCount": 43,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "compound-eyes",
-        "focus-sash",
-        "timid"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "meowstic-female",
@@ -5309,11 +4447,7 @@
       "moveCount": 56,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "bold",
-        "competitive",
-        "timid"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "aegislash-blade",
@@ -5428,11 +4562,7 @@
       "moveCount": 68,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "jolly",
-        "no-guard"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "lycanroc-dusk",
@@ -5443,11 +4573,7 @@
       "moveCount": 61,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adamant",
-        "jolly",
-        "tough-claws"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "toxtricity-low-key",
@@ -5468,20 +4594,7 @@
       "entry": "Standard Moves - Female",
       "moveCount": 45,
       "candidateSource": "pokebase",
-      "withheldCandidates": [
-        "after-you",
-        "encore",
-        "expanding-force",
-        "extrasensory",
-        "gravity",
-        "last-resort",
-        "magic-room",
-        "power-split",
-        "power-swap",
-        "psychic-noise",
-        "tri-attack",
-        "wonder-room"
-      ],
+      "withheldCandidates": [],
       "usageMovesNotConfirmed": []
     },
     {
@@ -5514,11 +4627,7 @@
       "moveCount": 49,
       "candidateSource": "pokebase",
       "withheldCandidates": [],
-      "usageMovesNotConfirmed": [
-        "adaptability",
-        "modest",
-        "mystic-water"
-      ]
+      "usageMovesNotConfirmed": []
     },
     {
       "slug": "squawkabilly-blue-plumage",

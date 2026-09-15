@@ -1,4 +1,5 @@
 import { TYPES, displayName } from "./data.js";
+import { normalizeItem, itemActive } from "./item-model.js";
 import { roleOf } from "./effective-stats.js";
 import { applyAbility, defaultRosterAbility, rosterAbilities } from "./type-defense.js";
 
@@ -99,8 +100,11 @@ export function buildDefensiveProfile(team, chart) {
   const rows = TYPES.map((attackType) => {
     const cells = team.map((entry) => {
       const types = entry.mon?.types || entry.types || [];
-      const base = typeMultiplier(chart, attackType, types);
-      return applyAbility(base, attackType, entry.ability ?? null);
+      const item = normalizeItem(entry.item, entry.mon), active = itemActive(item, entry.ability);
+      if (attackType === "ground" && active && item === "air-balloon") return 0;
+      const iron = attackType === "ground" && active && item === "iron-ball";
+      const base = iron && types.includes("flying") ? 1 : typeMultiplier(chart, attackType, types);
+      return applyAbility(base, attackType, iron && ["levitate", "eelevate"].includes(entry.ability) ? null : entry.ability ?? null);
     });
     const weakCount = cells.filter((mult) => mult > 1).length;
     const resistCount = cells.filter((mult) => mult < 1).length;

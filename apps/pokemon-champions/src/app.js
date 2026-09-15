@@ -20,6 +20,7 @@ import { renderMovePopup, renderAbilityPopup } from "./info.js";
 import { renderCompare } from "./compare.js";
 import { tickStatLab, optimizeSpread, emptySpread, POOL, CAP, pointsUsed } from "./stat-lab.js";
 import { initSync } from "./sync.js";
+import { normalizeItem } from "./item-model.js";
 import { initSyncView } from "./sync-view.js";
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -629,7 +630,7 @@ function normMember(m, index = 0) {
   const picked = m && typeof m === "object" && typeof m.picked === "boolean"
     ? m.picked
     : index < 4;
-  return { slug, moves, ability, picked };
+  return { slug, moves, ability, picked, item: normalizeItem(m?.item, mon) };
 }
 function capBattlePicks(members) {
   let picked = 0;
@@ -679,6 +680,7 @@ function toggleTeam(slug) {
     slug,
     moves: [],
     ability: defaultRosterAbility(state.bySlug.get(slug)),
+    item: normalizeItem("none", state.bySlug.get(slug)),
     picked: state.team.length < 4,
   });
   teamAfterChange();
@@ -719,7 +721,7 @@ function saveWorkingTeam(name) {
   name = (name || "").trim();
   if (!name || !state.team.length) return;
   const members = state.team.map((t) => ({
-    slug: t.slug, moves: [...t.moves], ability: t.ability, picked: t.picked,
+    slug: t.slug, moves: [...t.moves], ability: t.ability, picked: t.picked, item: t.item,
   }));
   const existing = state.savedTeams.find((t) => t.name.toLowerCase() === name.toLowerCase());
   if (existing) existing.members = members;
@@ -731,7 +733,7 @@ function loadSavedTeam(id) {
   const t = state.savedTeams.find((x) => x.id === id);
   if (!t) return;
   state.team = capBattlePicks(t.members.map((m) => ({
-    slug: m.slug, moves: [...m.moves], ability: m.ability, picked: m.picked,
+    slug: m.slug, moves: [...m.moves], ability: m.ability, picked: m.picked, item: m.item,
   })).slice(0, TEAM_MAX));
   state.teamScope = "full";
   teamAfterChange();
@@ -743,7 +745,7 @@ function deleteSavedTeam(id) {
 }
 
 // ---- team sharing: a SHORT code in the URL (works across browsers/PCs, no server) ----
-// v3: `3|<name>|pid36.abIdx.pick.m36...` adds one battle-pick bit per member.
+// v4: `4|<name>|pid36.abIdx.pick.item-slug.m36...` preserves held items.
 // Pokemon use stable PokeAPI ids and moves use ids pinned in tools/move_ids.json.
 // v1 (base64 JSON) and v2 links still decode so existing shared teams keep working.
 const byPid = () => {
@@ -759,10 +761,11 @@ function encodeTeam(name, members) {
       mon.id.toString(36),
       ab >= 0 ? String(ab) : "",
       t.picked === false ? "0" : "1",
+      normalizeItem(t.item, mon),
       ...(t.moves || []).map((id) => Number(id).toString(36)),
     ].join(".");
   }).filter(Boolean);
-  return `3|${encodeURIComponent(name || "Shared team")}|${mons.join("|")}`;
+  return `4|${encodeURIComponent(name || "Shared team")}|${mons.join("|")}`;
 }
 const teamShareUrl = (code) => `${location.origin}${location.pathname}#t=${code}`;
 // → { name, members, dropped: [names…] } or null when the code is unusable.
@@ -771,7 +774,7 @@ function decodeTeam(codeOrUrl) {
     let code = codeOrUrl.trim();
     const h = code.match(/#(?:t|team)=(.+)$/);
     if (h) code = h[1];
-    if (code.startsWith("3|") || code.startsWith("2|")) {
+    if (["4|", "3|", "2|"].some((prefix) => code.startsWith(prefix))) {
       const version = code[0];
       const parts = code.split("|");
       const name = decodeURIComponent(parts[1] || "").slice(0, 30) || "Shared team";
@@ -779,14 +782,15 @@ function decodeTeam(codeOrUrl) {
       let members = parts.slice(2, 2 + TEAM_MAX).map((seg, index) => {
         const fields = seg.split(".");
         const [pid36, ab] = fields;
-        const picked = version === "3" ? fields[2] !== "0" : index < 4;
-        const mv36 = fields.slice(version === "3" ? 3 : 2);
+        const picked = version !== "2" ? fields[2] !== "0" : index < 4;
+        const item = version === "4" ? fields[3] : "none";
+        const mv36 = fields.slice(version === "4" ? 4 : version === "3" ? 3 : 2);
         const mon = byPid().get(parseInt(pid36, 36));
         if (!mon) { dropped.push("#" + pid36); return null; }
         const moves = mv36.map((x) => parseInt(x, 36)).filter((id) => state.data.moves[id] != null);
         if (moves.length < mv36.length) dropped.push(`${mon._display}: a move`);
-        const abil = ab !== "" && mon.abilities && mon.abilities[Number(ab)] ? mon.abilities[Number(ab)].slug : undefined;
-        return normMember({ slug: mon.slug, moves, ability: abil, picked }, index);
+        const abil = ab === "" ? null : mon.abilities?.[Number(ab)]?.slug;
+        return normMember({ slug: mon.slug, moves, ability: abil, picked, item }, index);
       }).filter(Boolean);
       if (version === "2") members = defaultBattlePicks(members);
       return members.length ? { name, members, dropped } : null;
@@ -830,7 +834,7 @@ function shareTeam(name, members) {
 function renderTeam() {
   const team = state.team
     .map((t) => ({
-      mon: state.bySlug.get(t.slug), moveIds: t.moves, ability: t.ability, picked: t.picked,
+      mon: state.bySlug.get(t.slug), moveIds: t.moves, ability: t.ability, picked: t.picked, item: t.item,
     }))
     .filter((x) => x.mon);
   renderTeamView($("#team-results"), { data: state.data, team, savedTeams: state.savedTeams,
@@ -1066,7 +1070,7 @@ function switchTab(tab) {
       getTeam: () => {
         const picked = state.team.filter((member) => member.picked);
         const roster = picked.length ? picked : state.team;
-        return roster.map((member) => ({ slug: member.slug, moves: member.moves }));
+        return roster.map((member) => ({ ...member }));
       }, onGotoTeam: () => switchTab("team"),
       onAddTeamMove: (slug, id) => addMove(slug, id) });
   }
@@ -1074,6 +1078,11 @@ function switchTab(tab) {
   if (tab === "team" && !teamInited) {
     teamInited = true;
     const tc = $("#team-results");
+    tc.addEventListener("change", (e) => {
+      const select = e.target.closest("[data-team-item]");
+      const member = select && state.team.find((m) => m.slug === select.dataset.teamItem);
+      if (member) { member.item = normalizeItem(select.value, state.bySlug.get(member.slug)); teamAfterChange(); }
+    });
     tc.addEventListener("click", (e) => {
       const scope = e.target.closest("[data-team-scope]");
       if (scope) { setTeamScope(scope.dataset.teamScope); return; }

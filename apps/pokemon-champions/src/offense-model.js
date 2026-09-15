@@ -8,17 +8,8 @@ export const hasFlag = (mv, f) => (mv.flags || []).includes(f);
 // Stat-stage multiplier (+1 = ×1.5, −1 = ×⅔ …).
 export const stageMult = (n) => (n >= 0 ? (2 + n) / 2 : 2 / (2 - n));
 
-// Offensive item presets (each ∈ Champions). mult(se, cat) → 1 | { m, note };
-// Choice Scarf has no damage mult — it feeds the speed layer instead.
-export const OFF_ITEMS = {
-  none: { label: "No item", mult: () => 1 },
-  "life-orb": { label: "Life Orb", mult: () => ({ m: 1.3, note: "Life Orb" }) },
-  "expert-belt": { label: "Expert Belt", mult: (se) => (se ? { m: 1.2, note: "Expert Belt" } : 1) },
-  "wide-lens": { label: "Wide Lens (+10% Acc)", accuracyBonus: 10, mult: () => 1 },
-  "type-item": { label: "Type item ×1.2", mult: () => ({ m: 1.2, note: "type item" }) },
-  "band-glasses": { label: "Band / Glasses", mult: (se, cat) => ({ m: 1.1, note: cat === "physical" ? "Muscle Band" : "Wise Glasses" }) },
-  "choice-scarf": { label: "Choice Scarf (Spe ×1.5)", mult: () => 1 },
-};
+// Compatibility name for label consumers. Numerical effects live in item-model.js.
+export { ITEMS as OFF_ITEMS } from "./item-model.js";
 
 // Population Bomb rerolls accuracy for every strike and ends on its first miss.
 export function expectedHitsForAccuracy(mv, hits, accuracy) {
@@ -115,7 +106,8 @@ export function offDefaultAbility(mon) {
 export const ACC_ABIL = new Set(["no-guard", "compound-eyes"]);
 export function damageAbilities(mon) {
   return (mon.abilities || []).map((a) => a.slug)
-    .filter((s) => s in OFF_ABIL || s in ATE_ABIL || PROTEAN.has(s) || ACC_ABIL.has(s));
+    .filter((s) => s in OFF_ABIL || s in ATE_ABIL || PROTEAN.has(s) || ACC_ABIL.has(s)
+      || ["klutz", "unburden", "super-luck", "sniper", "simple", "contrary", "levitate", "eelevate"].includes(s));
 }
 
 // Ability effect on one move WITHOUT a battle: neutral context normally; with
