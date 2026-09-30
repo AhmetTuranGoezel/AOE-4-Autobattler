@@ -1,5 +1,5 @@
 // Entry point: load data, build controls, wire events, render.
-import { loadData, TYPES, TYPE_COLORS, displayName, GEN_LABEL } from "./data.js";
+import { loadData, loadTournamentTeams, TYPES, TYPE_COLORS, displayName, GEN_LABEL } from "./data.js";
 import {
   DEFAULT_WEIGHTS, computeEffective, STAT_KEYS, STAT_LABELS, statScaleMax,
 } from "./effective-stats.js";
@@ -8,7 +8,8 @@ import {
   createFilterState, applyFilters, sortMons, activeFilterCount,
 } from "./filters.js";
 import { renderTable, renderGrid, ROLE_META } from "./table.js";
-import { renderDetail } from "./detail.js";
+import { renderDetail, DETAIL_TABS } from "./detail.js";
+import { presentImportNotes } from "./meta-view.js";
 import { initMovesView } from "./moves-view.js";
 import { initAbilitiesView } from "./abilities-view.js";
 import { initCalcView } from "./calc-view.js";
@@ -22,6 +23,9 @@ import { tickStatLab, optimizeSpread, emptySpread, POOL, CAP, pointsUsed } from 
 import { initSync } from "./sync.js";
 import { normalizeItem } from "./item-model.js";
 import { initSyncView } from "./sync-view.js";
+import { migrateSavedTeams, saveTeamRecord, emptyTeamContext } from "./team-store.js";
+import { selectMetaDataset, mapTournamentTeam } from "./meta-model.js";
+import { NATURES, SET_STATS, validSpread } from "./set-model.js";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 
@@ -43,9 +47,15 @@ const state = {
   cmpMoves: "all",       // movepool matrix filter: "all" | "diff"
   team: [],              // [{ slug, moves, ability, picked }] (working team, persisted)
   savedTeams: [],        // [{ id, name, members: [{slug,moves,ability,picked}] }] (persisted)
+  teamContext: emptyTeamContext(),
   teamScope: "full",     // "full" | "battle" (view preference; picks themselves persist)
   selected: null,
   spread: emptySpread(), // eHP stat-point lab allocation for the open detail panel
+  spreadNature: null,
+  metaLimits: {},
+  detailTab: "overview",
+  metaTeamKind: null,
+  metaTeamId: null,
   moveByName: new Map(),   // move name → id, used to parse shared-team codes
 };
 
@@ -79,6 +89,11 @@ async function init() {
     loadPins();
     loadTeam();
     loadSavedTeams();
+    try {
+      const context = JSON.parse(localStorage.getItem("pc-team-context") || "null");
+      if (context && typeof context.name === "string") state.teamContext = state.savedTeams.some((t) => t.id === context.loadedId)
+        ? context : emptyTeamContext(context.name);
+    } catch { /* Old installs have no working-team identity. */ }
     state.simCtx = buildSimContext(state.all);
     recomputeEffective();
     buildToolbar();
@@ -457,15 +472,32 @@ function applyWeights() {
 }
 
 // ---------------------------------------------------------------- detail
-function openDetail(slug) {
+let detailReturnFocus = null;
+function openDetail(slug, { requestTeams = true } = {}) {
   const mon = state.bySlug.get(slug);
   if (!mon) return;
+  const wasOpen = $("#detail").classList.contains("open");
+  if (!wasOpen) detailReturnFocus = document.activeElement;
+  if (requestTeams && state.detailTab === "teams" && state.data.tournamentMeta && !state.metaTeamsRequested && !state.data.tournamentTeams) {
+    state.metaTeamsRequested = true;
+    loadTournamentTeams(state.data).then(() => {
+      state.metaTeamsRequested = false;
+      // Render success/error without immediately starting another fetch. A later
+      // detail open can retry a failure; concurrent opens share the same request.
+      if (state.selected && $("#detail").classList.contains("open")) openDetail(state.selected, { requestTeams: false });
+    });
+  }
   const prev = state.bySlug.get(state.selected);
-  if (slug !== state.selected) state.spread = emptySpread(); // fresh mon → fresh points
+  if (slug !== state.selected) { state.spread = emptySpread(); state.spreadNature = null; state.metaLimits = {}; state.metaTeamId = null; state.metaTeamKind = null; }
   if (!prev || prev.dex !== mon.dex) state.detailShiny = false; // reset shiny only for a new species (keep across base⇄mega)
   state.selected = slug;
+  const sameMon = prev?.slug === slug, scroll = $("#detail").scrollTop;
+  const focusId = $("#detail").contains(document.activeElement) ? document.activeElement.id : null;
   $("#detail-body").innerHTML = renderDetail(mon, { ...state, pinned: state.pinned });
+  $("#detail").scrollTop = sameMon ? scroll : 0;
   $("#detail").classList.add("open");
+  if (focusId) document.getElementById(focusId)?.focus({ preventScroll: true });
+  else if (!wasOpen) $(`#detail-tab-${state.detailTab}`)?.focus({ preventScroll: true });
   syncCmpButtons();
   syncTeamButtons();
   filterDetailMoves(); // apply the default (type-grouped) move ordering
@@ -492,12 +524,13 @@ const clampPts = (k, v) => Math.max(0, Math.min(v, CAP, POOL - (pointsUsed(state
 // from state.spread without rebuilding the DOM (inputs keep focus).
 function tickLab() {
   const mon = state.bySlug.get(state.selected);
-  if (mon) tickStatLab($("#detail"), mon, state.spread);
+  if (mon) tickStatLab($("#detail"), mon, state.spread, state.spreadNature);
 }
 
 function closeDetail() {
   state.selected = null;
   $("#detail").classList.remove("open");
+  if (detailReturnFocus?.isConnected) detailReturnFocus.focus({ preventScroll: true });
 }
 
 function browseMovesOf(slug) {
@@ -630,7 +663,9 @@ function normMember(m, index = 0) {
   const picked = m && typeof m === "object" && typeof m.picked === "boolean"
     ? m.picked
     : index < 4;
-  return { slug, moves, ability, picked, item: normalizeItem(m?.item, mon) };
+  return { slug, moves, ability, picked, item: normalizeItem(m?.item, mon),
+    nature: NATURES.includes(m?.nature) ? m.nature : null, spread: validSpread(m?.spread) ? { ...m.spread } : null,
+    ...(m?.sourceAbility ? { sourceAbility: m.sourceAbility } : {}), ...(m?.sourceItem ? { sourceItem: m.sourceItem } : {}) };
 }
 function capBattlePicks(members) {
   let picked = 0;
@@ -654,24 +689,49 @@ function loadTeam() {
     saveTeam();  // upgrade legacy string-array storage to the {slug,moves} format
   } catch { state.team = []; }
 }
-function saveTeam() { try { localStorage.setItem(TEAM_KEY, JSON.stringify(state.team)); } catch { /* ignore */ } }
+function saveTeam() { try {
+  localStorage.setItem(TEAM_KEY, JSON.stringify(state.team));
+} catch { /* ignore */ } }
+function saveTeamContext() { try { localStorage.setItem("pc-team-context", JSON.stringify(state.teamContext)); } catch { /* ignore */ } }
 function loadSavedTeams() {
   try {
     const arr = JSON.parse(localStorage.getItem(TEAMS_KEY) || "[]");
-    state.savedTeams = arr.map((t) => {
+    state.savedTeams = migrateSavedTeams(arr).map((t) => {
       const rawMembers = t.members || [];
       const members = rawMembers.map(normMember).filter(Boolean).slice(0, TEAM_MAX);
       return {
-        id: t.id || String(Date.now() + Math.random()),
+        ...t,
+        id: t.id,
         name: String(t.name || "Team"),
         members: capBattlePicks(hasExplicitBattlePicks(rawMembers) ? members : defaultBattlePicks(members)),
       };
     });
-  } catch { state.savedTeams = []; }
+    if (JSON.stringify(arr) !== JSON.stringify(state.savedTeams)) persistSavedTeams();
+  } catch { state.savedTeams = []; state.savedTeamsReadError = true; state.teamNotice = "Saved-team data could not be read. The original storage was left untouched; saving is blocked until it is recovered."; }
 }
-function persistSavedTeams() { try { localStorage.setItem(TEAMS_KEY, JSON.stringify(state.savedTeams)); } catch { /* ignore */ } }
 
-function teamAfterChange() { saveTeam(); if (teamInited) renderTeam(); syncTeamButtons(); }
+function switchDetailTab(tab) {
+  if (!DETAIL_TABS.includes(tab)) return;
+  state.detailTab = tab;
+  openDetail(state.selected);
+  $("#detail").scrollTop = 0;
+  $(`#detail-tab-${tab}`)?.focus({ preventScroll: true });
+}
+
+function backToPublishedTeams() {
+  const id = state.metaTeamId;
+  state.metaTeamId = null;
+  openDetail(state.selected);
+  const trigger = [...document.querySelectorAll("[data-meta-open-team]")].find(el => el.dataset.metaOpenTeam === id);
+  trigger?.focus();
+}
+function persistSavedTeams(records = state.savedTeams) {
+  if (state.savedTeamsReadError) return false;
+  try { localStorage.setItem(TEAMS_KEY, JSON.stringify(records)); return true; }
+  catch { state.teamNotice = "Could not save teams to browser storage. Your previously saved teams were not replaced."; return false; }
+}
+
+function teamAfterChange() { saveTeam(); saveTeamContext(); if (teamInited) renderTeam(); syncTeamButtons(); }
 
 function toggleTeam(slug) {
   const i = state.team.findIndex((t) => t.slug === slug);
@@ -716,31 +776,34 @@ function removeMove(slug, id) {
   t.moves = t.moves.filter((m) => m !== id);
   teamAfterChange();
 }
-function clearTeam() { state.team = []; state.teamScope = "full"; teamAfterChange(); }
+function clearTeam() { state.team = []; state.teamContext = emptyTeamContext(); state.teamNotice = ""; state.teamScope = "full"; teamAfterChange(); }
 function saveWorkingTeam(name) {
-  name = (name || "").trim();
-  if (!name || !state.team.length) return;
-  const members = state.team.map((t) => ({
-    slug: t.slug, moves: [...t.moves], ability: t.ability, picked: t.picked, item: t.item,
-  }));
-  const existing = state.savedTeams.find((t) => t.name.toLowerCase() === name.toLowerCase());
-  if (existing) existing.members = members;
-  else state.savedTeams.push({ id: String(Date.now()) + Math.random().toString(36).slice(2), name, members });
-  persistSavedTeams();
+  if (state.savedTeamsReadError) { state.teamNotice = "Saving is blocked because saved-team storage could not be read. The original data was left untouched."; renderTeam(); return; }
+  state.teamContext.name = name || "";
+  const result = saveTeamRecord(state.savedTeams, state.teamContext, state.team);
+  if (result.error) { state.teamNotice = result.error; renderTeam(); return; }
+  if (!persistSavedTeams(result.records)) { renderTeam(); return; }
+  state.savedTeams = result.records;
+  state.teamContext = result.context;
+  state.teamNotice = `Team ${result.action}: ${result.context.name}`;
+  saveTeamContext();
   renderTeam();
 }
 function loadSavedTeam(id) {
   const t = state.savedTeams.find((x) => x.id === id);
   if (!t) return;
-  state.team = capBattlePicks(t.members.map((m) => ({
-    slug: m.slug, moves: [...m.moves], ability: m.ability, picked: m.picked, item: m.item,
-  })).slice(0, TEAM_MAX));
+  state.team = capBattlePicks(structuredClone(t.members).slice(0, TEAM_MAX));
+  state.teamContext = { loadedId: t.id, originalName: t.name, name: t.name };
+  state.teamNotice = "";
   state.teamScope = "full";
   teamAfterChange();
 }
 function deleteSavedTeam(id) {
-  state.savedTeams = state.savedTeams.filter((x) => x.id !== id);
-  persistSavedTeams();
+  const remaining = state.savedTeams.filter((x) => x.id !== id);
+  if (!persistSavedTeams(remaining)) { renderTeam(); return; }
+  state.savedTeams = remaining;
+  if (state.teamContext.loadedId === id) state.teamContext = emptyTeamContext(state.teamContext.name);
+  saveTeamContext();
   renderTeam();
 }
 
@@ -753,6 +816,7 @@ const byPid = () => {
   return state.byPid;
 };
 function encodeTeam(name, members) {
+  const exact = members.some((t) => t.nature || t.spread);
   const mons = members.map((t) => {
     const mon = state.bySlug.get(t.slug);
     if (!mon) return null;
@@ -762,10 +826,11 @@ function encodeTeam(name, members) {
       ab >= 0 ? String(ab) : "",
       t.picked === false ? "0" : "1",
       normalizeItem(t.item, mon),
+      ...(exact ? [t.nature || "", t.spread ? SET_STATS.map((k) => t.spread[k]).join("-") : ""] : []),
       ...(t.moves || []).map((id) => Number(id).toString(36)),
     ].join(".");
   }).filter(Boolean);
-  return `4|${encodeURIComponent(name || "Shared team")}|${mons.join("|")}`;
+  return `${exact ? 5 : 4}|${encodeURIComponent(name || "Shared team")}|${mons.join("|")}`;
 }
 const teamShareUrl = (code) => `${location.origin}${location.pathname}#t=${code}`;
 // → { name, members, dropped: [names…] } or null when the code is unusable.
@@ -774,23 +839,29 @@ function decodeTeam(codeOrUrl) {
     let code = codeOrUrl.trim();
     const h = code.match(/#(?:t|team)=(.+)$/);
     if (h) code = h[1];
-    if (["4|", "3|", "2|"].some((prefix) => code.startsWith(prefix))) {
+    if (["5|", "4|", "3|", "2|"].some((prefix) => code.startsWith(prefix))) {
       const version = code[0];
       const parts = code.split("|");
-      const name = decodeURIComponent(parts[1] || "").slice(0, 30) || "Shared team";
+      const name = decodeURIComponent(parts[1] || "").slice(0, 160) || "Shared team";
       const dropped = [];
       let members = parts.slice(2, 2 + TEAM_MAX).map((seg, index) => {
         const fields = seg.split(".");
         const [pid36, ab] = fields;
         const picked = version !== "2" ? fields[2] !== "0" : index < 4;
-        const item = version === "4" ? fields[3] : "none";
-        const mv36 = fields.slice(version === "4" ? 4 : version === "3" ? 3 : 2);
+        const item = ["4", "5"].includes(version) ? fields[3] : "none";
+        const nature = version === "5" ? fields[4] || null : null;
+        const values = version === "5" && fields[5] ? fields[5].split("-").map(Number) : null;
+        const spread = values?.length === 6 ? Object.fromEntries(SET_STATS.map((k, i) => [k, values[i]])) : null;
+        if (version === "5" && ((fields[5] && !validSpread(spread)) || (nature && !NATURES.includes(nature)))) {
+          dropped.push(`slot ${index + 1}: invalid Nature or Stat Points`); return null;
+        }
+        const mv36 = fields.slice(version === "5" ? 6 : version === "4" ? 4 : version === "3" ? 3 : 2);
         const mon = byPid().get(parseInt(pid36, 36));
         if (!mon) { dropped.push("#" + pid36); return null; }
         const moves = mv36.map((x) => parseInt(x, 36)).filter((id) => state.data.moves[id] != null);
         if (moves.length < mv36.length) dropped.push(`${mon._display}: a move`);
         const abil = ab === "" ? null : mon.abilities?.[Number(ab)]?.slug;
-        return normMember({ slug: mon.slug, moves, ability: abil, picked, item }, index);
+        return normMember({ slug: mon.slug, moves, ability: abil, picked, item, nature, spread }, index);
       }).filter(Boolean);
       if (version === "2") members = defaultBattlePicks(members);
       return members.length ? { name, members, dropped } : null;
@@ -816,11 +887,8 @@ function importTeam(codeOrUrl) {
   if (!t) { state.teamNotice = "⚠ Couldn't read that team code."; if (teamInited) renderTeam(); return; }
   state.team = capBattlePicks(t.members);
   state.teamScope = "full";
-  // auto-save under its name (suffix if taken)
-  let name = t.name;
-  if (state.savedTeams.some((x) => x.name.toLowerCase() === name.toLowerCase())) name += " (2)";
-  saveWorkingTeam(name);
-  state.teamNotice = `✓ Imported “${name}” — ${t.members.length} Pokémon` +
+  state.teamContext = emptyTeamContext(t.name);
+  state.teamNotice = `✓ Imported “${t.name}” — ${t.members.length} Pokémon · unsaved; press Save to keep a named copy` +
     (t.dropped.length ? ` · dropped (unknown here): ${t.dropped.join(", ")}` : "");
   teamAfterChange();
 }
@@ -834,11 +902,11 @@ function shareTeam(name, members) {
 function renderTeam() {
   const team = state.team
     .map((t) => ({
-      mon: state.bySlug.get(t.slug), moveIds: t.moves, ability: t.ability, picked: t.picked, item: t.item,
+      mon: state.bySlug.get(t.slug), moveIds: t.moves, ability: t.ability, picked: t.picked, item: t.item, nature: t.nature, spread: t.spread,
     }))
     .filter((x) => x.mon);
   renderTeamView($("#team-results"), { data: state.data, team, savedTeams: state.savedTeams,
-    notice: state.teamNotice, share: state.sharePanel, analysisScope: state.teamScope });
+    notice: state.teamNotice, share: state.sharePanel, analysisScope: state.teamScope, teamContext: state.teamContext });
   attachTeamAutocompletes();
 }
 function syncTeamButtons() {
@@ -883,6 +951,52 @@ function attachTeamAutocompletes() {
 
 // ---------------------------------------------------------------- global events
 function bindGlobal() {
+  $("#detail").addEventListener("change", (e) => {
+    if (e.target.matches("[data-meta-regulation]")) {
+      selectMetaDataset(state.data, e.target.value); state.metaLimits = {}; state.metaTeamId = null; state.metaTeamKind = null; openDetail(state.selected); render();
+    }
+    if (e.target.matches("[data-lab-nature]")) { state.spreadNature = e.target.value || null; tickLab(); }
+  });
+  $("#detail").addEventListener("click", (e) => {
+    const tab = e.target.closest("[data-detail-tab]");
+    if (tab) { switchDetailTab(tab.dataset.detailTab); return; }
+    const kind = e.target.closest("[data-meta-team-kind]");
+    if (kind) { state.metaTeamKind = kind.dataset.metaTeamKind; state.metaTeamId = null; openDetail(state.selected); $(`[data-meta-team-kind="${state.metaTeamKind}"]`)?.focus({ preventScroll: true }); return; }
+    const teamOpen = e.target.closest("[data-meta-open-team]");
+    if (teamOpen) { state.metaTeamId = teamOpen.dataset.metaOpenTeam; openDetail(state.selected); $("#detail").scrollTop = 0; $("#published-team-title")?.focus({ preventScroll: true }); return; }
+    if (e.target.closest("[data-meta-team-back]")) { backToPublishedTeams(); return; }
+    if (e.target.closest("[data-meta-retry]")) { openDetail(state.selected); return; }
+    const setTarget = e.target.closest("[data-meta-set-target]");
+    if (setTarget) { $(`#published-set-${setTarget.dataset.metaSetTarget}`)?.focus(); return; }
+    const more = e.target.closest("[data-meta-more]");
+    if (more) { const key = more.dataset.metaMore; state.metaLimits[key] = Number(more.dataset.metaNext); openDetail(state.selected); ($(`[data-meta-more="${key}"]`) || $(".detail-tab-panel"))?.focus({ preventScroll: true }); return; }
+    const spread = e.target.closest("[data-meta-spread],[data-meta-joint]");
+    if (spread) {
+      const entry = state.bySlug.get(state.selected)?.metaUsage;
+      const joint = spread.hasAttribute("data-meta-joint");
+      const row = (joint ? entry?.observedSpreads : entry?.spreads)?.[Number(joint ? spread.dataset.metaJoint : spread.dataset.metaSpread)];
+      if (row) { state.spread = { ...row.stats }; state.spreadNature = joint ? spread.dataset.metaNature : null; state.detailTab = "builds"; openDetail(state.selected); $("[data-lab-nature]", $("#detail"))?.focus(); }
+      return;
+    }
+    if (e.target.closest("[data-lab-to-team]")) {
+      let member = state.team.find((m) => m.slug === state.selected);
+      if (!member && state.team.length >= TEAM_MAX) { alert("Your team already has six Pokémon. Remove a member first."); return; }
+      if (!member) { toggleTeam(state.selected); member = state.team.find((m) => m.slug === state.selected); }
+      member.spread = { ...state.spread }; member.nature = state.spreadNature; teamAfterChange(); closeDetail(); switchTab("team"); return;
+    }
+    const action = e.target.closest("[data-meta-import],[data-meta-opponent]");
+    if (!action) return;
+    const opponent = action.hasAttribute("data-meta-opponent");
+    const id = opponent ? action.dataset.metaOpponent : action.dataset.metaImport;
+    const external = state.data.tournamentTeams.teams.find((t) => t.id === id && t.regulation === state.data.metaRegulation);
+    const mapped = mapTournamentTeam(external, state.data);
+    if (mapped.errors.length) { alert(mapped.errors.join("\n")); return; }
+    if (opponent) { closeDetail(); switchTab("calc"); calcView.loadOpponentTeam(mapped); return; }
+    if (state.team.length && !confirm("Replace the current working team with this published team? Saved teams will not be changed.")) return;
+    state.team = mapped.members; state.teamContext = emptyTeamContext(mapped.name); state.teamScope = "full";
+    const notes = presentImportNotes(mapped);
+    state.teamNotice = `Imported unsaved team.${notes.undisclosed ? ` ${notes.undisclosed}/6 spreads unavailable; left unknown.` : ""} ${notes.notes.join(" ")}`; teamAfterChange(); closeDetail(); switchTab("team");
+  });
   // Logo = home: plain left-click resets in-app (no reload); modified/middle/right
   // clicks fall through to the anchor's href so the browser can open a new tab.
   $(".brand-home").addEventListener("click", (e) => {
@@ -942,7 +1056,7 @@ function bindGlobal() {
     const ptClr = e.target.closest("[data-pt-clear]");
     if (ptClr) { state.spread[ptClr.dataset.ptClear] = 0; tickLab(); return; }
     const ptOpt = e.target.closest("[data-pt-opt]");
-    if (ptOpt) { state.spread = optimizeSpread(state.bySlug.get(state.selected), ptOpt.dataset.ptOpt, state.spread); tickLab(); return; }
+    if (ptOpt) { state.spread = optimizeSpread(state.bySlug.get(state.selected), ptOpt.dataset.ptOpt, state.spread, state.spreadNature); tickLab(); return; }
     if (e.target.closest("[data-pt-reset]")) { state.spread = emptySpread(); tickLab(); return; }
     const pn = e.target.closest("[data-pin]");
     if (pn) { togglePin(pn.dataset.pin); syncPinButtons(); return; }
@@ -1003,6 +1117,25 @@ function bindGlobal() {
   });
 
   document.addEventListener("keydown", (e) => {
+    if ($("#detail").classList.contains("open") && !$("#popup").classList.contains("open") && !$("#compare").classList.contains("open")) {
+      if (e.key === "Tab") {
+        const root = document.querySelector(":popover-open") || $("#detail");
+        const stops = [...root.querySelectorAll('button:not(:disabled), a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])')].filter(el => el.getClientRects().length && el.tabIndex >= 0);
+        const first = stops[0], last = stops.at(-1);
+        if (stops.length && (e.shiftKey ? document.activeElement === first || !root.contains(document.activeElement) : document.activeElement === last || !root.contains(document.activeElement))) {
+          e.preventDefault(); (e.shiftKey ? last : first).focus();
+        }
+      }
+      const tab = e.target.closest('[role="tab"][data-detail-tab]');
+      if (tab && ["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) {
+        e.preventDefault();
+        const index = DETAIL_TABS.indexOf(tab.dataset.detailTab);
+        switchDetailTab(DETAIL_TABS[e.key === "Home" ? 0 : e.key === "End" ? DETAIL_TABS.length - 1 : (index + (e.key === "ArrowRight" ? 1 : -1) + DETAIL_TABS.length) % DETAIL_TABS.length]);
+        return;
+      }
+      if (e.key === "Escape" && document.querySelector(":popover-open")) { document.querySelector(":popover-open").hidePopover(); e.preventDefault(); return; }
+      if (e.key === "Escape" && state.detailTab === "teams" && state.metaTeamId) { backToPublishedTeams(); e.preventDefault(); return; }
+    }
     if (e.key !== "Escape") return;
     if ($("#compare").classList.contains("open")) closeCompare();
     else if ($("#popup").classList.contains("open")) closePopup();
@@ -1079,6 +1212,18 @@ function switchTab(tab) {
     teamInited = true;
     const tc = $("#team-results");
     tc.addEventListener("change", (e) => {
+      const build = e.target.closest("[data-team-nature],[data-team-stat]");
+      if (build) {
+        const member = state.team.find((m) => m.slug === build.dataset.slug);
+        if (!member) return;
+        if (build.hasAttribute("data-team-nature")) member.nature = build.value || null;
+        else {
+          const spread = member.spread || emptySpread(), key = build.dataset.teamStat;
+          const remaining = POOL - pointsUsed(spread) + spread[key];
+          member.spread = { ...spread, [key]: Math.max(0, Math.min(CAP, remaining, Math.floor(Number(build.value) || 0))) };
+        }
+        teamAfterChange(); return;
+      }
       const select = e.target.closest("[data-team-item]");
       const member = select && state.team.find((m) => m.slug === select.dataset.teamItem);
       if (member) { member.item = normalizeItem(select.value, state.bySlug.get(member.slug)); teamAfterChange(); }
@@ -1124,6 +1269,14 @@ function switchTab(tab) {
       if (open) { openDetail(open.dataset.open); return; }
       const row = e.target.closest(".spd-row[data-slug]");
       if (row) openDetail(row.dataset.slug);
+    });
+    tc.addEventListener("input", (e) => {
+      if (e.target.matches(".team-name")) {
+        state.teamContext.name = e.target.value;
+        saveTeamContext();
+        const button = tc.querySelector("[data-save-team]");
+        if (button) button.textContent = state.teamContext.loadedId && e.target.value.trim() !== state.teamContext.originalName ? "Save as new" : "Save";
+      }
     });
     tc.addEventListener("change", (e) => {   // paste a share link/code → import
       if (e.target.classList.contains("tm-import") && e.target.value.trim()) {

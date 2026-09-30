@@ -6,31 +6,8 @@ import { renderRadar } from "./radar.js";
 import { findSimilar } from "./similarity.js";
 import { typeBadges, ROLE_META } from "./table.js";
 import { renderEhpCards, renderStatRows, emptySpread } from "./stat-lab.js";
-
-// Competitive usage % (from pokebase): which ability/item/nature/move a Pokémon
-// actually runs on ladder, and how often.
-function renderUsage(mon, data) {
-  const u = mon.usage || {};
-  // name → id so the usage "Moves" list links to the same move popup as everywhere else
-  const moveIdByName = new Map(Object.entries(data.moves).map(([id, m]) => [m.name.toLowerCase(), Number(id)]));
-  const cat = (label, list, link) => (list && list.length ? `<div class="use-cat">
-    <span class="use-lab">${label}</span>
-    <div class="use-items">${list.map(([n, p]) => {
-      const id = link ? moveIdByName.get(String(n).toLowerCase()) : undefined;
-      const nameCell = id != null
-        ? `<button class="use-name use-link" data-move-info="${id}" title="Open ${n}">${n}</button>`
-        : `<span class="use-name">${n}</span>`;
-      const unverified = link && !mon.moves.includes(id);
-      return `<span class="use-item" title="${n}: ${p}%${unverified ? ' · Not confirmed in this Champions learnset' : ''}"><i class="use-fill" style="width:${p}%"></i>${nameCell}${unverified ? '<small class="learnset-warning">unverified</small>' : ''}<span class="use-pct">${p}%</span></span>`;
-    }).join("")}</div>
-  </div>` : "");
-  // Ability % is shown on the Abilities list itself; here we keep item/nature/move.
-  const body = cat("Item", u.items) + cat("Nature", u.natures) + cat("Moves", u.moves, true);
-  return `<section class="detail-usage">
-    <h4>Usage <span class="muted">PokéBase snapshot · may reflect an earlier format</span></h4>
-    ${body || '<p class="use-empty">No ranked usage data for this Pokémon yet.</p>'}
-  </section>`;
-}
+import { renderMetaUsage } from "./meta-view.js";
+import { NATURES, escapeHtml } from "./set-model.js";
 
 function rarityBadge(count, total) {
   const r = rarityTier(count, total);
@@ -64,7 +41,10 @@ function shinyUrl(url) {
   return url.replace("/pokemon/", "/pokemon/shiny/");
 }
 
-export function renderDetail(mon, { data, all, simCtx, statMode, spread, detailShiny, pinned }) {
+export const DETAIL_TABS = ["overview", "builds", "meta", "teams", "moves"];
+
+export function renderDetail(mon, { data, all, simCtx, statMode, spread, spreadNature, detailShiny, pinned, metaLimits = {}, detailTab = "overview", metaTeamKind = null, metaTeamId = null }) {
+  const tab = DETAIL_TABS.includes(detailTab) ? detailTab : "overview";
   const e = mon._eff;
   const role = ROLE_META[e.role];
   const max = statScaleMax(statMode);
@@ -102,12 +82,10 @@ export function renderDetail(mon, { data, all, simCtx, statMode, spread, detailS
     ${formBtns}
   </div>`;
 
-  const usePct = new Map((mon.usage?.abilities || []).map(([n, p]) => [n, p]));
   const abilities = mon.abilities.map((a) => {
     const meta = data.abilities[a.slug] || { name: a.slug, desc: "" };
-    const pct = usePct.get(meta.name);
     return `<div class="ab-row" data-ability-info="${a.slug}" title="View ability details">
-      <span class="ab-name">${meta.name}${pct != null ? ` <span class="ab-use" title="ranked usage">${pct}%</span>` : ""}${a.hidden ? ` <span class="hidden-tag">Hidden</span>` : ""}</span>
+      <span class="ab-name">${meta.name}${a.hidden ? ` <span class="hidden-tag">Hidden</span>` : ""}</span>
       ${rarityBadge(meta.count, data.total)}
       <button class="lens" data-ability-filter="${a.slug}" title="Find Pokémon with this ability">🔍</button>
       <span class="ab-desc">${meta.desc || ""}</span>
@@ -132,7 +110,7 @@ export function renderDetail(mon, { data, all, simCtx, statMode, spread, detailS
     </button>`;
   }).join("");
 
-  return `<div class="detail-card">
+  return `<div class="detail-card detail-tab-${tab}">
     <button class="detail-close" data-close aria-label="Close">✕</button>
     <div class="detail-head">
       <div class="detail-artwrap">
@@ -141,16 +119,16 @@ export function renderDetail(mon, { data, all, simCtx, statMode, spread, detailS
         ${formBar}
       </div>
       <div class="detail-meta">
-        <div class="detail-name">${displayName(mon)} ${mon.isMega ? '<span class="mega-badge">MEGA</span>' : ""}</div>
+        <div class="detail-name" id="detail-title">${displayName(mon)} ${mon.isMega ? '<span class="mega-badge">MEGA</span>' : ""}</div>
         <div class="detail-sub">#${mon.dex} · ${GEN_LABEL(mon.gen)} · <span class="role ${role.cls}">${role.label}</span></div>
         <div class="types big">${typeBadges(mon.types)}</div>
-        <div class="detail-totals">
+        ${tab === "overview" ? `<div class="detail-totals">
           <div><span class="t-lab">${statMode === "lv50" ? "Total" : "BST"}</span><span class="t-val">${e.bst}</span></div>
           <div class="hl"><span class="t-lab">Cleaned total</span><span class="t-val">${e.cleaned}</span></div>
           <div class="wst"><span class="t-lab">Wasted</span><span class="t-val">${e.wasted}</span></div>
           ${mon.weight != null ? `<div><span class="t-lab">Weight</span><span class="t-val">${mon.weight} kg</span></div>` : ""}
       ${mon.usagePct != null ? `<div title="PokéBase usage snapshot; format/date may differ from the roster regulation"><span class="t-lab">Usage</span><span class="t-val">${mon.usagePct}%</span></div>` : ""}
-        </div>
+        </div>` : ""}
         <div class="detail-actions">
           <button class="btn cmp-detail ${pinned && pinned.has(mon.slug) ? "on" : ""}" data-pin="${mon.slug}" data-pin-icon title="Pin — stays on top of the roster through any filters">${pinned && pinned.has(mon.slug) ? "📌 Pinned" : "📌 Pin"}</button>
           <button class="btn cmp-detail" data-cmp="${mon.slug}" data-cmp-icon>＋ Compare</button>
@@ -159,6 +137,9 @@ export function renderDetail(mon, { data, all, simCtx, statMode, spread, detailS
       </div>
     </div>
 
+    <nav class="detail-tabs" role="tablist" aria-label="Pokémon detail sections">${DETAIL_TABS.map(key => `<button id="detail-tab-${key}" role="tab" aria-selected="${tab === key}" ${tab === key ? `aria-controls="detail-panel-${key}"` : ""} tabindex="${tab === key ? "0" : "-1"}" data-detail-tab="${key}">${key[0].toUpperCase() + key.slice(1)}${key === "moves" ? `<small>${moves.length}</small>` : ""}</button>`).join("")}</nav>
+    <div class="detail-tab-panel" id="detail-panel-${tab}" role="tabpanel" aria-labelledby="detail-tab-${tab}" tabindex="0">
+    ${tab === "overview" ? `
     <div class="detail-grid">
       <section class="detail-radar">
         ${renderRadar(e.disp, e.eff, { max })}
@@ -168,22 +149,32 @@ export function renderDetail(mon, { data, all, simCtx, statMode, spread, detailS
       </section>
       <section class="detail-ehp">
         <h4>Effective HP <span class="muted">Lv 50</span></h4>
-        ${renderEhpCards(mon, sp)}
+        ${renderEhpCards(mon, sp, spreadNature)}
       </section>
     </div>
-
-    <section class="stat-lab">
-      <div class="lab-head"><h4>Stat spread</h4><span class="lab-hint">Distribute ${66} points (max 32 per stat) — eHP updates live.</span></div>
-      ${renderStatRows(mon, sp)}
-    </section>
 
     <section class="detail-ab">
       <h4>Abilities</h4>
       <div class="ab-list">${abilities}</div>
     </section>
+    <section class="detail-sim">
+      <h4>Similar Pokémon</h4>
+      <div class="sim-list">${similar}</div>
+    </section>` : ""}
 
-    ${renderUsage(mon, data)}
+    ${tab === "builds" ? `
+    ${renderMetaUsage(mon, data, metaLimits, { view: "builds" })}
+    <section class="stat-lab">
+      <div class="lab-head"><h4>Stat Lab</h4><span class="lab-hint">66 points · max 32 per stat · eHP updates live</span></div>
+      <label class="meta-lab-nature">Stat Lab Nature <select class="cl-sel" data-lab-nature><option value="">Neutral / not selected</option>${NATURES.map((n) => `<option value="${n}" ${spreadNature === n ? "selected" : ""}>${escapeHtml(n)}</option>`).join("")}</select></label>
+      ${renderStatRows(mon, sp, spreadNature)}
+      ${renderEhpCards(mon, sp, spreadNature)}
+      <button class="btn-sm" data-lab-to-team>Apply these points and Nature to Team Builder</button>
+    </section>` : ""}
 
+    ${tab === "meta" || tab === "teams" ? renderMetaUsage(mon, data, metaLimits, { view: tab, teamKind: metaTeamKind, teamId: metaTeamId }) : ""}
+
+    ${tab === "moves" ? `
     <section class="detail-moves">
       <p class="learnset-note ${mon.learnset?.status === "verified" ? "muted" : "learnset-warning"}">${learnsetNotice(mon)} <a href="learnset-report.json" target="_blank" rel="noopener noreferrer">Source report</a></p>
       <div class="dm-head">
@@ -203,11 +194,7 @@ export function renderDetail(mon, { data, all, simCtx, statMode, spread, detailS
           <tbody class="mv-list">${moveList}</tbody>
         </table>
       </div>
-    </section>
-
-    <section class="detail-sim">
-      <h4>Similar Pokémon</h4>
-      <div class="sim-list">${similar}</div>
-    </section>
+    </section>` : ""}
+    </div>
   </div>`;
 }

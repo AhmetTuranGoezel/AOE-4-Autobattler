@@ -1,0 +1,23 @@
+{
+  "shiftgear": {"name":"Shift Gear","target":"self","boosts":{"spe":2,"atk":1}},
+  "dragondance": {"name":"Dragon Dance","target":"self","boosts":{"atk":1,"spe":1}},
+  "quiverdance": {"name":"Quiver Dance","target":"self","boosts":{"spa":1,"spd":1,"spe":1}},
+  "bulkup": {"name":"Bulk Up","target":"self","boosts":{"atk":1,"def":1}},
+  "calmmind": {"name":"Calm Mind","target":"self","boosts":{"spa":1,"spd":1}},
+  "shellsmash": {"name":"Shell Smash","target":"self","boosts":{"def":-1,"spd":-1,"atk":2,"spa":2,"spe":2}},
+  "noretreat": {"name":"No Retreat","target":"self","boosts":{"atk":1,"def":1,"spa":1,"spd":1,"spe":1}},
+  "coil": {"name":"Coil","target":"self","boosts":{"atk":1,"def":1,"accuracy":1}},
+  "clangoroussoul": {"name":"Clangorous Soul","target":"self","boosts":{"atk":1,"def":1,"spa":1,"spd":1,"spe":1}},
+  "growth": {"name":"Growth","target":"self","boosts":{"atk":1,"spa":1}},
+  "victorydance": {"name":"Victory Dance","target":"self","boosts":{"atk":1,"def":1,"spe":1}},
+  "filletaway": {"name":"Fillet Away","target":"self","boosts":{"atk":2,"spa":2,"spe":2}},
+  "bellydrum": {"name":"Belly Drum","target":"self"},
+  "stockpile": {"name":"Stockpile","target":"self"},
+  "curse": {"name":"Curse","target":"normal"},
+  "howl": {"name":"Howl","target":"allies","boosts":{"atk":1}},
+  "nobleroar": {"name":"Noble Roar","target":"normal","boosts":{"atk":-1,"spa":-1}},
+  "makeitrain": {"name":"Make It Rain","target":"allAdjacentFoes","self":{"boosts":{"spa":-1}}},
+  "steelwing": {"name":"Steel Wing","target":"normal","secondary":{"chance":10,"self":{"boosts":{"def":1}}}},
+  "ancientpower": {"name":"Ancient Power","target":"normal","secondary":{"chance":10,"self":{"boosts":{"atk":1,"def":1,"spa":1,"spd":1,"spe":1}}}},
+  "icywind": {"name":"Icy Wind","target":"allAdjacentFoes","secondary":{"chance":100,"boosts":{"spe":-1}}}
+}

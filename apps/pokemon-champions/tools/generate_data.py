@@ -25,6 +25,7 @@ import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
+from mechanics import apply_mechanics, repair_snapshot
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 APP = os.path.dirname(HERE)
@@ -729,7 +730,7 @@ def fetch_showdown():
     for sid, m in d.items():
         flags = sorted(SD_FLAGS[k] for k in (m.get("flags") or {}) if k in SD_FLAGS)
         out[sid] = {"flags": flags, "short": (m.get("shortDesc") or "").strip(),
-                    "secondaries": _sd_secondaries(m)}
+                    "secondaries": _sd_secondaries(m), "raw": m}
     return out
 
 
@@ -819,9 +820,23 @@ def main(argv=None):
     parser.add_argument("--refresh", action="store_true", help="Fetch all sources anew, ignoring HTTP caches")
     parser.add_argument("--strict-learnsets", action="store_true",
                         help="Write the report but refuse to publish if any learnsets are unverified")
+    parser.add_argument("--repair-mechanics", action="store_true",
+                        help="Offline: regenerate only structured move effects and ability corrections from the existing Showdown cache")
     args = parser.parse_args(argv)
+    if args.repair_mechanics and (args.refresh or args.strict_learnsets):
+        parser.error("--repair-mechanics cannot be combined with live-generation options")
     REGULATION, REFRESH = load_regulation(), args.refresh
     FETCHED.clear()
+    if args.repair_mechanics:
+        # Intentionally read the recorded cache directly: no TTL refresh/network,
+        # no roster/learnset/tournament fetch or timestamp changes.
+        with open(_cache_path("showdown_moves"), encoding="utf-8") as f:
+            showdown = json.load(f)
+        with open(OUT, encoding="utf-8") as f:
+            data = repair_snapshot(json.load(f), showdown)
+        write_json(OUT, data, separators=(",", ":"))
+        print(f"Offline mechanics repair: {len(data['moves'])} moves; Healer 50%; other snapshot fields unchanged.")
+        return
     print(f"Regulation {REGULATION['id']} ({REGULATION['source']}); "
           f"cache: {'refresh all' if REFRESH else '24-hour TTL'}, {_cache_path('')}")
     roster = fetch_roster()
@@ -1010,7 +1025,6 @@ def main(argv=None):
           f"{len(all_abils) - ab_repo} kept from pokebase/PokeAPI")
 
     # ---- derived per-mon fields + rarity tallies ----
-    usage_rates = fetch_usage_rates()
     out_mons = []
     for mon in mons:
         phys = spec = 0
@@ -1029,19 +1043,12 @@ def main(argv=None):
                 spec_top = max(spec_top, pw)
         for a in mon["abilities"]:
             abil_count[a["slug"]] += 1
-        # Global source usage rate: own list-page row, else inherit the base form's
-        # (megas share their base mon's ladder identity)
-        pct = usage_rates.get(mon["slug"])
-        if pct is None:
-            base_slug = mon["slug"].split("-mega")[0]
-            pct = usage_rates.get(base_slug)
         out_mons.append({
             "id": mon["pid"], "slug": mon["slug"], "name": mon["species"],
             "dex": mon["dex"], "formLabel": mon["formLabel"],
             "category": mon["category"], "isMega": mon["isMega"],
             "available": mon["available"], "types": mon["types"],
             "stats": mon["stats"], "bst": mon["bst"], "weight": mon["weight"],
-            "usagePct": pct,
             "abilities": [{"slug": a["slug"], "hidden": a["hidden"]}
                           for a in mon["abilities"]],
             "moves": sorted(ids),
@@ -1050,8 +1057,6 @@ def main(argv=None):
                     "physTop": phys_top, "specTop": spec_top},
             "gen": mon["gen"],
             "sprite": mon["sprite"], "artwork": mon["artwork"],
-            "usage": {k: (sorted(v, key=lambda x: -x[1]) if isinstance(v, list) else v)
-                      for k, v in mon["usage"].items()},
         })
 
     moves_out = {}
@@ -1069,6 +1074,10 @@ def main(argv=None):
         a = abil_meta[slug]
         abils_out[slug] = {"name": a["name"], "desc": a["desc"],
                            "count": abil_count[slug]}
+
+    # Must run after ALL source merges, so stale mainline descriptions cannot
+    # overwrite Champions corrections. Same path as --repair-mechanics.
+    apply_mechanics(moves_out, abils_out, {sid: m["raw"] for sid, m in showdown.items()})
 
     # Distinguish forms whose *default* entry is itself a named form (e.g. dex 681 has
     # "aegislash-shield" with no label next to "aegislash-blade"). For any unlabeled

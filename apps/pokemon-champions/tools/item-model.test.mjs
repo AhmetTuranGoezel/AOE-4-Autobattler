@@ -66,7 +66,7 @@ assert.equal(ground(["steel"], null, "air-balloon"), 0);
 assert.equal(ground(["steel"], "klutz", "air-balloon"), 2);
 assert.equal(ground(["flying", "steel"], null, "iron-ball"), 1);
 assert.equal(ground(["steel"], "levitate", "iron-ball"), 2);
-assert.equal(usageItem(mon("sirfetchd")), "leek");
+assert.equal(usageItem({ ...mon("sirfetchd"), usage: { items: [["Leek", 100]] } }), "leek");
 const mc = ["air-balloon", "binding-band", "eject-button", "electric-seed", "grassy-seed", "leek", "misty-seed", "normal-gem", "psychic-seed", "red-card", "rocky-helmet", "terrain-extender", "absolite-z", "baxcalibrite", "garchompite-z", "golisopite", "lucarionite-z", "salamencite"];
 for (const id of mc) assert.ok(ITEM_CATALOG[id], id);
 for (const id of ["choice-band", "choice-specs", "assault-vest", "loaded-dice", "power-herb", "eviolite"]) assert.ok(!ITEM_CATALOG[id], id);

@@ -65,21 +65,33 @@ def run(screenshots=False):
                 assert page.locator("tbody tr:not(.pinned)[data-slug] td.rank").all_text_contents() == ["1"]
                 page.locator('[data-slug="pyroar-male"] .nm-top').click()
                 print("  checking Pyroar details", flush=True)
+                page.locator('#detail-tab-moves').click()
                 assert "Serebii" in page.locator(".detail-moves .learnset-note").inner_text()
                 assert page.locator(".detail-moves .mv-row").count() == 49
                 page.locator("#detail [data-close]").click()
                 page.locator("#search").fill("Sirfetch")
                 page.locator('[data-slug="sirfetchd"] .nm-top').click()
                 print("  checking Sirfetchd item usage", flush=True)
-                item_card = page.locator(".detail-usage .use-cat").filter(has=page.locator(".use-lab", has_text="Item"))
-                sirfetchd = next(mon for mon in data["pokemon"] if mon["slug"] == "sirfetchd")
-                assert item_card.locator(".use-name").all_text_contents() == [name for name, _ in sirfetchd["usage"]["items"]]
+                page.locator('#detail-tab-meta').click()
+                item_card = page.locator('[data-meta-category="items"]')
+                meta = json.loads((APP / "champions-meta.json").read_text(encoding="utf-8"))
+                sirfetchd = meta['datasets'][meta['defaultRegulation']]['pokemon']['sirfetchd']
+                while item_card.locator('[data-meta-more="items"]').count():
+                    item_card.locator('[data-meta-more="items"]').click()
+                assert item_card.locator(".use-name").all_text_contents() == [row['name'] for row in sirfetchd['items']]
                 assert not any(name in item_card.inner_text() for name in ("Armarouge", "Indeedee", "Salamence", "Meteor Assault"))
                 page.locator("#detail [data-close]").click()
                 page.locator('[data-tab="team"]').click()
                 assert "excluded from team analysis" in page.locator(".team-member").first.inner_text()
                 for tab in ("moves", "abilities", "calc", "coverage", "pokemon"):
                     page.locator(f'[data-tab="{tab}"]').click()
+                    if tab == "moves":
+                        page.get_by_placeholder('Search move or effect…', exact=True).fill('Shift Gear')
+                        shift_id = next(key for key, move in data['moves'].items() if move['name'] == 'Shift Gear')
+                        chips = page.locator(f'tr[data-move="{shift_id}"] .mv-sec .mv-chance').all_text_contents()
+                        assert sorted(chips) == ['+1 Atk self', '+2 Spe self'], chips
+                        page.get_by_placeholder('Search move or effect…', exact=True).fill('')
+                        print('  Shift Gear renders +1 Atk self and +2 Spe self', flush=True)
                 print("  tabs checked", flush=True)
                 if width < 640:
                     page.locator("#view-grid").click()

@@ -10,6 +10,7 @@ import { damageAbilities, offenseMult, offDefaultAbility, stageMult, OFF_ITEMS, 
 import { analysisItemChoices, itemSelect, normalizeItem, itemDamage, itemAccuracy, itemSpeed, seedEffect, critChance, isGrounded, itemAtHit, itemLabel } from "./item-model.js";
 import { POOL, CAP, pointsUsed } from "./stat-lab.js";
 import { attachAutocomplete } from "./autocomplete.js";
+import { statEffectChips } from "./move-effects.js";
 
 const COLS = [
   { key: "name", label: "Move" },
@@ -38,7 +39,7 @@ const sortVal = (m, k) => (k === "target" ? targetLabel(m.target)
   : STR_KEYS.has(k) ? (m[k] || "")
   : (m[k] == null ? -1 : m[k]));
 
-// What a move DOES, as searchable facets — derived from its secondaries, effect text,
+// What a move DOES, as searchable facets — derived from structured stat changes, secondaries, effect text,
 // class and priority. `chance` = its most reliable secondary (100 for guaranteed effects
 // of status moves).
 const FACETS = {
@@ -47,37 +48,25 @@ const FACETS = {
 };
 const WEATHER_MOVES = new Set(["Rain Dance", "Sunny Day", "Sandstorm", "Snowscape", "Chilly Reception",
   "Electric Terrain", "Grassy Terrain", "Psychic Terrain", "Misty Terrain"]);
-const STAT_SHORT = { attack: "Atk", defense: "Def", "special attack": "Sp.Atk", "special defense": "Sp.Def", speed: "Spe", accuracy: "Acc", evasiveness: "Eva", evasion: "Eva" };
-// "Lowers the target's Attack and Special Attack by 1 stage" → chips + facets. These are
-// PRIMARY effects (guaranteed, unlike chance-based secondaries) and were previously invisible
-// in the Effect column.
-const STAGE_RE = /(Lowers|Raises) the (target|user|foe)'s ([A-Za-z ,]+?) by (\d+) stages?/gi;
 const PRIM_STATUS_RE = /(Paralyzes|Burns|Poisons|Badly poisons|Confuses) the (target|foe)|puts? the target[^.]{0,24}to sleep/i;
-function classifyMove(m) {
+export function classifyMove(m) {
   const facets = new Set();
-  const chips = [];
+  const chips = statEffectChips(m);
   let chance = 0;
   const eff = m.effect || "";
   for (const [c, l] of (m.secondaries || [])) {
     const lab = l || "";
-    if (lab.startsWith("−") || lab.startsWith("-")) { facets.add("drops"); chance = Math.max(chance, c); }
-    else if (/burn|paraly|poison|freeze|sleep|confusion/.test(lab)) { facets.add("status"); chance = Math.max(chance, c); }
+    if (/burn|paraly|poison|freeze|sleep|confusion/.test(lab)) { facets.add("status"); chance = Math.max(chance, c); }
     else if (lab === "flinch") { facets.add("flinch"); chance = Math.max(chance, c); }
     else if (lab) chance = Math.max(chance, c);
   }
-  // primary stat-stage effects (Noble Roar, Swords Dance, Armor Cannon's self-drop, …)
+  // All stats and recipients come from the same model used for calculator setup.
   let selfBoost = false, selfDrop = false;
-  for (const mm of eff.matchAll(STAGE_RE)) {
-    const [, verb, who, statsTxt, n] = mm;
-    const lower = verb.toLowerCase() === "lowers";
-    const self = who.toLowerCase() === "user";
-    const stats = statsTxt.toLowerCase().split(/,| and /).map((s) => STAT_SHORT[s.trim()]).filter(Boolean);
-    for (const st of stats) {
-      chips.push({ txt: `${lower ? "−" : "+"}${n} ${st}${self ? " self" : ""}`, cls: self ? (lower ? "cost" : "gain") : (lower ? "sure" : "gain") });
-    }
-    if (self && stats.length) { if (lower) selfDrop = true; else selfBoost = true; }
-    if (lower && !self && stats.length) { facets.add("drops"); chance = Math.max(chance, 100); }
-    if (!lower && stats.length) { facets.add("raises"); chance = Math.max(chance, 100); }
+  for (const chip of chips) {
+    const lower = chip.amount < 0;
+    facets.add(lower ? "drops" : "raises");
+    chance = Math.max(chance, chip.chance);
+    if (chip.recipient === "self") { if (lower) selfDrop = true; else selfBoost = true; }
   }
   // primary status infliction (Thunder Wave, Will-O-Wisp, Spore, …)
   const ps = eff.match(PRIM_STATUS_RE);
@@ -85,7 +74,6 @@ function classifyMove(m) {
     facets.add("status"); chance = Math.max(chance, 100);
     chips.push({ txt: ps[1] ? `100% ${ps[1].toLowerCase().replace("badly poisons", "toxic").replace(/s$/, "")}` : "100% sleep", cls: "sure" });
   }
-  if (/raises? the user|boosts? the user|raises? its own/i.test(eff)) { facets.add("raises"); selfBoost = true; }
   if (/(restores?|recovers?).{0,30}hp|drains?|leech|user gains|heals? the user/i.test(eff)) facets.add("heal");
   if ((m.priority || 0) > 0) facets.add("priority");
   if (/stealth rock|spikes|sticky web/i.test(eff)) facets.add("hazard");
@@ -107,19 +95,6 @@ const EFF_FILTERS = {
 export function movePassesRankExclusions(id, slug, excluded, monExcluded, monAllowed) {
   if (monExcluded.get(slug)?.has(id)) return false;
   return !excluded.has(id) || Boolean(monAllowed.get(slug)?.has(id));
-}
-
-// Secondary effects in the data carry an EMPTY label for self stat-raises (e.g. Steel Wing [10,""]),
-// so the chip showed a bare "10%". Recover a short label from the effect text: "10% ↑Def".
-function secLabel(rawLabel, effect) {
-  if (rawLabel) return rawLabel;
-  const e = (effect || "").toLowerCase();
-  if (/raise all|all of the user'?s stats/.test(e)) return "↑all";
-  let m = e.match(/raise the user'?s ([a-z. ]+?) by/);
-  if (m) return `↑${STAT_SHORT[m[1].trim()] || m[1].trim()}`;
-  m = e.match(/lower the target'?s ([a-z. ]+?) by/);
-  if (m) return `↓${STAT_SHORT[m[1].trim()] || m[1].trim()}`;
-  return "";
 }
 
 // --- Expected damage: BP folded with accuracy, crit, multi-hit + conditional signature effects ---
@@ -1334,8 +1309,13 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
         <td class="num mv-pp">${m.pp ?? "—"}</td>
         <td class="num mv-prio">${m.priority ? (m.priority > 0 ? "+" + m.priority : m.priority) : "0"}</td>
         <td class="mv-sec">${[
-          ...(m.secondaries || []).map(([c, l]) => { const lab = secLabel(l, m.effect); return `<span class="mv-chance ${c >= 100 ? "sure" : c >= 50 ? "often" : "rare"}" title="secondary-effect chance">${c}%${lab ? " " + lab : ""}</span>`; }),
-          ...m._fx.chips.map((ch) => `<span class="mv-chance ${ch.cls}" title="guaranteed primary effect">${ch.txt}</span>`),
+          ...(m.secondaries || []).flatMap(([c, lab], index) => {
+            // Stat chips are already rendered from the structured model. Retain
+            // any accompanying status/flinch effect at this same probability.
+            if (m.statChanges?.secondary?.some(s => s.index === index) && (!lab || /^[+−-]/.test(lab))) return [];
+            return [`<span class="mv-chance ${c >= 100 ? "sure" : c >= 50 ? "often" : "rare"}" title="secondary-effect chance">${c}%${lab ? " " + lab : ""}</span>`];
+          }),
+          ...m._fx.chips.map((ch) => `<span class="mv-chance ${ch.cls}" title="${ch.title || "Primary status effect"}">${ch.txt}</span>`),
           ...(m._ep && m._ep.cond ? [`<span class="mv-chance cond" title="conditional damage — folds into Expected with 'best-case effects' on">${m._ep.cond.note}</span>`] : []),
           ...(m._ep && m._ep.critNote ? [`<span class="mv-chance often" title="raises Expected damage">${m._ep.critNote}</span>`] : []),
           ...(OHKO_MV.has(m.name) ? [`<span class="mv-chance sure" title="One-hit KO — KOs any target it hits, ignoring HP">OHKO</span>`] : []),

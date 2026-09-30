@@ -6,6 +6,7 @@ import { TYPES, TYPE_COLORS, displayName, learnsetNotice, confirmedMoveIds } fro
 import { statsFor, roleOf, speedTier } from "./effective-stats.js";
 import { rosterAbilities } from "./type-defense.js";
 import { itemSelect, itemSpeed, itemLabel } from "./item-model.js";
+import { SET_STATS, NATURES, natureMultiplier } from "./set-model.js";
 import {
   buildDefensiveProfile, buildOffensiveProfile, rankTypingRecommendations,
 } from "./team-analysis.js";
@@ -23,6 +24,7 @@ function effInfo(mult) {
 }
 const typePill = (t) => `<span class="type" style="background:${TYPE_COLORS[t]}">${t}</span>`;
 const nameOf = (m) => m._display || displayName(m);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 function renderRecommendationList(items) {
   if (!items.length) return `<p class="muted fit-empty">No available typings remain outside this roster.</p>`;
@@ -64,7 +66,7 @@ function renderRecommendationList(items) {
 }
 
 export function renderTeamView(container, {
-  data, team, savedTeams = [], notice = "", share = null, analysisScope = "full",
+  data, team, savedTeams = [], notice = "", share = null, analysisScope = "full", teamContext = {},
 }) {
   const chart = data.typeChart;
   const bySlug = new Map(data.pokemon.map((m) => [m.slug, m]));
@@ -78,35 +80,36 @@ export function renderTeamView(container, {
   // --- team manager (save / load / delete multiple teams) ---
   const savedRows = savedTeams.length
     ? savedTeams.map((t) => `<div class="tm-saved-row">
-        <button class="tm-load" data-load-team="${t.id}" title="Load this team">
-          <span class="tm-saved-name">${t.name}</span>
+        <button class="tm-load ${teamContext.loadedId === t.id ? "on" : ""}" data-load-team="${esc(t.id)}" aria-pressed="${teamContext.loadedId === t.id}" title="Load this team">
+          <span class="tm-saved-name">${esc(t.name)}</span>
           <span class="tm-saved-sprites">${t.members.slice(0, TEAM_MAX).map((mm) => {
             const mo = bySlug.get(mm.slug);
             return mo ? `<img src="${mo.sprite || mo.artwork || ""}" alt="" title="${nameOf(mo)}">` : "";
           }).join("")}</span>
         </button>
-        <button class="tm-share" data-share-team="${t.id}" aria-label="Share team" title="Copy a share link — opening it imports this team anywhere">⤴</button>
-        <button class="tm-del" data-del-team="${t.id}" aria-label="Delete team" title="Delete">✕</button>
+        <button class="tm-share" data-share-team="${esc(t.id)}" aria-label="Share team" title="Copy a share link — opening it imports this team anywhere">⤴</button>
+        <button class="tm-del" data-del-team="${esc(t.id)}" aria-label="Delete team" title="Delete">✕</button>
       </div>`).join("")
     : `<p class="muted tm-none">No saved teams yet — build one below and press Save.</p>`;
 
   const manager = `<div class="team-manager">
     <div class="tm-save">
-      <input class="team-name" placeholder="Team name…" maxlength="30" autocomplete="off">
-      <button class="btn-sm" data-save-team ${team.length ? "" : "disabled"}>Save</button>
+      <input class="team-name" aria-label="Team name" value="${esc(teamContext.name)}" placeholder="Team name…" maxlength="160" autocomplete="off">
+      <button class="btn-sm" data-save-team ${team.length ? "" : "disabled"}>${teamContext.loadedId && teamContext.name?.trim() !== teamContext.originalName ? "Save as new" : "Save"}</button>
       <button class="btn-sm" data-new-team ${team.length ? "" : "disabled"} title="Clear the current team">Clear team</button>
       <button class="btn-sm" data-share-working ${team.length ? "" : "disabled"} title="Get a short share link — opening it imports the team on any browser/PC">⤴ Share</button>
       <input class="tm-import" placeholder="Import: paste a link or code…" autocomplete="off" spellcheck="false">
     </div>
     ${share ? `<div class="tm-share-pop">
-      <div class="tm-share-head"><b>Share “${share.name}”</b><button class="tc-detail-x" data-share-close aria-label="Close">✕</button></div>
+      <div class="tm-share-head"><b>Share “${esc(share.name)}”</b><button class="tc-detail-x" data-share-close aria-label="Close">✕</button></div>
       <div class="tm-share-row">
-        <input class="tm-share-link" readonly value="${share.url}" onclick="this.select()">
+        <input class="tm-share-link" readonly value="${esc(share.url)}" onclick="this.select()">
         <button class="btn accent" data-share-copy>Copy link</button>
       </div>
       <small class="muted">Anyone opening this link gets the team imported automatically — works on any browser or PC.</small>
     </div>` : ""}
-    ${notice ? `<div class="tm-notice">${notice}</div>` : ""}
+    <small class="muted">${teamContext.loadedId ? "Loaded saved team. Keep its name to update it; change its name to save a new copy." : "Unsaved working team. Save creates a named team."}</small>
+    ${notice ? `<div class="tm-notice" role="status">${esc(notice)}</div>` : ""}
     <div class="tm-saved">${savedRows}</div>
   </div>`;
 
@@ -120,7 +123,7 @@ export function renderTeamView(container, {
   // --- member cards (sprite + types + ability + moveset) ---
   const itemCounts = new Map();
   for (const entry of team) if (entry.item && !["none", "mega-stone"].includes(entry.item)) itemCounts.set(entry.item, (itemCounts.get(entry.item) || 0) + 1);
-  const members = team.map(({ mon, moveIds, ability, picked, item }) => {
+  const members = team.map(({ mon, moveIds, ability, picked, item, nature, spread }) => {
     const unconfirmed = moveIds.filter((id) => !mon.moves.includes(id));
     const chips = moveIds.map((id) => {
       const mv = data.moves[id];
@@ -158,6 +161,10 @@ export function renderTeamView(container, {
       </div>
       ${abilSel}
       <div class="tm-abil"><span class="tm-abil-label">Held item</span>${itemSelect(`data-team-item="${mon.slug}"`, item, mon, ability)}</div>
+      <details class="tm-build" ${spread || nature ? "open" : ""}><summary>Nature &amp; Stat Points${spread ? ` · ${SET_STATS.map((k) => spread[k]).join(" / ")}` : " · not set"}</summary>
+        <label>Nature <select class="cl-sel" data-team-nature data-slug="${mon.slug}" aria-label="${esc(nameOf(mon))} nature"><option value="">Not set</option>${NATURES.map((n) => `<option value="${n}" ${nature === n ? "selected" : ""}>${n}</option>`).join("")}</select></label>
+        <div class="tm-build-points">${SET_STATS.map((k) => `<label>${k === "spe" ? "Spe" : k === "spd" ? "SpD" : k === "spa" ? "SpA" : k.toUpperCase()}<input type="number" min="0" max="32" value="${spread?.[k] ?? ""}" placeholder="—" data-team-stat="${k}" data-slug="${mon.slug}" aria-label="${esc(nameOf(mon))} ${k} points"></label>`).join("")}</div>
+        <small class="item-note">${spread ? `${SET_STATS.reduce((sum, k) => sum + spread[k], 0)}/66 points` : "No exact spread set. Damage uses its configured defaults until you enter points."}</small></details>
       ${(itemCounts.get(item) || 0) > 1 ? `<p class="learnset-note learnset-warning">Duplicate ${itemLabel(item)}: check Item Clause before battling.</p>` : ""}
       ${mon.learnset?.status === "unverified" ? `<p class="learnset-note learnset-warning">${learnsetNotice(mon)}</p>` : ""}
       ${unconfirmed.length ? `<p class="learnset-note learnset-warning">${unconfirmed.length} saved move(s) not confirmed by this snapshot; excluded from team analysis.</p>` : ""}
@@ -166,7 +173,7 @@ export function renderTeamView(container, {
   }).join("") || `<p class="team-empty">No Pokémon yet — add up to ${TEAM_MAX} above to analyse the team.</p>`;
 
   const head = `<div class="team-head"><h2>Team Builder</h2>
-    <p class="calc-note">Up to 6 Pokémon with movesets — coverage and speed update live. Saved automatically.</p></div>`;
+    <p class="calc-note">Up to 6 Pokémon with movesets — coverage and speed update live. Working edits persist in this browser; use Save to update a named team.</p></div>`;
 
   const analysisBar = team.length ? `<div class="team-analysis-bar">
     <div class="team-analysis-copy">
@@ -282,7 +289,7 @@ export function renderTeamView(container, {
     : `<p class="cov-help cov-empty">Add damaging moves to your team to see super-effective coverage.</p>`;
 
   // --- speed tiers ---
-  const speedOf = (entry) => Math.max(1, Math.floor(statsFor(entry.mon, "lv50").spe * itemSpeed(entry.item, entry.ability, "none", entry.mon)));
+  const speedOf = (entry) => Math.max(1, Math.floor(Math.floor((statsFor(entry.mon, "lv50").spe + (entry.spread?.spe || 0)) * natureMultiplier(entry.nature, "spe")) * itemSpeed(entry.item, entry.ability, "none", entry.mon)));
   const bySpeed = [...analysisTeam].sort((a, b) => speedOf(b) - speedOf(a));
   const speedList = bySpeed.map((entry) => {
     const m = entry.mon, lv = speedOf(entry);
@@ -347,7 +354,7 @@ export function renderTeamView(container, {
       </div>
       <div class="team-col">
         <section class="team-card">
-          <h3>Speed tiers <small>Lv50 · 0 points · item-aware · no field</small></h3>
+          <h3>Speed tiers <small>Lv50 · saved points/Nature, otherwise 0/neutral · item-aware · no field</small></h3>
           <div class="spd-list">${speedList}</div>
         </section>
         <section class="team-card">

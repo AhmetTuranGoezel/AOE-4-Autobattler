@@ -16,8 +16,10 @@ class UsageSnapshotTests(unittest.TestCase):
         if not cache.is_dir():
             self.skipTest("Optional source audit requires a local generation cache")
         checked = 0
+        legacy_path = Path(gen.OUT).with_name('champions-meta-legacy.json')
+        legacy = json.loads(legacy_path.read_text(encoding='utf-8')).get('pokemon', {}) if legacy_path.exists() else {}
         for mon in data["pokemon"]:
-            items = mon.get("usage", {}).get("items", [])
+            items = (mon.get("usage") or legacy.get(mon['slug'], {}).get('usage') or {}).get("items", [])
             if not items:
                 continue
             path = cache / f"pbmon_{mon['slug']}.json"

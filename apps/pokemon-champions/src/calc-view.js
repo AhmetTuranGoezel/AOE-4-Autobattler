@@ -9,6 +9,8 @@ import { defaultAbility, applyAbility } from "./type-defense.js";
 import { POOL, CAP, pointsUsed, optimizeSpread, emptySpread } from "./stat-lab.js";
 import { hasFlag, OFF_ABIL, abilityMods, hiStatOf, ATE_ABIL, PROTEAN, offDefaultAbility, stageMult, expectedHitsForAccuracy } from "./offense-model.js";
 import { normalizeItem, itemLabel, itemSelect, itemActive, itemDamage, itemAccuracy, itemSpeed, seedEffect, itemAtHit, isGrounded, resistBerry, critChance, usageItem } from "./item-model.js";
+import { NATURES, natureMultiplier as natureMult } from "./set-model.js";
+import { setupEffect, formatStatChanges } from "./move-effects.js";
 
 const pokeRound = (v) => { const f = Math.floor(v); return v - f > 0.5 ? f + 1 : f; };
 function computeDamage(p) {
@@ -175,7 +177,7 @@ function conditionalMods(mv, ctx) {
 // The attacking stat a move actually uses (Foul Play = target's Atk; Body Press = user's Def).
 // `key` = which stat a nature/boost/invest applies to.
 function attackStat(entry, target, mv, cat) {
-  if (mv.name === "Foul Play") return { base: target.lv.atk, invest: false, key: "atk", note: "target's Atk" };
+  if (mv.name === "Foul Play") return { base: target.threat?.atk ?? target.lv.atk, invest: false, key: "atk", note: "target's Atk" };
   if (mv.name === "Body Press") return { base: entry.lv.def, invest: true, key: "def", note: "user's Def" };
   return { base: cat === "physical" ? entry.lv.atk : entry.lv.spa, invest: true, key: cat === "physical" ? "atk" : "spa", note: null };
 }
@@ -213,20 +215,6 @@ const TARGET_DMG = {
 };
 // --- nature / item / field-condition model (items verified present in Champions) ----
 // Natures: +10% / -10% on the [plus, minus] stats. Neutral natures omitted (no effect).
-const NATURE_MODS = {
-  lonely: ["atk", "def"], brave: ["atk", "spe"], adamant: ["atk", "spa"], naughty: ["atk", "spd"],
-  bold: ["def", "atk"], relaxed: ["def", "spe"], impish: ["def", "spa"], lax: ["def", "spd"],
-  timid: ["spe", "atk"], hasty: ["spe", "def"], jolly: ["spe", "spa"], naive: ["spe", "spd"],
-  modest: ["spa", "atk"], mild: ["spa", "def"], quiet: ["spa", "spe"], rash: ["spa", "spd"],
-  calm: ["spd", "atk"], gentle: ["spd", "def"], sassy: ["spd", "spe"], careful: ["spd", "spa"],
-};
-function natureMult(nature, stat) {
-  const n = NATURE_MODS[(nature || "").toLowerCase()];
-  if (!n) return 1;
-  return n[0] === stat ? 1.1 : n[1] === stat ? 0.9 : 1;
-}
-// Defensively-relevant natures for the target's picker (raise Def or SpD, or neutral).
-const DEF_NATURES = ["Bold", "Impish", "Lax", "Relaxed", "Calm", "Careful", "Gentle", "Sassy", "Serious"];
 
 // Offensive items (OFF_ITEMS) are shared via offense-model.js — the Moves table uses the same list.
 // The target holds ONE item (Champions-only). Offensive ones (Life Orb…) boost its return damage;
@@ -302,7 +290,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
     customMons: [], customDraft: null,
     // "Team check" mode: opponents to test the saved team against; teamExpanded = the
     // "memberSlug|threatSlug" cell whose fix-it detail panel is open (transient, not persisted)
-    threats: [], teamExpanded: null,
+    threats: [], teamExpanded: null, opponentSets: {}, opponentTitle: "", opponentNotes: [],
   };
   const tc = () => eb.targets[eb.editing];   // the target config the editor is bound to
   const TCFG_KEYS = new Set(["nature", "item", "defStage", "spdStage", "speStage"]);   // per-target scalars routed through the generic select/stage handlers
@@ -316,7 +304,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
     "weather", "terrain", "screen", "doubles",
     "atkInvest", "atkNature", "atkItem", "atkBoost", "atkSpeed", "candBulk", "useAccuracy",
     "threshold", "fTypeMode", "fCat", "fRole", "fAvail", "fMega", "fSurvive", "fFaster", "showTypeFilters",
-    "customMons", "threats"];
+    "customMons", "threats", "opponentSets", "opponentTitle", "opponentNotes"];
   function serializeLab() {
     const out = { mode: s.mode, targets: eb.targets.map((c) => (c ? { ...c, spread: { ...c.spread } } : null)),
       fTypesOff: [...eb.fTypesOff], moveTypesOff: [...eb.moveTypesOff], revTypesOff: [...eb.revTypesOff],
@@ -387,7 +375,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
   const customMons = () => [...customIdx.values()];
   const nextCustomId = () => String(Date.now()) + Math.random().toString(36).slice(2, 6);
   const capNat = (x) => x[0].toUpperCase() + x.slice(1);
-  const NAT_NAMES = Object.fromEntries(Object.keys(NATURE_MODS).map((n) => [capNat(n), capNat(n)]));   // all named natures
+  const NAT_NAMES = Object.fromEntries(NATURES.map((n) => [capNat(n), capNat(n)]));
   // Attacker natures include the smart "auto" (+10% to whatever stat the move uses — Def for Body Press);
   // target natures are named-only.
   const natSelect = (dataAttr, cur, withAuto = false) => {
@@ -404,9 +392,9 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
         <button data-calcmode="team">Team check</button>
       </div>
       <h2 class="calc-title-ehp" hidden>All vs one <small class="muted">— the whole roster's damage into one or two targets</small></h2>
-      <p class="calc-note calc-title-ehp" hidden>Pick a target — its defensive set prefills from real ladder usage; edit its investment, nature, boosts, ability and field conditions. Add a 2nd target to find attackers that break both. Real Gen-9 damage (0.85–1.00 roll) vs its real HP.</p>
+      <p class="calc-note calc-title-ehp" hidden>Pick a target to prefill a snapshot-based estimate, then edit its build. A captured spread/Nature pair is preferred; otherwise Nature is neutral. Popular items and moves are separate aggregates, not a verified complete set. Add a second target to find shared counters.</p>
       <h2 class="calc-title-rev" hidden>One vs all <small class="muted">— your attacker's damage into the whole roster</small></h2>
-      <p class="calc-note calc-title-rev" hidden>Pick an attacker and set its offense; every defender is built from its own ladder set (Champions exposes per-mon usage, not a global usage share). Ranked by damage.</p>
+      <p class="calc-note calc-title-rev" hidden>Pick an attacker and set its offense. Defenders use editable snapshot estimates or the selected baseline. Aggregate items and moves do not establish a complete observed set. Ranked by damage.</p>
       <h2 class="calc-title-team" hidden>Team check <small class="muted">— can your team handle these threats?</small></h2>
       <p class="calc-note calc-title-team" hidden>Uses your selected Battle Four from the Team tab, falling back to the full team when no battle picks are selected. Add opponents to see each teammate's best answer and where the squad is exposed.</p>
     </div>
@@ -474,23 +462,16 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
 
   const $ = (sel) => container.querySelector(sel);
 
-  // Pick a target and prefill its defensive set from real ladder usage.
-  // Build a defensive config for a mon from its ladder usage. usage.spread lists each stat's
-  // most-common investment INDEPENDENTLY, so the six values can sum past the 66-point pool —
-  // allocate greedily in usage-% order until the pool runs out. Reused for targets AND the
-  // "One vs all" defenders.
+  // Snapshot estimate, not a claim that independently popular choices form a real set.
+  // Only actual complete spreads may prefill points; never combine marginal modes.
   function usageCfg(mon) {
     const u = mon.usage || {};
-    const spread = { hp: 0, def: 0, spd: 0, spe: 0, atk: 0, spa: 0 };
-    let pool = POOL;
-    Object.entries(u.spread || {})
-      .map(([k, v]) => ({ k, pts: (v || [0])[0] || 0, pct: (v || [0, 0])[1] || 0 }))
-      .filter((x) => x.pts > 0 && x.k in spread)
-      .sort((a, b) => b.pct - a.pct)
-      .forEach((x) => { const give = Math.min(x.pts, CAP, pool); spread[x.k] = give; pool -= give; });
+    // Never manufacture a six-stat build from independent modal investments.
+    const observed = mon.metaUsage?.observedSpreads?.[0];
+    const spread = { ...(observed?.stats || mon.metaUsage?.spreads?.[0]?.stats || emptySpread()) };
     return {
       slug: mon.slug, spread,
-      nature: (u.natures && u.natures[0] && u.natures[0][0]) || "Serious",
+      nature: observed?.natures?.[0]?.id || "Serious", // no association -> explicit neutral assumption
       defStage: 0, spdStage: 0, speStage: 0,
       ability: offDefaultAbility(mon),   // its actual most-used ability (may be Multiscale, Intimidate, …)
       item: usageItem(mon),
@@ -723,10 +704,15 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
     }
     const trm = e.target.closest("[data-threat-remove]");
     if (trm) { eb.threats = eb.threats.filter((sl) => sl !== trm.dataset.threatRemove); eb.teamExpanded = null; renderTeam(); return; }
-    if (e.target.closest("[data-threats-clear]")) { eb.threats = []; eb.teamExpanded = null; renderTeam(); return; }
+    if (e.target.closest("[data-threats-clear]")) { eb.threats = []; eb.opponentSets = {}; eb.opponentTitle = ""; eb.opponentNotes = []; eb.teamExpanded = null; renderTeam(); return; }
     if (e.target.closest("[data-goto-team]")) { onGotoTeam && onGotoTeam(); return; }
     const t2c = e.target.closest("[data-threat2counter]");
-    if (t2c) { eb.editing = 0; s.mode = "ehp"; eb.expanded = null; setTarget(t2c.dataset.threat2counter); syncMode(); return; }
+    if (t2c) {
+      const slug = t2c.dataset.threat2counter;
+      eb.editing = 0; s.mode = "ehp"; eb.expanded = null; setTarget(slug);
+      if (eb.opponentSets?.[slug]) eb.targets[0] = structuredClone(eb.opponentSets[slug]);
+      syncMode(); return;
+    }
     if (e.target.closest("[data-tcell-close]")) { eb.teamExpanded = null; renderTeam(); return; }
     const tcl = e.target.closest("[data-tcell]");
     if (tcl) { eb.teamExpanded = eb.teamExpanded === tcl.dataset.tcell ? null : tcl.dataset.tcell; renderTeam(); return; }
@@ -904,7 +890,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
   }
   // Effective attacker Speed (invest + stages + speed-boosting abilities + Choice Scarf).
   function attackerSpe(entry, st) {
-    let spe = entry.lv.spe + (st.speed === "max" ? 32 : 0);
+    let spe = Math.floor((entry.lv.spe + (st.spread?.spe ?? (st.speed === "max" ? 32 : 0))) * natureMult(st.nature, "spe"));
     if (st.stages && st.stages.spe) spe = Math.max(1, Math.floor(spe * stageMult(st.stages.spe)));
     const a = st.ability;
     if (eb.weather !== "none" && SPEED_ABIL[a] === eb.weather) spe *= 2;         // Sand Rush / Swift Swim / Chlorophyll / Slush Rush
@@ -922,7 +908,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
     const eff = (base, key) => {
       const nat = st.nature === "auto" ? 1.1 : natureMult(st.nature, key);
       const stg = Math.max(-6, Math.min(6, (st.boost || 0) + ((st.stages || NO_STAGES)[key] || 0)));
-      return Math.max(1, Math.floor(Math.floor((base + st.invest) * nat) * stageMult(stg)));
+      return Math.max(1, Math.floor(Math.floor((base + (st.spread?.[key] ?? st.invest)) * nat) * stageMult(stg)));
     };
     return { atk: eff(entry.lv.atk, "atk"), spa: eff(entry.lv.spa, "spa") };
   }
@@ -949,8 +935,8 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
   // The THREAT's damage onto a candidate for one move (%HP min/max) — mirror of the forward calc,
   // honouring the target's ability/item/nature/spread + the candidate's defensive abilities.
   function threatEval(th, defEntry, mv, defenderSettings = null) {
-    const defHP = defEntry.lv.hp + (eb.candBulk === "hp" ? 32 : 0);   // candidates' bulk preset
     const ds = defenderSettings || atkSettings(defEntry);
+    const defHP = defEntry.lv.hp + (ds.spread?.hp ?? (eb.candBulk === "hp" ? 32 : 0));
     const defAbil = ds.ability, defItem = normalizeItem(ds.item, defEntry.mon);
     const defSpeed = attackerSpe(defEntry, ds);
     const ctx = { userWeight: abilWeight(th.weight, th.ability), targetWeight: abilWeight(defEntry.mon.weight, defAbil), userSpe: th.spe, targetSpe: defSpeed, skillLink: th.ability === "skill-link" };
@@ -986,7 +972,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
     else {
       const am = abilityMods(th.ability, { mv, cat, bp: ep.bp, weather: ebW.weather, terrain: eb.terrain, typeEff, first: true, hiStat: hiStatOf(th.mon), status: eb.targetStatus });
       const stab = th.types.includes(mvType) ? (am.stab || 1.5) : 1;
-      let atk = mv.name === "Foul Play" ? defEntry.lv.atk : mv.name === "Body Press" ? th.def : cat === "physical" ? th.atk : th.spa;
+      let atk = mv.name === "Foul Play" ? effOffense(defEntry, ds).atk : mv.name === "Body Press" ? th.def : cat === "physical" ? th.atk : th.spa;
       const chg = CHARGE_MOVES[mv.name];
       if (chg && chg.boost && defAbil !== "unaware") atk = Math.floor(atk * stageMult(1));   // its charge boost hits back too
       // the candidate's own setup stages harden it (Iron Defense = less taken)
@@ -999,8 +985,8 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
         for (const k of ["def", "spd"]) dst[k] = critical ? Math.min(0, dst[k] || 0) : 0;
       }
       const def = cat === "physical" || PSY_DEF.has(mv.name)
-        ? Math.max(1, Math.floor(defEntry.lv.def * stageMult(dst.def || 0)))
-        : Math.max(1, Math.floor(defEntry.lv.spd * stageMult(dst.spd || 0)));
+        ? Math.max(1, Math.floor(Math.floor((defEntry.lv.def + (ds.spread?.def || 0)) * (ds.spread ? natureMult(ds.nature, "def") : 1)) * stageMult(dst.def || 0)))
+        : Math.max(1, Math.floor(Math.floor((defEntry.lv.spd + (ds.spread?.spd || 0)) * (ds.spread ? natureMult(ds.nature, "spd") : 1)) * stageMult(dst.spd || 0)));
       let other = am.mult * cond.mult;
       // Merciless target: guaranteed crit onto a poisoned candidate (unless crit-proof)
       if (defAbil === "fairy-aura" && mvType === "fairy") other *= 4 / 3;   // the candidate's aura boosts the threat's fairy moves too
@@ -1110,7 +1096,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       if (as.invest) {
         // "auto" = +10% to whatever stat the move uses (Atk / SpA / Def for Body Press); named natures via natureMult
         const natM = st.nature === "auto" ? 1.1 : natureMult(st.nature, as.key);
-        atk = Math.floor((atk + st.invest) * natM);
+        atk = Math.floor((atk + (st.spread?.[as.key] ?? st.invest)) * natM);
         // Unaware target ignores the attacker's stat boosts (setup AND charge-turn boosts).
         // Stage = global "+attacking stat" preset + this mon's per-stat stage for the stat
         // THIS move uses (Body Press reads the Def stage — Iron Defense setups work).
@@ -1166,7 +1152,8 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
         const rl = computeDamage({ level: 50, power: pw, atk, def, type: typeEff, stab, crit: critical ? critMult : 1, weather: 1, burn, other: laterOther });
         laterMin = (rl.min * hits / realHP) * 100; laterMax = (rl.max * hits / realHP) * 100;
       }
-      noInvMax = as.invest && st.invest ? maxPct * (as.base / (as.base + st.invest)) : maxPct;
+      const invested = st.spread?.[as.key] ?? st.invest;
+      noInvMax = as.invest && invested ? maxPct * (as.base / (as.base + invested)) : maxPct;
     }
     // one-hit guards: Disguise blocks the first single hit outright; Sash/Sturdy absorb a
     // would-be KO from full HP (multi-hit moves break all three)
@@ -1910,7 +1897,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       <div class="ehp-summary"><b>${nameOf(mon)}</b> reaches <b>${{ any: "damage", ohko: "OHKO", "2hko": "2HKO+", "3hko": "3HKO+" }[eb.threshold]}</b> on <b>${scored.length}</b> defenders${eb.revLaddered ? " (laddered)" : ""}${eb.revMega !== "all" || eb.revTypesOff.size || eb.revSearch ? " · filtered" : ""}.${condChips()}</div>
       ${scored.length ? `<div class="ehp-list">${rows}</div>` : `<p class="ehp-empty">No defender meets the threshold/filters — loosen them.</p>`}
       ${scored.length > CAP ? `<p class="ehp-more">Showing the top ${CAP} of ${scored.length}. Search or filter to narrow it down.</p>` : ""}
-      <p class="ehp-approx">Every defender is built from its own ladder set (spread/nature/ability) — the caret opens the full two-way matchup where its bulk, boosts, Speed, ability and item are editable. Champions exposes per-mon usage, not a global usage share, so this is ranked by damage, not popularity. 📌 pins a defender on top through any filters.</p>`;
+      <p class="ehp-approx">Defenders use snapshot estimates: a captured spread/Nature pair where available, otherwise a complete aggregate spread with neutral Nature (or zero points when undisclosed). Popular ability, item and move choices are independent aggregates. Open the caret to edit assumptions. No comparable global tournament usage share is available; ranking falls back to damage. 📌 pins a defender through filters.</p>`;
   }
   function renderRev() {
     saveLab();
@@ -1988,8 +1975,10 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
   // ---------- "Team check" mode: your team vs a list of threats ----------
   function teamSettings(entry) {
     const member = team().find((m) => m.slug === entry.mon.slug);
-    return { ...atkSettings(entry), ...(member ? { item: normalizeItem(member.item, entry.mon), ability: member.ability } : {}) };
+    return { ...atkSettings(entry), ...(member ? { item: normalizeItem(member.item, entry.mon), ability: member.ability,
+      ...(member.nature ? { nature: member.nature } : {}), ...(member.spread ? { spread: member.spread, nature: member.nature || "Serious" } : {}) } : {}) };
   }
+  const teamThreatTarget = (mon) => eb.opponentSets?.[mon.slug] ? targetFromCfg(eb.opponentSets[mon.slug]) : defenderTarget(mon);
   function addThreat(slug) { if (hasMon(slug) && !eb.threats.includes(slug)) { eb.threats.push(slug); renderTeam(); } }
   // One attacker (team member) vs one threat → a scored cell.
   function teamCell(memberMon, memberMoveIds, threatTarget) {
@@ -2017,7 +2006,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
     // threat chips + clear
     const threatChips = eb.threats.map((sl) => { const m = resolveMon(sl); return m
       ? `<span class="tc-threat"><img src="${m.sprite || m.artwork || ""}" alt="">${nameOf(m)}<button data-threat-remove="${sl}" aria-label="remove">✕</button></span>` : ""; }).join("");
-    controls.innerHTML = `<div class="tc-threatbar">
+    controls.innerHTML = `${eb.opponentTitle ? `<p class="item-note">Published opponent team: ${esc(eb.opponentTitle)}. Exact disclosed sets retained; undisclosed points use 0 and undisclosed natures use neutral as explicit assumptions.</p>${eb.opponentNotes?.length ? `<details><summary>Opponent import notes (${eb.opponentNotes.length})</summary><p class="item-note">${eb.opponentNotes.map(esc).join("; ")}</p></details>` : ""}` : ""}<div class="tc-threatbar">
       <span class="cl-stat-lab">Threats (${eb.threats.length})</span>${threatChips || '<small class="muted">none yet — search above or import your pinned mons</small>'}
       ${eb.threats.length ? `<button class="btn-sm" data-threats-clear>clear</button>` : ""}
     </div>`;
@@ -2036,7 +2025,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
 
     const rows = eb.threats.map((sl) => {
       const tmon = resolveMon(sl); if (!tmon) return "";
-      const target = defenderTarget(tmon);
+      const target = teamThreatTarget(tmon);
       const cells = roster2.map(({ mon, moves }) => teamCell(mon, moves, target));
       const handlers = roster2.filter((_, i) => cells[i].tier === 3).map(({ mon }) => nameOf(mon));
       const riskers = roster2.filter((_, i) => cells[i].tier === 2).map(({ mon }) => nameOf(mon));
@@ -2058,7 +2047,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
     }).join("");
 
     const uncovered = eb.threats.filter((sl) => { const m = resolveMon(sl); if (!m) return false;
-      const target = defenderTarget(m); return !roster2.some(({ mon, moves }) => teamCell(mon, moves, target).tier === 3); });
+      const target = teamThreatTarget(m); return !roster2.some(({ mon, moves }) => teamCell(mon, moves, target).tier === 3); });
     const summary = uncovered.length
       ? `<div class="team-callout warn">⚠ ${uncovered.length} threat${uncovered.length > 1 ? "s" : ""} not cleanly handled: ${uncovered.map((sl) => nameOf(resolveMon(sl))).join(" · ")}</div>`
       : `<div class="team-callout ok">✓ Every threat is handled by at least one teammate.</div>`;
@@ -2081,21 +2070,13 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       <div class="tc-legend"><span class="tc-key tier-3">handled</span><span class="tc-key tier-2">risky</span><span class="tc-key tier-1">can't</span>
         <span class="tc-note">click a cell to see how to fix it · ⚡ outspeeds · 🐢 slower · ⚠ gets OHKO'd back</span></div>
       ${detail}
-      <p class="ehp-approx">Uses saved team items, abilities and chosen moves (full movepool if empty); investment/nature/stages use Damage presets. Threats use usage-snapshot sets. Item switching, recoil knockouts and turn durations are not simulated.</p>`;
+      <p class="ehp-approx">Uses saved team items, abilities, chosen moves and exact points/natures when set (otherwise Damage presets). Imported opponents retain their disclosed sets. Other threats use snapshot-based assumptions, not necessarily one complete observed build. Item switching, recoil knockouts and turn durations are not simulated.</p>`;
   }
 
-  // Setup moves that grant a boost, for naming the "boost fix" (best-effort).
-  const SETUP_MOVES = {
-    "Swords Dance": { key: "atk", n: 2 }, "Nasty Plot": { key: "spa", n: 2 }, "Dragon Dance": { key: "atk", n: 1 },
-    "Bulk Up": { key: "atk", n: 1 }, "Calm Mind": { key: "spa", n: 1 }, "Quiver Dance": { key: "spa", n: 1 },
-    "Work Up": { key: "atk", n: 1 }, "Howl": { key: "atk", n: 1 }, "Growth": { key: "atk", n: 1 },
-    "Tail Glow": { key: "spa", n: 3 }, "Victory Dance": { key: "atk", n: 1 }, "Shift Gear": { key: "atk", n: 1 },
-    "Clangorous Soul": { key: "atk", n: 1 }, "Fillet Away": { key: "atk", n: 2 }, "Belly Drum": { key: "atk", n: 6 },
-  };
   // The "fix-it" detail: how this teammate could better handle this threat (add a move / set up).
   function renderTeamDetail(memberMon, memberMoves, threatMon) {
     const entry = { mon: memberMon, lv: statsFor(memberMon, "lv50") };
-    const threatTarget = defenderTarget(threatMon);
+    const threatTarget = teamThreatTarget(threatMon);
     const teamSet = new Set(memberMoves || []);
     const cur = teamCell(memberMon, memberMoves, threatTarget);   // current locked-moveset result
     const curKO = cur.ko != null ? cur.ko : 99;
@@ -2112,17 +2093,26 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       ? `<div class="tc-fix good"><span class="tc-fix-ico">⊕</span><span class="type tiny" style="background:${TYPE_COLORS[moveFix.effType]}">${moveFix.effType}</span><b>${moveFix.mv.name}</b> → ${verdict(moveFix).txt} <small class="muted">(now ${cur.label})</small>
           ${canAdd ? `<button class="btn-sm tc-addmove" data-addteammove="${memberMon.slug}:${moveFix.id}">＋ add to team</button>` : `<small class="muted tc-swap">team full — swap a move for it</small>`}</div>`
       : "";
-    // ---- fix 2: minimal setup boost (on the current team moves) that reaches the threshold ----
+    // ---- fix 2: one successful use of an actual learnable setup move ----
     const thr = eb.threshold === "any" ? 2 : eb.threshold === "ohko" ? 1 : eb.threshold === "2hko" ? 2 : 3;
     const stLock = teamSettings(entry);
     if (Array.isArray(memberMoves) && memberMoves.length) stLock.moveset = memberMoves;
     let boostFix = "";
-    for (const b of [1, 2]) {
-      const r = bestVsTarget(entry, threatTarget, { ...stLock, boost: b });
+    const setupContext = { weather: stLock.ability === "mega-sol" ? "sun" : eb.weather,
+      item: stLock.item, ability: stLock.ability, types: memberMon.types };
+    // The legacy global boost applies to attacking stats (including Body Press's
+    // Defense). Fold it into stages once before applying the complete effect.
+    const beforeSetup = { ...stLock.stages };
+    for (const key of ["atk", "spa", "def"]) beforeSetup[key] = Math.max(-6, Math.min(6, (beforeSetup[key] || 0) + (stLock.boost || 0)));
+    const setups = (memberMon.moves || []).map(id => ({ id, move: data.moves[id] }))
+      .filter(({ move }) => move)
+      .map(candidate => ({ ...candidate, effect: setupEffect(candidate.move, setupContext, beforeSetup) }))
+      .filter(candidate => candidate.effect)
+      .sort((a, b) => Number(teamSet.has(b.id)) - Number(teamSet.has(a.id)));
+    for (const { id, move, effect } of setups) {
+      const r = bestVsTarget(entry, threatTarget, { ...stLock, boost: 0, stages: effect.stages });
       if (r && r.nMin <= thr && (curKO > thr || curKO > r.nMin)) {
-        const stat = r.cat === "physical" ? "Atk" : "Sp.Atk";
-        const setup = Object.entries(SETUP_MOVES).find(([nm, v]) => v.key === (r.cat === "physical" ? "atk" : "spa") && v.n >= b && (memberMon.moves || []).includes(moveIdByName.get(nm)));
-        boostFix = `<div class="tc-fix good"><span class="tc-fix-ico">↑</span><b>+${b} ${stat}</b> → ${verdict(r).txt} <small class="muted">(now ${cur.label})</small>${setup ? ` <small class="muted">via ${setup[0]}</small>` : ""}</div>`;
+        boostFix = `<div class="tc-fix good"><span class="tc-fix-ico">↑</span><span><b>${formatStatChanges(effect.changes)}</b> → ${verdict(r).txt} <small class="muted">(now ${cur.label}) via ${move.name}${teamSet.has(id) ? "" : " — requires adding/swapping this move"}. Assumes successful setup; setup-turn survival is not simulated.${effect.notes.length ? " " + effect.notes.join(". ") + "." : ""}</small></span></div>`;
         break;
       }
     }
@@ -2184,5 +2174,16 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
   try { applyLab(JSON.parse(localStorage.getItem(STATE_KEY) || "null")); } catch { /* ignore */ }
   syncMode();
 
-  return { refresh: () => { if (s.mode === "team") renderTeam(); } };
+  return {
+    refresh: () => { if (s.mode === "team") renderTeam(); },
+    loadOpponentTeam: ({ name, members, warnings = [] }) => {
+      eb.threats = members.map((m) => m.slug);
+      eb.opponentSets = Object.fromEntries(members.map((m) => [m.slug, {
+        ...newTargetCfg(), slug: m.slug, ability: m.ability, item: m.item,
+        spread: m.spread ? { ...m.spread } : emptySpread(), nature: m.nature || "Serious", targetMoves: [...m.moves],
+      }]));
+      eb.opponentTitle = name; eb.opponentNotes = warnings; eb.teamExpanded = null;
+      s.mode = "team"; syncMode();
+    },
+  };
 }

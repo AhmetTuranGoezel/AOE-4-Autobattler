@@ -1,4 +1,5 @@
 // Data loading + small shared helpers.
+import { selectMetaDataset } from "./meta-model.js";
 
 // Corrections for source-data errors (PokeAPI) — applied over the fetched moves at load.
 // Keep this the single place such fixes live so a data regen can't silently undo them.
@@ -12,12 +13,53 @@ export async function loadData() {
   const res = await fetch("./champions-data.json", { cache: "no-cache" });
   if (!res.ok) throw new Error(`Failed to load data (${res.status})`);
   const d = await res.json();
+  try {
+    const response = await fetch("./champions-meta.json", { cache: "no-cache" });
+    if (!response.ok) throw new Error("Tournament snapshot unavailable; refresh or run the meta update command.");
+    const meta = await response.json();
+    if (meta.schemaVersion !== 1 || !meta.generation || !meta.datasets?.[meta.defaultRegulation]) throw new Error("Unsupported tournament snapshot schema.");
+    d.tournamentMeta = meta;
+    selectMetaDataset(d, meta.defaultRegulation);
+  } catch (error) {
+    delete d.tournamentMeta;
+    d.metaLoadError = error.message;
+    for (const mon of d.pokemon) { delete mon.usage; delete mon.usagePct; }
+  }
   d.total = d.pokemon.length;
   for (const mv of Object.values(d.moves)) {
     const fix = MOVE_FIXES[mv.name];
     if (fix) Object.assign(mv, fix);
   }
   return d;
+}
+
+// Full raw sets are the largest snapshot. Fetch only when a detail panel needs
+// published teams, not during initial roster/Move/Damage startup.
+export function loadTournamentTeams(data) {
+  if (!data.tournamentMeta) return Promise.resolve(false);
+  if (data.tournamentTeams) return Promise.resolve(true);
+  if (data.tournamentTeamsPromise) return data.tournamentTeamsPromise;
+  delete data.tournamentTeamsError;
+  const request = (async () => {
+    try {
+      const response = await fetch("./champions-teams.json", { cache: "no-cache" });
+      if (!response.ok) throw new Error("Published team snapshot unavailable. Aggregates and mechanics remain available.");
+      const teams = await response.json();
+      if (teams.schemaVersion !== 1 || teams.generation !== data.tournamentMeta.generation || !Array.isArray(teams.teams)) throw new Error("Published teams and aggregates have different versions. Refresh after deployment completes.");
+      data.tournamentTeams = teams;
+      return true;
+    } catch (error) {
+      data.tournamentTeamsError = error.message;
+      return false;
+    }
+  })();
+  data.tournamentTeamsPromise = request;
+  // Register cleanup before callers' completion handlers. Keep only in-flight
+  // work cached, including when fetch throws synchronously or JSON is invalid.
+  request.then(() => {
+    if (data.tournamentTeamsPromise === request) delete data.tournamentTeamsPromise;
+  });
+  return request;
 }
 
 // Keep provenance wording consistent wherever a Pokémon's movepool is used.

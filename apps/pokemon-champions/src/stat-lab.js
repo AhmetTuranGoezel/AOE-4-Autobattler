@@ -7,6 +7,7 @@
 // their harmonic mean — effective HP against an equal physical+special mix.
 import { STAT_KEYS, STAT_LABELS, statsFor, statScaleMax, explainEffective } from "./effective-stats.js";
 import { statColor } from "./table.js";
+import { natureMultiplier } from "./set-model.js";
 
 export const POOL = 66;   // total points to distribute
 export const CAP = 32;    // most points one stat can take
@@ -21,11 +22,11 @@ const fmtDelta = (value, base) => { const d = Math.round(value - base); return d
 const barPct = (v) => Math.max(0, Math.min(100, (v / SCALE) * 100));
 
 // Effective-HP figures for a mon under a given point spread (Lv50 stats + points).
-export function ehpValues(mon, spread) {
+export function ehpValues(mon, spread, nature = null) {
   const lv = statsFor(mon, "lv50");
   const hm = (p, s) => (p + s ? (2 * p * s) / (p + s) : 0);
   const at = (h, d, s) => {
-    const hp = lv.hp + h, def = lv.def + d, spd = lv.spd + s;
+    const hp = lv.hp + h, def = Math.floor((lv.def + d) * natureMultiplier(nature, "def")), spd = Math.floor((lv.spd + s) * natureMultiplier(nature, "spd"));
     return { hp, def, spd, phys: hp * def, spec: hp * spd, mixed: hm(hp * def, hp * spd) };
   };
   const cur = at(spread.hp || 0, spread.def || 0, spread.spd || 0);
@@ -37,12 +38,12 @@ export function ehpValues(mon, spread) {
 // chosen metric every time it's clicked, while KEEPING the user's offensive
 // investment (Atk/SpA/Speed). So Physical→Special→Mixed can be switched freely, and
 // the budget left for bulk is whatever isn't already spent on offense.
-export function optimizeSpread(mon, metric, current = emptySpread()) {
+export function optimizeSpread(mon, metric, current = emptySpread(), nature = null) {
   const lv = statsFor(mon, "lv50");
   const atk = current.atk || 0, spa = current.spa || 0, spe = current.spe || 0;
   const rem = POOL - (atk + spa + spe);   // points available for HP/Def/SpD
   const score = (h, d, s) => {
-    const hp = lv.hp + h, phys = hp * (lv.def + d), spec = hp * (lv.spd + s);
+    const hp = lv.hp + h, phys = hp * Math.floor((lv.def + d) * natureMultiplier(nature, "def")), spec = hp * Math.floor((lv.spd + s) * natureMultiplier(nature, "spd"));
     if (metric === "phys") return phys;
     if (metric === "spec") return spec;
     return phys + spec ? (2 * phys * spec) / (phys + spec) : 0;  // mixed (harmonic mean)
@@ -65,8 +66,8 @@ function ehpCard(label, cls, value, base, hint) {
     <span class="ehp-num"><b class="ehp-val">${sep(value)}</b><span class="ehp-delta">${fmtDelta(value, base)}</span></span>
   </div>`;
 }
-export function renderEhpCards(mon, spread) {
-  const v = ehpValues(mon, spread);
+export function renderEhpCards(mon, spread, nature = null) {
+  const v = ehpValues(mon, spread, nature);
   return `<div class="ehp-cards">
     ${ehpCard("Physical eHP", "phys", v.phys, v.base.phys, "HP × Def — survival vs physical hits")}
     ${ehpCard("Special eHP", "spec", v.spec, v.base.spec, "HP × Sp.Def — survival vs special hits")}
@@ -75,7 +76,7 @@ export function renderEhpCards(mon, spread) {
 }
 
 // --- the single stat section: bar + stepper + Lv50/base, per stat ---
-export function renderStatRows(mon, spread) {
+export function renderStatRows(mon, spread, nature = null) {
   const lv = statsFor(mon, "lv50");
   const e = mon._eff;
   const u = used(spread);
@@ -85,12 +86,12 @@ export function renderStatRows(mon, spread) {
     const pts = spread[k] || 0;
     const bulk = BULK_KEYS.includes(k);
     const wasted = e && e.eff[k] === 0;          // cleaned to zero (lower attacker / too slow)
-    const base = lv[k], cur = base + pts;
-    const bp = barPct(base), inv = barPct(cur) - bp;
+    const base = lv[k], cur = Math.floor((base + pts) * natureMultiplier(nature, k));
+    const bp = barPct(Math.floor(base * natureMultiplier(nature, k))), inv = barPct(cur) - bp;
     const meta = metaSpread && metaSpread[k];     // [pts, pct] the meta typically invests here
     const metaPts = meta ? meta[0] : 0;
     // Simple, readable: "how much of the meta's points went to this stat".
-    const metaLab = metaPts ? `<small class="pt-meta" title="share of the meta's stat points (pokebase)">meta +${metaPts} · ${meta[1]}%</small>` : "";
+    const metaLab = meta ? `<small class="pt-meta" title="Featured-set modal investment; percentage is this stat's share of all allocated points, NOT the frequency of that investment">meta +${metaPts} · ${meta[1]}%</small>` : "";
     return `<div class="pt-row${wasted ? " is-wasted" : ""}">
       <span class="pt-lab">${STAT_LABELS[k]}${bulk ? '<i class="pt-bulk-dot" title="affects eHP"></i>' : ""}${wasted ? '<span class="pt-wtag" title="counts as 0 in the cleaned total">wasted</span>' : ""}</span>
       <span class="pt-bar"><i class="pt-bar-base" style="width:${bp}%;background:${statColor(base, SCALE)}"></i><i class="pt-bar-inv" style="left:${bp}%;width:${inv}%"></i></span>
@@ -106,7 +107,7 @@ export function renderStatRows(mon, spread) {
   }).join("");
 
   const reasons = e ? explainEffective(mon, e).map((r) => `<li>${r}</li>`).join("") : "";
-  const metaNote = metaSpread ? '<p class="lab-meta-note">“meta” = how the community spreads its 66 points on this Pokémon (share per stat, pokebase)</p>' : "";
+  const metaNote = metaSpread ? `<p class="lab-meta-note">“meta +N” = modal investment in featured sets. % = share of all allocated points, not % of Pokémon using +N. PokéBase ${mon.metaRegulation || "historical snapshot"}; fetched ${mon.metaUsage?.fetchedAt?.slice(0, 10) || "unknown"}.</p>` : "";
 
   return `<section class="stat-rows">
     <div class="pt-pool">
@@ -131,8 +132,8 @@ export function renderStatRows(mon, spread) {
 // Single live update for every interaction: refresh eHP cards, the pool, and each
 // row's number / bar / values — no DOM rebuild, so inputs keep focus and it's snappy.
 // `root` is the detail panel (#detail) since eHP cards and stat rows are siblings.
-export function tickStatLab(root, mon, spread) {
-  const v = ehpValues(mon, spread);
+export function tickStatLab(root, mon, spread, nature = null) {
+  const v = ehpValues(mon, spread, nature);
   const lv = statsFor(mon, "lv50");
   const u = used(spread);
   const card = (cls, value, base) => {
@@ -151,9 +152,11 @@ export function tickStatLab(root, mon, spread) {
   root.querySelectorAll(".pt-row").forEach((rowEl, i) => {
     const k = STAT_KEYS[i];
     const pts = spread[k] || 0;
-    const cur = lv[k] + pts;
+    const cur = Math.floor((lv[k] + pts) * natureMultiplier(nature, k));
     const num = rowEl.querySelector(".pt-num"); if (num && +num.value !== pts) num.value = pts;
-    const inv = rowEl.querySelector(".pt-bar-inv"); if (inv) inv.style.width = `${barPct(cur) - barPct(lv[k])}%`;
+    const bp = barPct(Math.floor(lv[k] * natureMultiplier(nature, k)));
+    const baseBar = rowEl.querySelector(".pt-bar-base"); if (baseBar) baseBar.style.width = `${bp}%`;
+    const inv = rowEl.querySelector(".pt-bar-inv"); if (inv) { inv.style.left = `${bp}%`; inv.style.width = `${barPct(cur) - bp}%`; }
     const curEl = rowEl.querySelector(".pt-cur"); if (curEl) curEl.textContent = cur;
     const amt = rowEl.querySelector(".pt-amt"); if (amt) amt.textContent = pts ? ` +${pts}` : "";
     const x = rowEl.querySelector(".pt-x"); if (x) x.disabled = !pts;
