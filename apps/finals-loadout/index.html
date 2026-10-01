@@ -1069,7 +1069,7 @@
 
     .stats-controls {
       display: grid;
-      grid-template-columns: repeat(5, minmax(160px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
       gap: 10px;
       margin-bottom: 14px;
       padding-bottom: 14px;
@@ -1156,7 +1156,8 @@
       text-transform: uppercase;
     }
 
-    .stats-content[hidden] {
+    .stats-content[hidden],
+    .stats-empty[hidden] {
       display: none;
     }
 
@@ -1189,6 +1190,7 @@
     .stats-chart-wrap {
       position: relative;
       min-height: 420px;
+      height: 420px;
       padding: 38px 18px 38px 46px;
     }
 
@@ -1254,6 +1256,43 @@
       stroke-dasharray: 5 5;
       pointer-events: none;
     }
+
+    .stats-health-line {
+      stroke: rgba(255, 255, 255, 0.3);
+      stroke-dasharray: 7 5;
+      pointer-events: none;
+    }
+
+    .stats-health-line.is-target { stroke: var(--gold); stroke-width: 1.5; }
+    .stats-health-label, .stats-kill-label {
+      font-size: 10px;
+      font-weight: 800;
+      fill: var(--text);
+      paint-order: stroke;
+      stroke: #101218;
+      stroke-width: 4px;
+      stroke-linejoin: round;
+      pointer-events: none;
+    }
+    .stats-health-label.is-target { fill: var(--gold); }
+    .stats-kill-marker { fill: #101218; stroke-width: 2; }
+    .stats-marker-group { opacity: 0.45; }
+    .stats-marker-group.is-dimmed { opacity: 0.08; }
+    .stats-marker-group.is-pinned, .stats-marker-group.is-hovered { opacity: 1; }
+    .stats-chart-footnote, .stats-mechanics {
+      color: var(--muted);
+      font-size: 0.72rem;
+      line-height: 1.5;
+      overflow-wrap: anywhere;
+    }
+    .stats-chart-footnote { margin: 10px 0 0; }
+    .stats-mechanics { margin-top: 10px; }
+    .stats-mechanics a { color: var(--gold); }
+    .stats-mechanics summary { cursor: pointer; }
+    .stats-warning { color: #f5c542; }
+    .stats-info-section { margin: 12px 0 2px; color: var(--gold); font-size: 0.7rem; }
+    .stats-info-row > span { min-width: 0; overflow-wrap: anywhere; }
+    .stats-info-row.is-target { border-bottom-color: var(--gold); }
 
     .stats-axis-x,
     .stats-axis-y {
@@ -1725,8 +1764,12 @@
 
       .stats-chart-wrap {
         min-height: 340px;
+        height: 440px;
+        padding-top: 68px;
         padding-left: 40px;
       }
+
+      .stats-axis-y { top: 68px; }
 
       .stats-chart-title,
       .stats-axis-x {
@@ -1863,7 +1906,7 @@
             <button id="mixedHitButton" class="stats-toggle" type="button" data-stats-hit="Mixed">Mixed</button>
           </div>
         </div>
-        <div class="stats-control">
+        <div class="stats-control" id="weaponMetricControl">
           <span class="stats-label">Metric</span>
           <div class="stats-toggle-group">
             <button class="stats-toggle is-active" type="button" data-stats-metric="TTK">TTK</button>
@@ -1871,9 +1914,23 @@
           </div>
         </div>
         <div class="stats-control">
+          <span class="stats-label">View</span>
+          <div class="stats-toggle-group">
+            <button class="stats-toggle is-active" type="button" data-stats-view="Range" aria-pressed="true">Range</button>
+            <button class="stats-toggle" type="button" data-stats-view="Timeline" aria-pressed="false">Damage Timeline</button>
+          </div>
+        </div>
+        <div id="timelineRangeControl" class="stats-control" hidden>
+          <label class="stats-label" for="timelineRange">Range</label>
+          <div class="stats-range">
+            <input id="timelineRange" type="range" min="0" max="100" value="0" step="1">
+            <span id="timelineRangeValue">0m</span>
+          </div>
+        </div>
+        <div class="stats-control">
           <span class="stats-label">Headshot %</span>
           <label id="headshotRangeWrap" class="stats-range" hidden>
-            <input id="headshotRange" type="range" min="0" max="100" value="25" step="5">
+            <input id="headshotRange" aria-label="Headshot probability per hit" type="range" min="0" max="100" value="25" step="5">
             <span id="headshotValue">25%</span>
           </label>
         </div>
@@ -1887,12 +1944,13 @@
             <div id="weaponStatsChartTitle" class="stats-chart-title"></div>
             <div id="weaponStatsYLabels" class="stats-axis-y"></div>
             <div id="weaponStatsPlot" class="stats-plot" aria-label="Weapon stat chart"></div>
-            <div class="stats-axis-x">
+            <div id="weaponStatsXLabels" class="stats-axis-x">
               <span>0m</span><span>25m</span><span>50m</span><span>75m</span><span>100m</span>
             </div>
           </div>
           <div id="weaponStatsInfo" class="stats-info"></div>
         </div>
+        <p id="weaponStatsChartNote" class="stats-chart-footnote"></p>
         <div class="stats-pinned">
           <div class="stats-pinned-title">Pinned Weapons</div>
           <div id="weaponStatsPinned" class="stats-pinned-list"></div>
@@ -1904,6 +1962,7 @@
   <div id="modalOverlay" class="modal-overlay" hidden></div>
   <section id="noteModal" class="note-modal" aria-modal="true" role="dialog" hidden></section>
 
+  <script src="weapon-timeline.js"></script>
   <script>
     const STORAGE_KEY = 'finals-loadouts';
     const STORAGE_VERSION = 2;
@@ -1923,7 +1982,7 @@
       csvFormat: 'krome',
       fallbackRows: []
     };
-    const WEAPON_HEALTH_VALUES = { Light: 150, Medium: 250, Heavy: 350 };
+    const WEAPON_HEALTH_VALUES = FinalsCombat.HEALTH;
     const WEAPON_MAX_RANGE = 100;
     const WEAPON_COLOR_PALETTE = [
       '#f5c542', '#4cc9f0', '#ff5d8f', '#7bd88f', '#b388ff', '#ff8a3d',
@@ -2548,6 +2607,10 @@
         pinnedNames: new Set(),
         hoverName: '',
         hoverRange: 0,
+        hoverTime: 0,
+        view: 'Range',
+        timelineRange: 0,
+        maxTime: 3,
         maxY: 1,
         classFilter: 'ALL',
         targetClass: 'Medium',
@@ -2588,6 +2651,12 @@
       weaponStatsInfo: document.getElementById('weaponStatsInfo'),
       weaponStatsPinned: document.getElementById('weaponStatsPinned'),
       weaponStatsYLabels: document.getElementById('weaponStatsYLabels'),
+      weaponStatsXLabels: document.getElementById('weaponStatsXLabels'),
+      weaponStatsChartNote: document.getElementById('weaponStatsChartNote'),
+      weaponMetricControl: document.getElementById('weaponMetricControl'),
+      timelineRangeControl: document.getElementById('timelineRangeControl'),
+      timelineRange: document.getElementById('timelineRange'),
+      timelineRangeValue: document.getElementById('timelineRangeValue'),
       weaponStatsChartTitle: document.getElementById('weaponStatsChartTitle'),
       headshotRangeWrap: document.getElementById('headshotRangeWrap'),
       headshotRange: document.getElementById('headshotRange'),
@@ -2596,6 +2665,8 @@
     };
 
     const railGlideState = new WeakMap();
+    const weaponMetricCache = new WeakMap();
+    const weaponTimelineCache = new WeakMap();
     let pickerClearTimer = null;
 
     function clampNumber(value, min, max) {
@@ -2802,22 +2873,14 @@
     function parseDropoffModifier(value) {
       const text = String(value ?? '').trim();
       const parsed = parseWeaponNumber(text, 1);
-      if (!Number.isFinite(parsed) || parsed <= 0) {
+      if (!Number.isFinite(parsed) || parsed < 0) {
         return 1;
       }
       return text.includes('%') || parsed > 1 ? parsed / 100 : parsed;
     }
 
     function parseMagazineSize(value) {
-      if (value === Infinity) {
-        return Infinity;
-      }
-      const text = String(value ?? '').trim();
-      if (!text || /^n\/a$/i.test(text)) {
-        return Infinity;
-      }
-      const parsed = parseFloat(text);
-      return Number.isFinite(parsed) && parsed > 0 ? parsed : Infinity;
+      return FinalsCombat.parseMagazine(value).rounds;
     }
 
     function getWeaponColor(index) {
@@ -2891,7 +2954,7 @@
     function getKromeWeaponVersion(rows) {
       for (const row of rows) {
         for (const value of row) {
-          const match = String(value || '').match(/Last Update\s*:\s*([^\s]+)/i);
+          const match = String(value || '').match(/Last Update\s*:\s*(?:ver\.\s*)?([^\s]+)/i);
           if (match) {
             return match[1].trim();
           }
@@ -2902,6 +2965,19 @@
 
     function normalizeKromeWeaponRows(rows) {
       const version = getKromeWeaponVersion(rows);
+      // Sheet 11.9 added Stamina before the range columns. Read their headings,
+      // not the old offsets (which silently interpreted STK as falloff).
+      const findColumn = (pattern, fallback) => {
+        for (const row of rows) {
+          const index = row.findIndex((cell) => pattern.test(String(cell || '').replace(/\s+/g, ' ')));
+          if (index >= 0) return index;
+        }
+        return fallback;
+      };
+      const minRangeColumn = findColumn(/Damage Dropoff Minimum Range/i, 27);
+      const maxRangeColumn = findColumn(/Damage Dropoff Maximum Range/i, 28);
+      const modifierColumn = findColumn(/Damage Dropoff Modifier/i, 29);
+      const notesColumn = findColumn(/Important Notes/i, 30);
       const hasLightHeader = rows.some((row) => String(row[0] || '').trim().toUpperCase() === 'LIGHT');
       let className = hasLightHeader ? '' : 'LIGHT';
 
@@ -2924,6 +3000,9 @@
         const name = getKromeWeaponName(rawName);
         const bodyDamage = parseWeaponNumber(row[5]);
         const rpm = parseWeaponNumber(row[7]);
+        // GViz drops text-valued cells from numeric columns (e.g. linked mags).
+        // Keep missing firearm capacity unknown, rather than unlimited.
+        const magazineRaw = row[8] || (String(row[11]).trim() === '-' ? Infinity : null);
         return {
           name,
           loadoutItemName: getLoadoutItemNameForWeapon(name),
@@ -2931,15 +3010,17 @@
           bodyDamage,
           headDamage: parseWeaponNumber(row[6], bodyDamage),
           rpm,
+          intraBurstRpm: rpm, // Krome RPM is intra-burst: 93R=1000, FAMAS=1080.
           burstCount: Math.max(1, parseWeaponNumber(row[13], 1) || 1),
           burstDelay: parseWeaponNumber(row[14]),
-          minDropoff: parseWeaponNumber(row[27]),
-          maxDropoff: parseWeaponNumber(row[28]),
-          dropoffModifier: parseDropoffModifier(row[29]),
-          magazineSize: parseMagazineSize(row[8]),
+          minDropoff: parseWeaponNumber(row[minRangeColumn]),
+          maxDropoff: parseWeaponNumber(row[maxRangeColumn]),
+          dropoffModifier: parseDropoffModifier(row[modifierColumn]),
+          magazineRaw,
+          magazineSize: parseMagazineSize(magazineRaw),
           emptyReload: parseWeaponNumber(row[12]),
           tacticalReload: parseWeaponNumber(row[11]),
-          notes: String(row[30] || '').trim(),
+          notes: String(row[notesColumn] || '').trim(),
           version,
           color: WEAPON_COLOR_PALETTE[0]
         };
@@ -2960,12 +3041,15 @@
         bodyDamage: parseWeaponNumber(row['Body Damage'] ?? row.bodyDamage),
         headDamage: parseWeaponNumber(row['Head Damage'] ?? row.headDamage),
         rpm: parseWeaponNumber(row.RPM ?? row.rpm),
+        intraBurstRpm: parseWeaponNumber(row.intraBurstRpm ?? row.RPM ?? row.rpm),
         burstCount: Math.max(1, parseWeaponNumber(row['Burst Count'] ?? row.burstCount, 1) || 1),
         burstDelay: parseWeaponNumber(row['Burst Delay'] ?? row.burstDelay),
         minDropoff: parseWeaponNumber(row['Min Dropoff'] ?? row.minDropoff),
         maxDropoff: parseWeaponNumber(row['Max Dropoff'] ?? row.maxDropoff),
         dropoffModifier: parseDropoffModifier(row['Dropoff Modifier'] ?? row.dropoffModifier),
         magazineSize: parseMagazineSize(row['Magazine Size'] ?? row.magazineSize),
+        magazineRaw: row.magazineRaw ?? row['Magazine Size'] ?? row.magazineSize,
+        magazineCount: row.magazineCount,
         emptyReload: parseWeaponNumber(row['Empty Reload'] ?? row.emptyReload),
         tacticalReload: parseWeaponNumber(row['Tactical Reload'] ?? row.tacticalReload),
         notes: String(row.Notes || row.notes || '').trim(),
@@ -3081,6 +3165,16 @@
       document.querySelectorAll('[data-stats-metric]').forEach((button) => {
         button.classList.toggle('is-active', button.dataset.statsMetric === state.weaponStats.metric);
       });
+      document.querySelectorAll('[data-stats-view]').forEach((button) => {
+        const active = button.dataset.statsView === state.weaponStats.view;
+        button.classList.toggle('is-active', active);
+        button.setAttribute('aria-pressed', String(active));
+      });
+      const timeline = state.weaponStats.view === 'Timeline';
+      elements.weaponMetricControl.hidden = timeline;
+      elements.timelineRangeControl.hidden = !timeline;
+      elements.timelineRange.value = String(state.weaponStats.timelineRange);
+      elements.timelineRangeValue.textContent = `${state.weaponStats.timelineRange}m`;
       elements.headshotRange.value = String(state.weaponStats.headshotPct);
       elements.headshotValue.textContent = `${state.weaponStats.headshotPct}%`;
       elements.mixedHitButton.textContent = `Mixed (${state.weaponStats.headshotPct}%)`;
@@ -3101,68 +3195,59 @@
     }
 
     function getWeaponDamage(weapon, rangeMeters) {
-      const headshotRatio = state.weaponStats.hitMode === 'Mixed'
-        ? state.weaponStats.headshotPct / 100
-        : state.weaponStats.hitMode === 'Head' ? 1 : 0;
-      const baseDamage = (weapon.headDamage * headshotRatio) + (weapon.bodyDamage * (1 - headshotRatio));
+      return FinalsCombat.damageProfile(weapon, weaponCombatOptions(rangeMeters)).expected;
+    }
 
-      if (weapon.maxDropoff <= weapon.minDropoff || weapon.dropoffModifier >= 1) {
-        return baseDamage;
-      }
-      if (rangeMeters <= weapon.minDropoff) {
-        return baseDamage;
-      }
-      if (rangeMeters >= weapon.maxDropoff) {
-        return baseDamage * weapon.dropoffModifier;
-      }
+    function weaponCombatOptions(range) {
+      return { range, hitMode: state.weaponStats.hitMode,
+        headshotProbability: state.weaponStats.headshotPct / 100, duration: 60 };
+    }
 
-      const dropProgress = (rangeMeters - weapon.minDropoff) / (weapon.maxDropoff - weapon.minDropoff);
-      return baseDamage * (1 - ((1 - weapon.dropoffModifier) * dropProgress));
+    function getWeaponCombat(weapon, range) {
+      const options = weaponCombatOptions(range);
+      const key = JSON.stringify(options);
+      const previous = weaponTimelineCache.get(weapon);
+      if (previous?.key === key) return previous;
+      const timeline = FinalsCombat.createWeaponTimeline(weapon, options);
+      const deaths = Object.fromEntries(Object.entries(WEAPON_HEALTH_VALUES).map(([name, hp]) =>
+        [name, FinalsCombat.killDistribution(timeline, hp)]));
+      const result = { key, timeline, deaths, exposure: FinalsCombat.exposureSummary(timeline) };
+      weaponTimelineCache.set(weapon, result);
+      return result;
+    }
+
+    function getWeaponRangeMetrics(weapon, range) {
+      const modeKey = `${state.weaponStats.hitMode}:${state.weaponStats.headshotPct}`;
+      const profile = FinalsCombat.damageProfile(weapon, weaponCombatOptions(range));
+      const damageKey = `${profile.body}:${profile.head}`;
+      let cache = weaponMetricCache.get(weapon);
+      if (cache?.modeKey !== modeKey) {
+        cache = { modeKey, ranges: new Map() };
+        weaponMetricCache.set(weapon, cache);
+      }
+      if (!cache.ranges.has(damageKey)) {
+        const options = weaponCombatOptions(range);
+        const timeline = FinalsCombat.createWeaponTimeline(weapon, options);
+        const deaths = Object.fromEntries(Object.entries(WEAPON_HEALTH_VALUES).map(([name, hp]) => {
+          const distribution = FinalsCombat.killDistribution(timeline, hp);
+          return [name, { ttk: distribution.expectedTTK, shots: distribution.expectedShots }];
+        }));
+        if (cache.ranges.size > 200) cache.ranges.clear();
+        cache.ranges.set(damageKey, { deaths, dps: FinalsCombat.firingDPS(weapon, options) });
+      }
+      return cache.ranges.get(damageKey);
     }
 
     function getShotsToKill(weapon, rangeMeters) {
-      const targetHp = WEAPON_HEALTH_VALUES[state.weaponStats.targetClass];
-      const damage = getWeaponDamage(weapon, rangeMeters);
-      return damage > 0 ? Math.ceil(targetHp / damage) : Infinity;
+      return getWeaponRangeMetrics(weapon, rangeMeters).deaths[state.weaponStats.targetClass].shots;
     }
 
     function calculateWeaponTTK(weapon, rangeMeters) {
-      const shotsToKill = getShotsToKill(weapon, rangeMeters);
-      if (!Number.isFinite(shotsToKill) || shotsToKill <= 0 || weapon.rpm <= 0) {
-        return Infinity;
-      }
-      if (shotsToKill === 1) {
-        return 0;
-      }
-
-      const shotInterval = 60 / weapon.rpm;
-      let elapsed = 0;
-      for (let firedShots = 1; firedShots < shotsToKill; firedShots++) {
-        const nextShotStartsNewBurst = weapon.burstCount > 1 && weapon.burstDelay > 0 && firedShots % weapon.burstCount === 0;
-        elapsed += nextShotStartsNewBurst ? weapon.burstDelay : shotInterval;
-      }
-
-      if (Number.isFinite(weapon.magazineSize) && weapon.magazineSize > 0 && shotsToKill > weapon.magazineSize) {
-        const reloads = Math.floor((shotsToKill - 1) / weapon.magazineSize);
-        elapsed += reloads * (weapon.emptyReload || weapon.tacticalReload || 2.5);
-      }
-
-      return elapsed;
+      return getWeaponRangeMetrics(weapon, rangeMeters).deaths[state.weaponStats.targetClass].ttk;
     }
 
     function calculateWeaponDPS(weapon, rangeMeters) {
-      const damage = getWeaponDamage(weapon, rangeMeters);
-      if (damage <= 0 || weapon.rpm <= 0) {
-        return 0;
-      }
-
-      if (weapon.burstCount > 1 && weapon.burstDelay > 0) {
-        const shotInterval = 60 / weapon.rpm;
-        const burstTime = ((weapon.burstCount - 1) * shotInterval) + weapon.burstDelay;
-        return burstTime > 0 ? (damage * weapon.burstCount) / burstTime : 0;
-      }
-
-      return damage * (weapon.rpm / 60);
+      return getWeaponRangeMetrics(weapon, rangeMeters).dps;
     }
 
     function getWeaponMetricValue(weapon, rangeMeters) {
@@ -3176,6 +3261,30 @@
     }
 
     function getWeaponChartMaxY(weapons) {
+      if (state.weaponStats.view === 'Timeline') {
+        const relevant = weapons.filter((weapon) => state.weaponStats.pinnedNames.has(weapon.name));
+        const focus = relevant.length ? relevant : weapons;
+        let maxTime = 3;
+        focus.forEach((weapon) => {
+          const combat = getWeaponCombat(weapon, state.weaponStats.timelineRange);
+          Object.values(combat.deaths).forEach((death) => {
+            if (Number.isFinite(death.medianTime)) maxTime = Math.max(maxTime, death.medianTime + 0.3);
+          });
+          // Only extend for reloads of pinned weapons, not the largest magazine
+          // in the entire catalog. Keep the useful combat window at most 8s.
+          if (relevant.length && combat.timeline.reloads[0]) {
+            maxTime = Math.max(maxTime, combat.timeline.reloads[0].end + 0.3);
+          }
+        });
+        state.weaponStats.maxTime = Math.min(8, Math.ceil(maxTime * 2) / 2);
+        let maxDamage = 350;
+        focus.forEach((weapon) => {
+          const timeline = getWeaponCombat(weapon, state.weaponStats.timelineRange).timeline;
+          maxDamage = Math.max(maxDamage, FinalsCombat.damageAt(timeline,
+            Math.min(state.weaponStats.maxTime, timeline.knownUntil)).total);
+        });
+        return Math.ceil(maxDamage * 1.1 / 100) * 100;
+      }
       let maxValue = 0;
       const ranges = getWeaponChartRanges();
       weapons.forEach((weapon) => {
@@ -3209,7 +3318,9 @@
     }
 
     function formatWeaponMagazine(weapon) {
-      return Number.isFinite(weapon.magazineSize) ? String(weapon.magazineSize) : 'N/A';
+      const timeline = getWeaponCombat(weapon, 0).timeline;
+      return timeline.rounds && Number.isFinite(timeline.rounds)
+        ? `${timeline.rounds}${timeline.magazineCount > 1 ? ` x ${timeline.magazineCount}` : ''}` : 'N/A';
     }
 
     function formatWeaponReload(weapon) {
@@ -3274,11 +3385,12 @@
       elements.weaponStatsLegend.innerHTML = state.weaponStats.plottedWeapons.map((weapon) => {
         const isPinned = state.weaponStats.pinnedNames.has(weapon.name);
         const isHovered = state.weaponStats.hoverName === weapon.name;
+        const warnings = getWeaponCombat(weapon, state.weaponStats.timelineRange).timeline.warnings;
         return `
-          <button class="stats-legend-item ${isPinned ? 'is-pinned' : ''} ${isHovered ? 'is-hovered' : ''}" type="button" data-weapon-pin="${escapeHtml(weapon.name)}" style="${anyPinned && !isPinned ? 'opacity: 0.42;' : ''}">
+          <button class="stats-legend-item ${isPinned ? 'is-pinned' : ''} ${isHovered ? 'is-hovered' : ''}" type="button" data-weapon-pin="${escapeHtml(weapon.name)}" aria-pressed="${isPinned}" title="${escapeHtml(warnings.length ? `${weapon.name}: ${warnings.join(' ')}` : weapon.name)}" style="${anyPinned && !isPinned ? 'opacity: 0.42;' : ''}">
             <span class="stats-dot" style="background:${weapon.color};"></span>
             <span class="stats-legend-name">${escapeHtml(weapon.name)}</span>
-            <span class="stats-legend-class">${escapeHtml(weapon.className.slice(0, 3))}</span>
+            <span class="stats-legend-class ${warnings.length ? 'stats-warning' : ''}">${warnings.length ? '!' : escapeHtml(weapon.className.slice(0, 3))}</span>
           </button>
         `;
       }).join('');
@@ -3286,9 +3398,11 @@
 
     function renderWeaponStatsPlot() {
       const plot = elements.weaponStatsPlot;
-      const width = Math.max(320, Math.round(plot.clientWidth || 760));
+      const width = Math.max(180, Math.round(plot.clientWidth || 760));
       const height = Math.max(250, Math.round(plot.clientHeight || 330));
       const maxY = state.weaponStats.maxY;
+      const isTimeline = state.weaponStats.view === 'Timeline';
+      const maxX = isTimeline ? state.weaponStats.maxTime : WEAPON_MAX_RANGE;
       const anyPinned = state.weaponStats.pinnedNames.size > 0;
       const ranges = getWeaponChartRanges();
       const gridLines = [];
@@ -3301,12 +3415,17 @@
       }
 
       const lines = state.weaponStats.plottedWeapons.map((weapon) => {
-        const points = ranges.map((rangeMeters) => {
-          const value = getWeaponMetricValue(weapon, rangeMeters);
-          const clampedValue = Number.isFinite(value) ? Math.min(value, maxY) : maxY;
-          const x = (rangeMeters / WEAPON_MAX_RANGE) * width;
-          const y = height - ((clampedValue / maxY) * height);
-          return `${x.toFixed(1)},${y.toFixed(1)}`;
+        const data = isTimeline
+          ? FinalsCombat.timelinePoints(getWeaponCombat(weapon, state.weaponStats.timelineRange).timeline, maxX)
+            .map((point) => ({ x: point.time, y: point.damage }))
+          : ranges.map((range) => ({ x: range, y: getWeaponMetricValue(weapon, range) }));
+        // Missing mechanics are gaps, not fictitious flat lines at the axis ceiling.
+        let drawing = false;
+        const path = data.map((point) => {
+          if (!Number.isFinite(point.y)) { drawing = false; return ''; }
+          const command = drawing ? 'L' : 'M';
+          drawing = true;
+          return `${command}${(point.x / maxX * width).toFixed(2)},${(height - point.y / maxY * height).toFixed(2)}`;
         }).join(' ');
         const isPinned = state.weaponStats.pinnedNames.has(weapon.name);
         const isHovered = state.weaponStats.hoverName === weapon.name;
@@ -3316,30 +3435,95 @@
           isPinned ? 'is-pinned' : '',
           isHovered ? 'is-hovered' : ''
         ].filter(Boolean).join(' ');
-        return `<polyline class="${classes}" data-stats-name="${escapeHtml(weapon.name)}" points="${points}" stroke="${weapon.color}"></polyline>`;
+        return `<path class="${classes}" data-stats-name="${escapeHtml(weapon.name)}" d="${path}" stroke="${weapon.color}"></path>`;
       }).join('');
 
       const cursorX = state.weaponStats.hoverName
-        ? (state.weaponStats.hoverRange / WEAPON_MAX_RANGE) * width
+        ? ((isTimeline ? state.weaponStats.hoverTime : state.weaponStats.hoverRange) / maxX) * width
         : -10;
 
+      const healthLines = isTimeline ? Object.entries(WEAPON_HEALTH_VALUES).map(([name, hp]) => {
+        const y = height - hp / maxY * height;
+        const active = name === state.weaponStats.targetClass ? 'is-target' : '';
+        return `<line class="stats-health-line ${active}" x1="0" x2="${width}" y1="${y}" y2="${y}"></line>
+          <text class="stats-health-label ${active}" x="5" y="${y - 5}">${name} ${hp}</text>`;
+      }).join('') : '';
+
       plot.innerHTML = `
-        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+        <svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="${isTimeline ? 'Cumulative damage over time' : 'Weapon performance by range'}">
           ${gridLines.join('')}
+          ${healthLines}
           ${lines}
+          <g data-timeline-markers></g>
           <line class="stats-cursor" data-stats-cursor x1="${cursorX}" x2="${cursorX}" y1="0" y2="${height}"></line>
         </svg>
       `;
 
       elements.weaponStatsYLabels.innerHTML = Array.from({ length: 5 }, (_, index) => {
         const value = maxY - ((maxY * index) / 4);
-        return `<span>${state.weaponStats.metric === 'TTK' ? `${value.toFixed(1)}s` : Math.round(value)}</span>`;
+        return `<span>${!isTimeline && state.weaponStats.metric === 'TTK' ? `${value.toFixed(1)}s` : Math.round(value)}</span>`;
       }).join('');
+      elements.weaponStatsXLabels.innerHTML = Array.from({ length: 5 }, (_, index) =>
+        `<span>${isTimeline ? `${(maxX * index / 4).toFixed(2)}s` : `${index * 25}m`}</span>`).join('');
 
       const targetHp = WEAPON_HEALTH_VALUES[state.weaponStats.targetClass];
-      elements.weaponStatsChartTitle.textContent = state.weaponStats.metric === 'TTK'
-        ? `TTK vs range / ${state.weaponStats.hitMode} / ${state.weaponStats.targetClass} ${targetHp} HP`
-        : `DPS vs range / ${state.weaponStats.hitMode}`;
+      const mixed = state.weaponStats.hitMode === 'Mixed';
+      elements.weaponStatsChartTitle.textContent = isTimeline
+        ? `${mixed ? 'Expected Damage' : 'Damage'} / ${state.weaponStats.hitMode} / ${state.weaponStats.timelineRange}m`
+        : state.weaponStats.metric === 'TTK'
+          ? `${mixed ? 'Expected TTK' : 'TTK'} vs range / ${state.weaponStats.hitMode} / ${state.weaponStats.targetClass} ${targetHp} HP`
+          : `Firing DPS vs range / ${state.weaponStats.hitMode}`;
+      elements.weaponStatsChartNote.textContent = isTimeline
+        ? `${mixed ? 'Lines: expected damage. Diamonds: 50% kill times, not guaranteed deaths. ' : 'Dots: first lethal damage. '}`
+          + 'Hover or pin for class times. First hit at 0s; all hits connect. View capped at 8s.'
+        : `${mixed ? 'Mixed TTK uses independent headshot probabilities, not averaged bullets. ' : ''}`
+          + 'First hit at 0s; all hits connect. DPS excludes reloads. Missing timing data leaves gaps.';
+      renderTimelineMarkers();
+    }
+
+    function getFocusedStatsWeapon() {
+      return getWeaponByName(state.weaponStats.hoverName)
+        || getWeaponByName([...state.weaponStats.pinnedNames].at(-1));
+    }
+
+    function renderTimelineMarkers() {
+      const group = elements.weaponStatsPlot.querySelector('[data-timeline-markers]');
+      if (!group || state.weaponStats.view !== 'Timeline') return;
+      const svg = group.ownerSVGElement;
+      const { width, height } = svg.viewBox.baseVal;
+      const focused = getFocusedStatsWeapon();
+      const mixed = state.weaponStats.hitMode === 'Mixed';
+      const maxY = state.weaponStats.maxY;
+      const maxTime = state.weaponStats.maxTime;
+      const dots = state.weaponStats.plottedWeapons.map((weapon) => {
+        const combat = getWeaponCombat(weapon, state.weaponStats.timelineRange);
+        const isFocused = weapon === focused;
+        const pinned = state.weaponStats.pinnedNames.has(weapon.name);
+        const classes = `stats-marker-group ${pinned ? 'is-pinned' : ''} ${isFocused ? 'is-hovered' : ''} ${state.weaponStats.pinnedNames.size && !pinned ? 'is-dimmed' : ''}`;
+        return `<g class="${classes}">${Object.entries(WEAPON_HEALTH_VALUES).map(([name, hp]) => {
+          const time = combat.deaths[name].medianTime;
+          if (!Number.isFinite(time) || time > maxTime) return '';
+          const x = time / maxTime * width;
+          const y = height - hp / maxY * height;
+          const title = `${weapon.name}: ${name}${mixed ? ' 50%' : ''}: ${time.toFixed(2)}s`;
+          return mixed
+            ? `<path class="stats-kill-marker" data-marker-weapon="${escapeHtml(weapon.name)}" data-marker-time="${time}" stroke="${weapon.color}" d="M${x},${y - 4}l4,4 -4,4 -4,-4Z"><title>${escapeHtml(title)}</title></path>`
+            : `<circle class="stats-kill-marker" data-marker-weapon="${escapeHtml(weapon.name)}" data-marker-time="${time}" stroke="${weapon.color}" cx="${x}" cy="${y}" r="3.5"><title>${escapeHtml(title)}</title></circle>`;
+        }).join('')}</g>`;
+      }).join('');
+      let previousLabelY = -20;
+      const labels = focused ? Object.entries(WEAPON_HEALTH_VALUES).reverse().map(([name, hp]) => {
+        const time = getWeaponCombat(focused, state.weaponStats.timelineRange).deaths[name].medianTime;
+        if (!Number.isFinite(time) || time > maxTime) return '';
+        const x = time / maxTime * width;
+        const y = height - hp / maxY * height;
+        const labelX = Math.max(86, Math.min(x + 8, width - 140));
+        const labelY = Math.max(14, previousLabelY + 18, Math.min(y - 7, height - 42));
+        previousLabelY = labelY;
+        return `<line x1="${x}" y1="${y}" x2="${labelX}" y2="${labelY}" stroke="${focused.color}" opacity="0.5"></line>
+          <text class="stats-kill-label" x="${labelX}" y="${labelY}" style="fill:${focused.color}">${name}${mixed ? ' 50%:' : ''} ${time.toFixed(2)}s</text>`;
+      }).join('') : '';
+      group.innerHTML = dots + labels;
     }
 
     function getWeaponByName(name) {
@@ -3347,7 +3531,7 @@
     }
 
     function renderWeaponStatsInfo() {
-      const weapon = getWeaponByName(state.weaponStats.hoverName);
+      const weapon = getFocusedStatsWeapon();
       if (!weapon) {
         const pinnedCount = state.weaponStats.pinnedNames.size;
         elements.weaponStatsInfo.innerHTML = `
@@ -3359,6 +3543,11 @@
         return;
       }
 
+      if (state.weaponStats.view === 'Timeline') {
+        elements.weaponStatsInfo.innerHTML = `<div class="stats-info-title">${escapeHtml(weapon.name)}</div>`
+          + renderTimelineInfo(weapon) + renderWeaponMechanics(weapon, state.weaponStats.timelineRange);
+        return;
+      }
       const range = state.weaponStats.hoverRange;
       const metricValue = getWeaponMetricValue(weapon, range);
       const damage = getWeaponDamage(weapon, range);
@@ -3368,13 +3557,45 @@
         <div class="stats-info-title">${escapeHtml(weapon.name)}</div>
         <div class="stats-info-row"><span>Class</span><span>${escapeHtml(weapon.className)}</span></div>
         <div class="stats-info-row"><span>Range</span><span>${range.toFixed(1)}m</span></div>
-        <div class="stats-info-row"><span>${escapeHtml(state.weaponStats.metric)}</span><span>${formatWeaponMetricValue(metricValue)}</span></div>
-        <div class="stats-info-row"><span>Damage</span><span>${damage.toFixed(1)}</span></div>
-        <div class="stats-info-row"><span>Shots</span><span>${Number.isFinite(shots) ? shots : 'N/A'}</span></div>
+        <div class="stats-info-row"><span>${state.weaponStats.hitMode === 'Mixed' ? 'Expected ' : ''}${escapeHtml(state.weaponStats.metric)}</span><span>${formatWeaponMetricValue(metricValue)}</span></div>
+        <div class="stats-info-row"><span>${state.weaponStats.hitMode === 'Mixed' ? 'Expected hit' : 'Direct hit'}</span><span>${damage.toFixed(1)}</span></div>
+        <div class="stats-info-row"><span>${state.weaponStats.hitMode === 'Mixed' ? 'Expected shots' : 'Shots fired'}</span><span>${Number.isFinite(shots) ? (state.weaponStats.hitMode === 'Mixed' ? shots.toFixed(2) : Math.round(shots)) : 'N/A'}</span></div>
         <div class="stats-info-row"><span>RPM</span><span>${weapon.rpm || 'N/A'}</span></div>
         <div class="stats-info-row"><span>Dropoff</span><span>${weapon.minDropoff}m - ${weapon.maxDropoff}m</span></div>
-        <div class="stats-info-row"><span>Magazine</span><span>${Number.isFinite(weapon.magazineSize) ? weapon.magazineSize : 'N/A'}</span></div>
+        <div class="stats-info-row"><span>Magazine</span><span>${formatWeaponMagazine(weapon)}</span></div>
+        ${renderWeaponMechanics(weapon, range)}
       `;
+    }
+
+    function renderWeaponMechanics(weapon, range) {
+      const { timeline } = getWeaponCombat(weapon, range);
+      if (!timeline.notes.length && !timeline.warnings.length) return '';
+      return `<div class="stats-mechanics">
+        ${timeline.warnings.map((note) => `<p class="stats-warning">${escapeHtml(note)}</p>`).join('')}
+        ${timeline.notes.length ? `<details><summary>Model assumptions</summary>${timeline.notes.map((note) => `<p>${escapeHtml(note)}</p>`).join('')}</details>` : ''}
+        ${timeline.source ? `<a href="${escapeHtml(timeline.source)}" target="_blank" rel="noopener noreferrer">Mechanics source</a>` : ''}
+      </div>`;
+    }
+
+    function renderTimelineInfo(weapon) {
+      const { timeline, deaths, exposure } = getWeaponCombat(weapon, state.weaponStats.timelineRange);
+      const time = Math.min(state.weaponStats.hoverTime, state.weaponStats.maxTime);
+      const current = FinalsCombat.damageAt(timeline, time);
+      const mixed = state.weaponStats.hitMode === 'Mixed';
+      const row = (label, value) => `<div class="stats-info-row"><span>${label}</span><span>${value}</span></div>`;
+      const sample = (damage, t) => t <= timeline.knownUntil ? damage.toFixed(1) : 'Needs data';
+      return row('Cursor', `${time.toFixed(3)}s / ${state.weaponStats.timelineRange}m`)
+        + row(mixed ? 'Expected direct' : 'Direct', sample(current.direct, time))
+        + row('Burn', timeline.dotStatus === 'unknown' ? 'Unverified' : sample(current.burn, time))
+        + row(`${mixed ? 'Expected total' : 'Total'}${timeline.dotStatus === 'unknown' ? ' (direct only)' : ''}`, sample(current.total, time))
+        + `<div class="stats-info-section">${mixed ? 'Expected exposure damage' : 'Exposure damage'}</div>`
+        + exposure.samples.map((point) => row(point.time < 1 ? `${point.time * 1000} ms` : '1.0 s', sample(point.total, point.time))).join('')
+        + row(timeline.burstCount > 1 ? 'First burst' : 'First shot', `${exposure.burstDamage.toFixed(1)} / ${exposure.burstDuration.toFixed(3)}s`)
+        + row('Before first reload / swap', exposure.beforeReload === null ? (timeline.rounds === Infinity ? 'No reload' : 'Needs data') : `${exposure.beforeReload.toFixed(1)} at ${exposure.reloadTime.toFixed(2)}s`)
+        + `<div class="stats-info-section">${mixed ? 'Independent headshot outcomes' : 'First lethal damage'}</div>`
+        + Object.entries(deaths).map(([name, death]) => `<div class="stats-info-row ${name === state.weaponStats.targetClass ? 'is-target' : ''}">
+          <span>${name}</span><span>${mixed ? `Expected TTK ${formatWeaponTTKValue(death.expectedTTK)}<br>50% ${formatWeaponTTKValue(death.medianTime)}<br>${time <= timeline.knownUntil ? `${(death.probabilityAt(time) * 100).toFixed(1)}% dead` : 'Needs data'}` : formatWeaponTTKValue(death.expectedTTK)}</span>
+        </div>`).join('');
     }
 
     function renderWeaponStatsPinned() {
@@ -3407,6 +3628,8 @@
                 <div class="stats-detail-row"><span>25m TTK</span><span>${formatWeaponTTKValue(calculateWeaponTTK(weapon, 25))}</span></div>
                 <div class="stats-detail-row"><span>25m DPS</span><span>${formatWeaponDPSValue(calculateWeaponDPS(weapon, 25))}</span></div>
               </div>
+              ${state.weaponStats.view === 'Timeline' ? `<details class="stats-mechanics"><summary>Exposure &amp; kill times at ${state.weaponStats.timelineRange}m</summary><div data-pinned-timeline="${escapeHtml(weapon.name)}">${renderTimelineInfo(weapon)}</div></details>` : ''}
+              ${renderWeaponMechanics(weapon, state.weaponStats.view === 'Timeline' ? state.weaponStats.timelineRange : 0)}
               <div class="stats-detail-note">
                 <div class="stats-detail-note-head">
                   <span class="stats-detail-note-label">Loadout Note</span>
@@ -3443,8 +3666,9 @@
       if (cursor) {
         const width = Math.max(1, elements.weaponStatsPlot.clientWidth || 1);
         const viewBoxWidth = Number(elements.weaponStatsPlot.querySelector('svg')?.viewBox?.baseVal?.width) || width;
+        const timeline = state.weaponStats.view === 'Timeline';
         const cursorX = state.weaponStats.hoverName
-          ? (state.weaponStats.hoverRange / WEAPON_MAX_RANGE) * viewBoxWidth
+          ? ((timeline ? state.weaponStats.hoverTime : state.weaponStats.hoverRange) / (timeline ? state.weaponStats.maxTime : WEAPON_MAX_RANGE)) * viewBoxWidth
           : -10;
         cursor.setAttribute('x1', cursorX);
         cursor.setAttribute('x2', cursorX);
@@ -3452,10 +3676,21 @@
     }
 
     function setWeaponHover(name, rangeMeters) {
+      const previousName = state.weaponStats.hoverName;
       state.weaponStats.hoverName = name || '';
-      state.weaponStats.hoverRange = clampNumber(rangeMeters || 0, 0, WEAPON_MAX_RANGE);
+      if (state.weaponStats.view === 'Timeline') {
+        state.weaponStats.hoverTime = clampNumber(rangeMeters || 0, 0, state.weaponStats.maxTime);
+      } else {
+        state.weaponStats.hoverRange = clampNumber(rangeMeters || 0, 0, WEAPON_MAX_RANGE);
+      }
       syncWeaponStatsHighlights();
+      if (previousName !== state.weaponStats.hoverName) renderTimelineMarkers();
       renderWeaponStatsInfo();
+      if (state.weaponStats.view === 'Timeline') {
+        elements.weaponStatsPinned.querySelectorAll('[data-pinned-timeline]').forEach((panel) => {
+          panel.innerHTML = renderTimelineInfo(getWeaponByName(panel.dataset.pinnedTimeline));
+        });
+      }
     }
 
     function findClosestWeaponAtPoint(y, rangeMeters, chartHeight) {
@@ -3468,7 +3703,11 @@
         let closest = null;
         let closestDiff = Infinity;
         list.weapons.forEach((weapon) => {
-          const value = getWeaponMetricValue(weapon, rangeMeters);
+          const timeline = state.weaponStats.view === 'Timeline'
+            ? getWeaponCombat(weapon, state.weaponStats.timelineRange).timeline : null;
+          if (timeline && rangeMeters > timeline.knownUntil) return;
+          const value = timeline ? FinalsCombat.damageAt(timeline, rangeMeters).total : getWeaponMetricValue(weapon, rangeMeters);
+          if (!Number.isFinite(value)) return;
           const clampedValue = Number.isFinite(value) ? Math.min(value, state.weaponStats.maxY) : state.weaponStats.maxY;
           const pixelY = chartHeight - ((clampedValue / state.weaponStats.maxY) * chartHeight);
           const diff = Math.abs(y - pixelY);
@@ -3496,7 +3735,9 @@
 
       const x = clampNumber(event.clientX - rect.left, 0, rect.width);
       const y = clampNumber(event.clientY - rect.top, 0, rect.height);
-      const rangeMeters = (x / rect.width) * WEAPON_MAX_RANGE;
+      const rangeMeters = (x / rect.width) * (state.weaponStats.view === 'Timeline' ? state.weaponStats.maxTime : WEAPON_MAX_RANGE);
+      const marker = event.target.closest('[data-marker-weapon]');
+      if (marker) return { weapon: getWeaponByName(marker.dataset.markerWeapon), rangeMeters: Number(marker.dataset.markerTime) };
       const weapon = findClosestWeaponAtPoint(y, rangeMeters, rect.height);
       return { weapon, rangeMeters };
     }
@@ -3523,10 +3764,7 @@
       if (state.weaponStats.hoverName && !state.weaponStats.plottedWeapons.some((weapon) => weapon.name === state.weaponStats.hoverName)) {
         state.weaponStats.hoverName = '';
       }
-      renderWeaponStatsLegend();
-      renderWeaponStatsPlot();
-      renderWeaponStatsPinned();
-      renderWeaponStatsInfo();
+      renderWeaponStats();
     }
 
     function renderWeaponStats() {
@@ -4481,6 +4719,14 @@
         return;
       }
 
+      const statsViewButton = event.target.closest('[data-stats-view]');
+      if (statsViewButton) {
+        state.weaponStats.view = statsViewButton.dataset.statsView;
+        state.weaponStats.hoverName = '';
+        renderWeaponStats();
+        return;
+      }
+
       const weaponPinButton = event.target.closest('[data-weapon-pin]');
       if (weaponPinButton) {
         toggleWeaponPin(weaponPinButton.dataset.weaponPin);
@@ -4585,6 +4831,12 @@
     });
 
     document.addEventListener('input', (event) => {
+      if (event.target === elements.timelineRange) {
+        state.weaponStats.timelineRange = Number(event.target.value) || 0;
+        state.weaponStats.hoverName = '';
+        renderWeaponStats();
+        return;
+      }
       if (event.target === elements.headshotRange) {
         state.weaponStats.headshotPct = Number(event.target.value) || 0;
         state.weaponStats.hoverName = '';
@@ -4642,7 +4894,16 @@
     }, { passive: false });
 
     elements.weaponStatsPlot.addEventListener('pointermove', handleWeaponStatsPointerMove);
-    elements.weaponStatsPlot.addEventListener('pointerleave', () => setWeaponHover('', 0));
+    elements.weaponStatsLegend.addEventListener('pointerover', (event) => {
+      const button = event.target.closest('[data-weapon-pin]');
+      if (button) setWeaponHover(button.dataset.weaponPin, state.weaponStats.view === 'Timeline' ? state.weaponStats.hoverTime : state.weaponStats.hoverRange);
+    });
+    elements.weaponStatsLegend.addEventListener('focusin', (event) => {
+      const button = event.target.closest('[data-weapon-pin]');
+      if (button) setWeaponHover(button.dataset.weaponPin, 0);
+    });
+    elements.weaponStatsLegend.addEventListener('pointerleave', () => setWeaponHover('', state.weaponStats.view === 'Timeline' ? state.weaponStats.hoverTime : state.weaponStats.hoverRange));
+    elements.weaponStatsPlot.addEventListener('pointerleave', () => setWeaponHover('', state.weaponStats.view === 'Timeline' ? state.weaponStats.hoverTime : 0));
     elements.weaponStatsPlot.addEventListener('click', (event) => {
       const target = getWeaponPointerTarget(event);
       if (target?.weapon) {
