@@ -84,7 +84,7 @@
     }
 
     .back-link {
-      position: fixed;
+      position: absolute;
       top: 14px;
       left: 14px;
       z-index: 30;
@@ -1264,7 +1264,7 @@
     }
 
     .stats-health-line.is-target { stroke: var(--gold); stroke-width: 1.5; }
-    .stats-health-label, .stats-kill-label {
+    .stats-health-label {
       font-size: 10px;
       font-weight: 800;
       fill: var(--text);
@@ -1276,6 +1276,27 @@
     }
     .stats-health-label.is-target { fill: var(--gold); }
     .stats-kill-marker { fill: #101218; stroke-width: 2; }
+    .stats-line.stats-dot-line { stroke-width: 1.8; stroke-dasharray: 4 4; }
+    .stats-exposure-line { stroke: rgba(255, 255, 255, 0.45); stroke-width: 1; stroke-dasharray: 3 5; pointer-events: none; }
+    .stats-plot-empty { height: 100%; display: grid; place-content: center; text-align: center; color: var(--muted); font-size: 0.82rem; }
+    .stats-hit-slider { display: flex; align-items: center; gap: 9px; font-size: 0.65rem; font-weight: 800; }
+    .stats-hit-slider input { width: 100%; min-width: 55px; accent-color: var(--gold); }
+    .stats-hit-caption { margin-top: 6px; font-size: 0.66rem; color: var(--muted); }
+    .stats-hit-preview { display: flex; gap: 12px; margin-top: 6px; }
+    .stats-pattern-cell { display: grid; justify-items: center; gap: 3px; font-size: 0.6rem; color: var(--muted); }
+    .stats-pattern-cell i { width: 6px; height: 6px; background: currentColor; border-radius: 50%; }
+    .stats-pattern-cell.is-head { color: var(--gold); }
+    .stats-pattern-cell.is-head i { transform: rotate(45deg); border-radius: 1px; }
+    .stats-breakpoints { width: 100%; margin-top: 8px; border-collapse: collapse; font-size: 0.7rem; }
+    .stats-breakpoints th, .stats-breakpoints td { padding: 6px 4px; text-align: right; border-bottom: 1px solid rgba(255,255,255,0.08); }
+    .stats-breakpoints th:first-child, .stats-breakpoints td:first-child { text-align: left; }
+    .stats-breakpoints tr.is-active { color: var(--gold); background: rgba(245,197,66,0.06); }
+    .stats-kill-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 8px 0 12px; }
+    .stats-kill-summary div { padding: 8px; border: 1px solid rgba(255,255,255,0.1); border-radius: 7px; }
+    .stats-kill-summary div.is-target { border-color: rgba(245,197,66,0.5); }
+    .stats-kill-summary span { display: block; margin-bottom: 5px; font-size: 0.64rem; color: var(--muted); }
+    .stats-kill-summary strong { font-size: 0.78rem; }
+    .stats-detail-row.is-exposure { color: var(--gold); }
     .stats-marker-group { opacity: 0.45; }
     .stats-marker-group.is-dimmed { opacity: 0.08; }
     .stats-marker-group.is-pinned, .stats-marker-group.is-hovered { opacity: 1; }
@@ -1898,14 +1919,6 @@
             <button class="stats-toggle" type="button" data-stats-target="Heavy">Heavy</button>
           </div>
         </div>
-        <div class="stats-control">
-          <span class="stats-label">Hit Mode</span>
-          <div class="stats-toggle-group">
-            <button class="stats-toggle is-active" type="button" data-stats-hit="Body">Body</button>
-            <button class="stats-toggle" type="button" data-stats-hit="Head">Head</button>
-            <button id="mixedHitButton" class="stats-toggle" type="button" data-stats-hit="Mixed">Mixed</button>
-          </div>
-        </div>
         <div class="stats-control" id="weaponMetricControl">
           <span class="stats-label">Metric</span>
           <div class="stats-toggle-group">
@@ -1917,8 +1930,14 @@
           <span class="stats-label">View</span>
           <div class="stats-toggle-group">
             <button class="stats-toggle is-active" type="button" data-stats-view="Range" aria-pressed="true">Range</button>
-            <button class="stats-toggle" type="button" data-stats-view="Timeline" aria-pressed="false">Damage Timeline</button>
+            <button class="stats-toggle" type="button" data-stats-view="Timeline" aria-pressed="false">Timeline</button>
           </div>
+        </div>
+        <div class="stats-control">
+          <label class="stats-label" for="hitPlacement">Hit Placement</label>
+          <div class="stats-hit-slider"><span>BODY</span><input id="hitPlacement" type="range" min="0" max="6" value="0" step="1" aria-describedby="hitPlacementCaption"><span>HEAD</span></div>
+          <div id="hitPlacementCaption" class="stats-hit-caption"></div>
+          <div id="hitPatternPreview" class="stats-hit-preview" aria-hidden="true"></div>
         </div>
         <div id="timelineRangeControl" class="stats-control" hidden>
           <label class="stats-label" for="timelineRange">Range</label>
@@ -1927,12 +1946,21 @@
             <span id="timelineRangeValue">0m</span>
           </div>
         </div>
-        <div class="stats-control">
-          <span class="stats-label">Headshot %</span>
-          <label id="headshotRangeWrap" class="stats-range" hidden>
-            <input id="headshotRange" aria-label="Headshot probability per hit" type="range" min="0" max="100" value="25" step="5">
-            <span id="headshotValue">25%</span>
-          </label>
+        <div id="timelineModeControl" class="stats-control" hidden>
+          <span class="stats-label">Timeline Display</span>
+          <div class="stats-toggle-group">
+            <button class="stats-toggle is-active" type="button" data-timeline-mode="Kill Window" aria-pressed="true">Kill Window</button>
+            <button class="stats-toggle" type="button" data-timeline-mode="Full Damage" aria-pressed="false">Full Damage</button>
+          </div>
+        </div>
+        <div id="exposureControl" class="stats-control" hidden>
+          <span class="stats-label">Exposure</span>
+          <div class="stats-toggle-group">
+            <button class="stats-toggle" type="button" data-stats-exposure="0.1" aria-pressed="false">100 ms</button>
+            <button class="stats-toggle is-active" type="button" data-stats-exposure="0.25" aria-pressed="true">250 ms</button>
+            <button class="stats-toggle" type="button" data-stats-exposure="0.5" aria-pressed="false">500 ms</button>
+            <button class="stats-toggle" type="button" data-stats-exposure="1" aria-pressed="false">1.0 s</button>
+          </div>
         </div>
       </div>
 
@@ -2607,16 +2635,17 @@
         pinnedNames: new Set(),
         hoverName: '',
         hoverRange: 0,
-        hoverTime: 0,
+        hoverTime: null,
         view: 'Range',
         timelineRange: 0,
+        timelineMode: 'Kill Window',
+        exposureTime: 0.25,
         maxTime: 3,
         maxY: 1,
         classFilter: 'ALL',
         targetClass: 'Medium',
-        hitMode: 'Body',
+        headHits: 0,
         metric: 'TTK',
-        headshotPct: 25,
         source: WEAPON_STATS_CONFIG.liveEnabled ? 'live' : 'disabled',
         version: '',
         lastLoadedAt: null,
@@ -2658,15 +2687,18 @@
       timelineRange: document.getElementById('timelineRange'),
       timelineRangeValue: document.getElementById('timelineRangeValue'),
       weaponStatsChartTitle: document.getElementById('weaponStatsChartTitle'),
-      headshotRangeWrap: document.getElementById('headshotRangeWrap'),
-      headshotRange: document.getElementById('headshotRange'),
-      headshotValue: document.getElementById('headshotValue'),
-      mixedHitButton: document.getElementById('mixedHitButton')
+      hitPlacement: document.getElementById('hitPlacement'),
+      hitPlacementCaption: document.getElementById('hitPlacementCaption'),
+      hitPatternPreview: document.getElementById('hitPatternPreview'),
+      timelineModeControl: document.getElementById('timelineModeControl'),
+      exposureControl: document.getElementById('exposureControl')
     };
 
     const railGlideState = new WeakMap();
     const weaponMetricCache = new WeakMap();
     const weaponTimelineCache = new WeakMap();
+    const weaponBreakpointCache = new WeakMap();
+    const statsOpenDetails = new Set();
     let pickerClearTimer = null;
 
     function clampNumber(value, min, max) {
@@ -3159,9 +3191,6 @@
       document.querySelectorAll('[data-stats-target]').forEach((button) => {
         button.classList.toggle('is-active', button.dataset.statsTarget === state.weaponStats.targetClass);
       });
-      document.querySelectorAll('[data-stats-hit]').forEach((button) => {
-        button.classList.toggle('is-active', button.dataset.statsHit === state.weaponStats.hitMode);
-      });
       document.querySelectorAll('[data-stats-metric]').forEach((button) => {
         button.classList.toggle('is-active', button.dataset.statsMetric === state.weaponStats.metric);
       });
@@ -3173,12 +3202,21 @@
       const timeline = state.weaponStats.view === 'Timeline';
       elements.weaponMetricControl.hidden = timeline;
       elements.timelineRangeControl.hidden = !timeline;
+      elements.timelineModeControl.hidden = !timeline;
+      elements.exposureControl.hidden = !timeline;
       elements.timelineRange.value = String(state.weaponStats.timelineRange);
       elements.timelineRangeValue.textContent = `${state.weaponStats.timelineRange}m`;
-      elements.headshotRange.value = String(state.weaponStats.headshotPct);
-      elements.headshotValue.textContent = `${state.weaponStats.headshotPct}%`;
-      elements.mixedHitButton.textContent = `Mixed (${state.weaponStats.headshotPct}%)`;
-      elements.headshotRangeWrap.hidden = state.weaponStats.hitMode !== 'Mixed';
+      elements.hitPlacement.value = String(state.weaponStats.headHits);
+      const pattern = FinalsCombat.getHitPattern(state.weaponStats.headHits);
+      elements.hitPlacementCaption.textContent = `${state.weaponStats.headHits} headshots / 6 hits`;
+      elements.hitPlacement.setAttribute('aria-valuetext', `${state.weaponStats.headHits} headshots per 6 hits: ${pattern.join(' ')}`);
+      elements.hitPatternPreview.innerHTML = pattern.map((hit) => `<span class="stats-pattern-cell ${hit === 'H' ? 'is-head' : ''}"><i></i>${hit}</span>`).join('');
+      document.querySelectorAll('[data-timeline-mode], [data-stats-exposure]').forEach((button) => {
+        const active = button.dataset.timelineMode ? button.dataset.timelineMode === state.weaponStats.timelineMode
+          : Number(button.dataset.statsExposure) === state.weaponStats.exposureTime;
+        button.classList.toggle('is-active', active);
+        button.setAttribute('aria-pressed', String(active));
+      });
     }
 
     function getFilteredWeaponStats() {
@@ -3194,13 +3232,18 @@
       return [...filteredWeapons, ...pinnedWeaponsOutsideFilter];
     }
 
-    function getWeaponDamage(weapon, rangeMeters) {
-      return FinalsCombat.damageProfile(weapon, weaponCombatOptions(rangeMeters)).expected;
+    function getPlottedWeaponStats() {
+      return state.weaponStats.view === 'Timeline'
+        ? [...state.weaponStats.pinnedNames].map(getWeaponByName).filter(Boolean) : getFilteredWeaponStats();
+    }
+
+    function getWeaponDamage(weapon, rangeMeters, hitIndex = 0) {
+      const profile = FinalsCombat.damageProfile(weapon, weaponCombatOptions(rangeMeters));
+      return FinalsCombat.getHitPattern(state.weaponStats.headHits)[hitIndex % 6] === 'H' ? profile.head : profile.body;
     }
 
     function weaponCombatOptions(range) {
-      return { range, hitMode: state.weaponStats.hitMode,
-        headshotProbability: state.weaponStats.headshotPct / 100, duration: 60 };
+      return { range, headHits: state.weaponStats.headHits, duration: 60 };
     }
 
     function getWeaponCombat(weapon, range) {
@@ -3209,15 +3252,14 @@
       const previous = weaponTimelineCache.get(weapon);
       if (previous?.key === key) return previous;
       const timeline = FinalsCombat.createWeaponTimeline(weapon, options);
-      const deaths = Object.fromEntries(Object.entries(WEAPON_HEALTH_VALUES).map(([name, hp]) =>
-        [name, FinalsCombat.killDistribution(timeline, hp)]));
+      const deaths = FinalsCombat.getClassKillTimes(timeline);
       const result = { key, timeline, deaths, exposure: FinalsCombat.exposureSummary(timeline) };
       weaponTimelineCache.set(weapon, result);
       return result;
     }
 
     function getWeaponRangeMetrics(weapon, range) {
-      const modeKey = `${state.weaponStats.hitMode}:${state.weaponStats.headshotPct}`;
+      const modeKey = state.weaponStats.headHits;
       const profile = FinalsCombat.damageProfile(weapon, weaponCombatOptions(range));
       const damageKey = `${profile.body}:${profile.head}`;
       let cache = weaponMetricCache.get(weapon);
@@ -3228,10 +3270,7 @@
       if (!cache.ranges.has(damageKey)) {
         const options = weaponCombatOptions(range);
         const timeline = FinalsCombat.createWeaponTimeline(weapon, options);
-        const deaths = Object.fromEntries(Object.entries(WEAPON_HEALTH_VALUES).map(([name, hp]) => {
-          const distribution = FinalsCombat.killDistribution(timeline, hp);
-          return [name, { ttk: distribution.expectedTTK, shots: distribution.expectedShots }];
-        }));
+        const deaths = FinalsCombat.getClassKillTimes(timeline);
         if (cache.ranges.size > 200) cache.ranges.clear();
         cache.ranges.set(damageKey, { deaths, dps: FinalsCombat.firingDPS(weapon, options) });
       }
@@ -3243,7 +3282,7 @@
     }
 
     function calculateWeaponTTK(weapon, rangeMeters) {
-      return getWeaponRangeMetrics(weapon, rangeMeters).deaths[state.weaponStats.targetClass].ttk;
+      return getWeaponRangeMetrics(weapon, rangeMeters).deaths[state.weaponStats.targetClass].time;
     }
 
     function calculateWeaponDPS(weapon, rangeMeters) {
@@ -3262,28 +3301,10 @@
 
     function getWeaponChartMaxY(weapons) {
       if (state.weaponStats.view === 'Timeline') {
-        const relevant = weapons.filter((weapon) => state.weaponStats.pinnedNames.has(weapon.name));
-        const focus = relevant.length ? relevant : weapons;
-        let maxTime = 3;
-        focus.forEach((weapon) => {
-          const combat = getWeaponCombat(weapon, state.weaponStats.timelineRange);
-          Object.values(combat.deaths).forEach((death) => {
-            if (Number.isFinite(death.medianTime)) maxTime = Math.max(maxTime, death.medianTime + 0.3);
-          });
-          // Only extend for reloads of pinned weapons, not the largest magazine
-          // in the entire catalog. Keep the useful combat window at most 8s.
-          if (relevant.length && combat.timeline.reloads[0]) {
-            maxTime = Math.max(maxTime, combat.timeline.reloads[0].end + 0.3);
-          }
-        });
-        state.weaponStats.maxTime = Math.min(8, Math.ceil(maxTime * 2) / 2);
-        let maxDamage = 350;
-        focus.forEach((weapon) => {
-          const timeline = getWeaponCombat(weapon, state.weaponStats.timelineRange).timeline;
-          maxDamage = Math.max(maxDamage, FinalsCombat.damageAt(timeline,
-            Math.min(state.weaponStats.maxTime, timeline.knownUntil)).total);
-        });
-        return Math.ceil(maxDamage * 1.1 / 100) * 100;
+        const timelines = weapons.map((weapon) => getWeaponCombat(weapon, state.weaponStats.timelineRange).timeline);
+        const bounds = FinalsCombat.getTimelineBounds(timelines, state.weaponStats.timelineMode);
+        state.weaponStats.maxTime = bounds.maxTime;
+        return bounds.maxY;
       }
       let maxValue = 0;
       const ranges = getWeaponChartRanges();
@@ -3381,8 +3402,8 @@
     }
 
     function renderWeaponStatsLegend() {
-      const anyPinned = state.weaponStats.pinnedNames.size > 0;
-      elements.weaponStatsLegend.innerHTML = state.weaponStats.plottedWeapons.map((weapon) => {
+      const anyPinned = state.weaponStats.view === 'Range' && state.weaponStats.pinnedNames.size > 0;
+      elements.weaponStatsLegend.innerHTML = getFilteredWeaponStats().map((weapon) => {
         const isPinned = state.weaponStats.pinnedNames.has(weapon.name);
         const isHovered = state.weaponStats.hoverName === weapon.name;
         const warnings = getWeaponCombat(weapon, state.weaponStats.timelineRange).timeline.warnings;
@@ -3403,6 +3424,14 @@
       const maxY = state.weaponStats.maxY;
       const isTimeline = state.weaponStats.view === 'Timeline';
       const maxX = isTimeline ? state.weaponStats.maxTime : WEAPON_MAX_RANGE;
+      if (isTimeline && !state.weaponStats.plottedWeapons.length) {
+        plot.innerHTML = '<div class="stats-plot-empty" role="status">Select weapons to compare</div>';
+        elements.weaponStatsYLabels.innerHTML = '';
+        elements.weaponStatsXLabels.innerHTML = '';
+        elements.weaponStatsChartTitle.textContent = `Timeline @ ${state.weaponStats.timelineRange}m`;
+        elements.weaponStatsChartNote.textContent = '';
+        return;
+      }
       const anyPinned = state.weaponStats.pinnedNames.size > 0;
       const ranges = getWeaponChartRanges();
       const gridLines = [];
@@ -3417,15 +3446,22 @@
       const lines = state.weaponStats.plottedWeapons.map((weapon) => {
         const data = isTimeline
           ? FinalsCombat.timelinePoints(getWeaponCombat(weapon, state.weaponStats.timelineRange).timeline, maxX)
-            .map((point) => ({ x: point.time, y: point.damage }))
+            .map((point) => ({ x: point.time, y: point.damage, kind: point.kind }))
           : ranges.map((range) => ({ x: range, y: getWeaponMetricValue(weapon, range) }));
         // Missing mechanics are gaps, not fictitious flat lines at the axis ceiling.
         let drawing = false;
-        const path = data.map((point) => {
+        const dotPaths = [];
+        const coordinates = (point) => `${(point.x / maxX * width).toFixed(2)},${(height - point.y / maxY * height).toFixed(2)}`;
+        const path = data.map((point, index) => {
           if (!Number.isFinite(point.y)) { drawing = false; return ''; }
+          if (isTimeline && point.kind === 'dot' && index > 0) {
+            dotPaths.push(`M${coordinates(data[index - 1])}L${coordinates(point)}`);
+            drawing = true;
+            return `M${coordinates(point)}`;
+          }
           const command = drawing ? 'L' : 'M';
           drawing = true;
-          return `${command}${(point.x / maxX * width).toFixed(2)},${(height - point.y / maxY * height).toFixed(2)}`;
+          return `${command}${coordinates(point)}`;
         }).join(' ');
         const isPinned = state.weaponStats.pinnedNames.has(weapon.name);
         const isHovered = state.weaponStats.hoverName === weapon.name;
@@ -3435,12 +3471,12 @@
           isPinned ? 'is-pinned' : '',
           isHovered ? 'is-hovered' : ''
         ].filter(Boolean).join(' ');
-        return `<path class="${classes}" data-stats-name="${escapeHtml(weapon.name)}" d="${path}" stroke="${weapon.color}"></path>`;
+        return `<path class="${classes}" data-stats-name="${escapeHtml(weapon.name)}" d="${path}" stroke="${weapon.color}"></path>`
+          + (dotPaths.length ? `<path class="${classes} stats-dot-line" data-stats-name="${escapeHtml(weapon.name)}" d="${dotPaths.join(' ')}" stroke="${weapon.color}"></path>` : '');
       }).join('');
 
-      const cursorX = state.weaponStats.hoverName
-        ? ((isTimeline ? state.weaponStats.hoverTime : state.weaponStats.hoverRange) / maxX) * width
-        : -10;
+      const cursorPosition = isTimeline ? state.weaponStats.hoverTime : state.weaponStats.hoverName ? state.weaponStats.hoverRange : null;
+      const cursorX = cursorPosition === null ? -10 : cursorPosition / maxX * width;
 
       const healthLines = isTimeline ? Object.entries(WEAPON_HEALTH_VALUES).map(([name, hp]) => {
         const y = height - hp / maxY * height;
@@ -3455,6 +3491,7 @@
           ${healthLines}
           ${lines}
           <g data-timeline-markers></g>
+          ${isTimeline ? `<line class="stats-exposure-line" data-exposure-cursor x1="${state.weaponStats.exposureTime / maxX * width}" x2="${state.weaponStats.exposureTime / maxX * width}" y1="0" y2="${height}"></line>` : ''}
           <line class="stats-cursor" data-stats-cursor x1="${cursorX}" x2="${cursorX}" y1="0" y2="${height}"></line>
         </svg>
       `;
@@ -3467,17 +3504,14 @@
         `<span>${isTimeline ? `${(maxX * index / 4).toFixed(2)}s` : `${index * 25}m`}</span>`).join('');
 
       const targetHp = WEAPON_HEALTH_VALUES[state.weaponStats.targetClass];
-      const mixed = state.weaponStats.hitMode === 'Mixed';
       elements.weaponStatsChartTitle.textContent = isTimeline
-        ? `${mixed ? 'Expected Damage' : 'Damage'} / ${state.weaponStats.hitMode} / ${state.weaponStats.timelineRange}m`
+        ? `Timeline @ ${state.weaponStats.timelineRange}m / ${state.weaponStats.timelineMode}`
         : state.weaponStats.metric === 'TTK'
-          ? `${mixed ? 'Expected TTK' : 'TTK'} vs range / ${state.weaponStats.hitMode} / ${state.weaponStats.targetClass} ${targetHp} HP`
-          : `Firing DPS vs range / ${state.weaponStats.hitMode}`;
+          ? `TTK vs range / ${state.weaponStats.headHits}H per 6 / ${state.weaponStats.targetClass} ${targetHp} HP`
+          : `Firing DPS vs range / ${state.weaponStats.headHits}H per 6`;
       elements.weaponStatsChartNote.textContent = isTimeline
-        ? `${mixed ? 'Lines: expected damage. Diamonds: 50% kill times, not guaranteed deaths. ' : 'Dots: first lethal damage. '}`
-          + 'Hover or pin for class times. First hit at 0s; all hits connect. View capped at 8s.'
-        : `${mixed ? 'Mixed TTK uses independent headshot probabilities, not averaged bullets. ' : ''}`
-          + 'First hit at 0s; all hits connect. DPS excludes reloads. Missing timing data leaves gaps.';
+        ? `Dots: kills. Dashed slopes: burn. Reference: ${state.weaponStats.exposureTime * 1000} ms. ${state.weaponStats.timelineMode === 'Kill Window' ? 'View capped at 8s / 400 damage.' : 'View capped at 20s.'}`
+        : 'Repeating real hits; first hit at 0s. DPS excludes reloads. Missing timing data leaves gaps.';
       renderTimelineMarkers();
     }
 
@@ -3492,7 +3526,6 @@
       const svg = group.ownerSVGElement;
       const { width, height } = svg.viewBox.baseVal;
       const focused = getFocusedStatsWeapon();
-      const mixed = state.weaponStats.hitMode === 'Mixed';
       const maxY = state.weaponStats.maxY;
       const maxTime = state.weaponStats.maxTime;
       const dots = state.weaponStats.plottedWeapons.map((weapon) => {
@@ -3501,29 +3534,15 @@
         const pinned = state.weaponStats.pinnedNames.has(weapon.name);
         const classes = `stats-marker-group ${pinned ? 'is-pinned' : ''} ${isFocused ? 'is-hovered' : ''} ${state.weaponStats.pinnedNames.size && !pinned ? 'is-dimmed' : ''}`;
         return `<g class="${classes}">${Object.entries(WEAPON_HEALTH_VALUES).map(([name, hp]) => {
-          const time = combat.deaths[name].medianTime;
+          const time = combat.deaths[name].time;
           if (!Number.isFinite(time) || time > maxTime) return '';
           const x = time / maxTime * width;
           const y = height - hp / maxY * height;
-          const title = `${weapon.name}: ${name}${mixed ? ' 50%' : ''}: ${time.toFixed(2)}s`;
-          return mixed
-            ? `<path class="stats-kill-marker" data-marker-weapon="${escapeHtml(weapon.name)}" data-marker-time="${time}" stroke="${weapon.color}" d="M${x},${y - 4}l4,4 -4,4 -4,-4Z"><title>${escapeHtml(title)}</title></path>`
-            : `<circle class="stats-kill-marker" data-marker-weapon="${escapeHtml(weapon.name)}" data-marker-time="${time}" stroke="${weapon.color}" cx="${x}" cy="${y}" r="3.5"><title>${escapeHtml(title)}</title></circle>`;
+          const title = `${weapon.name}: ${name} ${time.toFixed(2)}s`;
+          return `<circle class="stats-kill-marker" data-marker-weapon="${escapeHtml(weapon.name)}" data-marker-time="${time}" stroke="${weapon.color}" cx="${x}" cy="${y}" r="3.5"><title>${escapeHtml(title)}</title></circle>`;
         }).join('')}</g>`;
       }).join('');
-      let previousLabelY = -20;
-      const labels = focused ? Object.entries(WEAPON_HEALTH_VALUES).reverse().map(([name, hp]) => {
-        const time = getWeaponCombat(focused, state.weaponStats.timelineRange).deaths[name].medianTime;
-        if (!Number.isFinite(time) || time > maxTime) return '';
-        const x = time / maxTime * width;
-        const y = height - hp / maxY * height;
-        const labelX = Math.max(86, Math.min(x + 8, width - 140));
-        const labelY = Math.max(14, previousLabelY + 18, Math.min(y - 7, height - 42));
-        previousLabelY = labelY;
-        return `<line x1="${x}" y1="${y}" x2="${labelX}" y2="${labelY}" stroke="${focused.color}" opacity="0.5"></line>
-          <text class="stats-kill-label" x="${labelX}" y="${labelY}" style="fill:${focused.color}">${name}${mixed ? ' 50%:' : ''} ${time.toFixed(2)}s</text>`;
-      }).join('') : '';
-      group.innerHTML = dots + labels;
+      group.innerHTML = dots;
     }
 
     function getWeaponByName(name) {
@@ -3537,15 +3556,16 @@
         elements.weaponStatsInfo.innerHTML = `
           <div class="stats-info-title">Live Stats</div>
           <div class="stats-info-row"><span>Pinned</span><span>${pinnedCount}</span></div>
-          <div class="stats-info-row"><span>Metric</span><span>${escapeHtml(state.weaponStats.metric)}</span></div>
-          <div class="stats-info-row"><span>Hit Mode</span><span>${escapeHtml(state.weaponStats.hitMode)}</span></div>
+          <div class="stats-info-row"><span>View</span><span>${escapeHtml(state.weaponStats.view)}</span></div>
+          <div class="stats-info-row"><span>Head hits / 6</span><span>${state.weaponStats.headHits}</span></div>
         `;
         return;
       }
 
       if (state.weaponStats.view === 'Timeline') {
         elements.weaponStatsInfo.innerHTML = `<div class="stats-info-title">${escapeHtml(weapon.name)}</div>`
-          + renderTimelineInfo(weapon) + renderWeaponMechanics(weapon, state.weaponStats.timelineRange);
+          + renderTimelineInfo(weapon) + renderHeadshotBreakpoints(weapon, state.weaponStats.timelineRange, 'info')
+          + renderWeaponMechanics(weapon, state.weaponStats.timelineRange);
         return;
       }
       const range = state.weaponStats.hoverRange;
@@ -3557,45 +3577,90 @@
         <div class="stats-info-title">${escapeHtml(weapon.name)}</div>
         <div class="stats-info-row"><span>Class</span><span>${escapeHtml(weapon.className)}</span></div>
         <div class="stats-info-row"><span>Range</span><span>${range.toFixed(1)}m</span></div>
-        <div class="stats-info-row"><span>${state.weaponStats.hitMode === 'Mixed' ? 'Expected ' : ''}${escapeHtml(state.weaponStats.metric)}</span><span>${formatWeaponMetricValue(metricValue)}</span></div>
-        <div class="stats-info-row"><span>${state.weaponStats.hitMode === 'Mixed' ? 'Expected hit' : 'Direct hit'}</span><span>${damage.toFixed(1)}</span></div>
-        <div class="stats-info-row"><span>${state.weaponStats.hitMode === 'Mixed' ? 'Expected shots' : 'Shots fired'}</span><span>${Number.isFinite(shots) ? (state.weaponStats.hitMode === 'Mixed' ? shots.toFixed(2) : Math.round(shots)) : 'N/A'}</span></div>
+        <div class="stats-info-row"><span>${escapeHtml(state.weaponStats.metric)}</span><span>${formatWeaponMetricValue(metricValue)}</span></div>
+        <div class="stats-info-row"><span>First hit</span><span>${damage.toFixed(1)}</span></div>
+        <div class="stats-info-row"><span>Shots fired</span><span>${Number.isFinite(shots) ? shots : 'N/A'}</span></div>
         <div class="stats-info-row"><span>RPM</span><span>${weapon.rpm || 'N/A'}</span></div>
         <div class="stats-info-row"><span>Dropoff</span><span>${weapon.minDropoff}m - ${weapon.maxDropoff}m</span></div>
         <div class="stats-info-row"><span>Magazine</span><span>${formatWeaponMagazine(weapon)}</span></div>
+        ${renderHeadshotBreakpoints(weapon, range, 'info')}
         ${renderWeaponMechanics(weapon, range)}
       `;
     }
 
     function renderWeaponMechanics(weapon, range) {
       const { timeline } = getWeaponCombat(weapon, range);
-      if (!timeline.notes.length && !timeline.warnings.length) return '';
+      if (!timeline.notes.length && !timeline.warnings.length && timeline.profile.canHeadshot) return '';
       return `<div class="stats-mechanics">
+        ${!timeline.profile.canHeadshot ? '<p>No headshot damage</p>' : ''}
         ${timeline.warnings.map((note) => `<p class="stats-warning">${escapeHtml(note)}</p>`).join('')}
         ${timeline.notes.length ? `<details><summary>Model assumptions</summary>${timeline.notes.map((note) => `<p>${escapeHtml(note)}</p>`).join('')}</details>` : ''}
         ${timeline.source ? `<a href="${escapeHtml(timeline.source)}" target="_blank" rel="noopener noreferrer">Mechanics source</a>` : ''}
       </div>`;
     }
 
-    function renderTimelineInfo(weapon) {
+    function statsDetailsAttributes(key) {
+      // Read the live state before replacing DOM; the toggle event is asynchronous.
+      const existing = [...document.querySelectorAll('[data-stats-detail-key]')]
+        .find((element) => element.dataset.statsDetailKey === key);
+      if (existing) {
+        if (existing.open) statsOpenDetails.add(key);
+        else statsOpenDetails.delete(key);
+      }
+      return `data-stats-detail-key="${escapeHtml(key)}" ${statsOpenDetails.has(key) ? 'open' : ''}`;
+    }
+
+    function renderHeadshotBreakpoints(weapon, range, location) {
+      const profile = FinalsCombat.damageProfile(weapon, { range });
+      if (!profile.canHeadshot) return '';
+      const health = WEAPON_HEALTH_VALUES[state.weaponStats.targetClass];
+      const key = `${profile.body}:${profile.head}:${health}`;
+      let cached = weaponBreakpointCache.get(weapon);
+      if (cached?.key !== key) {
+        cached = { key, values: FinalsCombat.getHeadshotBreakpoints(weapon, { range, health }) };
+        weaponBreakpointCache.set(weapon, cached);
+      }
+      return `<details class="stats-mechanics" ${statsDetailsAttributes(`${location}:breakpoints:${weapon.name}`)}>
+        <summary>Headshot breakpoints</summary>
+        <table class="stats-breakpoints"><caption>${state.weaponStats.targetClass} ${health} HP @ ${range.toFixed(1)}m</caption>
+          <thead><tr><th scope="col">Head / 6</th><th scope="col">Shots</th><th scope="col">TTK</th></tr></thead>
+          <tbody>${cached.values.map((value) => `<tr class="${value.headHits === state.weaponStats.headHits ? 'is-active' : ''}" title="${value.pattern.split('').join(' ')}">
+            <th scope="row">${value.headHits} / 6</th><td>${Number.isFinite(value.shots) ? value.shots : 'N/A'}</td><td>${formatWeaponTTKValue(value.time)}</td></tr>`).join('')}</tbody>
+        </table></details>`;
+    }
+
+    function renderKillSummary(deaths) {
+      return `<div class="stats-kill-summary">${Object.entries(deaths).map(([name, death]) =>
+        `<div class="${name === state.weaponStats.targetClass ? 'is-target' : ''}"><span>${name}</span><strong>${formatWeaponTTKValue(death.time)}</strong></div>`).join('')}</div>`;
+    }
+
+    function renderExposureSummary(weapon) {
+      const { timeline, exposure } = getWeaponCombat(weapon, state.weaponStats.timelineRange);
+      return `<div class="stats-detail-grid">${exposure.samples.map((point) =>
+        `<div class="stats-detail-row ${point.time === state.weaponStats.exposureTime ? 'is-exposure' : ''}"><span>Damage @ ${point.time < 1 ? `${point.time * 1000}ms` : '1s'}</span><span>${point.time <= timeline.knownUntil ? point.total.toFixed(1) : 'Needs data'}</span></div>`).join('')}</div>`;
+    }
+
+    function getTimelineCursorTime() {
+      return Math.min(state.weaponStats.hoverTime ?? state.weaponStats.exposureTime, state.weaponStats.maxTime);
+    }
+
+    function renderTimelineInfo(weapon, compact = false) {
       const { timeline, deaths, exposure } = getWeaponCombat(weapon, state.weaponStats.timelineRange);
-      const time = Math.min(state.weaponStats.hoverTime, state.weaponStats.maxTime);
+      const time = getTimelineCursorTime();
       const current = FinalsCombat.damageAt(timeline, time);
-      const mixed = state.weaponStats.hitMode === 'Mixed';
       const row = (label, value) => `<div class="stats-info-row"><span>${label}</span><span>${value}</span></div>`;
       const sample = (damage, t) => t <= timeline.knownUntil ? damage.toFixed(1) : 'Needs data';
       return row('Cursor', `${time.toFixed(3)}s / ${state.weaponStats.timelineRange}m`)
-        + row(mixed ? 'Expected direct' : 'Direct', sample(current.direct, time))
-        + row('Burn', timeline.dotStatus === 'unknown' ? 'Unverified' : sample(current.burn, time))
-        + row(`${mixed ? 'Expected total' : 'Total'}${timeline.dotStatus === 'unknown' ? ' (direct only)' : ''}`, sample(current.total, time))
-        + `<div class="stats-info-section">${mixed ? 'Expected exposure damage' : 'Exposure damage'}</div>`
-        + exposure.samples.map((point) => row(point.time < 1 ? `${point.time * 1000} ms` : '1.0 s', sample(point.total, point.time))).join('')
+        + row(`Total${timeline.dotStatus === 'unknown' ? ' (direct only)' : ''}`, sample(current.total, time))
+        + row('Direct / DoT', `${sample(current.direct, time)} / ${timeline.dotStatus === 'unknown' ? 'Unverified' : sample(current.burn, time)}`)
+        + row('Shots fired', time <= timeline.knownUntil ? current.shots : 'Needs data')
+        + row('Magazine', `${current.magazine}${current.activity === 'swap' ? ' / swapping' : current.activity === 'reload' ? ' / reloading' : ''}`)
+        + (timeline.burstCount > 1 ? row('Burst', current.burst) : '')
+        + (compact ? '' : renderKillSummary(deaths))
+        + (compact ? '' : `<details class="stats-mechanics" ${statsDetailsAttributes(`info:exposure:${weapon.name}`)}><summary>Exposure damage</summary>${renderExposureSummary(weapon)}`)
         + row(timeline.burstCount > 1 ? 'First burst' : 'First shot', `${exposure.burstDamage.toFixed(1)} / ${exposure.burstDuration.toFixed(3)}s`)
-        + row('Before first reload / swap', exposure.beforeReload === null ? (timeline.rounds === Infinity ? 'No reload' : 'Needs data') : `${exposure.beforeReload.toFixed(1)} at ${exposure.reloadTime.toFixed(2)}s`)
-        + `<div class="stats-info-section">${mixed ? 'Independent headshot outcomes' : 'First lethal damage'}</div>`
-        + Object.entries(deaths).map(([name, death]) => `<div class="stats-info-row ${name === state.weaponStats.targetClass ? 'is-target' : ''}">
-          <span>${name}</span><span>${mixed ? `Expected TTK ${formatWeaponTTKValue(death.expectedTTK)}<br>50% ${formatWeaponTTKValue(death.medianTime)}<br>${time <= timeline.knownUntil ? `${(death.probabilityAt(time) * 100).toFixed(1)}% dead` : 'Needs data'}` : formatWeaponTTKValue(death.expectedTTK)}</span>
-        </div>`).join('');
+        + row('Before reload / swap', exposure.beforeReload === null ? (timeline.rounds === Infinity ? 'No reload' : 'Needs data') : `${exposure.beforeReload.toFixed(1)} at ${exposure.reloadTime.toFixed(2)}s`)
+        + (compact ? '' : '</details>');
     }
 
     function renderWeaponStatsPinned() {
@@ -3609,6 +3674,8 @@
             const loadoutNote = loadoutItemName ? state.itemNotes[loadoutItemName] || '' : '';
             const hasLoadoutNote = Boolean(loadoutNote.trim());
             const canEditLoadoutNote = Boolean(loadoutItemName);
+            const timelineView = state.weaponStats.view === 'Timeline';
+            const range = timelineView ? state.weaponStats.timelineRange : state.weaponStats.hoverRange;
 
             return `
             <article class="stats-detail-card" style="--weapon-color:${weapon.color};">
@@ -3616,6 +3683,9 @@
                 <div class="stats-detail-title">${escapeHtml(weapon.name)}</div>
                 <button class="stats-detail-remove" type="button" data-weapon-unpin="${escapeHtml(weapon.name)}" aria-label="Unpin ${escapeHtml(weapon.name)}">x</button>
               </div>
+              ${timelineView ? `${renderKillSummary(getWeaponCombat(weapon, range).deaths)}${renderExposureSummary(weapon)}
+                <details class="stats-mechanics" ${statsDetailsAttributes(`pinned:combat:${weapon.name}`)}><summary>Combat details @ ${range}m</summary>
+                <div data-pinned-timeline="${escapeHtml(weapon.name)}">${renderTimelineInfo(weapon, true)}</div>` : ''}
               <div class="stats-detail-grid">
                 <div class="stats-detail-row"><span>Class</span><span>${escapeHtml(weapon.className)}</span></div>
                 <div class="stats-detail-row"><span>Damage</span><span>${weapon.bodyDamage} / ${weapon.headDamage}</span></div>
@@ -3628,8 +3698,9 @@
                 <div class="stats-detail-row"><span>25m TTK</span><span>${formatWeaponTTKValue(calculateWeaponTTK(weapon, 25))}</span></div>
                 <div class="stats-detail-row"><span>25m DPS</span><span>${formatWeaponDPSValue(calculateWeaponDPS(weapon, 25))}</span></div>
               </div>
-              ${state.weaponStats.view === 'Timeline' ? `<details class="stats-mechanics"><summary>Exposure &amp; kill times at ${state.weaponStats.timelineRange}m</summary><div data-pinned-timeline="${escapeHtml(weapon.name)}">${renderTimelineInfo(weapon)}</div></details>` : ''}
-              ${renderWeaponMechanics(weapon, state.weaponStats.view === 'Timeline' ? state.weaponStats.timelineRange : 0)}
+              ${timelineView ? '</details>' : ''}
+              <div data-pinned-breakpoints="${escapeHtml(weapon.name)}">${renderHeadshotBreakpoints(weapon, range, 'pinned')}</div>
+              ${renderWeaponMechanics(weapon, range)}
               <div class="stats-detail-note">
                 <div class="stats-detail-note-head">
                   <span class="stats-detail-note-label">Loadout Note</span>
@@ -3638,10 +3709,10 @@
                 <div class="stats-detail-note-text ${hasLoadoutNote ? '' : 'is-empty'}">${hasLoadoutNote ? escapeHtml(loadoutNote) : 'No loadout note yet'}</div>
               </div>
               ${weapon.notes ? `
-                <div class="stats-detail-note stats-detail-source-note">
-                  <div class="stats-detail-note-label">Sheet Note</div>
+                <details class="stats-detail-note stats-detail-source-note" ${statsDetailsAttributes(`pinned:sheet:${weapon.name}`)}>
+                  <summary class="stats-detail-note-label">Sheet Note</summary>
                   <div class="stats-detail-note-text">${escapeHtml(weapon.notes)}</div>
-                </div>
+                </details>
               ` : ''}
             </article>
           `;
@@ -3667,9 +3738,8 @@
         const width = Math.max(1, elements.weaponStatsPlot.clientWidth || 1);
         const viewBoxWidth = Number(elements.weaponStatsPlot.querySelector('svg')?.viewBox?.baseVal?.width) || width;
         const timeline = state.weaponStats.view === 'Timeline';
-        const cursorX = state.weaponStats.hoverName
-          ? ((timeline ? state.weaponStats.hoverTime : state.weaponStats.hoverRange) / (timeline ? state.weaponStats.maxTime : WEAPON_MAX_RANGE)) * viewBoxWidth
-          : -10;
+        const position = timeline ? state.weaponStats.hoverTime : state.weaponStats.hoverName ? state.weaponStats.hoverRange : null;
+        const cursorX = position === null ? -10 : position / (timeline ? state.weaponStats.maxTime : WEAPON_MAX_RANGE) * viewBoxWidth;
         cursor.setAttribute('x1', cursorX);
         cursor.setAttribute('x2', cursorX);
       }
@@ -3679,7 +3749,7 @@
       const previousName = state.weaponStats.hoverName;
       state.weaponStats.hoverName = name || '';
       if (state.weaponStats.view === 'Timeline') {
-        state.weaponStats.hoverTime = clampNumber(rangeMeters || 0, 0, state.weaponStats.maxTime);
+        state.weaponStats.hoverTime = rangeMeters == null ? null : clampNumber(rangeMeters, 0, state.weaponStats.maxTime);
       } else {
         state.weaponStats.hoverRange = clampNumber(rangeMeters || 0, 0, WEAPON_MAX_RANGE);
       }
@@ -3688,7 +3758,11 @@
       renderWeaponStatsInfo();
       if (state.weaponStats.view === 'Timeline') {
         elements.weaponStatsPinned.querySelectorAll('[data-pinned-timeline]').forEach((panel) => {
-          panel.innerHTML = renderTimelineInfo(getWeaponByName(panel.dataset.pinnedTimeline));
+          panel.innerHTML = renderTimelineInfo(getWeaponByName(panel.dataset.pinnedTimeline), true);
+        });
+      } else {
+        elements.weaponStatsPinned.querySelectorAll('[data-pinned-breakpoints]').forEach((panel) => {
+          panel.innerHTML = renderHeadshotBreakpoints(getWeaponByName(panel.dataset.pinnedBreakpoints), state.weaponStats.hoverRange, 'pinned');
         });
       }
     }
@@ -3708,6 +3782,7 @@
           if (timeline && rangeMeters > timeline.knownUntil) return;
           const value = timeline ? FinalsCombat.damageAt(timeline, rangeMeters).total : getWeaponMetricValue(weapon, rangeMeters);
           if (!Number.isFinite(value)) return;
+          if (timeline && value > state.weaponStats.maxY) return;
           const clampedValue = Number.isFinite(value) ? Math.min(value, state.weaponStats.maxY) : state.weaponStats.maxY;
           const pixelY = chartHeight - ((clampedValue / state.weaponStats.maxY) * chartHeight);
           const diff = Math.abs(y - pixelY);
@@ -3760,7 +3835,7 @@
       } else {
         state.weaponStats.pinnedNames.add(name);
       }
-      state.weaponStats.plottedWeapons = getFilteredWeaponStats();
+      state.weaponStats.plottedWeapons = getPlottedWeaponStats();
       if (state.weaponStats.hoverName && !state.weaponStats.plottedWeapons.some((weapon) => weapon.name === state.weaponStats.hoverName)) {
         state.weaponStats.hoverName = '';
       }
@@ -3797,9 +3872,9 @@
           state.weaponStats.pinnedNames.delete(name);
         }
       });
-      state.weaponStats.plottedWeapons = getFilteredWeaponStats();
+      state.weaponStats.plottedWeapons = getPlottedWeaponStats();
 
-      if (!state.weaponStats.plottedWeapons.length) {
+      if (!state.weaponStats.plottedWeapons.length && state.weaponStats.view !== 'Timeline') {
         renderWeaponStatsEmpty('No weapons match the selected class filter');
         return;
       }
@@ -3807,6 +3882,7 @@
       elements.weaponStatsEmpty.hidden = true;
       elements.weaponStatsContent.hidden = false;
       state.weaponStats.maxY = getWeaponChartMaxY(state.weaponStats.plottedWeapons);
+      if (state.weaponStats.hoverTime !== null) state.weaponStats.hoverTime = Math.min(state.weaponStats.hoverTime, state.weaponStats.maxTime);
       renderWeaponStatsLegend();
       renderWeaponStatsPlot();
       renderWeaponStatsInfo();
@@ -4703,14 +4779,6 @@
         return;
       }
 
-      const statsHitButton = event.target.closest('[data-stats-hit]');
-      if (statsHitButton) {
-        state.weaponStats.hitMode = statsHitButton.dataset.statsHit;
-        state.weaponStats.hoverName = '';
-        renderWeaponStats();
-        return;
-      }
-
       const statsMetricButton = event.target.closest('[data-stats-metric]');
       if (statsMetricButton) {
         state.weaponStats.metric = statsMetricButton.dataset.statsMetric;
@@ -4723,7 +4791,27 @@
       if (statsViewButton) {
         state.weaponStats.view = statsViewButton.dataset.statsView;
         state.weaponStats.hoverName = '';
+        state.weaponStats.hoverTime = null;
         renderWeaponStats();
+        return;
+      }
+
+      const timelineModeButton = event.target.closest('[data-timeline-mode]');
+      if (timelineModeButton) {
+        state.weaponStats.timelineMode = timelineModeButton.dataset.timelineMode;
+        state.weaponStats.hoverTime = null;
+        renderWeaponStats();
+        return;
+      }
+
+      const exposureButton = event.target.closest('[data-stats-exposure]');
+      if (exposureButton) {
+        state.weaponStats.exposureTime = Number(exposureButton.dataset.statsExposure);
+        state.weaponStats.hoverTime = null;
+        syncWeaponStatsControls();
+        renderWeaponStatsPlot();
+        renderWeaponStatsInfo();
+        renderWeaponStatsPinned();
         return;
       }
 
@@ -4837,9 +4925,10 @@
         renderWeaponStats();
         return;
       }
-      if (event.target === elements.headshotRange) {
-        state.weaponStats.headshotPct = Number(event.target.value) || 0;
+      if (event.target === elements.hitPlacement) {
+        state.weaponStats.headHits = Number(event.target.value) || 0;
         state.weaponStats.hoverName = '';
+        state.weaponStats.hoverTime = null;
         renderWeaponStats();
         return;
       }
@@ -4893,17 +4982,24 @@
       glideRailBy(rail, delta);
     }, { passive: false });
 
+    document.addEventListener('toggle', (event) => {
+      const key = event.target.dataset?.statsDetailKey;
+      if (!key || !event.target.isConnected) return;
+      if (event.target.open) statsOpenDetails.add(key);
+      else statsOpenDetails.delete(key);
+    }, true);
+
     elements.weaponStatsPlot.addEventListener('pointermove', handleWeaponStatsPointerMove);
     elements.weaponStatsLegend.addEventListener('pointerover', (event) => {
       const button = event.target.closest('[data-weapon-pin]');
-      if (button) setWeaponHover(button.dataset.weaponPin, state.weaponStats.view === 'Timeline' ? state.weaponStats.hoverTime : state.weaponStats.hoverRange);
+      if (button) setWeaponHover(button.dataset.weaponPin, state.weaponStats.view === 'Timeline' ? null : state.weaponStats.hoverRange);
     });
     elements.weaponStatsLegend.addEventListener('focusin', (event) => {
       const button = event.target.closest('[data-weapon-pin]');
-      if (button) setWeaponHover(button.dataset.weaponPin, 0);
+      if (button) setWeaponHover(button.dataset.weaponPin, state.weaponStats.view === 'Timeline' ? null : state.weaponStats.hoverRange);
     });
-    elements.weaponStatsLegend.addEventListener('pointerleave', () => setWeaponHover('', state.weaponStats.view === 'Timeline' ? state.weaponStats.hoverTime : state.weaponStats.hoverRange));
-    elements.weaponStatsPlot.addEventListener('pointerleave', () => setWeaponHover('', state.weaponStats.view === 'Timeline' ? state.weaponStats.hoverTime : 0));
+    elements.weaponStatsLegend.addEventListener('pointerleave', () => setWeaponHover('', state.weaponStats.view === 'Timeline' ? null : state.weaponStats.hoverRange));
+    elements.weaponStatsPlot.addEventListener('pointerleave', () => setWeaponHover('', state.weaponStats.view === 'Timeline' ? null : state.weaponStats.hoverRange));
     elements.weaponStatsPlot.addEventListener('click', (event) => {
       const target = getWeaponPointerTarget(event);
       if (target?.weapon) {

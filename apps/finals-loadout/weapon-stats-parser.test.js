@@ -50,7 +50,7 @@ for (const stamina of [false, true]) {
     const arn = rows.find((w) => w.name === 'ARN-220');
     assert.equal(arn.magazineRaw, '30\u00d72');
     assert.equal(combat.createWeaponTimeline(arn).magazineCount, 2);
-    assert.ok(Math.abs(combat.killDistribution(combat.createWeaponTimeline(arn), 250).expectedTTK - 1.12) < 1e-8);
+    assert.ok(Math.abs(combat.getKillTime(combat.createWeaponTimeline(arn), 250).time - 1.12) < 1e-8);
   });
 }
 

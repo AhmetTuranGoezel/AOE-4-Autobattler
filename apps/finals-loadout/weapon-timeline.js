@@ -3,6 +3,11 @@
 
   const EPS = 1e-9;
   const HEALTH = { Light: 150, Medium: 250, Heavy: 350 };
+  const HIT_PATTERNS = ['BBBBBB', 'BBHBBB', 'BBHBBH', 'BHBHBH', 'HHBHHB', 'HHHBHH', 'HHHHHH'];
+
+  function getHitPattern(headHits = 0) {
+    return HIT_PATTERNS[Math.max(0, Math.min(6, Math.round(Number(headHits) || 0)))].split('');
+  }
   // Supplement mechanics only. Damage, RPM, falloff and known reloads stay sheet-owned.
   const WEAPON_MECHANICS_OVERRIDES = {
     'Cerberus 12GA': {
@@ -64,9 +69,7 @@
     const body = Math.max(0, weapon.bodyDamage || 0) * multiplier;
     const canHeadshot = mechanics.canHeadshot !== false && weapon.headDamage > weapon.bodyDamage;
     const head = canHeadshot ? weapon.headDamage * multiplier : body;
-    const probability = !canHeadshot ? 0 : options.hitMode === 'Head' ? 1
-      : options.hitMode === 'Mixed' ? Math.max(0, Math.min(1, options.headshotProbability || 0)) : 0;
-    return { body, head, probability, expected: body + probability * (head - body), canHeadshot };
+    return { body, head, canHeadshot };
   }
 
   function reloadDuration(weapon, missingRounds, mechanics = mechanicsFor(weapon)) {
@@ -86,21 +89,24 @@
   }
 
   function createDotSegments(shots, dot, duration) {
-    if (!isVerifiedDot(dot)) return [];
-    const applications = shots.filter((shot) => shot.body > 0 && (typeof dot.trigger !== 'function' || dot.trigger(shot)));
+    if (!isVerifiedDot(dot)) return { segments: [], events: [] };
+    const applications = shots.filter((shot) => shot.damage > 0 && (typeof dot.trigger !== 'function' || dot.trigger(shot)));
     const intervals = [];
+    const events = [];
     applications.forEach((shot) => {
       const start = shot.time + Math.max(0, dot.startDelay);
       const end = start + dot.duration;
       const active = intervals.filter((interval) => interval.end > start + EPS);
       if (dot.stackMode === 'refresh' && active.length) {
         active[0].end = Math.max(active[0].end, end);
+        events.push({ type: 'dot-refresh', time: start, end: active[0].end });
       } else {
         if (dot.stackMode === 'replace') active.forEach((interval) => { interval.end = start; });
         if (dot.stackMode === 'stack' && active.length >= (dot.maxStacks || Infinity)) {
           active.sort((a, b) => a.end - b.end)[0].end = start;
         }
         intervals.push({ start, end });
+        events.push({ type: 'dot-start', time: start, end });
       }
     });
     const changes = new Map();
@@ -118,13 +124,15 @@
       rate += change;
       previous = time;
     }
-    return segments;
+    intervals.forEach(({ end }) => { events.push({ type: 'dot-end', time: end }); });
+    return { segments, events: events.filter((event) => event.time <= duration + EPS) };
   }
 
   function createWeaponTimeline(weapon, options = {}) {
     const duration = Math.max(0, Math.min(options.duration ?? 60, 120));
     const mechanics = mechanicsFor(weapon);
     const profile = damageProfile(weapon, options);
+    const pattern = getHitPattern(options.headHits);
     const warnings = [...(mechanics.needsData || [])];
     const magazine = parseMagazine(weapon.magazineRaw ?? weapon.magazineSize);
     const rounds = magazine.rounds || mechanics.magazine?.rounds;
@@ -134,6 +142,8 @@
     const burstCount = Math.max(1, Math.floor(weapon.burstCount || 1));
     const shots = [];
     const reloads = [];
+    const burstGaps = [];
+    let cumulativeDirect = 0;
     let time = 0;
     let magazineIndex = 0;
     let inMagazine = 0;
@@ -145,7 +155,11 @@
     if (burstCount > 1 && !(weapon.burstDelay > 0)) warnings.push('Inter-burst delay needs data.');
 
     while (time <= duration + EPS && shots.length < 5000) {
-      shots.push({ type: 'shot', time, index: shots.length + 1, magazineIndex, burstIndex, ...profile });
+      const placement = profile.canHeadshot ? pattern[shots.length % pattern.length] : 'B';
+      const damage = placement === 'H' ? profile.head : profile.body;
+      cumulativeDirect += damage;
+      shots.push({ type: 'shot', time, index: shots.length + 1, magazineIndex, burstIndex,
+        magazineShot: inMagazine + 1, burstShot: inBurst + 1, placement, damage, cumulativeDirect });
       inMagazine++;
       inBurst++;
       let delay;
@@ -169,6 +183,7 @@
       } else if (inBurst >= burstCount) {
         delay = burstCount > 1 ? weapon.burstDelay : interval;
         if (!(delay > 0)) { knownUntil = time; break; }
+        if (burstCount > 1) burstGaps.push({ type: 'burst-gap', time, start: time, end: time + delay, burstIndex });
         inBurst = 0;
         burstIndex++;
       } else {
@@ -176,18 +191,20 @@
       }
       time += delay;
     }
-    const dotSegments = createDotSegments(shots, mechanics.dot, duration);
-    const events = [...shots, ...reloads.map((reload) => ({ ...reload, time: reload.start })),
-      ...dotSegments.map((segment) => ({ type: 'dot', time: segment.start, ...segment }))]
+    const dot = createDotSegments(shots, mechanics.dot, duration);
+    const dotSegments = dot.segments;
+    const events = [...shots, ...burstGaps,
+      ...reloads.map((reload) => ({ ...reload, type: reload.type === 'swap' ? 'magazine-transition' : 'reload', time: reload.start })),
+      ...dot.events]
       .sort((a, b) => a.time - b.time);
-    return { weapon, profile, shots, reloads, dotSegments, events, duration, knownUntil,
+    return { weapon, profile, pattern, shots, reloads, burstGaps, dotSegments, events, duration, knownUntil,
       dotStatus: !mechanics.dot ? 'none' : isVerifiedDot(mechanics.dot) ? 'modeled' : 'unknown',
       rounds, magazineCount, burstCount, warnings: [...new Set(warnings)],
       notes: mechanics.notes || [], source: mechanics.source };
   }
 
   function damageAt(timeline, time) {
-    if (time < 0) return { direct: 0, burn: 0, total: 0, shots: 0 };
+    if (time < 0) return { direct: 0, burn: 0, total: 0, shots: 0, magazine: 1, burst: 1, activity: 'ready' };
     const t = Math.min(time, timeline.duration);
     let low = 0;
     let high = timeline.shots.length;
@@ -196,85 +213,70 @@
       if (timeline.shots[mid].time <= t + EPS) low = mid + 1;
       else high = mid;
     }
-    const direct = low * timeline.profile.expected;
+    const lastShot = timeline.shots[low - 1];
+    const direct = lastShot?.cumulativeDirect || 0;
     const burn = timeline.dotSegments.reduce((sum, segment) => sum
       + Math.max(0, Math.min(t, segment.end) - segment.start) * segment.rate, 0);
-    return { direct, burn, total: direct + burn, shots: low };
-  }
-
-  // Surviving probability mass indexed by headshot count. Removing killed paths
-  // gives exact first-kill probabilities, including crossings between shots.
-  function killDistribution(timeline, health) {
-    const { body, head, probability: p } = timeline.profile;
-    if (Math.max(body, head) <= 0 && !timeline.dotSegments.length) {
-      return { kills: [], complete: false, expectedTTK: Infinity, expectedShots: Infinity,
-        medianTime: Infinity, probabilityAt: () => 0 };
-    }
-    const times = [...new Set([0, timeline.duration, ...timeline.shots.map((s) => s.time),
-      ...timeline.dotSegments.flatMap((s) => [s.start, s.end])])].sort((a, b) => a - b);
-    const kills = [];
-    let alive = [1];
-    let count = 0;
-    let burn = 0;
-    let shotIndex = 0;
-    let segmentIndex = 0;
-    let previous = 0;
-    let rate = 0;
-    for (const time of times) {
-      const nextBurn = burn + rate * (time - previous);
-      alive.forEach((mass, k) => {
-        if (!mass) return;
-        const remaining = health - count * body - k * (head - body) - burn;
-        if (rate > 0 && remaining <= nextBurn - burn + EPS) {
-          kills.push({ time: previous + Math.max(0, remaining) / rate, probability: mass, shots: count });
-          alive[k] = 0;
-        }
-      });
-      burn = nextBurn;
-      while (shotIndex < timeline.shots.length && timeline.shots[shotIndex].time <= time + EPS) {
-        const next = Array(alive.length + 1).fill(0);
-        alive.forEach((mass, k) => { next[k] += mass * (1 - p); next[k + 1] += mass * p; });
-        alive = next;
-        count++;
-        shotIndex++;
-        alive.forEach((mass, k) => {
-          if (mass && count * body + k * (head - body) + burn >= health - EPS) {
-            kills.push({ time, probability: mass, shots: count });
-            alive[k] = 0;
-          }
-        });
-      }
-      if (!alive.some((mass) => mass > 0)) break;
-      while (segmentIndex < timeline.dotSegments.length && timeline.dotSegments[segmentIndex].end <= time + EPS) segmentIndex++;
-      const segment = timeline.dotSegments[segmentIndex];
-      rate = segment && segment.start <= time + EPS ? segment.rate : 0;
-      previous = time;
-    }
-    kills.sort((a, b) => a.time - b.time);
-    const remaining = alive.reduce((sum, mass) => sum + mass, 0);
-    let cumulative = 0;
-    let medianTime = Infinity;
-    kills.forEach((kill) => {
-      cumulative += kill.probability;
-      if (!Number.isFinite(medianTime) && cumulative >= 0.5 - EPS) medianTime = kill.time;
-    });
-    return { kills, complete: remaining === 0,
-      expectedTTK: remaining === 0 ? kills.reduce((sum, k) => sum + k.time * k.probability, 0) : Infinity,
-      expectedShots: remaining === 0 ? kills.reduce((sum, k) => sum + k.shots * k.probability, 0) : Infinity,
-      medianTime,
-      probabilityAt: (time) => Math.min(1, kills.reduce((sum, k) => sum + (k.time <= time + EPS ? k.probability : 0), 0)) };
+    const transition = timeline.reloads.find((reload) => t >= reload.start - EPS && t < reload.end - EPS);
+    return { direct, burn, total: direct + burn, shots: low,
+      magazine: (lastShot?.magazineIndex || 0) + 1, burst: (lastShot?.burstIndex || 0) + 1,
+      activity: transition ? transition.type : 'firing' };
   }
 
   function timelinePoints(timeline, end) {
-    const times = [...new Set([0, Math.min(end, timeline.duration), ...timeline.shots.map((s) => s.time),
+    const limit = Math.min(end, timeline.duration, timeline.knownUntil);
+    const times = [...new Set([0, limit, ...timeline.shots.map((s) => s.time),
       ...timeline.dotSegments.flatMap((s) => [s.start, s.end])])]
-      .filter((t) => t <= end + EPS && t <= timeline.knownUntil + EPS).sort((a, b) => a - b);
-    const shotTimes = new Set(timeline.shots.map((s) => s.time));
+      .filter((t) => t <= limit + EPS).sort((a, b) => a - b);
+    const shotTimes = new Map(timeline.shots.map((s) => [s.time, s]));
+    let previousBurn = 0;
     return times.flatMap((time) => {
-      const total = damageAt(timeline, time).total;
-      return shotTimes.has(time) ? [{ time, damage: total - timeline.profile.expected }, { time, damage: total }]
-        : [{ time, damage: total }];
+      const value = damageAt(timeline, time);
+      const kind = value.burn > previousBurn + EPS ? 'dot' : 'hold';
+      previousBurn = value.burn;
+      const shot = shotTimes.get(time);
+      return shot ? [{ time, damage: value.total - shot.damage, shots: shot.index - 1, kind },
+        { time, damage: value.total, shots: shot.index, kind: 'shot' }]
+        : [{ time, damage: value.total, shots: value.shots, kind }];
     });
+  }
+
+  function getKillTime(timeline, health) {
+    let previous = { time: 0, damage: 0, shots: 0 };
+    for (const point of timelinePoints(timeline, timeline.duration)) {
+      if (point.damage >= health - EPS) {
+        const time = point.kind === 'dot' && point.time > previous.time
+          ? previous.time + (health - previous.damage) / (point.damage - previous.damage) * (point.time - previous.time)
+          : point.time;
+        return { time: Math.max(0, time), shots: point.shots, source: point.kind === 'dot' ? 'dot' : 'direct' };
+      }
+      previous = point;
+    }
+    return { time: Infinity, shots: Infinity, source: null };
+  }
+
+  function getClassKillTimes(timeline) {
+    return Object.fromEntries(Object.entries(HEALTH).map(([name, hp]) => [name, getKillTime(timeline, hp)]));
+  }
+
+  function getHeadshotBreakpoints(weapon, options = {}) {
+    return HIT_PATTERNS.map((pattern, headHits) => {
+      const timeline = createWeaponTimeline(weapon, { ...options, headHits });
+      return { headHits, pattern, ...getKillTime(timeline, options.health || HEALTH.Medium) };
+    });
+  }
+
+  function getTimelineBounds(timelines, mode = 'Kill Window') {
+    let end = mode === 'Full Damage' ? 6 : 1;
+    timelines.forEach((timeline) => {
+      const kill = getKillTime(timeline, HEALTH.Heavy);
+      if (Number.isFinite(kill.time)) end = Math.max(end, kill.time + 0.3);
+      if (mode === 'Full Damage' && timeline.reloads[0]) end = Math.max(end, timeline.reloads[0].end + 2);
+    });
+    const maxTime = Math.min(mode === 'Full Damage' ? 20 : 8, Math.ceil(end * 10) / 10);
+    const maxDamage = mode === 'Full Damage' ? Math.max(350, ...timelines.map((timeline) =>
+      damageAt(timeline, Math.min(maxTime, timeline.knownUntil)).total)) : 350;
+    return { maxTime, maxY: mode === 'Full Damage' ? Math.ceil(maxDamage * 1.1 / 100) * 100 : 400 };
   }
 
   function exposureSummary(timeline) {
@@ -293,16 +295,20 @@
     const mechanics = mechanicsFor(weapon);
     const timeline = createWeaponTimeline({ ...weapon, magazineRaw: Infinity, magazineSize: Infinity,
       magazineCount: 1, mechanics: { ...mechanics, magazine: undefined } }, { ...options, duration: 30 });
-    const nextBurst = timeline.shots.find((shot) => shot.burstIndex === 1);
-    if (!nextBurst || !nextBurst.time) return NaN;
-    const direct = timeline.shots.filter((shot) => shot.burstIndex === 0).length * timeline.profile.expected / nextBurst.time;
-    const end = timeline.duration;
-    const burn = (damageAt(timeline, end).burn - damageAt(timeline, end - nextBurst.time).burn) / nextBurst.time;
+    // Measure a whole repeating hit-pattern AND burst cycle, never an averaged hit.
+    let cycleHits = 6;
+    while (cycleHits % timeline.burstCount) cycleHits += 6;
+    const cycleTime = timeline.shots[cycleHits]?.time;
+    if (!cycleTime) return NaN;
+    const direct = timeline.shots[cycleHits - 1].cumulativeDirect / cycleTime;
+    const end = Math.floor(timeline.duration / cycleTime) * cycleTime;
+    const burn = (damageAt(timeline, end).burn - damageAt(timeline, end - cycleTime).burn) / cycleTime;
     return direct + burn;
   }
 
-  const api = { HEALTH, WEAPON_MECHANICS_OVERRIDES, parseMagazine, damageProfile, reloadDuration,
-    createWeaponTimeline, damageAt, killDistribution, timelinePoints, exposureSummary, firingDPS };
+  const api = { HEALTH, WEAPON_MECHANICS_OVERRIDES, getHitPattern, parseMagazine, damageProfile, reloadDuration,
+    createWeaponTimeline, damageAt, getKillTime, getClassKillTimes, getHeadshotBreakpoints,
+    getTimelineBounds, timelinePoints, exposureSummary, firingDPS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.FinalsCombat = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
