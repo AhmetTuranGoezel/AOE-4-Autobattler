@@ -5,7 +5,7 @@ feature: a **cleaned / effective stat total** that strips out stats a Pokémon c
 actually use (Sp.Atk on a pure physical attacker, Speed on a mon that's too slow to
 matter), so you compare what each mon *really* brings.
 
-Three tabs:
+Six main views:
 - **Pokémon** — the roster table/grid with all the filtering, sorting, radar charts,
   cleaned stats and find-similar.
 - **Moves** — every move in the roster's movepools with power / accuracy / PP / priority,
@@ -13,6 +13,23 @@ Three tabs:
   effect text, and how many Pokémon learn it. Click a move to filter the roster by it.
 - **Abilities** — every ability with description, how many Pokémon have it, and a sprite
   preview. Click to filter the roster.
+- **Damage** — All vs one, One vs all, and Team check. Current builds, roster
+  assumptions, battle conditions, and result filters are separate. Compact views
+  keep the current assumptions visible while only editing controls expand.
+- **Team** — saved-team management, Battle Four selection, complete current
+  builds, and analysis. Collapsing Stat Point editing never hides calculated
+  Lv50 stats, Nature, ability, item, or moves.
+- **Coverage** — offensive and defensive type lookups as peer panels, followed
+  by next-type recommendations.
+
+Pokémon details use **Overview / Meta / Moves**. Overview immediately shows all
+six Base/Lv50 stat rows and explicit Nature/point assumptions, with eHP nearby.
+Meta is a compact usage dashboard; browsing captured teams opens a six-sprite
+list and then one focused team. Exact Nature evidence comes only from captured
+sets with the matching complete spread—not from the overall Nature distribution.
+
+Moves analysis retains its one-click comparison presets, Custom item selection,
+and species-specific choices. Editing and ranking modes keep independent settings.
 
 Also: type / role / generation / Mega filters, ability & move quick-search with **rarity**
 badges, stat-range filters, a **radar chart** (base vs cleaned overlay), and

@@ -33,7 +33,7 @@ def run(live_images=False):
     try:
         with sync_playwright() as pw:
             browser = pw.chromium.launch(executable_path=os.environ.get('CHROME_PATH', r'C:\Program Files\Google\Chrome\Application\chrome.exe'), headless=True)
-            context = browser.new_context(viewport={'width': 1440, 'height': 1080})
+            context = browser.new_context(viewport={'width': 1440, 'height': 1000})
             context.set_default_timeout(15000)
             context.route('**/*', lambda r: r.continue_() if r.request.url.startswith(url) or (
                 live_images and r.request.resource_type == 'image' and urlparse(r.request.url).netloc in image_hosts
@@ -53,6 +53,11 @@ def run(live_images=False):
                 page.locator('#view-table').click()
                 page.locator('#search').fill(name)
                 page.locator(f'#results [data-slug="{slug}"] .nm-top').click()
+                assert page.locator('#detail-tab-overview').get_attribute('aria-selected') == 'true', 'Fresh opens default to Overview'
+
+            def first_screen(locator, label):
+                assert locator.is_visible(), label
+                assert locator.evaluate('el => { const b=el.getBoundingClientRect(); return b.top >= 0 && b.bottom <= innerHeight; }'), label
 
             def shot(name, width, full=True):
                 page.evaluate("document.querySelector('#detail').scrollTop = 0")
@@ -76,24 +81,50 @@ def run(live_images=False):
                 finally:
                     page.set_viewport_size(viewport)
 
-            for width, height in ((1440, 1080), (390, 844)):
+            for width, height in ((1440, 1000), (390, 844)):
                 page.set_viewport_size({'width': width, 'height': height})
                 open_mon('hydreigon', 'Hydreigon')
                 tab('overview')
                 assert page.locator('[role="tabpanel"]').count() == 1
+                assert page.locator('.detail-tabs > button').count() == 3
                 assert page.locator('.detail-tabs [aria-controls]').evaluate_all("els => els.every(el => document.getElementById(el.getAttribute('aria-controls')))")
                 assert page.locator('.detail-ab').is_visible()
-                assert page.locator('.meta-set-card, .detail-moves, .stat-lab').count() == 0
+                assert page.locator('.meta-set-card, .detail-moves').count() == 0
+                assert not page.locator('#detail-build-editor').is_visible()
+                assert page.locator('[data-stat-current]').count() == 6
+                for value in page.locator('[data-stat-current]').all(): first_screen(value, f'{width}px Overview stat')
+                first_screen(page.locator('[data-lab-toggle]'), f'{width}px Edit build action')
+                assert 'Lv50' in page.locator('.build-assumptions').inner_text()
+                shot('hydreigon-overview', width)
+                page.locator('[data-lab-toggle]').click()
+                initial_hp = int(page.locator('[data-stat-current="hp"]').inner_text())
+                page.locator('[data-pt-num="hp"]').fill('4')
+                page.locator('[data-pt-num="hp"]').press('Tab')
+                assert int(page.locator('[data-stat-current="hp"]').inner_text()) == initial_hp + 4
+                page.locator('[data-lab-nature]').select_option('timid')
+                assert page.locator('[data-build-nature]').inner_text() == 'Timid Nature'
+                page.locator('[data-lab-toggle]').click()
+                assert not page.locator('#detail-build-editor').is_visible()
+                assert int(page.locator('[data-stat-current="hp"]').inner_text()) == initial_hp + 4
+                assert '4/66 points' in page.locator('[data-build-points]').inner_text()
+                shot('hydreigon-overview-edited', width)
                 # Roving keyboard tabs and selection stay aligned.
                 page.locator('#detail-tab-overview').focus()
                 page.keyboard.press('ArrowRight')
-                assert page.locator('#detail-tab-builds').get_attribute('aria-selected') == 'true'
-                tab('meta')
+                assert page.locator('#detail-tab-meta').get_attribute('aria-selected') == 'true'
                 build = page.locator('[data-build-card]').first
                 assert build.locator('.meta-build-share').inner_text() == '75%\naggregate usage'
                 assert 'Modest' in build.inner_text() and '3/3' in build.inner_text()
                 assert 'separate from aggregate sample' in build.inner_text()
                 assert page.locator('[data-meta-category="natures"]').is_visible()
+                assert page.locator('[data-meta-category]').count() == 4
+                first_screen(page.locator('[data-meta-browse-teams]'), f'{width}px real-team browser action')
+                for category in page.locator('[data-meta-category]').all():
+                    first_screen(category, f'{width}px usage card')
+                assert page.locator('[data-meta-category]').first.evaluate("el => el.getBoundingClientRect().top < document.querySelector('[data-build-card]').getBoundingClientRect().top"), 'Usage dashboard precedes popular builds'
+                if width > 900:
+                    tops = page.locator('[data-meta-category]').evaluate_all('els => els.map(el => el.getBoundingClientRect().top)')
+                    assert max(tops) - min(tops) <= 1, 'All four usage cards use horizontal desktop space'
                 assert page.locator('.meta-teammate img').count() == 6
                 assert page.locator('.meta-set-card, .stat-lab, .detail-moves').count() == 0
                 page.get_by_role('button', name='About Snapshot & source', exact=True).click()
@@ -105,24 +136,40 @@ def run(live_images=False):
                 shot('hydreigon-meta', width)
                 if live_images:
                     loaded = page.locator('.meta-teammate img').evaluate_all('imgs => imgs.filter(i => i.naturalWidth > 0).length')
-                    assert loaded >= 5, f'Need real images for visual review: {loaded}/6 loaded'
+                    assert loaded == 6, f'Need all teammate sprites for visual review: {loaded}/6 loaded'
 
                 build.locator('[data-meta-joint]').click()
-                assert page.locator('#detail-tab-builds').get_attribute('aria-selected') == 'true'
+                assert page.locator('#detail-tab-overview').get_attribute('aria-selected') == 'true'
+                assert page.locator('#detail-build-editor').is_visible()
                 assert page.locator('[data-lab-nature]').input_value() == 'modest'
                 assert page.locator('[data-pt-num]').evaluate_all('els => els.map(el => Number(el.value))') == [2, 0, 0, 32, 0, 32]
                 tab('meta')
-                tab('builds')
+                tab('overview')
                 assert page.locator('[data-lab-nature]').input_value() == 'modest', 'Tab navigation preserves Stat Lab edits'
-                shot('hydreigon-builds', width)
+                page.locator('[data-lab-toggle]').click()
+                assert not page.locator('#detail-build-editor').is_visible()
+                assert 'Modest Nature' in page.locator('.build-assumptions').inner_text()
+                assert page.locator('[data-stat-current]').count() == 6
+                shot('hydreigon-build', width)
 
-                tab('teams')
+                tab('meta')
+                page.locator('[data-meta-browse-teams]').click()
                 page.locator('[data-meta-open-team]').first.wait_for()
                 page.locator('[data-meta-team-kind="tournament"]').click()
                 assert page.locator('.meta-set-card').count() == 0
                 assert page.locator('[data-team-card]').count() == 6
                 assert page.locator('.meta-lineup-slot').count() == 36
+                assert page.locator('.meta-lineup img').count() == 36
+                for card in page.locator('[data-team-card]').all():
+                    assert card.locator('.meta-lineup img').count() == 6
+                    assert card.locator('.meta-placement').is_visible()
+                    assert card.locator('.meta-team-card-head b').inner_text()
+                    assert card.locator('.meta-team-card-head small').inner_text()
+                    assert card.locator('.meta-team-card-foot > span').inner_text()
+                    assert card.locator('.meta-team-record').inner_text()
                 shot('hydreigon-teams', width)
+                if live_images:
+                    assert page.locator('.meta-lineup img').evaluate_all('imgs => imgs.every(img => img.naturalWidth > 0)'), 'All six sprites on every collapsed team must load'
                 page.locator('[data-meta-more="tournament"]').click()
                 assert page.locator('[data-team-card]').count() > 6
                 page.locator('[data-meta-team-kind="featured"]').click()
@@ -135,12 +182,16 @@ def run(live_images=False):
                 assert page.locator('[data-meta-opponent]').count() == 1
                 assert page.locator('.meta-team-grid').count() == 0
                 assert page.locator('details details').count() == 0
+                assert page.locator('text=Stat Points undisclosed').count() == 0
                 shot('hydreigon-team', width)
                 page.locator('[data-meta-set-target="5"]').click()
                 assert page.locator('#published-set-5').evaluate('e => e === document.activeElement')
                 page.keyboard.press('Escape')
                 assert page.locator('.meta-set-card').count() == 0
                 assert page.locator(f'[data-meta-open-team="{first_id}"]').evaluate('e => e === document.activeElement')
+                page.locator('[data-meta-dashboard]').click()
+                assert page.locator('[data-meta-browse-teams]').evaluate('e => e === document.activeElement')
+                assert page.locator('.meta-team-grid, .meta-set-card').count() == 0
                 tab('moves')
                 assert page.locator('.detail-moves .mv-row').count() > 0
                 tab('overview')
@@ -152,14 +203,23 @@ def run(live_images=False):
                 assert page.locator('.meta-nature-missing').count() == 2
                 assert 'Gentle' in page.locator('[data-meta-category="natures"]').inner_text()
                 shot('florges-meta', width)
-                tab('builds')
+                page.locator('[data-meta-more="spreads"]').click()
                 assert page.locator('[data-build-card]').count() == 3
                 assert page.locator('.meta-nature-missing').count() == 3
                 page.locator('[data-meta-spread]').first.click()
+                assert page.locator('#detail-tab-overview').get_attribute('aria-selected') == 'true'
                 assert page.locator('[data-lab-nature]').input_value() == ''
                 assert page.locator('[data-pt-num]').evaluate_all('els => els.map(el => Number(el.value))') == [32, 0, 0, 2, 0, 32]
-                shot('florges-builds', width)
-                print(f'Presentation {width}px passed: section isolation, builds/evidence, Nature absence, sprite browser, focused sets, keyboard and responsive layout', flush=True)
+                page.locator('[data-lab-toggle]').click()
+                assert not page.locator('#detail-build-editor').is_visible()
+                first_screen(page.locator('[data-stat-current="spe"]'), f'{width}px applied Florges stats')
+                shot('florges-build', width)
+                # Ordinary reopening resets Meta/Moves to Overview, while form
+                # changes and internal renders retain their intended state.
+                tab('moves')
+                open_mon('florges', 'Florges')
+                assert page.locator('#detail-tab-overview').get_attribute('aria-selected') == 'true'
+                print(f'Presentation {width}px passed: three tabs, first-screen values/actions/usage, live editing, exact evidence, missing Nature, six-sprite teams, focused navigation and responsive screenshots', flush=True)
             context.close()
             browser.close()
         assert not errors, errors

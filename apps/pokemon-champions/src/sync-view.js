@@ -30,15 +30,31 @@ export function initSyncView() {
     history.replaceState(null, "", window.location.pathname + window.location.hash);
   }
 
-  const close = () => panel.classList.remove("open");
+  panel.setAttribute("role", "dialog");
+  panel.setAttribute("aria-modal", "true");
+  panel.setAttribute("aria-labelledby", "sync-title");
+  let returnFocus = null;
+  const focusables = () => [...body.querySelectorAll('button:not([disabled]), input:not([disabled]), select:not([disabled]), a[href], [tabindex="0"]')]
+    .filter((el) => el.getClientRects().length);
+  const close = () => {
+    if (!panel.classList.contains("open")) return;
+    panel.classList.remove("open");
+    if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
+    returnFocus = null;
+  };
 
   function render() {
+    const focused = body.contains(document.activeElement) ? document.activeElement : null;
+    const focusId = focused?.id;
+    // Status updates must not erase a code the user is currently typing.
+    const draftCode = focused?.id === "sync-code" ? focused.value : null;
+    const selection = draftCode != null ? [focused.selectionStart, focused.selectionEnd] : null;
     const code = getCode();
     const st = getStatus();
     const link = code ? setupLink(code) : "";
     body.innerHTML = `<div class="detail-card sync-card">
       <button class="detail-close" id="sync-close" aria-label="Close">✕</button>
-      <h2 class="sync-title">Sync across devices</h2>
+      <h2 class="sync-title" id="sync-title">Sync across devices</h2>
       <p class="sync-lede">Your pins, teams, saved teams, move bans, per-Pokémon bans and
         Damage-lab presets live in this browser only. Give every device the same code and
         they share one set.</p>
@@ -101,12 +117,31 @@ export function initSyncView() {
     });
     $("#sync-now", body)?.addEventListener("click", async () => { await syncNow(); render(); });
     $("#sync-off", body)?.addEventListener("click", () => { setCode(""); render(); });
+    if (draftCode != null) $("#sync-code", body).value = draftCode;
+    if (focusId && panel.classList.contains("open")) {
+      const nextFocus = body.querySelector(`#${focusId}`) || $("#sync-close", body);
+      nextFocus.focus({ preventScroll: true });
+      if (selection && nextFocus.id === "sync-code") nextFocus.setSelectionRange(...selection);
+    }
   }
 
-  pill.addEventListener("click", () => { render(); panel.classList.add("open"); });
+  pill.addEventListener("click", () => {
+    returnFocus = document.activeElement;
+    render(); panel.classList.add("open");
+    $("#sync-close", body).focus({ preventScroll: true });
+  });
   panel.addEventListener("click", (e) => { if (e.target === panel) close(); });
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && panel.classList.contains("open")) close();
+    if (!panel.classList.contains("open")) return;
+    if (e.key === "Escape") { e.preventDefault(); close(); }
+    else if (e.key === "Tab") {
+      const controls = focusables(), first = controls[0], last = controls.at(-1);
+      if (!first) return;
+      if (!body.contains(document.activeElement) || (e.shiftKey && document.activeElement === first)
+        || (!e.shiftKey && document.activeElement === last)) {
+        e.preventDefault(); (e.shiftKey ? last : first).focus();
+      }
+    }
   });
 
   onStatus((st) => {

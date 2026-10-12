@@ -36,6 +36,11 @@ export function initAbilitiesView({ toolbarEl, contentEl, data, onInfo, onFilter
     const card = e.target.closest("[data-ability]");
     if (card && onInfo) onInfo(card.dataset.ability);
   });
+  contentEl.addEventListener("keydown", (e) => {
+    if (!["Enter", " "].includes(e.key) || !e.target.matches(".ability-card[data-ability]")) return;
+    e.preventDefault();
+    if (onInfo) onInfo(e.target.dataset.ability);
+  });
 
   function apply() {
     const q = state.search.trim().toLowerCase();
@@ -57,7 +62,7 @@ export function initAbilitiesView({ toolbarEl, contentEl, data, onInfo, onFilter
       const preview = a.mons.slice(0, 10).map((m) =>
         `<img loading="lazy" alt="" title="${displayName(m)}" src="${m.sprite || m.artwork || ""}">`).join("");
       const more = a.mons.length > 10 ? `<span class="ab-more">+${a.mons.length - 10}</span>` : "";
-      return `<div class="ability-card" data-ability="${a.slug}" title="View ability details">
+      return `<div class="ability-card" data-ability="${a.slug}" role="button" tabindex="0" aria-label="View ${a.name} ability details" title="View ability details">
         <div class="ac-head"><span class="ac-name">${a.name}</span>
           <span class="ac-head-right"><span class="rarity ${r.cls}">${r.label} · ${a.count}</span>
           <button class="lens" data-filter="${a.slug}" title="Filter roster by this ability">🔍</button></span></div>

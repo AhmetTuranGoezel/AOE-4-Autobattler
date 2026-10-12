@@ -41,10 +41,15 @@ def run():
             page.locator('[data-tab="team"]').click()
 
             def stored(key): return page.evaluate('(key) => JSON.parse(localStorage.getItem(key))', key)
+            def load_saved(team_id):
+                library = page.locator('.tm-library')
+                if library.get_attribute('open') is None:
+                    library.locator('summary').click()
+                page.locator(f'[data-load-team="{team_id}"]').click()
             records = stored('pc-teams')
             aid = records[0]['id']
             assert aid and records[1]['id'] == 'existing-c'
-            page.locator(f'[data-load-team="{aid}"]').click()
+            load_saved(aid)
             assert page.locator('.team-name').input_value() == 'Team A'
             page.locator('[data-team-item="steelix"]').select_option('metal-coat')
             page.locator('[data-save-team]').click()
@@ -65,9 +70,9 @@ def run():
             page.locator('[data-save-team]').click()
             assert 'already belongs' in page.locator('.tm-notice').inner_text()
             assert stored('pc-teams') == snapshot
-            page.locator('[data-load-team="existing-c"]').click()
+            load_saved('existing-c')
             assert page.locator('.team-name').input_value() == 'Team C'
-            page.locator(f'[data-load-team="{bid}"]').click()
+            load_saved(bid)
             page.reload()
             page.locator('[data-tab="team"]').click()
             assert page.locator('.team-name').input_value() == 'Team B'
@@ -82,7 +87,9 @@ def run():
                 page.locator('#search').fill('Gengar')
                 page.locator('#results [data-slug="gengar"] .nm-top').click()
                 page.locator('#detail [data-form="gengar-mega"]').click()
-                page.locator(f'#detail-tab-{view}').click()
+                assert page.locator('#detail-tab-overview').get_attribute('aria-selected') == 'true'
+                page.locator('#detail-tab-meta').click()
+                if view == 'teams': page.locator('[data-meta-browse-teams]').click()
 
             # A transient failure must render its error once, not retain a failed
             # promise forever or trigger an automatic retry loop during rendering.
@@ -99,13 +106,14 @@ def run():
             page.locator('#view-table').click()
             page.locator('#search').fill('Gengar')
             page.locator('#results [data-slug="gengar"] .nm-top').click()
-            page.locator('#detail-tab-teams').click()
+            page.locator('#detail-tab-meta').click()
+            page.locator('[data-meta-browse-teams]').click()
             page.get_by_text('Published team snapshot unavailable.', exact=False).wait_for()
             page.wait_for_timeout(300)  # catch an accidental automatic fetch/render loop
             assert len(team_requests) == 1
             page.locator('#detail-tab-moves').click()
             assert page.locator('.detail-moves .mv-row').count() > 0
-            page.locator('#detail-tab-builds').click()
+            page.locator('#detail-tab-meta').click()
             assert page.locator('[data-build-card]').count() > 0
             open_meta('teams')  # close/reopen in the SAME session: second request succeeds
             page.wait_for_function("document.querySelectorAll('[data-meta-open-team]').length > 0")
@@ -114,14 +122,19 @@ def run():
             assert stored('pc-team') == before_retry_team and stored('pc-teams') == snapshot
             page.unroute('**/champions-teams.json', transient_teams)
             print('Transient team fetch: failure without retry loop; same-session reopen retries successfully without changing teams', flush=True)
-            page.locator('#detail-tab-builds').click()
+            page.locator('[data-meta-dashboard]').click()
             assert page.locator('[data-meta-regulation]').input_value() == 'M-C'
-            assert page.locator('[data-build-card]').count() == 4
+            assert page.locator('[data-build-card]').count() == 2
+            page.locator('#detail-tab-overview').click()
+            assert page.locator('[data-stat-current]').count() == 6
+            assert not page.locator('#detail-build-editor').is_visible()
+            page.locator('[data-lab-toggle]').click()
             assert page.locator('.pt-meta').count() == 6
+            page.locator('.lab-source-notes > summary').click()
             assert 'share of all allocated points' in page.locator('.lab-meta-note').inner_text()
-            page.locator('[data-meta-more="spreads"]').click()
-            assert page.locator('[data-build-card]').count() > 4
             page.locator('#detail-tab-meta').click()
+            page.locator('[data-meta-more="spreads"]').click()
+            assert page.locator('[data-build-card]').count() > 2
             page.locator('[data-meta-more="moves"]').click()
             move_card = page.locator('[data-meta-category="moves"]')
             assert move_card.locator('.use-item').count() == 9
@@ -129,13 +142,15 @@ def run():
             page.locator('[data-meta-regulation]').select_option('M-B')
             assert page.locator('[data-meta-category="natures"] .meta-bars').inner_text() != mc_natures
             page.locator('[data-meta-regulation]').select_option('M-C')
-            page.locator('#detail-tab-builds').click()
+            assert page.locator('[data-build-card]').count() == 2
             page.screenshot(path=str(output / 'meta-spreads-desktop.png'))
 
             # The joint button applies the exact conditional record, not global Nature usage.
             joint = page.locator('[data-meta-joint]').first
             nature = joint.get_attribute('data-meta-nature')
             joint.click()
+            assert page.locator('#detail-tab-overview').get_attribute('aria-selected') == 'true'
+            assert page.locator('#detail-build-editor').is_visible()
             assert page.locator('[data-lab-nature]').input_value() == nature
             expected_points = [int(v) for v in page.locator('[data-pt-num]').evaluate_all('els => els.map(e => e.value)')]
             page.locator('[data-lab-to-team]').click()
@@ -169,6 +184,13 @@ def run():
             assert page.locator('.team-name').input_value() == expected['name']
             assert stored('pc-team') == expected['members']
             assert stored('pc-teams') == snapshot
+            for card in page.locator('.team-member').all():
+                assert card.locator('.tm-build').get_attribute('open') is None
+                assert card.locator('[data-team-stat-value]').count() == 6
+                assert card.locator('[data-team-nature]').is_visible()
+                assert card.locator('[data-team-item]').is_visible()
+                assert card.locator('.tm-abil').first.is_visible()
+                assert card.locator('.tm-moves').is_visible()
             page.screenshot(path=str(output / 'team-import-desktop.png'))
             page.locator('[data-share-working]').click()
             share = page.locator('.tm-share-link').input_value()
@@ -203,7 +225,7 @@ def run():
             for width, height in ((1440, 1000), (390, 844)):
                 page.set_viewport_size({'width': width, 'height': height})
                 open_meta()
-                page.locator('.meta-builds').scroll_into_view_if_needed()
+                page.locator('#detail').evaluate('el => el.scrollTop = 0')
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), f'Page overflow at {width}'
                 assert page.locator('#detail').evaluate('(el) => el.scrollWidth <= el.clientWidth + 1'), f'Detail overflow at {width}'
                 page.screenshot(path=str(output / f'meta-{width}.png'))

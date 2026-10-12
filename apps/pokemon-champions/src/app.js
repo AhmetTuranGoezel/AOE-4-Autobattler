@@ -23,6 +23,7 @@ import { tickStatLab, optimizeSpread, emptySpread, POOL, CAP, pointsUsed } from 
 import { initSync } from "./sync.js";
 import { normalizeItem } from "./item-model.js";
 import { initSyncView } from "./sync-view.js";
+import { retainRenderFocus } from "./render-focus.js";
 import { migrateSavedTeams, saveTeamRecord, emptyTeamContext } from "./team-store.js";
 import { selectMetaDataset, mapTournamentTeam } from "./meta-model.js";
 import { NATURES, SET_STATS, validSpread } from "./set-model.js";
@@ -54,6 +55,8 @@ const state = {
   spreadNature: null,
   metaLimits: {},
   detailTab: "overview",
+  detailMetaView: "dashboard",
+  statEditorOpen: false,
   metaTeamKind: null,
   metaTeamId: null,
   moveByName: new Map(),   // move name → id, used to parse shared-team codes
@@ -128,6 +131,7 @@ async function init() {
     const quality = $("#learnset-quality");
     quality.textContent = unverified ? `${unverified} unverified learnset${unverified === 1 ? "" : "s"}` : "Learnset report";
     quality.classList.toggle("has-warning", unverified > 0);
+    $("#rules-warning").textContent = unverified ? `${unverified} unverified` : "";
     quality.title = "Source provenance and withheld move candidates. Unverified moves are not selectable.";
     syncTopbarH();
     window.addEventListener("resize", syncTopbarH);
@@ -175,7 +179,7 @@ function render() {
     : renderGrid(unpinned, cmp, max, pinned, teamSet);
   // friendly prompt instead of a blank pane when filters/search exclude everything
   const empty = sorted.length === 0
-    ? `<p class="empty">No Pokémon match these filters. <button data-clear-all>Clear all</button></p>` : "";
+    ? `<p class="empty">No Pokémon match these filters. <button data-clear-all>Clear filters</button></p>` : "";
   $("#results").innerHTML = renderActiveFilters(state.filters) + body + empty;
   $("#result-count").textContent = `${sorted.length} Pokémon`;
   const n = activeFilterCount(state.filters);
@@ -413,7 +417,7 @@ function renderActiveFilters(f) {
   for (const k in f.statMax) add(`max:${k}`, `${rangeLab(k)} ≤ ${f.statMax[k]}`);
   if (!chips.length) return "";
   return `<div class="active-filters"><span class="af-lab">Filters</span>${chips.join("")}` +
-    `<button class="af-clear" data-clear-all>Clear all</button></div>`;
+    `<button class="af-clear" data-clear-all>Clear filters</button></div>`;
 }
 
 function removeFilter(token) {
@@ -473,12 +477,15 @@ function applyWeights() {
 
 // ---------------------------------------------------------------- detail
 let detailReturnFocus = null;
-function openDetail(slug, { requestTeams = true } = {}) {
+function openDetail(slug, { requestTeams = true, preserveTab = false } = {}) {
   const mon = state.bySlug.get(slug);
   if (!mon) return;
   const wasOpen = $("#detail").classList.contains("open");
   if (!wasOpen) detailReturnFocus = document.activeElement;
-  if (requestTeams && state.detailTab === "teams" && state.data.tournamentMeta && !state.metaTeamsRequested && !state.data.tournamentTeams) {
+  if ((!wasOpen || slug !== state.selected) && !preserveTab) {
+    state.detailTab = "overview"; state.detailMetaView = "dashboard"; state.statEditorOpen = false;
+  }
+  if (requestTeams && state.detailTab === "meta" && state.detailMetaView === "teams" && state.data.tournamentMeta && !state.metaTeamsRequested && !state.data.tournamentTeams) {
     state.metaTeamsRequested = true;
     loadTournamentTeams(state.data).then(() => {
       state.metaTeamsRequested = false;
@@ -514,7 +521,7 @@ function syncPinButtons() {
 
 function toggleDetailShiny() {
   state.detailShiny = !state.detailShiny;
-  if (state.selected) openDetail(state.selected);
+  if (state.selected) { openDetail(state.selected); $("#detail [data-shiny]")?.focus({ preventScroll: true }); }
 }
 
 // --- eHP stat-point lab (inside the detail panel) ---
@@ -543,13 +550,13 @@ function browseMovesOf(slug) {
 // Popup listing a set of Pokémon (used by the Coverage tab's clickable counts).
 function openMonListPopup(title, mons) {
   const sprites = mons.map((m) =>
-    `<img class="lr" loading="lazy" alt="" title="${m._display}" data-slug="${m.slug}" src="${m.sprite || m.artwork || ""}">`).join("")
+    `<button class="lr learner-link" aria-label="Open ${m._display}" title="${m._display}" data-slug="${m.slug}"><img loading="lazy" alt="" src="${m.sprite || m.artwork || ""}"></button>`).join("")
     || "<span class='muted'>none</span>";
   $("#popup-body").innerHTML = `<div class="info-card">
     <button class="detail-close" data-close-popup aria-label="Close">✕</button>
     <div class="info-head"><h3>${title}</h3><span class="rarity r-common">${mons.length}</span></div>
     <div class="info-learners">${sprites}</div></div>`;
-  $("#popup").classList.add("open");
+  showPopup();
 }
 
 // Live filter/sort of a Pokemon's move list (sortable mini-table in the detail panel).
@@ -592,14 +599,24 @@ function abilityLearners(slug) { return state.all.filter((m) => m.abilities.some
 function openMovePopup(id) {
   const mv = { id, ...state.data.moves[id] };
   $("#popup-body").innerHTML = renderMovePopup(mv, moveLearners(id), state.data.total);
-  $("#popup").classList.add("open");
+  showPopup();
 }
 function openAbilityPopup(slug) {
   const ab = { slug, ...state.data.abilities[slug] };
   $("#popup-body").innerHTML = renderAbilityPopup(ab, abilityLearners(slug), state.data.total);
-  $("#popup").classList.add("open");
+  showPopup();
 }
-const closePopup = () => $("#popup").classList.remove("open");
+let popupReturnFocus = null;
+function showPopup() {
+  if (!$("#popup").classList.contains("open")) popupReturnFocus = document.activeElement;
+  $("#popup").setAttribute("aria-label", $("#popup-body h3")?.textContent || "Details");
+  $("#popup").classList.add("open");
+  $("#popup [data-close-popup]")?.focus({ preventScroll: true });
+}
+function closePopup() {
+  $("#popup").classList.remove("open");
+  if (popupReturnFocus?.isConnected) popupReturnFocus.focus({ preventScroll: true });
+}
 
 // ---------------------------------------------------------------- compare
 function toggleCompare(slug) {
@@ -637,14 +654,20 @@ function renderCompareBar() {
     </div>`;
   syncCmpBarH();
 }
+let compareReturnFocus = null;
 function openCompare() {
   if (state.compare.length < 2) return;
   if (!state.compare.includes(state.compareAnchor)) state.compareAnchor = state.compare[0];
   const mons = state.compare.map((s) => state.bySlug.get(s));
+  if (!$("#compare").classList.contains("open")) compareReturnFocus = document.activeElement;
   $("#compare-body").innerHTML = renderCompare(mons, state.data, statScaleMax(state.statMode), state.compareAnchor, state.cmpMoves);
   $("#compare").classList.add("open");
+  $("#compare [data-close-compare]")?.focus({ preventScroll: true });
 }
-const closeCompare = () => $("#compare").classList.remove("open");
+function closeCompare() {
+  $("#compare").classList.remove("open");
+  if (compareReturnFocus?.isConnected) compareReturnFocus.focus({ preventScroll: true });
+}
 
 // ---------------------------------------------------------------- team
 const TEAM_KEY = "pc-team";       // working team
@@ -713,6 +736,7 @@ function loadSavedTeams() {
 function switchDetailTab(tab) {
   if (!DETAIL_TABS.includes(tab)) return;
   state.detailTab = tab;
+  if (tab === "meta") { state.detailMetaView = "dashboard"; state.metaTeamId = null; }
   openDetail(state.selected);
   $("#detail").scrollTop = 0;
   $(`#detail-tab-${tab}`)?.focus({ preventScroll: true });
@@ -900,6 +924,7 @@ function shareTeam(name, members) {
 }
 
 function renderTeam() {
+  const restoreFocus = retainRenderFocus($("#team-results"));
   const team = state.team
     .map((t) => ({
       mon: state.bySlug.get(t.slug), moveIds: t.moves, ability: t.ability, picked: t.picked, item: t.item, nature: t.nature, spread: t.spread,
@@ -908,6 +933,7 @@ function renderTeam() {
   renderTeamView($("#team-results"), { data: state.data, team, savedTeams: state.savedTeams,
     notice: state.teamNotice, share: state.sharePanel, analysisScope: state.teamScope, teamContext: state.teamContext });
   attachTeamAutocompletes();
+  restoreFocus();
 }
 function syncTeamButtons() {
   document.querySelectorAll("[data-team]").forEach((b) => {
@@ -960,6 +986,9 @@ function bindGlobal() {
   $("#detail").addEventListener("click", (e) => {
     const tab = e.target.closest("[data-detail-tab]");
     if (tab) { switchDetailTab(tab.dataset.detailTab); return; }
+    if (e.target.closest("[data-lab-toggle]")) { state.statEditorOpen = !state.statEditorOpen; openDetail(state.selected); $("#detail-edit-build")?.focus({ preventScroll: true }); return; }
+    if (e.target.closest("[data-meta-browse-teams]")) { state.detailMetaView = "teams"; state.metaTeamId = null; openDetail(state.selected); $("#detail").scrollTop = 0; $("[data-meta-dashboard]")?.focus({ preventScroll: true }); return; }
+    if (e.target.closest("[data-meta-dashboard]")) { state.detailMetaView = "dashboard"; state.metaTeamId = null; openDetail(state.selected); $("#detail").scrollTop = 0; $("[data-meta-browse-teams]")?.focus({ preventScroll: true }); return; }
     const kind = e.target.closest("[data-meta-team-kind]");
     if (kind) { state.metaTeamKind = kind.dataset.metaTeamKind; state.metaTeamId = null; openDetail(state.selected); $(`[data-meta-team-kind="${state.metaTeamKind}"]`)?.focus({ preventScroll: true }); return; }
     const teamOpen = e.target.closest("[data-meta-open-team]");
@@ -975,7 +1004,7 @@ function bindGlobal() {
       const entry = state.bySlug.get(state.selected)?.metaUsage;
       const joint = spread.hasAttribute("data-meta-joint");
       const row = (joint ? entry?.observedSpreads : entry?.spreads)?.[Number(joint ? spread.dataset.metaJoint : spread.dataset.metaSpread)];
-      if (row) { state.spread = { ...row.stats }; state.spreadNature = joint ? spread.dataset.metaNature : null; state.detailTab = "builds"; openDetail(state.selected); $("[data-lab-nature]", $("#detail"))?.focus(); }
+      if (row) { state.spread = { ...row.stats }; state.spreadNature = joint ? spread.dataset.metaNature : null; state.detailTab = "overview"; state.statEditorOpen = true; openDetail(state.selected); $("#detail").scrollTop = 0; $("[data-lab-nature]", $("#detail"))?.focus({ preventScroll: true }); }
       return;
     }
     if (e.target.closest("[data-lab-to-team]")) {
@@ -1045,7 +1074,13 @@ function bindGlobal() {
     if (e.target.id === "detail" || e.target.dataset.close !== undefined) { closeDetail(); return; }
     if (e.target.closest("[data-shiny]")) { toggleDetailShiny(); return; }
     const fm = e.target.closest("[data-form]");
-    if (fm) { openDetail(fm.dataset.form); $("#detail-body").scrollTop = 0; return; }
+    if (fm) {
+      const slug = fm.dataset.form;
+      openDetail(slug, { preserveTab: true });
+      $("#detail").scrollTop = 0;
+      $("#detail").querySelector(`[data-form="${slug}"]`)?.focus({ preventScroll: true });
+      return;
+    }
     const th = e.target.closest(".dm-table th[data-dsort]");
     if (th) { detailSort(th); return; }
     // eHP stat-point lab controls
@@ -1117,10 +1152,20 @@ function bindGlobal() {
   });
 
   document.addEventListener("keydown", (e) => {
+    // Sync owns keyboard handling while it is the frontmost dialog.
+    if ($("#sync").classList.contains("open")) return;
+    const frontDialog = $("#popup").classList.contains("open") ? $("#popup") : $("#compare").classList.contains("open") ? $("#compare") : null;
+    if (frontDialog && e.key === "Tab") {
+      const stops = [...frontDialog.querySelectorAll('button:not(:disabled), a[href], input, select, textarea, summary, [tabindex]:not([tabindex="-1"])')].filter(el => el.getClientRects().length && el.tabIndex >= 0);
+      const first = stops[0], last = stops.at(-1);
+      if (stops.length && (e.shiftKey ? document.activeElement === first || !frontDialog.contains(document.activeElement) : document.activeElement === last || !frontDialog.contains(document.activeElement))) {
+        e.preventDefault(); (e.shiftKey ? last : first).focus();
+      }
+    }
     if ($("#detail").classList.contains("open") && !$("#popup").classList.contains("open") && !$("#compare").classList.contains("open")) {
       if (e.key === "Tab") {
         const root = document.querySelector(":popover-open") || $("#detail");
-        const stops = [...root.querySelectorAll('button:not(:disabled), a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])')].filter(el => el.getClientRects().length && el.tabIndex >= 0);
+        const stops = [...root.querySelectorAll('button:not(:disabled), a[href], input, select, textarea, summary, [tabindex]:not([tabindex="-1"])')].filter(el => el.getClientRects().length && el.tabIndex >= 0);
         const first = stops[0], last = stops.at(-1);
         if (stops.length && (e.shiftKey ? document.activeElement === first || !root.contains(document.activeElement) : document.activeElement === last || !root.contains(document.activeElement))) {
           e.preventDefault(); (e.shiftKey ? last : first).focus();
@@ -1134,11 +1179,15 @@ function bindGlobal() {
         return;
       }
       if (e.key === "Escape" && document.querySelector(":popover-open")) { document.querySelector(":popover-open").hidePopover(); e.preventDefault(); return; }
-      if (e.key === "Escape" && state.detailTab === "teams" && state.metaTeamId) { backToPublishedTeams(); e.preventDefault(); return; }
+      if (e.key === "Escape" && state.detailTab === "meta" && state.detailMetaView === "teams") {
+        if (state.metaTeamId) backToPublishedTeams();
+        else { state.detailMetaView = "dashboard"; openDetail(state.selected); $("[data-meta-browse-teams]")?.focus({ preventScroll: true }); }
+        e.preventDefault(); return;
+      }
     }
     if (e.key !== "Escape") return;
-    if ($("#compare").classList.contains("open")) closeCompare();
-    else if ($("#popup").classList.contains("open")) closePopup();
+    if ($("#popup").classList.contains("open")) closePopup();
+    else if ($("#compare").classList.contains("open")) closeCompare();
     else if ($("#filters").classList.contains("open")) toggleFilters(false);
     else closeDetail();
   });
@@ -1216,17 +1265,29 @@ function switchTab(tab) {
       if (build) {
         const member = state.team.find((m) => m.slug === build.dataset.slug);
         if (!member) return;
-        if (build.hasAttribute("data-team-nature")) member.nature = build.value || null;
+        // Removing a focused number input can emit its pending native change
+        // again during blur. Do not recursively rebuild the same unchanged set.
+        if (build.hasAttribute("data-team-nature")) {
+          const nature = build.value || null;
+          if (member.nature === nature) return;
+          member.nature = nature;
+        }
         else {
           const spread = member.spread || emptySpread(), key = build.dataset.teamStat;
           const remaining = POOL - pointsUsed(spread) + spread[key];
-          member.spread = { ...spread, [key]: Math.max(0, Math.min(CAP, remaining, Math.floor(Number(build.value) || 0))) };
+          const points = Math.max(0, Math.min(CAP, remaining, Math.floor(Number(build.value) || 0)));
+          if (member.spread && spread[key] === points) return;
+          member.spread = { ...spread, [key]: points };
         }
         teamAfterChange(); return;
       }
       const select = e.target.closest("[data-team-item]");
       const member = select && state.team.find((m) => m.slug === select.dataset.teamItem);
-      if (member) { member.item = normalizeItem(select.value, state.bySlug.get(member.slug)); teamAfterChange(); }
+      if (member) {
+        const item = normalizeItem(select.value, state.bySlug.get(member.slug));
+        if (member.item === item) return;
+        member.item = item; teamAfterChange();
+      }
     });
     tc.addEventListener("click", (e) => {
       const scope = e.target.closest("[data-team-scope]");

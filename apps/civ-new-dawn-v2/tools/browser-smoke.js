@@ -381,19 +381,18 @@ async function waitFor(cdp, expr, label, timeoutMs = 8000) {
 
       const before = await cdp.eval(
         "(() => { const s = UI.debugState(); const p = Game.currentPlayer(s); return { id: p.id, cardPlayed: p.cardPlayed, tech: p.tech }; })()");
+      const beforeSelection = await cdp.eval('JSON.stringify(UI.debugState())');
       await cdp.eval(`(() => {
         const all = [...document.querySelectorAll('.fcard:not(.disabled)')];
         const el = all.find((e) => e.dataset.card === 'science') || all[0];
         if (el) el.click();
         return true;
       })()`);
-      // A card with no trade tokens on it needs no decision, so the click
-      // resolves it immediately instead of opening the panel. Either outcome
-      // means the click was heard; what matters is that one of them happened.
+      // Selection is private preview only, including a zero-trade Science card.
       const reacted = await waitFor(cdp,
-        "!!document.getElementById('wiz-start') || Game.currentPlayer(UI.debugState()).cardPlayed === true",
+        "!!document.getElementById('wiz-start') && UI.debugInfo().subPhase==='card_selected'",
         "card reacted", 5000);
-      ok("clicking a focus card either opens its panel or resolves it", reacted,
+      ok("first click selects a focus card with explicit Start Action and zero gameplay mutation", reacted && beforeSelection === await cdp.eval('JSON.stringify(UI.debugState())'),
         await cdp.eval("({ wizard: !!document.getElementById('wiz-start'), title: (document.querySelector('.wiz-title')||{}).textContent })"));
 
       await cdp.eval("(() => { const b = document.getElementById('wiz-start'); if (b) b.click(); return true; })()");
@@ -485,7 +484,7 @@ async function waitFor(cdp, expr, label, timeoutMs = 8000) {
       out.minPlayers = Game.CFG.minPlayers;
       if (out.reachedLobby) {
         const r = await UI.dispatch({ type: "ADD_PLAYER",
-          payload: { id: "guest-2", name: "Guest", color: "#d94747" } });
+          payload: Game.createPlayer("guest-2", "Guest", "#d94747") });
         out.addSecond = r && r.status;
         const st2 = UI.debugState();
         out.seatsAfter = st2.players.length;

@@ -83,6 +83,15 @@ def run(screenshots=False):
                 page.locator("#detail [data-close]").click()
                 page.locator('[data-tab="team"]').click()
                 assert "excluded from team analysis" in page.locator(".team-member").first.inner_text()
+                member = page.locator(".team-member").first
+                assert member.locator(".tm-build").get_attribute("open") is None
+                assert member.locator('[data-team-stat-value]').count() == 6
+                assert all(value.is_visible() for value in member.locator('[data-team-stat-value]').all())
+                assert member.locator('[data-team-nature]').is_visible()
+                assert member.locator('[data-team-item]').is_visible()
+                assert member.locator('.tm-move-name').is_visible()
+                assert "Points unknown" in member.inner_text()
+                print("  Team Builder compact build values remain visible", flush=True)
                 for tab in ("moves", "abilities", "calc", "coverage", "pokemon"):
                     page.locator(f'[data-tab="{tab}"]').click()
                     if tab == "moves":

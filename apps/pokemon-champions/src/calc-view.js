@@ -11,6 +11,8 @@ import { hasFlag, OFF_ABIL, abilityMods, hiStatOf, ATE_ABIL, PROTEAN, offDefault
 import { normalizeItem, itemLabel, itemSelect, itemActive, itemDamage, itemAccuracy, itemSpeed, seedEffect, itemAtHit, isGrounded, resistBerry, critChance, usageItem } from "./item-model.js";
 import { NATURES, natureMultiplier as natureMult } from "./set-model.js";
 import { setupEffect, formatStatChanges } from "./move-effects.js";
+import { presentImportNotes } from "./meta-view.js";
+import { retainRenderFocus } from "./render-focus.js";
 
 const pokeRound = (v) => { const f = Math.floor(v); return v - f > 0.5 ? f + 1 : f; };
 function computeDamage(p) {
@@ -258,6 +260,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
   const team = () => (getTeam ? getTeam() : []);   // live Battle Four, or full-team fallback
   const s = {
     mode: "ehp", // "ehp" (All vs one — historical key, kept for saved states) | "rev" (One vs all) | "team" (Team check)
+    editors: {}, // transient disclosure state; build values remain in the existing lab state
   };
   // Counters lab: rank the roster against a chosen target under editable conditions.
   const EXCLUDE_KEY = "pc-move-exclude";
@@ -381,10 +384,10 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
   const natSelect = (dataAttr, cur, withAuto = false) => {
     const opts = { Serious: "Neutral", ...(withAuto ? { auto: "+Attacking stat" } : {}), ...NAT_NAMES };
     if (!(cur in opts)) opts[cur] = cur;
-    return `<select class="cl-sel" ${dataAttr}>${Object.entries(opts).map(([v, l]) => `<option value="${v}" ${v === cur ? "selected" : ""}>${l}</option>`).join("")}</select>`;
+    return `<select class="cl-sel" aria-label="Nature assumption" ${dataAttr}>${Object.entries(opts).map(([v, l]) => `<option value="${v}" ${v === cur ? "selected" : ""}>${l}</option>`).join("")}</select>`;
   };
 
-  container.innerHTML = `<div class="calc">
+  container.innerHTML = `<div class="calc calc-workspace">
     <div class="calc-head">
       <div class="calc-modes seg">
         <button data-calcmode="ehp" class="active">All vs one</button>
@@ -392,29 +395,23 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
         <button data-calcmode="team">Team check</button>
       </div>
       <h2 class="calc-title-ehp" hidden>All vs one <small class="muted">— the whole roster's damage into one or two targets</small></h2>
-      <p class="calc-note calc-title-ehp" hidden>Pick a target to prefill a snapshot-based estimate, then edit its build. A captured spread/Nature pair is preferred; otherwise Nature is neutral. Popular items and moves are separate aggregates, not a verified complete set. Add a second target to find shared counters.</p>
+      <details class="calc-note calc-title-ehp calc-methodology" hidden><summary>Snapshot assumptions & help</summary><p>Pick a target to prefill a snapshot-based estimate, then edit its build. A captured spread/Nature pair is preferred; otherwise Nature is neutral. Popular items and moves are separate aggregates, not a verified complete set. Add a second target to find shared counters.</p></details>
       <h2 class="calc-title-rev" hidden>One vs all <small class="muted">— your attacker's damage into the whole roster</small></h2>
-      <p class="calc-note calc-title-rev" hidden>Pick an attacker and set its offense. Defenders use editable snapshot estimates or the selected baseline. Aggregate items and moves do not establish a complete observed set. Ranked by damage.</p>
+      <details class="calc-note calc-title-rev calc-methodology" hidden><summary>Snapshot assumptions & help</summary><p>Pick an attacker and set its offense. Defenders use editable snapshot estimates or the selected baseline. Aggregate items and moves do not establish a complete observed set. Ranked by damage.</p></details>
       <h2 class="calc-title-team" hidden>Team check <small class="muted">— can your team handle these threats?</small></h2>
-      <p class="calc-note calc-title-team" hidden>Uses your selected Battle Four from the Team tab, falling back to the full team when no battle picks are selected. Add opponents to see each teammate's best answer and where the squad is exposed.</p>
+      <details class="calc-note calc-title-team calc-methodology" hidden><summary>Team check assumptions & help</summary><p>Uses your selected Battle Four from the Team tab, falling back to the full team when no battle picks are selected. Add opponents to see each teammate's best answer and where the squad is exposed.</p></details>
+      <div id="calc-custom" class="calc-custom"></div>
     </div>
-    <div id="calc-custom" class="calc-custom"></div>
 
     <div class="ehp-breaker" id="calc-mode-ehp" hidden>
       <div class="cl-pick">
         <div class="ci cl-pick-target">Target Pokémon
           <div class="ac-wrap"><input class="ehp-target-input" placeholder="Search a popular target…" autocomplete="off"></div>
         </div>
-        <button class="btn cl-setup-btn" data-setup="ehp-setup">⚙ More setup</button>
+        <button class="btn cl-setup-btn" data-setup="ehp-setup" aria-controls="ehp-setup" aria-expanded="false">⚙ More setup</button>
         <div class="cl-setup" id="ehp-setup">
-          <div class="ci cl-pick-search">Filter attackers by name
-            <input class="ehp-atk-search" placeholder="type a name…" autocomplete="off">
-          </div>
           <div class="ci cl-pick-exclude">Exclude an attack <small>(saved)</small>
             <div class="ac-wrap"><input class="ehp-exclude-input" placeholder="add a move to ignore…" autocomplete="off"></div>
-          </div>
-          <div class="ci cl-pick-tmove">Add a target move <small>(what it hits back with)</small>
-            <div class="ac-wrap"><input class="ehp-tmove-input" placeholder="add a move to the target…" autocomplete="off"></div>
           </div>
           <div class="ci cl-pick-target2">2nd target <small>(counter both)</small>
             <div class="ac-wrap"><input class="ehp-target2-input" placeholder="add a 2nd target…" autocomplete="off"></div>
@@ -423,7 +420,9 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
         </div>
       </div>
       <div id="ehp-controls" class="cl-controls"></div>
-      <div id="ehp-filters" class="cl-filters"></div>
+      <div class="calc-move-adder" id="ehp-move-adder"><label class="ci"><span class="sr-only">Target's return attacks</span><div class="ac-wrap"><input class="ehp-tmove-input" placeholder="+ Add move…" autocomplete="off"></div></label></div>
+      <div id="ehp-filters" class="cl-filters calc-results-toolbar"></div>
+      <div class="calc-result-search"><label class="ci">Find an attacker<input class="ehp-atk-search" placeholder="Filter results by name…" autocomplete="off"></label></div>
       <div class="ehp-results" id="ehp-results"></div>
     </div>
 
@@ -432,18 +431,15 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
         <div class="ci cl-pick-target">Attacker
           <div class="ac-wrap"><input class="rev-atk-input" placeholder="Search an attacker…" autocomplete="off"></div>
         </div>
-        <button class="btn cl-setup-btn" data-setup="rev-setup">⚙ More setup</button>
+        <button class="btn cl-setup-btn" data-setup="rev-setup" aria-controls="rev-setup" aria-expanded="false">⚙ More setup</button>
         <div class="cl-setup" id="rev-setup">
-          <div class="ci cl-pick-search">Filter defenders by name
-            <input class="rev-def-search" placeholder="type a name…" autocomplete="off">
-          </div>
-          <div class="ci cl-pick-tmove">Assign an attack <small>(lock its moveset)</small>
-            <div class="ac-wrap"><input class="rev-move-input" placeholder="add one of its moves…" autocomplete="off"></div>
-          </div>
           <div id="rev-presets" class="cl-presets"></div>
         </div>
       </div>
       <div id="rev-controls" class="cl-controls"></div>
+      <div class="calc-move-adder" id="rev-move-adder"><label class="ci"><span class="sr-only">Attacker's selected moves</span><div class="ac-wrap"><input class="rev-move-input" placeholder="+ Add move…" autocomplete="off"></div></label></div>
+      <div id="rev-filters" class="calc-results-toolbar"></div>
+      <div class="calc-result-search"><label class="ci">Find a defender<input class="rev-def-search" placeholder="Filter results by name…" autocomplete="off"></label></div>
       <div class="ehp-results" id="rev-results"></div>
     </div>
 
@@ -461,6 +457,19 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
   </div>`;
 
   const $ = (sel) => container.querySelector(sel);
+  const moveAdders = { ehp: $("#ehp-move-adder"), rev: $("#rev-move-adder") };
+  const resultSearches = { ehp: $("#calc-mode-ehp .calc-result-search"), rev: $("#calc-mode-rev .calc-result-search") };
+  function placeResultSearch(mode) {
+    const filters = $(`#${mode}-filters .calc-result-filters`);
+    if (filters) filters.append(resultSearches[mode]);
+    else $(`#calc-mode-${mode}`).insertBefore(resultSearches[mode], $(`#${mode}-results`));
+  }
+  // Native disclosures remember openness across a control re-render, but never
+  // persist it as a gameplay assumption or reset any edited build values.
+  container.addEventListener("toggle", (event) => {
+    const key = event.target.dataset?.calcEditor;
+    if (key && event.target.isConnected) s.editors[key] = event.target.open;
+  }, true);
 
   // Snapshot estimate, not a claim that independently popular choices form a real set.
   // Only actual complete spreads may prefill points; never combine marginal modes.
@@ -661,7 +670,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
     const cm = e.target.closest("[data-calcmode]");
     if (cm) { s.mode = cm.dataset.calcmode; eb.expanded = null; syncMode(); return; }
     const su = e.target.closest("[data-setup]");
-    if (su) { const box = $("#" + su.dataset.setup); const open = box.classList.toggle("open"); su.classList.toggle("active", open); return; }   // mobile "More setup" disclosure
+    if (su) { const box = $("#" + su.dataset.setup); const open = box.classList.toggle("open"); su.classList.toggle("active", open); su.setAttribute("aria-expanded", String(open)); return; }
     // --- counters-lab controls ---
     const tf = e.target.closest("[data-target-form]");
     if (tf) { setTarget(tf.dataset.targetForm, true); return; }
@@ -812,6 +821,8 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       container.querySelectorAll(`.calc-title-${m}`).forEach((el) => (el.hidden = s.mode !== m));
       $(`#calc-mode-${m}`).hidden = s.mode !== m;
     });
+    const customHost = s.mode === "team" ? $(".calc-head") : $(`#${s.mode}-setup`);
+    customHost.append($("#calc-custom"));
     renderCustom();
     if (s.mode === "rev") renderRev(); else if (s.mode === "team") renderTeam(); else renderEb();
   }
@@ -1301,11 +1312,35 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
   }
 
   const typeSpan = (t) => `<span class="type" style="background:${TYPE_COLORS[t]}">${t}</span>`;
-  const seg = (key, map, cur) => `<select class="cl-sel" data-ebsel="${key}">${Object.entries(map).map(([v, l]) => `<option value="${v}" ${v === cur ? "selected" : ""}>${l}</option>`).join("")}</select>`;
+  const segLabels = { weather: "Weather", terrain: "Terrain", screen: "Defender screen", targetStatus: "Target status", userStatus: "Attacker status", fRole: "Attacker role", fCat: "Attacking category", threshold: "Damage filter", revSort: "Defender sort" };
+  const seg = (key, map, cur) => `<select class="cl-sel" aria-label="${segLabels[key] || key}" data-ebsel="${key}">${Object.entries(map).map(([v, l]) => `<option value="${v}" ${v === cur ? "selected" : ""}>${l}</option>`).join("")}</select>`;
   const ptStepper = (label, key, val, title = "") => `<div class="cl-stat"${title ? ` title="${title}"` : ""}><span class="cl-stat-lab">${label}</span>
     <div class="cl-step"><button data-ebstep="${key}" data-dir="-1">−</button><b>${val}</b><button data-ebstep="${key}" data-dir="1">+</button></div></div>`;
   const stageStepper = (label, key, val, title = "") => `<div class="cl-stat"${title ? ` title="${title}"` : ""}><span class="cl-stat-lab">${label}</span>
     <div class="cl-step"><button data-ebstage="${key}" data-dir="-1">−</button><b>${val >= 0 ? "+" : ""}${val}</b><button data-ebstage="${key}" data-dir="1">+</button></div></div>`;
+
+  const STAT_LABELS = { hp: "HP", atk: "Atk", def: "Def", spa: "SpA", spd: "SpD", spe: "Spe" };
+  const currentStats = (values) => `<dl class="calc-current-stats" aria-label="Current calculated Lv50 stats">${Object.entries(STAT_LABELS).map(([key, label]) => `<div><dt>${label}</dt><dd>${values[key]}</dd></div>`).join("")}</dl>`;
+  const editor = (key, summary, html, wideOpen = false) => `<details class="calc-editor" data-calc-editor="${key}" ${(s.editors[key] ?? (wideOpen && window.matchMedia("(min-width: 761px)").matches)) ? "open" : ""}><summary>${summary}</summary>${html}</details>`;
+  const stageSummary = (stages) => Object.entries(stages).filter(([, n]) => n).map(([key, n]) => `${STAT_LABELS[key] || key} ${n > 0 ? "+" : ""}${n}`).join(" · ") || "no stages";
+  function fieldControls() {
+    const reverse = s.mode === "rev";
+    return `<section class="calc-card calc-field cl-sec"><div class="cl-sec-head"><span>Battle conditions</span></div>
+      <p class="calc-context-values">${[WEATHERS[eb.weather], TERRAINS[eb.terrain], SCREENS[eb.screen]].join(" · ")}</p>
+      ${editor("field", `Edit · ${eb.doubles ? "Doubles ×0.75" : "Singles"} · ${eb.userStatus === "none" && eb.targetStatus === "none" ? "Healthy" : `${eb.userStatus} / ${eb.targetStatus}`} · ${eb.useAccuracy ? "Accuracy weighted" : "Raw damage"}`, `
+      <div class="cl-conditions calc-context-row">
+        <div class="cl-stat"><span class="cl-stat-lab">Weather</span>${seg("weather", WEATHERS, eb.weather)}</div>
+        <div class="cl-stat"><span class="cl-stat-lab">Terrain</span>${seg("terrain", TERRAINS, eb.terrain)}</div>
+        <div class="cl-stat"><span class="cl-stat-lab">Screen</span>${seg("screen", SCREENS, eb.screen)}</div>
+      </div>
+      <div class="cl-conditions">
+        <label class="cl-toggle" data-acc-toggle title="Weight damage by each move's accuracy (off = potential damage)"><input type="checkbox" data-calc-accuracy ${eb.useAccuracy ? "checked" : ""}> weight by accuracy</label>
+        <div class="cl-stat"><span class="cl-stat-lab">${reverse ? "Defender" : "Target"} status</span>${seg("targetStatus", { none: "Healthy", psn: "Poisoned", brn: "Burned", par: "Paralyzed", slp: "Asleep" }, eb.targetStatus)}</div>
+        <div class="cl-stat"><span class="cl-stat-lab">Attacker status</span>${seg("userStatus", { none: "Healthy", brn: "Burned", psn: "Poisoned", par: "Paralyzed" }, eb.userStatus)}</div>
+        <label class="cl-avail cl-doubles"><input type="checkbox" data-ebsel="doubles" ${eb.doubles ? "checked" : ""}> Doubles spread ×0.75</label>
+      </div>`, true)}
+    </section>`;
+  }
 
   // Controls: target card + defenses editor + conditions + attacker preset + rules.
   function renderControls(target) {
@@ -1330,76 +1365,68 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       <button class="cl-ttab-x" data-target2-clear title="Remove the 2nd target">✕ 2nd</button>
     </div>` : "";
 
-    return `<section class="calc-card cl-target">
+    return `<section class="calc-card cl-target calc-build-summary">
       ${tabRow}
       <div class="cl-target-head">
         <img class="ehp-target-spr cl-target-open" data-target-open="${mon.slug}" title="Open ${nameOf(mon)} details" src="${mon.artwork || mon.sprite || ""}" alt="">
         <div class="ehp-target-meta">
-          <div class="ehp-target-name cl-target-open" data-target-open="${mon.slug}" title="Open ${nameOf(mon)} details">${nameOf(mon)} ${mon.isMega ? '<span class="mega-badge">MEGA</span>' : ""}</div>
+          <button class="ehp-target-name cl-target-open roster-open" data-target-open="${mon.slug}" title="Open ${nameOf(mon)} details">${nameOf(mon)} ${mon.isMega ? '<span class="mega-badge">MEGA</span>' : ""}</button>
           <div class="ehp-target-types">${mon.types.map(typeSpan).join("")}</div>
           ${formBtns ? `<div class="ehp-target-forms">${formBtns}</div>` : ""}
         </div>
-        <div class="ehp-target-bulk">
-          <div class="ehp-bulk hp"><span class="ehp-bulk-lab">HP</span><span class="ehp-bulk-val">${target.hp}</span></div>
-          <div class="ehp-bulk phys"><span class="ehp-bulk-lab">Def</span><span class="ehp-bulk-val">${target.def}</span></div>
-          <div class="ehp-bulk spec"><span class="ehp-bulk-lab">Sp.Def</span><span class="ehp-bulk-val">${target.spd}</span></div>
-          <div class="ehp-bulk spe"><span class="ehp-bulk-lab">Spe</span><span class="ehp-bulk-val">${target.spe}</span></div>
-        </div>
+        ${currentStats({ hp: target.hp, atk: target.threat.atk, def: target.def, spa: target.threat.spa, spd: target.spd, spe: target.spe })}
       </div>
+      <p class="calc-stat-assumption" title="Nature, points, defensive stages, defensive weather and Speed modifiers are reflected above. Damage-only item/ability multipliers are applied in the matchup results, not presented as permanent stat changes.">Lv50 · current battle stats · ${cfg.nature === "Serious" ? "Neutral" : esc(cfg.nature)} · ${pointsUsed(cfg.spread)}/${POOL} points</p>
       <div class="cl-sec">
         <div class="cl-sec-head"><span>${t2 ? `Target ${eb.editing + 1} set` : "Target set"}</span>
           <span class="cl-points ${pointsUsed(cfg.spread) > POOL ? "over" : ""}">Points ${pointsUsed(cfg.spread)}/${POOL}</span>
           <button class="btn-sm cl-reset" data-ebreset title="Reset to this mon's ladder usage">↺ usage</button></div>
-        <div class="cl-editor">
+        <div class="calc-context-row">
+          <div class="cl-stat"><span class="cl-stat-lab">Nature</span>${natSelect('data-ebsel="nature"', cfg.nature)}</div>
+          <div class="cl-stat"><span class="cl-stat-lab">Item</span>${itemSelect('data-ebsel="item"', cfg.item, mon, cfg.ability)}</div>
+        </div>
+        ${abilRow}
+        ${editor(`target-${eb.editing}`, `Edit points & stages · ${pointsUsed(cfg.spread)}/${POOL} · ${stageSummary({ def: cfg.defStage, spd: cfg.spdStage, spe: cfg.speStage })}`, `<div class="cl-editor">
           ${ptStepper("HP", "spread.hp", cfg.spread.hp)}
           ${ptStepper("Def", "spread.def", cfg.spread.def)}
           ${ptStepper("Sp.Def", "spread.spd", cfg.spread.spd, "Special Defense — not Speed")}
           ${ptStepper("Speed", "spread.spe", cfg.spread.spe, "Speed — decides who moves first")}
           ${ptStepper("Atk", "spread.atk", cfg.spread.atk, "Attack — its physical damage back")}
           ${ptStepper("Sp.Atk", "spread.spa", cfg.spread.spa, "Sp. Atk — its special damage back")}
-          <div class="cl-stat"><span class="cl-stat-lab">Nature</span>${natSelect('data-ebsel="nature"', cfg.nature)}</div>
           ${stageStepper("Def boost", "defStage", cfg.defStage)}
           ${stageStepper("Sp.Def boost", "spdStage", cfg.spdStage, "Special Defense — not Speed")}
           ${stageStepper("Speed boost", "speStage", cfg.speStage)}
-        </div>
+        </div>`)}
         <div class="cl-tmoves"><span class="cl-stat-lab">Its moves</span>
           ${mon.learnset?.status === "unverified" ? `<p class="learnset-note learnset-warning">${learnsetNotice(mon)}</p>` : ""}
           ${(target.threat.moves || []).map((mv) => `<span class="cl-exchip"><span class="type tiny" style="background:${TYPE_COLORS[mv.type]}">${mv.type}</span><span class="cl-exchip-nm" data-move-info="${moveIdByName.get(mv.name)}" title="Open ${mv.name}">${mv.name}</span><button data-tmove-remove="${moveIdByName.get(mv.name)}" aria-label="remove">✕</button></span>`).join("") || '<small class="muted">no damaging moves</small>'}
         </div>
-        ${abilRow}
+        <div class="calc-add-move-slot" data-move-slot="ehp"></div>
       </div>
-      <div class="cl-sec">
-        <div class="cl-sec-head"><span>Field conditions</span></div>
-        <div class="cl-conditions">
-          <div class="cl-stat"><span class="cl-stat-lab">Weather</span>${seg("weather", WEATHERS, eb.weather)}</div>
-          <div class="cl-stat"><span class="cl-stat-lab">Terrain</span>${seg("terrain", TERRAINS, eb.terrain)}</div>
-          <div class="cl-stat"><span class="cl-stat-lab">Screen</span>${seg("screen", SCREENS, eb.screen)}</div>
-          <div class="cl-stat"><span class="cl-stat-lab">Target item</span>${itemSelect('data-ebsel="item"', cfg.item, mon, cfg.ability)}</div>
-          <div class="cl-stat"><span class="cl-stat-lab">Target status</span>${seg("targetStatus", { none: "Healthy", psn: "Poisoned", brn: "Burned", par: "Paralyzed", slp: "Asleep" }, eb.targetStatus)}</div>
-          <div class="cl-stat"><span class="cl-stat-lab">Attacker status</span>${seg("userStatus", { none: "Healthy", brn: "Burned", psn: "Poisoned", par: "Paralyzed" }, eb.userStatus)}</div>
-          <label class="cl-avail cl-doubles" title="In doubles, moves hitting multiple targets take the ×0.75 spread modifier"><input type="checkbox" data-ebsel="doubles" ${eb.doubles ? "checked" : ""}> Doubles spread ×0.75</label>
-        </div>
-      </div>
-      <div class="cl-sec">
-        <div class="cl-sec-head"><span>Attackers — global preset</span>
-          <label class="cl-toggle" data-acc-toggle title="Weight damage by each move's accuracy (off = potential damage)"><input type="checkbox" tabindex="-1" ${eb.useAccuracy ? "checked" : ""}> weight by accuracy</label></div>
+    </section>
+    <div class="calc-context-grid">${fieldControls()}
+      <section class="calc-card cl-sec calc-assumptions">
+        <div class="cl-sec-head"><span title="These defaults apply to the roster's attacking Pokémon">Roster attackers</span></div>
+        <p class="calc-context-values">${eb.atkInvest} points · ${eb.atkNature === "auto" ? "Auto +stat" : eb.atkNature === "Serious" ? "Neutral" : esc(eb.atkNature)} · ${itemLabel(eb.atkItem)}</p>
+        ${editor("attackers", `Edit · ${stageSummary({ atk: eb.atkBoost })} · ${eb.atkSpeed === "max" ? "Max" : "Base"} Speed · ${eb.candBulk === "hp" ? "+32 HP" : "Base bulk"} · ${eb.movepool === "ladder" ? "Ladder" : "All"} moves${eb.excluded.size ? ` · ${eb.excluded.size} excluded` : ""}`, `
         <div class="cl-attacker">
           <div class="cl-stat"><span class="cl-stat-lab">Invest</span>
             <div class="seg cl-invest">${[[32, "Max"], [16, "Half"], [0, "None"]].map(([v, l]) => `<button data-atkinvest="${v}" class="${eb.atkInvest === v ? "active" : ""}">${l}</button>`).join("")}</div></div>
           <div class="cl-stat"><span class="cl-stat-lab">Nature</span>${natSelect('data-ebsel="atkNature"', eb.atkNature, true)}</div>
+          <div class="cl-stat"><span class="cl-stat-lab">Item</span>${itemSelect('data-ebsel="atkItem"', eb.atkItem)}</div>
+        </div>
+        <div class="cl-attacker">
           ${stageStepper("Boost", "atkBoost", eb.atkBoost)}
           <div class="cl-stat"><span class="cl-stat-lab">Speed</span>
             <div class="seg cl-invest">${[["base", "Base"], ["max", "Max"]].map(([v, l]) => `<button data-atkspeed="${v}" class="${eb.atkSpeed === v ? "active" : ""}">${l}</button>`).join("")}</div></div>
-          <div class="cl-stat"><span class="cl-stat-lab">Item</span>${itemSelect('data-ebsel="atkItem"', eb.atkItem)}</div>
           <div class="cl-stat" title="How bulky the candidates are for the 'survives' math"><span class="cl-stat-lab">Their bulk</span>
             <div class="seg cl-invest">${[["base", "Base"], ["hp", "+32 HP"]].map(([v, l]) => `<button data-candbulk="${v}" class="${eb.candBulk === v ? "active" : ""}">${l}</button>`).join("")}</div></div>
           <div class="cl-stat" title="All learnable moves or only each mon's real ladder set"><span class="cl-stat-lab">Movepool</span>
             <div class="seg cl-invest">${[["all", "All"], ["ladder", "Ladder"]].map(([v, l]) => `<button data-atkpool="${v}" class="${eb.movepool === v ? "active" : ""}">${l}</button>`).join("")}</div></div>
         </div>
-        ${excludedChips}
-      </div>
-      ${renderFilters()}
-    </section>`;
+        ${excludedChips}`, true)}
+      </section>
+    </div>`;
   }
 
   // The two 18-chip type grids (attacker types + move types) collapse behind one toggle so
@@ -1407,24 +1434,27 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
   function typeFilterToggle() {
     const n = eb.fTypesOff.size + eb.moveTypesOff.size;
     return `<button class="cl-typetoggle ${eb.showTypeFilters ? "open" : ""} ${n ? "has" : ""}" data-toggle-typefilters title="Filter by attacker type / move type">
-      <span class="cl-tt-ico">◧</span> Type filters ${n ? `<span class="cl-tt-badge">${n}</span>` : ""}<span class="cl-tt-caret">${eb.showTypeFilters ? "▾" : "▸"}</span></button>`;
+      <span class="cl-tt-ico">◧</span> Types ${n ? `<span class="cl-tt-badge">${n}</span>` : ""}<span class="cl-tt-caret">${eb.showTypeFilters ? "▾" : "▸"}</span></button>`;
   }
-  // "Attackers — filter & sort": lives INSIDE the target card as its last section —
-  // the exact mirror of One-vs-all's "Defenders — filter & sort".
+  // Results controls are deliberately separate from the subject's build and
+  // roster assumptions. Only the less common filters are disclosed.
   function renderFilters() {
     const roleOpts = { any: "Any role", physical: "Physical", special: "Special", mixed: "Mixed", defensive: "Defensive" };
-    return `<div class="cl-sec">
+    const active = [eb.fMega !== "all" ? (eb.fMega === "hide" ? "No Mega" : "Mega only") : "", eb.fRole !== "any" ? roleOpts[eb.fRole] : "", eb.fAvail ? "Available" : "", eb.fSurvive ? "Survives target" : "", eb.fFaster ? "Outspeeds" : ""].filter(Boolean);
+    return `<div class="cl-sec calc-result-filters">
       <div class="cl-sec-head"><span>Attackers — filter &amp; sort</span></div>
       <div class="cl-conditions">
-        <div class="seg cl-catseg">${[["any", "All"], ["physical", "Phys"], ["special", "Spec"]].map(([v, l]) => `<button data-fcat="${v}" class="${eb.fCat === v ? "active" : ""}">${l}</button>`).join("")}</div>
+        <label class="cl-stat"><span class="cl-stat-lab">Category</span>${seg("fCat", { any: "All", physical: "Physical", special: "Special" }, eb.fCat)}</label>
+        <label class="cl-stat"><span class="cl-stat-lab">Damage</span>${seg("threshold", { any: "Any damage", ohko: "OHKO", "2hko": "2HKO", "3hko": "3HKO" }, eb.threshold)}</label>
+        ${typeFilterToggle()}
+      </div>
+      ${editor("attacker-filters", `More filters${active.length ? ` · ${active.join(" · ")}` : ""}`, `<div class="cl-conditions">
         <div class="seg cl-megaseg">${[["all", "All"], ["hide", "No mega"], ["only", "Only mega"]].map(([v, l]) => `<button data-fmega="${v}" class="${eb.fMega === v ? "active" : ""}">${l}</button>`).join("")}</div>
         ${seg("fRole", roleOpts, eb.fRole)}
-        <div class="seg ehp-thresh">${[["any", "Any dmg"], ["ohko", "OHKO"], ["2hko", "2HKO"], ["3hko", "3HKO"]].map(([v, l]) => `<button data-thresh="${v}" class="${eb.threshold === v ? "active" : ""}">${l}</button>`).join("")}</div>
         <label class="cl-toggle"><input type="checkbox" data-ebsel="fAvail" ${eb.fAvail ? "checked" : ""}> Available</label>
         <label class="cl-toggle" title="Hide attackers the target OHKOs back"><input type="checkbox" data-ebsel="fSurvive" ${eb.fSurvive ? "checked" : ""}> Survives target</label>
         <label class="cl-toggle" title="Only attackers that move first"><input type="checkbox" data-ebsel="fFaster" ${eb.fFaster ? "checked" : ""}> Outspeeds</label>
-        ${typeFilterToggle()}
-      </div>
+      </div>`)}
       <div class="cl-typefilters" ${eb.showTypeFilters ? "" : "hidden"}>
       <div class="cl-typerow" title="Lit types are allowed; click a type to toggle it">
         <div class="cl-typectl">
@@ -1687,27 +1717,38 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       <button class="btn-sm" data-preset-save ${savable ? "" : "disabled"}>Save preset</button>
       ${list.map((p) => `<span class="cl-exchip cl-preset"><button class="cl-preset-load" data-preset-load="${p.id}" title="Load this setup">${p.name}</button><button data-preset-del="${p.id}" aria-label="delete" title="Delete">✕</button></span>`).join("")}`;
     ["#ehp-presets", "#rev-presets"].forEach((sel) => { const el = $(sel); if (el) el.innerHTML = html; });
-    // the mobile "More setup" button carries a badge so hidden state is never misleading
-    const nEhp = eb.excluded.size + (eb.targets[1] ? 1 : 0) + (eb.fSearch ? 1 : 0);
-    const nRev = ((eb.revCfg.moveset || []).length ? 1 : 0) + eb.excluded.size + (eb.revSearch ? 1 : 0);
+    // Count secondary setup, not the move chips and search already visible above results.
+    const nEhp = eb.excluded.size + (eb.targets[1] ? 1 : 0) + eb.customMons.length;
+    const nRev = eb.excluded.size + eb.customMons.length;
     const be = container.querySelector('[data-setup="ehp-setup"]'); if (be) be.textContent = `⚙ More setup${nEhp ? ` · ${nEhp}` : ""}`;
     const br = container.querySelector('[data-setup="rev-setup"]'); if (br) br.textContent = `⚙ More setup${nRev ? ` · ${nRev}` : ""}`;
   }
 
   const renderActive = () => { if (s.mode === "rev") renderRev(); else if (s.mode === "team") renderTeam(); else renderEb(); };   // shared field handlers re-render the active mode
   function renderEb() {
+    const restoreControls = retainRenderFocus($("#calc-mode-ehp"));
+    const retainedFocus = document.activeElement;
+    const restoreFocus = moveAdders.ehp.contains(retainedFocus) || resultSearches.ehp.contains(retainedFocus);
     saveLab();   // the working setup survives reloads
     renderPresets();
     const target = currentTarget();
     if (!target) {
       $("#ehp-controls").innerHTML = "";
       $("#ehp-filters").innerHTML = "";
+      placeResultSearch("ehp");
+      moveAdders.ehp.hidden = true;
       $("#ehp-results").innerHTML = `<p class="ehp-empty ehp-pick-hint">Pick a popular target above to find its counters — its defensive set will prefill from ladder usage.</p>`;
+      if (restoreFocus && retainedFocus.isConnected && !moveAdders.ehp.contains(retainedFocus)) retainedFocus.focus({ preventScroll: true });
       return;
     }
     $("#ehp-controls").innerHTML = renderControls(target);
-    $("#ehp-filters").innerHTML = "";   // filters live inside the target card now (mirrors One-vs-all)
+    moveAdders.ehp.hidden = false;
+    $("[data-move-slot='ehp']").append(moveAdders.ehp);
+    $("#ehp-filters").innerHTML = renderFilters();
+    placeResultSearch("ehp");
     renderResults();
+    if (restoreFocus && retainedFocus.isConnected) retainedFocus.focus({ preventScroll: true });
+    else restoreControls();
   }
 
   // ---------- "One vs all" reverse mode ----------
@@ -1715,47 +1756,46 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
   function renderRevControls(entry) {
     const mon = entry.mon;
     const c = eb.revCfg;
+    const st = revSt(), offense = effOffense(entry, st);
+    const seed = seedEffect(st.item, st.ability, eb.terrain, mon);
+    const defense = (key) => Math.max(1, Math.floor(entry.lv[key] * stageMult(Math.max(-6, Math.min(6, (st.stages[key] || 0) + (seed?.stat === key ? seed.stages : 0))))));
     const abilChips = (mon.abilities || []).map((a) => `<button class="tm-abil-chip ${c.ability === a.slug ? "on" : ""}" data-revability="${a.slug}">${(data.abilities[a.slug] || {}).name || a.slug}</button>`).join("");
-    return `<section class="calc-card cl-target">
+    return `<section class="calc-card cl-target calc-build-summary">
       <div class="cl-target-head">
         <img class="ehp-target-spr cl-target-open" data-target-open="${mon.slug}" title="Open ${nameOf(mon)} details" src="${mon.artwork || mon.sprite || ""}" alt="">
         <div class="ehp-target-meta">
-          <div class="ehp-target-name cl-target-open" data-target-open="${mon.slug}" title="Open ${nameOf(mon)} details">${nameOf(mon)} ${mon.isMega ? '<span class="mega-badge">MEGA</span>' : ""}</div>
+          <button class="ehp-target-name cl-target-open roster-open" data-target-open="${mon.slug}" title="Open ${nameOf(mon)} details">${nameOf(mon)} ${mon.isMega ? '<span class="mega-badge">MEGA</span>' : ""}</button>
           <div class="ehp-target-types">${mon.types.map(typeSpan).join("")}</div>
         </div>
-        <div class="ehp-target-bulk">
-          <div class="ehp-bulk phys" title="base → effective (after invest/nature/stages)"><span class="ehp-bulk-lab">Atk</span><span class="ehp-bulk-val">${entry.lv.atk}<small class="eff-arrow">→${effOffense(entry, revSt()).atk}</small></span></div>
-          <div class="ehp-bulk spec" title="base → effective (after invest/nature/stages)"><span class="ehp-bulk-lab">Sp.Atk</span><span class="ehp-bulk-val">${entry.lv.spa}<small class="eff-arrow">→${effOffense(entry, revSt()).spa}</small></span></div>
-          <div class="ehp-bulk spe" title="base → effective (after speed invest/stages/item)"><span class="ehp-bulk-lab">Spe</span><span class="ehp-bulk-val">${entry.lv.spe}<small class="eff-arrow">→${attackerSpe(entry, revSt())}</small></span></div>
-        </div>
+        ${currentStats({ hp: entry.lv.hp + (eb.candBulk === "hp" ? 32 : 0), atk: offense.atk, def: defense("def"), spa: offense.spa, spd: defense("spd"), spe: attackerSpe(entry, st) })}
       </div>
+      <p class="calc-stat-assumption" title="This offense preset is evaluated independently per move, not one complete legal spread. Auto boosts the attacking stat used by each move. Body Press uses Defense plus offense investment; the Def value above describes incoming-hit bulk. Damage-only item and ability multipliers appear in results.">Lv50 · current preset values · ${c.nature === "auto" ? "Auto +stat (move-dependent)" : c.nature === "Serious" ? "Neutral" : esc(c.nature)} · ability ${(data.abilities[c.ability] || {}).name || "None"}</p>
       <div class="cl-sec">
         ${mon.learnset?.status === "unverified" ? `<p class="learnset-note learnset-warning">${learnsetNotice(mon)}</p>` : ""}
         ${(c.moveset || []).some((id) => !mon.moves.includes(id)) ? '<p class="learnset-note learnset-warning">Unconfirmed saved moves are excluded from calculations.</p>' : ""}
-        <div class="cl-sec-head"><span>Attacker offense</span>
-          <label class="cl-toggle" data-acc-toggle title="Weight damage by each move's accuracy (off = potential damage)"><input type="checkbox" tabindex="-1" ${eb.useAccuracy ? "checked" : ""}> weight by accuracy</label></div>
+        <div class="cl-sec-head"><span>Attacker offense</span></div>
         <div class="cl-attacker">
-          <div class="cl-stat"><span class="cl-stat-lab">Invest</span>
-            <div class="seg cl-invest">${[[32, "Max"], [16, "Half"], [0, "None"]].map(([v, l]) => `<button data-revinvest="${v}" class="${c.invest === v ? "active" : ""}">${l}</button>`).join("")}</div></div>
           <div class="cl-stat"><span class="cl-stat-lab">Nature</span>${natSelect('data-revsel="nature"', c.nature, true)}</div>
-          <div class="cl-stat"><span class="cl-stat-lab">Speed</span>
-            <div class="seg cl-invest">${[["base", "Base"], ["max", "Max"]].map(([v, l]) => `<button data-revspeed="${v}" class="${c.speed === v ? "active" : ""}">${l}</button>`).join("")}</div></div>
           <div class="cl-stat"><span class="cl-stat-lab">Item</span>${itemSelect('data-revsel="item"', c.item, mon, c.ability)}</div>
-          <div class="cl-stat" title="All learnable moves or only its real ladder set"><span class="cl-stat-lab">Movepool</span>
-            <div class="seg cl-invest">${[["all", "All"], ["ladder", "Ladder"]].map(([v, l]) => `<button data-revpool="${v}" class="${(c.movepool || "all") === v ? "active" : ""}">${l}</button>`).join("")}</div></div>
-        </div>
-        <div class="cl-attacker" title="Setup stages — the stat each move actually uses (Iron Defense = +2 Def powers Body Press and halves physical taken)">
-          ${["atk", "spa", "def", "spe"].map((k) => `<div class="cl-stat"><span class="cl-stat-lab">${{ atk: "Atk stage", spa: "Sp.Atk stage", def: "Def stage", spe: "Spe stage" }[k]}</span>
-            <div class="cl-step"><button data-revstage="${k}" data-dir="-1">−</button><b>${(c.stages?.[k] || 0) >= 0 ? "+" : ""}${c.stages?.[k] || 0}</b><button data-revstage="${k}" data-dir="1">+</button></div></div>`).join("")}
         </div>
         ${abilChips ? `<div class="cl-abil"><span class="cl-stat-lab">Ability</span>${abilChips}</div>` : ""}
+        ${editor("attacker-build", `Edit · ${c.invest} pts · ${c.speed === "max" ? "Max" : "Base"} Speed · ${stageSummary(c.stages || {})} · ${(c.movepool || "all") === "all" ? "All" : "Ladder"} moves${c.boost ? ` · +${c.boost} legacy boost` : ""}`, `<div class="cl-attacker" title="Setup stages — the stat each move actually uses (Iron Defense = +2 Def powers Body Press and halves physical taken)">
+          <div class="cl-stat"><span class="cl-stat-lab">Invest</span>
+            <div class="seg cl-invest">${[[32, "Max"], [16, "Half"], [0, "None"]].map(([v, l]) => `<button data-revinvest="${v}" class="${c.invest === v ? "active" : ""}">${l}</button>`).join("")}</div></div>
+          <div class="cl-stat" title="All learnable moves or only its real ladder set"><span class="cl-stat-lab">Movepool</span>
+            <div class="seg cl-invest">${[["all", "All"], ["ladder", "Ladder"]].map(([v, l]) => `<button data-revpool="${v}" class="${(c.movepool || "all") === v ? "active" : ""}">${l}</button>`).join("")}</div></div>
+          <div class="cl-stat"><span class="cl-stat-lab">Speed investment</span><div class="seg cl-invest">${[["base", "Base"], ["max", "Max"]].map(([v, l]) => `<button data-revspeed="${v}" class="${c.speed === v ? "active" : ""}">${l}</button>`).join("")}</div></div>
+          ${["atk", "spa", "def", "spe"].map((k) => `<div class="cl-stat"><span class="cl-stat-lab">${{ atk: "Atk stage", spa: "Sp.Atk stage", def: "Def stage", spe: "Spe stage" }[k]}</span>
+            <div class="cl-step"><button data-revstage="${k}" data-dir="-1">−</button><b>${(c.stages?.[k] || 0) >= 0 ? "+" : ""}${c.stages?.[k] || 0}</b><button data-revstage="${k}" data-dir="1">+</button></div></div>`).join("")}
+        </div>`)}
         <div class="cl-tmoves"><span class="cl-stat-lab">Its attacks</span>
           ${Array.isArray(c.moveset) && c.moveset.length
             ? c.moveset.map((id) => { const mv = data.moves[id]; return mv ? `<span class="cl-exchip"><span class="type tiny" style="background:${TYPE_COLORS[mv.type]}">${mv.type}</span><span class="cl-exchip-nm" data-move-info="${id}" title="Open ${mv.name}">${mv.name}</span><button data-rmv-remove="${id}" aria-label="remove">✕</button></span>` : ""; }).join("")
             : `<small class="muted">using ${(c.movepool || "all") === "ladder" ? "its ladder set" : "all learnable moves"} — add specific attacks to lock the set</small>`}
           ${(c.custom || []).map((cm, i) => `<span class="cl-exchip cl-cmv-chip" title="Invented move — not in its real movepool"><span class="type tiny" style="background:${TYPE_COLORS[cm.type]}">${cm.type}</span>Custom ${cm.power} <small>${cm.class === "physical" ? "Phys" : "Spec"}</small><button data-rmv-custom="${i}" aria-label="remove">✕</button></span>`).join("")}
         </div>
-        <div class="cl-custommv" title="Invent a move to test: type + category + base power. Plain single hit, 100% accuracy; STAB applies if the type matches.">
+        <div class="calc-add-move-slot" data-move-slot="rev"></div>
+        ${editor("custom-attacks", `Custom${(c.custom || []).length || eb.excluded.size ? ` / excluded · ${(c.custom || []).length} / ${eb.excluded.size}` : ""}`, `<div class="cl-custommv" title="Invent a move to test: type + category + base power. Plain single hit, 100% accuracy; STAB applies if the type matches.">
           <span class="cl-stat-lab">Custom move</span>
           <select class="cl-sel cmv-type">${TYPES.map((t) => `<option value="${t}">${t}</option>`).join("")}</select>
           <select class="cl-sel cmv-class"><option value="physical">Physical</option><option value="special">Special</option></select>
@@ -1763,31 +1803,31 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
           <button class="btn-sm" data-addcustom>＋ Add</button>
         </div>
         ${eb.excluded.size ? `<div class="cl-excluded"><span class="cl-stat-lab">Excluded moves</span>
-          ${[...eb.excluded].map((id) => data.moves[id] ? `<span class="cl-exchip"><span class="cl-exchip-nm" data-move-info="${id}" title="Open ${data.moves[id].name}">${data.moves[id].name}</span><button data-unexclude="${id}" aria-label="restore">✕</button></span>` : "").join("")}</div>` : ""}
+          ${[...eb.excluded].map((id) => data.moves[id] ? `<span class="cl-exchip"><span class="cl-exchip-nm" data-move-info="${id}" title="Open ${data.moves[id].name}">${data.moves[id].name}</span><button data-unexclude="${id}" aria-label="restore">✕</button></span>` : "").join("")}</div>` : ""}`)}
       </div>
-      <div class="cl-sec">
-        <div class="cl-sec-head"><span>Field conditions</span></div>
-        <div class="cl-conditions">
-          <div class="cl-stat"><span class="cl-stat-lab">Weather</span>${seg("weather", WEATHERS, eb.weather)}</div>
-          <div class="cl-stat"><span class="cl-stat-lab">Terrain</span>${seg("terrain", TERRAINS, eb.terrain)}</div>
-          <div class="cl-stat"><span class="cl-stat-lab">Screen</span>${seg("screen", SCREENS, eb.screen)}</div>
-          <div class="cl-stat" title="Burn halves the attacker's physical damage (Guts/Facade exempt); paralysis halves its Speed"><span class="cl-stat-lab">Attacker status</span>${seg("userStatus", { none: "Healthy", brn: "Burned", psn: "Poisoned", par: "Paralyzed" }, eb.userStatus)}</div>
-          <div class="cl-stat"><span class="cl-stat-lab">Defender status</span>${seg("targetStatus", { none: "Healthy", psn: "Poisoned", brn: "Burned", par: "Paralyzed", slp: "Asleep" }, eb.targetStatus)}</div>
-          <label class="cl-avail cl-doubles" title="In doubles, moves hitting multiple targets take the ×0.75 spread modifier"><input type="checkbox" data-ebsel="doubles" ${eb.doubles ? "checked" : ""}> Doubles spread ×0.75</label>
-        </div>
-      </div>
-      <div class="cl-sec">
+    </section>
+    <div class="calc-context-grid">${fieldControls()}
+      <section class="calc-card cl-sec calc-assumptions"><div class="cl-sec-head"><span>Roster defenders</span></div>
+        <p class="calc-context-values">${{ ladder: "Snapshot estimates, not verified complete sets", base: "Neutral Nature, zero points", bulk: "Optimized mixed bulk, neutral Nature" }[eb.revBasis]} · ${eb.revOverrides.size} individual override${eb.revOverrides.size === 1 ? "" : "s"}</p>
+        ${editor("defenders", "Edit roster baseline", `
+        <div class="seg cl-invest" title="Snapshot = captured spread/Nature if available; otherwise exact aggregate spread + neutral Nature. Zero points when undisclosed.">${[["ladder", "Snapshot"], ["base", "0 points"], ["bulk", "Max bulk"]].map(([v, l]) => `<button data-revbasis="${v}" class="${eb.revBasis === v ? "active" : ""}">${l}</button>`).join("")}</div>
+        `, true)}
+      </section>
+    </div>`;
+  }
+  function renderRevFilters() {
+    return `<div class="cl-sec calc-result-filters">
         <div class="cl-sec-head"><span>Defenders — filter &amp; sort</span></div>
         <div class="cl-conditions">
-          <div class="cl-stat" title="Global preset — what set EVERY defender is assumed to run: Ladder = its real usage spread/nature/ability; Base = 0 investment, neutral; Max bulk = all 66 points into HP/Def/Sp.Def (best-case walls)"><span class="cl-stat-lab">Defenders</span>
-            <div class="seg cl-invest">${[["ladder", "Ladder set"], ["base", "Base 0-invest"], ["bulk", "Max bulk"]].map(([v, l]) => `<button data-revbasis="${v}" class="${eb.revBasis === v ? "active" : ""}">${l}</button>`).join("")}</div></div>
-          <div class="seg ehp-thresh">${[["usage", "Usage ↓"], ["dmg", "Damage ↓"], ["tough", "Toughest ↑"]].map(([v, l]) => `<button data-revsort="${v}" class="${eb.revSort === v ? "active" : ""}">${l}</button>`).join("")}</div>
-          <div class="seg">${[["all", "All"], ["hide", "No mega"], ["only", "Only mega"]].map(([v, l]) => `<button data-revmega="${v}" class="${eb.revMega === v ? "active" : ""}">${l}</button>`).join("")}</div>
-          <div class="seg ehp-thresh">${[["any", "Any dmg"], ["ohko", "OHKO"], ["2hko", "2HKO"], ["3hko", "3HKO"]].map(([v, l]) => `<button data-thresh="${v}" class="${eb.threshold === v ? "active" : ""}">${l}</button>`).join("")}</div>
-          <label class="cl-toggle" title="Only defenders with real ladder usage data"><input type="checkbox" data-revsel="revLaddered" ${eb.revLaddered ? "checked" : ""}> Laddered only</label>
+          <label class="cl-stat"><span class="cl-stat-lab">Sort</span>${seg("revSort", { usage: "Usage ↓", dmg: "Damage ↓", tough: "Toughest ↑" }, eb.revSort)}</label>
+          <label class="cl-stat"><span class="cl-stat-lab">Damage</span>${seg("threshold", { any: "Any damage", ohko: "OHKO", "2hko": "2HKO", "3hko": "3HKO" }, eb.threshold)}</label>
           <button class="cl-typetoggle ${eb.showTypeFilters ? "open" : ""} ${eb.revTypesOff.size + eb.moveTypesOff.size ? "has" : ""}" data-toggle-typefilters title="Filter by defender type / move type">
-            <span class="cl-tt-ico">◧</span> Type filters ${eb.revTypesOff.size + eb.moveTypesOff.size ? `<span class="cl-tt-badge">${eb.revTypesOff.size + eb.moveTypesOff.size}</span>` : ""}<span class="cl-tt-caret">${eb.showTypeFilters ? "▾" : "▸"}</span></button>
+            <span class="cl-tt-ico">◧</span> Types ${eb.revTypesOff.size + eb.moveTypesOff.size ? `<span class="cl-tt-badge">${eb.revTypesOff.size + eb.moveTypesOff.size}</span>` : ""}<span class="cl-tt-caret">${eb.showTypeFilters ? "▾" : "▸"}</span></button>
         </div>
+        ${editor("defender-filters", `More filters${eb.revMega !== "all" ? ` · ${eb.revMega === "hide" ? "No Mega" : "Mega only"}` : ""}${eb.revLaddered ? " · With usage moves" : ""}`, `<div class="cl-conditions">
+          <div class="seg">${[["all", "All"], ["hide", "No mega"], ["only", "Only mega"]].map(([v, l]) => `<button data-revmega="${v}" class="${eb.revMega === v ? "active" : ""}">${l}</button>`).join("")}</div>
+          <label class="cl-toggle" title="Only defenders with captured usage moves"><input type="checkbox" data-revsel="revLaddered" ${eb.revLaddered ? "checked" : ""}> With usage moves</label>
+        </div>`)}
         <div class="cl-typefilters" ${eb.showTypeFilters ? "" : "hidden"}>
         <div class="cl-typerow" title="Lit types are shown; click a type to toggle it">
           <div class="cl-typectl">
@@ -1806,8 +1846,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
           <div class="cl-ftypes">${TYPES.map((t) => `<button class="type-chip ${eb.moveTypesOff.has(t) ? "off" : "on"}" data-fmtype="${t}"><span class="type" style="background:${TYPE_COLORS[t]}">${t}</span></button>`).join("")}</div>
         </div>
         </div>
-      </div>
-    </section>`;
+    </div>`;
   }
   // Expander panel for one defender: its (editable) set + the full two-way matchup + into-range.
   function renderDefenderPanel(entry, d, dt) {
@@ -1865,10 +1904,11 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       const edited = eb.revOverrides.has(slug) && Object.keys(eb.revOverrides.get(slug)).length > 0;
       const setLine = `<span class="ehp-setline" title="The set this row assumes (edit via ▸)">${dt.hp} HP · ${dt.def} Def · ${dt.spd} SpD · ${dt.spe} Spe · ${cfg.nature === "Serious" ? "Neutral" : cfg.nature} · ${(data.abilities[cfg.ability] || {}).name || "—"} · ${itemLabel(dt.item)}${edited ? ' · <b class="ap-edited">edited</b>' : ""}</span>`;
       return `<div class="ehp-item ${open ? "open" : ""}">
-        <div class="ehp-row" data-open="${slug}">
+        <div class="ehp-row ehp-defender-row" data-open="${slug}">
           <img class="ehp-spr" loading="lazy" decoding="async" src="${d.mon.sprite || d.mon.artwork || ""}" alt="">
-          <span class="ehp-name"><span class="ehp-nm-row"><button class="ehp-caret" data-expand="${slug}" title="Full matchup vs this defender — bulk/speed/ability editable">${open ? "▾" : "▸"}</button><button class="ehp-pin ${pinned ? "on" : ""}" data-pin="${slug}" title="${pinned ? "Unpin" : "Pin — stays on top through any filters"}">📌</button>${nameOf(d.mon)}${use}</span><span class="ehp-badges">${badgesFor(row, dt)}</span>${setLine}</span>
+          <span class="ehp-name"><span class="ehp-nm-row"><button class="ehp-caret" data-expand="${slug}" title="Full matchup vs this defender — bulk/speed/ability editable">${open ? "▾" : "▸"}</button><button class="ehp-pin ${pinned ? "on" : ""}" data-pin="${slug}" title="${pinned ? "Unpin" : "Pin — stays on top through any filters"}">📌</button>${nameOf(d.mon)}${use}</span><span class="ehp-badges">${badgesFor(row, dt)}</span></span>
           ${moveCells(row)}
+          ${setLine}
         </div>
         ${open ? renderDefenderPanel(entry, d, dt) : ""}</div>`;
     };
@@ -1900,16 +1940,29 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       <p class="ehp-approx">Defenders use snapshot estimates: a captured spread/Nature pair where available, otherwise a complete aggregate spread with neutral Nature (or zero points when undisclosed). Popular ability, item and move choices are independent aggregates. Open the caret to edit assumptions. No comparable global tournament usage share is available; ranking falls back to damage. 📌 pins a defender through filters.</p>`;
   }
   function renderRev() {
+    const restoreControls = retainRenderFocus($("#calc-mode-rev"));
+    const retainedFocus = document.activeElement;
+    const restoreFocus = moveAdders.rev.contains(retainedFocus) || resultSearches.rev.contains(retainedFocus);
     saveLab();
     renderPresets();
     const mon = eb.revSlug ? resolveMon(eb.revSlug) : null;
     if (!mon) {
       $("#rev-controls").innerHTML = "";
+      $("#rev-filters").innerHTML = "";
+      placeResultSearch("rev");
+      moveAdders.rev.hidden = true;
       $("#rev-results").innerHTML = `<p class="ehp-empty ehp-pick-hint">Pick an attacker above to see its damage into every defender.</p>`;
+      if (restoreFocus && retainedFocus.isConnected && !moveAdders.rev.contains(retainedFocus)) retainedFocus.focus({ preventScroll: true });
       return;
     }
     $("#rev-controls").innerHTML = renderRevControls({ mon, lv: statsFor(mon, "lv50") });
+    moveAdders.rev.hidden = false;
+    $("[data-move-slot='rev']").append(moveAdders.rev);
+    $("#rev-filters").innerHTML = renderRevFilters();
+    placeResultSearch("rev");
     renderRevResults();
+    if (restoreFocus && retainedFocus.isConnected) retainedFocus.focus({ preventScroll: true });
+    else restoreControls();
   }
 
   // ---------- custom Pokémon builder (shared across all three modes) ----------
@@ -1962,7 +2015,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
         <div class="cx-form-actions"><button class="btn accent" data-custom-save>Save Pokémon</button><button class="btn" data-custom-cancel>Cancel</button></div>
       </div>`;
     })() : "";
-    el.innerHTML = `<div class="cx-bar"><span class="cx-lab">Custom Pokémon</span>${chips}<button class="btn-sm cx-new" data-custom-new>＋ New</button></div>${form}`;
+    el.innerHTML = `<div class="cx-bar calc-custom-tools">${chips ? `<span class="cx-lab">Custom Pokémon</span>${chips}` : ""}<button class="btn-sm cx-new" data-custom-new>＋ Custom Pokémon</button></div>${form}`;
     // (re)attach the draft move adder
     if (cdMoveInput.detach) { cdMoveInput.detach(); cdMoveInput.detach = null; }
     const mi = el.querySelector(".cx-move-input");
@@ -2001,15 +2054,19 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
   }
   function renderTeam() {
     saveLab();
-    const roster2 = team().map((t) => ({ mon: bySlug.get(t.slug), moves: (t.moves || []) })).filter((t) => t.mon);
+    const members = team();
+    const roster2 = members.map((t) => ({ mon: bySlug.get(t.slug), moves: (t.moves || []) })).filter((t) => t.mon);
     const controls = $("#team-controls"), out = $("#team-results-calc");
     // threat chips + clear
     const threatChips = eb.threats.map((sl) => { const m = resolveMon(sl); return m
       ? `<span class="tc-threat"><img src="${m.sprite || m.artwork || ""}" alt="">${nameOf(m)}<button data-threat-remove="${sl}" aria-label="remove">✕</button></span>` : ""; }).join("");
-    controls.innerHTML = `${eb.opponentTitle ? `<p class="item-note">Published opponent team: ${esc(eb.opponentTitle)}. Exact disclosed sets retained; undisclosed points use 0 and undisclosed natures use neutral as explicit assumptions.</p>${eb.opponentNotes?.length ? `<details><summary>Opponent import notes (${eb.opponentNotes.length})</summary><p class="item-note">${eb.opponentNotes.map(esc).join("; ")}</p></details>` : ""}` : ""}<div class="tc-threatbar">
+    const importNotes = presentImportNotes({ warnings: eb.opponentNotes || [] });
+    const selection = members.some(m => m.picked) ? `${roster2.length === 4 ? "Battle Four" : `Battle selection (${roster2.length}/4)`}` : `Full team fallback (${roster2.length}) — no battle picks selected`;
+    controls.innerHTML = `<div class="calc-team-scope"><b>Your team: ${selection}</b><button class="btn-sm" data-goto-team>Edit team / battle picks</button></div>
+      ${eb.opponentTitle ? `<section class="calc-opponent-assumptions"><b>Opponent: ${esc(eb.opponentTitle)}</b><p class="calc-stat-assumption">Disclosed sets retained. Undisclosed points: 0; undisclosed Nature: neutral.${importNotes.undisclosed ? ` ${importNotes.undisclosed} sets have undisclosed points.` : ""}</p>${importNotes.issues.length ? `<p class="meta-import-problems" role="alert">Review imported opponent: ${importNotes.issues.map(esc).join("; ")}</p>` : ""}${importNotes.notes.length ? `<details><summary>Opponent import notes (${importNotes.notes.length})</summary><p class="item-note">${importNotes.notes.map(esc).join("; ")}</p></details>` : ""}</section>` : ""}<div class="tc-threatbar">
       <span class="cl-stat-lab">Threats (${eb.threats.length})</span>${threatChips || '<small class="muted">none yet — search above or import your pinned mons</small>'}
       ${eb.threats.length ? `<button class="btn-sm" data-threats-clear>clear</button>` : ""}
-    </div>`;
+    </div>${fieldControls()}`;
 
     if (!roster2.length) {
       out.innerHTML = `<div class="tc-empty"><p>Your saved team is empty.</p><button class="btn accent" data-goto-team>Build a team in the Team tab</button></div>`;

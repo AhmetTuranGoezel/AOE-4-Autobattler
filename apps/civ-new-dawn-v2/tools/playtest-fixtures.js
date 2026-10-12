@@ -50,7 +50,12 @@ function playtestBoard(Game, profiles, mode) {
     put("5,0", { tileId: "02", city: city(st.players[1]?.id || "rival") });
     put("5,1", { tileId: "14" });
     put("4,2", { tileId: "fortress", fortress: true });
-    ["01", "02", "14"].forEach((id) => { st.tiles[id].placed = true; });
+    // Retain complete physical tile geometry: integrity checks also run on
+    // browser fixtures, never through a production test-only bypass.
+    for(const [id,anchor] of [["01","0,0"],["02","5,0"]]) {
+      Game.getTileHexKeys(anchor,0,st.map.hexes).forEach(k=>put(k,{tileId:id}));
+      Object.assign(st.tiles[id],{placed:true,anchorKey:anchor,rotation:0,ownerId:null});
+    }
     const p = st.players[0];
     p.leaderId = "poland"; p.uniqueTaken = true;
     p.polandFirstTurnUsed = true; // This fixture is already at science II.
@@ -76,10 +81,11 @@ function playtestBoard(Game, profiles, mode) {
       st.players[1].leaderId = "ottoman";
       st.ibrahimHolder = p.id;
       put("6,0", { city: city(st.players[1].id) });
+      st.map.hexes['0,4'].city.isCapital=false;
     }
     if (mode === "recovery") {
-      st.map.hexes["-6,0"].tileId = "01";
-      st.map.hexes["-5,0"].tileId = "01";
+      Game.getTileHexKeys('-6,0',0,st.map.hexes).forEach(k=>put(k,{tileId:'01'}));
+      Object.assign(st.tiles['01'],{placed:true,anchorKey:'-6,0',rotation:0,ownerId:p.id,type:'capital'});
       Game.finalizeSetup(st);
     }
   } else if (mode === "soak") {
@@ -118,6 +124,11 @@ function playtestBoard(Game, profiles, mode) {
     put("1,0", { terrain: "mountain", resource: "wonder",
       naturalWonder: "Mt. Everest", naturalWonderSpace: "Mt. Everest" });
   }
+  // Unrelated seats still need their actual capital even in isolated combat
+  // and tooltip scenarios. Keep these well outside the tested neighbourhood.
+  st.players.forEach((p,i)=>{
+    if(!Object.values(st.map.hexes).some(h=>h.city?.isCapital&&h.city.ownerId===p.id))put(`${i*4-8},8`,{city:city(p.id)});
+  });
   return st;
 }
 

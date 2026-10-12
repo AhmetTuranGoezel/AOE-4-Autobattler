@@ -20,6 +20,9 @@ const UI = (() => {
   let heartbeatTimer = null;
   let recoveryTimer = null;
   let readOnlySession = false;
+  let integrityProblem = null;
+  let integrityWitness = {};
+  let rejectedState = null;
   let processedActionIds = [];
   const PROTOCOL_VERSION = 2;
   const SAVE_SCHEMA_VERSION = 2;
@@ -682,6 +685,7 @@ const UI = (() => {
   }
 
   function interactionBlockReason(action) {
+    if (integrityProblem && !(action?.type === "RESTORE_REVISION" && Net.getIsHost())) return "Saved game is inconsistent. Inspect recovery or export diagnostics; no gameplay was changed.";
     if (!state) return "";
     if (readOnlySession) return "This recovered game is read-only.";
     if (state.solo || !isNetworkGame()) return "";
@@ -714,6 +718,67 @@ const UI = (() => {
     Net.restoreProcessedActionIds?.(processedActionIds);
   }
 
+  function checkStateIntegrity(candidate, context = {}) {
+    let findings;
+    try { findings = Game.validateStateIntegrity(candidate, context.previousState || state, { witness: integrityWitness, ...context }); }
+    catch { findings = [{severity:"fatal",code:"unreadable_state",path:"state",message:"The saved state structure cannot be read safely."}]; }
+    if (!findings.some(f => f.severity === "fatal")) return findings;
+    integrityProblem = findings;
+    rejectedState = candidate;
+    clearSub();
+    renderIntegrityProblem();
+    return findings;
+  }
+
+  function clearIntegrityProblem() {
+    integrityProblem = null; rejectedState = null;
+    document.getElementById("integrity-panel")?.remove();
+    dom.game.classList.remove("integrity-blocked");
+  }
+
+  function renderIntegrityProblem() {
+    if (!integrityProblem) return;
+    let panel = document.getElementById("integrity-panel");
+    if (!panel) { panel=document.createElement("section");panel.id="integrity-panel";panel.setAttribute("role","alert");dom.game.append(panel); }
+    dom.lobby.classList.add("hidden");dom.game.classList.remove("hidden");dom.game.classList.add("integrity-blocked");
+    dom.wizard.innerHTML="";
+    panel.innerHTML=`<h2>Saved game is inconsistent</h2><p>The game has not been modified. Gameplay is blocked to protect the board.</p>
+      <ul>${integrityProblem.filter(f=>f.severity==='fatal').slice(0,8).map(f=>`<li>${escapeHtml(f.message)} <small>${escapeHtml(f.code)}</small></li>`).join('')}</ul>
+      <div class="recovery-actions"><button id="integrity-history">Inspect local recovery points</button><button id="integrity-export">Export Diagnostics</button><button id="integrity-menu">Return to menu</button></div>`;
+    panel.querySelector('#integrity-history').onclick=openRecoveryHistory;
+    panel.querySelector('#integrity-export').onclick=exportDiagnostics;
+    panel.querySelector('#integrity-menu').onclick=()=>{clearIntegrityProblem();returnToJoinScreen("Saved session preserved. No map changes were made.");};
+  }
+
+  async function diagnostics() {
+    const s=rejectedState || state || {}, gameId=sessionCredentials?.gameId || s.gameId;
+    const records=gameId ? await CivSessionStore.listCheckpoints(gameId).catch(()=>[]) : [];
+    const counts={hexes:0,activeHexes:0,tiles:0,cities:0,control:0,districts:0,armies:0,caravans:0};
+    let readable=s;
+    try { readable=Game.unpackCheckpoint(JSON.parse(JSON.stringify(s))); } catch { /* diagnostics remains useful for an unreadable map */ }
+    Object.values(readable.map?.hexes || {}).forEach(h=>{counts.hexes++;if(h?.active)counts.activeHexes++;if(h?.city)counts.cities++;if(h?.control)counts.control++;if(h?.control?.district)counts.districts++;});
+    counts.tiles=Object.values(readable.tiles || readable.setup?.tiles || {}).filter(t=>t?.placed).length;
+    (Array.isArray(readable.players)?readable.players:[]).forEach(p=>{counts.armies+=Array.isArray(p?.armies)?p.armies.length:0;counts.caravans+=Array.isArray(p?.caravans)?p.caravans.length:0;});
+    // Whitelist status fields, not the transport object/credentials or payload.
+    const net=Net.getStatus(), result={appVersion:"2026-10-integrity",rulesVersion:s.rulesVersion,saveSchemaVersion:s.saveSchemaVersion,
+      gameId,revision:s.revision,recoveryGeneration:s.recoveryGeneration || 0,phase:s.phase,setupPhase:s.setup?.phase,round:s.turn?.round,
+      activePlayer:s.turn?.order?.[s.turn?.index],integrity:integrityProblem || Game.validateStateIntegrity(s),
+      checkpoints:records.map(r=>({revision:r.revision,timestamp:r.savedAt,valid:r.valid})),
+      storageFindings:gameId?await CivSessionStore.listStorageFindings(gameId).catch(()=>[]):[],
+      network:{phase:net.phase,revision:net.revision},processedActions:{count:processedActionIds.length},counts,
+      recentLog:(Array.isArray(s.log)?s.log:[]).slice(-50).filter(line=>typeof line==='string')};
+    // Do not leak a credential even if an accidental log message contained it.
+    const secrets=Object.entries(sessionCredentials || {}).filter(([k,v])=>/token|hash|secret/i.test(k)&&typeof v==='string').map(([,v])=>v);
+    let json=JSON.stringify(result);secrets.filter(Boolean).forEach(secret=>{json=json.split(secret).join('[redacted]');});
+    return JSON.parse(json);
+  }
+
+  async function exportDiagnostics() {
+    const report=await diagnostics();
+    const url=URL.createObjectURL(new Blob([JSON.stringify(report,null,2)],{type:'application/json'}));
+    const a=document.createElement('a');a.href=url;a.download=`civ-diagnostics-r${report.revision || 0}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
+
   async function saveSessionCredentials() {
     if (!sessionCredentials?.gameId || !window.CivSessionStore) return;
     await CivSessionStore.saveCredentials(sessionCredentials.gameId, sessionCredentials);
@@ -735,7 +800,15 @@ const UI = (() => {
       fullState: backupPayload(fullState),
       processedActionIds
     };
-    await CivSessionStore.saveCheckpoint(checkpoint);
+    try { await CivSessionStore.saveCheckpoint(checkpoint); }
+    catch(error) {
+      if(error.code==='same_revision_divergence') {
+        integrityProblem=[{severity:'fatal',code:error.code,path:'revision',message:error.message}];
+        rejectedState=fullState;clearSub();renderIntegrityProblem();
+      }
+      throw error;
+    }
+    integrityWitness = await CivSessionStore.loadIntegrityWitness(sessionCredentials.gameId);
     if (sessionCredentials.role === "host" && !fullState.stateView) {
       if (fullState.turnUndo?.snapshot) await CivSessionStore.saveTurnStart({ ...checkpoint,
         fullState: backupPayload(fullState.turnUndo.snapshot) }, fullState.turnUndo.snapshotId);
@@ -756,6 +829,9 @@ const UI = (() => {
   }
 
   function assertRecoveryDoesNotRegress(remote, local) {
+    if (checkStateIntegrity(remote.fullState,{previousState:local}).some(f=>f.severity==='fatal')) {
+      throw Object.assign(new Error('The remote backup failed integrity validation. No saved map was installed.'),{code:'state_integrity'});
+    }
     if (Number(remote.revision) < Number(local?.revision || sessionCredentials?.revision || 0) ||
         (["playing", "gameover"].includes(local?.phase) && !["playing", "gameover"].includes(remote.fullState?.phase))) {
       const error = new Error("The remote backup is older than this device's game. It has NOT been installed. Recover a verified local revision; setup will not be replayed.");
@@ -765,29 +841,34 @@ const UI = (() => {
   }
 
   async function openRecoveryHistory() {
-    if (!Net.getIsHost() || actionPending || !sessionCredentials?.gameId) return;
-    const gameId = sessionCredentials.gameId, head = state.revision;
+    if (actionPending || !sessionCredentials?.gameId) { showToast("No online session history is available on this device."); return; }
+    const gameId = sessionCredentials.gameId, head = state?.revision ?? sessionCredentials.revision;
     const entries = await CivSessionStore.listHistory(gameId);
-    if (gameId !== sessionCredentials?.gameId || !Net.getIsHost()) return;
+    for (const entry of entries) {
+      const saved=await CivSessionStore.loadHistory(gameId,entry.revision);
+      entry.findings=Game.validateStateIntegrity(saved?.fullState,state,{witness:integrityWitness,recoveryCandidate:true});
+      entry.invalid=entry.findings.some(f=>f.severity==='fatal');
+    }
+    if (gameId !== sessionCredentials?.gameId) return;
     document.getElementById("recovery-dialog")?.remove();
     const dialog = document.createElement("dialog");
     dialog.id = "recovery-dialog";
     const undo = Game.getUndoStatus(state, localPlayerId, { role: "host" });
-    const revisions = entries.filter(entry => entry.revision < head &&
-      (!["playing", "gameover"].includes(state.phase) || ["playing", "gameover"].includes(entry.phase)));
+    const revisions = entries.filter(entry => entry.revision < head);
     dialog.innerHTML = `<h2>Recover Game</h2><p>Restore a verified revision for every player. This cancels later moves and decisions. Previously revealed information cannot be unlearned.</p>
       <p>History is stored privately on this host device; the server keeps the latest confirmed head.</p>
       <label>Recovery point <select id="recovery-revision">
       ${undo.canEmergencyUndo ? `<option value="turn">Start of the current turn</option>` : ""}
-      ${revisions.map(entry => `<option value="${entry.revision}">r${entry.revision} · Round ${entry.round} · ${escapeHtml(entry.activePlayer || "Setup")} · ${escapeHtml(entry.phase)} · ${escapeHtml(entry.action)} · ${escapeHtml(new Date(entry.timestamp).toLocaleTimeString())}</option>`).join("")}
+      ${revisions.map(entry => `<option value="${entry.revision}" ${entry.invalid?'disabled':''}>r${entry.revision} · Round ${entry.round} · ${escapeHtml(entry.activePlayer || "Setup")} · ${escapeHtml(entry.phase)} · ${escapeHtml(entry.action)} · ${escapeHtml(new Date(entry.timestamp).toLocaleString())} · ${entry.invalid?'INVALID: '+escapeHtml(entry.findings.find(f=>f.severity==='fatal').message):'Integrity OK'}</option>`).join("")}
       </select></label>
       ${!revisions.length && !undo.canEmergencyUndo ? "<p>No earlier valid recovery point exists on this device.</p>" : ""}
-      <div class="recovery-actions"><button id="recovery-cancel">Cancel</button><button id="recovery-confirm" ${revisions.length || undo.canEmergencyUndo ? "" : "disabled"}>Restore for everyone</button></div>`;
+      ${!Net.getIsHost()?'<p>Only the connected authority can restore a revision. No server state was changed.</p>':''}
+      <div class="recovery-actions"><button id="recovery-cancel">Cancel</button><button id="recovery-confirm" ${Net.getIsHost()&&(revisions.some(e=>!e.invalid) || undo.canEmergencyUndo) ? "" : "disabled"}>Restore for everyone</button></div>`;
     document.body.append(dialog);
     dialog.showModal();
     dialog.querySelector("#recovery-cancel").onclick = () => dialog.remove();
     dialog.querySelector("#recovery-confirm").onclick = async () => {
-      if (sessionCredentials?.gameId !== gameId || state.revision !== head) {
+      if (sessionCredentials?.gameId !== gameId || state?.revision !== head) {
         dialog.remove(); showToast("The game advanced. Review the recovery point again."); return;
       }
       const value = dialog.querySelector("select").value;
@@ -884,6 +965,7 @@ const UI = (() => {
     sessionCredentials.hostPeerId = remote.hostPeerId;
     rememberProcessed(remote.processedActionIds || []);
     if (remote.fullState) {
+      if(checkStateIntegrity(remote.fullState).some(f=>f.severity==='fatal'))throw Object.assign(new Error("Remote state failed integrity validation"),{code:"state_integrity"});
       state = await hydrateTurnRecovery(remote.fullState);
       state.revision = remote.revision;
       // This path also follows a successful remote CAS (with a lost response).
@@ -915,6 +997,7 @@ const UI = (() => {
     const nextRevision = expectedRevision + 1;
     candidate.revision = nextRevision;
     candidate.saveSchemaVersion = SAVE_SCHEMA_VERSION;
+    if (checkStateIntegrity(candidate).some(f=>f.severity==='fatal')) return {accepted:false,state,revision:state.revision,code:"state_integrity",message:"Candidate state is inconsistent; no checkpoint was written."};
     const nextIds = processedActionIds.concat(actionId || []).slice(-512);
     try {
       const saved = await CivSessionApi.checkpoint(sessionCredentials.gameId, {
@@ -1009,6 +1092,8 @@ const UI = (() => {
     if (action.type === "RESTORE_REVISION" && role === "host") {
       const entry = await CivSessionStore.loadHistory(sessionCredentials.gameId, action.payload?.revision);
       if (entry) recoveryState = await hydrateTurnRecovery(entry.fullState);
+      if (!recoveryState || Game.validateStateIntegrity(recoveryState,state,{witness:integrityWitness,recoveryCandidate:true}).some(f=>f.severity==='fatal'))
+        return {accepted:false,state,revision:state.revision,code:"state_integrity",message:"That recovery point is inconsistent and was not restored."};
     }
     const result = Game.tryApplyAction
       ? Game.tryApplyAction(state, action, { actorId, role, recoveryState })
@@ -1019,6 +1104,7 @@ const UI = (() => {
 
     if (isNetworkGame() && sessionCredentials.role === "host") {
       const outcome = await checkpointCandidate(result.state, actionId, context.extraSeatTokens);
+      if(outcome.accepted && action.type==='RESTORE_REVISION')clearIntegrityProblem();
       // The host applies EVERY seat's action, including the ones that arrive
       // over the wire from a client. Those come in through Net's handleAction,
       // which broadcasts the new snapshot to the clients and acknowledges the
@@ -1140,6 +1226,7 @@ const UI = (() => {
       dispatch({ type: "UNDO_TURN", payload: { playerId: localPlayerId } });
     });
     document.getElementById("btn-emergency-undo")?.addEventListener("click", openRecoveryHistory);
+    document.getElementById("btn-diagnostics")?.addEventListener("click", exportDiagnostics);
 
     document.getElementById("btn-local").addEventListener("click", startLocal);
     document.getElementById("btn-create").addEventListener("click", startCreate);
@@ -1259,6 +1346,7 @@ const UI = (() => {
   }
 
   function startLocal() {
+    clearIntegrityProblem();integrityWitness={};
     stopSessionTimers();
     Net.leaveRoom?.();
     resetCapitalPreview();
@@ -1280,6 +1368,7 @@ const UI = (() => {
   }
 
   function startCreate() {
+    clearIntegrityProblem();integrityWitness={};
     if (typeof Peer === "undefined") { dom.lobbyStatus.textContent = "Multiplayer unavailable (PeerJS not loaded). Use Local Solo."; return; }
     const name = dom.inpName.value.trim() || "Host";
     const color = dom.inpColor.value;
@@ -1347,6 +1436,7 @@ const UI = (() => {
   }
 
   function startJoin() {
+    clearIntegrityProblem();integrityWitness={};
     if (typeof Peer === "undefined") { dom.lobbyStatus.textContent = "Multiplayer unavailable (PeerJS not loaded). Use Local Solo."; return; }
     const code = dom.inpJoin.value.trim();
     if (!code) { dom.lobbyStatus.textContent = "Enter a room code."; return; }
@@ -1497,6 +1587,7 @@ const UI = (() => {
     if (!payload || typeof payload !== "object") return;
     const incomingRevision = Number.isInteger(meta.revision) ? meta.revision : (payload.revision || 0);
     if (state && Number.isInteger(state.revision) && incomingRevision < state.revision) return;
+    if(checkStateIntegrity(payload).some(f=>f.severity==='fatal'))return;
     if (["playing", "gameover"].includes(state?.phase) && !["playing", "gameover"].includes(payload.phase)) {
       backupFailure = { code: "setup_regression", message: "Rejected an old setup snapshot. Your current board was preserved." };
       readOnlySession = true;
@@ -1504,6 +1595,7 @@ const UI = (() => {
       return;
     }
     state = Game.migrateState ? Game.migrateState(payload) : payload;
+    clearIntegrityProblem();
     state.revision = incomingRevision;
     if (Array.isArray(state.chat)) {
       chatHistory.splice(0, chatHistory.length, ...state.chat.slice(-100));
@@ -1643,6 +1735,7 @@ const UI = (() => {
         button.addEventListener("click", () => {
           sessionCredentials = null;
           localPlayerId = legacy.localPlayerId;
+          if(checkStateIntegrity(legacy.state).some(f=>f.severity==='fatal'))return;
           state = Game.migrateState ? Game.migrateState(legacy.state) : legacy.state;
           readOnlySession = !!state.migrationStatus?.readOnly;
           Net.startLocal({ seatId: localPlayerId });
@@ -1668,6 +1761,8 @@ const UI = (() => {
       roomCode = gameId;
       readOnlySession = false;
       backupFailure = null;
+      integrityWitness=await CivSessionStore.loadIntegrityWitness(gameId);
+      if(checkStateIntegrity(checkpoint.fullState).some(f=>f.severity==='fatal'))return;
 
       if (savedCredentials.role === "host") {
         const remote = await CivSessionApi.status(gameId, {
@@ -1675,6 +1770,7 @@ const UI = (() => {
           includeState: true
         });
         assertRecoveryDoesNotRegress(remote, checkpoint.fullState);
+        if(checkStateIntegrity(remote.fullState,{witness:integrityWitness}).some(f=>f.severity==='fatal'))return;
         state = await hydrateTurnRecovery(remote.fullState);
         state.revision = remote.revision;
         rememberProcessed(remote.processedActionIds || checkpoint.processedActionIds || []);
@@ -1745,9 +1841,6 @@ const UI = (() => {
       });
       stopSessionTimers();
       Net.leaveRoom();
-      state = Game.migrateState ? Game.migrateState(recovered.fullState) : recovered.fullState;
-      state.revision = recovered.revision;
-      rememberProcessed(recovered.processedActionIds || []);
       sessionCredentials = {
         ...sessionCredentials,
         role: "host",
@@ -1758,6 +1851,13 @@ const UI = (() => {
         revision: recovered.revision,
         leaseUntil: recovered.leaseUntil
       };
+      // The lease/token already rotated remotely. Preserve credentials even if
+      // the recovered gameplay is invalid; never lose the new host's authority.
+      await saveSessionCredentials();
+      if(checkStateIntegrity(recovered.fullState).some(f=>f.severity==='fatal'))return;
+      state = Game.migrateState ? Game.migrateState(recovered.fullState) : recovered.fullState;
+      state.revision = recovered.revision;
+      rememberProcessed(recovered.processedActionIds || []);
       await saveLocalCheckpoint(state, recovered.revision);
       await saveSessionCredentials();
       networkStatus = { phase: "connecting", revision: recovered.revision, canTakeover: false };
@@ -3864,6 +3964,7 @@ const UI = (() => {
   }
 
   function render() {
+    if(integrityProblem){renderIntegrityProblem();return;}
     if (!state) return;
     reconcileCapitalPreview();
     reconcileAstronomyPreview();
@@ -8091,6 +8192,7 @@ const UI = (() => {
     // Used by tools/oxford-browser-test.js to seat a board that would otherwise
     // take a dozen real turns to reach.
     debugSetState: (next) => { if (next) state = next; render(); return true; },
+    debugDiagnostics: diagnostics,
     // Feeds the same transient packet handler used by Net. Browser regressions
     // use this to prove that untrusted packet colours never override the
     // authoritative colour stored on the sender's seat.
@@ -8156,6 +8258,7 @@ const UI = (() => {
       })),
       actionPending,
       readOnlySession,
+      integrityProblem,
       backupFailure: backupFailure ? (backupFailure.code || String(backupFailure.message || "")) : null
     })
   };

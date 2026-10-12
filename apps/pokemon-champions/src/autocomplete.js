@@ -11,14 +11,23 @@
 // The input must live inside a `.ac-wrap` (position: relative) so the menu anchors
 // under it. Safe to re-attach after a re-render (returns a detach() to clean up).
 const MAX_DEFAULT = 10;
+let menuSequence = 0;
 
 export function attachAutocomplete(input, opts) {
   const { items, onPick, max = MAX_DEFAULT, clearOnPick = true } = opts;
   const wrap = input.closest(".ac-wrap") || input.parentElement;
   const menu = document.createElement("ul");
   menu.className = "ac-menu";
+  menu.id = `ac-menu-${++menuSequence}`;
+  menu.setAttribute("role", "listbox");
   menu.hidden = true;
   wrap.appendChild(menu);
+  const ariaBefore = new Map(["role", "aria-autocomplete", "aria-expanded", "aria-controls", "aria-activedescendant"]
+    .map((key) => [key, input.getAttribute(key)]));
+  input.setAttribute("role", "combobox");
+  input.setAttribute("aria-autocomplete", "list");
+  input.setAttribute("aria-controls", menu.id);
+  input.setAttribute("aria-expanded", "false");
 
   let matches = [];
   let active = -1;
@@ -33,11 +42,16 @@ export function attachAutocomplete(input, opts) {
   function draw() {
     if (!matches.length) { close(); return; }
     menu.innerHTML = matches.map((it, i) =>
-      `<li class="ac-row ${i === active ? "active" : ""}" data-i="${i}">
+      `<li class="ac-row ${i === active ? "active" : ""}" id="${menu.id}-${i}" role="option" aria-selected="${i === active}" data-i="${i}">
         <span class="ac-icon">${it.icon || ""}</span><span class="ac-name">${it.name}</span>${it.meta ? `<span class="ac-meta">${it.meta}</span>` : ""}</li>`).join("");
     menu.hidden = false;
+    input.setAttribute("aria-expanded", "true");
+    input.setAttribute("aria-activedescendant", `${menu.id}-${active}`);
   }
-  function close() { menu.hidden = true; menu.innerHTML = ""; active = -1; }
+  function close() {
+    menu.hidden = true; menu.innerHTML = ""; active = -1;
+    input.setAttribute("aria-expanded", "false"); input.removeAttribute("aria-activedescendant");
+  }
   function pick(i) {
     const it = matches[i];
     if (!it) return;
@@ -50,12 +64,12 @@ export function attachAutocomplete(input, opts) {
   const onInput = () => { compute(); draw(); };
   const onFocus = () => { compute(); draw(); };
   const onKey = (e) => {
-    if (menu.hidden && (e.key === "ArrowDown" || e.key === "ArrowUp")) { compute(); draw(); return; }
+    if (menu.hidden && (e.key === "ArrowDown" || e.key === "ArrowUp")) { e.preventDefault(); compute(); draw(); return; }
     if (menu.hidden) return;
     if (e.key === "ArrowDown") { e.preventDefault(); active = (active + 1) % matches.length; draw(); }
     else if (e.key === "ArrowUp") { e.preventDefault(); active = (active - 1 + matches.length) % matches.length; draw(); }
     else if (e.key === "Enter") { e.preventDefault(); pick(active); }
-    else if (e.key === "Escape") { close(); }
+    else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); }
   };
   // mousedown (not click) so the pick fires before the input's blur closes the menu.
   const onMenuDown = (e) => {
@@ -77,6 +91,9 @@ export function attachAutocomplete(input, opts) {
     input.removeEventListener("focus", onFocus);
     input.removeEventListener("keydown", onKey);
     document.removeEventListener("mousedown", onDocDown);
+    for (const [key, value] of ariaBefore) {
+      if (value == null) input.removeAttribute(key); else input.setAttribute(key, value);
+    }
     menu.remove();
   };
 }

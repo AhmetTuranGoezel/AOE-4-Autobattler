@@ -2997,19 +2997,33 @@
 
     function normalizeKromeWeaponRows(rows) {
       const version = getKromeWeaponVersion(rows);
-      // Sheet 11.9 added Stamina before the range columns. Read their headings,
-      // not the old offsets (which silently interpreted STK as falloff).
+      // GViz combines grouped headings into column labels. Restrict matching to
+      // header rows so weapon notes cannot be mistaken for a column heading.
+      const heading = (cell) => String(cell || '').replace(/\s+/g, ' ').trim();
+      const nameHeading = /\b(?:Weapon\s+)?Name$/i;
+      const headerRows = rows.filter((row) => row.some((cell) => nameHeading.test(heading(cell))));
       const findColumn = (pattern, fallback) => {
-        for (const row of rows) {
-          const index = row.findIndex((cell) => pattern.test(String(cell || '').replace(/\s+/g, ' ')));
+        for (const row of headerRows) {
+          const index = row.findIndex((cell) => pattern.test(heading(cell)));
           if (index >= 0) return index;
         }
         return fallback;
       };
-      const minRangeColumn = findColumn(/Damage Dropoff Minimum Range/i, 27);
-      const maxRangeColumn = findColumn(/Damage Dropoff Maximum Range/i, 28);
-      const modifierColumn = findColumn(/Damage Dropoff Modifier/i, 29);
-      const notesColumn = findColumn(/Important Notes/i, 30);
+      const columns = {
+        name: findColumn(nameHeading, 2),
+        bodyDamage: findColumn(/\b(?:Damage\s*@\s*Body|Body Damage)$/i, 5),
+        headDamage: findColumn(/\b(?:Damage\s*@\s*Head|Head Damage)$/i, 6),
+        rpm: findColumn(/\bRPM$/i, 7),
+        magazine: findColumn(/\bMagazine(?: Size)?$/i, 8),
+        tacticalReload: findColumn(/\bTactical\s+(?:RT\**|Reload)\b/i, 11),
+        emptyReload: findColumn(/\bEmpty\s+(?:RT\**|Reload)\b/i, 12),
+        burstCount: findColumn(/\bShots Per Burst$/i, 13),
+        burstDelay: findColumn(/\bDelay Until Next Burst$/i, 14),
+        minRange: findColumn(/\b(?:Damage Dropoff|DD\*?)\s+(?:Minimum|Min\.)\s*Range/i, 27),
+        maxRange: findColumn(/\b(?:Damage Dropoff|DD\*?)\s+(?:Maximum|Max\.)\s*Range/i, 28),
+        modifier: findColumn(/\b(?:Damage Dropoff|DD\*?)\s+Modifier/i, 29),
+        notes: findColumn(/\bImportant Notes$/i, 30)
+      };
       const hasLightHeader = rows.some((row) => String(row[0] || '').trim().toUpperCase() === 'LIGHT');
       let className = hasLightHeader ? '' : 'LIGHT';
 
@@ -3023,36 +3037,35 @@
           return null;
         }
 
-        const rawName = String(row[2] || '').trim();
-        const rowNumber = parseWeaponNumber(row[1], NaN);
-        if (!rawName || rawName.toLowerCase() === 'name' || !Number.isFinite(rowNumber)) {
+        const rawName = String(row[columns.name] || '').trim();
+        const bodyDamage = parseWeaponNumber(row[columns.bodyDamage], NaN);
+        if (!rawName || nameHeading.test(rawName) || !Number.isFinite(bodyDamage)) {
           return null;
         }
 
         const name = getKromeWeaponName(rawName);
-        const bodyDamage = parseWeaponNumber(row[5]);
-        const rpm = parseWeaponNumber(row[7]);
+        const rpm = parseWeaponNumber(row[columns.rpm]);
         // GViz drops text-valued cells from numeric columns (e.g. linked mags).
         // Keep missing firearm capacity unknown, rather than unlimited.
-        const magazineRaw = row[8] || (String(row[11]).trim() === '-' ? Infinity : null);
+        const magazineRaw = row[columns.magazine] || (String(row[columns.tacticalReload]).trim() === '-' ? Infinity : null);
         return {
           name,
           loadoutItemName: getLoadoutItemNameForWeapon(name),
           className,
           bodyDamage,
-          headDamage: parseWeaponNumber(row[6], bodyDamage),
+          headDamage: parseWeaponNumber(row[columns.headDamage], bodyDamage),
           rpm,
           intraBurstRpm: rpm, // Krome RPM is intra-burst: 93R=1000, FAMAS=1080.
-          burstCount: Math.max(1, parseWeaponNumber(row[13], 1) || 1),
-          burstDelay: parseWeaponNumber(row[14]),
-          minDropoff: parseWeaponNumber(row[minRangeColumn]),
-          maxDropoff: parseWeaponNumber(row[maxRangeColumn]),
-          dropoffModifier: parseDropoffModifier(row[modifierColumn]),
+          burstCount: Math.max(1, parseWeaponNumber(row[columns.burstCount], 1) || 1),
+          burstDelay: parseWeaponNumber(row[columns.burstDelay]),
+          minDropoff: parseWeaponNumber(row[columns.minRange]),
+          maxDropoff: parseWeaponNumber(row[columns.maxRange]),
+          dropoffModifier: parseDropoffModifier(row[columns.modifier]),
           magazineRaw,
           magazineSize: parseMagazineSize(magazineRaw),
-          emptyReload: parseWeaponNumber(row[12]),
-          tacticalReload: parseWeaponNumber(row[11]),
-          notes: String(row[notesColumn] || '').trim(),
+          emptyReload: parseWeaponNumber(row[columns.emptyReload]),
+          tacticalReload: parseWeaponNumber(row[columns.tacticalReload]),
+          notes: String(row[columns.notes] || '').trim(),
           version,
           color: WEAPON_COLOR_PALETTE[0]
         };

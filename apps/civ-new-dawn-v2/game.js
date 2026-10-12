@@ -1547,6 +1547,119 @@ const Game = (() => {
     return st;
   }
 
+  // Read-only structural validation, not a rules repair or a second reducer.
+  // Identity is (owner, physical id), never focus type; projected choices may
+  // intentionally omit their private details. Local witness survives cache loss.
+  function validateStateIntegrity(input, previousState, context = {}) {
+    const findings = [];
+    const add = (code, path, message, severity = "fatal") => findings.push({ severity, code, path, message });
+    let st = input;
+    try {
+      if (st?.map?.hexEncoding) {
+        st = unpackCheckpoint(cloneSerializable(st));
+        if(st.map.hexEncoding)throw new Error('Unknown checkpoint map encoding');
+      }
+    } catch { add("invalid_map_encoding", "map", "The saved map cannot be decoded."); return findings; }
+    if (!st || typeof st !== "object" || !Array.isArray(st.players)) {
+      add("invalid_state", "players", "The saved game has no valid player list."); return findings;
+    }
+    if (st.players.some(p => !p || typeof p !== 'object' ||
+        ['armies','caravans','focusCardIds'].some(k => p[k] != null && !Array.isArray(p[k])) ||
+        [...(p.armies || []), ...(p.caravans || [])].some(u => !u || typeof u !== 'object')) ||
+        (st.pendingChoices != null && (!Array.isArray(st.pendingChoices) || st.pendingChoices.some(c => !c)))) {
+      add('invalid_state', 'players', 'Player pieces or pending decisions have an unreadable structure.'); return findings;
+    }
+    const previous = !previousState?.gameId || !st.gameId || previousState.gameId === st.gameId ? previousState : null;
+    const witness = context.witness || {};
+    const progressed = ["playing", "gameover"].includes(st.phase);
+    if ((witness.observedPlay || ["playing", "gameover"].includes(previous?.phase)) && !progressed)
+      add("setup_regression", "phase", "This device has already observed play. Returning to setup is unsafe.");
+    if (!context.recoveryCandidate) {
+      if ((st.revision || 0) < Math.max(previous?.revision || 0, witness.revision || 0))
+        add("revision_regression", "revision", "The incoming revision is older than the observed game.");
+      if ((st.recoveryGeneration || 0) < Math.max(previous?.recoveryGeneration || 0, witness.recoveryGeneration || 0))
+        add("recovery_regression", "recoveryGeneration", "The incoming state belongs to an abandoned recovery generation.");
+    }
+    const players = new Map();
+    st.players.forEach((p, i) => {
+      if (!p?.id || players.has(p.id)) add("duplicate_player", `players.${i}`, "Each seat must have one distinct identity.");
+      else players.set(p.id, p);
+    });
+    const owns = (id, path) => { if (!players.has(id)) add("unknown_owner", path, "A piece or decision refers to a player outside this game."); };
+    const hexes = st.map?.hexes || {};
+    const capitals = new Map([...players.keys()].map(id => [id, []]));
+    for (const [key, h] of Object.entries(hexes)) {
+      if (!h || typeof h !== "object") { add("invalid_hex", `map.hexes.${key}`, "Invalid map space."); continue; }
+      for (const piece of ["city", "control"]) if (h[piece]) {
+        if (!h.active) add("inactive_piece", `map.hexes.${key}.${piece}`, "A city or control/district token is on an inactive space.");
+        owns(h[piece].ownerId, `map.hexes.${key}.${piece}.ownerId`);
+      }
+      if (h.city?.isCapital) capitals.get(h.city.ownerId)?.push(key);
+    }
+    for (const p of players.values()) {
+      const caps = capitals.get(p.id) || [];
+      if (caps.length > 1) add("duplicate_capital", `players.${p.id}`, `${p.name || p.id} has more than one capital.`);
+      if (progressed && caps.length === 0) add("missing_capital", `players.${p.id}`, `${p.name || p.id}'s capital is missing.`);
+      const unitIds = new Set();
+      for (const group of ["armies", "caravans"]) for (const unit of p[group] || []) {
+        const path = `players.${p.id}.${group}.${unit.id}`;
+        if (!unit.id || unitIds.has(unit.id)) add("duplicate_unit_id", path, "A physical unit ID occurs more than once for this player.");
+        unitIds.add(unit.id);
+        if (unit.position != null && !hexes[unit.position]?.active) add("unit_off_map", path + ".position", "A figure points to a missing or inactive map space.");
+      }
+      const ids = p.focusCardIds;
+      if (!Array.isArray(p.focusRow)) { add("invalid_focus_row", `players.${p.id}.focusRow`, "The focus row is missing."); continue; }
+      if (ids && (ids.length !== p.focusRow.length || new Set(ids).size !== ids.length || ids.some(id => typeof id !== "string" || !id)))
+        add("invalid_card_ids", `players.${p.id}.focusCardIds`, "Physical focus-card identities are missing or duplicated.");
+      // Old bare type-string rows without ids can be migrated deterministically;
+      // duplicate types (Oxford) are valid and must never be 'fixed' here.
+      if (!ids) add("legacy_card_ids", `players.${p.id}.focusCardIds`, "Legacy row needs deterministic card identity migration.", "warning");
+      p.focusRow.forEach((entry, index) => {
+        if (!FOCUS_TYPES.includes(rowEntryType(entry))) add("invalid_focus_card", `players.${p.id}.focusRow.${index}`, "Unknown focus-card type.");
+      });
+    }
+    // The engine records the ten coordinates by anchor/rotation. Fort tokens
+    // and enclosed-hole infill are not ten-cell map tiles.
+    // During setup PLACE_TILE updates setup.tiles. Migration can also leave a
+    // pre-placement tiles catalogue; only finalizeSetup makes that authoritative.
+    const tiles = (st.phase === "setup" ? st.setup?.tiles : st.tiles) || {};
+    const occupied = new Map();
+    for (const [id, tile] of Object.entries(tiles)) {
+      if (!tile || typeof tile !== 'object') { add('invalid_state', `tiles.${id}`, 'Invalid physical tile record.'); continue; }
+      if (!tile.placed) continue;
+      if (!tile.anchorKey || !Number.isInteger(tile.rotation)) {
+        add("missing_tile_geometry", `tiles.${id}`, "Placed tile has no verifiable anchor/rotation."); continue;
+      }
+      const keys = getTileHexKeys(tile.anchorKey, tile.rotation, hexes);
+      keys.forEach(key => {
+        if (occupied.has(key) && occupied.get(key) !== id) add("tile_overlap", `tiles.${id}`, "Two physical tiles claim the same space.");
+        occupied.set(key, id);
+        if (!hexes[key]?.active || hexes[key].tileId !== id) add("tile_cells_mismatch", `map.hexes.${key}`, `Tile ${id} has a missing, inactive or replaced cell.`);
+      });
+      if (tile.type === "capital" && tile.ownerId) {
+        owns(tile.ownerId, `tiles.${id}.ownerId`);
+        if (!(capitals.get(tile.ownerId) || []).some(key => keys.includes(key)))
+          add("capital_tile_mismatch", `tiles.${id}`, "Capital-tile ownership disagrees with the map's capital city.");
+      }
+    }
+    for (const [key, h] of Object.entries(hexes)) if (h?.active && h.tileId && tiles[h.tileId] && !tiles[h.tileId].placed)
+      add("unplaced_tile_cell", `map.hexes.${key}.tileId`, "An active map cell belongs to a tile marked unplaced.");
+    if (progressed && !players.has(st.turn?.order?.[st.turn.index])) add("missing_active_player", "turn", "The active seat does not exist.");
+    for (const [i, choice] of (st.pendingChoices || []).entries()) owns(choice.playerId, `pendingChoices.${i}.playerId`);
+    for (const name of ["activeCard", "cardResolution", "movementContinuation", "pendingExploration", "arrivalResolution"]) {
+      const ref = st[name]; if (!ref) continue;
+      owns(ref.playerId, name + ".playerId");
+      const owner = players.get(ref.playerId); if (!owner) continue;
+      if (ref.unitId && ![...(owner.armies || []), ...(owner.caravans || [])].some(u => u.id === ref.unitId))
+        add("missing_resolution_unit", name + ".unitId", "An ongoing move or arrival refers to a missing physical unit.");
+      if (ref.cardId && !(owner.focusCardIds || []).includes(ref.cardId))
+        add("missing_resolution_card", name + ".cardId", "An ongoing resolution refers to a removed physical focus card.");
+      if (ref.recoveryGeneration != null && ref.recoveryGeneration !== (st.recoveryGeneration || 0))
+        add("stale_resolution_generation", name + ".recoveryGeneration", "A resolution belongs to an abandoned recovery generation.");
+    }
+    return findings;
+  }
+
   function migrateState(st) {
     unpackCheckpoint(st);
     if (!st) return st;
@@ -14876,6 +14989,7 @@ const Game = (() => {
     getCultureMarkerBreakdown,
     checkpointState,
     unpackCheckpoint,
+    validateStateIntegrity,
     getMilitaryCombatBonus,
     getCityRange,
     getWonderCost,

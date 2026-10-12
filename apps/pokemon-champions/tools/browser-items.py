@@ -116,27 +116,69 @@ def run():
             print("Counters/global/override selectors and item-aware Team Check passed", flush=True)
 
             # Restore the normal app to test team persistence and both Moves editors.
-            page.evaluate("""team => { localStorage.clear(); localStorage.setItem('pc-team', JSON.stringify(team)); }""", [{"slug": "sirfetchd", "moves": [moves["Leaf Blade"]], "ability": "scrappy", "picked": True, "item": "leek"}])
+            initial_points = {"hp": 2, "atk": 32, "def": 0, "spa": 0, "spd": 0, "spe": 32}
+            page.evaluate("""team => { localStorage.clear(); localStorage.setItem('pc-team', JSON.stringify(team)); }""", [{"slug": "sirfetchd", "moves": [moves["Leaf Blade"]], "ability": "scrappy", "picked": True, "item": "leek", "nature": "adamant", "spread": initial_points}])
             page.reload()
             page.locator('[data-tab="team"]').click()
+            member = page.locator(".team-member").first
+            point_editor = member.locator(".tm-build")
+            assert point_editor.get_attribute("open") is None, "Imported spreads must start compact"
+            stat_keys = ("hp", "atk", "def", "spa", "spd", "spe")
+            sirfetchd_stats = next(mon["stats"] for mon in data["pokemon"] if mon["slug"] == "sirfetchd")
+            expected_stats = {}
+            for key in stat_keys:
+                baseline = (2 * sirfetchd_stats[key] + 31) // 2 + (60 if key == "hp" else 5)
+                nature = 1.1 if key == "atk" else 0.9 if key == "spa" else 1
+                expected_stats[key] = int((baseline + initial_points[key]) * nature)
+            assert member.locator('[data-team-nature]').input_value() == "adamant"
+            for key in stat_keys:
+                value = member.locator(f'[data-team-stat-value="{key}"]')
+                assert value.is_visible() and int(value.inner_text()) == expected_stats[key]
+            point_editor.locator("summary").click()
+            hp_points = member.locator('[data-team-stat="hp"]')
+            hp_points.fill("0")
+            hp_points.press("Tab")
+            assert point_editor.get_attribute("open") is not None, "Live editing must retain the open editor"
+            assert int(member.locator('[data-team-stat-value="hp"]').inner_text()) == expected_stats["hp"] - 2
+
+            def build_summary():
+                return {"stats": member.locator('[data-team-stat-value]').all_text_contents(),
+                        "nature": member.locator('[data-team-nature]').input_value(),
+                        "item": member.locator('[data-team-item]').input_value(),
+                        "ability": member.locator('[data-set-ability].on').inner_text(),
+                        "moves": member.locator('.tm-move-name').all_text_contents()}
+
+            current_build = build_summary()
+            point_editor.locator("summary").click()
+            assert point_editor.get_attribute("open") is None
+            assert not hp_points.is_visible()
+            assert build_summary() == current_build, "Collapsing point editing must retain every current build value"
+            assert all(member.locator(f'[data-team-stat-value="{key}"]').is_visible() for key in stat_keys)
+            assert member.locator('[data-team-nature]').is_visible()
+            assert member.locator('[data-set-ability].on').is_visible()
+            assert member.locator('.tm-move-name').is_visible()
+            print("Team Builder six calculated Lv50 stats, Nature, item, ability and moves persist after edit/collapse", flush=True)
             select = page.locator('[data-team-item="sirfetchd"]')
             assert select.input_value() == "leek"
             select.select_option("muscle-band")
             page.locator(".team-name").fill("Items test")
             page.locator("[data-save-team]").click()
             select.select_option("none")
+            page.locator(".tm-library > summary").click()
             page.locator("[data-load-team]").click()
             assert select.input_value() == "muscle-band"
             page.locator("[data-share-working]").click()
             link = page.locator(".tm-share-link").input_value()
-            assert "#t=4|" in link and ".muscle-band." in link, link
+            assert "#t=5|" in link and ".muscle-band.adamant.0-32-0-0-0-32." in link, link
             page.evaluate("localStorage.removeItem('pc-team')")
             page.goto(link)
             page.reload()
             page.locator('[data-tab="team"]').click()
             assert select.input_value() == "muscle-band"
             assert page.evaluate("JSON.parse(localStorage.getItem('pc-team'))[0].moves") == [moves["Leaf Blade"]]
-            print("Team save/load and v4 share round-trip passed", flush=True)
+            imported = page.evaluate("JSON.parse(localStorage.getItem('pc-team'))[0]")
+            assert imported["nature"] == "adamant" and imported["spread"] == {**initial_points, "hp": 0}, imported
+            print("Team save/load and v5 exact-build share round-trip passed", flush=True)
 
             page.locator('[data-tab="moves"]').click()
             page.locator(".mv-mon").fill("Sirfetch")
@@ -146,7 +188,7 @@ def run():
             page.locator('.mv-cfg-pop [data-cfg-item="leek"]').click()
             assert "Leek" in page.locator(".mon-cfg-badge").inner_text()
             assert not page.locator(".mv-cfg-pop [data-cfg-item-select]").is_visible()
-            page.locator(".mv-cfg-pop .mv-custom-item summary").click()
+            page.locator(".mv-cfg-pop .mv-custom-item > summary").click()
             custom = page.locator(".mv-cfg-pop [data-cfg-item-select]")
             assert custom.locator('optgroup[label="Mega Stones"]').count() == 0
             custom.select_option("charcoal")
@@ -168,7 +210,7 @@ def run():
             for item, factor in [("type-item", 1.2), ("band-glasses", 1.1)]:
                 page.locator(f'.mvr-preset [data-cfg-item="{item}"]').click()
                 assert abs(rank_damage() - baseline * factor) <= 2, (item, baseline, rank_damage())
-            page.locator(".mvr-preset .mv-custom-item summary").click()
+            page.locator(".mvr-preset .mv-custom-item > summary").click()
             page.locator(".mvr-preset [data-cfg-item-select]").select_option("muscle-band")
             assert "Custom item · Muscle Band" in page.locator(".mvr-preset").inner_text()
             page.locator('[data-cfg-toggle="sirfetchd"]').click()

@@ -1,4 +1,4 @@
-// Type-coverage tool (à la pkmn.help). Two independent lookups, stacked on one
+// Type-coverage tool (à la pkmn.help). Two independent peer lookups on one
 // page (each has its own type picker — they're separate questions, not two views
 // of one thing, so there's no mode toggle):
 //  • Offense: pick attacking type(s) → "Deals N× to …" each defending type, a
@@ -101,8 +101,7 @@ export function initCoverageView({ container, data, onShowMons }) {
 
     return `${tallyLine("Across the 18 defending types you hit", typeTally(byMult), "super-effective")}
       ${groupedBadges(byMult, (m) => `Deals ${multTxt(m)} to`)}
-      ${summary}
-      ${renderNextType(base)}`;
+      ${summary}`;
   }
 
   // "best type to add next": marginal effect of each unpicked attacking type on
@@ -175,7 +174,7 @@ export function initCoverageView({ container, data, onShowMons }) {
     state.lists = {};
     container.innerHTML = `<div class="cov">
       <div class="team-head"><h2>Type coverage</h2></div>
-
+      <div class="cov-core-grid">
       <section class="cov-section">
         <div class="cov-sec-head"><h3>⚔ Offense</h3>
           <p class="cov-sec-note">Pick attacking type(s) — best hit vs every defending type.</p></div>
@@ -189,6 +188,8 @@ export function initCoverageView({ container, data, onShowMons }) {
         <div class="cov-pick">${chipRow(state.def, "cov-def")}</div>
         ${renderDefense()}
       </section>
+      </div>
+      ${state.atk.size ? renderNextType(bucketsOf([...state.atk])) : ""}
     </div>`;
   }
 

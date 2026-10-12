@@ -126,7 +126,7 @@ export function renderTable(list, sort, cmp, max = 200, extras = false, pinned =
     return `<tr data-slug="${m.slug}" class="${isPinned ? "pinned" : ""}">
       <td class="num rank"${ranks.has(m.slug) ? "" : ' title="Pinned outside the current filters — not ranked"'}>${ranks.get(m.slug) ?? "—"}</td>
       <td class="namecell"><span class="row-btns">${pinBtn(m, isPinned)}${cmpBtn(m, cmp)}</span>${spriteTag(m, "spr")}
-        <span class="nm"><span class="nm-top">${m._display}${megaBadge(m)}</span>
+        <span class="nm"><button class="nm-top roster-open" aria-label="Open ${m._display}">${m._display}${megaBadge(m)}</button>
         <span class="types">${typeBadges(m.types)}</span></span></td>
       <td><span class="role ${role.cls}">${role.label}</span></td>
       ${statCells}
@@ -192,7 +192,7 @@ export function renderGrid(list, cmp, max = 200, pinned = [], team = new Set()) 
         ${spriteTag(m, "pcard-art")}
         <div class="pcard-corner"><div class="pcard-btns">${pinBtn(m, isPinned)}${cmpBtn(m, cmp)}</div><div class="pcard-id">#${m.dex}${megaBadge(m)}</div></div>
       </div>
-      <div class="pcard-name">${m._display}</div>
+      <button class="pcard-name roster-open" aria-label="Open ${m._display}">${m._display}</button>
       <div class="types">${typeBadges(m.types)}</div>
       <div class="pcard-role"><span class="role ${role.cls}">${role.label}</span></div>
       <div class="pcard-bars">${bars}</div>

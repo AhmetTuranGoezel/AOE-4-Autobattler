@@ -5,7 +5,7 @@ import { displayName, rarityTier, TYPE_COLORS, GEN_LABEL, formFamily, learnsetNo
 import { renderRadar } from "./radar.js";
 import { findSimilar } from "./similarity.js";
 import { typeBadges, ROLE_META } from "./table.js";
-import { renderEhpCards, renderStatRows, emptySpread } from "./stat-lab.js";
+import { renderEhpCards, renderStatRows, renderStatSummary, pointsUsed, emptySpread } from "./stat-lab.js";
 import { renderMetaUsage } from "./meta-view.js";
 import { NATURES, escapeHtml } from "./set-model.js";
 
@@ -41,9 +41,9 @@ function shinyUrl(url) {
   return url.replace("/pokemon/", "/pokemon/shiny/");
 }
 
-export const DETAIL_TABS = ["overview", "builds", "meta", "teams", "moves"];
+export const DETAIL_TABS = ["overview", "meta", "moves"];
 
-export function renderDetail(mon, { data, all, simCtx, statMode, spread, spreadNature, detailShiny, pinned, metaLimits = {}, detailTab = "overview", metaTeamKind = null, metaTeamId = null }) {
+export function renderDetail(mon, { data, all, simCtx, statMode, spread, spreadNature, detailShiny, pinned, metaLimits = {}, detailTab = "overview", detailMetaView = "dashboard", statEditorOpen = false, metaTeamKind = null, metaTeamId = null }) {
   const tab = DETAIL_TABS.includes(detailTab) ? detailTab : "overview";
   const e = mon._eff;
   const role = ROLE_META[e.role];
@@ -85,7 +85,7 @@ export function renderDetail(mon, { data, all, simCtx, statMode, spread, spreadN
   const abilities = mon.abilities.map((a) => {
     const meta = data.abilities[a.slug] || { name: a.slug, desc: "" };
     return `<div class="ab-row" data-ability-info="${a.slug}" title="View ability details">
-      <span class="ab-name">${meta.name}${a.hidden ? ` <span class="hidden-tag">Hidden</span>` : ""}</span>
+      <button class="ab-name detail-text-action" data-ability-info="${a.slug}" aria-label="View ${meta.name} ability details">${meta.name}${a.hidden ? ` <span class="hidden-tag">Hidden</span>` : ""}</button>
       ${rarityBadge(meta.count, data.total)}
       <button class="lens" data-ability-filter="${a.slug}" title="Find Pokémon with this ability">🔍</button>
       <span class="ab-desc">${meta.desc || ""}</span>
@@ -123,9 +123,9 @@ export function renderDetail(mon, { data, all, simCtx, statMode, spread, spreadN
         <div class="detail-sub">#${mon.dex} · ${GEN_LABEL(mon.gen)} · <span class="role ${role.cls}">${role.label}</span></div>
         <div class="types big">${typeBadges(mon.types)}</div>
         ${tab === "overview" ? `<div class="detail-totals">
-          <div><span class="t-lab">${statMode === "lv50" ? "Total" : "BST"}</span><span class="t-val">${e.bst}</span></div>
-          <div class="hl"><span class="t-lab">Cleaned total</span><span class="t-val">${e.cleaned}</span></div>
-          <div class="wst"><span class="t-lab">Wasted</span><span class="t-val">${e.wasted}</span></div>
+          <div title="Roster baseline, with zero points and neutral Nature"><span class="t-lab">${statMode === "lv50" ? "Roster total" : "BST"}</span><span class="t-val">${e.bst}</span></div>
+          <div class="hl" title="Roster ranking score, not a current-build battle stat"><span class="t-lab">Cleaned rank</span><span class="t-val">${e.cleaned}</span></div>
+          <div class="wst" title="Stats excluded by roster ranking assumptions"><span class="t-lab">Rank excluded</span><span class="t-val">${e.wasted}</span></div>
           ${mon.weight != null ? `<div><span class="t-lab">Weight</span><span class="t-val">${mon.weight} kg</span></div>` : ""}
       ${mon.usagePct != null ? `<div title="PokéBase usage snapshot; format/date may differ from the roster regulation"><span class="t-lab">Usage</span><span class="t-val">${mon.usagePct}%</span></div>` : ""}
         </div>` : ""}
@@ -140,18 +140,24 @@ export function renderDetail(mon, { data, all, simCtx, statMode, spread, spreadN
     <nav class="detail-tabs" role="tablist" aria-label="Pokémon detail sections">${DETAIL_TABS.map(key => `<button id="detail-tab-${key}" role="tab" aria-selected="${tab === key}" ${tab === key ? `aria-controls="detail-panel-${key}"` : ""} tabindex="${tab === key ? "0" : "-1"}" data-detail-tab="${key}">${key[0].toUpperCase() + key.slice(1)}${key === "moves" ? `<small>${moves.length}</small>` : ""}</button>`).join("")}</nav>
     <div class="detail-tab-panel" id="detail-panel-${tab}" role="tabpanel" aria-labelledby="detail-tab-${tab}" tabindex="0">
     ${tab === "overview" ? `
-    <div class="detail-grid">
-      <section class="detail-radar">
-        ${renderRadar(e.disp, e.eff, { max })}
-        <div class="radar-legend">
-          <span><i class="lg-raw"></i> Base</span><span><i class="lg-eff"></i> Cleaned</span>
-        </div>
+    <div class="overview-stats">
+      <section class="overview-values">
+        <div class="overview-stat-head"><h4>Stats</h4><button class="btn-sm" id="detail-edit-build" data-lab-toggle aria-expanded="${statEditorOpen}" aria-controls="detail-build-editor">${statEditorOpen ? "Close editing" : "Edit build"}</button></div>
+        <p class="build-assumptions">Lv50 · <span data-build-nature>${spreadNature ? `${escapeHtml(spreadNature[0].toUpperCase() + spreadNature.slice(1))} Nature` : "Neutral Nature"}</span> · <span data-build-points>${pointsUsed(sp)}/66 points</span> · before battle modifiers</p>
+        ${renderStatSummary(mon, sp, spreadNature)}
       </section>
       <section class="detail-ehp">
         <h4>Effective HP <span class="muted">Lv 50</span></h4>
         ${renderEhpCards(mon, sp, spreadNature)}
       </section>
     </div>
+    <section class="stat-lab" id="detail-build-editor" ${statEditorOpen ? "" : "hidden"}>
+      <div class="lab-head"><h4>Edit build</h4><span class="lab-hint">66 points · max 32 per stat · values update live</span></div>
+      <label class="meta-lab-nature">Nature <select class="cl-sel" id="detail-lab-nature" data-lab-nature><option value="">Neutral / not selected</option>${NATURES.map(n => `<option value="${n}" ${spreadNature === n ? "selected" : ""}>${escapeHtml(n)}</option>`).join("")}</select></label>
+      ${renderStatRows(mon, sp, spreadNature)}
+      <button class="btn-sm" data-lab-to-team>Apply these points and Nature to Team Builder</button>
+    </section>
+    <details class="detail-visualization"><summary>Radar &amp; cleaned-ranking visualization</summary><div class="detail-radar">${renderRadar(e.disp, e.eff, { max })}<div class="radar-legend"><span><i class="lg-raw"></i> Uninvested ${statMode === "base" ? "base" : "Lv50"}</span><span><i class="lg-eff"></i> Cleaned ranking</span></div></div></details>
 
     <section class="detail-ab">
       <h4>Abilities</h4>
@@ -162,17 +168,7 @@ export function renderDetail(mon, { data, all, simCtx, statMode, spread, spreadN
       <div class="sim-list">${similar}</div>
     </section>` : ""}
 
-    ${tab === "builds" ? `
-    ${renderMetaUsage(mon, data, metaLimits, { view: "builds" })}
-    <section class="stat-lab">
-      <div class="lab-head"><h4>Stat Lab</h4><span class="lab-hint">66 points · max 32 per stat · eHP updates live</span></div>
-      <label class="meta-lab-nature">Stat Lab Nature <select class="cl-sel" data-lab-nature><option value="">Neutral / not selected</option>${NATURES.map((n) => `<option value="${n}" ${spreadNature === n ? "selected" : ""}>${escapeHtml(n)}</option>`).join("")}</select></label>
-      ${renderStatRows(mon, sp, spreadNature)}
-      ${renderEhpCards(mon, sp, spreadNature)}
-      <button class="btn-sm" data-lab-to-team>Apply these points and Nature to Team Builder</button>
-    </section>` : ""}
-
-    ${tab === "meta" || tab === "teams" ? renderMetaUsage(mon, data, metaLimits, { view: tab, teamKind: metaTeamKind, teamId: metaTeamId }) : ""}
+    ${tab === "meta" ? renderMetaUsage(mon, data, metaLimits, { view: detailMetaView === "teams" ? "teams" : "meta", teamKind: metaTeamKind, teamId: metaTeamId }) : ""}
 
     ${tab === "moves" ? `
     <section class="detail-moves">

@@ -50,6 +50,51 @@ test("checkpoint rejects arrays and strings instead of spreading them into state
   for(const fullState of [[],"invalid",42,null])await assert.rejects(store.saveCheckpoint({...checkpoint(1),fullState}),/fullState must be an object/);
 });
 
+test("five repeated saves of r14 retain unique revisions 10 through 14", async () => {
+  let time=0; const store=CivSessionStore.create({backend:CivSessionStore.createMemoryBackend(),now:()=>++time});
+  for(let n=10;n<=14;n++)await store.saveCheckpoint(checkpoint(n));
+  for(let i=0;i<5;i++)await store.saveCheckpoint({...checkpoint(14),processedActionIds:[],fullState:{log:['action-14'],revision:14,chat:[{text:'unrevisioned chat'}]}});
+  assert.deepEqual((await store.listCheckpoints(gameId)).map(r=>r.revision),[14,13,12,11,10]);
+});
+
+test("same revision divergence is reported without evicting any recovery point", async () => {
+  const store=CivSessionStore.create({backend:CivSessionStore.createMemoryBackend()});
+  for(let n=10;n<=14;n++)await store.saveCheckpoint(checkpoint(n));
+  await assert.rejects(store.saveCheckpoint({...checkpoint(14),fullState:{revision:14,phase:'setup'}}),{code:'same_revision_divergence'});
+  assert.deepEqual((await store.listCheckpoints(gameId)).map(r=>r.revision),[14,13,12,11,10]);
+  assert.equal((await store.listStorageFindings(gameId))[0].code,'same_revision_divergence');
+  assert.deepEqual((await store.loadLatest(gameId)).fullState.log,['action-14']);
+});
+
+test('old identical cache records are consolidated and concurrent credentials preserve the witness',async()=>{
+ const backend=CivSessionStore.createMemoryBackend(),store=CivSessionStore.create({backend});
+ const saved=await store.saveCheckpoint({...checkpoint(14),fullState:{revision:14,phase:'playing'}});
+ const original=backend._records.get(saved.checkpoint.key);
+ for(let n=1;n<=4;n++)backend._records.set('duplicate-'+n,{...original,key:'duplicate-'+n,sequence:original.sequence+n});
+ await Promise.all([store.saveCheckpoint({...checkpoint(14),fullState:{revision:14,phase:'playing'}}),store.saveCredentials(gameId,{seatId:'p1'})]);
+ assert.equal((await store.listCheckpoints(gameId)).length,1);
+ assert.equal((await store.loadIntegrityWitness(gameId)).observedPlay,true);
+ assert.equal((await store.loadCredentials(gameId)).seatId,'p1');
+});
+
+test('takeover promotes a redacted cache but never overwrites it with another same-view state',async()=>{
+ const store=CivSessionStore.create({backend:CivSessionStore.createMemoryBackend()});
+ await store.saveCheckpoint({...checkpoint(1),fullState:{revision:1,stateView:true}});
+ await store.saveCheckpoint(checkpoint(1));
+ assert.equal((await store.listCheckpoints(gameId)).length,1);
+ assert.equal((await store.loadLatest(gameId)).fullState.stateView,undefined);
+ await assert.rejects(store.saveCheckpoint({...checkpoint(1),fullState:{revision:1,log:['different']}}),{code:'same_revision_divergence'});
+});
+
+test("local play witness survives cache rotation and credential refresh", async () => {
+  const store=CivSessionStore.create({backend:CivSessionStore.createMemoryBackend()});
+  await store.saveCheckpoint({...checkpoint(14),fullState:{revision:14,phase:'playing',recoveryGeneration:3}});
+  await store.saveCredentials(gameId,{seatId:'p1'});
+  for(let n=15;n<21;n++)await store.saveCheckpoint({...checkpoint(n),fullState:{revision:n,phase:'setup'}});
+  const witness=await store.loadIntegrityWitness(gameId);
+  assert.equal(witness.observedPlay,true);assert.equal(witness.recoveryGeneration,3);
+});
+
 test("five-checkpoint ring keeps the newest records", async () => {
   const backend = CivSessionStore.createMemoryBackend();
   let now = 100;

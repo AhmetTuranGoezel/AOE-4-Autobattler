@@ -5,7 +5,7 @@ import { DYNAMIC_BP } from "./moves-view.js";
 
 function learnerSprites(mons, cap) {
   const shown = mons.slice(0, cap).map((m) =>
-    `<img class="lr" loading="lazy" alt="" title="${displayName(m)}" data-slug="${m.slug}" src="${m.sprite || m.artwork || ""}">`).join("");
+    `<button class="lr learner-link" data-slug="${m.slug}" aria-label="View ${displayName(m)}" title="${displayName(m)}"><img loading="lazy" alt="" src="${m.sprite || m.artwork || ""}"></button>`).join("");
   const more = mons.length > cap ? `<span class="ab-more">+${mons.length - cap}</span>` : "";
   return shown + more;
 }

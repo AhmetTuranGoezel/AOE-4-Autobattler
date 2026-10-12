@@ -261,6 +261,29 @@
   function createStore({ backend = defaultBackend(), now = () => Date.now() } = {}) {
     let writeQueue = Promise.resolve();
 
+    // Compare gameplay, not the time this browser happened to write it. Chat
+    // arrives outside the revision stream, and undoSummary is a view annotation.
+    function gameplayJson(state) {
+      const canonical = value => Array.isArray(value) ? value.map(canonical) :
+        plainObject(value) ? Object.fromEntries(Object.keys(value).sort().map(key => [key, canonical(value[key])])) : value;
+      const copy = { ...state };
+      delete copy.chat;
+      delete copy.undoSummary;
+      if (copy.turnUndo) { copy.turnUndo = { ...copy.turnUndo }; delete copy.turnUndo.snapshot; }
+      return JSON.stringify(canonical(copy));
+    }
+
+    async function rememberWitness(gameId, fullState) {
+      const record = await backend.getCredentials(gameId) || { gameId, value: null };
+      const previous = record.integrityWitness || {};
+      const next = {
+        observedPlay: !!previous.observedPlay || ["playing", "gameover"].includes(fullState.phase),
+        revision: Math.max(previous.revision || 0, fullState.revision || 0),
+        recoveryGeneration: Math.max(previous.recoveryGeneration || 0, fullState.recoveryGeneration || 0)
+      };
+      if (JSON.stringify(previous) !== JSON.stringify(next)) await backend.putCredentials({ ...record, integrityWitness: next });
+    }
+
     async function saveCheckpoint(input) {
       const work = async () => {
         const savedAt = now();
@@ -271,18 +294,44 @@
         const digest = await checksum(normalized.json);
         const records = (await backend.list(normalized.value.gameId)).filter(record =>
           (record.kind || "checkpoint") === normalized.value.kind);
-        if (normalized.value.kind !== "checkpoint") {
-          const existing = records.find(record => record.identity === normalized.value.identity);
-          if (existing && await verifyRecord(existing)) return JSON.parse(existing.payloadJson);
+        const payload = gameplayJson(normalized.value.fullState);
+        const replacedViews = [];
+        const exact = [];
+        for (const record of records) {
+          const sameIdentity = normalized.value.kind === "turn-start" ? record.identity === normalized.value.identity : record.revision === normalized.value.revision;
+          if (!sameIdentity) continue;
+          const existing = await verifyRecord(record);
+          if (!existing) continue;
+          // A takeover legitimately promotes a redacted cache to host state.
+          // Do not compare secret/full and public projections as equal payloads.
+          if (!!existing.fullState.stateView !== !!normalized.value.fullState.stateView) {
+            if (normalized.value.fullState.stateView) return existing;
+            replacedViews.push(record); continue;
+          }
+          if (gameplayJson(existing.fullState) === payload) {
+            exact.push({record,existing}); continue;
+          }
+          const error = new Error(`Revision r${normalized.value.revision} has conflicting local gameplay payloads. Earlier recovery points were preserved.`);
+          error.code = "same_revision_divergence";
+          error.revision = normalized.value.revision;
+          const credential = await backend.getCredentials(normalized.value.gameId) || { gameId: normalized.value.gameId, value: null };
+          await backend.putCredentials({ ...credential, storageFindings: [...(credential.storageFindings || []), {
+            severity: "fatal", code: error.code, revision: error.revision, at: savedAt
+          }].slice(-20) });
+          throw error;
         }
-        const duplicate = records.find((record) =>
-          record.revision === normalized.value.revision && record.checksum === digest && record.payloadJson === normalized.json
-        );
-        if (duplicate) return { ...normalized.value, checkpoint: { key: duplicate.key, checksum: digest, sequence: duplicate.sequence } };
+        if (exact.length) {
+          // Consolidate identical records left by older clients, without ever
+          // deleting a different revision or accepting a conflicting payload.
+          const keep=exact.sort((a,b)=>b.record.sequence-a.record.sequence)[0];
+          for(const item of exact.slice(1))await backend.delete(item.record.key);
+          if(normalized.value.kind==='checkpoint')await rememberWitness(normalized.value.gameId,normalized.value.fullState);
+          return {...keep.existing,checkpoint:{key:keep.record.key,checksum:keep.record.checksum,sequence:keep.record.sequence}};
+        }
 
         const sequence = records.reduce((max, record) => Math.max(max, Number(record.sequence) || 0), 0) + 1;
         const key = `${normalized.value.gameId}:${String(sequence).padStart(10, "0")}:${generateToken().slice(0, 8)}`;
-        const sorted = records.slice().sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
+        const sorted = records.filter(r => !replacedViews.includes(r)).sort((a, b) => (a.sequence || 0) - (b.sequence || 0));
         await backend.put({
           key,
           gameId: normalized.value.gameId,
@@ -295,6 +344,8 @@
           checksum: digest,
           payloadJson: normalized.json
         });
+        for (const record of replacedViews) await backend.delete(record.key);
+        if (normalized.value.kind === "checkpoint") await rememberWitness(normalized.value.gameId, normalized.value.fullState);
         // Commit first, prune afterwards. A quota/write failure must not erase
         // the previous valid recovery point.
         const limit = normalized.value.kind === "checkpoint" ? CHECKPOINT_LIMIT :
@@ -352,8 +403,14 @@
       validateGameId(gameId);
       if (!plainObject(credentials)) throw new TypeError("credentials must be an object");
       const cloned = cloneJson(credentials, "credentials").value;
-      await backend.putCredentials({ gameId, updatedAt: now(), value: cloned });
-      return cloned;
+      const work=async()=>{
+        const previous = await backend.getCredentials(gameId);
+        await backend.putCredentials({ ...previous, gameId, updatedAt: now(), value: cloned });
+        return cloned;
+      };
+      const result=writeQueue.then(work,work);
+      writeQueue=result.then(()=>undefined,()=>undefined);
+      return result;
     }
 
     async function listHistory(gameId) {
@@ -398,6 +455,8 @@
       listHistory,
       loadHistory,
       loadTurnStart: (gameId, snapshotId) => loadHistory(gameId, snapshotId, "turn-start"),
+      loadIntegrityWitness: async gameId => (await backend.getCredentials(validateGameId(gameId)))?.integrityWitness || {},
+      listStorageFindings: async gameId => (await backend.getCredentials(validateGameId(gameId)))?.storageFindings || [],
       saveCredentials,
       loadCredentials,
       exportSession,

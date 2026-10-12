@@ -7,6 +7,7 @@ import { statsFor, roleOf, speedTier } from "./effective-stats.js";
 import { rosterAbilities } from "./type-defense.js";
 import { itemSelect, itemSpeed, itemLabel } from "./item-model.js";
 import { SET_STATS, NATURES, natureMultiplier } from "./set-model.js";
+import { statValues } from "./stat-lab.js";
 import {
   buildDefensiveProfile, buildOffensiveProfile, rankTypingRecommendations,
 } from "./team-analysis.js";
@@ -25,6 +26,11 @@ function effInfo(mult) {
 const typePill = (t) => `<span class="type" style="background:${TYPE_COLORS[t]}">${t}</span>`;
 const nameOf = (m) => m._display || displayName(m);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const STAT_LABELS = { hp: "HP", atk: "Atk", def: "Def", spa: "SpA", spd: "SpD", spe: "Spe" };
+
+// Ordinary Lv50 build values; battle-dependent item/ability modifiers are shown
+// in the analysis panels, not folded into an unexplained permanent stat number.
+export const teamBuildStats = (mon, spread = null, nature = null) => statValues(mon, spread, nature);
 
 function renderRecommendationList(items) {
   if (!items.length) return `<p class="muted fit-empty">No available typings remain outside this roster.</p>`;
@@ -76,6 +82,11 @@ export function renderTeamView(container, {
   // coverage or recommendations after a data refresh changes a learnset.
   const confirmedTeam = team.map((entry) => ({ ...entry, moveIds: confirmedMoveIds(entry.mon, entry.moveIds) }));
   const analysisTeam = analysisScope === "battle" ? confirmedTeam.filter((entry) => entry.picked).slice(0, 4) : confirmedTeam;
+  // Keep editing open while an input causes a live rerender, but do not
+  // automatically expand imported builds or every saved-team row.
+  const openBuilds = new Set([...container.querySelectorAll(".tm-build[open][data-team-build]")]
+    .map((el) => el.dataset.teamBuild));
+  const libraryOpen = !!container.querySelector(".tm-library[open]");
 
   // --- team manager (save / load / delete multiple teams) ---
   const savedRows = savedTeams.length
@@ -110,7 +121,9 @@ export function renderTeamView(container, {
     </div>` : ""}
     <small class="muted">${teamContext.loadedId ? "Loaded saved team. Keep its name to update it; change its name to save a new copy." : "Unsaved working team. Save creates a named team."}</small>
     ${notice ? `<div class="tm-notice" role="status">${esc(notice)}</div>` : ""}
-    <div class="tm-saved">${savedRows}</div>
+    <details class="tm-library" ${libraryOpen ? "open" : ""}><summary>Saved teams · ${savedTeams.length}</summary>
+      <div class="tm-saved">${savedRows}</div>
+    </details>
   </div>`;
 
   const addRow = `<div class="team-add-row">
@@ -118,6 +131,7 @@ export function renderTeamView(container, {
       <input class="team-add" placeholder="Add a Pokémon…" autocomplete="off" ${team.length >= TEAM_MAX ? "disabled" : ""}>
     </div>
     <span class="team-count">${team.length} / ${TEAM_MAX}</span>
+    ${team.length ? `<span class="team-battle-overview" aria-live="polite">${pickedCount}/4 battle picks</span>` : ""}
   </div>`;
 
   // --- member cards (sprite + types + ability + moveset) ---
@@ -144,6 +158,9 @@ export function renderTeamView(container, {
       ${abilities.map((slug) => `<button class="tm-abil-chip ${ability === slug ? "on" : ""}" data-set-ability="${slug}" data-slug="${mon.slug}" title="Use this ability for team analysis">${(data.abilities[slug] || {}).name || slug}</button>`).join("")}
     </div>` : "";
     const pickDisabled = !picked && pickedCount >= 4;
+    const stats = teamBuildStats(mon, spread, nature);
+    const usedPoints = spread ? SET_STATS.reduce((sum, key) => sum + spread[key], 0) : null;
+    const natureKey = String(nature || "").toLowerCase();
     return `<div class="team-member ${picked ? "battle-picked" : "battle-benched"}">
       <div class="tm-battle-row">
         <button class="tm-battle-pick ${picked ? "on" : ""}" data-battle-pick="${mon.slug}"
@@ -159,21 +176,25 @@ export function renderTeamView(container, {
           <span class="types">${mon.types.map(typePill).join("")}</span></div>
         <button class="team-remove" data-team-remove="${mon.slug}" aria-label="Remove">✕</button>
       </div>
+      <div class="tm-current-stats" aria-label="${esc(nameOf(mon))} calculated level 50 stats" title="Lv50 · Stat Points and Nature included; battle-dependent item and ability effects are separate">
+        ${SET_STATS.map((key) => `<span class="tm-current-stat"><span>${STAT_LABELS[key]}</span><b data-team-stat-value="${key}">${stats[key]}</b></span>`).join("")}
+      </div>
+      <div class="tm-nature"><label>Nature <select class="cl-sel" data-team-nature data-slug="${mon.slug}" aria-label="${esc(nameOf(mon))} nature"><option value="">Neutral (assumed)</option>${NATURES.map((n) => `<option value="${n}" ${natureKey === n ? "selected" : ""}>${n[0].toUpperCase() + n.slice(1)}</option>`).join("")}</select></label><span class="tm-level">Lv50</span></div>
+      <small class="tm-build-assumptions">${spread ? `${usedPoints}/66 points` : "Points unknown · assuming 0"}${nature ? "" : " · Nature unknown"}</small>
       ${abilSel}
       <div class="tm-abil"><span class="tm-abil-label">Held item</span>${itemSelect(`data-team-item="${mon.slug}"`, item, mon, ability)}</div>
-      <details class="tm-build" ${spread || nature ? "open" : ""}><summary>Nature &amp; Stat Points${spread ? ` · ${SET_STATS.map((k) => spread[k]).join(" / ")}` : " · not set"}</summary>
-        <label>Nature <select class="cl-sel" data-team-nature data-slug="${mon.slug}" aria-label="${esc(nameOf(mon))} nature"><option value="">Not set</option>${NATURES.map((n) => `<option value="${n}" ${nature === n ? "selected" : ""}>${n}</option>`).join("")}</select></label>
-        <div class="tm-build-points">${SET_STATS.map((k) => `<label>${k === "spe" ? "Spe" : k === "spd" ? "SpD" : k === "spa" ? "SpA" : k.toUpperCase()}<input type="number" min="0" max="32" value="${spread?.[k] ?? ""}" placeholder="—" data-team-stat="${k}" data-slug="${mon.slug}" aria-label="${esc(nameOf(mon))} ${k} points"></label>`).join("")}</div>
-        <small class="item-note">${spread ? `${SET_STATS.reduce((sum, k) => sum + spread[k], 0)}/66 points` : "No exact spread set. Damage uses its configured defaults until you enter points."}</small></details>
       ${(itemCounts.get(item) || 0) > 1 ? `<p class="learnset-note learnset-warning">Duplicate ${itemLabel(item)}: check Item Clause before battling.</p>` : ""}
       ${mon.learnset?.status === "unverified" ? `<p class="learnset-note learnset-warning">${learnsetNotice(mon)}</p>` : ""}
       ${unconfirmed.length ? `<p class="learnset-note learnset-warning">${unconfirmed.length} saved move(s) not confirmed by this snapshot; excluded from team analysis.</p>` : ""}
       <div class="tm-moves">${chips}${addMove}</div>
+      <details class="tm-build" data-team-build="${mon.slug}" ${openBuilds.has(mon.slug) ? "open" : ""}><summary>Edit Stat Points${spread ? ` · ${usedPoints}/66` : " · not set"}</summary>
+        <div class="tm-build-points">${SET_STATS.map((k) => `<label>${STAT_LABELS[k]}<input type="number" min="0" max="32" value="${spread?.[k] ?? ""}" placeholder="—" data-team-stat="${k}" data-slug="${mon.slug}" aria-label="${esc(nameOf(mon))} ${k} points"></label>`).join("")}</div>
+        <small class="item-note">${spread ? "Calculated stats update with these points and the selected Nature." : "No exact spread set. Stats above assume 0 points; Damage uses its configured defaults until you enter points."}</small></details>
     </div>`;
   }).join("") || `<p class="team-empty">No Pokémon yet — add up to ${TEAM_MAX} above to analyse the team.</p>`;
 
   const head = `<div class="team-head"><h2>Team Builder</h2>
-    <p class="calc-note">Up to 6 Pokémon with movesets — coverage and speed update live. Working edits persist in this browser; use Save to update a named team.</p></div>`;
+    <details class="workspace-help"><summary>How builds &amp; saving work</summary><p>Up to 6 Pokémon with movesets — coverage and speed update live. Working edits persist in this browser; use Save to update a named team.</p></details></div>`;
 
   const analysisBar = team.length ? `<div class="team-analysis-bar">
     <div class="team-analysis-copy">
@@ -188,13 +209,14 @@ export function renderTeamView(container, {
   </div>` : "";
 
   if (!team.length) {
-    container.innerHTML = `<div class="team">${head}${manager}${addRow}${analysisBar}<div class="team-members">${members}</div></div>`;
+    container.innerHTML = `<div class="team">${head}${manager}${addRow}<div class="team-members">${members}</div>${analysisBar}</div>`;
     return;
   }
 
   if (!analysisTeam.length) {
-    container.innerHTML = `<div class="team">${head}${manager}${addRow}${analysisBar}
+    container.innerHTML = `<div class="team">${head}${manager}${addRow}
       <div class="team-members">${members}</div>
+      ${analysisBar}
       <div class="team-card team-analysis-empty">Select one to four Battle picks to analyze this squad.</div>
     </div>`;
     return;
@@ -295,7 +317,7 @@ export function renderTeamView(container, {
     const m = entry.mon, lv = speedOf(entry);
     return `<div class="spd-row spd-${speedTier(m.stats.spe)}" data-slug="${m.slug}">
       <span class="spd-name">${nameOf(m)}</span>
-      <span class="spd-val">${lv}<small>@50, 0 points · ${itemLabel(entry.item)}</small></span></div>`;
+      <span class="spd-val">${lv}<small>Lv50 · ${entry.spread?.spe || 0} Spe points · ${entry.nature || "neutral (assumed)"} · ${itemLabel(entry.item)}</small></span></div>`;
   }).join("");
 
   // --- role / balance ---
@@ -336,8 +358,9 @@ export function renderTeamView(container, {
   </section>`;
 
   container.innerHTML = `<div class="team">
-    ${head}${manager}${addRow}${analysisBar}
+    ${head}${manager}${addRow}
     <div class="team-members">${members}</div>
+    ${analysisBar}
     ${recommendationPanel}
     <div class="team-grid">
       <div class="team-col team-col-matrix">

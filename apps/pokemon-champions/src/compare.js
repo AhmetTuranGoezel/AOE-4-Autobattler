@@ -88,9 +88,11 @@ export function renderCompare(mons, data, max = 200, anchorSlug = null, movesFil
     </tr>`).join("")}</tbody></table></div>
   </section>`;
 
-  return `<div class="compare-card">
+  const displayMode = max > 200 ? "Lv50 stats · 0 points · neutral Nature" : "Base species stats";
+  return `<div class="compare-card compare-values-first">
     <button class="detail-close" data-close-compare aria-label="Close">✕</button>
     <h3 class="compare-title">Compare <span class="cmp-sub">— differences shown vs <b>${anchorName}</b> (baseline). Click another column to rebase.</span></h3>
+    <p class="cmp-assumptions">${displayMode}. eHP always uses Lv50, 0 points and neutral Nature; no item, ability or field modifiers. Cleaned totals use the roster's ranking settings.</p>
     <div class="compare-grid">
       <div class="compare-radar">${radar}
         <div class="cmp-legend">${mons.map((m, i) =>

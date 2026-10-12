@@ -28,11 +28,12 @@
           <button class="tab" data-tab="team">Team</button>
           <button class="tab" data-tab="coverage">Coverage</button>
         </nav>
-        <p id="meta-line" class="meta"></p>
         <a id="regulation-label" class="snapshot-label" target="_blank" rel="noopener noreferrer">Regulation: loading…</a>
-        <a id="learnset-quality" class="snapshot-label" href="learnset-report.json" target="_blank" rel="noopener noreferrer">Learnset report</a>
+        <details class="data-rules"><summary>Data &amp; rules <span id="rules-warning"></span></summary><div><p id="meta-line" class="meta"></p><a id="learnset-quality" class="snapshot-label" href="learnset-report.json" target="_blank" rel="noopener noreferrer">Learnset report</a><p>Roster availability, ranked eligibility, and tournament snapshots are separate. Follow the regulation link for ranked rules.</p></div></details>
         <button id="btn-sync" class="sync-pill" title="Sync your pins, teams and bans across devices"><span class="sync-dot"></span>Sync</button>
       </div>
+    </header>
+    <div class="view-tools">
       <div class="toolbar tb-pokemon">
         <button id="btn-filters" class="btn">☰ Filters <span id="filter-badge" class="badge"></span></button>
         <input id="search" class="search" type="search" placeholder="Search name…" autocomplete="off">
@@ -46,6 +47,15 @@
             <button data-statmode="lv50" class="active">Lv 50</button>
           </div>
         </div>
+        <div class="wt-group roster-settings">
+          <button class="wt-toggle" id="wt-toggle" aria-expanded="false" aria-controls="wt-panel"><span>⚖ Ranking assumptions</span><span class="wt-caret">▸</span></button>
+          <div class="wt-panel" id="wt-panel" hidden>
+            <p class="wt-intro">These assumptions affect the <b>Cleaned total</b> ranking, not actual battle stats.</p>
+            <label class="wt-switch"><input type="checkbox" id="wt-atk"><span>Exclude the lower attacking stat</span></label>
+            <label class="wt-switch"><input type="checkbox" id="wt-spe"><span>Exclude low Speed from the ranking</span></label>
+            <div class="wt-speed"><div class="wt-top"><span>Speed at or below</span><span class="wt-val" id="wt-cap-val"></span></div><input type="range" id="wt-cap" min="0" max="150" step="5"><small class="wt-pdesc">A ranking preference, not a prediction of move order.</small></div>
+          </div>
+        </div>
         <div class="tb-right">
           <button id="tb-extras" class="btn" title="Show Weight (kg) and source usage % columns in the table">＋ kg/％</button>
           <label class="sortwrap">Sort <select id="sort-key"></select></label>
@@ -55,14 +65,14 @@
       </div>
       <div class="toolbar tb-moves" hidden></div>
       <div class="toolbar tb-abilities" hidden></div>
-    </header>
+    </div>
 
     <div class="main">
       <div id="filters-backdrop" class="filters-backdrop" hidden></div>
       <aside id="filters" class="filters">
         <div class="filters-head"><h2>Filters</h2>
           <div class="filters-head-btns">
-            <button id="btn-reset" class="btn-sm">Clear all</button>
+            <button id="btn-reset" class="btn-sm">Clear filters</button>
             <button id="filters-close" class="btn-sm filters-close" aria-label="Close filters">✕</button>
           </div>
         </div>
@@ -76,23 +86,6 @@
           </div>
           <label class="fcheck" title="Availability according to the roster source at snapshot time; not a ranked eligibility check."><input type="checkbox" id="f-available"> Obtainable in Champions</label>
           <small class="fhint">Uses availability at snapshot time. Check the linked regulation rules for ranked eligibility.</small>
-        </div>
-
-        <div class="fgroup wt-group">
-          <button class="wt-toggle" id="wt-toggle" aria-expanded="false">
-            <span>⚖ Cleaned stats</span><span class="wt-caret">▸</span>
-          </button>
-          <div class="wt-panel" id="wt-panel" hidden>
-            <p class="wt-intro">The <b>Cleaned total</b> ignores stats a Pokémon can't actually use:</p>
-            <label class="wt-switch"><input type="checkbox" id="wt-atk"><span>Treat lower attack stat as wasted</span></label>
-            <small class="wt-pdesc">Whichever of Attack / Sp.Atk is lower counts as 0 — you attack with one side.</small>
-            <label class="wt-switch"><input type="checkbox" id="wt-spe"><span>Treat low Speed as wasted</span></label>
-            <div class="wt-speed">
-              <div class="wt-top"><span>Speed at or below</span><span class="wt-val" id="wt-cap-val"></span></div>
-              <input type="range" id="wt-cap" min="0" max="150" step="5">
-              <small class="wt-pdesc">At or below this, Speed counts as 0 — you move last anyway.</small>
-            </div>
-          </div>
         </div>
 
         <div class="fgroup">
@@ -124,8 +117,8 @@
   </div>
 
   <div id="detail" class="detail" role="dialog" aria-modal="true" aria-labelledby="detail-title"><div id="detail-body" class="detail-body"></div></div>
-  <div id="popup" class="popup"><div id="popup-body" class="popup-body"></div></div>
-  <div id="compare" class="detail"><div id="compare-body" class="detail-body"></div></div>
+  <div id="popup" class="popup" role="dialog" aria-modal="true" aria-label="Details"><div id="popup-body" class="popup-body"></div></div>
+  <div id="compare" class="detail" role="dialog" aria-modal="true" aria-label="Compare Pokémon"><div id="compare-body" class="detail-body"></div></div>
   <div id="compare-bar" class="compare-bar" hidden></div>
   <div id="sync" class="detail"><div id="sync-body" class="detail-body"></div></div>
 

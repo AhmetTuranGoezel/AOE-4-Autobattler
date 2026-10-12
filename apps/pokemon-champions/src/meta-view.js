@@ -3,6 +3,7 @@ import { teamsForPokemon, groupTeammates, mapTournamentTeam } from "./meta-model
 import { escapeHtml as esc, SET_STATS, NATURE_MODS, canonicalSlug } from "./set-model.js";
 import { itemLabel, ITEMS } from "./item-model.js";
 import { displayName, TYPE_COLORS } from "./data.js";
+import { sourcePortrait } from "./source-portraits.js";
 
 const labels = { hp: "HP", atk: "Atk", def: "Def", spa: "SpA", spd: "SpD", spe: "Spe" };
 const natureName = id => id ? id[0].toUpperCase() + id.slice(1) : "Unavailable";
@@ -19,7 +20,9 @@ function help(id, label, text) {
 
 function portrait(mon, name, large = false) {
   const src = large ? mon?.artwork || mon?.sprite : mon?.sprite || mon?.artwork;
-  return `<span class="meta-avatar${large ? " art" : ""}${src ? "" : " unavailable"}"${!src ? ` role="img" aria-label="${esc(name)} — image unavailable"` : ""}>${src ? `<img src="${safeUrl(src)}" alt="${esc(name)}" loading="lazy" decoding="async" onerror="this.hidden=true;this.parentElement.classList.add('unavailable')">` : ""}</span>`;
+  const sourceNote = mon?.sourceOnly ? ` title="${esc(name)} — source-species portrait only; import mapping remains unresolved" data-source-portrait` : "";
+  const fallback = `${esc(name)} — image unavailable`;
+  return `<span class="meta-avatar${large ? " art" : ""}${src ? "" : " unavailable"}" data-image-fallback="${fallback}"${!src ? ` role="img" aria-label="${fallback}"` : ""}${sourceNote}>${src ? `<img src="${safeUrl(src)}" alt="${esc(name)}${mon?.sourceOnly ? ' (source portrait only)' : ''}" loading="lazy" decoding="async" onerror="this.hidden=true;this.parentElement.classList.add('unavailable');this.parentElement.setAttribute('role','img');this.parentElement.setAttribute('aria-label',this.parentElement.dataset.imageFallback)">` : ""}</span>`;
 }
 
 function statPoints(stats) {
@@ -54,10 +57,10 @@ function buildCard(build, rank) {
 }
 
 function renderBuilds(entry, limits, preview) {
-  const builds = presentBuilds(entry), count = preview ? 2 : limits.spreads || 4;
-  return `<section class="meta-builds"><div class="meta-section-head"><div><h3>${preview ? "Popular builds" : "Observed builds"}</h3><p>Exact Stat Points, with captured Nature evidence alongside.</p></div>${preview ? '<button class="meta-text-button" data-detail-tab="builds">All builds & Stat Lab ↗</button>' : help("build-evidence-help", "Build evidence", `${entry.observedSpreadScope || "Only captured sets with an exact spread and explicit Nature."} Aggregate usage and captured sets have different denominators. Nature counts refer only to matching captured sets, not the aggregate sample. A missing Nature is never inferred from overall usage.`)}</div>
-    <div class="meta-build-grid">${builds.slice(0, count).map(buildCard).join("") || '<p class="meta-empty">No complete spreads captured. You can still build your own in the Stat Lab.</p>'}</div>
-    ${!preview && builds.length > count ? `<button class="btn-sm meta-more" data-meta-more="spreads" data-meta-next="${count + 4}">Show more builds <span>${count} / ${builds.length}</span></button>` : ""}</section>`;
+  const builds = presentBuilds(entry), count = limits.spreads || (preview ? 2 : 4);
+  return `<section class="meta-builds"><div class="meta-section-head"><div><h3>${preview ? "Popular builds" : "Observed builds"}</h3></div>${help("build-evidence-help", "Build evidence", `${entry.observedSpreadScope || "Only captured sets with an exact spread and explicit Nature."} Aggregate usage and captured sets have different denominators. Nature counts refer only to matching captured sets, not the aggregate sample. A missing Nature is never inferred from overall usage.`)}</div>
+    <div class="meta-build-grid">${builds.slice(0, count).map(buildCard).join("") || '<p class="meta-empty">No complete spreads captured. Edit your own build on Overview.</p>'}</div>
+    ${builds.length > count ? `<button class="btn-sm meta-more" data-meta-more="spreads" data-meta-next="${count + 4}">Show more builds <span>${count} / ${builds.length}</span></button>` : ""}</section>`;
 }
 
 function datasetHeader(entry, data, dataset) {
@@ -78,59 +81,69 @@ function category(key, label, note, entry, data, limits) {
 function renderTeammates(entry, data, limits, dataset) {
   const groups = groupTeammates(entry.teammates), count = limits.teammates || 6;
   return `<section class="meta-teammates"><div class="meta-section-head"><h3>Common teammates</h3>${help("meta-teammates-help", "Common teammates", dataset.denominators.teammates)}</div><div class="meta-teammate-grid">${groups.slice(0, count).map(group => {
-    const row = group.base || group.forms[0], mon = data.pokemon.find(m => m.slug === row.id);
+    const row = group.base || group.forms[0], mon = data.pokemon.find(m => m.slug === row.id) || sourcePortrait(row.id);
     return `<div class="meta-teammate">${portrait(mon, row.name)}<div><span class="meta-teammate-name">${esc(row.name)}</span>${group.forms.length && group.base ? `<small title="Overlapping base/Mega rows; never added together">${group.forms.map(f => `${esc(f.name)} ${f.percent}%`).join(" · ")}</small>` : ""}</div><b>${row.percent}%</b></div>`;
   }).join("") || '<p class="meta-empty">No teammate sample captured.</p>'}</div>${groups.length > count ? `<button class="meta-text-button meta-more" data-meta-more="teammates" data-meta-next="${count + 6}">Show more teammates <span>${count} / ${groups.length}</span></button>` : ""}</section>`;
 }
 
 const setMon = (set, data) => data.pokemon.find(m => m.slug === set.form);
+const setPortrait = (set, data) => setMon(set, data) || sourcePortrait(set.form);
 const setName = (set, data) => { const mon = setMon(set, data); return mon ? displayName(mon) : set.sourceNames?.pokemon || set.form; };
-const record = team => team.record?.wins != null ? `${team.record.wins}–${team.record.losses}${team.record.ties ? `–${team.record.ties}` : ""}` : null;
+const record = team => [team.record?.wins, team.record?.losses].every(n => Number.isInteger(n) && n >= 0) ? `${team.record.wins}–${team.record.losses}${team.record.ties ? `–${team.record.ties}` : ""}` : null;
 
 function teamLineup(team, data, interactive = false) {
   return `<div class="meta-lineup${interactive ? " interactive" : ""}" aria-label="Six Pokémon">${team.members.map((set, index) => {
-    const name = setName(set, data), content = `${portrait(setMon(set, data), name)}<span>${esc(name)}</span>`;
+    const name = setName(set, data), content = `${portrait(setPortrait(set, data), name)}<span>${esc(name)}</span>`;
     return interactive ? `<button class="meta-lineup-slot" data-meta-set-target="${index}" aria-label="View ${esc(name)} set">${content}</button>` : `<div class="meta-lineup-slot" title="${esc(name)}">${content}</div>`;
   }).join("")}</div>`;
 }
 
 function teamCard(team, data) {
-  return `<article class="meta-team-card" data-team-card="${esc(team.id)}"><div class="meta-team-card-head"><span class="meta-placement">${team.placement ? `#${esc(team.placement)}` : "Featured"}</span><div><b>${esc(team.player || "Community team")}</b><small>${esc(team.event || team.title)}</small></div></div>${teamLineup(team, data)}<div class="meta-team-card-foot"><span>${prettyDate(team.date)}${record(team) ? ` <b>${record(team)}</b>` : ""}</span><button class="btn-sm" data-meta-open-team="${esc(team.id)}" aria-label="Open ${esc(team.title)}">Open ↗</button></div></article>`;
+  const placement = team.kind === "featured" ? "Featured" : team.placement ? `#${esc(team.placement)}` : "—";
+  return `<article class="meta-team-card" data-team-card="${esc(team.id)}"><div class="meta-team-card-head"><span class="meta-placement"${placement === "—" ? ' title="Placement not supplied" aria-label="Placement not supplied"' : ""}>${placement}</span><div><b>${esc(team.player || (team.kind === "featured" ? "Author not supplied" : "Player not supplied"))}</b><small>${esc(team.event || team.title || "Event not supplied")}</small></div></div>${teamLineup(team, data)}<div class="meta-team-card-foot"><span>${prettyDate(team.date)}<b class="meta-team-record${record(team) ? "" : " missing"}">${record(team) ? `${record(team)} record` : "Record not supplied"}</b></span><button class="btn-sm" data-meta-open-team="${esc(team.id)}" aria-label="Open ${esc(team.title)}">Open ↗</button></div></article>`;
 }
 
 // Filter PRESENTATION only: missing disclosure stays in the import model unchanged.
 export function presentImportNotes(mapping) {
+  const notes = mapping.warnings.filter(w => !w.includes("Stat Points undisclosed; no exact spread was imported."));
   return {
     undisclosed: mapping.warnings.filter(w => w.includes("Stat Points undisclosed; no exact spread was imported.")).length,
-    notes: mapping.warnings.filter(w => !w.includes("Stat Points undisclosed; no exact spread was imported.")),
+    notes,
+    // A pre-Mega ability note describes supported behavior. Other non-disclosure
+    // warnings (for example unconfirmed source moves) need visible review.
+    issues: notes.filter(w => !w.includes("retained pre-Mega ")),
   };
 }
 
 export function renderPublishedTeam(team, data) {
-  const mapping = mapTournamentTeam(team, data), { undisclosed, notes } = presentImportNotes(mapping);
+  const mapping = mapTournamentTeam(team, data), { notes, issues } = presentImportNotes(mapping);
+  const undisclosed = team.members.filter(set => !set.statsKnown).length;
+  const informationalNotes = notes.filter(note => !issues.includes(note));
   const moveIds = new Map(Object.entries(data.moves).map(([id, m]) => [canonicalSlug(m.name), id]));
   return `<div class="meta-team-focus" data-meta-team-view="${esc(team.id)}"><button class="meta-text-button meta-back" data-meta-team-back>← Back to teams</button>
     <div class="meta-focus-heading"><div><span class="meta-eyebrow">${team.kind === "featured" ? "Featured team" : "Tournament team"} · ${esc(team.regulation)}</span><h3 id="published-team-title" tabindex="-1">${esc(team.event || team.title)}</h3><p>${team.placement ? `<b>#${esc(team.placement)}</b> · ` : ""}${esc(team.player || "Author not supplied")} · ${prettyDate(team.date)}${record(team) ? ` · <b>${record(team)}</b> record` : ""}</p></div><a class="meta-source-link" href="${safeUrl(team.publishedSource || team.source)}" target="_blank" rel="noopener noreferrer">Team source ↗</a></div>
     <div class="meta-team-actions"><button class="btn accent" data-meta-import="${esc(team.id)}" ${mapping.errors.length ? "disabled" : ""}>Open in Team Builder</button><button class="btn" data-meta-opponent="${esc(team.id)}" ${mapping.errors.length ? "disabled" : ""}>Use as opponents in Damage</button></div>
     ${teamLineup(team, data, true)}
     ${mapping.errors.length ? `<div class="meta-import-problems" role="alert"><b>Resolve before importing</b><ul>${mapping.errors.map(error => `<li>${esc(error)}</li>`).join("")}</ul></div>` : ""}
-    ${notes.length ? `<div class="meta-import-notes"><span>Set / import notes</span>${help("team-mapping-help", "Set / import notes", notes.join(" "))}</div>` : ""}
+    ${issues.length ? `<div class="meta-import-problems meta-import-warnings" role="status"><b>Source set warnings</b><ul>${issues.map(note => `<li>${esc(note)}</li>`).join("")}</ul></div>` : ""}
+    ${informationalNotes.length ? `<div class="meta-import-notes"><span>Set / import notes</span>${help("team-mapping-help", "Set / import notes", informationalNotes.join(" "))}</div>` : ""}
     <div class="meta-set-heading"><h3>The six sets</h3><span>${undisclosed ? `${undisclosed}/6 spreads unavailable` : "All six spreads disclosed"}</span>${help("team-disclosure-help", "Set disclosure", "Only disclosed source values are shown or imported. A zero placeholder row is not a disclosed spread. Missing Stat Points stay unknown; no Nature or investment is inferred. A recorded pre-Mega ability is retained as source evidence while the existing importer uses the appropriate battle-form ability.")}</div>
     <div class="meta-set-grid">${team.members.map((set, index) => {
-      const mon = setMon(set, data), name = setName(set, data);
-      return `<article class="meta-set-card" id="published-set-${index}" tabindex="-1"><div class="meta-set-identity">${portrait(mon, name, true)}<div><small>Slot ${index + 1}</small><h4>${esc(name)}</h4><span class="meta-set-nature" title="${esc(natureLabel(set.nature))}">${esc(natureName(set.nature))} ${set.nature ? "nature" : "Nature"}</span></div></div><dl class="meta-set-facts"><div><dt>Item</dt><dd>${esc(Object.hasOwn(ITEMS, set.item) ? itemLabel(set.item) : set.sourceNames?.item || set.item || "Unavailable")}</dd></div><div><dt>Ability</dt><dd>${esc(data.abilities[set.ability]?.name || set.sourceNames?.ability || set.ability || "Unavailable")}</dd></div></dl>
+      const mon = setPortrait(set, data), name = setName(set, data);
+      return `<article class="meta-set-card" id="published-set-${index}" tabindex="-1"><div class="meta-set-identity">${portrait(mon, name, true)}<div><small>Slot ${index + 1}${mon?.sourceOnly ? ' · source portrait only' : ''}</small><h4>${esc(name)}</h4><span class="meta-set-nature" title="${esc(natureLabel(set.nature))}">${esc(natureName(set.nature))} ${set.nature ? "nature" : "Nature"}</span></div></div><dl class="meta-set-facts"><div><dt>Item</dt><dd>${esc(Object.hasOwn(ITEMS, set.item) ? itemLabel(set.item) : set.sourceNames?.item || set.item || "Unavailable")}</dd></div><div><dt>Ability</dt><dd>${esc(data.abilities[set.ability]?.name || set.sourceNames?.ability || set.ability || "Unavailable")}</dd></div></dl>
         ${set.statsKnown ? statPoints(set.stats) : '<div class="meta-spread-missing">Spread unavailable</div>'}
         <div class="meta-set-moves">${set.moves.map(slug => { const id = moveIds.get(slug), move = data.moves[id]; return `<${move ? `button data-move-info="${id}"` : "span"} class="meta-set-move"${move?.type ? ` style="--move-type:${TYPE_COLORS[move.type]}"` : ""}>${esc(move?.name || slug.replace(/-/g, " "))}</${move ? "button" : "span"}>`; }).join("") || '<span class="muted">Moves unavailable</span>'}</div></article>`;
     }).join("")}</div></div>`;
 }
 
 function renderTeams(mon, data, limits, options) {
-  if (!data.tournamentTeams) return `<div class="meta-empty" role="status">${esc(data.tournamentTeamsError || "Loading published team records…")}${data.tournamentTeamsError ? '<button class="btn-sm" data-meta-retry>Try again</button>' : ""}</div>`;
+  const back = '<button class="meta-text-button meta-back" data-meta-dashboard>← Back to Meta dashboard</button>';
+  if (!data.tournamentTeams) return `${back}<div class="meta-empty" role="status">${esc(data.tournamentTeamsError || "Loading published team records…")}${data.tournamentTeamsError ? '<button class="btn-sm" data-meta-retry>Try again</button>' : ""}</div>`;
   const teams = teamsForPokemon(data, mon), focused = teams.find(t => t.id === options.teamId);
   if (focused) return renderPublishedTeam(focused, data);
   const counts = Object.fromEntries(["tournament", "featured"].map(kind => [kind, teams.filter(t => t.kind === kind).length]));
   const kind = options.teamKind || (counts.tournament ? "tournament" : "featured"), list = teams.filter(t => t.kind === kind), count = limits[kind] || 6;
-  return `<section class="meta-team-browser"><div class="meta-section-head"><div><h3>Real teams. At a glance.</h3><p>Published ${esc(displayName(mon))} teams · ${teams.length} captured</p></div></div>
+  return `<section class="meta-team-browser">${back}<div class="meta-section-head"><div><h3 id="meta-teams-title" tabindex="-1">Real teams. At a glance.</h3><p>Published ${esc(displayName(mon))} teams · ${teams.length} captured</p></div></div>
     <div class="meta-team-filters" aria-label="Team category">${["tournament", "featured"].map(k => `<button data-meta-team-kind="${k}" aria-pressed="${kind === k}">${k === "tournament" ? "Tournament" : "Featured"}<span>${counts[k]}</span></button>`).join("")}</div>
     <div class="meta-team-grid">${list.slice(0, count).map(team => teamCard(team, data)).join("") || '<p class="meta-empty">No teams captured in this category.</p>'}</div>
     ${list.length > count ? `<button class="btn-sm meta-more" data-meta-more="${kind}" data-meta-next="${count + 6}">Show more teams <span>${count} / ${list.length}</span></button>` : ""}
@@ -146,6 +159,6 @@ export function renderMetaUsage(mon, data, limits = {}, options = {}) {
   let content;
   if (view === "teams") content = renderTeams(mon, data, limits, options);
   else if (view === "builds") content = renderBuilds(entry, limits, false);
-  else content = `${renderBuilds(entry, limits, true)}<div class="meta-category-grid">${category("natures", "Overall Nature", dataset.denominators.natures + " Separate from captured Nature evidence for each exact build.", entry, data, limits)}${category("abilities", "Ability usage", dataset.denominators.abilities, entry, data, limits)}${category("items", "Item usage", "Recorded held-item share, separate from item mechanics and local availability.", entry, data, limits)}${category("moves", "Move share", dataset.denominators.moves, entry, data, limits)}</div>${renderTeammates(entry, data, limits, dataset)}`;
+  else content = `<div class="meta-dashboard-actions"><h3>Usage at a glance</h3><button class="btn-sm accent" data-meta-browse-teams>Browse real teams <span>${entry.teamIds?.length || 0} captured</span></button></div><div class="meta-category-grid">${category("natures", "Overall Nature", dataset.denominators.natures + " Separate from captured Nature evidence for each exact build.", entry, data, limits)}${category("abilities", "Ability usage", dataset.denominators.abilities, entry, data, limits)}${category("items", "Item usage", "Recorded held-item share, separate from item mechanics and local availability.", entry, data, limits)}${category("moves", "Move share", dataset.denominators.moves, entry, data, limits)}</div><div class="meta-dashboard-lower">${renderBuilds(entry, limits, true)}${renderTeammates(entry, data, limits, dataset)}</div>`;
   return `<section class="detail-usage">${header}${content}</section>`;
 }

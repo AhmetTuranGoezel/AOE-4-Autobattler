@@ -44,6 +44,7 @@ async function seedRoom(room, mode, order = room.profiles, options = {}) {
     const options = ${JSON.stringify(options)};
     if (options.stack) { st.tileStack = options.stack.slice(); st.tileDeck = st.tileStack.slice(); }
     st.gameId = previous.gameId; st.revision = previous.revision;
+    st.recoveryGeneration = previous.recoveryGeneration || 0;
     UI.debugSetState(st);
     return await UI.dispatch({type:'HOST_EDIT_HEX',payload:{hexKey:'0,0',changes:{terrain:st.map.hexes['0,0'].terrain}}});
   })()`);

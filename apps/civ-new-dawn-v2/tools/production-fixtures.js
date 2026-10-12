@@ -61,7 +61,14 @@ function cultureBoard(Game, st, id) {
   p.cardTiers.culture=1;p.cardLevels.culture=1;
   p.focusRow=["growth","economy","science","military","industry","culture"];
   Game.FOCUS_TYPES.forEach(t=>p.trade[t]=0);
-  Object.values(st.map.hexes).forEach(h=>Object.assign(h,{active:false,city:null,control:null,barbarian:false,cityState:null,fortress:false,naturalWonder:null,resource:null,terrain:"grass"}));
+  // This is a small synthetic rules board, not a partially deleted physical
+  // layout. Do not retain placed-tile metadata from the preceding real game.
+  Object.values(st.tiles).forEach(t=>{t.placed=false;t.ownerId=null;});
+  Object.values(st.map.hexes).forEach(h=>Object.assign(h,{active:false,tileId:null,city:null,control:null,barbarian:false,cityState:null,fortress:false,naturalWonder:null,resource:null,terrain:"grass"}));
+  st.players.forEach((other,i)=>{
+    [...other.armies,...other.caravans].forEach(u=>{u.position=null;});
+    if(other.id!==id)Object.assign(st.map.hexes[`${i*3-6},5`],{active:true,city:{ownerId:other.id,isCapital:true,developed:false}});
+  });
   Object.assign(st.map.hexes["0,0"],{active:true,city:{ownerId:id,isCapital:true,developed:false}});
   for (const k of ["1,0","0,1","-1,1"])Object.assign(st.map.hexes[k],{active:true,terrain:"mountain"});
   return st;

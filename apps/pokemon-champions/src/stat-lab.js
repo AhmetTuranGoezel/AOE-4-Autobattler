@@ -17,6 +17,18 @@ const SCALE = 255;        // bar scale (a maxed Lv50 stat stays under 100%)
 export const emptySpread = () => ({ hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 });
 const used = (spread) => STAT_KEYS.reduce((s, k) => s + (spread[k] || 0), 0);
 export const pointsUsed = used;
+// Shared presentation of an ordinary Lv50 build, before battle/item/stage effects.
+export function statValues(mon, spread = emptySpread(), nature = null) {
+  const lv = statsFor(mon, "lv50");
+  return Object.fromEntries(STAT_KEYS.map(k => [k, Math.floor((lv[k] + (spread?.[k] || 0)) * natureMultiplier(nature, k))]));
+}
+export function renderStatSummary(mon, spread = emptySpread(), nature = null, { compact = false } = {}) {
+  const values = statValues(mon, spread, nature);
+  return `<div class="stat-summary${compact ? " compact" : ""}" aria-label="Calculated Level 50 stats">
+    ${compact ? "" : '<div class="stat-summary-head"><span>Stat</span><span></span><span>Base</span><span>Lv50</span></div>'}
+    ${STAT_KEYS.map(k => `<div class="stat-summary-row" data-stat-row="${k}"><span>${STAT_LABELS[k]}</span>${compact ? "" : `<span class="stat-summary-bar"><i style="width:${Math.min(100, values[k] / 255 * 100)}%;background:${statColor(values[k], 255)}"></i></span><span class="stat-summary-base">${mon.stats[k]}</span>`}<b data-stat-current="${k}">${values[k]}</b></div>`).join("")}
+  </div>`;
+}
 const sep = (x) => Math.round(x).toLocaleString("en-US");
 const fmtDelta = (value, base) => { const d = Math.round(value - base); return d > 0 ? `+${sep(d)}` : ""; };
 const barPct = (v) => Math.max(0, Math.min(100, (v / SCALE) * 100));
@@ -115,8 +127,7 @@ export function renderStatRows(mon, spread, nature = null) {
       <span class="pt-pool-bar"><i style="width:${(u / POOL) * 100}%"></i></span>
     </div>
     <div class="pt-rows">${rows}</div>
-    ${metaNote}
-    <ul class="why">${reasons}</ul>
+    <details class="lab-source-notes"><summary>Per-stat source &amp; ranking notes</summary>${metaNote}<ul class="why">${reasons}</ul></details>
     <div class="lab-actions">
       <span class="lab-opt-lab" title="Optimizes HP/Def/SpD for the chosen bulk; keeps your Atk/SpA/Speed points">Best spread for eHP</span>
       <div class="seg lab-opt">
@@ -136,6 +147,17 @@ export function tickStatLab(root, mon, spread, nature = null) {
   const v = ehpValues(mon, spread, nature);
   const lv = statsFor(mon, "lv50");
   const u = used(spread);
+  const values = statValues(mon, spread, nature);
+  root.querySelectorAll('[data-stat-current]').forEach(el => {
+    el.textContent = values[el.dataset.statCurrent];
+    const bar = el.closest('.stat-summary-row')?.querySelector('.stat-summary-bar i');
+    if (bar) {
+      bar.style.width = `${Math.min(100, values[el.dataset.statCurrent] / 255 * 100)}%`;
+      bar.style.background = statColor(values[el.dataset.statCurrent], 255);
+    }
+  });
+  root.querySelectorAll('[data-build-points]').forEach(el => { el.textContent = `${u}/66 points`; });
+  root.querySelectorAll('[data-build-nature]').forEach(el => { el.textContent = nature ? `${nature[0].toUpperCase()}${nature.slice(1)} Nature` : 'Neutral Nature'; });
   const card = (cls, value, base) => {
     const c = root.querySelector(`.ehp-card.${cls}`);
     if (!c) return;

@@ -165,7 +165,7 @@ if(require.main===module)(async()=>{
       R.ok(`${fault} never applies an action twice`,await host.eval(`UI.debugState().revision===${base+1}`));
     }
     // Hover the real printed Grand Mesa terrain data at actual map coordinates.
-    await host.eval(`(()=>{const s=UI.debugState();Game.placeExploredTile(s,'11','0,0',0,'A');UI.debugSetState(s);})()`);
+    await host.eval(`(()=>{const s=UI.debugState();s.map.hexes['0,6'].active=true;s.map.hexes['0,6'].city=s.map.hexes['0,0'].city;s.map.hexes['0,0'].city=null;Game.placeExploredTile(s,'11','0,0',0,'A');UI.debugSetState(s);})()`);
     await action(table,host,"HOST_EDIT_HEX",{hexKey:"0,0",changes:{terrain:"hill"}});
     for(const cell of [7,9]) {
       const k=await host.eval(`Game.getTileHexKeys('0,0',0,UI.debugState().map.hexes)[${cell}]`);

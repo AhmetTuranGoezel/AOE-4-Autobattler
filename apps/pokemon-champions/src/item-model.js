@@ -161,5 +161,5 @@ export function itemSelect(attrs, value = "none", mon = null, ability = null, { 
     groups.get(it.group).push(`<option value="${key}" ${key === id ? "selected" : ""}>${esc(it.label)}</option>`);
   }
   const note = ITEMS[id].note + (ability === "klutz" && id !== "none" ? " Klutz: item effect is suppressed." : "");
-  return `<div class="item-picker"><select class="cl-sel" aria-label="Held item" ${attrs}>${[...groups].map(([g, opts]) => `<optgroup label="${esc(g)}">${opts.join("")}</optgroup>`).join("")}</select><small class="item-note">${esc(note)}</small></div>`;
+  return `<div class="item-picker"><select class="cl-sel" aria-label="Held item" ${attrs}>${[...groups].map(([g, opts]) => `<optgroup label="${esc(g)}">${opts.join("")}</optgroup>`).join("")}</select><details class="item-help"><summary aria-label="About ${esc(ITEMS[id].label)}" title="${esc(note)}">i</summary><small class="item-note">${esc(note)}</small></details></div>`;
 }

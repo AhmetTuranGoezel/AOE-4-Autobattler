@@ -20,6 +20,9 @@
 }
 
 /* MULTIPLAYER DURABILITY --------------------------------------------------- */
+#integrity-panel { position: absolute; z-index: 250; top: 65px; left: 50%; transform: translateX(-50%); width: min(620px, calc(100% - 24px)); max-height: calc(100dvh - 100px); overflow: auto; padding: 20px; border: 2px solid var(--warn); border-radius: 10px; background: var(--surface); box-shadow: 0 12px 50px #000b; }
+#integrity-panel small { display: block; color: var(--text2); }
+.integrity-blocked #focus-bar, .integrity-blocked #board-chip, .integrity-blocked #combat-stage { visibility: hidden; }
 .net-status {
   display: inline-flex; align-items: center; gap: 6px;
   min-width: max-content; padding: 4px 9px; border-radius: 999px;

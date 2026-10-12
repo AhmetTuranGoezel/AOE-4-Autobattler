@@ -47,6 +47,9 @@ function scope(over) {
     kickedTo: [],
     CivSessionStore: { saveCheckpoint: async (rec) => { s.savedLocally.push(rec); },saveHistory:async()=>{},saveTurnStart:async()=>{},saveCredentials:async()=>{} },
     showToast:()=>{},
+    // Structural validation has its own real-state/browser suites. These
+    // deliberately minimal persistence fixtures exercise the transaction body.
+    checkStateIntegrity:()=>[],clearIntegrityProblem:()=>{},
     updateNetworkChrome: () => {},
     rememberProcessed: (ids) => { s.processedActionIds = ids; },
     recoverAuthoritativeState: async () => ({ committed: false }),

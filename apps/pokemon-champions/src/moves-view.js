@@ -425,7 +425,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
         <button data-cat="status">Status</button>
       </div>
       <button class="btn-sm mv-cmv-btn" title="Invent a move to theorize — pinned on top of the table and computed for every loaded Pokémon as if all could learn it">＋ custom move</button>
-      <button class="btn mv-filter-btn" title="Mechanical flags (Sound, Contact, …); on phones also the type & finder rows">☰ Flags</button>
+      <button class="btn mv-filter-btn" aria-expanded="false" title="Types, target groups, effects, chances and mechanical flags">☰ Move filters</button>
       <!-- Owners cluster: add a Pokémon → its chips → owned-by-any/all, kept together -->
       <div class="mv-owners">
         <div class="ac-wrap mv-mon-wrap"><input class="search mv-mon" placeholder="Add Pokémon owners…" autocomplete="off"></div>
@@ -484,8 +484,9 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
           <button data-mvrcat="physical">Phys</button>
           <button data-mvrcat="special">Spec</button>
         </div>
-        <div class="type-chips mvr-types">${TYPES.map((t) =>
-          `<button class="type-chip" data-mvrtype="${t}"><span class="type" style="background:${TYPE_COLORS[t]}">${t}</span></button>`).join("")}</div>
+        <details class="mvr-type-picker"><summary>Move type: <b data-rank-type>Any</b></summary><div class="type-chips mvr-types">${TYPES.map((t) =>
+          `<button class="type-chip" data-mvrtype="${t}"><span class="type" style="background:${TYPE_COLORS[t]}">${t}</span></button>`).join("")}</div></details>
+        <details class="mvr-rule-tools"><summary>Move exclusions <span data-rank-rule-count></span></summary>
         <div class="mvr-exclrow">
           <div class="ac-wrap mvr-acwrap"><input class="search mvr-excl-input" placeholder="Globally ban a move (saved)…" autocomplete="off" title="Remove a move from every archetype best-move pick. You can allow it back for individual Pokémon."></div>
           <div class="mvr-exchips"></div>
@@ -494,10 +495,11 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
           <small class="muted mvr-monexlabel">Allowed despite global ban:</small>
           <div class="mvr-monallowchips"></div>
         </div>
-        <div class="mvr-monexrow" hidden>
+      <div class="mvr-monexrow" hidden>
           <small class="muted mvr-monexlabel">Banned per Pokémon:</small>
           <div class="mvr-monexchips"></div>
         </div>
+        </details>
       </div>
       <div class="mvr-preset"></div>
       <div class="mvr-opts">
@@ -513,13 +515,18 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
           <span class="mv-cfg-num"><input type="number" class="mvr-ts" value="100" min="1" max="400" step="1" inputmode="numeric"> Spe</span>
         </span>
       </div>
-      <div class="mvr-abilrow">
+      <p class="mvr-active-rules" hidden></p>
+      <details class="mvr-ability-tools"><summary>Ignored abilities <span data-ignored-count></span></summary><div class="mvr-abilrow">
         <div class="ac-wrap mvr-acwrap"><input class="search mvr-abil-input" placeholder="Ignore an ability (saved)…" autocomplete="off" title="Treat an ability as inactive for EVERY ranked Pokémon — e.g. Torrent/Overgrow rarely trigger. Saved list."></div>
         <div class="mvr-abchips"></div>
-      </div>
+      </div></details>
     </div>`;
 
   const $ = (s) => toolbarEl.querySelector(s);
+  // Subject/build controls precede shared conditions in either mode. Moving
+  // existing nodes preserves the attached inputs and each mode's state.
+  toolbarEl.insertBefore($(".mv-rank-ctls"), $(".mv-expctl"));
+  toolbarEl.append($(".mv-count"));
 
   function updateMonUI() {
     const n = state.mons.length;
@@ -528,10 +535,10 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
     if (state.cfgOpen && !state.mons.some((m) => m.slug === state.cfgOpen)) state.cfgOpen = null;
     $(".mv-mon-chips").innerHTML = state.mons.map((m) => {
       // ⚙ opens the customize popover; a tiny badge summarizes any non-default setup
-      const c = m.cfg, parts = cfgBadgeParts(m);
+      const c = m.cfg, parts = currentCfgParts(m);
       if (c.tw !== 70) parts.push(`tgt ${c.tw}kg`);
       if (c.ts !== 100) parts.push(`tgt ${c.ts} Spe`);
-      const badge = parts.length ? `<small class="mon-cfg-badge">${parts.join(" · ")}</small>` : "";
+      const badge = `<small class="mon-cfg-badge">${parts.join(" · ")}</small><small class="mv-current-stats">${currentStats(m)}</small>`;
       return `<span class="mon-chip ${state.focus === m.slug ? "focus" : ""}" data-focus-mon="${m.slug}" ${n >= 2 ? `title="${state.focus === m.slug ? "Unfocus" : `Focus — group the table around ${m.name}'s moves`}"` : ""}><img src="${m.sprite}" alt="">${m.name}${badge}<button class="mon-cfg ${state.cfgOpen === m.slug ? "on" : ""}" data-mon-cfg="${m.slug}" title="Customize ${m.name} — stats, boosts, item, ability">⚙</button><button data-rm-mon="${m.slug}" aria-label="Remove ${m.name}">✕</button></span>`;
     }).join("");
     renderCfgPop();
@@ -645,7 +652,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
     const m = state.cfgOpen && state.mons.find((x) => x.slug === state.cfgOpen);
     if (!m) { el.innerHTML = ""; return; }
     el.innerHTML = `<div class="mv-cfg-pop">
-      <div class="mv-cfg-head"><img src="${m.sprite}" alt=""><b>${m.name}</b><small class="muted">@50 — Atk ${m.lvAtk} · Sp.A ${m.lvSpa} · Def ${m.lvDef} · Spe ${m.lvSpe}${m.weight ? ` · ${m.weight} kg` : ""}</small><button class="tc-detail-x" data-cfg-close aria-label="Close">✕</button></div>
+      <div class="mv-cfg-head"><img src="${m.sprite}" alt=""><b>${m.name}</b><small class="muted">${currentStats(m)}${m.weight ? ` · ${m.weight} kg` : ""}</small><button class="tc-detail-x" data-cfg-close aria-label="Close">✕</button></div>
       ${cfgEditorBody(m, { assume: true })}
     </div>`;
   }
@@ -653,6 +660,20 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
   // ability prepended, the whole thing (browse chips). Split so rank rows can hide the stat half when
   // it just mirrors the global preset.
   const STAT_ABBR = { atk: "Atk", spa: "SpA", def: "Def", spe: "Spe" };
+  // Use the same effective-stat calculation as results. Auto is move-dependent,
+  // so its baseline numbers are labelled rather than pretending it is a Nature.
+  function currentStats(e, ranked = false) {
+    const effective = ranked && state.rq.ignoredAbils.has(e.ability) ? { ...e, ability: null } : e;
+    return `Lv50${e.cfg.nature === "auto" ? " baseline (Auto depends on move)" : " effective"} · ${Object.entries(STAT_ABBR).map(([k, label]) => `${label} ${effStatOf(effective, k)}`).join(" · ")}`;
+  }
+  function currentCfgParts(e, ranked = false) {
+    const c = e.cfg;
+    return [e.ability ? `${abilName(e.ability)}${ranked && state.rq.ignoredAbils.has(e.ability) ? " (ignored)" : ""}` : "No ability", itemLabel(c.item || "none"),
+      c.nature === "auto" ? "Auto +10% (move-dependent)" : c.nature ? `${STAT_ABBR[c.nature]} +10% assumption` : "Neutral Nature",
+      `${pointsUsed(c.spread)}/${POOL} points`,
+      ...Object.entries(c.stages).filter(([, v]) => v).map(([k, v]) => `${v > 0 ? "+" : ""}${v} ${STAT_ABBR[k]}`),
+      Object.values(c.stages).some(Boolean) ? "" : "Stages 0"].filter(Boolean);
+  }
   function cfgStatParts(e) {
     const c = e.cfg, parts = [];
     ["atk", "spa", "def", "spe"].forEach((k) => { if (c.spread[k]) parts.push(`${c.spread[k]} ${STAT_ABBR[k]}`); });   // per-stat points (which stat matters)
@@ -819,7 +840,15 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
     toolbarEl.querySelectorAll("[data-mvrtype]").forEach((b) => b.classList.toggle("on", b.dataset.mvrtype === q.type));
     toolbarEl.querySelectorAll("[data-mvrmega]").forEach((b) => b.classList.toggle("active", b.dataset.mvrmega === q.mega));
     // global build — a collapsible full cfg editor (reuses the same controls as the per-mon ⚙)
-    const sum = presetActive() ? cfgStatParts({ cfg: q.preset }).join(" · ") : "none — every Pokémon at base Lv50";
+    $("[data-rank-type]").textContent = q.type || "Any";
+    $("[data-ignored-count]").textContent = q.ignoredAbils.size ? `(${q.ignoredAbils.size})` : "";
+    $("[data-rank-rule-count]").textContent = q.excluded.size + monBanChips.length ? `(${q.excluded.size} global · ${monBanChips.length} individual)` : "";
+    const rules = [q.excluded.size ? `Global bans: ${[...q.excluded].map(id => moveById.get(id)?.name).filter(Boolean).join(", ")}` : "",
+      q.ignoredAbils.size ? `Ignored abilities: ${[...q.ignoredAbils].map(abilName).join(", ")}` : "",
+      monBanChips.length ? `${monBanChips.length} individual move bans` : "", monAllowChips.length ? `${monAllowChips.length} individual exceptions` : ""].filter(Boolean);
+    $(".mvr-active-rules").hidden = !rules.length;
+    $(".mvr-active-rules").textContent = rules.join(" · ");
+    const sum = [q.preset.nature === "auto" ? "Auto +10% (move-dependent)" : q.preset.nature ? `${STAT_ABBR[q.preset.nature]} +10% assumption` : "Neutral Nature", itemLabel(q.preset.item || "none"), `${pointsUsed(q.preset.spread)}/${POOL} points`, ...Object.entries(q.preset.stages).filter(([, v]) => v).map(([k, v]) => `${v > 0 ? "+" : ""}${v} ${STAT_ABBR[k]}`)].join(" · ");
     $(".mvr-preset").innerHTML = `
       <button class="mvr-preset-toggle ${q.presetOpen ? "open" : ""} ${presetActive() ? "has" : ""}" data-preset-toggle title="A build applied to every Pokémon you haven't individually customized">
         🛠 Everyone runs <b>${sum}</b> <span class="mvr-preset-caret">${q.presetOpen ? "▾" : "▸"}</span></button>
@@ -863,7 +892,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
     return `<div class="mvr-panel" data-cfg-slug="${e.slug}">
       <div class="mvr-panel-head">
         <img src="${e.sprite}" alt=""><b>${e.name}</b>
-        <small class="muted">@50 — Atk ${e.lvAtk} · Sp.A ${e.lvSpa} · Def ${e.lvDef} · Spe ${e.lvSpe}${e.weight ? ` · ${e.weight} kg` : ""}</small>
+        <small class="muted">${currentStats(e, true)} · ${currentCfgParts(e, true).join(" · ")}${e.weight ? ` · ${e.weight} kg` : ""}</small>
         <button class="btn-sm mvr-openfull" data-mon-open="${e.slug}" title="Open ${e.name}'s full detail page">↗ Open details</button>
         <button class="tc-detail-x" data-cfg-close aria-label="Close">✕</button>
       </div>
@@ -911,7 +940,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
       ? `Global build: <b>${cfgStatParts({ cfg: q.preset }).join(" · ")}</b> on every Pokémon (individually-customized ✎ ones keep their own).`
       : `Base Lv50 stats — set a global build above (<b>Everyone runs</b>) so stat-multiplying abilities and Body-Press/weight setups rank realistically.`;
     contentEl.innerHTML = `
-      <p class="mvr-note">${presetNote} Click a <b>Pokémon</b> (or <b>⚙</b>) to see every move and customize it${m ? "" : ". Globally ban unrealistic moves with <b>✕</b>, then use <b>+ allow for this Pokémon</b> inside that Pokémon's expanded move details; <b>🚫</b> bans only that Pokémon"}${state.useAcc ? "" : "; accuracy is ignored (potential damage)"}.</p>
+      <details class="mvr-note"><summary>Ranking method &amp; per-Pokémon overrides</summary>${presetNote} Use <b>⚙</b> for moves and editing; click a Pokémon for its full details. Global bans can be allowed for individual Pokémon; <b>🚫</b> bans a move only for that Pokémon.${state.useAcc ? "" : " Accuracy is ignored (potential damage)."}</details>
       ${top.length ? `<div class="mvr-list">${top.map(rowHtml).join("")}</div>` : `<p class="ehp-empty">${m ? "No Pokémon learns this move under the current Mega/Available filters." : "No match — pick a move above, or a type/category."}</p>`}
       ${rows.length > 75 ? `<p class="ehp-more">Showing the top 75 of ${rows.length}.</p>` : ""}`;
   }
@@ -919,6 +948,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
     toolbarEl.querySelectorAll("[data-mvmode]").forEach((b) => b.classList.toggle("active", b.dataset.mvmode === state.mode));
     $(".mv-browse-ctls").hidden = state.mode !== "browse";
     $(".mv-rank-ctls").hidden = state.mode !== "rank";
+    $(".mv-assume").hidden = state.mode !== "browse";
     draw();
   }
   function rankMove(id) {
@@ -931,8 +961,8 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
   $(".mv-search").addEventListener("input", (e) => { state.search = e.target.value; draw(); });
   $(".mv-exp-best").addEventListener("change", (e) => { state.expBest = e.target.checked; draw(); });
   $(".mv-exp-acc").addEventListener("change", (e) => { state.useAcc = e.target.checked; draw(); });
-  $(".mv-weather").addEventListener("change", (e) => { state.weather = e.target.value; draw(); });
-  $(".mv-terrain").addEventListener("change", (e) => { state.terrain = e.target.value; draw(); });
+  $(".mv-weather").addEventListener("change", (e) => { state.weather = e.target.value; updateMonUI(); draw(); });
+  $(".mv-terrain").addEventListener("change", (e) => { state.terrain = e.target.value; updateMonUI(); draw(); });
   // global assumed-target: one weight/Speed for every loaded Pokémon (was buried in each mon's ⚙)
   const syncAssume = () => state.mons.forEach((m) => { m.cfg.tw = state.tw; m.cfg.ts = state.ts; });
   $(".mv-tw").addEventListener("input", (e) => { const v = parseFloat(e.target.value); state.tw = Number.isFinite(v) ? Math.min(999.9, Math.max(0.1, Math.round(v * 10) / 10)) : 70; syncAssume(); draw(); });
@@ -1080,11 +1110,11 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
     draw();
   }));
   $(".mv-reset").addEventListener("click", () => { state.sort = structuredClone(DEFAULT_SORT); draw(); });
-  // ☰ Flags reveals the mechanical-flag chip row (hidden by default; the type/finder rows also
-  // collapse behind it on phones)
+  // Reveal secondary move filters without hiding the selected subjects or results.
   $(".mv-filter-btn").addEventListener("click", () => {
     const open = toolbarEl.classList.toggle("mv-chips-open");
     $(".mv-filter-btn").classList.toggle("active", open);
+    $(".mv-filter-btn").setAttribute("aria-expanded", String(open));
   });
   toolbarEl.querySelectorAll(".mv-cat button").forEach((b) =>
     b.addEventListener("click", () => {
@@ -1241,6 +1271,8 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
 
   // Every control funnels through draw(); it renders whichever sub-view is active.
   function draw() {
+    const filterCount = Number(!!state.type) + state.flags.size + Number(!!state.tgroup) + state.facets.size + Number(!!state.chance);
+    $(".mv-filter-btn").textContent = `☰ Move filters${filterCount ? ` (${filterCount})` : ""}`;
     if (state.mode === "rank") drawRank(); else drawBrowse();
   }
   function drawBrowse() {
