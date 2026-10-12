@@ -734,6 +734,23 @@
       transform: translateY(0) scale(1);
     }
 
+    .swap-badge {
+      position: absolute;
+      top: 7px;
+      right: 7px;
+      z-index: 3;
+      border: 1px solid rgba(245, 197, 66, 0.55);
+      border-radius: 6px;
+      background: rgba(17, 18, 24, 0.88);
+      color: var(--gold);
+      padding: 7px;
+      font-size: 0.62rem;
+      font-weight: 900;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      pointer-events: none;
+    }
+
     .note-btn {
       top: 7px;
       left: 7px;
@@ -2442,6 +2459,48 @@
       alternatives.splice(0, alternatives.length, ...alternatives.filter((name) => name !== itemName));
     }
 
+    function canSwapLoadoutSlots(build, first, second) {
+      const validSlot = (slot) => slot && Number.isInteger(slot.index) && slot.index >= 0 && (
+        (['specialization', 'mainWeapon'].includes(slot.area) && slot.index === 0) ||
+        (slot.area === 'mainGadget' && slot.index < build.mainGadgets.length) ||
+        (slot.area === 'reserve' && slot.index < build.reserve.length)
+      );
+      if (!validSlot(first) || !validSlot(second) || (first.area === second.area && first.index === second.index)) {
+        return false;
+      }
+
+      const pools = getClassPools(getClassKeyFromLabel(build.className));
+      const allowed = {
+        specialization: pools.specializations,
+        mainWeapon: pools.weapons,
+        mainGadget: pools.allGadgets,
+        reserve: pools.reserve
+      };
+      const fits = (source, destination) => {
+        const names = [getPrimaryValue(build, source.area, source.index),
+          ...getAlternativeList(build, source.area, source.index)].filter(Boolean);
+        return names.every((name) => allowed[destination.area].some((item) => item.name === name));
+      };
+      return fits(first, second) && fits(second, first);
+    }
+
+    function swapLoadoutSlots(build, first, second) {
+      if (!canSwapLoadoutSlots(build, first, second)) return false;
+
+      // Snapshot both bundles before changing either primary or alternative list.
+      const firstPrimary = getPrimaryValue(build, first.area, first.index);
+      const secondPrimary = getPrimaryValue(build, second.area, second.index);
+      const firstAlternatives = [...getAlternativeList(build, first.area, first.index)];
+      const secondAlternatives = [...getAlternativeList(build, second.area, second.index)];
+      setPrimaryValue(build, first.area, secondPrimary, first.index);
+      setPrimaryValue(build, second.area, firstPrimary, second.index);
+      const firstList = getAlternativeList(build, first.area, first.index);
+      const secondList = getAlternativeList(build, second.area, second.index);
+      firstList.splice(0, firstList.length, ...secondAlternatives);
+      secondList.splice(0, secondList.length, ...firstAlternatives);
+      return true;
+    }
+
     function collectAllSelectedItemNames(build) {
       const names = [];
       if (build.specialization) {
@@ -4095,11 +4154,7 @@
       }
 
       const occupied = findSlotHoldingItem(state.currentBuild, itemName);
-      if (
-        occupied &&
-        occupied.area === state.activeSlot.area &&
-        occupied.index !== state.activeSlot.index
-      ) {
+      if (occupied && canSwapLoadoutSlots(state.currentBuild, state.activeSlot, occupied)) {
         return occupied;
       }
 
@@ -4124,9 +4179,15 @@
 
       const selected = getCurrentSlotValue() === itemName;
       const blocked = collectBlockingNames().has(itemName);
+      const swapSlot = getSwappableOccupiedSlot(itemName);
+      const occupied = findSlotHoldingItem(state.currentBuild, itemName);
       return {
         selected,
-        disabled: !selected && blocked && !getSwappableOccupiedSlot(itemName)
+        disabled: !selected && blocked && !swapSlot,
+        swapSlot,
+        title: !selected && blocked && !swapSlot
+          ? occupied ? 'Cannot swap: the item and its alternatives must fit both slots' : 'Already used as an alternative'
+          : ''
       };
     }
 
@@ -4174,11 +4235,14 @@
       `;
     }
 
-    function renderCard({ itemName, emptyLabel, type, selected = false, disabled = false, slotAttrs = '', order = 0, pulseKey = '', altTarget = null }) {
+    function renderCard({ itemName, emptyLabel, type, selected = false, disabled = false, slotAttrs = '', order = 0, pulseKey = '', altTarget = null, swapSlot = null, title = '' }) {
       const item = getItemByName(itemName);
       const cardName = item ? item.name : emptyLabel;
       const isPulse = pulseKey && pulseKey === state.pulseKey;
       const altControls = altTarget ? renderAltControls(altTarget) : '';
+      const swapLabel = swapSlot ? swapSlot.area === 'reserve' ? `Reserve ${swapSlot.index + 1}`
+        : swapSlot.area === 'mainGadget' ? `Gadget ${swapSlot.index + 1}` : 'Weapon' : '';
+      const cardTitle = swapSlot ? `Swap with ${swapLabel}, including alternatives` : title;
 
       return `
         <article
@@ -4187,12 +4251,15 @@
           role="button"
           tabindex="0"
           aria-disabled="${disabled ? 'true' : 'false'}"
+          aria-label="${escapeHtml(cardName)}${swapSlot ? `: ${escapeHtml(cardTitle)}` : ''}"
+          ${cardTitle ? `title="${escapeHtml(cardTitle)}"` : ''}
           ${slotAttrs}
         >
           <div class="card-visual">
             ${renderItemMedia(item)}
             ${renderNoteTool(itemName)}
             <span class="check-badge" aria-hidden="true">&#10003;</span>
+            ${swapSlot ? '<span class="swap-badge" aria-hidden="true">Swap</span>' : ''}
             ${altControls}
           </div>
           <div class="card-name"><span>${escapeHtml(cardName)}</span></div>
@@ -4239,6 +4306,8 @@
               emptyLabel: item.name,
               selected: itemState.selected,
               disabled: itemState.disabled,
+              swapSlot: itemState.swapSlot,
+              title: itemState.title,
               slotAttrs: `data-picker-item="${escapeHtml(item.name)}"`,
               order: index
             });
@@ -4492,17 +4561,16 @@
       const swappableSlot = getSwappableOccupiedSlot(itemName);
 
       if (swappableSlot) {
-        const currentValue = getPrimaryValue(state.currentBuild, slot.area, slot.index);
-        setPrimaryValue(state.currentBuild, slot.area, itemName, slot.index);
-        setPrimaryValue(state.currentBuild, swappableSlot.area, currentValue, swappableSlot.index);
+        if (!swapLoadoutSlots(state.currentBuild, slot, swappableSlot)) return;
         setPulse(slot.area === 'mainGadget' || slot.area === 'reserve' ? `${slot.area}-${slot.index}` : slot.area);
         state.activeSlot = null;
+        showToast('Swapped with alternatives');
         render();
         return;
       }
 
       if (itemState.disabled) {
-        showToast('Already used');
+        showToast(itemState.title || 'Already used');
         return;
       }
 
