@@ -2252,10 +2252,10 @@ tr.pin-end td { padding: 0; height: 8px; border-bottom: 2px solid color-mix(in s
 .tb-moves.mv-chips-open .mv-finder { display: grid; }
 .mv-hint { font-size: 10px; }
 .mv-expctl { padding: 8px 0; font-size: 11px; gap: 6px 12px; }
-.mon-chip { max-width: 100%; flex-wrap: wrap; }
+.mon-chip { max-width: 100%; min-width: 0; flex-wrap: nowrap; }
 .mon-cfg-badge, .mv-current-stats { color: #aaaab4; font-size: 10px; line-height: 1.4; }
-.mon-cfg-badge { max-width: none; white-space: normal; overflow: visible; }
-.mv-current-stats { flex-basis: 100%; margin-left: 30px; }
+.mon-cfg-badge { flex: 0 1 220px; min-width: 0; max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mv-current-stats { display: none; }
 .mvr-type-picker, .mvr-rule-tools, .mvr-ability-tools { font-size: 12px; color: #aaaab4; position: relative; }
 .mvr-type-picker > summary, .mvr-rule-tools > summary, .mvr-ability-tools > summary, .mvr-note > summary { cursor: pointer; }
 .mvr-type-picker .mvr-types { margin-top: 8px; max-width: 500px; }
@@ -2421,7 +2421,7 @@ tr.pin-end td { padding: 0; height: 8px; border-bottom: 2px solid color-mix(in s
   .mv-browse-ctls { gap: 6px; }
   .mv-mon-chips { width: 100%; }
   .mon-chip { width: 100%; }
-  .mv-current-stats { margin-left: 0; }
+  .mon-cfg-badge { flex: 1 1 auto; }
 }
 
 @media (max-width: 640px) {

@@ -185,6 +185,9 @@ def run():
             page.locator(".mv-mon").press("ArrowDown")
             page.locator(".mv-mon").press("Enter")
             page.locator('[data-mon-cfg="sirfetchd"]').click()
+            assert "on" in (page.locator('.mv-cfg-pop [data-cfg-nature="auto"]').get_attribute("class") or "")
+            for stat in ["atk", "spa", "def", "spe"]:
+                assert page.locator(f'.mv-cfg-pop [data-cfg-slider="{stat}"]').input_value() == "32"
             page.locator('.mv-cfg-pop [data-cfg-item="leek"]').click()
             assert "Leek" in page.locator(".mon-cfg-badge").inner_text()
             assert not page.locator(".mv-cfg-pop [data-cfg-item-select]").is_visible()
@@ -199,6 +202,11 @@ def run():
             assert not custom.is_visible(), "A quick preset closes custom-item details"
             page.locator('[data-mvmode="rank"]').click()
             page.locator("[data-preset-toggle]").click()
+            assert "Auto +10%" in page.locator(".mvr-preset-toggle").inner_text()
+            assert "Max Atk/SpA/Def/Spe" in page.locator(".mvr-preset-toggle").inner_text()
+            assert "on" in (page.locator('.mvr-preset [data-cfg-nature="auto"]').get_attribute("class") or "")
+            for stat in ["atk", "spa", "def", "spe"]:
+                assert page.locator(f'.mvr-preset [data-cfg-slider="{stat}"]').input_value() == "32"
             page.locator(".mvr-move-input").fill("Leaf Blade")
             page.locator(".mvr-move-input").press("ArrowDown")
             page.locator(".mvr-move-input").press("Enter")
@@ -207,6 +215,8 @@ def run():
                 return int(re.sub(r"\D", "", sirfetchd_row.locator(".mvr-dmg b").inner_text()))
             page.locator('.mvr-preset [data-cfg-item="none"]').click()
             baseline = rank_damage()
+            range_tip = sirfetchd_row.locator(".mvr-dmg").get_attribute("title")
+            assert f"{int(baseline * 0.85 + 0.5):,}–{baseline:,}" in (range_tip or ""), range_tip
             for item, factor in [("type-item", 1.2), ("band-glasses", 1.1)]:
                 page.locator(f'.mvr-preset [data-cfg-item="{item}"]').click()
                 assert abs(rank_damage() - baseline * factor) <= 2, (item, baseline, rank_damage())

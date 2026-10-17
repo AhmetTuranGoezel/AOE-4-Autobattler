@@ -8,7 +8,7 @@ import { TYPES, TYPE_COLORS, displayName, targetLabel, isSpread, rarityTier, TAR
 import { statsFor } from "./effective-stats.js";
 import { damageAbilities, offenseMult, offDefaultAbility, stageMult, OFF_ITEMS, expectedHitsForAccuracy } from "./offense-model.js";
 import { analysisItemChoices, itemSelect, normalizeItem, itemDamage, itemAccuracy, itemSpeed, seedEffect, critChance, isGrounded, itemAtHit, itemLabel } from "./item-model.js";
-import { POOL, CAP, pointsUsed } from "./stat-lab.js";
+import { CAP } from "./stat-lab.js";
 import { attachAutocomplete } from "./autocomplete.js";
 import { statEffectChips } from "./move-effects.js";
 
@@ -157,6 +157,11 @@ function expData(m) {
 
 export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, onMon, onAbil }) {
   const moves = Object.entries(data.moves).map(([id, m]) => ({ id: Number(id), ...m, _fx: classifyMove(m), _ep: expData(m) }));
+  // Moves analysis compares offensive, defensive and speed-dependent moves side by side.
+  // These are independent what-if values, deliberately not a legal team-builder spread.
+  const MOVE_STAT_KEYS = ["atk", "spa", "def", "spe"];
+  const maxAnalysisSpread = () => ({ atk: CAP, spa: CAP, def: CAP, spe: CAP });
+  const defaultAnalysisCfg = () => ({ spread: maxAnalysisSpread(), stages: { atk: 0, spa: 0, def: 0, spe: 0 }, nature: "auto", item: "none" });
   const allFlags = [...new Set(moves.flatMap((m) => m.flags || []))].sort();
   const RANK_EXCL_KEY = "pc-mvrank-exclude";   // its OWN saved list — deliberately not the Damage tab's
   const RANK_ABIL_KEY = "pc-mvrank-abil-ignore";
@@ -192,8 +197,8 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
       ignoredAbils: loadRankAbils(),     // ability slugs treated as None for every ranked mon
       editing: null,                     // slug whose inline per-mon ⚙ panel is open
       presetOpen: false,                 // whether the global-build editor is expanded
-      // global build (same shape as a per-mon cfg, minus ability) applied to every un-customized mon
-      preset: { spread: { atk: 0, spa: 0, def: 0, spe: 0 }, stages: { atk: 0, spa: 0, def: 0, spe: 0 }, nature: "", item: "none" } } };
+      // Global analysis build (same shape as a per-mon cfg, minus ability), applied to every un-customized mon.
+      preset: defaultAnalysisCfg() } };
   const saveRankExcluded = () => localStorage.setItem(RANK_EXCL_KEY, JSON.stringify([...state.rq.excluded]));
   const saveRankAbils = () => localStorage.setItem(RANK_ABIL_KEY, JSON.stringify([...state.rq.ignoredAbils]));
   const saveRankMonExcluded = () => localStorage.setItem(RANK_MONEXCL_KEY,
@@ -389,6 +394,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
   // The mon whose Exp.Pow STAB + Eff. Dmg column reflect: the focused one, else the first loaded.
   const expMon = () => (state.focus && state.mons.find((x) => x.slug === state.focus)) || state.mons[0] || null;
   const sep = (v) => v.toLocaleString("en-US");
+  const effectiveDamageRange = (v) => `Effective-damage roll range: ${sep(Math.round(v * 0.85))}–${sep(v)} (85–100%; displayed value is the high roll).`;
   const compact = (v) => (v >= 10000 ? `${Math.round(v / 1000)}k` : v >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v));
   // Exp. Pow cell: number (incl. the anchor mon's STAB) + a tiny note (STAB / spread / hits / crit / cond).
   function exppCell(m) {
@@ -405,7 +411,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
   // Eff. Dmg cell (the focused/first mon): full number + STAB/ability/boost note.
   function expdCell(m) {
     if (m._expd == null) return `<span class="muted" ${TARGET_STAT_MOVES.has(m.name) ? `title="${m.name} attacks with the TARGET's stat — no target here"` : ""}>—</span>`;
-    return `<b class="mv-expv">${sep(m._expd)}</b>${m._expdNote ? `<small class="mv-exp-note">${m._expdNote}</small>` : ""}`;
+    return `<b class="mv-expv" title="${effectiveDamageRange(m._expd)}">${sep(m._expd)}</b>${m._expdNote ? `<small class="mv-exp-note">${m._expdNote}</small>` : ""}`;
   }
   // ownMode: "any" | "all" | "diff" (some but not all) | "1".."9" (owned by exactly k of the loaded mons).
   // focus: slug of ONE loaded mon — only its moves show, so the count modes read as
@@ -534,11 +540,12 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
     if (state.focus && (n < 2 || !state.mons.some((m) => m.slug === state.focus))) state.focus = null;
     if (state.cfgOpen && !state.mons.some((m) => m.slug === state.cfgOpen)) state.cfgOpen = null;
     $(".mv-mon-chips").innerHTML = state.mons.map((m) => {
-      // ⚙ opens the customize popover; a tiny badge summarizes any non-default setup
-      const c = m.cfg, parts = currentCfgParts(m);
+      // Keep the browse chip a compact current-build summary; the full calculated
+      // stats stay in the editor, where they are useful rather than visually dominant.
+      const c = m.cfg, parts = compactCfgParts(m);
       if (c.tw !== 70) parts.push(`tgt ${c.tw}kg`);
       if (c.ts !== 100) parts.push(`tgt ${c.ts} Spe`);
-      const badge = `<small class="mon-cfg-badge">${parts.join(" · ")}</small><small class="mv-current-stats">${currentStats(m)}</small>`;
+      const badge = `<small class="mon-cfg-badge">${parts.join(" · ")}</small>`;
       return `<span class="mon-chip ${state.focus === m.slug ? "focus" : ""}" data-focus-mon="${m.slug}" ${n >= 2 ? `title="${state.focus === m.slug ? "Unfocus" : `Focus — group the table around ${m.name}'s moves`}"` : ""}><img src="${m.sprite}" alt="">${m.name}${badge}<button class="mon-cfg ${state.cfgOpen === m.slug ? "on" : ""}" data-mon-cfg="${m.slug}" title="Customize ${m.name} — stats, boosts, item, ability">⚙</button><button data-rm-mon="${m.slug}" aria-label="Remove ${m.name}">✕</button></span>`;
     }).join("");
     renderCfgPop();
@@ -571,7 +578,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
   const NATURES = [["", "Neutral"], ["auto", "Auto"], ["atk", "Atk"], ["spa", "Sp.Atk"], ["def", "Def"], ["spe", "Speed"]];
   const natureChipsHtml = (e) => `<div class="cl-abil" title="A boosting nature: +10% to one stat. Auto = +10% to whatever stat each move attacks with (Atk for physical, Sp.Atk for special, Def for Body Press)"><span class="cl-stat-lab">Nature +10%</span>
     ${NATURES.map(([k, l]) => `<button class="tm-abil-chip ${(e.cfg.nature || "") === k ? "on" : ""}" data-cfg-nature="${k}">${l}</button>`).join("")}</div>`;
-  // One-click competitive spreads: fill the pool + set the matching nature in a single click (vs. ±2/step).
+  // One-click analysis setups: set the relevant stat values + matching nature in one click (vs. ±2/step).
   const PRESETS = [["maxatk", "Max Atk"], ["maxspa", "Max SpA"], ["fastatk", "Fast Atk"], ["fastspa", "Fast SpA"], ["bulky", "Bulky"], ["clear", "Clear"]];
   const SPREAD_PRESETS = {
     maxatk: { spread: { atk: CAP }, nature: "atk" },
@@ -592,11 +599,10 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
   const liveSliderNum = (el) => { const b = el.closest(".cl-stat")?.querySelector("[data-cfg-val]"); if (b) b.textContent = el.value; };
   function cfgEditorBody(e, { assume = false } = {}) {
     const c = e.cfg;
-    const used = pointsUsed(c.spread);
     const pt = (k, lab, extra = "") => {
-      const cur = c.spread[k] || 0, maxReach = Math.min(CAP, cur + (POOL - used));   // can't drag past the shared pool
+      const cur = c.spread[k] || 0;
       return `<div class="cl-stat"${extra ? ` title="${extra}"` : ""}><span class="cl-stat-lab">${lab}</span>
-        <input type="range" class="cl-slider" data-cfg-slider="${k}" min="0" max="${maxReach}" step="2" value="${cur}" aria-label="${lab} points">
+        <input type="range" class="cl-slider" data-cfg-slider="${k}" min="0" max="${CAP}" step="2" value="${cur}" aria-label="${lab} analysis points">
         <div class="cl-step"><button data-cfg-spread="${k}" data-dir="-1" aria-label="minus 2">−</button><b data-cfg-val="${k}">${cur}</b><button data-cfg-spread="${k}" data-dir="1" aria-label="plus 2">+</button></div></div>`;
     };
     const step = (k, lab, extra = "") => `<div class="cl-stat"${extra ? ` title="${extra}"` : ""}><span class="cl-stat-lab">${lab}</span><div class="cl-step"><button data-cfg-stage="${k}" data-dir="-1">−</button><b>${c.stages[k] >= 0 ? "+" : ""}${c.stages[k]}</b><button data-cfg-stage="${k}" data-dir="1">+</button></div></div>`;
@@ -605,7 +611,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
       ${itemChipsHtml(e)}
       ${natureChipsHtml(e)}
       <div class="mv-cfg-sec">
-        <div class="mv-cfg-sec-head"><span>Stat points</span><span class="cl-points ${used > POOL ? "over" : ""}" title="Champions: ${POOL} points to distribute, at most ${CAP} into one stat">Points ${used}/${POOL}</span><button class="btn-sm" data-cfg-reset title="Back to defaults">↺ reset</button></div>
+        <div class="mv-cfg-sec-head"><span>Analysis points</span><span class="cl-points" title="Moves analysis treats Atk, Sp.Atk, Def and Speed independently; each can be 0–${CAP}.">0–${CAP} each</span><button class="btn-sm" data-cfg-reset title="Back to maxed, Auto-Nature defaults">↺ reset</button></div>
         ${presetChipsHtml()}
         <div class="mv-cfg-grid is-sliders">${pt("atk", "Atk")}${pt("spa", "Sp.Atk")}${pt("def", "Def", "Body Press attacks with Defense")}${pt("spe", "Speed", "Gyro Ball / Electro Ball power scales with Speed")}</div>
       </div>
@@ -625,9 +631,9 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
     const ps = target.closest("[data-cfg-preset]");   // one-click full spread + matching nature
     if (ps) { applySpreadPreset(e.cfg, ps.dataset.cfgPreset); return true; }
     const sp = target.closest("[data-cfg-spread]");
-    if (sp) {   // ±2 points per click, ≤32 into one stat, 66-point pool shared with the other stats
-      const k = sp.dataset.cfgSpread, cur = e.cfg.spread[k] || 0, others = pointsUsed(e.cfg.spread) - cur;
-      e.cfg.spread[k] = Math.max(0, Math.min(cur + 2 * Number(sp.dataset.dir), CAP, POOL - others));
+    if (sp) {   // ±2 analysis points per stat, independently capped at 32.
+      const k = sp.dataset.cfgSpread, cur = e.cfg.spread[k] || 0;
+      e.cfg.spread[k] = Math.max(0, Math.min(cur + 2 * Number(sp.dataset.dir), CAP));
       return true;
     }
     const st = target.closest("[data-cfg-stage]");
@@ -638,9 +644,9 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
   function cfgChange(e, target) {   // stat-point sliders + the tw/ts number inputs commit on change
     if (target.matches("[data-cfg-item-select]")) { e.cfg.item = normalizeItem(target.value, e); return true; }
     const sl = target.closest("[data-cfg-slider]");
-    if (sl) {   // clamp the dragged value to ≤32 and whatever the 66-pt pool still allows
-      const k = sl.dataset.cfgSlider, others = pointsUsed(e.cfg.spread) - (e.cfg.spread[k] || 0);
-      e.cfg.spread[k] = Math.max(0, Math.min(Number(sl.value), CAP, POOL - others));
+    if (sl) {   // each Moves-analysis stat is independent; clamp only its own 32-point cap
+      const k = sl.dataset.cfgSlider;
+      e.cfg.spread[k] = Math.max(0, Math.min(Number(sl.value), CAP));
       return true;
     }
     if (target.matches("[data-cfg-tw],[data-cfg-ts]")) return readAssume(e, target);
@@ -670,25 +676,37 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
     const c = e.cfg;
     return [e.ability ? `${abilName(e.ability)}${ranked && state.rq.ignoredAbils.has(e.ability) ? " (ignored)" : ""}` : "No ability", itemLabel(c.item || "none"),
       c.nature === "auto" ? "Auto +10% (move-dependent)" : c.nature ? `${STAT_ABBR[c.nature]} +10% assumption` : "Neutral Nature",
-      `${pointsUsed(c.spread)}/${POOL} points`,
+      spreadSummary(c.spread),
       ...Object.entries(c.stages).filter(([, v]) => v).map(([k, v]) => `${v > 0 ? "+" : ""}${v} ${STAT_ABBR[k]}`),
       Object.values(c.stages).some(Boolean) ? "" : "Stages 0"].filter(Boolean);
   }
+  const hasMaxAnalysisSpread = (spread) => MOVE_STAT_KEYS.every((k) => (spread[k] || 0) === CAP);
+  const spreadSummary = (spread) => {
+    if (hasMaxAnalysisSpread(spread)) return "Max Atk/SpA/Def/Spe";
+    const parts = MOVE_STAT_KEYS.filter((k) => spread[k]).map((k) => `${spread[k]} ${STAT_ABBR[k]}`);
+    return parts.length ? parts.join(" · ") : "Base stats";
+  };
   function cfgStatParts(e) {
     const c = e.cfg, parts = [];
-    ["atk", "spa", "def", "spe"].forEach((k) => { if (c.spread[k]) parts.push(`${c.spread[k]} ${STAT_ABBR[k]}`); });   // per-stat points (which stat matters)
+    parts.push(hasMaxAnalysisSpread(c.spread) ? "max stats" : spreadSummary(c.spread));
     if (c.nature) parts.push(c.nature === "auto" ? "Auto+nat" : `${STAT_ABBR[c.nature]}+nat`);
-    ["atk", "spa", "def", "spe"].forEach((k) => { if (c.stages[k]) parts.push(`${c.stages[k] > 0 ? "+" : ""}${c.stages[k]} ${STAT_ABBR[k]} stage`); });
+    MOVE_STAT_KEYS.forEach((k) => { if (c.stages[k]) parts.push(`${c.stages[k] > 0 ? "+" : ""}${c.stages[k]} ${STAT_ABBR[k]} stage`); });
     if (c.item !== "none") parts.push((OFF_ITEMS[c.item] || {}).label);
     return parts;
   }
   function cfgAbilPart(e) { return e.ability !== e.defAbility ? [e.ability ? abilName(e.ability) : "no abil."] : []; }
+  function compactCfgParts(e) {
+    const c = e.cfg;
+    return [...cfgAbilPart(e), c.item !== "none" ? itemLabel(c.item) : "",
+      c.nature === "auto" ? "Auto Nature" : c.nature ? `${STAT_ABBR[c.nature]} Nature` : "Neutral Nature",
+      hasMaxAnalysisSpread(c.spread) ? "Max stats" : spreadSummary(c.spread),
+      ...MOVE_STAT_KEYS.filter((k) => c.stages[k]).map((k) => `${c.stages[k] > 0 ? "+" : ""}${c.stages[k]} ${STAT_ABBR[k]}`)].filter(Boolean);
+  }
   function cfgBadgeParts(e) { return [...cfgAbilPart(e), ...cfgStatParts(e)]; }
   // The per-mon context the Expected columns need: Lv50 attacking stats, typing (STAB),
   // raw stats (Protosynthesis picks the highest), damage-relevant abilities + the default,
   // weight + Lv50 Spe for the weight/speed-scaled moves.
-  const defaultCfg = () => ({ spread: { atk: 0, spa: 0, def: 0, spe: 0 }, nature: "",
-    stages: { atk: 0, spa: 0, def: 0, spe: 0 }, item: "none", tw: 70, ts: 100 });
+  const defaultCfg = () => ({ ...defaultAnalysisCfg(), tw: 70, ts: 100 });
   function monEntry(mon) {
     const lv = statsFor(mon, "lv50");
     const da = damageAbilities(mon).map((s) => ({ slug: s, name: (data.abilities[s] || {}).name || s }));
@@ -749,16 +767,16 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
     }
     return rankMons;
   };
-  // The global build is a full cfg (per-stat points + per-stat boosts + a specific nature + item),
+  // The global build is a full cfg (independent analysis points + per-stat boosts + a nature + item),
   // exactly like a per-mon setup. Each seeded copy is deep-cloned + gets the shared weight/Spe target.
-  const presetDefaultCfg = () => ({ spread: { atk: 0, spa: 0, def: 0, spe: 0 }, stages: { atk: 0, spa: 0, def: 0, spe: 0 }, nature: "", item: "none" });
+  const presetDefaultCfg = () => defaultAnalysisCfg();
   function presetToCfg() {
     const p = state.rq.preset;
     return { spread: { ...p.spread }, stages: { ...p.stages }, nature: p.nature, item: p.item, tw: state.rq.tw, ts: state.rq.ts };
   }
   // Seed the preset onto every mon the user hasn't individually customized (touched).
   function applyPreset() { if (rankMons) for (const e of rankMons) if (!e.touched) e.cfg = presetToCfg(); }
-  const presetActive = () => { const p = state.rq.preset; return pointsUsed(p.spread) > 0 || Object.values(p.stages).some((v) => v) || p.nature || p.item !== "none"; };
+  const presetActive = () => { const p = state.rq.preset; return Object.values(p.spread).some((v) => v) || Object.values(p.stages).some((v) => v) || p.nature || p.item !== "none"; };
   const abilName = (slug) => (data.abilities[slug] || {}).name || slug;
   // Damage for one mon + move using its CHOSEN ability, minus any globally-ignored ability (→ None).
   function rankDmg(e, m) {
@@ -848,7 +866,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
       monBanChips.length ? `${monBanChips.length} individual move bans` : "", monAllowChips.length ? `${monAllowChips.length} individual exceptions` : ""].filter(Boolean);
     $(".mvr-active-rules").hidden = !rules.length;
     $(".mvr-active-rules").textContent = rules.join(" · ");
-    const sum = [q.preset.nature === "auto" ? "Auto +10% (move-dependent)" : q.preset.nature ? `${STAT_ABBR[q.preset.nature]} +10% assumption` : "Neutral Nature", itemLabel(q.preset.item || "none"), `${pointsUsed(q.preset.spread)}/${POOL} points`, ...Object.entries(q.preset.stages).filter(([, v]) => v).map(([k, v]) => `${v > 0 ? "+" : ""}${v} ${STAT_ABBR[k]}`)].join(" · ");
+    const sum = [q.preset.nature === "auto" ? "Auto +10% (move-dependent)" : q.preset.nature ? `${STAT_ABBR[q.preset.nature]} +10% assumption` : "Neutral Nature", itemLabel(q.preset.item || "none"), spreadSummary(q.preset.spread), ...Object.entries(q.preset.stages).filter(([, v]) => v).map(([k, v]) => `${v > 0 ? "+" : ""}${v} ${STAT_ABBR[k]}`)].join(" · ");
     $(".mvr-preset").innerHTML = `
       <button class="mvr-preset-toggle ${q.presetOpen ? "open" : ""} ${presetActive() ? "has" : ""}" data-preset-toggle title="A build applied to every Pokémon you haven't individually customized">
         🛠 Everyone runs <b>${sum}</b> <span class="mvr-preset-caret">${q.presetOpen ? "▾" : "▸"}</span></button>
@@ -885,7 +903,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
       return `<div class="mvr-mvrow ${mv.id === rankedId ? "is-ranked" : ""} ${globallyBanned ? "is-global-banned" : ""} ${allowed && !locallyBanned ? "is-allowed" : ""}">
         <span class="mvr-mv-nm"><span class="type tiny" style="background:${TYPE_COLORS[mv.type]}">${mv.type}</span><button class="mvr-mvname" data-info-move="${mv.id}" title="Open ${mv.name}">${mv.name}</button></span>
         <span class="mvr-mv-pw" title="Expected power (STAB/ability in)">${d.pw} pw</span>
-        <span class="mvr-mv-dmg" title="Effective damage — compare against effective HP (HP×Def)"><b>${sep(d.v)}</b></span>
+        <span class="mvr-mv-dmg" title="${effectiveDamageRange(d.v)}"><b>${sep(d.v)}</b></span>
         <span class="mvr-mv-fl">${globalRule}${fl}</span>
       </div>`;
     };
@@ -932,7 +950,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
         <span class="mvr-idn" data-mon-open="${e.slug}" title="Open ${e.name}'s details"><img class="ehp-spr" loading="lazy" src="${e.sprite}" alt="">
           <span class="mvr-name">${e.name}${e.isMega ? ' <span class="mega-badge">MEGA</span>' : ""}${e.usagePct != null ? ` <span class="ehp-use" title="ladder usage">${e.usagePct}%</span>` : ""}${badge.length ? `<small class="mvr-setline">${badge.join(" · ")}</small>` : ""}</span></span>
         <span class="mvr-move"><span class="type tiny" style="background:${TYPE_COLORS[mv.type]}">${mv.type}</span><button class="mvr-mvname" data-info-move="${mv.id}" title="Open ${mv.name}">${mv.name}</button><small class="mvr-pw" title="Exp. Pow for this Pokémon (STAB/ability in)">${d.pw} pw</small>${m ? "" : `<button class="mvr-banmon" data-mvr-banmon="${mv.id}" data-mvr-banslug="${e.slug}" title="Ban ${mv.name} for ${e.name} only" aria-label="Ban ${mv.name} for ${e.name} only">🚫</button><button class="mvr-ignore" data-mvr-ignore="${mv.id}" title="Globally ban ${mv.name}; it can still be allowed for individual Pokémon" aria-label="Globally ban ${mv.name}">✕</button>`}</span>
-        <span class="mvr-dmg" title="Effective damage — compare against effective HP (HP×Def)"><b>${sep(d.v)}</b></span>
+        <span class="mvr-dmg" title="${effectiveDamageRange(d.v)}"><b>${sep(d.v)}</b></span>
         <span class="mvr-chips">${abilChip}${noteChips}</span>
       </div>${editing ? monPanel(e, mv.id) : ""}`;
     };
@@ -1320,7 +1338,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
         const learns = custom || pm.moves.has(m.id);
         const d = learns ? m._dmg[pm.slug] : null;
         const inner = !learns ? ""
-          : d ? `<span class="mv-own-dmg" title="${pm.name}: ${sep(d.v)}${d.note ? " · " + d.note : ""}">${compact(d.v)}</span>`
+          : d ? `<span class="mv-own-dmg" title="${pm.name}: ${effectiveDamageRange(d.v)}${d.note ? " · " + d.note : ""}">${compact(d.v)}</span>`
           : `<img class="cm-yes" loading="lazy" alt="✓" title="${pm.name}" src="${pm.sprite}">`;
         return `<td class="mv-owner ${state.focus === pm.slug ? "focus" : ""}">${inner}</td>`;
       }).join("") + (n >= 2 ? `<td class="num mv-shared">${custom ? `${n}/${n}` : `${m._own}/${n}`}</td>` : "");
