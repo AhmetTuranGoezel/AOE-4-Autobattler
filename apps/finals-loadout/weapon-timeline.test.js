@@ -13,6 +13,13 @@ const cerberus = { name: 'Cerberus 12GA', bodyDamage: 117, headDamage: 117,
 const flame = { name: 'Flamethrower', bodyDamage: 30, headDamage: 60,
   rpm: 170, magazineSize: 30, emptyReload: 3.55 };
 
+test('Prime Time class health drives the shared kill calculations', () => {
+  assert.deepEqual(combat.HEALTH, { Light: 175, Medium: 250, Heavy: 325 });
+  const result = combat.getClassKillTimes(timeline(arn));
+  assert.equal(result.Light.shots, 11);
+  assert.equal(result.Heavy.shots, 20);
+});
+
 test('seven deterministic hit patterns use exactly the requested head hit count', () => {
   const patterns = ['BBBBBB', 'BBHBBB', 'BBHBBH', 'BHBHBH', 'HHBHHB', 'HHHBHH', 'HHHHHH'];
   patterns.forEach((pattern, headHits) => {

@@ -2,7 +2,7 @@
   'use strict';
 
   const EPS = 1e-9;
-  const HEALTH = { Light: 150, Medium: 250, Heavy: 350 };
+  const HEALTH = { Light: 175, Medium: 250, Heavy: 325 };
   const HIT_PATTERNS = ['BBBBBB', 'BBHBBB', 'BBHBBH', 'BHBHBH', 'HHBHHB', 'HHHBHH', 'HHHHHH'];
 
   function getHitPattern(headHits = 0) {
@@ -274,8 +274,8 @@
       if (mode === 'Full Damage' && timeline.reloads[0]) end = Math.max(end, timeline.reloads[0].end + 2);
     });
     const maxTime = Math.min(mode === 'Full Damage' ? 20 : 8, Math.ceil(end * 10) / 10);
-    const maxDamage = mode === 'Full Damage' ? Math.max(350, ...timelines.map((timeline) =>
-      damageAt(timeline, Math.min(maxTime, timeline.knownUntil)).total)) : 350;
+    const maxDamage = mode === 'Full Damage' ? Math.max(HEALTH.Heavy, ...timelines.map((timeline) =>
+      damageAt(timeline, Math.min(maxTime, timeline.knownUntil)).total)) : HEALTH.Heavy;
     return { maxTime, maxY: mode === 'Full Damage' ? Math.ceil(maxDamage * 1.1 / 100) * 100 : 400 };
   }
 

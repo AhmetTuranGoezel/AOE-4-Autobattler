@@ -4,13 +4,18 @@ The existing Krome JSONP/CSV integration supplies direct damage, RPM, burst
 count/delay, falloff and reloads. `weapon-timeline.js` is a dependency-free pure
 calculation module shared by the Range and Timeline views.
 
+Class health follows the [Prime Time 12.0 update](https://www.reachthefinals.com/patchnotes/12-00):
+Light 175, Medium 250, Heavy 325. Damage and firing stats continue to load live
+from Krome rather than being replaced with a local weapon snapshot.
+
 ## Timing and hit placement
 
 - First connecting hit is at zero. Handling, accuracy, travel time and target
   movement are excluded. Shotgun entries assume the listed full-shot damage.
 - Krome's RPM is intra-burst RPM: the live 11.9.0 sheet supplies 1000 for 93R and
   1080 for FAMAS. Its burst delay is applied after the burst's final bullet.
-  Range fields are mapped by heading because the sheet added a Stamina column.
+  All source fields are mapped by heading, including the current sheet layout
+  without row numbers and with abbreviated `DD` range headings.
 - Reloads and linked-magazine swaps replace the normal next-shot interval.
   `magazineRaw` preserves values such as `30x2`; missing capacity is not treated
   as infinite ammo. GViz sometimes drops text cells in numeric columns.
@@ -54,6 +59,25 @@ calculation module shared by the Range and Timeline views.
 - Raw combat data, source notes and seven-row headshot breakpoint tables are
   collapsible. The tables follow the current range and selected target HP.
   Hit Placement affects both views; Timeline has its own 0-100m distance.
+- `weapon-chart.js` hit-tests cached rendered segments, including vertical
+  shot steps, diagonal burn and gaps. Pointer updates run at most once per
+  animation frame. Hover updates existing values; collapsed breakpoint tables
+  do not run calculations. Touching a line inspects it without unpinning it.
+- Legend class names are written in full. Hit patterns use dots and diamonds;
+  individual Body/Head labels remain available as tooltips.
+
+## Equipment and mobile
+
+The [current Builds page](https://www.thefinals.wiki/wiki/Builds) supplies the
+new Light True Sight specialization, Mimic Device and Translocator gadgets,
+and Sonar Grenade access for Medium. True Sight deliberately uses the wiki's
+`Thermal Vision Rank 1.png` artwork. Thermal Vision remains in the catalog to
+preserve old builds and notes, but is hidden from new item selections.
+
+Mobile uses two opening equipment cards, independent swipeable gadget and
+reserve rows, and a bottom selection ribbon. Alternative controls show an icon
+and count; selected alternatives have an explicit Equip action in the picker.
+Notes stay global per item, including when swapping main/reserve bundles.
 
 ## Mechanics overrides and evidence
 
@@ -89,19 +113,21 @@ flagged; a known first hit may still kill, but follow-up timings remain unknown.
 From the repository root:
 
 ```sh
-node --test apps/finals-loadout/weapon-timeline.test.js apps/finals-loadout/weapon-stats-parser.test.js
+node --test apps/finals-loadout/weapon-timeline.test.js apps/finals-loadout/weapon-stats-parser.test.js apps/finals-loadout/loadout-slots.test.js apps/finals-loadout/weapon-chart.test.js
 ```
 
 Regression examples at 0m against Medium: ARN-220 body = 15 hits / 1.12s;
 93R body = 11 hits / 1.245s; 93R 1/6 = 10 hits / 1.185s; 93R 2/6 = 9 hits /
 0.91s. Cerberus reaches 250 damage from burn at 1.066667s after two shots.
 
-The 21 automated tests cover all patterns, real-hit breakpoints, burst/reload
+The automated tests cover all patterns, real-hit breakpoints, burst/reload
 boundaries, linked magazines, DoT refresh/stack/delay, between-shot kills,
 non-headshot weapons, exposure totals, view bounds, parser shifts and missing
 mechanics. Browser checks with the live sheet cover both views, pins/filters,
 exposure controls, expandable tables, 390px/320px mobile widths, saving,
-item notes, reset, clipboard sharing, phone import and legacy migration.
+item notes, reset, clipboard sharing, phone import and legacy migration. Chart
+tests cover vertical steps, burn slopes, gaps, and nearest-line selection.
+Equipment tests cover the new class pools and preservation of legacy notes.
 
 Known limits: all listed damage is assumed to connect; aim, pellet spread,
 latency, travel time, handling and minigun spin-up are not modeled. Mechanics

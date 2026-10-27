@@ -582,7 +582,7 @@
       transform: translateZ(0);
       transition: transform 0.2s var(--slide-ease), border-color 0.16s ease, box-shadow 0.16s ease, filter 0.16s ease, opacity 0.16s ease;
       animation: cardIn 0.34s var(--slide-ease) backwards;
-      animation-delay: calc(var(--order, 0) * 38ms);
+      animation-delay: calc(min(var(--order, 0), 5) * 22ms);
     }
 
     .item-card:hover,
@@ -619,6 +619,9 @@
     .item-card.is-pulse {
       animation: cardIn 0.34s var(--slide-ease) backwards, pickPulse 0.42s ease;
     }
+
+    .loadout-board:not(.is-revealing) .item-card { animation: none; }
+    .loadout-board:not(.is-revealing) .item-card.is-pulse { animation: pickPulse 0.42s ease; }
 
     .card-visual {
       position: relative;
@@ -932,7 +935,7 @@
       background:
         linear-gradient(135deg, rgba(245, 197, 66, 0.11), transparent 48%),
         rgba(255, 255, 255, 0.045);
-      padding: 13px 86px 13px 13px;
+      padding: 13px;
       color: var(--text);
       cursor: pointer;
       text-align: left;
@@ -950,6 +953,7 @@
     }
 
     .saved-card-title {
+      padding-right: 90px;
       margin-bottom: 8px;
       font-size: 0.95rem;
       font-weight: 900;
@@ -993,6 +997,8 @@
       display: flex;
       gap: 6px;
     }
+
+    .saved-action svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; vertical-align: middle; }
 
     .saved-action {
       min-width: 28px;
@@ -1267,6 +1273,8 @@
       filter: drop-shadow(0 0 5px rgba(245, 197, 66, 0.35));
     }
 
+    .stats-hover-dot { fill: #101218; stroke-width: 2.5; pointer-events: none; }
+
     .stats-cursor {
       stroke: rgba(245, 197, 66, 0.58);
       stroke-width: 1;
@@ -1363,7 +1371,7 @@
       width: 100%;
       min-height: 33px;
       display: grid;
-      grid-template-columns: 12px 1fr auto;
+      grid-template-columns: 12px minmax(0, 1fr) auto;
       gap: 8px;
       align-items: center;
       border: 1px solid transparent;
@@ -1402,6 +1410,16 @@
       color: var(--muted);
       font-size: 0.62rem;
       font-weight: 900;
+    }
+
+    .stats-detail-remove svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; }
+    .alt-button svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+    .alt-button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
+    .promote-alt-button {
+      position: absolute; right: 7px; bottom: 7px; z-index: 3;
+      min-height: 36px; padding: 0 10px; border-radius: 7px;
+      border: 1px solid var(--gold); background: #17171e; color: var(--gold);
+      font-size: 0.7rem; font-weight: 800; cursor: pointer;
     }
 
     .stats-info-title {
@@ -1720,10 +1738,11 @@
         grid-template-columns: minmax(180px, 1fr) repeat(3, auto);
       }
 
-      .stats-controls,
       .stats-layout {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
       }
+
+      .stats-controls { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
 
       .stats-legend,
       .stats-info {
@@ -1733,12 +1752,13 @@
 
       .stats-chart-wrap {
         min-height: 380px;
+        grid-row: 1;
       }
     }
 
     @media (max-width: 760px) {
       :root {
-        --card-w: 136px;
+        --card-w: clamp(124px, calc((100vw - 54px) / 2), 148px);
         --card-h: 184px;
         --name-h: 39px;
       }
@@ -1751,7 +1771,11 @@
       .topbar {
         padding: 12px;
         border-radius: 15px;
+        gap: 12px;
       }
+
+      body[data-current-view="stats"] .topbar .class-toggle,
+      body[data-current-view="stats"] .topbar .build-actions { display: none; }
 
       .app-tabs {
         width: 100%;
@@ -1762,15 +1786,17 @@
       }
 
       .class-toggle {
-        overflow-x: auto;
+        gap: 3px;
       }
 
       .class-button {
-        min-width: 104px;
+        min-width: 0;
+        letter-spacing: 0.06em;
+        font-size: 0.74rem;
       }
 
       .build-actions {
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
       }
 
       .build-name {
@@ -1778,11 +1804,17 @@
       }
 
       .action-button {
-        min-height: 42px;
+        min-height: 44px;
+        padding-inline: 8px;
       }
 
+      .build-name, .note-textarea { font-size: 16px; }
+      input[type="range"] { min-height: 32px; }
+      .app-tab, .stats-toggle, .close-picker, .modal-close { min-height: 44px; }
+      .close-picker, .modal-close { min-width: 44px; }
+
       .arena {
-        min-height: 390px;
+        min-height: 0;
         padding: 18px 12px 24px;
         border-radius: 15px;
       }
@@ -1797,8 +1829,17 @@
       }
 
       .stats-controls {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px 10px;
       }
+
+      .stats-control:has(.stats-hit-slider), #timelineRangeControl, #timelineModeControl, #exposureControl { grid-column: 1 / -1; }
+      .stats-toggle { padding-inline: 8px; letter-spacing: 0.02em; }
+      .stats-legend-item { min-height: 44px; }
+      .stats-info { max-height: none; overflow: visible; }
+      .saved-card { padding-top: 54px; }
+      .saved-card-title { padding-right: 0; white-space: normal; overflow-wrap: anywhere; }
+      .saved-action { min-width: 40px; min-height: 40px; }
 
       .stats-chart-wrap {
         min-height: 340px;
@@ -1819,20 +1860,69 @@
       }
 
       .picker-ribbon {
-        margin-bottom: 28px;
+        position: fixed;
+        left: 0; right: 0; bottom: 0;
+        z-index: 40;
+        max-height: min(320px, 65dvh);
+        padding: 10px 10px calc(10px + env(safe-area-inset-bottom, 0px));
+        margin: 0;
+        border: 1px solid rgba(245, 197, 66, 0.4);
+        border-bottom: 0;
+        border-radius: 18px 18px 0 0;
+        background: rgba(18, 19, 27, 0.98);
+        box-shadow: 0 -16px 44px rgba(0, 0, 0, 0.5);
+        transition: transform 0.3s var(--slide-ease), opacity 0.2s ease, visibility 0.3s;
       }
 
-      .loadout-row {
-        gap: 26px;
+      .picker-ribbon.is-hidden {
+        max-height: min(320px, 65dvh);
+        margin: 0;
+        transform: translateY(110%);
+        visibility: hidden;
       }
+
+      .picker-title { font-size: 0.78rem; letter-spacing: 0.08em; }
+      .picker-topline { margin-bottom: 4px; }
+      .picker-strip { gap: 10px; padding-bottom: 10px; scroll-snap-type: x proximity; }
+      .picker-strip .item-card, .slot-track .item-card { scroll-snap-align: start; }
+      body.has-picker .app-shell { padding-bottom: calc(340px + env(safe-area-inset-bottom, 0px)); }
+
+      .loadout-board { overflow: visible; }
+      .loadout-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        min-width: 0;
+        gap: 18px 12px;
+      }
+
+      .loadout-section { min-width: 0; }
+      .loadout-section:nth-child(n+3) { grid-column: 1 / -1; }
+      .loadout-section.is-reserve { margin-left: 0; }
 
       .slot-track {
         gap: 8px;
+        overflow-x: auto;
+        padding: 6px 2px 10px;
+        scroll-snap-type: x proximity;
+        overscroll-behavior-inline: contain;
+        scrollbar-width: thin;
       }
 
       .section-title {
-        font-size: 1.08rem;
+        font-size: 0.92rem;
+        text-align: left;
       }
+
+      .section-title::after { height: 2px; }
+      .note-btn { width: 40px; height: 40px; }
+      .note-popover { top: 51px; }
+      .alt-button { min-width: 44px; height: 40px; }
+      .promote-alt-button { min-height: 40px; }
+      .item-card.is-active-slot { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(245,197,66,0.2); }
+      .slot-track .item-card { scroll-margin-bottom: 325px; }
+      .note-modal { max-height: calc(100dvh - 24px); overflow-y: auto; }
+      .note-textarea { min-height: 100px; max-height: 35dvh; }
+      .modal-foot { flex-wrap: wrap; }
 
       .card-name {
         font-size: 0.74rem;
@@ -1854,6 +1944,10 @@
       .mini-button {
         flex: 1;
       }
+    }
+
+    @media (max-width: 760px) and (max-height: 500px) {
+      .picker-ribbon { --card-h: clamp(106px, calc(65dvh - 90px), 184px); --name-h: 32px; }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -1896,7 +1990,7 @@
       <div id="shareOutput" class="share-panel" hidden></div>
 
       <section class="arena" aria-label="Loadout builder">
-        <div id="pickerRibbon" class="picker-ribbon is-hidden"></div>
+        <div id="pickerRibbon" class="picker-ribbon is-hidden" role="region" aria-label="Item selection" aria-hidden="true" inert></div>
         <div id="loadoutBoard" class="loadout-board"></div>
       </section>
 
@@ -1939,8 +2033,8 @@
         <div class="stats-control" id="weaponMetricControl">
           <span class="stats-label">Metric</span>
           <div class="stats-toggle-group">
-            <button class="stats-toggle is-active" type="button" data-stats-metric="TTK">TTK</button>
-            <button class="stats-toggle" type="button" data-stats-metric="DPS">DPS</button>
+            <button class="stats-toggle is-active" type="button" data-stats-metric="TTK">Time to kill</button>
+            <button class="stats-toggle" type="button" data-stats-metric="DPS">Damage / sec</button>
           </div>
         </div>
         <div class="stats-control">
@@ -2008,6 +2102,7 @@
   <section id="noteModal" class="note-modal" aria-modal="true" role="dialog" hidden></section>
 
   <script src="weapon-timeline.js"></script>
+  <script src="weapon-chart.js"></script>
   <script>
     const STORAGE_KEY = 'finals-loadouts';
     const STORAGE_VERSION = 2;
@@ -2048,6 +2143,7 @@
       'Cloaking Device': 'Cloaking Device Rank 1.png',
       'Evasive Dash': 'Evasive Dash Rank 1.png',
       'Grappling Hook': 'Grappling Hook Rank 1.png',
+      'True Sight': 'Thermal Vision Rank 1.png',
       '93R': '93R Rank 1.png',
       'V9S': 'V9S Rank 1.png',
       'M11': 'M11 Rank 1.png',
@@ -2067,6 +2163,8 @@
       'Gravity Vortex': 'Gravity Vortex Rank 1.png',
       'H+ Infuser': 'HPlus Infuser Rank 1.png',
       'Nullifier': 'Nullifier Rank 1.png',
+      'Mimic Device': 'Mimic Device Rank 1.png',
+      'Translocator': 'Translocator Rank 1.png',
       'Sonar Grenade': 'Sonar Grenade Rank 1.png',
       'Thermal Bore': 'Thermal Bore Rank 1.png',
       'Thermal Vision': 'Thermal Vision Maintenance.png',
@@ -2084,7 +2182,7 @@
       'AKM': 'AKM Rank 1.png',
       'FCAR': 'FCAR Rank 1.png',
       'FAMAS': 'FAMAS Rank 1.png',
-      'CB-01 Repeater': 'CB-01 Reapeater Rank 1.png',
+      'CB-01 Repeater': 'CB-01 Repeater Rank 1.png',
       'Chimera-XB': 'Chimera-XB Rank 1.png',
       'Pike-556': 'Pike-556 Rank 1.png',
       'CL-40': 'CL-40 Rank 1.png',
@@ -2133,6 +2231,8 @@
       'Smoke Grenade': 'Smoke Grenade Rank 1.png'
     };
 
+    const RETIRED_ITEMS = { 'Thermal Vision': 'Replaced by True Sight, a Light specialization. Kept for older saved builds.' };
+
     const RAW_GAME_DATA = {
       sharedGadgets: [
         'Flashbang',
@@ -2144,14 +2244,14 @@
       ],
       classes: {
         light: {
-          specializations: ['Cloaking Device', 'Evasive Dash', 'Grappling Hook'],
+          specializations: ['Cloaking Device', 'Evasive Dash', 'Grappling Hook', 'True Sight'],
           weapons: ['93R', 'V9S', 'M11', 'XP-54', 'M26 Matter', 'SH1900', 'ARN-220', 'LH1', 'SR-84', 'Dagger', 'Recurve Bow', 'Sword', 'Throwing Knives'],
-          gadgets: ['Breach Charge', 'Gateway', 'Glitch Grenade', 'Gravity Vortex', 'H+ Infuser', 'Nullifier', 'Sonar Grenade', 'Thermal Bore', 'Thermal Vision', 'Tracking Dart', 'Vanishing Bomb']
+          gadgets: ['Breach Charge', 'Gateway', 'Glitch Grenade', 'Gravity Vortex', 'H+ Infuser', 'Mimic Device', 'Nullifier', 'Sonar Grenade', 'Thermal Bore', 'Thermal Vision', 'Tracking Dart', 'Translocator', 'Vanishing Bomb']
         },
         medium: {
           specializations: ['Dematerializer', 'Guardian Turret', 'Healing Beam', 'Recon Senses', 'Shockwave'],
           weapons: ['R .357', 'P90', 'Cerberus 12GA', 'Model 1887', 'AKM', 'FCAR', 'FAMAS', 'CB-01 Repeater', 'Chimera-XB', 'Pike-556', 'CL-40', 'Dual Blades', 'Riot Shield'],
-          gadgets: ['APS Turret', 'Breach Drill', 'Data Reshaper', 'Defibrillator', 'Explosive Mine', 'Gas Mine', 'Glitch Trap', 'Hover Pad', 'Jump Pad', 'Proximity Sensor', 'Zipline']
+          gadgets: ['APS Turret', 'Breach Drill', 'Data Reshaper', 'Defibrillator', 'Explosive Mine', 'Gas Mine', 'Glitch Trap', 'Hover Pad', 'Jump Pad', 'Proximity Sensor', 'Sonar Grenade', 'Zipline']
         },
         heavy: {
           specializations: ["Charge 'N' Slam", 'Goo Gun', 'Mesh Shield', 'Winch Claw'],
@@ -2758,6 +2858,11 @@
     const weaponTimelineCache = new WeakMap();
     const weaponBreakpointCache = new WeakMap();
     const statsOpenDetails = new Set();
+    let statsChartSeries = [];
+    let statsHoverPoint = null;
+    let statsHoverFrame = 0;
+    let statsPendingPointer = null;
+    let loadoutRevealPending = true;
     let pickerClearTimer = null;
 
     function clampNumber(value, min, max) {
@@ -3237,6 +3342,7 @@
     }
 
     function renderAppView() {
+      document.body.dataset.currentView = state.activeView;
       elements.loadoutView.hidden = state.activeView !== 'loadout';
       elements.statsView.hidden = state.activeView !== 'stats';
       elements.appTabs.querySelectorAll('[data-app-view]').forEach((button) => {
@@ -3249,6 +3355,10 @@
         return;
       }
       state.activeView = viewName;
+      if (viewName === 'stats') {
+        state.activeSlot = null;
+        renderPickerRibbon();
+      }
       renderAppView();
       if (viewName === 'stats') {
         loadWeaponStats();
@@ -3259,12 +3369,15 @@
     function syncWeaponStatsControls() {
       document.querySelectorAll('[data-stats-class]').forEach((button) => {
         button.classList.toggle('is-active', button.dataset.statsClass === state.weaponStats.classFilter);
+        button.setAttribute('aria-pressed', String(button.dataset.statsClass === state.weaponStats.classFilter));
       });
       document.querySelectorAll('[data-stats-target]').forEach((button) => {
         button.classList.toggle('is-active', button.dataset.statsTarget === state.weaponStats.targetClass);
+        button.setAttribute('aria-pressed', String(button.dataset.statsTarget === state.weaponStats.targetClass));
       });
       document.querySelectorAll('[data-stats-metric]').forEach((button) => {
         button.classList.toggle('is-active', button.dataset.statsMetric === state.weaponStats.metric);
+        button.setAttribute('aria-pressed', String(button.dataset.statsMetric === state.weaponStats.metric));
       });
       document.querySelectorAll('[data-stats-view]').forEach((button) => {
         const active = button.dataset.statsView === state.weaponStats.view;
@@ -3282,7 +3395,7 @@
       const pattern = FinalsCombat.getHitPattern(state.weaponStats.headHits);
       elements.hitPlacementCaption.textContent = `${state.weaponStats.headHits} headshots / 6 hits`;
       elements.hitPlacement.setAttribute('aria-valuetext', `${state.weaponStats.headHits} headshots per 6 hits: ${pattern.join(' ')}`);
-      elements.hitPatternPreview.innerHTML = pattern.map((hit) => `<span class="stats-pattern-cell ${hit === 'H' ? 'is-head' : ''}"><i></i>${hit}</span>`).join('');
+      elements.hitPatternPreview.innerHTML = pattern.map((hit) => `<span class="stats-pattern-cell ${hit === 'H' ? 'is-head' : ''}" title="${hit === 'H' ? 'Head hit' : 'Body hit'}"><i></i></span>`).join('');
       document.querySelectorAll('[data-timeline-mode], [data-stats-exposure]').forEach((button) => {
         const active = button.dataset.timelineMode ? button.dataset.timelineMode === state.weaponStats.timelineMode
           : Number(button.dataset.statsExposure) === state.weaponStats.exposureTime;
@@ -3320,13 +3433,16 @@
 
     function getWeaponCombat(weapon, range) {
       const options = weaponCombatOptions(range);
-      const key = JSON.stringify(options);
-      const previous = weaponTimelineCache.get(weapon);
-      if (previous?.key === key) return previous;
+      const profile = FinalsCombat.damageProfile(weapon, options);
+      const key = `${options.headHits}:${profile.body}:${profile.head}`;
+      let cache = weaponTimelineCache.get(weapon);
+      if (!cache) { cache = new Map(); weaponTimelineCache.set(weapon, cache); }
+      if (cache.has(key)) return cache.get(key);
       const timeline = FinalsCombat.createWeaponTimeline(weapon, options);
       const deaths = FinalsCombat.getClassKillTimes(timeline);
       const result = { key, timeline, deaths, exposure: FinalsCombat.exposureSummary(timeline) };
-      weaponTimelineCache.set(weapon, result);
+      if (cache.size >= 8) cache.delete(cache.keys().next().value);
+      cache.set(key, result);
       return result;
     }
 
@@ -3483,7 +3599,7 @@
           <button class="stats-legend-item ${isPinned ? 'is-pinned' : ''} ${isHovered ? 'is-hovered' : ''}" type="button" data-weapon-pin="${escapeHtml(weapon.name)}" aria-pressed="${isPinned}" title="${escapeHtml(warnings.length ? `${weapon.name}: ${warnings.join(' ')}` : weapon.name)}" style="${anyPinned && !isPinned ? 'opacity: 0.42;' : ''}">
             <span class="stats-dot" style="background:${weapon.color};"></span>
             <span class="stats-legend-name">${escapeHtml(weapon.name)}</span>
-            <span class="stats-legend-class ${warnings.length ? 'stats-warning' : ''}">${warnings.length ? '!' : escapeHtml(weapon.className.slice(0, 3))}</span>
+            <span class="stats-legend-class">${escapeHtml(weapon.className[0] + weapon.className.slice(1).toLowerCase())}</span>
           </button>
         `;
       }).join('');
@@ -3496,6 +3612,8 @@
       const maxY = state.weaponStats.maxY;
       const isTimeline = state.weaponStats.view === 'Timeline';
       const maxX = isTimeline ? state.weaponStats.maxTime : WEAPON_MAX_RANGE;
+      statsChartSeries = [];
+      statsHoverPoint = null;
       if (isTimeline && !state.weaponStats.plottedWeapons.length) {
         plot.innerHTML = '<div class="stats-plot-empty" role="status">Select weapons to compare</div>';
         elements.weaponStatsYLabels.innerHTML = '';
@@ -3520,6 +3638,8 @@
           ? FinalsCombat.timelinePoints(getWeaponCombat(weapon, state.weaponStats.timelineRange).timeline, maxX)
             .map((point) => ({ x: point.time, y: point.damage, kind: point.kind }))
           : ranges.map((range) => ({ x: range, y: getWeaponMetricValue(weapon, range) }));
+        statsChartSeries.push({ name: weapon.name, pinned: state.weaponStats.pinnedNames.has(weapon.name),
+          points: data.map((point) => ({ x: point.x / maxX * width, y: height - point.y / maxY * height })) });
         // Missing mechanics are gaps, not fictitious flat lines at the axis ceiling.
         let drawing = false;
         const dotPaths = [];
@@ -3565,6 +3685,7 @@
           <g data-timeline-markers></g>
           ${isTimeline ? `<line class="stats-exposure-line" data-exposure-cursor x1="${state.weaponStats.exposureTime / maxX * width}" x2="${state.weaponStats.exposureTime / maxX * width}" y1="0" y2="${height}"></line>` : ''}
           <line class="stats-cursor" data-stats-cursor x1="${cursorX}" x2="${cursorX}" y1="0" y2="${height}"></line>
+          <circle class="stats-hover-dot" data-hover-dot cx="0" cy="0" r="4" visibility="hidden"></circle>
         </svg>
       `;
 
@@ -3579,8 +3700,8 @@
       elements.weaponStatsChartTitle.textContent = isTimeline
         ? `Timeline @ ${state.weaponStats.timelineRange}m / ${state.weaponStats.timelineMode}`
         : state.weaponStats.metric === 'TTK'
-          ? `TTK vs range / ${state.weaponStats.headHits}H per 6 / ${state.weaponStats.targetClass} ${targetHp} HP`
-          : `Firing DPS vs range / ${state.weaponStats.headHits}H per 6`;
+          ? `Time to kill / ${state.weaponStats.targetClass} ${targetHp} HP`
+          : 'Firing damage per second';
       elements.weaponStatsChartNote.textContent = isTimeline
         ? `Dots: kills. Dashed slopes: burn. Reference: ${state.weaponStats.exposureTime * 1000} ms. ${state.weaponStats.timelineMode === 'Kill Window' ? 'View capped at 8s / 400 damage.' : 'View capped at 20s.'}`
         : 'Repeating real hits; first hit at 0s. DPS excludes reloads. Missing timing data leaves gaps.';
@@ -3623,6 +3744,7 @@
 
     function renderWeaponStatsInfo() {
       const weapon = getFocusedStatsWeapon();
+      elements.weaponStatsInfo.dataset.infoKey = getStatsInfoKey(weapon);
       if (!weapon) {
         const pinnedCount = state.weaponStats.pinnedNames.size;
         elements.weaponStatsInfo.innerHTML = `
@@ -3648,10 +3770,10 @@
       elements.weaponStatsInfo.innerHTML = `
         <div class="stats-info-title">${escapeHtml(weapon.name)}</div>
         <div class="stats-info-row"><span>Class</span><span>${escapeHtml(weapon.className)}</span></div>
-        <div class="stats-info-row"><span>Range</span><span>${range.toFixed(1)}m</span></div>
-        <div class="stats-info-row"><span>${escapeHtml(state.weaponStats.metric)}</span><span>${formatWeaponMetricValue(metricValue)}</span></div>
-        <div class="stats-info-row"><span>First hit</span><span>${damage.toFixed(1)}</span></div>
-        <div class="stats-info-row"><span>Shots fired</span><span>${Number.isFinite(shots) ? shots : 'N/A'}</span></div>
+        <div class="stats-info-row"><span>Range</span><span data-stats-live="range">${range.toFixed(1)}m</span></div>
+        <div class="stats-info-row"><span>${state.weaponStats.metric === 'TTK' ? 'Time to kill' : 'Damage / sec'}</span><span data-stats-live="metric">${formatWeaponMetricValue(metricValue)}</span></div>
+        <div class="stats-info-row"><span>First hit</span><span data-stats-live="damage">${damage.toFixed(1)}</span></div>
+        <div class="stats-info-row"><span>Shots fired</span><span data-stats-live="shots">${Number.isFinite(shots) ? shots : 'N/A'}</span></div>
         <div class="stats-info-row"><span>RPM</span><span>${weapon.rpm || 'N/A'}</span></div>
         <div class="stats-info-row"><span>Dropoff</span><span>${weapon.minDropoff}m - ${weapon.maxDropoff}m</span></div>
         <div class="stats-info-row"><span>Magazine</span><span>${formatWeaponMagazine(weapon)}</span></div>
@@ -3685,20 +3807,39 @@
     function renderHeadshotBreakpoints(weapon, range, location) {
       const profile = FinalsCombat.damageProfile(weapon, { range });
       if (!profile.canHeadshot) return '';
+      const detailKey = `${location}:breakpoints:${weapon.name}`;
+      const attributes = statsDetailsAttributes(detailKey);
+      return `<details class="stats-mechanics" data-breakpoint-weapon="${escapeHtml(weapon.name)}" ${attributes}>
+        <summary>Headshot breakpoints</summary><div data-breakpoint-content>${statsOpenDetails.has(detailKey) ? renderBreakpointTable(weapon, range) : ''}</div></details>`;
+    }
+
+    function renderBreakpointTable(weapon, range) {
+      const profile = FinalsCombat.damageProfile(weapon, { range });
       const health = WEAPON_HEALTH_VALUES[state.weaponStats.targetClass];
       const key = `${profile.body}:${profile.head}:${health}`;
-      let cached = weaponBreakpointCache.get(weapon);
-      if (cached?.key !== key) {
-        cached = { key, values: FinalsCombat.getHeadshotBreakpoints(weapon, { range, health }) };
-        weaponBreakpointCache.set(weapon, cached);
+      let cache = weaponBreakpointCache.get(weapon);
+      if (!cache) { cache = new Map(); weaponBreakpointCache.set(weapon, cache); }
+      if (!cache.has(key)) {
+        if (cache.size >= 32) cache.delete(cache.keys().next().value);
+        cache.set(key, FinalsCombat.getHeadshotBreakpoints(weapon, { range, health }));
       }
-      return `<details class="stats-mechanics" ${statsDetailsAttributes(`${location}:breakpoints:${weapon.name}`)}>
-        <summary>Headshot breakpoints</summary>
-        <table class="stats-breakpoints"><caption>${state.weaponStats.targetClass} ${health} HP @ ${range.toFixed(1)}m</caption>
+      return `<table class="stats-breakpoints"><caption>${state.weaponStats.targetClass} ${health} HP @ ${range.toFixed(1)}m</caption>
           <thead><tr><th scope="col">Head / 6</th><th scope="col">Shots</th><th scope="col">TTK</th></tr></thead>
-          <tbody>${cached.values.map((value) => `<tr class="${value.headHits === state.weaponStats.headHits ? 'is-active' : ''}" title="${value.pattern.split('').join(' ')}">
+          <tbody>${cache.get(key).map((value) => `<tr class="${value.headHits === state.weaponStats.headHits ? 'is-active' : ''}" title="${value.pattern.split('').map((hit) => hit === 'H' ? 'Head' : 'Body').join(', ')}">
             <th scope="row">${value.headHits} / 6</th><td>${Number.isFinite(value.shots) ? value.shots : 'N/A'}</td><td>${formatWeaponTTKValue(value.time)}</td></tr>`).join('')}</tbody>
-        </table></details>`;
+        </table>`;
+    }
+
+    function updateOpenBreakpointTables() {
+      const range = state.weaponStats.view === 'Timeline' ? state.weaponStats.timelineRange : state.weaponStats.hoverRange;
+      document.querySelectorAll('[data-breakpoint-weapon][open]').forEach((details) => {
+        const key = `${range}:${state.weaponStats.targetClass}:${state.weaponStats.headHits}`;
+        if (details.dataset.tableKey === key) return;
+        const weapon = getWeaponByName(details.dataset.breakpointWeapon);
+        if (!weapon) return;
+        details.querySelector('[data-breakpoint-content]').innerHTML = renderBreakpointTable(weapon, range);
+        details.dataset.tableKey = key;
+      });
     }
 
     function renderKillSummary(deaths) {
@@ -3720,14 +3861,14 @@
       const { timeline, deaths, exposure } = getWeaponCombat(weapon, state.weaponStats.timelineRange);
       const time = getTimelineCursorTime();
       const current = FinalsCombat.damageAt(timeline, time);
-      const row = (label, value) => `<div class="stats-info-row"><span>${label}</span><span>${value}</span></div>`;
+      const row = (label, value, key = '') => `<div class="stats-info-row"><span>${label}</span><span ${key ? `data-stats-live="${key}"` : ''}>${value}</span></div>`;
       const sample = (damage, t) => t <= timeline.knownUntil ? damage.toFixed(1) : 'Needs data';
-      return row('Cursor', `${time.toFixed(3)}s / ${state.weaponStats.timelineRange}m`)
-        + row(`Total${timeline.dotStatus === 'unknown' ? ' (direct only)' : ''}`, sample(current.total, time))
-        + row('Direct / DoT', `${sample(current.direct, time)} / ${timeline.dotStatus === 'unknown' ? 'Unverified' : sample(current.burn, time)}`)
-        + row('Shots fired', time <= timeline.knownUntil ? current.shots : 'Needs data')
-        + row('Magazine', `${current.magazine}${current.activity === 'swap' ? ' / swapping' : current.activity === 'reload' ? ' / reloading' : ''}`)
-        + (timeline.burstCount > 1 ? row('Burst', current.burst) : '')
+      return row('Cursor', `${time.toFixed(3)}s / ${state.weaponStats.timelineRange}m`, 'cursor')
+        + row(`Total${timeline.dotStatus === 'unknown' ? ' (direct only)' : ''}`, sample(current.total, time), 'total')
+        + row('Direct / burn', `${sample(current.direct, time)} / ${timeline.dotStatus === 'unknown' ? 'Unverified' : sample(current.burn, time)}`, 'parts')
+        + row('Shots fired', time <= timeline.knownUntil ? current.shots : 'Needs data', 'shots')
+        + row('Magazine', `${current.magazine}${current.activity === 'swap' ? ' / swapping' : current.activity === 'reload' ? ' / reloading' : ''}`, 'magazine')
+        + (timeline.burstCount > 1 ? row('Burst', current.burst, 'burst') : '')
         + (compact ? '' : renderKillSummary(deaths))
         + (compact ? '' : `<details class="stats-mechanics" ${statsDetailsAttributes(`info:exposure:${weapon.name}`)}><summary>Exposure damage</summary>${renderExposureSummary(weapon)}`)
         + row(timeline.burstCount > 1 ? 'First burst' : 'First shot', `${exposure.burstDamage.toFixed(1)} / ${exposure.burstDuration.toFixed(3)}s`)
@@ -3753,7 +3894,7 @@
             <article class="stats-detail-card" style="--weapon-color:${weapon.color};">
               <div class="stats-detail-head">
                 <div class="stats-detail-title">${escapeHtml(weapon.name)}</div>
-                <button class="stats-detail-remove" type="button" data-weapon-unpin="${escapeHtml(weapon.name)}" aria-label="Unpin ${escapeHtml(weapon.name)}">x</button>
+                <button class="stats-detail-remove" type="button" data-weapon-unpin="${escapeHtml(weapon.name)}" aria-label="Unpin ${escapeHtml(weapon.name)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button>
               </div>
               ${timelineView ? `${renderKillSummary(getWeaponCombat(weapon, range).deaths)}${renderExposureSummary(weapon)}
                 <details class="stats-mechanics" ${statsDetailsAttributes(`pinned:combat:${weapon.name}`)}><summary>Combat details @ ${range}m</summary>
@@ -3815,60 +3956,77 @@
         cursor.setAttribute('x1', cursorX);
         cursor.setAttribute('x2', cursorX);
       }
-    }
-
-    function setWeaponHover(name, rangeMeters) {
-      const previousName = state.weaponStats.hoverName;
-      state.weaponStats.hoverName = name || '';
-      if (state.weaponStats.view === 'Timeline') {
-        state.weaponStats.hoverTime = rangeMeters == null ? null : clampNumber(rangeMeters, 0, state.weaponStats.maxTime);
-      } else {
-        state.weaponStats.hoverRange = clampNumber(rangeMeters || 0, 0, WEAPON_MAX_RANGE);
-      }
-      syncWeaponStatsHighlights();
-      if (previousName !== state.weaponStats.hoverName) renderTimelineMarkers();
-      renderWeaponStatsInfo();
-      if (state.weaponStats.view === 'Timeline') {
-        elements.weaponStatsPinned.querySelectorAll('[data-pinned-timeline]').forEach((panel) => {
-          panel.innerHTML = renderTimelineInfo(getWeaponByName(panel.dataset.pinnedTimeline), true);
-        });
-      } else {
-        elements.weaponStatsPinned.querySelectorAll('[data-pinned-breakpoints]').forEach((panel) => {
-          panel.innerHTML = renderHeadshotBreakpoints(getWeaponByName(panel.dataset.pinnedBreakpoints), state.weaponStats.hoverRange, 'pinned');
-        });
-      }
-    }
-
-    function findClosestWeaponAtPoint(y, rangeMeters, chartHeight) {
-      const lists = [
-        { weapons: state.weaponStats.plottedWeapons.filter((weapon) => state.weaponStats.pinnedNames.has(weapon.name)), threshold: 95 },
-        { weapons: state.weaponStats.plottedWeapons.filter((weapon) => !state.weaponStats.pinnedNames.has(weapon.name)), threshold: 28 }
-      ];
-
-      for (const list of lists) {
-        let closest = null;
-        let closestDiff = Infinity;
-        list.weapons.forEach((weapon) => {
-          const timeline = state.weaponStats.view === 'Timeline'
-            ? getWeaponCombat(weapon, state.weaponStats.timelineRange).timeline : null;
-          if (timeline && rangeMeters > timeline.knownUntil) return;
-          const value = timeline ? FinalsCombat.damageAt(timeline, rangeMeters).total : getWeaponMetricValue(weapon, rangeMeters);
-          if (!Number.isFinite(value)) return;
-          if (timeline && value > state.weaponStats.maxY) return;
-          const clampedValue = Number.isFinite(value) ? Math.min(value, state.weaponStats.maxY) : state.weaponStats.maxY;
-          const pixelY = chartHeight - ((clampedValue / state.weaponStats.maxY) * chartHeight);
-          const diff = Math.abs(y - pixelY);
-          if (diff < list.threshold && diff < closestDiff) {
-            closest = weapon;
-            closestDiff = diff;
-          }
-        });
-        if (closest) {
-          return closest;
+      const dot = elements.weaponStatsPlot.querySelector('[data-hover-dot]');
+      if (dot) {
+        const visible = statsHoverPoint && statsHoverPoint.name === state.weaponStats.hoverName;
+        dot.setAttribute('visibility', visible ? 'visible' : 'hidden');
+        if (visible) {
+          dot.setAttribute('cx', statsHoverPoint.x);
+          dot.setAttribute('cy', statsHoverPoint.y);
+          dot.setAttribute('stroke', getWeaponByName(statsHoverPoint.name)?.color || '#fff');
         }
       }
+    }
 
-      return null;
+    function getStatsInfoKey(weapon) {
+      const stats = state.weaponStats;
+      return `${weapon?.name || ''}:${stats.view}:${stats.metric}:${stats.targetClass}:${stats.headHits}:${stats.timelineRange}`;
+    }
+
+    function updateLiveStatsValues(container, values) {
+      container.querySelectorAll('[data-stats-live]').forEach((element) => {
+        const value = String(values[element.dataset.statsLive] ?? '');
+        if (element.textContent !== value) element.textContent = value;
+      });
+    }
+
+    function getTimelineLiveValues(weapon) {
+      const { timeline } = getWeaponCombat(weapon, state.weaponStats.timelineRange);
+      const time = getTimelineCursorTime();
+      const current = FinalsCombat.damageAt(timeline, time);
+      const sample = (value) => time <= timeline.knownUntil ? value.toFixed(1) : 'Needs data';
+      return { cursor: `${time.toFixed(3)}s / ${state.weaponStats.timelineRange}m`,
+        total: sample(current.total), parts: `${sample(current.direct)} / ${timeline.dotStatus === 'unknown' ? 'Unverified' : sample(current.burn)}`,
+        shots: time <= timeline.knownUntil ? current.shots : 'Needs data',
+        magazine: `${current.magazine}${current.activity === 'swap' ? ' / swapping' : current.activity === 'reload' ? ' / reloading' : ''}`,
+        burst: current.burst };
+    }
+
+    function updateWeaponStatsHoverInfo() {
+      const weapon = getFocusedStatsWeapon();
+      if (elements.weaponStatsInfo.dataset.infoKey !== getStatsInfoKey(weapon)) renderWeaponStatsInfo();
+      else if (weapon) {
+        if (state.weaponStats.view === 'Timeline') updateLiveStatsValues(elements.weaponStatsInfo, getTimelineLiveValues(weapon));
+        else {
+          const range = state.weaponStats.hoverRange;
+          const shots = getShotsToKill(weapon, range);
+          updateLiveStatsValues(elements.weaponStatsInfo, { range: `${range.toFixed(1)}m`,
+            metric: formatWeaponMetricValue(getWeaponMetricValue(weapon, range)),
+            damage: getWeaponDamage(weapon, range).toFixed(1), shots: Number.isFinite(shots) ? shots : 'N/A' });
+        }
+      }
+      if (state.weaponStats.view === 'Timeline') {
+        elements.weaponStatsPinned.querySelectorAll('[data-pinned-timeline]').forEach((panel) => {
+          updateLiveStatsValues(panel, getTimelineLiveValues(getWeaponByName(panel.dataset.pinnedTimeline)));
+        });
+      }
+      updateOpenBreakpointTables();
+    }
+
+    function setWeaponHover(name, rangeMeters, point = null) {
+      const previousName = state.weaponStats.hoverName;
+      const timeline = state.weaponStats.view === 'Timeline';
+      const previousValue = timeline ? state.weaponStats.hoverTime : state.weaponStats.hoverRange;
+      const value = timeline ? rangeMeters == null ? null : Math.round(clampNumber(rangeMeters, 0, state.weaponStats.maxTime) * 1000) / 1000
+        : Math.round(clampNumber(rangeMeters || 0, 0, WEAPON_MAX_RANGE) * 10) / 10;
+      statsHoverPoint = point;
+      state.weaponStats.hoverName = name || '';
+      if (timeline) state.weaponStats.hoverTime = value;
+      else state.weaponStats.hoverRange = value;
+      syncWeaponStatsHighlights();
+      if (previousName === state.weaponStats.hoverName && previousValue === value) return;
+      if (previousName !== state.weaponStats.hoverName) renderTimelineMarkers();
+      updateWeaponStatsHoverInfo();
     }
 
     function getWeaponPointerTarget(event) {
@@ -3885,17 +4043,30 @@
       const rangeMeters = (x / rect.width) * (state.weaponStats.view === 'Timeline' ? state.weaponStats.maxTime : WEAPON_MAX_RANGE);
       const marker = event.target.closest('[data-marker-weapon]');
       if (marker) return { weapon: getWeaponByName(marker.dataset.markerWeapon), rangeMeters: Number(marker.dataset.markerTime) };
-      const weapon = findClosestWeaponAtPoint(y, rangeMeters, rect.height);
-      return { weapon, rangeMeters };
+      const svg = elements.weaponStatsPlot.querySelector('svg');
+      const point = { x: x / rect.width * svg.viewBox.baseVal.width, y: y / rect.height * svg.viewBox.baseVal.height };
+      const directName = event.target.closest('[data-stats-name]')?.dataset.statsName;
+      const series = directName ? statsChartSeries.filter((line) => line.name === directName) : statsChartSeries;
+      const nearest = FinalsChart.nearestSeries(series, point, event.pointerType === 'touch' ? 26 : 18);
+      return { weapon: getWeaponByName(nearest?.name), rangeMeters, point: nearest };
     }
 
     function handleWeaponStatsPointerMove(event) {
-      const target = getWeaponPointerTarget(event);
-      if (!target || !target.weapon) {
-        setWeaponHover('', target?.rangeMeters || 0);
-        return;
-      }
-      setWeaponHover(target.weapon.name, target.rangeMeters);
+      if (event.pointerType === 'touch') return;
+      statsPendingPointer = { clientX: event.clientX, clientY: event.clientY, target: event.target, pointerType: event.pointerType };
+      if (statsHoverFrame) return;
+      statsHoverFrame = requestAnimationFrame(() => {
+        statsHoverFrame = 0;
+        const target = getWeaponPointerTarget(statsPendingPointer);
+        statsPendingPointer = null;
+        setWeaponHover(target?.weapon?.name || '', target?.rangeMeters || 0, target?.point);
+      });
+    }
+
+    function cancelStatsPointerUpdate() {
+      cancelAnimationFrame(statsHoverFrame);
+      statsHoverFrame = 0;
+      statsPendingPointer = null;
     }
 
     function toggleWeaponPin(name) {
@@ -3915,6 +4086,7 @@
     }
 
     function renderWeaponStats() {
+      cancelStatsPointerUpdate();
       if (!elements.weaponStatsEmpty) {
         return;
       }
@@ -4030,33 +4202,9 @@
       }
 
       const pools = getClassPools(state.activeClass);
-      if (state.activeSlot.mode === 'alternatives') {
-        switch (state.activeSlot.area) {
-          case 'specialization':
-            return pools.specializations;
-          case 'mainWeapon':
-            return pools.weapons;
-          case 'mainGadget':
-            return pools.allGadgets;
-          case 'reserve':
-            return pools.reserve;
-          default:
-            return [];
-        }
-      }
-
-      switch (state.activeSlot.area) {
-        case 'specialization':
-          return pools.specializations;
-        case 'mainWeapon':
-          return pools.weapons;
-        case 'mainGadget':
-          return pools.allGadgets;
-        case 'reserve':
-          return pools.reserve;
-        default:
-          return [];
-      }
+      const groups = { specialization: pools.specializations, mainWeapon: pools.weapons,
+        mainGadget: pools.allGadgets, reserve: pools.reserve };
+      return (groups[state.activeSlot.area] || []).filter((item) => !RETIRED_ITEMS[item.name]);
     }
 
     function collectBlockingNames() {
@@ -4235,14 +4383,14 @@
       `;
     }
 
-    function renderCard({ itemName, emptyLabel, type, selected = false, disabled = false, slotAttrs = '', order = 0, pulseKey = '', altTarget = null, swapSlot = null, title = '' }) {
+    function renderCard({ itemName, emptyLabel, type, selected = false, disabled = false, slotAttrs = '', order = 0, pulseKey = '', altTarget = null, swapSlot = null, title = '', promoteTarget = null }) {
       const item = getItemByName(itemName);
       const cardName = item ? item.name : emptyLabel;
       const isPulse = pulseKey && pulseKey === state.pulseKey;
       const altControls = altTarget ? renderAltControls(altTarget) : '';
       const swapLabel = swapSlot ? swapSlot.area === 'reserve' ? `Reserve ${swapSlot.index + 1}`
         : swapSlot.area === 'mainGadget' ? `Gadget ${swapSlot.index + 1}` : 'Weapon' : '';
-      const cardTitle = swapSlot ? `Swap with ${swapLabel}, including alternatives` : title;
+      const cardTitle = swapSlot ? `Swap with ${swapLabel}, including alternatives` : title || RETIRED_ITEMS[itemName] || '';
 
       return `
         <article
@@ -4261,6 +4409,7 @@
             <span class="check-badge" aria-hidden="true">&#10003;</span>
             ${swapSlot ? '<span class="swap-badge" aria-hidden="true">Swap</span>' : ''}
             ${altControls}
+            ${promoteTarget ? `<button class="promote-alt-button" type="button" data-promote-alt-area="${escapeHtml(promoteTarget.area)}" data-promote-alt-index="${promoteTarget.index}" data-alt-name="${escapeHtml(itemName)}" aria-label="Equip ${escapeHtml(itemName)}">Equip</button>` : ''}
           </div>
           <div class="card-name"><span>${escapeHtml(cardName)}</span></div>
         </article>
@@ -4269,17 +4418,28 @@
 
     function renderAltControls(target) {
       const alternatives = getAlternativeList(state.currentBuild, target.area, target.index);
-      const chips = alternatives.slice(0, MAX_ALTERNATIVES).map((itemName) => `
-        <button class="alt-chip" type="button" data-promote-alt-area="${escapeHtml(target.area)}" data-promote-alt-index="${target.index}" data-alt-name="${escapeHtml(itemName)}" title="Promote ${escapeHtml(itemName)}">${escapeHtml(itemName)}</button>
-      `).join('');
       const label = target.area === 'reserve' ? `reserve ${target.index + 1}` : 'slot';
       return `
-        <div class="alt-strip">${chips}</div>
-        <button class="alt-button ${alternatives.length ? 'has-alts' : ''}" type="button" data-alt-area="${escapeHtml(target.area)}" data-alt-index="${target.index}" aria-label="Manage ${label} alternatives">ALT</button>
+        <button class="alt-button ${alternatives.length ? 'has-alts' : ''}" type="button" data-alt-area="${escapeHtml(target.area)}" data-alt-index="${target.index}" aria-label="Manage ${label} alternatives (${alternatives.length})" title="${escapeHtml(alternatives.length ? `Alternatives: ${alternatives.join(', ')}` : 'Add alternatives')}">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h15m-4-4 4 4-4 4M20 17H5m4-4-4 4 4 4"/></svg>${alternatives.length ? `<span>${alternatives.length}</span>` : ''}
+        </button>
       `;
     }
 
+    function syncActiveSlot() {
+      elements.loadoutBoard.querySelectorAll('[data-slot-area]').forEach((card) => {
+        const active = state.activeSlot && card.dataset.slotArea === state.activeSlot.area
+          && Number(card.dataset.slotIndex || 0) === state.activeSlot.index;
+        card.classList.toggle('is-active-slot', Boolean(active));
+        card.setAttribute('aria-expanded', String(Boolean(active)));
+      });
+    }
+
     function renderPickerRibbon() {
+      document.body.classList.toggle('has-picker', Boolean(state.activeSlot));
+      elements.pickerRibbon.inert = !state.activeSlot;
+      elements.pickerRibbon.setAttribute('aria-hidden', String(!state.activeSlot));
+      syncActiveSlot();
       if (!state.activeSlot) {
         elements.pickerRibbon.className = 'picker-ribbon is-hidden';
         clearTimeout(pickerClearTimer);
@@ -4308,6 +4468,7 @@
               disabled: itemState.disabled,
               swapSlot: itemState.swapSlot,
               title: itemState.title,
+              promoteTarget: state.activeSlot.mode === 'alternatives' && itemState.selected ? state.activeSlot : null,
               slotAttrs: `data-picker-item="${escapeHtml(item.name)}"`,
               order: index
             });
@@ -4317,6 +4478,8 @@
     }
 
     function renderLoadoutBoard() {
+      elements.loadoutBoard.classList.toggle('is-revealing', loadoutRevealPending);
+      loadoutRevealPending = false;
       let order = 0;
       const build = state.currentBuild;
       const sections = [
@@ -4384,6 +4547,7 @@
           `).join('')}
         </div>
       `;
+      syncActiveSlot();
     }
 
     function renderClassToggle() {
@@ -4461,14 +4625,14 @@
 
       elements.savedBuilds.innerHTML = state.savedBuilds.map((build) => {
         const badges = [
-          buildHasAlternatives(build) ? '<span class="saved-badge">Alt</span>' : '',
+          buildHasAlternatives(build) ? '<span class="saved-badge">Alternatives</span>' : '',
           buildHasNotes(build) ? '<span class="saved-badge">Notes</span>' : ''
         ].join('');
         return `
           <article class="saved-card" role="button" tabindex="0" data-load-build="${escapeHtml(build.id)}">
             <div class="saved-card-actions">
               <button class="saved-action duplicate-build" type="button" data-duplicate-build="${escapeHtml(build.id)}" aria-label="Duplicate ${escapeHtml(build.name)}">Copy</button>
-              <button class="saved-action delete-build" type="button" data-delete-build="${escapeHtml(build.id)}" aria-label="Delete ${escapeHtml(build.name)}">x</button>
+              <button class="saved-action delete-build" type="button" data-delete-build="${escapeHtml(build.id)}" aria-label="Delete ${escapeHtml(build.name)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button>
             </div>
             <div class="saved-card-title">${escapeHtml(build.name || 'Untitled')}</div>
             <div class="saved-card-meta">${escapeHtml(build.className)} / ${escapeHtml(build.specialization || 'No spec')}</div>
@@ -4534,11 +4698,20 @@
     function openSlot(area, index = 0) {
       state.activeSlot = { mode: 'single', area, index };
       renderPickerRibbon();
+      revealMobileSlot();
     }
 
     function openAlternatives(area, index = 0) {
       state.activeSlot = { mode: 'alternatives', area, index };
       renderPickerRibbon();
+      revealMobileSlot();
+    }
+
+    function revealMobileSlot() {
+      if (!window.matchMedia('(max-width: 760px)').matches) return;
+      requestAnimationFrame(() => elements.loadoutBoard.querySelector('.is-active-slot')?.scrollIntoView({
+        block: 'nearest', inline: 'nearest', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+      }));
     }
 
     function setPulse(key) {
@@ -4632,6 +4805,7 @@
         return;
       }
       state.currentBuild = cloneBuild(build);
+      loadoutRevealPending = true;
       state.activeClass = getClassKeyFromLabel(build.className);
       state.activeSlot = null;
       state.shareLink = '';
@@ -4822,6 +4996,7 @@
       }
       state.activeClass = classKey;
       state.currentBuild = createBlankBuild(classKey);
+      loadoutRevealPending = true;
       state.activeSlot = null;
       state.shareLink = '';
       showToast(`${CLASS_META[classKey].label} selected`);
@@ -5044,10 +5219,11 @@
     });
 
     document.addEventListener('wheel', (event) => {
-      const rail = event.target.closest('.picker-strip, .saved-rail');
+      const rail = event.target.closest('.picker-strip, .saved-rail, .slot-track');
       if (!rail) {
         return;
       }
+      if (rail.matches('.slot-track') && rail.scrollWidth <= rail.clientWidth) return;
 
       event.preventDefault();
 
@@ -5068,23 +5244,35 @@
       if (!key || !event.target.isConnected) return;
       if (event.target.open) statsOpenDetails.add(key);
       else statsOpenDetails.delete(key);
+      if (event.target.open && event.target.dataset.breakpointWeapon) updateOpenBreakpointTables();
     }, true);
 
     elements.weaponStatsPlot.addEventListener('pointermove', handleWeaponStatsPointerMove);
     elements.weaponStatsLegend.addEventListener('pointerover', (event) => {
       const button = event.target.closest('[data-weapon-pin]');
-      if (button) setWeaponHover(button.dataset.weaponPin, state.weaponStats.view === 'Timeline' ? null : state.weaponStats.hoverRange);
+      if (button && !button.contains(event.relatedTarget)) {
+        cancelStatsPointerUpdate();
+        setWeaponHover(button.dataset.weaponPin, state.weaponStats.view === 'Timeline' ? null : state.weaponStats.hoverRange);
+      }
     });
     elements.weaponStatsLegend.addEventListener('focusin', (event) => {
       const button = event.target.closest('[data-weapon-pin]');
       if (button) setWeaponHover(button.dataset.weaponPin, state.weaponStats.view === 'Timeline' ? null : state.weaponStats.hoverRange);
     });
-    elements.weaponStatsLegend.addEventListener('pointerleave', () => setWeaponHover('', state.weaponStats.view === 'Timeline' ? null : state.weaponStats.hoverRange));
-    elements.weaponStatsPlot.addEventListener('pointerleave', () => setWeaponHover('', state.weaponStats.view === 'Timeline' ? null : state.weaponStats.hoverRange));
+    const leaveStatsHover = (event) => {
+      if (event.pointerType === 'touch') return;
+      cancelStatsPointerUpdate();
+      setWeaponHover('', state.weaponStats.view === 'Timeline' ? null : state.weaponStats.hoverRange);
+    };
+    elements.weaponStatsLegend.addEventListener('pointerleave', leaveStatsHover);
+    elements.weaponStatsPlot.addEventListener('pointerleave', leaveStatsHover);
     elements.weaponStatsPlot.addEventListener('click', (event) => {
       const target = getWeaponPointerTarget(event);
       if (target?.weapon) {
-        toggleWeaponPin(target.weapon.name);
+        cancelStatsPointerUpdate();
+        if (event.pointerType === 'touch' || window.matchMedia('(hover: none)').matches) {
+          setWeaponHover(target.weapon.name, target.rangeMeters, target.point);
+        } else toggleWeaponPin(target.weapon.name);
       }
     });
 

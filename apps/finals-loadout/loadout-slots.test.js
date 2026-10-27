@@ -117,3 +117,33 @@ test('swapped alternatives survive the existing save/import normalization', () =
   app.swapLoadoutSlots(build, { area: 'mainGadget', index: 0 }, { area: 'reserve', index: 1 });
   assert.deepEqual(plain(app.normalizeLoadedBuild(plain(build))), plain(build));
 });
+
+test('Prime Time equipment is class-valid and retains verified wiki image filenames', () => {
+  const light = app.getClassPools('light');
+  const medium = app.getClassPools('medium');
+  const heavy = app.getClassPools('heavy');
+  assert.ok(light.specializations.some((item) => item.name === 'True Sight'));
+  for (const name of ['Mimic Device', 'Translocator']) {
+    assert.ok(light.allGadgets.some((item) => item.name === name));
+    assert.ok(light.reserve.some((item) => item.name === name));
+    assert.ok(!medium.reserve.some((item) => item.name === name));
+    assert.ok(!heavy.reserve.some((item) => item.name === name));
+  }
+  assert.equal(app.getItemByName('True Sight').imageFilename, 'Thermal Vision Rank 1.png');
+  assert.equal(app.getItemByName('Mimic Device').imageFilename, 'Mimic Device Rank 1.png');
+  assert.equal(app.getItemByName('Translocator').imageFilename, 'Translocator Rank 1.png');
+  assert.ok(medium.allGadgets.some((item) => item.name === 'Sonar Grenade'));
+  assert.ok(!heavy.allGadgets.some((item) => item.name === 'Sonar Grenade'));
+});
+
+test('old Thermal Vision builds and their item notes remain intact during normalization', () => {
+  const build = app.createBlankBuild('light');
+  build.mainGadgets[0] = 'Thermal Vision';
+  build.reserve[0] = app.createReserveEntry('Mimic Device', ['Translocator']);
+  build.specialization = 'True Sight';
+  const library = { version: 2, builds: [plain(build)], itemNotes: {
+    'Thermal Vision': 'My old reminder', 'True Sight': 'My new reminder', 'Mimic Device': 'Prop reminder'
+  } };
+  const result = plain(app.normalizeStorageEnvelope(library).envelope);
+  assert.deepEqual(result, library);
+});
