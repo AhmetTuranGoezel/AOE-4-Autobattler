@@ -546,7 +546,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
       if (c.tw !== 70) parts.push(`tgt ${c.tw}kg`);
       if (c.ts !== 100) parts.push(`tgt ${c.ts} Spe`);
       const badge = `<small class="mon-cfg-badge">${parts.join(" · ")}</small>`;
-      return `<span class="mon-chip ${state.focus === m.slug ? "focus" : ""}" data-focus-mon="${m.slug}" ${n >= 2 ? `title="${state.focus === m.slug ? "Unfocus" : `Focus — group the table around ${m.name}'s moves`}"` : ""}><img src="${m.sprite}" alt="">${m.name}${badge}<button class="mon-cfg ${state.cfgOpen === m.slug ? "on" : ""}" data-mon-cfg="${m.slug}" title="Customize ${m.name} — stats, boosts, item, ability">⚙</button><button data-rm-mon="${m.slug}" aria-label="Remove ${m.name}">✕</button></span>`;
+      return `<span class="mon-chip ${state.focus === m.slug ? "focus" : ""}" data-focus-mon="${m.slug}" ${n >= 2 ? `title="${state.focus === m.slug ? "Unfocus" : `Focus — group the table around ${m.name}'s moves`}"` : ""}><img src="${m.sprite}" alt="">${m.name}${badge}<button class="mon-cfg ${state.cfgOpen === m.slug ? "on" : ""}" data-mon-cfg="${m.slug}" title="Customize ${m.name} — stats, boosts, item, ability" aria-label="Customize ${m.name}" aria-expanded="${state.cfgOpen === m.slug}">⚙</button><button data-rm-mon="${m.slug}" aria-label="Remove ${m.name}">✕</button></span>`;
     }).join("");
     renderCfgPop();
     // "any/all" toggle is irrelevant below 2 mons and superseded by the grouped view while focused
@@ -866,7 +866,11 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
       monBanChips.length ? `${monBanChips.length} individual move bans` : "", monAllowChips.length ? `${monAllowChips.length} individual exceptions` : ""].filter(Boolean);
     $(".mvr-active-rules").hidden = !rules.length;
     $(".mvr-active-rules").textContent = rules.join(" · ");
-    const sum = [q.preset.nature === "auto" ? "Auto +10% (move-dependent)" : q.preset.nature ? `${STAT_ABBR[q.preset.nature]} +10% assumption` : "Neutral Nature", itemLabel(q.preset.item || "none"), spreadSummary(q.preset.spread), ...Object.entries(q.preset.stages).filter(([, v]) => v).map(([k, v]) => `${v > 0 ? "+" : ""}${v} ${STAT_ABBR[k]}`)].join(" · ");
+    // This sits in the always-visible ranking toolbar, so state needs to be
+    // unambiguous without turning the control into a multi-line report.
+    const sum = [q.preset.nature === "auto" ? "Auto Nature" : q.preset.nature ? `${STAT_ABBR[q.preset.nature]} Nature` : "Neutral Nature",
+      itemLabel(q.preset.item || "none"), hasMaxAnalysisSpread(q.preset.spread) ? "Max stats" : spreadSummary(q.preset.spread),
+      ...Object.entries(q.preset.stages).filter(([, v]) => v).map(([k, v]) => `${v > 0 ? "+" : ""}${v} ${STAT_ABBR[k]}`)].join(" · ");
     $(".mvr-preset").innerHTML = `
       <button class="mvr-preset-toggle ${q.presetOpen ? "open" : ""} ${presetActive() ? "has" : ""}" data-preset-toggle title="A build applied to every Pokémon you haven't individually customized">
         🛠 Everyone runs <b>${sum}</b> <span class="mvr-preset-caret">${q.presetOpen ? "▾" : "▸"}</span></button>
@@ -946,7 +950,7 @@ export function initMovesView({ toolbarEl, contentEl, data, onInfo, onFilter, on
       return `
       <div class="mvr-row ${editing ? "editing" : ""}" style="--bar:${max ? Math.round((d.v / max) * 100) : 0}%">
         <span class="mvr-rank">${i + 1}</span>
-        <button class="mvr-cog ${editing ? "on" : ""}" data-cfg-toggle="${e.slug}" title="See every move's damage & customize ${e.name}">⚙</button>
+        <button class="mvr-cog ${editing ? "on" : ""}" data-cfg-toggle="${e.slug}" title="See every move's damage & customize ${e.name}" aria-label="Customize ${e.name}'s moves" aria-expanded="${editing}">⚙</button>
         <span class="mvr-idn" data-mon-open="${e.slug}" title="Open ${e.name}'s details"><img class="ehp-spr" loading="lazy" src="${e.sprite}" alt="">
           <span class="mvr-name">${e.name}${e.isMega ? ' <span class="mega-badge">MEGA</span>' : ""}${e.usagePct != null ? ` <span class="ehp-use" title="ladder usage">${e.usagePct}%</span>` : ""}${badge.length ? `<small class="mvr-setline">${badge.join(" · ")}</small>` : ""}</span></span>
         <span class="mvr-move"><span class="type tiny" style="background:${TYPE_COLORS[mv.type]}">${mv.type}</span><button class="mvr-mvname" data-info-move="${mv.id}" title="Open ${mv.name}">${mv.name}</button><small class="mvr-pw" title="Exp. Pow for this Pokémon (STAB/ability in)">${d.pw} pw</small>${m ? "" : `<button class="mvr-banmon" data-mvr-banmon="${mv.id}" data-mvr-banslug="${e.slug}" title="Ban ${mv.name} for ${e.name} only" aria-label="Ban ${mv.name} for ${e.name} only">🚫</button><button class="mvr-ignore" data-mvr-ignore="${mv.id}" title="Globally ban ${mv.name}; it can still be allowed for individual Pokémon" aria-label="Globally ban ${mv.name}">✕</button>`}</span>

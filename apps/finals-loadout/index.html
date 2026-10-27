@@ -22,6 +22,7 @@
       --card-w: 140px;
       --card-h: 184px;
       --name-h: 39px;
+      --alternative-space: 0px;
       --radius: 8px;
       --slide-ease: cubic-bezier(0.22, 1, 0.36, 1);
       color-scheme: dark;
@@ -706,8 +707,7 @@
     }
 
     .check-badge,
-    .note-btn,
-    .alt-button {
+    .note-btn {
       position: absolute;
       z-index: 3;
       display: inline-grid;
@@ -809,65 +809,94 @@
       transform: translateY(0);
     }
 
-    .alt-button {
-      right: 7px;
-      bottom: 7px;
-      min-width: 30px;
-      height: 26px;
-      padding: 0 7px;
-      border: 1px solid rgba(245, 197, 66, 0.28);
-      background: rgba(17, 18, 24, 0.72);
-      color: var(--gold);
-      cursor: pointer;
-      font-size: 0.68rem;
-      letter-spacing: 0.04em;
-      transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease;
+    .equipment-stack {
+      flex: 0 0 var(--card-w);
+      width: var(--card-w);
+      position: relative;
+      isolation: isolate;
+      scroll-snap-align: start;
     }
 
-    .item-card:hover .alt-button,
-    .alt-button:focus-visible,
-    .alt-button.has-alts {
-      border-color: rgba(245, 197, 66, 0.72);
-      background: rgba(245, 197, 66, 0.93);
-      color: #111115;
-      outline: none;
-    }
-
-    .alt-strip {
-      position: absolute;
-      left: 7px;
-      right: 42px;
-      bottom: 7px;
-      z-index: 3;
+    .alternative-register {
+      height: var(--alternative-space);
       display: flex;
-      gap: 4px;
-      min-width: 0;
-      overflow: hidden;
+      align-items: flex-end;
     }
 
-    .alt-chip {
-      flex: 0 1 auto;
-      max-width: 62px;
-      min-height: 23px;
-      border: 1px solid rgba(255, 255, 255, 0.16);
-      border-radius: 999px;
-      background: rgba(8, 9, 13, 0.72);
-      color: var(--text);
-      padding: 0 7px;
-      cursor: pointer;
+    .alternative-tabs {
+      width: 100%;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 4px;
+      padding: 0 3px 4px;
+    }
+
+    .alternative-tabs:has(.alternative-tab:only-child) { grid-template-columns: minmax(0, 1fr); }
+
+    .alternative-tab {
+      display: grid;
+      grid-template-rows: minmax(0, 1fr) 24px;
+      min-width: 0;
+      height: 60px;
+      padding: 0;
       overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      font-size: 0.62rem;
-      font-weight: 900;
+      border: 1px solid rgba(245, 197, 66, 0.32);
+      border-top: 2px solid rgba(245, 197, 66, 0.7);
+      border-radius: 8px 8px 2px 2px;
+      background: #242833;
+      cursor: pointer;
+      transition: border-color 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
+    }
+
+    .alternative-tab:hover, .alternative-tab:focus-visible {
+      border-color: var(--gold);
+      box-shadow: 0 0 0 1px var(--gold);
+      transform: translateY(-2px);
+      outline: none;
+      z-index: 2;
+    }
+
+    .alternative-tab-art { position: relative; min-height: 0; overflow: hidden; background: #828f9b; }
+    .alternative-tab-art .item-img { object-position: center 42%; }
+    .alternative-tab-art .image-fallback { padding: 2px; font-size: 0.5rem; }
+    .alternative-tab-name {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      align-self: center;
+      padding: 0 2px;
+      overflow: hidden;
+      overflow-wrap: anywhere;
+      color: var(--text);
+      font-size: 0.63rem;
+      font-weight: 800;
+      line-height: 11px;
+      text-align: center;
       text-transform: uppercase;
     }
 
-    .alt-chip:hover,
-    .alt-chip:focus-visible {
-      border-color: rgba(245, 197, 66, 0.7);
-      outline: none;
+    .alternative-manage {
+      display: block;
+      width: 100%;
+      min-height: 32px;
+      padding: 5px 2px;
+      border: 0;
+      border-bottom: 1px solid rgba(245, 197, 66, 0.22);
+      border-radius: 0 0 7px 7px;
+      background: rgba(245, 197, 66, 0.035);
+      color: var(--muted);
+      font-size: 0.65rem;
+      font-weight: 700;
+      cursor: pointer;
     }
+
+    .alternative-manage:hover, .alternative-manage:focus-visible {
+      color: var(--gold);
+      background: rgba(245, 197, 66, 0.1);
+      outline: 1px solid rgba(245, 197, 66, 0.5);
+    }
+
+    .alternative-capacity { color: var(--muted); font-size: 0.7rem; letter-spacing: 0.02em; white-space: nowrap; }
 
     .saved-panel {
       margin-top: 14px;
@@ -1413,8 +1442,6 @@
     }
 
     .stats-detail-remove svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; }
-    .alt-button svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; }
-    .alt-button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
     .promote-alt-button {
       position: absolute; right: 7px; bottom: 7px; z-index: 3;
       min-height: 36px; padding: 0 10px; border-radius: 7px;
@@ -1895,7 +1922,7 @@
         gap: 18px 12px;
       }
 
-      .loadout-section { min-width: 0; }
+      .loadout-section { min-width: 0; --alternative-space: var(--mobile-alternative-space); }
       .loadout-section:nth-child(n+3) { grid-column: 1 / -1; }
       .loadout-section.is-reserve { margin-left: 0; }
 
@@ -1916,7 +1943,7 @@
       .section-title::after { height: 2px; }
       .note-btn { width: 40px; height: 40px; }
       .note-popover { top: 51px; }
-      .alt-button { min-width: 44px; height: 40px; }
+      .alternative-manage { min-height: 40px; }
       .promote-alt-button { min-height: 40px; }
       .item-card.is-active-slot { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(245,197,66,0.2); }
       .slot-track .item-card { scroll-margin-bottom: 325px; }
@@ -2108,7 +2135,7 @@
     const STORAGE_VERSION = 2;
     const SHARE_HASH_PREFIX = '#shared=';
     const MAX_NOTE_LENGTH = 220;
-    const MAX_ALTERNATIVES = 3;
+    const MAX_ALTERNATIVES = 4;
     const MAX_RESERVE_ALTERNATIVES = MAX_ALTERNATIVES;
     const RAIL_GLIDE_MS = 360;
     const RAIL_LINE_PX = 42;
@@ -2601,6 +2628,20 @@
       return true;
     }
 
+    function promoteLoadoutAlternative(build, area, index, itemName) {
+      const alternatives = [...getAlternativeList(build, area, index)];
+      const position = alternatives.indexOf(itemName);
+      if (position < 0) return false;
+      const previous = getPrimaryValue(build, area, index);
+      setPrimaryValue(build, area, itemName, index);
+      // Keep the old primary in the tapped tab; the other tabs never reorder.
+      alternatives[position] = previous;
+      const next = alternatives.filter(Boolean).slice(0, MAX_ALTERNATIVES);
+      const list = getAlternativeList(build, area, index);
+      list.splice(0, list.length, ...next);
+      return true;
+    }
+
     function collectAllSelectedItemNames(build) {
       const names = [];
       if (build.specialization) {
@@ -2864,6 +2905,7 @@
     let statsPendingPointer = null;
     let loadoutRevealPending = true;
     let pickerClearTimer = null;
+    let pulseClearTimer = null;
 
     function clampNumber(value, min, max) {
       return Math.max(min, Math.min(max, value));
@@ -4321,7 +4363,8 @@
         const full = alternatives.length >= MAX_ALTERNATIVES;
         return {
           selected,
-          disabled: !selected && (blocked || full)
+          disabled: !selected && (blocked || full),
+          title: selected ? '' : blocked ? 'Already used in this build' : full ? `Maximum ${MAX_ALTERNATIVES} alternatives` : ''
         };
       }
 
@@ -4387,12 +4430,11 @@
       const item = getItemByName(itemName);
       const cardName = item ? item.name : emptyLabel;
       const isPulse = pulseKey && pulseKey === state.pulseKey;
-      const altControls = altTarget ? renderAltControls(altTarget) : '';
       const swapLabel = swapSlot ? swapSlot.area === 'reserve' ? `Reserve ${swapSlot.index + 1}`
         : swapSlot.area === 'mainGadget' ? `Gadget ${swapSlot.index + 1}` : 'Weapon' : '';
       const cardTitle = swapSlot ? `Swap with ${swapLabel}, including alternatives` : title || RETIRED_ITEMS[itemName] || '';
 
-      return `
+      const card = `
         <article
           class="item-card ${item ? '' : 'is-empty'} ${selected ? 'is-selected' : ''} ${disabled ? 'is-disabled' : ''} ${isPulse ? 'is-pulse' : ''}"
           style="--order: ${order};"
@@ -4408,22 +4450,41 @@
             ${renderNoteTool(itemName)}
             <span class="check-badge" aria-hidden="true">&#10003;</span>
             ${swapSlot ? '<span class="swap-badge" aria-hidden="true">Swap</span>' : ''}
-            ${altControls}
             ${promoteTarget ? `<button class="promote-alt-button" type="button" data-promote-alt-area="${escapeHtml(promoteTarget.area)}" data-promote-alt-index="${promoteTarget.index}" data-alt-name="${escapeHtml(itemName)}" aria-label="Equip ${escapeHtml(itemName)}">Equip</button>` : ''}
           </div>
           <div class="card-name"><span>${escapeHtml(cardName)}</span></div>
         </article>
       `;
+      if (!altTarget) return card;
+      return `<div class="equipment-stack" data-stack-area="${altTarget.area}" data-stack-index="${altTarget.index}">
+        <div class="alternative-register">${renderAlternativeTabs(altTarget)}</div>
+        ${card}${renderAltControls(altTarget)}
+      </div>`;
+    }
+
+    function getSlotLabel(target) {
+      return target.area === 'reserve' ? `Reserve ${target.index + 1}`
+        : target.area === 'mainGadget' ? `Gadget ${target.index + 1}`
+        : target.area === 'mainWeapon' ? 'Weapon' : 'Specialization';
+    }
+
+    function renderAlternativeTabs(target) {
+      const alternatives = getAlternativeList(state.currentBuild, target.area, target.index);
+      if (!alternatives.length) return '';
+      return `<div class="alternative-tabs" role="group" aria-label="${getSlotLabel(target)} alternatives">
+        ${alternatives.slice(0, MAX_ALTERNATIVES).map((name, index) => `<button class="alternative-tab" type="button"
+          data-promote-alt-area="${target.area}" data-promote-alt-index="${target.index}" data-alt-name="${escapeHtml(name)}" data-alternative-index="${index}"
+          aria-label="Equip ${escapeHtml(name)}, alternative ${index + 1} for ${getSlotLabel(target)}" title="Equip ${escapeHtml(name)}">
+          <span class="alternative-tab-art">${renderItemMedia(getItemByName(name))}</span>
+          <span class="alternative-tab-name">${escapeHtml(name)}</span>
+        </button>`).join('')}
+      </div>`;
     }
 
     function renderAltControls(target) {
       const alternatives = getAlternativeList(state.currentBuild, target.area, target.index);
-      const label = target.area === 'reserve' ? `reserve ${target.index + 1}` : 'slot';
-      return `
-        <button class="alt-button ${alternatives.length ? 'has-alts' : ''}" type="button" data-alt-area="${escapeHtml(target.area)}" data-alt-index="${target.index}" aria-label="Manage ${label} alternatives (${alternatives.length})" title="${escapeHtml(alternatives.length ? `Alternatives: ${alternatives.join(', ')}` : 'Add alternatives')}">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h15m-4-4 4 4-4 4M20 17H5m4-4-4 4 4 4"/></svg>${alternatives.length ? `<span>${alternatives.length}</span>` : ''}
-        </button>
-      `;
+      return `<button class="alternative-manage" type="button" data-alt-area="${target.area}" data-alt-index="${target.index}"
+        aria-label="Manage ${getSlotLabel(target)} alternatives, ${alternatives.length} of ${MAX_ALTERNATIVES}">${alternatives.length ? 'Edit alternatives' : 'Add alternatives'}</button>`;
     }
 
     function syncActiveSlot() {
@@ -4455,7 +4516,8 @@
       elements.pickerRibbon.className = 'picker-ribbon';
       elements.pickerRibbon.innerHTML = `
         <div class="picker-topline">
-          <div class="picker-title">${getPickerTitle()}</div>
+          <div class="picker-title">${getPickerTitle()}${state.activeSlot.mode === 'alternatives'
+            ? ` <span class="alternative-capacity" role="status">${getAlternativeList(state.currentBuild, state.activeSlot.area, state.activeSlot.index).length} / ${MAX_ALTERNATIVES}</span>` : ''}</div>
           <button class="close-picker" type="button" data-close-picker aria-label="Close picker">x</button>
         </div>
         <div class="picker-strip">
@@ -4482,9 +4544,15 @@
       loadoutRevealPending = false;
       let order = 0;
       const build = state.currentBuild;
+      const alternatives = ensureSlotAlternatives(build);
+      const topCount = Math.max(alternatives.specialization.length, alternatives.mainWeapon.length);
+      const gadgetCount = Math.max(...alternatives.mainGadgets.map((list) => list.length));
+      const reserveCount = Math.max(...build.reserve.map((entry) => entry.alternatives.length));
+      const space = (count) => Math.ceil(Math.min(MAX_ALTERNATIVES, count) / 2) * 64;
       const sections = [
         {
           title: 'Specialization',
+          mobileSpace: space(topCount),
           cards: [
             renderCard({
               itemName: build.specialization,
@@ -4499,6 +4567,7 @@
         },
         {
           title: 'Weapon',
+          mobileSpace: space(topCount),
           cards: [
             renderCard({
               itemName: build.mainWeapon,
@@ -4513,6 +4582,7 @@
         },
         {
           title: 'Gadgets',
+          mobileSpace: space(gadgetCount),
           cards: build.mainGadgets.map((itemName, index) => renderCard({
             itemName,
             emptyLabel: 'Select',
@@ -4525,6 +4595,7 @@
         },
         {
           title: 'Reserve',
+          mobileSpace: space(reserveCount),
           className: 'is-reserve',
           cards: build.reserve.map((entry, index) => renderCard({
             itemName: entry.primary,
@@ -4538,9 +4609,9 @@
       ];
 
       elements.loadoutBoard.innerHTML = `
-        <div class="loadout-row">
+        <div class="loadout-row" style="--alternative-space: ${space(Math.max(topCount, gadgetCount, reserveCount))}px;">
           ${sections.map((section) => `
-            <section class="loadout-section ${section.className || ''}">
+            <section class="loadout-section ${section.className || ''}" style="--mobile-alternative-space: ${section.mobileSpace}px;">
               <div class="section-title">${escapeHtml(section.title)}</div>
               <div class="slot-track">${section.cards.join('')}</div>
             </section>
@@ -4715,11 +4786,12 @@
     }
 
     function setPulse(key) {
+      clearTimeout(pulseClearTimer);
       state.pulseKey = key;
-      setTimeout(() => {
+      pulseClearTimer = setTimeout(() => {
         if (state.pulseKey === key) {
           state.pulseKey = '';
-          renderLoadoutBoard();
+          elements.loadoutBoard.querySelectorAll('.is-pulse').forEach((card) => card.classList.remove('is-pulse'));
         }
       }, 420);
     }
@@ -4968,21 +5040,26 @@
       }
     }
 
-    function promoteAlternative(area, index, itemName) {
+    function promoteAlternative(area, index, itemName, fromRegister = false) {
       const alternatives = getAlternativeList(state.currentBuild, area, index);
-      if (!alternatives.includes(itemName)) {
-        return;
-      }
-      const previous = getPrimaryValue(state.currentBuild, area, index);
-      setPrimaryValue(state.currentBuild, area, itemName, index);
-      const refreshedAlternatives = getAlternativeList(state.currentBuild, area, index);
-      if (previous && !refreshedAlternatives.includes(previous)) {
-        refreshedAlternatives.unshift(previous);
-      }
-      refreshedAlternatives.splice(MAX_ALTERNATIVES);
+      const tabIndex = alternatives.indexOf(itemName);
+      if (!promoteLoadoutAlternative(state.currentBuild, area, index, itemName)) return;
+      if (fromRegister) state.activeSlot = null;
       persistEnvelope();
       setPulse(area === 'mainGadget' || area === 'reserve' ? `${area}-${index}` : area);
       render();
+      if (fromRegister) {
+        const stack = elements.loadoutBoard.querySelector(`[data-stack-area="${area}"][data-stack-index="${index}"]`);
+        const tab = stack?.querySelector(`[data-alternative-index="${tabIndex}"]`);
+        (tab || stack?.querySelector('[data-slot-area]'))?.focus({ preventScroll: true });
+        if (!prefersReducedMotion()) {
+          stack?.querySelector('.card-visual')?.animate([
+            { opacity: 0.45, transform: 'translateY(-7px)' }, { opacity: 1, transform: 'translateY(0)' }
+          ], { duration: 220, easing: 'ease-out' });
+          tab?.animate([{ opacity: 0.4, transform: 'translateY(6px)' }, { opacity: 1, transform: 'translateY(0)' }],
+            { duration: 220, easing: 'ease-out' });
+        }
+      }
     }
 
     elements.classToggle.addEventListener('click', (event) => {
@@ -5107,7 +5184,8 @@
         promoteAlternative(
           promoteAltButton.dataset.promoteAltArea,
           Number(promoteAltButton.dataset.promoteAltIndex || 0),
-          promoteAltButton.dataset.altName
+          promoteAltButton.dataset.altName,
+          promoteAltButton.hasAttribute('data-alternative-index')
         );
         return;
       }

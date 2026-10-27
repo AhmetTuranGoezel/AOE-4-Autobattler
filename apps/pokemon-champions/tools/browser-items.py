@@ -202,8 +202,8 @@ def run():
             assert not custom.is_visible(), "A quick preset closes custom-item details"
             page.locator('[data-mvmode="rank"]').click()
             page.locator("[data-preset-toggle]").click()
-            assert "Auto +10%" in page.locator(".mvr-preset-toggle").inner_text()
-            assert "Max Atk/SpA/Def/Spe" in page.locator(".mvr-preset-toggle").inner_text()
+            assert "Auto Nature" in page.locator(".mvr-preset-toggle").inner_text()
+            assert "Max stats" in page.locator(".mvr-preset-toggle").inner_text()
             assert "on" in (page.locator('.mvr-preset [data-cfg-nature="auto"]').get_attribute("class") or "")
             for stat in ["atk", "spa", "def", "spe"]:
                 assert page.locator(f'.mvr-preset [data-cfg-slider="{stat}"]').input_value() == "32"

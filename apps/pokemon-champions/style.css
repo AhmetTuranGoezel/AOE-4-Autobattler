@@ -2424,7 +2424,194 @@ tr.pin-end td { padding: 0; height: 8px; border-bottom: 2px solid color-mix(in s
   .mon-cfg-badge { flex: 1 1 auto; }
 }
 
+/* -------------------------------------------------------------------------
+   Responsive coherence pass
+
+   This is the final, authoritative phone layer.  Earlier component-specific
+   breakpoints intentionally handle specialised tables, but shared layout lives
+   here so header, tools, cards and dense workspaces follow one rhythm.
+   ------------------------------------------------------------------------- */
 @media (max-width: 640px) {
-  .sync-pill { margin-left: 0; }
-  .sync-code-big { align-self: stretch; text-align: center; }
+  :root {
+    --mobile-gutter: 12px;
+    --mobile-gap: 10px;
+  }
+
+  /* Shared page frame: compact, but never below a comfortable tap target. */
+  .topbar { padding: 8px var(--mobile-gutter) 9px; }
+  .brand { align-items: center; gap: 7px 9px; }
+  .brand-home { flex: 1 1 auto; min-width: 0; }
+  .brand h1 { font-size: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #regulation-label, .data-rules { order: 2; }
+  .sync-pill { order: 3; margin-left: auto; min-height: 32px; padding: 5px 8px; font-size: 10px; }
+  .brand .tabs {
+    order: 10;
+    flex: 1 0 100%;
+    width: 100%;
+    margin: 0;
+    justify-content: flex-start;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scroll-snap-type: inline proximity;
+  }
+  .tabs .tab { flex: 0 0 auto; min-height: 40px; padding: 8px 12px; font-size: 12px; scroll-snap-align: start; }
+  .data-rules > div { right: 0; left: auto; width: min(310px, calc(100vw - 24px)); }
+  .view-tools { padding: 0 var(--mobile-gutter); }
+  .toolbar { gap: 8px; margin-top: 9px; }
+  .main, .results, .view-tools, .toolbar, .calc, .team, .cov { min-width: 0; }
+  .results { padding: 12px var(--mobile-gutter) calc(96px + env(safe-area-inset-bottom)); }
+  .btn { min-height: 38px; }
+  .btn-sm { min-height: 32px; }
+  .seg button { min-height: 38px; }
+
+  /* Roster: keep search and filters quick, while cards remain easy to scan. */
+  .tb-pokemon { align-items: stretch; }
+  .tb-pokemon > #btn-filters { flex: 0 0 auto; }
+  .tb-pokemon > .search { flex: 1 1 160px; min-width: 0; }
+  .tb-pokemon .tb-toggles,
+  .tb-pokemon .roster-settings,
+  .tb-pokemon .tb-right { flex: 1 1 100%; width: 100%; }
+  .tb-pokemon .tb-right { gap: 6px; padding-top: 8px; border-top: 1px solid var(--border); }
+  .tb-pokemon .sortwrap { flex: 1 1 150px; }
+  .tb-pokemon .sortwrap select { min-width: 0; flex: 1; }
+  .roster-settings .wt-toggle { min-height: 38px; font-size: 12px; }
+  .grid-view { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+  .pcard { min-width: 0; padding: 9px; gap: 6px; }
+  .pcard-art { width: 68px; height: 68px; }
+  .pcard-name { font-size: 0.9rem; }
+  .pcard-totals { padding-top: 6px; }
+
+  /* Full-screen sheets and dialogs retain their focus and scrolling behavior. */
+  .detail { padding: 0; }
+  .detail-card { min-height: 100dvh; padding: 13px var(--mobile-gutter) calc(20px + env(safe-area-inset-bottom)); border-radius: 0; }
+  #detail .detail-head { gap: 10px; align-items: flex-start; }
+  #detail .detail-art { width: 70px; height: 70px; }
+  #detail .detail-name { font-size: 20px; }
+  .detail-tabs { margin-top: 12px; }
+  .detail-tabs > button { min-height: 44px; padding: 10px 4px; font-size: 12px; }
+  .overview-stats { gap: 12px; margin-top: 12px; }
+  .detail-ehp .ehp-cards { gap: 6px; }
+  .popup { padding: max(10px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom)); }
+  .info-card, .compare-card { padding: 14px; border-radius: 14px; }
+  .meta-sourcebar { padding: 12px 0; }
+  .meta-category, .meta-build-card, .meta-team-card, .meta-set-card { padding: 12px; }
+  .meta-team-card-foot { align-items: flex-start; }
+  .meta-team-card-foot > span { flex-wrap: wrap; gap: 4px 10px; }
+  .meta-team-card-foot .btn-sm { min-height: 34px; }
+
+  /* Moves: selection first, secondary setup second, results remain close. */
+  .tb-moves { align-items: stretch; gap: var(--mobile-gap); }
+  .tb-moves .mv-mode { order: 0; align-self: flex-start; }
+  .tb-moves .mv-search,
+  .tb-moves .mvr-acwrap { flex: 1 1 100%; min-width: 0; max-width: none; }
+  .tb-moves .mv-search,
+  .tb-moves .mvr-acwrap .search { width: 100%; max-width: none; }
+  .tb-moves .mv-cat { max-width: 100%; overflow-x: auto; }
+  .tb-moves .mv-cmv-btn, .tb-moves .mv-filter-btn { min-height: 38px; }
+  .mv-owners { flex: 1 1 100%; width: 100%; gap: 7px; }
+  .mv-mon-wrap { flex: 1 1 100%; max-width: none; }
+  .mv-mon-chips { width: 100%; gap: 6px; }
+  .mon-chip { width: 100%; min-height: 40px; padding: 5px 6px; border-radius: 10px; gap: 6px; }
+  .mon-chip img { width: 26px; height: 26px; }
+  .mon-cfg-badge { flex: 1 1 auto; max-width: none; font-size: 10px; }
+  .mon-cfg, .mon-chip > [data-rm-mon] { min-width: 30px; min-height: 30px; display: inline-grid; place-items: center; }
+  .mv-cfg-wrap { width: 100%; }
+  .mv-cfg-pop { padding: 10px; border-radius: 11px; }
+  .mv-cfg-head { gap: 7px; margin-bottom: 8px; }
+  .mv-cfg-head small { flex: 1 1 100%; }
+  .mv-cfg-sec { padding: 8px 9px; margin-top: 8px; }
+  .mv-cfg-grid { gap: 8px 10px; }
+  .mv-expctl {
+    flex: 1 1 100%;
+    padding: 9px 0 2px;
+    gap: 7px 10px;
+    border-top: 1px solid var(--border);
+  }
+  .mv-expctl .mv-lab { flex: 1 1 100%; }
+  .mv-exp-bestwrap, .mv-weather-wrap, .mv-assume { min-height: 32px; }
+  .mv-assume { flex-wrap: wrap; }
+  .mv-count { flex: 1 1 100%; font-size: 11px; line-height: 1.45; }
+  .mvr-arch { gap: 7px; padding: 8px 0 2px; }
+  .mvr-arch > .mv-lab { flex: 1 1 100%; }
+  .mvr-preset-toggle { min-height: 42px; padding: 9px 10px; align-items: flex-start; line-height: 1.4; }
+  .mvr-preset-toggle { flex-wrap: nowrap; }
+  .mvr-preset-toggle b { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mvr-preset-edit { padding: 9px; }
+  .mvr-opts { gap: 7px; padding: 8px 0 2px; border-top: 1px solid var(--border); }
+  .mvr-assume { flex: 1 1 100%; min-height: 34px; }
+  .mvr-row { min-height: 62px; padding: 7px 8px 7px 5px; row-gap: 5px; }
+  .mvr-cog { min-width: 30px; min-height: 30px; padding: 5px; }
+  .mvr-idn { min-height: 30px; }
+  .mvr-chips { min-height: 20px; }
+  .mvr-panel { padding: 9px; }
+  .mvr-panel-head small { flex: 1 1 100%; }
+
+  /* Damage: retain the subject, active values and results hierarchy. */
+  .calc-workspace .cl-card { padding: 10px; }
+  .calc-head { grid-template-columns: auto minmax(0, 1fr) auto; gap: 2px 8px; margin-bottom: 4px; }
+  .calc-head h2 {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip: auto;
+    grid-column: 1;
+    grid-row: 2;
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.1;
+  }
+  .calc-head h2 small { display: none; }
+  .calc-head > .calc-note { grid-column: 2; grid-row: 2; min-width: 0; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .calc-head > .calc-custom { grid-column: 3; grid-row: 2; }
+  .calc-workspace .calc-modes { display: flex; width: 100%; margin-bottom: 0; }
+  .calc-workspace .calc-modes button { flex: 1 1 0; min-height: 40px; padding: 8px 5px; font-size: 12px; }
+  .calc-context-grid { gap: 6px; margin: 5px 0; }
+  .calc-field, .calc-assumptions { padding: 9px; }
+  .calc-workspace .cl-target .calc-current-stats { margin: 4px 0 0; }
+  .calc-workspace .cl-target .calc-current-stats > div { padding: 3px 1px; }
+  .calc-workspace .cl-target .calc-current-stats dd { font-size: 11px; }
+  .calc-workspace .cl-target > .cl-sec { margin-top: 5px; padding-top: 5px; }
+  .calc-workspace .cl-target .cl-tmoves { margin-top: 4px; }
+  .calc-context-grid .calc-context-values { margin: 2px 0; font-size: 10px; line-height: 1.3; }
+  .calc-context-grid .calc-editor { margin: 4px 0 0; }
+  .calc-workspace .calc-result-filters { gap: 3px 6px; padding: 6px 8px; margin: 0 0 6px; }
+  .calc-workspace .calc-result-filters > .cl-conditions { flex: 0 1 auto; gap: 4px; }
+  .calc-workspace .calc-result-filters [data-ebsel="fCat"] { width: 76px; }
+  .calc-workspace .calc-result-filters [data-ebsel="threshold"] { width: 102px; }
+  .calc-workspace .calc-result-filters .cl-typetoggle { min-height: 30px; }
+  .calc-workspace .ehp-summary { font-size: 12px; line-height: 1.45; }
+  .ehp-list { gap: 6px; }
+  .ehp-row { padding-block: 7px; }
+
+  /* Team stays build-first: compact manager, then untouched live build values. */
+  .team-manager { gap: 8px; padding: 9px; }
+  .tm-save { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .tm-save .team-name { grid-column: 1 / -1; min-width: 0; min-height: 38px; }
+  .tm-save .btn-sm { min-width: 0; padding-inline: 6px; }
+  .tm-import { width: 100%; min-width: 0; min-height: 38px; }
+  .team-add-row { flex-wrap: wrap; gap: 8px; margin: 10px 0 12px; }
+  .team-add-row .ac-wrap { flex: 1 1 220px; }
+  .team-count { font-size: 12px; }
+  .team-analysis-bar { margin: 8px 0 10px; padding: 10px; }
+  .team-member { padding: 10px; }
+  .tm-battle-pick { min-height: 30px; }
+  .tm-current-stats { gap: 3px; }
+  .tm-current-stat { padding: 4px 0; }
+  .team-card { padding: 12px; }
+
+  /* Dense data keeps its own scroll surface rather than shrinking below legibility. */
+  .cov-core-grid { gap: 12px; }
+  .cov-core-grid > .cov-section { padding: 12px; }
+  .cov .type-chips { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+  .cov .type-chip .type { width: 100%; min-width: 0; padding: 10px 4px; font-size: 12px; }
+  .cov-next { margin-top: 16px; }
+  .cov-next-row { padding: 9px; }
+  .team-matrix-scroll, .cov-matrix-wrap, .cm-scroll, .compare-table-wrap, .tc-matrix-wrap {
+    padding-bottom: 7px;
+    scrollbar-color: var(--border-2) transparent;
+  }
+  .sync-card { padding: 12px; }
+  .sync-row { gap: 7px; }
+  .sync-code-big { align-self: stretch; text-align: center; font-size: 1rem; overflow-wrap: anywhere; }
 }

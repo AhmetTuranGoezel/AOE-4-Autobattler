@@ -174,22 +174,36 @@ def run(live_images=False):
                 tab('moves')
                 page.locator('.mv-mon').fill('Steelix')
                 page.locator('.mv-mon').press('Enter')
-                assert page.locator('.mon-chip .mv-current-stats').is_visible()
-                summary = page.locator('.mon-chip .mv-current-stats').inner_text()
-                for stat in ('Atk', 'SpA', 'Def', 'Spe'):
-                    assert stat in summary, summary
+                chip = page.locator('.mon-chip')
+                assert chip.locator('.mon-cfg-badge').is_visible()
+                summary = chip.locator('.mon-cfg-badge').inner_text()
+                assert 'Auto Nature' in summary and 'Max stats' in summary, summary
+                assert chip.locator('.mv-current-stats').count() == 0
                 page.locator('.mv-tw').fill('20')
                 page.locator('.mv-tw').dispatch_event('change')
                 assert page.locator('.mv-tw').is_visible() and not page.locator('.mvr-tw').is_visible()
                 visible_in_viewport(page.locator('#moves-results tbody tr[data-move]').first, 'Moves Browse first result')
                 shot('moves-browse-steelix', '.mon-chip img')
                 page.locator('[data-mon-cfg="steelix"]').click()
+                editor_summary = page.locator('.mv-cfg-pop .mv-cfg-head small').inner_text()
+                for stat in ('Atk', 'SpA', 'Def', 'Spe'):
+                    assert stat in editor_summary, editor_summary
+                assert 'on' in (page.locator('.mv-cfg-pop [data-cfg-nature="auto"]').get_attribute('class') or '')
+                for stat in ('atk', 'spa', 'def', 'spe'):
+                    assert page.locator(f'.mv-cfg-pop [data-cfg-slider="{stat}"]').input_value() == '32'
                 shot('moves-browse-editor', '.mv-cfg-pop img')
                 page.locator('[data-cfg-close]').click()
                 page.locator('[data-mvmode="rank"]').click()
                 assert page.locator('.mvr-tw').is_visible() and not page.locator('.mv-tw').is_visible()
                 page.locator('.mvr-tw').fill('80')
                 page.locator('.mvr-tw').dispatch_event('change')
+                preset = page.locator('.mvr-preset')
+                assert 'Auto Nature' in preset.inner_text() and 'Max stats' in preset.inner_text()
+                page.locator('[data-preset-toggle]').click()
+                assert 'on' in (preset.locator('[data-cfg-nature="auto"]').get_attribute('class') or '')
+                for stat in ('atk', 'spa', 'def', 'spe'):
+                    assert preset.locator(f'[data-cfg-slider="{stat}"]').input_value() == '32'
+                page.locator('[data-preset-toggle]').click()
                 visible_in_viewport(page.locator('.mvr-row').first, 'Best users first result')
                 shot('moves-best-users', '.mvr-row img')
                 page.locator('[data-mvmode="browse"]').click()
@@ -259,7 +273,7 @@ def run(live_images=False):
                 page.locator('[data-ebsel="screen"]').select_option('reflect')
                 field.locator(':scope > summary').click()
                 field_values = page.locator('.calc-field').inner_text()
-                assert all(value in field_values for value in ('Rain', 'Reflect', 'Singles', 'Healthy', 'Raw damage')), field_values
+                assert all(value in field_values for value in ('Rain', 'Reflect', '1v1', 'healthy', 'raw')), field_values
                 assumptions = page.locator('[data-calc-editor="attackers"]')
                 if not assumptions.evaluate('el => el.open'):
                     assumptions.locator(':scope > summary').click()

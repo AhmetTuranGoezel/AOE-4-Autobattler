@@ -1325,9 +1325,22 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
   const stageSummary = (stages) => Object.entries(stages).filter(([, n]) => n).map(([key, n]) => `${STAT_LABELS[key] || key} ${n > 0 ? "+" : ""}${n}`).join(" · ") || "no stages";
   function fieldControls() {
     const reverse = s.mode === "rev";
+    // Keep the collapsed card useful on a phone without repeating the full
+    // control form.  Weather / terrain / screen stay in the context line;
+    // this short second line exposes the battle-mode assumptions as well.
+    const fieldState = [
+      eb.doubles ? "2v2" : "1v1",
+      eb.userStatus === "none" && eb.targetStatus === "none" ? "healthy" : `${eb.userStatus}/${eb.targetStatus}`,
+      eb.useAccuracy ? "weighted" : "raw",
+    ].join(" · ");
+    const activeFieldEffects = [
+      eb.weather !== "none" && WEATHERS[eb.weather],
+      eb.terrain !== "none" && TERRAINS[eb.terrain],
+      eb.screen !== "none" && SCREENS[eb.screen],
+    ].filter(Boolean).join(" · ") || "Clear field";
     return `<section class="calc-card calc-field cl-sec"><div class="cl-sec-head"><span>Battle conditions</span></div>
-      <p class="calc-context-values">${[WEATHERS[eb.weather], TERRAINS[eb.terrain], SCREENS[eb.screen]].join(" · ")}</p>
-      ${editor("field", `Edit · ${eb.doubles ? "Doubles ×0.75" : "Singles"} · ${eb.userStatus === "none" && eb.targetStatus === "none" ? "Healthy" : `${eb.userStatus} / ${eb.targetStatus}`} · ${eb.useAccuracy ? "Accuracy weighted" : "Raw damage"}`, `
+      <p class="calc-context-values">${activeFieldEffects}</p>
+      ${editor("field", `Edit · ${fieldState}`, `
       <div class="cl-conditions calc-context-row">
         <div class="cl-stat"><span class="cl-stat-lab">Weather</span>${seg("weather", WEATHERS, eb.weather)}</div>
         <div class="cl-stat"><span class="cl-stat-lab">Terrain</span>${seg("terrain", TERRAINS, eb.terrain)}</div>
@@ -1408,7 +1421,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
       <section class="calc-card cl-sec calc-assumptions">
         <div class="cl-sec-head"><span title="These defaults apply to the roster's attacking Pokémon">Roster attackers</span></div>
         <p class="calc-context-values">${eb.atkInvest} points · ${eb.atkNature === "auto" ? "Auto +stat" : eb.atkNature === "Serious" ? "Neutral" : esc(eb.atkNature)} · ${itemLabel(eb.atkItem)}</p>
-        ${editor("attackers", `Edit · ${stageSummary({ atk: eb.atkBoost })} · ${eb.atkSpeed === "max" ? "Max" : "Base"} Speed · ${eb.candBulk === "hp" ? "+32 HP" : "Base bulk"} · ${eb.movepool === "ladder" ? "Ladder" : "All"} moves${eb.excluded.size ? ` · ${eb.excluded.size} excluded` : ""}`, `
+        ${editor("attackers", "Edit roster build", `
         <div class="cl-attacker">
           <div class="cl-stat"><span class="cl-stat-lab">Invest</span>
             <div class="seg cl-invest">${[[32, "Max"], [16, "Half"], [0, "None"]].map(([v, l]) => `<button data-atkinvest="${v}" class="${eb.atkInvest === v ? "active" : ""}">${l}</button>`).join("")}</div></div>
@@ -1808,7 +1821,7 @@ export function initCalcView({ container, data, onOpen, onMoveInfo, getTeam, onG
     </section>
     <div class="calc-context-grid">${fieldControls()}
       <section class="calc-card cl-sec calc-assumptions"><div class="cl-sec-head"><span>Roster defenders</span></div>
-        <p class="calc-context-values">${{ ladder: "Snapshot estimates, not verified complete sets", base: "Neutral Nature, zero points", bulk: "Optimized mixed bulk, neutral Nature" }[eb.revBasis]} · ${eb.revOverrides.size} individual override${eb.revOverrides.size === 1 ? "" : "s"}</p>
+        <p class="calc-context-values">${{ ladder: "Snapshot estimates", base: "Neutral · 0 pts", bulk: "Max bulk · Neutral" }[eb.revBasis]}${eb.revOverrides.size ? ` · ${eb.revOverrides.size} individual override${eb.revOverrides.size === 1 ? "" : "s"}` : ""}</p>
         ${editor("defenders", "Edit roster baseline", `
         <div class="seg cl-invest" title="Snapshot = captured spread/Nature if available; otherwise exact aggregate spread + neutral Nature. Zero points when undisclosed.">${[["ladder", "Snapshot"], ["base", "0 points"], ["bulk", "Max bulk"]].map(([v, l]) => `<button data-revbasis="${v}" class="${eb.revBasis === v ? "active" : ""}">${l}</button>`).join("")}</div>
         `, true)}

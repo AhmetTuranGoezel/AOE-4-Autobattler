@@ -147,3 +147,52 @@ test('old Thermal Vision builds and their item notes remain intact during normal
   const result = plain(app.normalizeStorageEnvelope(library).envelope);
   assert.deepEqual(result, library);
 });
+
+test('four alternatives survive cloning, save/import normalization and whole-slot swaps', () => {
+  const build = fixture();
+  build.reserve[0] = app.createReserveEntry('Model 1887', ['Cerberus 12GA']);
+  build.slotAlternatives.mainWeapon = ['P90', 'R .357', 'FAMAS', 'FCAR'];
+  const copy = app.cloneBuild(build);
+  assert.deepEqual(plain(copy), plain(build));
+  assert.deepEqual(plain(app.normalizeLoadedBuild(plain(build))), plain(build));
+  assert.equal(app.swapLoadoutSlots(copy, weapon, reserve), true);
+  assert.deepEqual(plain(copy.reserve[0]), { primary: 'AKM', alternatives: ['P90', 'R .357', 'FAMAS', 'FCAR'] });
+  assert.deepEqual(plain(app.normalizeLoadedBuild(plain(copy))), plain(copy));
+  assert.deepEqual(plain(build.slotAlternatives.mainWeapon), ['P90', 'R .357', 'FAMAS', 'FCAR']);
+});
+
+test('tapping a register swaps the primary into that exact position without reordering other tabs', () => {
+  const build = fixture();
+  build.reserve[0] = app.createReserveEntry('Model 1887');
+  build.slotAlternatives.mainWeapon = ['P90', 'R .357', 'FAMAS', 'FCAR'];
+  const original = plain(build);
+  assert.equal(app.promoteLoadoutAlternative(build, 'mainWeapon', 0, 'FAMAS'), true);
+  assert.equal(build.mainWeapon, 'FAMAS');
+  assert.deepEqual(plain(build.slotAlternatives.mainWeapon), ['P90', 'R .357', 'AKM', 'FCAR']);
+  assert.equal(app.promoteLoadoutAlternative(build, 'mainWeapon', 0, 'AKM'), true);
+  assert.deepEqual(plain(build), original);
+  assert.equal(app.promoteLoadoutAlternative(build, 'mainWeapon', 0, 'Sword'), false);
+  assert.deepEqual(plain(build), original);
+});
+
+test('reserve and gadget register swaps keep the other alternatives in order', () => {
+  const build = fixture();
+  build.reserve[0].alternatives.push('Chimera-XB');
+  assert.equal(app.promoteLoadoutAlternative(build, 'reserve', 0, 'CB-01 Repeater'), true);
+  assert.deepEqual(plain(build.reserve[0]), { primary: 'CB-01 Repeater', alternatives: ['FAMAS', 'Model 1887', 'FCAR', 'Chimera-XB'] });
+  build.slotAlternatives.mainGadgets[0] = ['APS Turret', 'Gas Mine', 'Explosive Mine', 'Sonar Grenade'];
+  assert.equal(app.promoteLoadoutAlternative(build, 'mainGadget', 0, 'Sonar Grenade'), true);
+  assert.equal(build.mainGadgets[0], 'Sonar Grenade');
+  assert.deepEqual(plain(build.slotAlternatives.mainGadgets[0]), ['APS Turret', 'Gas Mine', 'Explosive Mine', 'Defibrillator']);
+});
+
+test('oversized imports are capped at four alternatives for main and reserve slots', () => {
+  const build = fixture();
+  build.slotAlternatives.mainWeapon = ['P90', 'R .357', 'Cerberus 12GA', 'Chimera-XB', 'Pike-556'];
+  build.reserve[0].alternatives = ['FAMAS', 'Model 1887', 'CB-01 Repeater', 'Riot Shield', 'Dual Blades'];
+  const normalized = app.normalizeLoadedBuild(plain(build));
+  assert.equal(normalized.slotAlternatives.mainWeapon.length, 4);
+  assert.equal(normalized.reserve[0].alternatives.length, 4);
+  assert.equal(normalized.slotAlternatives.mainWeapon[3], 'Chimera-XB');
+  assert.equal(normalized.reserve[0].alternatives[3], 'Riot Shield');
+});

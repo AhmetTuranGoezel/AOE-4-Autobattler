@@ -75,8 +75,11 @@ and Sonar Grenade access for Medium. True Sight deliberately uses the wiki's
 preserve old builds and notes, but is hidden from new item selections.
 
 Mobile uses two opening equipment cards, independent swipeable gadget and
-reserve rows, and a bottom selection ribbon. Alternative controls show an icon
-and count; selected alternatives have an explicit Equip action in the picker.
+reserve rows, and a bottom selection ribbon. Each equipment group supports up
+to four alternatives, shown as visible image tabs above its primary card. A
+tab tap exchanges that item with the primary in exactly the same tab position;
+the other alternatives retain their order. Edit alternatives opens the picker
+for additions/removals, with the four-item cap enforced on imports and saves.
 Notes stay global per item, including when swapping main/reserve bundles.
 
 ## Mechanics overrides and evidence
